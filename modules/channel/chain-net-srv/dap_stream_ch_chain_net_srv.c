@@ -529,10 +529,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 log_it(L_MSG, "Get price from list.");
                 DL_FOREACH(a_grace->usage->service->pricelist, l_price) {
                     switch (l_price->units_uid.enm) {
-                    case SERV_UNIT_MB:
                     case SERV_UNIT_SEC:
-                    case SERV_UNIT_DAY:
-                    case SERV_UNIT_KB:
                     case SERV_UNIT_B:
                         log_it(L_MSG, "Proper unit type %s found among available prices",
                                dap_chain_srv_unit_enum_to_str(l_price->units_uid.enm));
@@ -556,10 +553,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 DAP_DELETE(l_order_hash_str);
                 if ((l_price = dap_chain_net_srv_get_price_from_order(a_grace->usage->service, "srv_vpn", &a_grace->usage->static_order_hash))){
                     switch (l_price->units_uid.enm) {
-                    case SERV_UNIT_MB:
                     case SERV_UNIT_SEC:
-                    case SERV_UNIT_DAY:
-                    case SERV_UNIT_KB:
                     case SERV_UNIT_B:
                         log_it(L_MSG, "Proper unit type %s found among available prices",
                                dap_chain_srv_unit_enum_to_str(l_price->units_uid.enm));
@@ -789,12 +783,9 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_grace->usage->client->ch->stream->session->_inheritor;
                 switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
                     case SERV_UNIT_SEC:
-                    case SERV_UNIT_DAY:
                         l_srv_session->limits_ts = l_remain_service->limits_ts;
                         break;
                     case SERV_UNIT_B:
-                    case SERV_UNIT_KB:
-                    case SERV_UNIT_MB:
                         l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                         break;
                 }
@@ -866,17 +857,8 @@ uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t *a_
         case SERV_UNIT_SEC:
             l_used = dap_time_now() - a_usage->ts_created;
             break;
-        case SERV_UNIT_DAY:
-            l_used = (dap_time_now() - a_usage->ts_created) / (24 * 3600);
-            break;
         case SERV_UNIT_B:
             l_used = a_usage->client->bytes_received + a_usage->client->bytes_sent;
-            break;
-        case SERV_UNIT_KB:
-            l_used = (a_usage->client->bytes_received + a_usage->client->bytes_sent) / 1024;
-            break;
-        case SERV_UNIT_MB:
-            l_used = (a_usage->client->bytes_received + a_usage->client->bytes_sent) / (1024 * 1024);
             break;
     }
     MULT_256_256(a_usage->service->pricelist->value_datoshi, GET_256_FROM_64(l_used), &l_ret);
@@ -1118,12 +1100,9 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                 dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) l_grace->usage->client->ch->stream->session->_inheritor;
                 switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
                     case SERV_UNIT_SEC:
-                    case SERV_UNIT_DAY:
                         l_srv_session->limits_ts = l_remain_service->limits_ts;
                         break;
                     case SERV_UNIT_B:
-                    case SERV_UNIT_KB:
-                    case SERV_UNIT_MB:
                         l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                         break;
                 }
