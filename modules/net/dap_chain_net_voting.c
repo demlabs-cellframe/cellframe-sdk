@@ -598,7 +598,8 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
             }
             uint64_t l_max_count = 0;
             if (l_max_votes_count_str) {
-                l_max_count = strtoull(l_max_votes_count_str, NULL, 10);
+                char *ptr;
+                l_max_count = strtoull(l_max_votes_count_str, &ptr, 10);
             }
 
             bool l_is_delegated_key = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-delegated_key_required", NULL) ? true : false;
