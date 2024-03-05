@@ -741,7 +741,8 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet %s does not exist", l_wallet_str);
                 return -112;
             }
-            uint64_t l_option_idx_count = atoll(l_option_idx_str);
+            char *l_ptr = NULL;
+            uint64_t l_option_idx_count = strtoul(l_option_idx_str, &l_ptr, 10);
             char *l_hash_tx;
 
             int res = dap_chain_net_vote_voting(l_cert, l_value_fee, l_wallet_fee, l_voting_hash, l_option_idx_count,
