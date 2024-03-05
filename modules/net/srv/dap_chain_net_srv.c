@@ -574,61 +574,6 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
                     l_ret=-5;
                 }
             }
-#ifdef DAP_MODULES_DYNAMIC
-            else if(!dap_strcmp( l_order_str, "recheck" )) {
-                int (*dap_chain_net_srv_vpn_cdb_server_list_check_orders)(dap_chain_net_t *a_net);
-                dap_chain_net_srv_vpn_cdb_server_list_check_orders = dap_modules_dynamic_get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_check_orders");
-                int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_check_orders ? dap_chain_net_srv_vpn_cdb_server_list_check_orders(l_net) : -5;
-                if (l_init_res >= 0) {
-                    dap_string_append_printf(l_string_ret, "Orders recheck started\n");
-                    l_ret = 0;
-                } else {
-                    dap_string_append_printf(l_string_ret, "Orders recheck not started, code %d\n", l_init_res);
-                    l_ret = -10;
-                }
-
-            } else if(!dap_strcmp( l_order_str, "static" )) {
-                // find the subcommand directly after the 'order' command
-                int l_subcmd_save = dap_cli_server_cmd_find_option_val(argv, l_order_arg_pos + 1, l_order_arg_pos + 2, "save", NULL);
-                int l_subcmd_del = dap_cli_server_cmd_find_option_val(argv, l_order_arg_pos + 1, l_order_arg_pos + 2, "delete", NULL) |
-                                   dap_cli_server_cmd_find_option_val(argv, l_order_arg_pos + 1, l_order_arg_pos + 2, "del", NULL);
-
-                int (*dap_chain_net_srv_vpn_cdb_server_list_static_create)(dap_chain_net_t *a_net) = NULL;
-                int (*dap_chain_net_srv_vpn_cdb_server_list_static_delete)(dap_chain_net_t *a_net) = NULL;
-                //  find func from dinamic library
-                if(l_subcmd_save || l_subcmd_del) {
-                    dap_chain_net_srv_vpn_cdb_server_list_static_create = dap_modules_dynamic_get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_static_create");
-                    dap_chain_net_srv_vpn_cdb_server_list_static_delete = dap_modules_dynamic_get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_static_delete");
-                }
-                if(l_subcmd_save) {
-                    int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_static_create ? dap_chain_net_srv_vpn_cdb_server_list_static_create(l_net) : -5;
-                    if(l_init_res >= 0){
-                        dap_string_append_printf(l_string_ret, "Static node list saved, %d orders in list\n", l_init_res);
-                        l_ret = 0;
-                    }
-                    else{
-                        dap_string_append_printf(l_string_ret, "Static node list not saved, error code %d\n", l_init_res);
-                        l_ret = -11;
-                    }
-
-                } else if(l_subcmd_del) {
-                    int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_static_delete ? dap_chain_net_srv_vpn_cdb_server_list_static_delete(l_net) : -5;
-                    if(!l_init_res){
-                        dap_string_append_printf(l_string_ret, "Static node list deleted\n");
-                        l_ret = 0;
-                    }
-                    else if(l_init_res > 0){
-                        dap_string_append_printf(l_string_ret, "Static node list already deleted\n");
-                        l_ret = -12;
-                    }
-                    else
-                        dap_string_append_printf(l_string_ret, "Static node list not deleted, error code %d\n", l_init_res);
-                } else {
-                    dap_string_append(l_string_ret, "not found subcommand 'save' or 'delete'\n");
-                    l_ret = -13;
-                }
-            }
-#endif
             else if (l_order_str) {
                 dap_string_append_printf(l_string_ret, "Unrecognized subcommand '%s'", l_order_str);
                 l_ret = -14;
