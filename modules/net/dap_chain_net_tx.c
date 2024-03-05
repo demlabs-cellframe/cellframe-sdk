@@ -192,13 +192,14 @@ void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_t
         case TX_SEARCH_TYPE_NET:
         case TX_SEARCH_TYPE_LOCAL:{
             dap_ledger_datum_iter_t *l_iter = dap_ledger_datum_iter_create(a_net);
-            dap_ledger_datum_iter_get_first(l_iter);
-            while(l_iter->cur){
-                if (a_search_type != TX_SEARCH_TYPE_NET_UNSPENT ||
-                    (a_search_type == TX_SEARCH_TYPE_NET_UNSPENT && l_iter->is_unspent)){
-                    a_tx_callback(a_net, l_iter->cur, &l_iter->cur_hash, a_arg);
+            if ( l_iter && dap_ledger_datum_iter_get_first(l_iter) ) {
+                while(l_iter->cur) {
+                    if (a_search_type != TX_SEARCH_TYPE_NET_UNSPENT ||
+                        (a_search_type == TX_SEARCH_TYPE_NET_UNSPENT && l_iter->is_unspent)){
+                        a_tx_callback(a_net, l_iter->cur, &l_iter->cur_hash, a_arg);
+                    }
+                    dap_ledger_datum_iter_get_next(l_iter);
                 }
-                dap_ledger_datum_iter_get_next(l_iter);
             }
             dap_ledger_datum_iter_delete(l_iter);
         break;
@@ -290,7 +291,6 @@ static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum
             }
             l_item_idx++;
         }
-        DAP_DELETE(l_tx_hash);
     }else if(a_tx){
         dap_hash_fast_t * l_tx_hash = a_tx_hash;
         if (!l_tx_hash) {
@@ -313,7 +313,6 @@ static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum
                 }
             }
         }
-        DAP_DELETE(l_tx_hash);
     }
 }
 
