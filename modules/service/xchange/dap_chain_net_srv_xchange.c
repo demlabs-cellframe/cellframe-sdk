@@ -1200,53 +1200,43 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 }
                 case XCHANGE_CREATE_ERROR_TOKEN_TICKER_BUY_IS_NOT_FOUND_LEDGER: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_buy_str);
-                    DAP_DELETE(l_hash_ret);
                     return -6;
                 }
                 case XCHANGE_CREATE_ERROR_RATE_IS_ZERO: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -rate n.n = buy / sell (eg: 1.0, 1.135)");
-                    DAP_DELETE(l_hash_ret);
                     return -9;
                 }
                 case XCHANGE_CREATE_ERROR_FEE_IS_ZERO: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <unsigned integer 256>");
-                    DAP_DELETE(l_hash_ret);
                     return -21;
                 }
                 case XCHANGE_CREATE_ERROR_VALUE_SELL_IS_ZERO: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <unsigned integer 256>");
-                    DAP_DELETE(l_hash_ret);
                     return -9;
                 }
                 case XCHANGE_CREATE_ERROR_INTEGER_OVERFLOW_WITH_SUM_OF_VALUE_AND_FEE: {
                     log_it(L_ERROR, "Integer overflow with sum of value and fee");
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Integer overflow with sum of value and fee");
-                    DAP_DELETE(l_hash_ret);
                     return -22;
                 }
                 case XCHANGE_CREATE_ERROR_NOT_ENOUGH_CASH_FOR_FEE_IN_SPECIFIED_WALLET: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nNot enough cash for fee in specified wallet", l_sign_str);
-                    DAP_DELETE(l_hash_ret);
                     return -23;
                 }
                 case XCHANGE_CREATE_ERROR_NOT_ENOUGH_CASH_IN_SPECIFIED_WALLET: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nNot enough cash in specified wallet", l_sign_str);
-                    DAP_DELETE(l_hash_ret);
                     return -12;
                 }
                 case XCHANGE_CREATE_ERROR_MEMORY_ALLOCATED: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory");
-                    DAP_DELETE(l_hash_ret);
                     return -1;
                 }
                 case XCHANGE_CREATE_ERROR_CAN_NOT_COMPOSE_THE_CONDITIONAL_TRANSACTION: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't compose the conditional transaction", l_sign_str);
-                    DAP_DELETE(l_hash_ret);
                     return -14;
                 }
                 case XCHANGE_CREATE_ERROR_CAN_NOT_PUT_TRANSACTION_TO_MEMPOOL: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't compose the conditional transaction", l_sign_str);
-                    DAP_DELETE(l_hash_ret);
                     return -15;
                 }
             }
