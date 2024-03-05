@@ -28,7 +28,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_string.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv.h"
-
 typedef struct dap_chain_net_srv_order_old
 {
     uint16_t version;
