@@ -2031,7 +2031,6 @@ int com_help(int a_argc, char **a_argv, void **reply)
 int com_tx_wallet(int a_argc, char **a_argv, void **reply)
 {
 json_object ** json_arr_reply = (json_object **) reply;
-char ** a_str_reply = (char **) reply;
 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
 enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT };
 int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
@@ -2436,8 +2435,6 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
         } else {
             json_object_array_add(*json_arr_reply, json_object_new_string("empty"));
         }
-
-//    *a_str_reply = dap_string_free(l_string_ret, false);
     return 0;
 }
 
