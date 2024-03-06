@@ -509,6 +509,12 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
         dap_string_append(a_reply_str, "Empty\n");
 }
 
+static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t UNUSED_ARG a_id,
+                                void *a_atom, size_t a_atom_size)
+{
+    
+}
+
 /**
  * @brief s_cli_blocks
  * @param argc
@@ -1061,6 +1067,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
 
         case SUBCMD_AUTOCOLLECT: {
             const char * l_cert_name = NULL;
+            dap_list_t *l_block_list_fee = NULL, *l_block_list_rew = NULL;
             dap_pkey_t * l_pub_key = NULL;
             dap_hash_fast_t l_pkey_hash = {};
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
@@ -1072,7 +1079,34 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 return -20;
             }
             for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
-
+                bool l_found_fee = true;
+                bool l_found_rew = true;
+                dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
+                dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
+                if (!l_pub_key) {
+                    dap_hash_fast_t l_sign_pkey_hash;
+                    dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
+                    if (!dap_hash_fast_compare(&l_pkey_hash, &l_sign_pkey_hash))
+                        l_found_fee = false;
+                } else if (!dap_pkey_compare_with_sign(l_pub_key, l_sign))
+                    l_found_fee = false;
+                
+                for (size_t i = 0; i < l_block_cache->datum_count; i++) {
+                    if (l_block_cache->datum[i]->header.type_id != DAP_CHAIN_DATUM_TX)
+                        l_found_fee = false;
+                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_block_cache->datum[i]->data;
+                    int l_out_idx_tmp = 0;
+                    if (NULL == dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, &l_out_idx_tmp))
+                        l_found_fee = false;
+                    if (!dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + i, l_out_idx_tmp, NULL)) {
+                        if(l_found_fee)
+                            l_block_list_fee = dap_list_append(l_block_list_fee, l_block_cache->block_hash_str); 
+                        break;
+                    }
+                } 
+                 
+                if (l_ts < DAP_REWARD_INIT_TIMESTAMP)
+                        l_found_rew = false;
                 if (!l_pub_key) {
                     bool l_found = false;
                     for (size_t i = 0; i < l_block_cache->sign_count ; i++) {
@@ -1084,16 +1118,26 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                             break;
                         }
                     }
-                    if (!l_found)
-                        continue;
+                    if(!l_found)
+                        l_found_rew = false;
                 } else if (!dap_chain_block_sign_match_pkey(l_block_cache->block, l_block_cache->block_size, l_pub_key))
-                    continue;
+                    l_found_rew = false;
                 if (dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash, &l_pkey_hash))
-                    continue;
-                dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
-                l_block_count++;
-
+                    l_found_rew = false;
+                if(l_found_rew)
+                    l_block_list_rew = dap_list_append(l_block_list_rew, l_block_cache->block_hash_str);               
             }
+            
+            size_t l_objs_fee_count = 0;
+            size_t l_objs_rew_count = 0;
+            char *l_group_fee = dap_chain_cs_blocks_get_fee_group(l_net->pub.name);
+            char *l_group_rew = dap_chain_cs_blocks_get_reward_group(l_net->pub.name);
+            dap_global_db_obj_t *l_objs_fee = dap_global_db_get_all_sync(l_group_fee, &l_objs_fee_count);
+            dap_global_db_obj_t *l_objs_rew = dap_global_db_get_all_sync(l_group_rew, &l_objs_rew_count);
+            DAP_DELETE(l_group_fee);
+            DAP_DELETE(l_group_rew);
+
+
 
             if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "status") == -1) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect' requires subcommand 'status'");
