@@ -370,7 +370,7 @@ void s_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datum_
             continue;
         default: {
                 char l_tsd_type_char[50] = {};
-                dap_string_append_printf(l_tsd_type_char, "<0x%04hX>", l_tsd->type, l_tsd->size);
+                dap_snprintf(l_tsd_type_char, sizeof(l_tsd_type_char), "<0x%04hX>", l_tsd->type, l_tsd->size);
                 json_object_object_add(json_obj_out, "tsd_type", json_object_new_string(l_tsd_type_char));
                 json_object_object_add(json_obj_out, "tsd_size", json_object_new_int(l_tsd->size));
             }

@@ -2479,7 +2479,7 @@ json_object *dap_chain_net_srv_xchange_print_fee_json(dap_chain_net_t *a_net) {
     uint256_t l_fee = {0};
     dap_chain_addr_t l_addr = {0};
     uint16_t l_type = 0;
-    if (s_srv_xchange_get_fee(a_net->pub.id, &l_fee, &l_addr, &l_type)) {
+    if (dap_chain_net_srv_xchange_get_fee(a_net->pub.id, &l_fee, &l_addr, &l_type)) {
         char *l_fee_balance = dap_chain_balance_print(l_fee);
         char *l_fee_coins = dap_chain_balance_to_coins(l_fee);
         char *l_addr_str = dap_chain_addr_to_str(&l_addr);

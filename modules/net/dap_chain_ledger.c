@@ -5879,7 +5879,7 @@ char * dap_ledger_tx_get_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_
     
     if (l_rc == DAP_LEDGER_TX_ALREADY_CACHED)
     {
-        l_main_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, l_tx_hash);
+        l_main_ticker = (char*)dap_ledger_tx_get_token_ticker_by_hash(a_ledger, l_tx_hash);
     }
 
     if (a_ledger_rc)
