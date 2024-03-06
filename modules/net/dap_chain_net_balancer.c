@@ -229,7 +229,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     uint16_t links_need = 0;
     sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,needlink=%hu,net=",
                                                             &l_protocol_version, &l_issue_method, &links_need);
-    if (l_protocol_version != 1 || l_issue_method != 'r') {
+    if (l_protocol_version != DAP_BALANCER_PROTOCOL_VERSION || l_issue_method != 'r') {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_balancer module");
         *l_return_code = Http_Status_MethodNotAllowed;
         return;
