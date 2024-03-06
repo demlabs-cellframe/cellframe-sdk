@@ -1920,12 +1920,28 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
                     dap_string_t * l_str_tmp = dap_string_new("");
                     if ( l_gdb_group_events ){
+                        const char *l_limit_str = NULL, *l_offset_str = NULL;
+                        dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-limit", &l_limit_str);
+                        dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-offset", &l_offset_str);
                         dap_global_db_obj_t * l_objs;
                         size_t l_objs_count = 0;
                         l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
+                        uint l_limit = l_limit_str ? atol(l_limit_str) : 0;
+                        uint l_offset = l_offset_str ? atol(l_offset_str) : 0;
+                        size_t l_arr_start = 0;
+                        if (l_offset) {
+                            l_arr_start = l_offset * l_limit;
+                            dap_string_append_printf(l_str_tmp, "limit: %lu", l_arr_start);
+                        }
+                        size_t l_arr_end = l_objs_count;
+                        if (l_limit) {
+                            l_arr_end = l_arr_start + l_limit;
+                            if (l_arr_end > l_objs_count)
+                                l_arr_end = l_objs_count;
+                        }
                         dap_string_append_printf(l_str_tmp,"%s.%s: Found %zu records :\n",l_net->pub.name,l_chain->name,l_objs_count);
 
-                        for (size_t i = 0; i < l_objs_count; i++) {
+                        for (size_t i = l_arr_start; i < l_arr_end; i++) {
                             if (!strcmp(DAG_ROUND_CURRENT_KEY, l_objs[i].key)) {
                                 dap_string_append_printf(l_str_tmp, "\t%s: %" DAP_UINT64_FORMAT_U "\n",
                                                          l_objs[i].key, *(uint64_t *)l_objs[i].value);
