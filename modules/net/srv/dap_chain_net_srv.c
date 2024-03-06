@@ -397,7 +397,7 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
                 if ( l_price_max_str )
                     l_price_max = dap_chain_balance_scan(l_price_max_str);
 
-                l_price_unit.uint32 = dap_chain_srv_str_to_unit_enum((char*)l_price_unit_str);
+                l_price_unit.uint32 = dap_chain_srv_str_to_unit_enum(l_price_unit_str);
 
                 dap_chain_net_srv_order_t * l_orders;
                 size_t l_orders_num = 0;
