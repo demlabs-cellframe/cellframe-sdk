@@ -81,7 +81,6 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
                                                 uint256_t *a_max_fee, uint256_t *a_average_fee, uint256_t *a_min_fee, uint256_t *a_median_fee);
 
 void dap_chain_net_srv_stake_get_fee_validators_str(dap_chain_net_t *a_net, dap_string_t *a_string);
-json_object *dap_chain_net_srv_stake_get_fee_validators_json(dap_chain_net_t  *a_net);
 
 int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net);
 void dap_chain_net_srv_stake_purge(dap_chain_net_t *a_net);

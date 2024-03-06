@@ -2473,41 +2473,6 @@ static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t 
     return 0;
 }
 
-json_object *dap_chain_net_srv_xchange_print_fee_json(dap_chain_net_t *a_net) {
-    if (!a_net)
-        return NULL;
-    uint256_t l_fee = {0};
-    dap_chain_addr_t l_addr = {0};
-    uint16_t l_type = 0;
-    if (s_srv_xchange_get_fee(a_net->pub.id, &l_fee, &l_addr, &l_type)) {
-        char *l_fee_balance = dap_chain_balance_print(l_fee);
-        char *l_fee_coins = dap_chain_balance_to_coins(l_fee);
-        char *l_addr_str = dap_chain_addr_to_str(&l_addr);
-        const char *l_type_str = dap_chain_net_srv_fee_type_to_str((dap_chain_net_srv_fee_type_t)l_type);
-        json_object *l_jobj_xchange = json_object_new_object();
-        json_object *l_jobj_balance = json_object_new_string(l_fee_balance);
-        json_object *l_jobj_coins = json_object_new_string(l_fee_coins);
-        json_object *l_jobj_addr = json_object_new_string(l_addr_str);
-        json_object *l_jobj_type = json_object_new_string(l_type_str);
-        if (!l_jobj_xchange || !l_jobj_balance || !l_jobj_coins || !l_jobj_addr || !l_jobj_type) {
-            json_object_put(l_jobj_xchange);
-            json_object_put(l_jobj_balance);
-            json_object_put(l_jobj_coins);
-            json_object_put(l_jobj_addr);
-            json_object_put(l_jobj_type);
-            return NULL;
-        }
-        json_object_object_add(l_jobj_xchange, "coin", l_jobj_coins);
-        json_object_object_add(l_jobj_xchange, "balance", l_jobj_balance);
-        json_object_object_add(l_jobj_xchange, "addr", l_jobj_addr);
-        json_object_object_add(l_jobj_xchange, "type", l_jobj_type);
-        return l_jobj_xchange;
-    } else {
-        json_object *l_jobj_str = json_object_new_string("service has not announced a commission fee");
-        return l_jobj_str;
-    }
-}
-
 void dap_chain_net_srv_xchange_print_fee(dap_chain_net_t *a_net, dap_string_t *a_string_ret){
     if (!a_net || !a_string_ret)
         return;

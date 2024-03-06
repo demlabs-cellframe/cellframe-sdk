@@ -1578,7 +1578,7 @@ dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_ne
         return NULL;
     dap_chain_net_votings_t *l_voting = NULL;
     pthread_rwlock_rdlock(&s_votings_rwlock);
-    HASH_FIND(hh, s_votings, &a_voting, sizeof(dap_hash_fast_t), l_voting);
+    HASH_FIND(hh, s_votings, a_voting, sizeof(dap_hash_fast_t), l_voting);
     pthread_rwlock_unlock(&s_votings_rwlock);
     if(!l_voting){
         return NULL;

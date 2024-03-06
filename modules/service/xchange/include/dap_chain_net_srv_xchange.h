@@ -60,7 +60,6 @@ extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid;
 int dap_chain_net_srv_xchange_init();
 void dap_chain_net_srv_xchange_deinit();
 
-json_object *dap_chain_net_srv_xchange_print_fee_json(dap_chain_net_t *a_net);
 void dap_chain_net_srv_xchange_print_fee(dap_chain_net_t *a_net, dap_string_t *a_string_ret);
 
 typedef enum dap_chain_net_srv_xchange_create_error_list{
