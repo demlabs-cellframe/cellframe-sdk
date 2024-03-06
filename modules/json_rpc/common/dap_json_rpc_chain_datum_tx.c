@@ -14,7 +14,7 @@
 
 
 
-json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx,dap_chain_net_id_t *a_net_id){
+json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
     json_object *l_obj_items = json_object_new_array();
     if (!l_obj_items) {
         dap_json_rpc_allocation_error;
@@ -52,14 +52,6 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx,dap_chain_net
             case TX_ITEM_TYPE_SIG:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_SIG");
                 l_obj_item_data = dap_chain_datum_tx_item_sig_to_json((dap_chain_tx_sig_t*)item);
-                if(a_net_id){
-                    dap_sign_t *l_sign_tmp = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)item);
-                    dap_chain_addr_t l_sender_addr;
-                    dap_chain_addr_fill_from_sign(&l_sender_addr, l_sign_tmp, *a_net_id);
-                    const char *l_addr_str = dap_chain_addr_to_str(&l_sender_addr);
-                    json_object_object_add(l_obj_item_data, "Sender addr", json_object_new_string(l_addr_str));
-                    DAP_DELETE(l_addr_str);
-                }
                 break;
             case TX_ITEM_TYPE_RECEIPT:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_RECEIPT");
