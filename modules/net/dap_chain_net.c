@@ -158,7 +158,7 @@ typedef struct dap_chain_net_pvt{
 
     atomic_uint balancer_link_requests;
     bool balancer_http;
-    bool only_static_links;
+    bool links_static_only;
     bool load_mode;
 
     uint16_t permanent_links_count;
@@ -662,7 +662,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
             DAP_DELETE(l_link_node_info);
         }
     }
-    if(l_net_pvt->only_static_links)
+    if(l_net_pvt->links_static_only)
         return true;
     int a_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
     if(!l_net_pvt->balancer_link_requests) {
@@ -854,27 +854,22 @@ dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
  * @param a_node_role
  * @return dap_chain_net_t*
  */
-static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
+static dap_chain_net_t *s_net_new(dap_chain_net_id_t *a_id, const char *a_name,
                                   const char *a_native_ticker, const char *a_node_role)
 {
-    if (!a_id || !a_name || !a_native_ticker || !a_node_role)
-        return NULL;
-    dap_chain_net_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t));
-    if (!l_ret) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return NULL;
-    }
-    l_ret->pub.name = strdup( a_name );
-    l_ret->pub.native_ticker = strdup( a_native_ticker );
+// sanity check
+    dap_return_val_if_pass(!a_id || !a_name || !a_native_ticker || !a_node_role, NULL);
+    dap_chain_net_t *l_ret = NULL;
+// memory alloc
+    DAP_NEW_Z_SIZE_RET_VAL(l_ret, dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t), NULL, NULL);
+// func work
+    l_ret->pub.id.uint64 = a_id->uint64;
     pthread_mutexattr_t l_mutex_attr;
     pthread_mutexattr_init(&l_mutex_attr);
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&l_ret->pub.balancer_mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
-    if (dap_chain_net_id_parse(a_id, &l_ret->pub.id) != 0) {
-        DAP_DELETE(l_ret);
-        return NULL;
-    }
+
     if (strcmp (a_node_role, "root_master")==0){
         PVT(l_ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
     } else if (strcmp( a_node_role,"root") == 0){
@@ -894,6 +889,11 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
         DAP_DELETE(l_ret);
         return NULL;
     }
+    l_ret->pub.name = dap_strdup( a_name );
+    l_ret->pub.native_ticker = dap_strdup( a_native_ticker );
+    if (!(l_ret->pub.name = dap_strdup(a_name)) ||
+        !(l_ret->pub.native_ticker = dap_strdup( a_native_ticker )))
+            DAP_DEL_MULTY(l_ret->pub.name, l_ret->pub.native_ticker, l_ret);
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, a_name);
     return l_ret;
 }
@@ -2001,7 +2001,7 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
  * @param a_acl_idx currently 0
  * @return int
  */
-int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
+int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
 {
     char *l_cfg_path = dap_strdup_printf("network/%s", a_net_name);
     dap_config_t *l_cfg = dap_config_open(l_cfg_path);
@@ -2010,9 +2010,31 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         DAP_DEL_Z(l_cfg_path);
         return -1;
     }
-    DAP_DEL_Z(l_cfg_path);
+    DAP_DELETE(l_cfg_path);
+
+    char *l_net_name_str = dap_config_get_item_str(l_cfg , "general", "name");
+    char *l_net_id_str = dap_config_get_item_str(l_cfg , "general", "id");
+    dap_chain_net_id_t l_net_id;
+    if(!l_net_name_str || !l_net_id_str || dap_chain_net_id_parse(l_net_id_str, &l_net_id)) {
+        log_it(L_ERROR,"Can't create l_net, can't read name or ID config");
+        return -1;
+    }
+
+    dap_chain_net_item_t *l_net_item_finded = NULL;
+    HASH_FIND_STR(s_net_items, l_net_name_str, l_net_item_finded);
+    if (!l_net_item_finded)
+        HASH_FIND(hh2, s_net_ids, &l_net_id, sizeof(l_net_id), l_net_item_finded);
+    if (l_net_item_finded) {
+        log_it(L_ERROR,"Can't create net %s ID %"DAP_UINT64_FORMAT_U", existed net %s ID %"DAP_UINT64_FORMAT_U" has the same name or ID.\n"\
+                "Please, fix your configs and restart node",
+                l_net_name_str, l_net_id.uint64, l_net_item_finded->name,
+                l_net_item_finded->net_id.uint64);
+        dap_config_close(l_cfg);
+        return -2;
+    }
+
     dap_chain_net_t *l_net = s_net_new(
-                                        dap_config_get_item_str(l_cfg , "general" , "id" ),
+                                        &l_net_id,
                                         dap_config_get_item_str(l_cfg , "general" , "name" ),
                                         dap_config_get_item_str(l_cfg , "general" , "native_ticker"),
                                         dap_config_get_item_str(l_cfg , "general" , "node-role" )
@@ -2021,18 +2043,6 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         log_it(L_ERROR,"Can't create l_net");
         dap_config_close(l_cfg);
         return -1;
-    }
-    
-    dap_chain_net_item_t *l_net_sought = NULL;
-    HASH_FIND_STR(s_net_items, l_net->pub.name, l_net_sought);
-    if (!l_net_sought)
-        HASH_FIND(hh2, s_net_ids, &l_net->pub.id, sizeof(l_net->pub.id), l_net_sought);
-    if (l_net_sought) {
-        log_it(L_ERROR,"Network %s with id %"DAP_UINT64_FORMAT_U" already exists!\n\tFix net configs and restart node",
-               l_net->pub.name, l_net->pub.id.uint64);
-        dap_chain_net_delete(l_net);
-        dap_config_close(l_cfg);
-        return -2;
     }
     
     l_net->pub.gdb_groups_prefix = dap_strdup(
@@ -2314,7 +2324,7 @@ int s_net_load(dap_chain_net_t *a_net)
     // Do specific role actions post-chain created
     l_net_pvt->state_target = NET_STATE_OFFLINE;
 
-    l_net_pvt->only_static_links = false;
+    l_net_pvt->links_static_only = false;
     switch ( l_net_pvt->node_role.enums ) {
         case NODE_ROLE_ROOT_MASTER:{
             // Set to process everything in datum pool
@@ -2329,7 +2339,7 @@ int s_net_load(dap_chain_net_t *a_net)
             dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id,l_chain_id);
             if (l_chain )
                l_chain->is_datum_pool_proc = true;
-            l_net_pvt->only_static_links = true;
+            l_net_pvt->links_static_only = true;
             log_it(L_INFO,"Root node role established");
         } break;
         case NODE_ROLE_CELL_MASTER:
@@ -2356,8 +2366,8 @@ int s_net_load(dap_chain_net_t *a_net)
             log_it(L_INFO,"Light node role established");
 
     }
-    if (!l_net_pvt->only_static_links)
-        l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", true);
+    if (!l_net_pvt->links_static_only)
+        l_net_pvt->links_static_only = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", true);
     
     l_net_pvt->load_mode = false;
 
