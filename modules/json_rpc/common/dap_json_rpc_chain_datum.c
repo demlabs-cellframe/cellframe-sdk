@@ -697,9 +697,10 @@ json_object * dap_chain_datum_data_to_json(dap_chain_datum_t *a_datum) {
     if (!a_datum)
         return json_object_new_null();
     json_object *l_obj_data;
+
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_TX:
-            l_obj_data = dap_chain_datum_tx_to_json((dap_chain_datum_tx_t*)a_datum->data);
+        l_obj_data = dap_chain_datum_tx_to_json((dap_chain_datum_tx_t*)a_datum->data,NULL);
             if (!l_obj_data) {
                 dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_TX_TO_JSON,
                                        "Can't convert DAP_CHAIN_DATUM_TX to JSON");
