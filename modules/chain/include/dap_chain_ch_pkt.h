@@ -68,19 +68,6 @@
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_HASH_FIRST   0x0004   // Hash of first(s) item
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_LAST_ID      0x0100   // Last ID of GDB synced group
 
-typedef enum dap_chain_ch_state{
-    CHAIN_STATE_IDLE=0,
-    CHAIN_STATE_WAITING,
-    CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE, // Downloadn GDB hashtable from remote
-    CHAIN_STATE_UPDATE_GLOBAL_DB, // Update GDB hashtable to remote
-    CHAIN_STATE_SYNC_GLOBAL_DB,
-    CHAIN_STATE_UPDATE_CHAINS_REMOTE, // Update chains hashtable from remote
-    CHAIN_STATE_UPDATE_CHAINS, // Update chains hashtable to remote
-    CHAIN_STATE_SYNC_CHAINS,
-    CHAIN_STATE_SYNC_ALL
-} dap_chain_ch_state_t;
-
-
 typedef struct dap_chain_ch_update_element{
     dap_hash_fast_t hash;
     uint32_t size;
@@ -89,9 +76,7 @@ typedef struct dap_chain_ch_update_element{
 typedef struct dap_chain_ch_sync_request{
     dap_chain_node_addr_t node_addr; // Requesting node's address
     dap_chain_hash_fast_t hash_from;
-    dap_chain_hash_fast_t hash_to;   // unused
-    uint64_t id_start;
-    uint64_t id_end;                 // unused
+    byte_t unused[96];
 } DAP_ALIGN_PACKED dap_chain_ch_sync_request_t;
 
 

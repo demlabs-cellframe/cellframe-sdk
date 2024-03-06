@@ -50,7 +50,8 @@ dap_chain_ch_pkt_t *dap_chain_ch_pkt_new(uint64_t a_net_id, uint64_t a_chain_id,
                 .hdr = { .version = DAP_STREAM_CH_CHAIN_PKT_VERSION,
                          .data_size = a_data_size,
                          .net_id.uint64 = a_net_id,
-                         .cell_id.uint64 = a_cell_id, .chain_id.uint64 = a_chain_id }
+                         .cell_id.uint64 = a_cell_id,
+                         .chain_id.uint64 = a_chain_id }
         };
         if (a_data_size && a_data)
             memcpy(l_chain_pkt->data, a_data, a_data_size);

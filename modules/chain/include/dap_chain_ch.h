@@ -36,6 +36,18 @@
 #define DAP_CHAIN_NODE_SYNC_TIMEOUT 60  // sec
 #define DAP_SYNC_TICKS_PER_SECOND   10
 
+typedef enum dap_chain_ch_state {
+    DAP_CHAIN_STATE_IDLE = 0,
+    DAP_CHAIN_STATE_WAITING,
+    DAP_CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE, // Downloadn GDB hashtable from remote
+    DAP_CHAIN_STATE_UPDATE_GLOBAL_DB, // Update GDB hashtable to remote
+    DAP_CHAIN_STATE_SYNC_GLOBAL_DB,
+    DAP_CHAIN_STATE_UPDATE_CHAINS_REMOTE, // Update chains hashtable from remote
+    DAP_CHAIN_STATE_UPDATE_CHAINS, // Update chains hashtable to remote
+    DAP_CHAIN_STATE_SYNC_CHAINS,
+    DAP_CHAIN_STATE_ERROR
+} dap_chain_ch_state_t;
+
 typedef struct dap_chain_ch dap_chain_ch_t;
 typedef void (*dap_chain_ch_callback_packet_t)(dap_chain_ch_t*, uint8_t a_pkt_type,
                                                       dap_chain_ch_pkt_t *a_pkt, size_t a_pkt_data_size,

@@ -187,7 +187,7 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_chain_node_cli
         assert(l_net);
         // If we do nothing - init sync process
 
-        if (l_ch_chain->state == CHAIN_STATE_IDLE) {
+        if (l_ch_chain->state == DAP_CHAIN_STATE_IDLE) {
             // bool l_trylocked = dap_chain_net_sync_trylock(l_net, a_node_client);
             bool l_trylocked = true;
             if (l_trylocked) {
