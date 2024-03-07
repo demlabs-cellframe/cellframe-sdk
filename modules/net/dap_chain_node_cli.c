@@ -256,7 +256,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "-addr <addr> [-chain_emission <chain_name>] -net <net_name> -certs <cert list>\n");
 
     dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool",
-                           "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief]\n"
+                           "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset]\n"
                            "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"
                            "mempool check -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
                            "\tCheck mempool entrie for presence in selected chain network\n"
@@ -302,8 +302,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction history
     dap_cli_server_cmd_add("tx_history", com_tx_history, "Transaction history (for address or by hash)",
-            "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} [-net <net_name>] [-chain <chain_name>]\n"
-            "tx_history -all -net <net_name> [-chain <chain_name>]\n");
+            "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} [-net <net_name>] [-chain <chain_name>] [-limit] [-offset]\n"
+            "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset]\n");
 
 	// Ledger info
     dap_cli_server_cmd_add("ledger", com_ledger, "Ledger information",
