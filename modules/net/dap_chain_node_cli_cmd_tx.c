@@ -338,7 +338,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         if (l_arr_end > l_length)
             l_arr_end = l_length;
     }
-    size_t i_tmp = 0;
+    size_t i_tmp = 1;
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
 
@@ -622,7 +622,7 @@ json_object* dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t* l_net,
                 l_arr_end = l_chain->callback_count_atom(l_chain);
             }
         }
-        size_t i_tmp = 0;
+        size_t i_tmp = 1;
         HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
             l_iter = l_chain->callback_atom_iter_create(l_chain, l_cell->id, 0);
             size_t l_atom_size = 0;
@@ -632,7 +632,7 @@ json_object* dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t* l_net,
                 dap_chain_datum_t **l_datums = l_cell->chain->callback_atom_get_datums(l_ptr, l_atom_size, &l_datums_count);
                 for (size_t i = 0; i < l_datums_count; i++) {
                     if (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX) {
-                        if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+                        if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
                             i_tmp++;
                             continue;
                         }

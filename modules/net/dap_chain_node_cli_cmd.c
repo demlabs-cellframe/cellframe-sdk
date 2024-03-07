@@ -6522,6 +6522,8 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         }
     } else if (l_addr) {
         // history addr and wallet
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
         char *ptr = NULL;
         size_t l_limit = l_limit_str ? strtoul(l_limit_str, &ptr, 10) : 0;
         size_t l_offset = l_offset_str ? strtoul(l_offset_str, &ptr, 10) : 0;
@@ -6537,6 +6539,8 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         if (!json_obj_summary) {
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;
         }
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
         char *ptr = NULL;
         size_t l_limit = l_limit_str ? strtoul(l_limit_str, &ptr, 10) : 0;
         size_t l_offset = l_offset_str ? strtoul(l_offset_str, &ptr, 10) : 0;
