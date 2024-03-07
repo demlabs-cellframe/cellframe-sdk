@@ -1173,7 +1173,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -w");
                 return -10;
             }
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
             const char* l_sign_str = "";
             if (!l_wallet) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
@@ -1348,7 +1348,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                                                                 l_cmd_num == CMD_REMOVE ? "remove" : "update");
                 return -10;
             }
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
             const char* l_sign_str = "";
             if (!l_wallet) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
@@ -2058,7 +2058,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' requires parameter -w");
                 return -10;
             }
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
             if (!l_wallet) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
                 return -11;

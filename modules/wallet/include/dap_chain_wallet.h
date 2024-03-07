@@ -60,8 +60,8 @@ dap_chain_wallet_t * dap_chain_wallet_create_with_pass(const char * a_wallet_nam
 
 
 dap_chain_wallet_t  *dap_chain_wallet_create(const char * a_wallet_name, const char * a_wallets_path, dap_sign_type_t a_sig_type, const char *a_pass); // Creates new one if not found
-dap_chain_wallet_t  *dap_chain_wallet_open_file(const char * a_file_name, const char *a_pass);
-dap_chain_wallet_t *dap_chain_wallet_open(const char * a_wallet_name, const char * a_wallets_path);
+dap_chain_wallet_t  *dap_chain_wallet_open_file(const char * a_file_name, const char *a_pass, unsigned int *a_out_stat);
+dap_chain_wallet_t *dap_chain_wallet_open(const char * a_wallet_name, const char * a_wallets_path, unsigned int * a_out_stat);
 dap_chain_wallet_t *dap_chain_wallet_open_ext(const char * a_wallet_name, const char * a_wallets_path, const char *pass);
 int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet, const char *a_pass);
 

@@ -991,7 +991,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         if(l_wallet_name || l_addr_base58) {
             if(l_wallet_name) {
                 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-                dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
+                dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
                 if(l_wallet) {
                     l_sign_str = dap_chain_wallet_check_sign(l_wallet);
                     l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
