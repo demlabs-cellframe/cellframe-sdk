@@ -6570,10 +6570,12 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
     }
 
     dap_chain_hash_fast_t l_tx_hash;
-    if (l_tx_hash_str && dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) < 0) {
+    if (l_tx_hash_str && dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) != 0) {
+        
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_HASH_REC_ERR, "tx hash not recognized");
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_HASH_REC_ERR;
     }
+    
     // Select chain network
     if (!l_addr_base58 && l_net_str) {
         l_net = dap_chain_net_by_name(l_net_str);
@@ -6662,12 +6664,18 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         }
     } else if (l_is_tx_all) {
         // history all
+        const char * l_brief_type = NULL;
+        bool l_brief_out = false;
+        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-brief", &l_brief_type))
+            l_brief_out = true;
+        
+ 
         json_object * json_obj_summary = json_object_new_object();
         if (!json_obj_summary) {
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;
         }
 
-        json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_hash_out_type, json_obj_summary);
+        json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_hash_out_type, json_obj_summary, l_brief_out);
         if (!json_arr_history_all) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ALL_ERR,
                                     "something went wrong in tx_history");
