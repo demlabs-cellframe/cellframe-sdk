@@ -176,7 +176,7 @@ int dap_chain_cs_blocks_init()
             "block -net <net_name> -chain <chain_name> dump <block_hash>\n"
                 "\t\tDump block info\n\n"
 
-            "block -net <net_name> -chain <chain_name> list [{signed | first_signed}]"
+            "block -net <net_name> -chain <chain_name> list [{signed | first_signed}] [-limit] [-offset]"
             " [-from_hash <block_hash>] [-to_hash <block_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]"
             " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>} [-unspent]]\n"
                 "\t\t List blocks\n\n"
@@ -832,7 +832,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
             dap_string_t *l_str_tmp = dap_string_new(NULL);
             size_t l_start_arr = 0;
-            if(l_offset) {
+            if(l_offset > 1) {
                 l_start_arr = l_offset * l_limit;
             }
             size_t l_arr_end = PVT(l_blocks)->blocks_count;
@@ -843,7 +843,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             }
             size_t i_tmp = 0;
             for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
-                if (i_tmp < l_start_arr || i_tmp > l_arr_end) {
+                if (i_tmp < l_start_arr || i_tmp >= l_arr_end) {
                     i_tmp++;
                     continue;
                 }

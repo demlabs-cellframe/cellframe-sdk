@@ -1972,9 +1972,9 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     uint l_limit = l_limit_str ? strtoul(l_limit_str, &ptr, 10) : 0;
                     uint l_offset = l_offset_str ? strtoul(l_offset_str, &ptr, 10) : 0;
                     size_t l_arr_start = 0;
-                    if (l_offset) {
+                    if (l_offset > 1) {
                         l_arr_start = l_offset * l_limit;
-                        dap_string_append_printf(l_str_tmp, "limit: %lu", l_arr_start);
+                        dap_string_append_printf(l_str_tmp, "limit: %lu\n", l_arr_start);
                     }
                     size_t l_arr_end = HASH_COUNT(PVT(l_dag)->events);
                     if (l_limit) {
@@ -1985,7 +1985,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     size_t i_tmp = 0;
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
                     HASH_ITER(hh,PVT(l_dag)->events,l_event_item, l_event_item_tmp ) {
-                        if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+                        if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
                             i_tmp++;
                         } else {
                             i_tmp++;
