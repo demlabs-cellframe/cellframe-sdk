@@ -477,39 +477,26 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
             dap_chain_hash_fast_from_str(l_orders[i].key, &l_hash_gdb);
             if (memcmp(&l_hash, &l_hash_gdb, sizeof(dap_chain_hash_fast_t))) {
                 dap_global_db_del_sync(l_gdb_group_str, l_orders[i].key);
-                DAP_DEL_Z(l_order);
                 continue; // order is corrupted
             }
             // Check direction
-            if (a_direction != SERV_DIR_UNDEFINED && l_order->direction != a_direction){
-                DAP_DEL_Z(l_order);
+            if (a_direction != SERV_DIR_UNDEFINED && l_order->direction != a_direction)
                 continue;
-            }
             // Check srv uid
-            if (a_srv_uid.uint64 && l_order->srv_uid.uint64 != a_srv_uid.uint64){
-                DAP_DEL_Z(l_order);
+            if (a_srv_uid.uint64 && l_order->srv_uid.uint64 != a_srv_uid.uint64)
                 continue;
-            }
             // check price unit
-            if (a_price_unit.uint32 && a_price_unit.uint32 != l_order->price_unit.uint32){
-                DAP_DEL_Z(l_order);
+            if (a_price_unit.uint32 && a_price_unit.uint32 != l_order->price_unit.uint32)
                 continue;
-            }
             // Check price minimum
-            if (!IS_ZERO_256(a_price_min) && compare256(l_order->price, a_price_min) == -1){
-                DAP_DEL_Z(l_order);
+            if (!IS_ZERO_256(a_price_min) && compare256(l_order->price, a_price_min) == -1)
                 continue;
-            }
             // Check price maximum
-            if (!IS_ZERO_256(a_price_max) && compare256(l_order->price, a_price_max) == 1){
-                DAP_DEL_Z(l_order);
+            if (!IS_ZERO_256(a_price_max) && compare256(l_order->price, a_price_max) == 1)
                 continue;
-            }
             // Check ticker
-            if (a_price_ticker && strcmp( l_order->price_ticker, a_price_ticker)){
-                DAP_DEL_Z(l_order);
+            if (a_price_ticker && strcmp( l_order->price_ticker, a_price_ticker))
                 continue;
-            }
             size_t l_order_mem_size = dap_chain_net_srv_order_get_size(l_order);
             dap_chain_net_srv_order_t *l_output_order = DAP_DUP_SIZE(l_order, l_order_mem_size);
             DAP_DEL_Z(l_order);
