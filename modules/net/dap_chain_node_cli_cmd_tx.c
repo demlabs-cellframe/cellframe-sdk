@@ -291,7 +291,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
  * @return char*
  */
 json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, 
-                                 const char *a_hash_out_type, const char * l_addr_str)
+                                 const char *a_hash_out_type, const char * l_addr_str, size_t a_limit, size_t a_offset)
 {
     json_object* json_obj_datum = json_object_new_array();
     if (!json_obj_datum){
@@ -327,6 +327,18 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     bool l_is_need_correction = false;
     uint256_t l_corr_value = {}, l_unstake_value = {};
     json_object *l_corr_object = NULL;
+
+    size_t l_arr_start = 0;
+    if (a_offset)
+        l_arr_start = a_offset * a_limit;
+    size_t l_arr_end = a_chain->callback_count_atom(a_chain);
+    if (a_limit) {
+        l_arr_end = l_arr_start + a_limit;
+        size_t l_length = a_chain->callback_count_atom(a_chain);
+        if (l_arr_end > l_length)
+            l_arr_end = l_length;
+    }
+    size_t i_tmp = 0;
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
 
@@ -338,6 +350,11 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             // go to next datum
             continue;
         // it's a transaction
+        if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+            i_tmp++;
+            continue;
+        }
+        i_tmp++;
         bool l_is_unstake = false;
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
         dap_list_t *l_list_in_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_ALL, NULL);
@@ -585,7 +602,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     return json_obj_datum;
 }
 
-json_object* dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t* l_net, const char *l_hash_out_type, json_object * json_obj_summary) {
+json_object* dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t* l_net, const char *l_hash_out_type, json_object * json_obj_summary, size_t a_limit, size_t a_offset) {
         log_it(L_DEBUG, "Start getting tx from chain");
         size_t l_tx_count = 0;
         size_t l_tx_ledger_accepted = 0;
@@ -594,6 +611,18 @@ json_object* dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t* l_net,
                             *l_cell_tmp = NULL;
         dap_chain_atom_iter_t *l_iter = NULL;
         json_object * json_arr_out = json_object_new_array();
+        size_t l_arr_start = 0;
+        if (a_offset) {
+            l_arr_start = a_limit * a_offset;
+        }
+        size_t l_arr_end =  l_chain->callback_count_atom(l_chain);
+        if (a_limit) {
+            l_arr_end = l_arr_start + a_limit;
+            if (l_arr_end > l_chain->callback_count_atom(l_chain)) {
+                l_arr_end = l_chain->callback_count_atom(l_chain);
+            }
+        }
+        size_t i_tmp = 0;
         HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
             l_iter = l_chain->callback_atom_iter_create(l_chain, l_cell->id, 0);
             size_t l_atom_size = 0;
@@ -603,6 +632,11 @@ json_object* dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t* l_net,
                 dap_chain_datum_t **l_datums = l_cell->chain->callback_atom_get_datums(l_ptr, l_atom_size, &l_datums_count);
                 for (size_t i = 0; i < l_datums_count; i++) {
                     if (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX) {
+                        if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+                            i_tmp++;
+                            continue;
+                        }
+                        i_tmp++;
                         l_tx_count++;
                         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datums[i]->data;
                         dap_hash_fast_t l_ttx_hash = {0};
