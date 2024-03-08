@@ -398,7 +398,7 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
     dap_chain_net_srv_price_t * l_price = NULL;
     bool l_specific_order_free = false;
     l_price = dap_chain_net_srv_get_price_from_order(l_srv, "srv_vpn", &a_request->hdr.order_hash);
-    if (l_price && !IS_ZERO_256(l_price->value_datoshi))
+    if (l_price && IS_ZERO_256(l_price->value_datoshi))
         l_specific_order_free = true;
 
     if (!l_price){
