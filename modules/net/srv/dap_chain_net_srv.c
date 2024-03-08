@@ -966,8 +966,8 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
     dap_chain_net_srv_uid_t l_uid = {.uint64 = a_uid.uint64 }; // Copy to let then compiler to pass args via registers not stack
     const char* l_net_name_str = dap_config_get_item_str_default(g_config, a_config_section, "net", "");
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name_str);
-    if(!l_net){
-        log_it(L_CRITICAL, "Can't find net [%s]. Check configuration file.", l_net_name_str);
+    if(!l_net && a_uid.uint64 == 1){
+        log_it(L_ERROR, "Can't find net [%s]. Check configuration file.", l_net_name_str);
         return NULL;
     }
 
@@ -1000,7 +1000,8 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         }
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
         dap_stream_ch_chain_net_srv_init(l_srv);
-        dap_ledger_tx_add_notify(l_net->pub.ledger, dap_stream_ch_chain_net_srv_tx_cond_added_cb, NULL);
+        if (l_net)
+            dap_ledger_tx_add_notify(l_net->pub.ledger, dap_stream_ch_chain_net_srv_tx_cond_added_cb, NULL);
     }else{
         log_it(L_ERROR, "Already present service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
     }
