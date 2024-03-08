@@ -991,7 +991,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         if(l_wallet_name || l_addr_base58) {
             if(l_wallet_name) {
                 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-                dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
+                dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
                 if(l_wallet) {
                     l_sign_str = dap_chain_wallet_check_sign(l_wallet);
                     l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
@@ -1008,6 +1008,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         }
 
         json_object* json_obj_out = json_object_new_object();
+        json_object_object_add(json_obj_out, "sign ", json_object_new_string(l_sign_str));
         char *l_str_out = NULL;
         dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_str);
         if(l_is_all) {
@@ -1065,7 +1066,6 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         if (json_obj_out) {
             json_object_array_add(*json_arr_reply, json_obj_out);
         }
-        json_object_object_add(json_obj_out, "sign ", json_object_new_string(l_sign_str));
         return 0;       
     }
     else if(l_cmd == CMD_LIST){        
