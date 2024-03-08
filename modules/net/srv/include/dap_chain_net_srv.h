@@ -268,7 +268,7 @@ typedef struct dap_chain_net_srv
 {
     dap_chain_net_srv_uid_t uid; // Unique ID for service.
     dap_chain_net_srv_abstract_t srv_common;
-    dap_chain_net_srv_price_t *pricelist;
+    // dap_chain_net_srv_price_t *pricelist;
 
     bool allow_free_srv;
     uint32_t grace_period;
