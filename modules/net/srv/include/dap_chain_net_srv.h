@@ -268,7 +268,7 @@ typedef struct dap_chain_net_srv
 {
     dap_chain_net_srv_uid_t uid; // Unique ID for service.
     dap_chain_net_srv_abstract_t srv_common;
-    dap_chain_net_srv_price_t *pricelist;
+    // dap_chain_net_srv_price_t *pricelist;
 
     bool allow_free_srv;
     uint32_t grace_period;
@@ -330,7 +330,6 @@ const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void);
 dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
                                                                dap_chain_net_srv_price_t * a_price,
                                                                const void * a_ext, size_t a_ext_size);
-int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_config_section);
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section);
 dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net_srv_t *a_srv, const char *a_config_section, dap_chain_hash_fast_t* a_order_hash);
 
