@@ -104,7 +104,7 @@ int dap_chain_net_srv_xchange_init()
          "\tShows transaction history for the selected order\n"
     "srv_xchange order status -net <net_name> -order <order_hash>"
          "\tShows current amount of unselled coins from the selected order and percentage of its completion\n"
-    "srv_xchange orders -net <net_name> [-status {opened|closed|all}] [-token_from <token_ticker>] [-token_to <token_ticker>]\n"
+    "srv_xchange orders -net <net_name> [-status {opened|closed|all}] [-token_from <token_ticker>] [-token_to <token_ticker>] [-limit <limit>] [-offset <offset>]\n"
          "\tGet the exchange orders list within specified net name\n"
 
     "srv_xchange purchase -order <order hash> -net <net_name> -w <wallet_name> -value <value> -fee <value>\n"
@@ -1982,8 +1982,32 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             }
 
             uint64_t l_printed_orders_count = 0;
+            const char *l_limit_str = NULL;
+            const char *l_offset_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
+            char *ptr;
+            size_t l_limit = l_limit_str ? strtoul(l_limit_str, &ptr, 10) : 0;
+            size_t l_offset = l_offset_str ? strtoul(l_offset_str, &ptr, 10) : 0;
+            size_t l_arr_start = 0;
+            if (l_limit > 1) {
+                l_arr_start = l_limit * l_offset;
+            }
+            size_t l_arr_end = dap_list_length(l_tx_list);
+            if (l_offset) {
+                l_arr_end = l_arr_start + l_limit;
+                if (l_arr_end > dap_list_length(l_tx_list)) {
+                    l_arr_end = dap_list_length(l_tx_list);
+                }
+            }
+            size_t i_tmp = 0;
             // Print all txs
             for (dap_list_t *it = l_tx_list; it; it = it->next) {
+                if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+                    i_tmp++;
+                    continue;
+                }
+                i_tmp++;
                 dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)it->data;
                 dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
                 if (!l_out_cond || l_out_cond->header.srv_uid.uint64 != DAP_CHAIN_NET_SRV_XCHANGE_ID)
@@ -2354,6 +2378,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     *a_str_reply = dap_string_free(l_reply_str, false);
                     break;
                 }else if (strcmp(l_price_subcommand,"history") == 0){
+                    const char *l_limit_str = NULL, *l_offset_str = NULL;
+                    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
+                    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
+                    char *ptr;
+                    size_t l_limit = l_limit_str ? strtoul(l_limit_str, &ptr, 10) : 0;
+                    size_t l_offset = l_offset_str ? strtoul(l_offset_str, &ptr, 10) : 0;
 
                     dap_string_t *l_reply_str = dap_string_new("");
                     dap_time_t l_time[2];
@@ -2368,9 +2398,24 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't find transactions");
                         return -6;
                     }
+                    size_t l_arr_start = 0;
+                    size_t l_arr_end  = l_datum_num;
+                    if (l_offset > 1) {
+                        l_arr_start = l_limit * l_offset;
+                    }
+                    if (l_limit) {
+                        l_arr_end = l_arr_start + l_limit;
+                    }
+                    size_t i_tmp = 0;
 
                     dap_list_t * l_cur = l_datum_list0;
                     while(l_cur){
+                        if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+                            i_tmp++;
+                            l_cur = dap_list_next(l_cur);
+                            continue;
+                        }
+                        i_tmp++;
                         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) ((dap_chain_datum_t*) l_cur->data)->data;
                         if(l_tx){
                             dap_hash_fast_t l_tx_hash = {};
