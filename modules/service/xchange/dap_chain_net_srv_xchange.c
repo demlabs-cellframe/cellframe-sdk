@@ -1986,8 +1986,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             const char *l_offset_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
-            char *ptr;
-            size_t l_limit = l_limit_str ? strtoul(l_limit_str, &ptr, 10) : 0;
+            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, &ptr, 10) : 0;
             size_t l_arr_start = 0;
             if (l_limit > 1) {
@@ -2381,9 +2380,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     const char *l_limit_str = NULL, *l_offset_str = NULL;
                     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
                     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
-                    char *ptr;
-                    size_t l_limit = l_limit_str ? strtoul(l_limit_str, &ptr, 10) : 0;
-                    size_t l_offset = l_offset_str ? strtoul(l_offset_str, &ptr, 10) : 0;
+                    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+                    size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
 
                     dap_string_t *l_reply_str = dap_string_new("");
                     dap_time_t l_time[2];

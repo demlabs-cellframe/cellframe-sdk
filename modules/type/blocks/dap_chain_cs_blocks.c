@@ -762,9 +762,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_dt", &l_to_date_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
-            char *ptr;
-            size_t l_offset = l_offset_str ? strtoul(l_offset_str, &ptr, 10) : 0;
-            size_t l_limit = l_limit_str ? strtoul(l_limit_str, &ptr, 10) : 0;
+            size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
+            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
 
             if (l_signed_flag && l_first_signed_flag) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Choose only one option from 'singed' and 'first_signed'");
