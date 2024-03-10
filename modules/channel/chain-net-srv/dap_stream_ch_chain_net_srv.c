@@ -722,8 +722,8 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
             l_remain_service = a_grace->usage->service->callbacks.get_remain_service(a_grace->usage->service, a_grace->usage->id, a_grace->usage->client);
             if (l_remain_service && !a_grace->usage->is_active &&
-                (l_remain_service->limits_ts || l_remain_service->limits_bytes) /*&&
-                l_remain_service->remain_units_type.enm == l_tx_out_cond->subtype.srv_pay.unit.enm*/){
+                ((l_remain_service->limits_ts && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_SEC)  || 
+                (l_remain_service->limits_bytes && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_B))){
                 // Accept connection, set limits and start service
                 dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_grace->usage->client->ch->stream->session->_inheritor;
                 switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
@@ -999,8 +999,8 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
             dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
             l_remain_service = l_grace->usage->service->callbacks.get_remain_service(l_grace->usage->service, l_grace->usage->id, l_grace->usage->client);
             if (l_remain_service && !l_grace->usage->is_active &&
-                (l_remain_service->limits_ts || l_remain_service->limits_bytes) /*&&
-                l_remain_service->remain_units_type.enm == l_tx_out_cond->subtype.srv_pay.unit.enm*/){
+                ((l_remain_service->limits_ts && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_SEC)  || 
+                (l_remain_service->limits_bytes && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_B))){
                 // Accept connection, set limits and start service
                 dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) l_grace->usage->client->ch->stream->session->_inheritor;
                 switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
@@ -1088,16 +1088,19 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
         char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(l_grace->usage->net, &l_grace->usage->tx_cond_hash, l_grace->usage->price->wallet_addr,
                                                                         l_grace->usage->price->receipt_sign_cert->enc_key,
                                                                         l_receipt, "hex", &ret_status);
-//        DAP_DEL_Z(l_wallet_addr);
         if (!ret_status) {
             dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_grace->usage->tx_cond_hash);
             log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
             DAP_DELETE(l_tx_in_hash_str);
-
+            if (l_receipt == l_grace->usage->receipt){ // if first grace
+                l_grace->usage->is_grace = false;
+                if (l_grace->usage->service->callbacks.response_success)
+                    l_grace->usage->service->callbacks.response_success(l_grace->usage->service, l_grace->usage->id,
+                                                                        l_grace->usage->client, l_receipt,
+                                                                        sizeof(dap_chain_datum_tx_receipt_t) + l_receipt->size + l_receipt->exts_size);
+            }
         } else {
             if(ret_status == DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_ENOUGH){
-//                memset(&l_grace->usage->tx_cond_hash, 0, sizeof(l_grace->usage->tx_cond_hash));
-//                DAP_DEL_Z(l_grace->usage->receipt_next);
                 log_it(L_ERROR, "Tx cond have not enough funds");
                 dap_chain_net_srv_grace_t* l_grace_new = DAP_NEW_Z(dap_chain_net_srv_grace_t);
                 if (!l_grace_new) {
