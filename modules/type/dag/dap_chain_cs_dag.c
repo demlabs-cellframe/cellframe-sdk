@@ -1968,9 +1968,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 } else if (!l_from_events_str || (strcmp(l_from_events_str,"events") == 0)) {
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-                    char *ptr;
-                    uint l_limit = l_limit_str ? strtoul(l_limit_str, &ptr, 10) : 0;
-                    uint l_offset = l_offset_str ? strtoul(l_offset_str, &ptr, 10) : 0;
+                    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+                    size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
                     size_t l_arr_start = 0;
                     if (l_offset > 1) {
                         l_arr_start = l_offset * l_limit;
@@ -2006,9 +2005,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
-                    char *ptr;
-                    uint l_limit = l_limit_str ? strtoul(l_limit_str, &ptr, 10) : 0;
-                    uint l_offset = l_offset_str ? strtoul(l_offset_str, &ptr, 10) : 0;
+                    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+                    size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
                     size_t l_arr_start = 0;
                     if (l_offset) {
                         l_arr_start = l_offset * l_limit;
