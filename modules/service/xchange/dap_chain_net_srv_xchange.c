@@ -2467,6 +2467,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "list", &l_list_subcommand);
             if( l_list_subcommand ){
                 if (strcmp(l_list_subcommand,"all") == 0){
+                    const char *l_limit_str = NULL, *l_offset_str = NULL;
+                    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
+                    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
+                    size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
+                    size_t l_limit  = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
                     dap_string_t *l_reply_str = dap_string_new("");
                     char ** l_tickers = NULL;
                     size_t l_tickers_count = 0;
@@ -2474,9 +2479,23 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
                     size_t l_pairs_count = 0;
                     if(l_tickers){
+                        size_t l_arr_start = 0;
+                        size_t l_arr_end  = l_tickers_count;
+                        if (l_offset > 1) {
+                            l_arr_start = l_limit * l_offset;
+                        }
+                        if (l_limit) {
+                            l_arr_end = l_arr_start + l_limit;
+                        }
+                        size_t i_tmp = 0;
                         for(size_t i = 0; i< l_tickers_count; i++){
                             for(size_t j = i+1; j< l_tickers_count; j++){
                                 if(l_tickers[i] && l_tickers[j]){
+                                    if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+                                        i_tmp++;
+                                        continue;
+                                    }
+                                    i_tmp++;
                                     dap_string_append_printf(l_reply_str,"%s:%s ", l_tickers[i], l_tickers[j]);
                                     l_pairs_count++;
                                 }
