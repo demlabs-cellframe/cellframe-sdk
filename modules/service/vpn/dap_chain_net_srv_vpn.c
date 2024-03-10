@@ -964,10 +964,8 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     size_t l_receipt_size = a_request_size;
     log_it( L_INFO, "s_callback_response_success is called");
 
-//    dap_stream_ch_chain_net_srv_pkt_request_t * l_request =  (dap_stream_ch_chain_net_srv_pkt_request_t *) a_request;
-//    dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_srv_client->ch->stream->session->_inheritor;
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_srv_client->ch->stream->session->_inheritor;
-    dap_chain_net_srv_usage_t * l_usage_active = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,a_usage_id);
+    dap_chain_net_srv_usage_t * l_usage_active = l_srv_session->usage_active;
     dap_chain_net_srv_ch_vpn_t * l_srv_ch_vpn =(dap_chain_net_srv_ch_vpn_t*) a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID] ?
             a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]->internal : NULL;
     if ( !l_usage_active){
@@ -995,21 +993,24 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         l_args->srv = a_srv;
         l_args->srv_client = a_srv_client;
         l_args->usage_id = a_usage_id;
-        l_usage_active->save_limits_timer = dap_timerfd_start_on_worker(l_usage_active->client->stream_worker->worker, 60 * 1000,
+        if(!l_usage_active->save_limits_timer)
+            l_usage_active->save_limits_timer = dap_timerfd_start_on_worker(l_usage_active->client->stream_worker->worker, 60 * 1000,
                                                              (dap_timerfd_callback_t)s_save_limits, l_args);
         l_srv_session->limits_units_type.uint32 = l_usage_active->receipt->receipt_info.units_type.uint32;
         switch( l_usage_active->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_SEC:{
                 l_srv_session->last_update_ts = time(NULL);
                 if (!l_usage_active->is_grace && l_srv_session->limits_ts <= 0){
+                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", l_srv_session->limits_ts < 0 ? l_usage_active->receipt->receipt_info.units + l_srv_session->limits_ts :
+                                                                                                                        l_usage_active->receipt->receipt_info.units);
                     l_srv_session->limits_ts += (time_t)l_usage_active->receipt->receipt_info.units;
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", l_usage_active->receipt->receipt_info.units);
                 }
             } break;
             case SERV_UNIT_B:{
                 if (!l_usage_active->is_grace && l_srv_session->limits_bytes <= 0){
+                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_srv_session->limits_ts < 0 ? l_usage_active->receipt->receipt_info.units + l_srv_session->limits_ts :
+                                                                                                                        l_usage_active->receipt->receipt_info.units);
                     l_srv_session->limits_bytes = (uintmax_t) l_usage_active->receipt->receipt_info.units;
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
                 }
             } break;
             default: {
