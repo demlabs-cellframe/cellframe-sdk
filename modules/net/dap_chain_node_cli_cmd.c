@@ -2610,7 +2610,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
  * @param a_hash_out_type
  */
 void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a_chain, const char * a_add,
-                                        json_object *a_json_obj, const char *a_hash_out_type, bool a_fast, uint a_limit, uint a_offset) {
+                                        json_object *a_json_obj, const char *a_hash_out_type, bool a_fast, size_t a_limit, size_t a_offset) {
     dap_chain_addr_t *l_wallet_addr = dap_chain_addr_from_str(a_add);
     if (a_add && !l_wallet_addr) {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CONVERT_BASE58_TO_ADDR_WALLET, "Cannot convert "
@@ -3791,12 +3791,12 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply)
                 return -1;
             }
             bool l_fast = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-brief") != -1) ? true : false;
-            uint l_limit = 0, l_offset = 0;
+            size_t l_limit = 0, l_offset = 0;
             const char *l_limit_str = NULL, *l_offset_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
-            l_limit = l_limit_str ? atol(l_limit_str) : 0;
-            l_offset = l_offset_str ? atol(l_offset_str) : 0;
+            l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+            l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
             if(l_chain) {
                 s_com_mempool_list_print_for_chain(l_net, l_chain, l_wallet_addr, l_jobj_chains, l_hash_out_type, l_fast, l_limit, l_offset);
             } else {
