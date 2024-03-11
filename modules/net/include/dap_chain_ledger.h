@@ -269,11 +269,55 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
 
 bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
 
+typedef enum dap_chain_tx_tag_type {
+    //main tags, till 16
+    
+    DAP_CHAIN_TX_TAG_UNKNOWN =          1 << 0,
+    DAP_CHAIN_TX_TAG_TRANSFER =         1 << 1,
+    DAP_CHAIN_TX_TAG_BRIDGE =           1 << 2,
+    DAP_CHAIN_TX_TAG_BLOCK_REWARD =     1 << 3,
+    DAP_CHAIN_TX_TAG_STAKING =          1 << 4,
+    DAP_CHAIN_TX_TAG_VOTING  =          1 << 5,
+    DAP_CHAIN_TX_TAG_XCHANGE =          1 << 6,
+    DAP_CHAIN_TX_TAG_KEY_DELEGATION =   1 << 8,
+    DAP_CHAIN_TX_TAG_VPN =              1 << 9,
+    DAP_CHAIN_TX_TAG_SERVICE =          1 << 10,
+    
+    
+
+    //subtags, till 32
+    DAP_CHAIN_TX_TAG_ACTION_UNKNOWN  =              1 << 15,
+    
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR =      1 << 16,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION =    1 << 17,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN =   1 << 18,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD =       1 << 19,
+
+    DAP_CHAIN_TX_TAG_ACTION_OPEN =                  1 << 20,
+    DAP_CHAIN_TX_TAG_ACTION_USE =                   1 << 21,
+    DAP_CHAIN_TX_TAG_ACTION_EXTEND =                   1 << 22,
+    DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 23,
+    
+    DAP_CHAIN_TX_TAG_ALL =                          ~0,
+} dap_chain_tx_tag_type_t;
+
+char * dap_ledger_tx_tag_action_str(dap_chain_tx_tag_type_t a_tag);
+char * dap_ledger_tx_tag_str(dap_chain_tx_tag_type_t a_tag);
+dap_chain_tx_tag_type_t dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
+
+
 // Checking a new transaction before adding to the cache
-int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
-                                    bool a_from_threshold, dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out, char **a_main_ticker);
+int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, 
+                                        dap_chain_datum_tx_t *a_tx, 
+                                        dap_hash_fast_t *a_tx_hash,
+                                        bool a_from_threshold, 
+                                        dap_list_t **a_list_bound_items, 
+                                        dap_list_t **a_list_tx_out, 
+                                        char **a_main_ticker,
+                                        dap_chain_tx_tag_type_t *a_tag);
 
 char * dap_ledger_tx_get_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc);
+
 
 
 /**

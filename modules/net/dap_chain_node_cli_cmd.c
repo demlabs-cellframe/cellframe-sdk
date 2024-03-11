@@ -6800,6 +6800,8 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
     const char *l_net_str = NULL;
     const char *l_chain_str = NULL;
     const char *l_tx_hash_str = NULL;
+    const char *l_tx_tag_str = NULL;
+    const char *l_tx_action_str = NULL;
 
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
@@ -6820,6 +6822,10 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx", &l_tx_hash_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tag", &l_tx_tag_str);
+    
+
+    bool l_brief = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-brief") != -1) ? true : false;
 
     bool l_is_tx_all = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
 
@@ -6916,6 +6922,42 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
                                 " You can set default datum type in chain configuration file", l_net_str);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_CHAIN_PARAM_ERR;
     }
+
+    dap_chain_tx_tag_type_t l_tx_tag = DAP_CHAIN_TX_TAG_ALL;
+
+    if (l_tx_tag_str) {
+        if (strcmp(l_tx_tag_str, "staking")==0)
+            l_tx_tag = DAP_CHAIN_TX_TAG_STAKING;
+        
+        if (strcmp(l_tx_tag_str, "bridge")==0)
+            l_tx_tag = DAP_CHAIN_TX_TAG_BRIDGE;
+
+        if (strcmp(l_tx_tag_str, "reward")==0)
+            l_tx_tag = DAP_CHAIN_TX_TAG_BLOCK_REWARD;
+    
+        if (strcmp(l_tx_tag_str, "transfer")==0)
+            l_tx_tag = DAP_CHAIN_TX_TAG_TRANSFER;
+
+        if (strcmp(l_tx_tag_str, "unknown")==0)
+            l_tx_tag = DAP_CHAIN_TX_TAG_UNKNOWN;
+
+        if (strcmp(l_tx_tag_str, "voting")==0)
+            l_tx_tag = DAP_CHAIN_TX_TAG_VOTING;
+
+        if (strcmp(l_tx_tag_str, "xchange")==0)
+            l_tx_tag = DAP_CHAIN_TX_TAG_XCHANGE;
+
+        if (strcmp(l_tx_tag_str, "keydel")==0)
+            l_tx_tag = DAP_CHAIN_TX_TAG_KEY_DELEGATION;
+
+        if (strcmp(l_tx_tag_str, "vpn")==0)
+            l_tx_tag = DAP_CHAIN_TX_TAG_VPN;
+            
+        if (strcmp(l_tx_tag_str, "service")==0)
+            l_tx_tag = DAP_CHAIN_TX_TAG_SERVICE;
+        
+    }
+
     // response
     json_object * json_obj_out = NULL;
     if (l_tx_hash_str) {
@@ -6929,7 +6971,7 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
     } else if (l_addr) {
         // history addr and wallet
         char *l_addr_str = dap_chain_addr_to_str(l_addr);
-        json_obj_out = dap_db_history_addr(l_addr, l_chain, l_hash_out_type, l_addr_str);
+        json_obj_out = dap_db_history_addr(l_addr, l_tx_tag,  l_chain, l_hash_out_type, l_addr_str);
         if (!json_obj_out) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR,
                                     "something went wrong in tx_history");
@@ -6942,7 +6984,7 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;
         }
 
-        json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_hash_out_type, json_obj_summary);
+        json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_tx_tag, l_brief, l_hash_out_type, json_obj_summary);
         if (!json_arr_history_all) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ALL_ERR,
                                     "something went wrong in tx_history");

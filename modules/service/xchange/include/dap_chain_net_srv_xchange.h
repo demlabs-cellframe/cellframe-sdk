@@ -116,6 +116,13 @@ typedef enum dap_chain_net_srv_xchange_order_status{
     XCHANGE_ORDER_STATUS_UNKNOWN,
 } dap_chain_net_srv_xchange_order_status_t;
 
+typedef enum xchange_tx_type{
+    TX_TYPE_UNDEFINED=0,
+    TX_TYPE_ORDER,
+    TX_TYPE_EXCHANGE,
+    TX_TYPE_INVALIDATE
+}   xchange_tx_type_t;
 
 dap_chain_net_srv_xchange_order_status_t dap_chain_net_srv_xchange_get_order_status(dap_chain_net_t *a_net, dap_hash_fast_t a_order_tx_hash);
 bool dap_chain_net_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_fee, dap_chain_addr_t *a_addr, uint16_t *a_type);
+xchange_tx_type_t dap_chain_net_srv_xchange_tx_get_type (dap_ledger_t * a_ledger, dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t **a_out_cond_item, int *a_item_idx, dap_chain_tx_out_cond_t **a_out_prev_cond_item);

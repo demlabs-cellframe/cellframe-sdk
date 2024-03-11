@@ -1941,16 +1941,6 @@ static int s_cli_net(int argc, char **argv, void **reply)
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 
-    const char * l_hash_out_type = NULL;
-    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
-    if(!l_hash_out_type)
-        l_hash_out_type = "hex";
-    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        json_object_put(l_jobj_return);
-        dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_HASH, "invalid parameter -H, valid values: -H <hex | base58>");
-        return DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_HASH;
-    }
-
     // command 'list'
     const char * l_list_cmd = NULL;
 
@@ -3514,6 +3504,9 @@ int s_net_load(dap_chain_net_t *a_net)
     // load chains
     dap_chain_t *l_chain = l_net->pub.chains;
     while(l_chain){
+        clock_t l_chain_load_start_time; 
+        l_chain_load_start_time = clock(); 
+
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
         if (!dap_chain_load_all(l_chain)) {
@@ -3543,6 +3536,9 @@ int s_net_load(dap_chain_net_t *a_net)
         if (l_chain->callback_created)
             l_chain->callback_created(l_chain, l_cfg);
 
+        time_t l_chain_load_time_taken = clock() - l_chain_load_start_time; 
+        double time_taken = ((double)l_chain_load_time_taken)/CLOCKS_PER_SEC; // in seconds 
+        log_it(L_NOTICE, "[%s] Cahin %s processing took %f seconds", l_chain->net_name, l_chain->name, time_taken);
         l_chain = l_chain->next;
     }
     // Process thresholds if any

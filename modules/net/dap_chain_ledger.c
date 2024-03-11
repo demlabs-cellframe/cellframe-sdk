@@ -57,6 +57,7 @@
 #include "json_object.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_net_srv_xchange.h"
 
 #define LOG_TAG "dap_ledger"
 
@@ -211,6 +212,7 @@ typedef struct dap_ledger_tx_item {
         byte_t multichannel;
         dap_time_t ts_spent;
         byte_t pad[7];
+        dap_chain_tx_tag_type_t tag;
         // TODO dynamically allocates the memory in order not to limit the number of outputs in transaction
         dap_chain_hash_fast_t tx_hash_spent_fast[MAX_OUT_ITEMS]; // spent outs list
     } DAP_ALIGN_PACKED cache_data;
@@ -3412,14 +3414,349 @@ inline static bool s_ledger_check_token_ticker(const char *a_ticker)
     return false;
 }
 
+char * dap_ledger_tx_tag_str(dap_chain_tx_tag_type_t a_tag)
+{
+    //main tags, till 16
+    if (a_tag & DAP_CHAIN_TX_TAG_UNKNOWN) return "UNKNOWN";
+    if (a_tag & DAP_CHAIN_TX_TAG_TRANSFER) return "TRANSFER";
+    if (a_tag & DAP_CHAIN_TX_TAG_BRIDGE) return "BRIDGE";
+    if (a_tag & DAP_CHAIN_TX_TAG_BLOCK_REWARD) return "BLOCK_REWARD";
+    if (a_tag & DAP_CHAIN_TX_TAG_STAKING) return "STAKING";
+    if (a_tag & DAP_CHAIN_TX_TAG_VOTING) return "VOTING";
+    if (a_tag & DAP_CHAIN_TX_TAG_XCHANGE) return "XCHANGE";
+    if (a_tag & DAP_CHAIN_TX_TAG_KEY_DELEGATION) return "KEY_DELEGATION";
+    if (a_tag & DAP_CHAIN_TX_TAG_VPN) return "VPN";
+    if (a_tag & DAP_CHAIN_TX_TAG_SERVICE) return "SERVICE";
+    return "WTFTAG";
+}
+
+char * dap_ledger_tx_tag_action_str(dap_chain_tx_tag_type_t a_tag)
+{
+
+    if (a_tag & DAP_CHAIN_TX_TAG_ACTION_UNKNOWN) return "UNKNOWN";
+    if (a_tag & DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR) return "TRANSFER_REGULAR";
+    if (a_tag & DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION) return "TRANSFER_COMMISSION";
+    if (a_tag & DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN) return "TRANSFER_CROSSCHAIN";
+    if (a_tag & DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD) return "TRANSFER_REWARD";
+    if (a_tag & DAP_CHAIN_TX_TAG_ACTION_OPEN) return "ACTION_OPEN";
+    if (a_tag & DAP_CHAIN_TX_TAG_ACTION_USE) return "ACTION_USE";
+    if (a_tag & DAP_CHAIN_TX_TAG_ACTION_EXTEND) return "ACTION_EXTEND";
+    if (a_tag & DAP_CHAIN_TX_TAG_ACTION_CLOSE) return "ACTION_CLOSE";
+    return "WTFSUBTAG";
+
+}
+
+static inline int s_tsd_str_cmp(const byte_t *a_tsdata, size_t a_tsdsize,  const char *str ) {
+    size_t l_strlen = (size_t)strlen(str);
+    if (l_strlen != a_tsdsize) return -1;
+    return memcmp(a_tsdata, str, l_strlen);
+}
+
+//emission tags
+//inherits from emission tsd section for engine-produced auth emissions
+bool s_get_tag_from_datum_token_emission(dap_chain_datum_token_emission_t *a_ems, dap_chain_tx_tag_type_t *a_tag)
+{
+    if (!a_ems || !a_tag)
+        return false;
+
+    if (a_tag)
+        *a_tag = DAP_CHAIN_TX_TAG_UNKNOWN | DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
+
+    
+    size_t src_tsd_size = 0;
+    size_t subsrc_tsd_size = 0;
+    
+    byte_t *ems_src = dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE, &src_tsd_size);
+    byte_t *ems_subsrc = dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE_SUBTYPE, &subsrc_tsd_size);
+
+    if (ems_src && src_tsd_size)
+    {
+        if (s_tsd_str_cmp(ems_src, src_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_STAKING) == 0)
+            *a_tag = DAP_CHAIN_TX_TAG_STAKING;
+        
+        if (s_tsd_str_cmp(ems_src, src_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_BRIDGE) == 0)
+            *a_tag = DAP_CHAIN_TX_TAG_BRIDGE;
+
+        //old one bridge comission emissions with "COMISSION" in source section
+        if (s_tsd_str_cmp(ems_src, src_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_BRIDGE_COMMISSION_OLD) == 0)
+        {
+            *a_tag = DAP_CHAIN_TX_TAG_BRIDGE | DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION;
+            return true;
+        }
+    }
+    log_it(L_NOTICE, "%s %s", ems_src, ems_subsrc);
+
+    if (ems_subsrc && subsrc_tsd_size)
+    {
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_STAKE_CROSSCHAIN)==0){
+            *a_tag = *a_tag | DAP_CHAIN_TX_TAG_ACTION_OPEN;
+            return true;
+        }
+
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_HARVEST)==0) {
+            *a_tag = *a_tag | DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD;
+            return true;
+        }
+
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_ADDLIQ)==0) {
+            *a_tag = *a_tag | DAP_CHAIN_TX_TAG_ACTION_EXTEND;
+            return true;
+        }
+
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_UNSTAKE_FINALIZATION)==0)
+        {
+            *a_tag = *a_tag | DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD;
+            return true;
+        }
+
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_BRIDGE_TRANSFER)==0){
+            *a_tag = *a_tag | DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+            return true;
+        }
+
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_BRIDGE_COMMISSION)==0){
+            *a_tag = *a_tag | DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION;
+            return true;
+        }
+
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_BRIDGE_CROSSCHAIN)==0){
+            *a_tag = *a_tag | DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN;
+            return true;
+        }
+    }
+
+    //special case for old bridge datums
+    //if emission has 5, 8, 6 section (it's enough) -> this is old bridge tx
+    if (dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_NET_ID, &src_tsd_size) &&
+        dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_BLOCK_NUM, &src_tsd_size) &&
+        dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_OUTER_TX_HASH, &src_tsd_size))
+    {
+        *a_tag = DAP_CHAIN_TX_TAG_BRIDGE | DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+        return true;
+    }
+
+    //special processing for old stakes: they have only STAKING in tsd 9 and no subtype
+    //we cant determine what type are those txs. mark them as unknown, but ok
+    if ((*a_tag) | DAP_CHAIN_TX_TAG_STAKING)
+        return true;
+
+    //other txses from emissions without any TSD (or not in conditions above) are concidered as manual service txes
+    *a_tag = DAP_CHAIN_TX_TAG_SERVICE | DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+
+    return true;
+}
+
+dap_chain_tx_tag_type_t dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
+{
+    dap_chain_tx_tag_type_t l_res_tag = DAP_CHAIN_TX_TAG_UNKNOWN | DAP_CHAIN_TX_TAG_ACTION_UNKNOWN; 
+
+    if (!a_tx) {
+        return l_res_tag;
+    }
+
+    //base-tx tag
+    dap_list_t *l_items_ems=NULL;
+    
+    if ((l_items_ems = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_IN_EMS, NULL))) {
+        
+        dap_ledger_stake_lock_item_t *l_stake_lock_emission = NULL;
+        dap_chain_tx_in_ems_t *l_tx_in_ems = l_items_ems->data;
+        dap_hash_fast_t ems_hash = l_tx_in_ems->header.token_emission_hash;
+
+        bool l_girdled_ems = dap_hash_fast_is_blank(&ems_hash); //no emission datum in zerochain
+    
+        //stake lock tx if it is girdled,  or if there is an stake-lock item
+        //native stakes
+        if (l_girdled_ems || s_emissions_for_stake_lock_item_find(a_ledger, &ems_hash))
+        {
+            //??
+        }
+        else {    
+            //other cases - AUTH type 
+            dap_ledger_token_emission_item_t *l_emission_item = s_emission_item_find(a_ledger, 
+                                                                                l_tx_in_ems->header.ticker, 
+                                                                                &ems_hash,
+                                                                                NULL);
+            if(l_emission_item)
+            {
+                s_get_tag_from_datum_token_emission(l_emission_item->datum_token_emission, &l_res_tag);
+                return l_res_tag;
+            }
+        }
+        dap_list_free(l_items_ems);
+    }
+
+    //xchange by xchange module
+    xchange_tx_type_t type = dap_chain_net_srv_xchange_tx_get_type(a_ledger, a_tx, NULL, NULL, NULL);
+    if (type == TX_TYPE_ORDER)
+        return l_res_tag = DAP_CHAIN_TX_TAG_XCHANGE | DAP_CHAIN_TX_TAG_ACTION_OPEN;
+    if (type == TX_TYPE_EXCHANGE)
+        return l_res_tag = DAP_CHAIN_TX_TAG_XCHANGE | DAP_CHAIN_TX_TAG_ACTION_USE;
+    if (type == TX_TYPE_INVALIDATE)
+        return l_res_tag = DAP_CHAIN_TX_TAG_XCHANGE | DAP_CHAIN_TX_TAG_ACTION_CLOSE;   
+    
+    //staking open native tag (HAVE CON_OUT_SRV_STAKE_LOCK)
+    dap_chain_tx_out_cond_t *l_cond_out=NULL; 
+    if (l_cond_out = dap_chain_datum_tx_out_cond_get((dap_chain_datum_tx_t*) a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, NULL)) {
+        l_res_tag = DAP_CHAIN_TX_TAG_STAKING | DAP_CHAIN_TX_TAG_ACTION_OPEN;
+        return l_res_tag;
+    }
+
+    //staking close native 
+    //dex use
+    //fee collection
+    //key delegation invalidate
+    dap_list_t *l_in_cond_items=NULL;
+    if ((l_in_cond_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_IN_COND, NULL))) {
+       for (dap_list_t *it = l_in_cond_items; it; it = it->next) {
+            dap_chain_tx_in_cond_t *l_tx_in = it->data;
+            dap_hash_fast_t *l_tx_prev_hash = &l_tx_in->header.tx_prev_hash;    
+            uint32_t l_tx_prev_out_idx = l_tx_in->header.tx_out_prev_idx;
+            dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash (a_ledger,l_tx_prev_hash);
+            
+            //stake close: have IN_COND to a STAKE_LOCK out
+            //check if in-cond is linked to out-cond type srv_stake_lock
+            int out_idx = -1;
+            dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, &out_idx);
+            if (l_tx_out_cond && (uint32_t)out_idx == l_tx_prev_out_idx) {
+                    l_res_tag = DAP_CHAIN_TX_TAG_STAKING | DAP_CHAIN_TX_TAG_ACTION_CLOSE;
+                    dap_list_free(l_in_cond_items);
+                    return l_res_tag;
+            }
+
+            out_idx = -1;
+            l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, &out_idx);
+            if (l_tx_out_cond && (uint32_t)out_idx == l_tx_prev_out_idx) {
+                    l_res_tag = DAP_CHAIN_TX_TAG_TRANSFER | DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION;
+                    dap_list_free(l_in_cond_items);
+                    return l_res_tag;
+            }
+
+            out_idx = -1;
+            l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &out_idx);
+            if (l_tx_out_cond && (uint32_t)out_idx == l_tx_prev_out_idx) {
+                    l_res_tag = DAP_CHAIN_TX_TAG_KEY_DELEGATION | DAP_CHAIN_TX_TAG_ACTION_CLOSE;
+                    dap_list_free(l_in_cond_items);
+                    return l_res_tag;
+            }
+        }
+    }
+
+    //reward tag
+    dap_list_t *l_reward_items=NULL;
+    if ((l_reward_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_IN_REWARD, NULL))) {
+        l_res_tag = DAP_CHAIN_TX_TAG_BLOCK_REWARD | DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+        dap_list_free(l_reward_items);
+        return l_res_tag;
+    }
+
+    //voting open 
+    dap_list_t *l_items_voting=NULL;
+    if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL))) {
+        l_res_tag = DAP_CHAIN_TX_TAG_VOTING | DAP_CHAIN_TX_TAG_ACTION_OPEN;
+        dap_list_free(l_items_voting);
+        return l_res_tag;
+    }
+
+    //voting use
+    dap_list_t *l_items_vote=NULL;
+    if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL))) {
+        l_res_tag = DAP_CHAIN_TX_TAG_VOTING | DAP_CHAIN_TX_TAG_ACTION_USE;
+        dap_list_free(l_items_voting);
+        return l_res_tag;
+    }
+
+    //crosschain transfer    
+    //staking lp_unstake
+    dap_chain_addr_t addr_to = {0};
+    dap_list_t *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
+
+    for (dap_list_t *it = l_list_out; it; it = it->next) {
+        dap_chain_tx_item_type_t l_type = *(uint8_t *)it->data;
+        dap_chain_addr_t l_tx_out_to={0};
+        switch (l_type) {
+            case TX_ITEM_TYPE_OUT_OLD: {
+                l_res_tag = DAP_CHAIN_TX_TAG_TRANSFER | DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+            } break;
+            case TX_ITEM_TYPE_OUT: { 
+                dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)it->data;
+                l_tx_out_to = l_tx_out->addr;
+            } break;
+            case TX_ITEM_TYPE_OUT_EXT: { // 256
+                dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)it->data;
+                l_tx_out_to = l_tx_out->addr;
+            } break;
+        }
+        
+        //tag cross-chain _outputs_ transactions (recepient-tx is emission-based)
+        if (l_tx_out_to.net_id.uint64 != a_ledger->net->pub.id.uint64 && !dap_chain_addr_is_blank(&l_tx_out_to)) {
+            l_res_tag = DAP_CHAIN_TX_TAG_TRANSFER | DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN;
+            dap_list_free(l_list_out);
+            return l_res_tag;
+        }
+
+        //transfer to null -> shoukd have a tsd item with valid stake tx
+        //for now it is ok just check that tsd is present
+        if (dap_chain_addr_is_blank(&l_tx_out_to))
+        {
+            dap_list_t *l_list_tsd = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_TSD, NULL);
+            if(l_list_tsd) {
+                l_res_tag = DAP_CHAIN_TX_TAG_STAKING | DAP_CHAIN_TX_TAG_ACTION_CLOSE;
+                dap_list_free(l_list_out);
+                return l_res_tag;
+            }
+        }
+
+    }
+
+    if ( l_list_out )
+        dap_list_free(l_list_out);
+    
+    //regular transfers & dex open & keydelegation open
+    dap_list_t *l_items_in=NULL;
+    if ((l_items_ems = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_IN, NULL))) {
+        dap_list_t *l_items_out=NULL;
+        
+        if (l_cond_out = dap_chain_datum_tx_out_cond_get((dap_chain_datum_tx_t*) a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL)) {
+            l_res_tag = DAP_CHAIN_TX_TAG_KEY_DELEGATION | DAP_CHAIN_TX_TAG_ACTION_OPEN;
+            dap_list_free(l_items_in);
+            return l_res_tag;
+        }
+        //transfers
+        // in native token: have IN + OUT.
+        if ((l_items_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT, NULL))) {
+            l_res_tag = DAP_CHAIN_TX_TAG_TRANSFER | DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+            dap_list_free(l_items_out);
+            dap_list_free(l_items_in);
+            return l_res_tag;
+        }
+        
+        // in not-native token: have IN + OUT_EXT.
+        if ((l_items_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT_EXT, NULL))) {
+            l_res_tag = DAP_CHAIN_TX_TAG_TRANSFER | DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+            dap_list_free(l_items_out);
+            dap_list_free(l_items_in);
+            return l_res_tag;
+        }
+    }
+
+    return l_res_tag;
+}
+
 /**
  * Checking a new transaction before adding to the cache
  *
  * return 0 OK, otherwise error
  */
 // Checking a new transaction before adding to the cache
-int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
-                                    bool a_from_threshold, dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out, char **a_main_ticker)
+int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger,
+                                 dap_chain_datum_tx_t *a_tx,
+                                  dap_hash_fast_t *a_tx_hash,
+                                    bool a_from_threshold, 
+                                    dap_list_t **a_list_bound_items,
+                                     dap_list_t **a_list_tx_out,
+                                      char **a_main_ticker,
+                                      dap_chain_tx_tag_type_t *a_tag)
 {
     if (!a_tx) {
         log_it(L_DEBUG, "NULL transaction, check broken");
@@ -3435,6 +3772,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                 char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_chain_hash_fast_to_str(a_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
                 log_it(L_WARNING, "Transaction %s already present in the cache", l_tx_hash_str);
+                if (a_tag) *a_tag = l_ledger_item->cache_data.tag;
             }
             return DAP_LEDGER_TX_ALREADY_CACHED;
         }
@@ -3482,6 +3820,8 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
     dap_pkey_t *l_tx_first_sign_pkey = NULL;
     bool l_girdled_ems_used = false;
     uint256_t l_taxed_value = {};
+
+    if(a_tag) *a_tag = dap_ledger_deduct_tx_tag(a_ledger, a_tx);
 
     // find all previous transactions
     for (dap_list_t *it = l_list_in; it; it = it->next) {
@@ -4302,7 +4642,7 @@ int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     }
 
     int l_ret_check = dap_ledger_tx_cache_check(a_ledger, a_tx, a_datum_hash,
-                                                      false, NULL, NULL, NULL);
+                                                      false, NULL, NULL, NULL, NULL);
     if(s_debug_more) {
         char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(a_datum_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
@@ -4389,9 +4729,11 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
 
     int l_ret_check;
     l_item_tmp = NULL;
+    dap_chain_tx_tag_type_t l_tag = DAP_CHAIN_TX_TAG_UNKNOWN | DAP_CHAIN_TX_TAG_ACTION_UNKNOWN; 
+
     if( (l_ret_check = dap_ledger_tx_cache_check(a_ledger, a_tx, a_tx_hash, a_from_threshold,
                                                        &l_list_bound_items, &l_list_tx_out,
-                                                       &l_main_token_ticker))) {
+                                                       &l_main_token_ticker, &l_tag))) {
         if (l_ret_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS ||
                 l_ret_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION) {
             if (!l_from_threshold) {
@@ -4689,6 +5031,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     int l_outs_count = 0;
     dap_list_t *l_list_tmp = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, &l_outs_count);
     l_tx_item->cache_data.n_outs = l_outs_count;
+    l_tx_item->cache_data.tag = l_tag;
     // TODO: dump the UTXO in debug mode if need
 
     if(l_list_tmp)
@@ -5875,7 +6218,7 @@ char * dap_ledger_tx_get_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_
 {
     char *l_main_ticker = NULL;
     dap_chain_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
-    int l_rc = dap_ledger_tx_cache_check(a_ledger, a_tx, l_tx_hash, false, NULL, NULL, &l_main_ticker);
+    int l_rc = dap_ledger_tx_cache_check(a_ledger, a_tx, l_tx_hash, false, NULL, NULL, &l_main_ticker, NULL);
     
     if (l_rc == DAP_LEDGER_TX_ALREADY_CACHED)
     {
