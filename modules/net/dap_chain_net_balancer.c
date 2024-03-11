@@ -29,19 +29,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_balancer"
 
-static bool dap_chain_net_balancer_find_link(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net)
-{
-    // dap_list_t *l_link_list = a_net->pub.link_list;
-    // for(dap_list_t *ll = l_link_list; ll; ll = ll->next)
-    // {
-    //     dap_chain_node_info_t *l_node_link = (dap_chain_node_info_t*)ll->data;
-    //     if( l_node_link && !dap_strcmp(l_node_link->ext_host, a_node_info->ext_host) )
-    //         return true;
-    // }
-    return false;
-}
-
-
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t *a_net)
 {
     dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(a_net, a_node_info);

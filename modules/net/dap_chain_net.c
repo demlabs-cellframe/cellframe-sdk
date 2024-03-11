@@ -161,7 +161,7 @@ typedef struct dap_chain_net_pvt{
     bool load_mode;
 
     uint16_t permanent_links_count;
-    dap_stream_node_addr_t *permanent_links; // TODO realize permanent links from config
+    dap_stream_node_addr_t *permanent_links;
 
     uint16_t poa_nodes_count;
     dap_stream_node_addr_t *poa_nodes_addrs;
@@ -614,7 +614,7 @@ void s_net_http_link_prepare_success(void *a_response, size_t a_response_size, v
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *)a_arg;
     dap_chain_net_node_balancer_t* l_link_full_node_list = (dap_chain_net_node_balancer_t*)a_response;
 
-    size_t l_response_size_need = sizeof(dap_chain_net_node_balancer_t) + (sizeof(dap_chain_node_info_t) * l_link_full_node_list->count_node);
+    size_t l_response_size_need = sizeof(dap_chain_net_node_balancer_t) + (sizeof(dap_link_info_t) * l_link_full_node_list->count_node);
     log_it(L_WARNING, "Get data size - %lu need - (%lu)", a_response_size, l_response_size_need);
     if (a_response_size != l_response_size_need) {
         log_it(L_ERROR, "Invalid balancer response size %lu (expected %lu)", a_response_size, l_response_size_need);
