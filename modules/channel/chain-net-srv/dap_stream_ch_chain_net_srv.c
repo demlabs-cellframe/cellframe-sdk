@@ -527,6 +527,59 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         return false;
     }
 
+    if(!a_grace->usage->receipt){
+        dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
+        l_remain_service = a_grace->usage->service->callbacks.get_remain_service(a_grace->usage->service, a_grace->usage->id, a_grace->usage->client);
+        if (l_remain_service && !a_grace->usage->is_active &&
+            ((l_remain_service->limits_ts && a_grace->usage->price->units_uid.enm == SERV_UNIT_SEC)  || 
+            (l_remain_service->limits_bytes && a_grace->usage->price->units_uid.enm == SERV_UNIT_B))){
+            // Accept connection, set limits and start service
+            dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_grace->usage->client->ch->stream->session->_inheritor;
+            switch(a_grace->usage->price->units_uid.enm){
+                case SERV_UNIT_SEC:
+                    l_srv_session->limits_ts = l_remain_service->limits_ts;
+                    break;
+                case SERV_UNIT_B:
+                    l_srv_session->limits_bytes = l_remain_service->limits_bytes;
+                    break;
+            }
+
+            log_it(L_INFO, "User has %ld %s remain service. Start service without paying.", l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
+
+            size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
+            dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
+                                                                                    l_success_size);
+            if(!l_success) {
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+                if(l_ch)
+                    dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+                if (a_grace->usage->service && a_grace->usage->service->callbacks.response_error)
+                    a_grace->usage->service->callbacks.response_error(a_grace->usage->service, 0, NULL, &l_err, sizeof(l_err));
+            } else {
+                l_success->hdr.usage_id = a_grace->usage->id;
+                l_success->hdr.net_id.uint64 = a_grace->usage->net->pub.id.uint64;
+                l_success->hdr.srv_uid.uint64 = a_grace->usage->service->uid.uint64;
+                dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
+
+                // create and fill first receipt
+                a_grace->usage->receipt = dap_chain_datum_tx_receipt_create(
+                            a_grace->usage->service->uid, a_grace->usage->price->units_uid, a_grace->usage->price->units, a_grace->usage->price->value_datoshi, NULL, 0);
+
+                if (a_grace->usage->service->callbacks.response_success)
+                    a_grace->usage->service->callbacks.response_success(a_grace->usage->service, a_grace->usage->id,
+                                                                        a_grace->usage->client, a_grace->usage->receipt,
+                                                                        sizeof(dap_chain_datum_tx_receipt_t) + a_grace->usage->receipt->size + a_grace->usage->receipt->exts_size);
+                DAP_DELETE(l_success);
+            }
+            DAP_DELETE(a_grace->request);
+            DAP_DELETE(a_grace);
+            DAP_DELETE(l_remain_service);
+            return false;
+        }
+    }
+
+
     l_tx = a_grace->usage->is_waiting_new_tx_cond ? NULL : dap_ledger_tx_find_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
     if (!l_tx) { // No tx cond transaction, start grace-period
         if (!a_grace->usage->is_active){
@@ -718,57 +771,57 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
 //        memcpy(&a_grace->usage->client_pkey_hash, &l_tx_out_cond->subtype.srv_pay.pkey_hash, sizeof(dap_chain_hash_fast_t));
 
-        if(!a_grace->usage->receipt){
-            dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
-            l_remain_service = a_grace->usage->service->callbacks.get_remain_service(a_grace->usage->service, a_grace->usage->id, a_grace->usage->client);
-            if (l_remain_service && !a_grace->usage->is_active &&
-                ((l_remain_service->limits_ts && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_SEC)  || 
-                (l_remain_service->limits_bytes && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_B))){
-                // Accept connection, set limits and start service
-                dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_grace->usage->client->ch->stream->session->_inheritor;
-                switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
-                    case SERV_UNIT_SEC:
-                        l_srv_session->limits_ts = l_remain_service->limits_ts;
-                        break;
-                    case SERV_UNIT_B:
-                        l_srv_session->limits_bytes = l_remain_service->limits_bytes;
-                        break;
-                }
+        // if(!a_grace->usage->receipt){
+        //     dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
+        //     l_remain_service = a_grace->usage->service->callbacks.get_remain_service(a_grace->usage->service, a_grace->usage->id, a_grace->usage->client);
+        //     if (l_remain_service && !a_grace->usage->is_active &&
+        //         ((l_remain_service->limits_ts && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_SEC)  || 
+        //         (l_remain_service->limits_bytes && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_B))){
+        //         // Accept connection, set limits and start service
+        //         dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_grace->usage->client->ch->stream->session->_inheritor;
+        //         switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
+        //             case SERV_UNIT_SEC:
+        //                 l_srv_session->limits_ts = l_remain_service->limits_ts;
+        //                 break;
+        //             case SERV_UNIT_B:
+        //                 l_srv_session->limits_bytes = l_remain_service->limits_bytes;
+        //                 break;
+        //         }
 
-                log_it(L_INFO, "User has %ld %s remain service. Start service without paying.", l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
+        //         log_it(L_INFO, "User has %ld %s remain service. Start service without paying.", l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
 
-                size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
-                dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
-                                                                                      l_success_size);
-                if(!l_success) {
-                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
-                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
-                    if(l_ch)
-                        dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-                    if (a_grace->usage->service && a_grace->usage->service->callbacks.response_error)
-                        a_grace->usage->service->callbacks.response_error(a_grace->usage->service, 0, NULL, &l_err, sizeof(l_err));
-                } else {
-                    l_success->hdr.usage_id = a_grace->usage->id;
-                    l_success->hdr.net_id.uint64 = a_grace->usage->net->pub.id.uint64;
-                    l_success->hdr.srv_uid.uint64 = a_grace->usage->service->uid.uint64;
-                    dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
+        //         size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
+        //         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
+        //                                                                               l_success_size);
+        //         if(!l_success) {
+        //             log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        //             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+        //             if(l_ch)
+        //                 dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        //             if (a_grace->usage->service && a_grace->usage->service->callbacks.response_error)
+        //                 a_grace->usage->service->callbacks.response_error(a_grace->usage->service, 0, NULL, &l_err, sizeof(l_err));
+        //         } else {
+        //             l_success->hdr.usage_id = a_grace->usage->id;
+        //             l_success->hdr.net_id.uint64 = a_grace->usage->net->pub.id.uint64;
+        //             l_success->hdr.srv_uid.uint64 = a_grace->usage->service->uid.uint64;
+        //             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
 
-                    // create and fill first receipt
-                    a_grace->usage->receipt = dap_chain_datum_tx_receipt_create(
-                                a_grace->usage->service->uid, l_price->units_uid, l_price->units, l_price->value_datoshi, NULL, 0);
+        //             // create and fill first receipt
+        //             a_grace->usage->receipt = dap_chain_datum_tx_receipt_create(
+        //                         a_grace->usage->service->uid, l_price->units_uid, l_price->units, l_price->value_datoshi, NULL, 0);
 
-                    if (a_grace->usage->service->callbacks.response_success)
-                        a_grace->usage->service->callbacks.response_success(a_grace->usage->service, a_grace->usage->id,
-                                                                            a_grace->usage->client, a_grace->usage->receipt,
-                                                                            sizeof(dap_chain_datum_tx_receipt_t) + a_grace->usage->receipt->size + a_grace->usage->receipt->exts_size);
-                    DAP_DELETE(l_success);
-                }
-                DAP_DELETE(a_grace->request);
-                DAP_DELETE(a_grace);
-                DAP_DELETE(l_remain_service);
-                return false;
-            }
-        }
+        //             if (a_grace->usage->service->callbacks.response_success)
+        //                 a_grace->usage->service->callbacks.response_success(a_grace->usage->service, a_grace->usage->id,
+        //                                                                     a_grace->usage->client, a_grace->usage->receipt,
+        //                                                                     sizeof(dap_chain_datum_tx_receipt_t) + a_grace->usage->receipt->size + a_grace->usage->receipt->exts_size);
+        //             DAP_DELETE(l_success);
+        //         }
+        //         DAP_DELETE(a_grace->request);
+        //         DAP_DELETE(a_grace);
+        //         DAP_DELETE(l_remain_service);
+        //         return false;
+        //     }
+        // }
 
         if (a_grace->usage->receipt_next){
             DAP_DEL_Z(a_grace->usage->receipt_next);
@@ -994,57 +1047,57 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
             RET_WITH_DEL_A_GRACE((uint32_t) ret);
         }
 
-        if (!l_grace->usage->receipt){
-            // get remain units from DB
-            dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
-            l_remain_service = l_grace->usage->service->callbacks.get_remain_service(l_grace->usage->service, l_grace->usage->id, l_grace->usage->client);
-            if (l_remain_service && !l_grace->usage->is_active &&
-                ((l_remain_service->limits_ts && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_SEC)  || 
-                (l_remain_service->limits_bytes && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_B))){
-                // Accept connection, set limits and start service
-                dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) l_grace->usage->client->ch->stream->session->_inheritor;
-                switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
-                    case SERV_UNIT_SEC:
-                        l_srv_session->limits_ts = l_remain_service->limits_ts;
-                        break;
-                    case SERV_UNIT_B:
-                        l_srv_session->limits_bytes = l_remain_service->limits_bytes;
-                        break;
-                }
-                log_it(L_INFO, "User has %ld %s remain service. Start service without paying.", l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
+        // if (!l_grace->usage->receipt){
+        //     // get remain units from DB
+        //     dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
+        //     l_remain_service = l_grace->usage->service->callbacks.get_remain_service(l_grace->usage->service, l_grace->usage->id, l_grace->usage->client);
+        //     if (l_remain_service && !l_grace->usage->is_active &&
+        //         ((l_remain_service->limits_ts && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_SEC)  || 
+        //         (l_remain_service->limits_bytes && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_B))){
+        //         // Accept connection, set limits and start service
+        //         dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) l_grace->usage->client->ch->stream->session->_inheritor;
+        //         switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
+        //             case SERV_UNIT_SEC:
+        //                 l_srv_session->limits_ts = l_remain_service->limits_ts;
+        //                 break;
+        //             case SERV_UNIT_B:
+        //                 l_srv_session->limits_bytes = l_remain_service->limits_bytes;
+        //                 break;
+        //         }
+        //         log_it(L_INFO, "User has %ld %s remain service. Start service without paying.", l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
 
-                size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
-                dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
-                                                                                      l_success_size);
-                if(!l_success) {
-                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
-                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
-                    if(l_ch)
-                        dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-                    if (l_grace->usage->service && l_grace->usage->service->callbacks.response_error)
-                        l_grace->usage->service->callbacks.response_error(l_grace->usage->service, 0, NULL, &l_err, sizeof(l_err));
-                } else {
-                    l_success->hdr.usage_id = l_grace->usage->id;
-                    l_success->hdr.net_id.uint64 = l_grace->usage->net->pub.id.uint64;
-                    l_success->hdr.srv_uid.uint64 = l_grace->usage->service->uid.uint64;
-                    dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
+        //         size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
+        //         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
+        //                                                                               l_success_size);
+        //         if(!l_success) {
+        //             log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        //             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+        //             if(l_ch)
+        //                 dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        //             if (l_grace->usage->service && l_grace->usage->service->callbacks.response_error)
+        //                 l_grace->usage->service->callbacks.response_error(l_grace->usage->service, 0, NULL, &l_err, sizeof(l_err));
+        //         } else {
+        //             l_success->hdr.usage_id = l_grace->usage->id;
+        //             l_success->hdr.net_id.uint64 = l_grace->usage->net->pub.id.uint64;
+        //             l_success->hdr.srv_uid.uint64 = l_grace->usage->service->uid.uint64;
+        //             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
 
-                    // create and fill limits and first receipt
-                    l_grace->usage->receipt = dap_chain_datum_tx_receipt_create(
-                                l_grace->usage->service->uid, l_price->units_uid, l_price->units, l_price->value_datoshi, NULL, 0);
+        //             // create and fill limits and first receipt
+        //             l_grace->usage->receipt = dap_chain_datum_tx_receipt_create(
+        //                         l_grace->usage->service->uid, l_price->units_uid, l_price->units, l_price->value_datoshi, NULL, 0);
 
-                    if (l_grace->usage->service->callbacks.response_success)
-                        l_grace->usage->service->callbacks.response_success(l_grace->usage->service, l_grace->usage->id,
-                                                                            l_grace->usage->client, l_grace->usage->receipt,
-                                                                            sizeof(dap_chain_datum_tx_receipt_t) + l_grace->usage->receipt->size + l_grace->usage->receipt->exts_size);
-                    DAP_DELETE(l_success);
-                }
-                DAP_DELETE(l_grace->request);
-                DAP_DELETE(l_grace);
-                DAP_DELETE(l_remain_service);
-                RET_WITH_DEL_A_GRACE(0);
-            }
-        }
+        //             if (l_grace->usage->service->callbacks.response_success)
+        //                 l_grace->usage->service->callbacks.response_success(l_grace->usage->service, l_grace->usage->id,
+        //                                                                     l_grace->usage->client, l_grace->usage->receipt,
+        //                                                                     sizeof(dap_chain_datum_tx_receipt_t) + l_grace->usage->receipt->size + l_grace->usage->receipt->exts_size);
+        //             DAP_DELETE(l_success);
+        //         }
+        //         DAP_DELETE(l_grace->request);
+        //         DAP_DELETE(l_grace);
+        //         DAP_DELETE(l_remain_service);
+        //         RET_WITH_DEL_A_GRACE(0);
+        //     }
+        // }
 
         // make receipt or tx
         char *l_receipt_hash_str;
