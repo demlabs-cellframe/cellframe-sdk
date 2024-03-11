@@ -34,7 +34,7 @@ typedef struct dap_chain_net_node_balancer {
 } dap_chain_net_node_balancer_t;
 
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
-dap_chain_node_info_t *dap_chain_net_balancer_dns_issue_link(char *a_str);
+dap_link_info_t *dap_chain_net_balancer_dns_issue_link(char *a_str);
 dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net_name,uint16_t a_links_need);
 void dap_chain_net_balancer_set_link_ban(dap_chain_node_info_t *a_node_info, const char *a_net_name);
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net);
