@@ -990,8 +990,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         l_args->srv = a_srv;
         l_args->srv_client = a_srv_client;
         l_args->usage_id = a_usage_id;
-        if(!l_usage_active->save_limits_timer)
-            l_usage_active->save_limits_timer = dap_timerfd_start_on_worker(l_usage_active->client->stream_worker->worker, 60 * 1000,
+        l_usage_active->save_limits_timer = dap_timerfd_start_on_worker(l_usage_active->client->stream_worker->worker, 60 * 1000,
                                                              (dap_timerfd_callback_t)s_save_limits, l_args);
         l_srv_session->limits_units_type.uint32 = l_usage_active->receipt->receipt_info.units_type.uint32;
         switch( l_usage_active->receipt->receipt_info.units_type.enm){
