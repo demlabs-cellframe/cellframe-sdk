@@ -52,13 +52,6 @@ typedef struct dap_chain_ch dap_chain_ch_t;
 typedef void (*dap_chain_ch_callback_packet_t)(dap_chain_ch_t*, uint8_t a_pkt_type,
                                                       dap_chain_ch_pkt_t *a_pkt, size_t a_pkt_data_size,
                                                       void * a_arg);
-typedef struct dap_chain_atom_item{
-    dap_chain_hash_fast_t atom_hash;
-    dap_chain_atom_ptr_t atom;
-    size_t atom_size;
-    UT_hash_handle hh;
-} dap_chain_atom_item_t;
-
 typedef struct dap_chain_pkt_item {
     uint64_t pkt_data_size;
     byte_t *pkt_data;
@@ -73,8 +66,9 @@ typedef struct dap_chain_ch_hash_item{
 
 typedef struct dap_chain_ch {
     void *_inheritor;
-
     dap_chain_ch_state_t state;
+
+    // Legacy section //
     uint64_t stats_request_atoms_processed;
     uint64_t stats_request_gdb_processed;
 
@@ -97,10 +91,10 @@ typedef struct dap_chain_ch {
     void *callback_notify_arg;
 } dap_chain_ch_t;
 
-#define DAP_STREAM_CH_CHAIN(a) ((dap_chain_ch_t *) ((a)->internal) )
+#define DAP_CHAIN_CH(a) ((dap_chain_ch_t *) ((a)->internal) )
 #define DAP_STREAM_CH(a) ((dap_stream_ch_t *)((a)->_inheritor))
 #define DAP_CHAIN_PKT_EXPECT_SIZE 7168
-#define DAP_STREAM_CH_CHAIN_ID 'C'
+#define DAP_CHAIN_CH_ID 'C'
 
 int dap_chain_ch_init(void);
 void dap_chain_ch_deinit(void);

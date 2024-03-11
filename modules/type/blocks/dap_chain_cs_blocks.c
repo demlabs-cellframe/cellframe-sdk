@@ -99,8 +99,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
 //    Get block header size
 static size_t s_callback_atom_get_static_hdr_size(void);
 
-static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool a_with_treshold);
-static dap_chain_atom_iter_t* s_callback_atom_iter_create_from(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size);
+static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);
 static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
                                                                        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
@@ -112,12 +111,9 @@ static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_ato
 static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_block_t *)a_atom)->hdr.ts_created; }
 static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
 //    Get blocks
-static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size ); //    Get the fisrt block
-static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size );  //    Get the next block
+static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size);
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter_t * a_atom_iter , size_t *a_links_size,
                                                                   size_t ** a_links_size_ptr );  //    Get list of linked blocks
-static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter_t * a_atom_iter ,size_t *a_links_size,
-                                                                  size_t ** a_lasts_size_ptr );  //    Get list of linked blocks
 //Get list of hashes
 static dap_list_t *s_block_parse_str_list(char *a_hash_str, size_t * a_hash_size, dap_chain_t * a_chain);
 
@@ -242,13 +238,10 @@ static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_c
     a_chain->callback_atom_get_hdr_static_size = s_callback_atom_get_static_hdr_size; // Get block hdr size
 
     a_chain->callback_atom_iter_create = s_callback_atom_iter_create;
-    a_chain->callback_atom_iter_create_from = s_callback_atom_iter_create_from;
     a_chain->callback_atom_iter_delete = s_callback_atom_iter_delete;
-    // Linear pass through
-    a_chain->callback_atom_iter_get_first = s_callback_atom_iter_get_first; // Get the fisrt element from chain
-    a_chain->callback_atom_iter_get_next = s_callback_atom_iter_get_next; // Get the next element from chain from the current one
-    a_chain->callback_atom_iter_get_links = s_callback_atom_iter_get_links; // Get the next element from chain from the current one
-    a_chain->callback_atom_iter_get_lasts = s_callback_atom_iter_get_lasts;
+    a_chain->callback_atom_iter_get = s_callback_atom_iter_get; // Linear pass through
+
+    a_chain->callback_atom_iter_get_links = s_callback_atom_iter_get_links;
 
     // Datum operations callbacks
     a_chain->callback_datum_iter_create = s_chain_callback_datum_iter_create; // Datum iterator create
@@ -1427,75 +1420,27 @@ static size_t s_callback_atom_get_static_hdr_size(void)
 }
 
 /**
- * @brief s_callback_atom_iter_create
- * @param a_chain
- * @return
- */
-static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool a_with_treshold)
-{
-    dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
-    if (!l_atom_iter) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return NULL;
-    }
-    l_atom_iter->chain = a_chain;
-    l_atom_iter->cell_id = a_cell_id;
-    l_atom_iter->with_treshold = a_with_treshold;
-#ifdef WIN32
-    log_it(L_DEBUG, "! %p create caller id %lu", l_atom_iter, GetThreadId(GetCurrentThread()));
-#endif
-    return l_atom_iter;
-}
-
-/**
- * @brief s_callback_atom_iter_create_from
- * @param a_chain
- * @param a_atom
- * @param a_atom_size
- * @return
- */
-static dap_chain_atom_iter_t* s_callback_atom_iter_create_from(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
-{
-    if (a_atom && a_atom_size){
-        dap_chain_hash_fast_t l_atom_hash;
-        dap_hash_fast(a_atom, a_atom_size, &l_atom_hash);
-        dap_chain_atom_iter_t * l_atom_iter = s_callback_atom_iter_create(a_chain, a_chain->cells->id, 0);
-        if (l_atom_iter){
-            dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-            l_atom_iter->cur_item = dap_chain_block_cache_get_by_hash(l_blocks, &l_atom_hash);
-            l_atom_iter->cur = a_atom;
-            l_atom_iter->cur_size = a_atom_size;
-            return l_atom_iter;
-        }else
-            return NULL;
-    }else
-        return NULL;
-}
-
-/**
  * @brief s_callback_atom_iter_find_by_hash
  * @param a_atom_iter
  * @param a_atom_hash
  * @param a_atom_size
  * @return
  */
-static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter, dap_chain_hash_fast_t * a_atom_hash,
+static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter, dap_chain_hash_fast_t *a_atom_hash,
                                                               size_t * a_atom_size)
 {
     assert(a_atom_iter);
-    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain));
-    dap_chain_block_cache_t * l_block_cache = NULL;
-    pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
-    HASH_FIND(hh, l_blocks_pvt->blocks, a_atom_hash, sizeof(*a_atom_hash), l_block_cache);
-    pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
+    dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, a_atom_hash);
     a_atom_iter->cur_item = l_block_cache;
     if (l_block_cache) {
-        a_atom_iter->cur = l_block_cache->block;
-        a_atom_iter->cur_size = l_block_cache->block_size;
-    } else {
-        a_atom_iter->cur = NULL;
-        a_atom_iter->cur_size = 0;
-    }
+        a_atom_iter->cur        = l_block_cache->block;
+        a_atom_iter->cur_size   = l_block_cache->block_size;
+        a_atom_iter->cur_hash   = &l_block_cache->block_hash;
+        a_atom_iter->cur_num    = l_block_cache->block_number;
+    } else
+        *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
+                                                 .cell_id = a_atom_iter->cell_id };
     if (a_atom_size)
         *a_atom_size = a_atom_iter->cur_size;
     return a_atom_iter->cur;
@@ -1558,32 +1503,64 @@ static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_ato
 }
 
 /**
- * @brief s_callback_atom_iter_get_first
+ * @brief s_callback_atom_iter_create
+ * @param a_chain
+ * @return
+ */
+static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from)
+{
+    dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
+    if (!l_atom_iter) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        return NULL;
+    }
+    l_atom_iter->chain = a_chain;
+    l_atom_iter->cell_id = a_cell_id;
+    if (a_hash_from)
+        s_callback_atom_iter_find_by_hash(l_atom_iter, a_hash_from, NULL);
+    return l_atom_iter;
+}
+
+/**
+ * @brief s_callback_atom_iter_get
  * @param a_atom_iter
+ * @param a_operation
  * @param a_atom_size
  * @return
  */
-static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size )
+static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size)
 {
-    if(!a_atom_iter) {
-        log_it(L_CRITICAL, "Invalid argument");
-        return NULL;
-    }
+    dap_return_val_if_fail(a_atom_iter, NULL);
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = l_blocks ? PVT(l_blocks) : NULL;
     assert(l_blocks_pvt);
-    //pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
-    a_atom_iter->cur_item       = l_blocks_pvt->blocks;
-    if (a_atom_iter->cur_item) {
-        a_atom_iter->cur        = l_blocks_pvt->blocks->block;
-        a_atom_iter->cur_size   = l_blocks_pvt->blocks->block_size;
-        a_atom_iter->cur_hash   = &l_blocks_pvt->blocks->block_hash;
-    } else {
-        a_atom_iter->cur        = NULL;
-        a_atom_iter->cur_size   = 0;
-        a_atom_iter->cur_hash   = NULL;
+    pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
+    switch (a_operation) {
+    case DAP_CHAIN_ITER_OP_FIRST:
+        a_atom_iter->cur_item = l_blocks_pvt->blocks;
+        break;
+    case DAP_CHAIN_ITER_OP_LAST:
+        HASH_LAST(l_blocks_pvt->blocks, a_atom_iter->cur_item);
+        break;
+    case DAP_CHAIN_ITER_OP_NEXT:
+        if (a_atom_iter->cur_item)
+            a_atom_iter->cur_item = ((dap_chain_block_cache_t *)a_atom_iter->cur_item)->hh.next;
+        break;
+    case DAP_CHAIN_ITER_OP_PREV:
+        if (a_atom_iter->cur_item)
+            a_atom_iter->cur_item = ((dap_chain_block_cache_t *)a_atom_iter->cur_item)->hh.prev;
+        break;
     }
-    //pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
+    if (a_atom_iter->cur_item) {
+        dap_chain_block_cache_t *l_item = a_atom_iter->cur_item;
+        a_atom_iter->cur        = l_item->block;
+        a_atom_iter->cur_size   = l_item->block_size;
+        a_atom_iter->cur_hash   = &l_item->block_hash;
+        a_atom_iter->cur_num    = l_item->block_number;
+    } else
+        *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
+                                                 .cell_id = a_atom_iter->cell_id };
+    pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
     if (a_atom_size)
         *a_atom_size = a_atom_iter->cur_size;
 
@@ -1591,31 +1568,12 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_
 }
 
 /**
- * @brief s_callback_atom_iter_get_next
+ * @brief s_callback_atom_iter_delete
  * @param a_atom_iter
- * @param a_atom_size
- * @return
  */
-static dap_chain_atom_ptr_t s_callback_atom_iter_get_next(dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size )
+static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
 {
-    assert(a_atom_iter);
-    assert(a_atom_iter->cur_item);
-
-    dap_chain_block_cache_t *l_next_item = ((dap_chain_block_cache_t*)a_atom_iter->cur_item)->hh.next;
-    a_atom_iter->cur_item = l_next_item;
-    if (a_atom_iter->cur_item) {
-        a_atom_iter->cur        = l_next_item->block;
-        a_atom_iter->cur_size   = l_next_item->block_size;
-        a_atom_iter->cur_hash   = &l_next_item->block_hash;
-    } else {
-        a_atom_iter->cur        = NULL;
-        a_atom_iter->cur_size   = 0;
-        a_atom_iter->cur_hash   = NULL;
-    }
-    if(a_atom_size)
-        *a_atom_size = a_atom_iter->cur_size;
-
-    return a_atom_iter->cur;
+    DAP_DELETE(a_atom_iter);
 }
 
 /**
@@ -1648,70 +1606,6 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links(dap_chain_atom_iter_
         l_ret[i] = l_link->block;
     }
     return l_ret;
-}
-
-/**
- * @brief s_callback_atom_iter_get_lasts
- * @param a_atom_iter
- * @param a_links_size
- * @param a_lasts_size_ptr
- * @return
- */
-static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter_t *a_atom_iter, size_t *a_links_size, size_t **a_lasts_size_ptr)
-{
-    if(!a_atom_iter) {
-        log_it(L_CRITICAL, "Invalid argument");
-        return NULL;
-    }
-    dap_chain_block_cache_t *l_blocks = PVT(DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain))->blocks;
-    dap_chain_block_cache_t *l_block_cache_last = l_blocks ? l_blocks->hh.tbl->tail->prev : NULL;
-    l_block_cache_last = l_block_cache_last ? l_block_cache_last->hh.next : l_blocks;
-
-    if (l_block_cache_last) {
-        a_atom_iter->cur = l_block_cache_last->block;
-        a_atom_iter->cur_size = l_block_cache_last->block_size;
-        a_atom_iter->cur_hash = &l_block_cache_last->block_hash;
-        if (a_lasts_size_ptr) {
-            *a_lasts_size_ptr = DAP_NEW_Z(size_t);
-            if (!a_lasts_size_ptr) {
-                log_it(L_CRITICAL, "Memory allocation error");
-                return NULL;
-            }
-            (*a_lasts_size_ptr)[0] = l_block_cache_last->block_size;
-        }
-        if (a_links_size)
-            *a_links_size = 1;
-        dap_chain_atom_ptr_t *l_ret = DAP_NEW_Z(dap_chain_atom_ptr_t);
-        if (!l_ret) {
-            log_it(L_CRITICAL, "Memory allocation error");
-            if (a_lasts_size_ptr)
-                DAP_DEL_Z(*a_lasts_size_ptr);
-            return NULL;
-        }
-        l_ret[0] = l_block_cache_last->block;
-        return l_ret;
-    } else {
-        a_atom_iter->cur = NULL;
-        a_atom_iter->cur_size = 0;
-        a_atom_iter->cur_hash = NULL;
-        if (a_links_size)
-            *a_links_size = 0;
-        if (a_lasts_size_ptr)
-            *a_lasts_size_ptr = NULL;
-        return NULL;
-    }
-}
-
-/**
- * @brief s_callback_atom_iter_delete
- * @param a_atom_iter
- */
-static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
-{
-#ifdef WIN32
-    log_it(L_DEBUG, "! %p delete caller id %lu", a_atom_iter, GetThreadId(GetCurrentThread()));
-#endif
-    DAP_DELETE(a_atom_iter);
 }
 
 static dap_chain_datum_iter_t *s_chain_callback_datum_iter_create(dap_chain_t *a_chain)

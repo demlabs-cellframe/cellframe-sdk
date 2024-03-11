@@ -30,19 +30,19 @@
 #include "dap_chain_node.h"
 #include "dap_stream_ch.h"
 
-#define DAP_STREAM_CH_CHAIN_NET_PKT_VERSION                             1
+#define DAP_CHAIN_CH_NET_PKT_VERSION                             1
 
-#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_TEST                          0x01
+#define DAP_CHAIN_CH_NET_PKT_TYPE_TEST                          0x01
 
-#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING                          0x02
-#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PONG                          0x03
+#define DAP_CHAIN_CH_NET_PKT_TYPE_PING                          0x02
+#define DAP_CHAIN_CH_NET_PKT_TYPE_PONG                          0x03
 
-#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST  0x30
-#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY          0x31
+#define DAP_CHAIN_CH_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST  0x30
+#define DAP_CHAIN_CH_NET_PKT_TYPE_NODE_VALIDATOR_READY          0x31
 
-#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE                      0x44
+#define DAP_CHAIN_CH_NET_PKT_TYPE_ANNOUNCE                      0x44
 
-#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR                         0xff
+#define DAP_CHAIN_CH_NET_PKT_TYPE_ERROR                         0xff
 
 typedef struct stream_ch_chain_net_pkt_hdr {
     uint8_t version;
