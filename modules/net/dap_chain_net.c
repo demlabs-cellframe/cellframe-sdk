@@ -2148,7 +2148,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
 
     for (uint16_t i = 0; i < l_net_pvt->poa_nodes_count; ++i) {
         uint16_t l_port = 0;
-        char l_host[0xFF + 1] = { '\0' };
+        char l_host[DAP_HOSTADDR_STRLEN] = { '\0' };
         dap_chain_node_addr_t l_addr;
         if ( dap_stream_node_addr_from_str(&l_addr, l_poa_nodes_addrs[i])
              || dap_net_parse_hostname(l_seed_nodes_hosts[i], l_host, &l_port)) {
