@@ -422,6 +422,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
                     dap_json_rpc_allocation_error;
+                    return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
                 json_object_object_add(l_jobj_tsd, "datum_type_blocked_remove", l_jobj_datum_type_blocked_remove);
