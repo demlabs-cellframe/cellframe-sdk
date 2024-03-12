@@ -165,7 +165,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
         switch (l_ch_pkt->hdr.type) {
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE:
             assert(!dap_stream_node_addr_is_blank(&a_ch->stream->node));
-            dap_chain_net_add_cluster_link(l_net, &a_ch->stream->node);
+            dap_accounting_downlink_in_net(l_net->pub.id.uint64, &a_ch->stream->node);
             break;
             // received ping request - > send pong request
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING:

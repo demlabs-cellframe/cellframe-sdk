@@ -592,13 +592,11 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         }
 
         dap_time_t l_time_expire = 0;
-        if(l_voting_expire_str){
+        if (l_voting_expire_str)
             l_time_expire = dap_time_from_str_rfc822(l_voting_expire_str);
-        }
         uint64_t l_max_count = 0;
-        if (l_max_votes_count_str) {
+        if (l_max_votes_count_str)
             l_max_count = strtoul(l_max_votes_count_str, NULL, 10);
-        }
 
         bool l_is_delegated_key = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-delegated_key_required", NULL) ? true : false;
         bool l_is_vote_changing_allowed = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-vote_changing_allowed", NULL) ? true : false;
@@ -613,6 +611,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         int res = dap_chain_net_vote_create(l_question_str, l_options_list, l_time_expire, l_max_count, l_value_fee, l_is_delegated_key, l_is_vote_changing_allowed, l_wallet_fee, l_net, l_hash_out_type, &l_hash_ret);
         dap_list_free(l_options_list);
         dap_chain_wallet_close(l_wallet_fee);
+
         switch (res) {
             case DAP_CHAIN_NET_VOTE_CREATE_OK: {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s successfully added to mempool", l_hash_ret);
@@ -625,7 +624,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NET_VOTE_CREATE_LENGTH_QUESTION_OVERSIZE_MAX;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_COUNT_OPTION_OVERSIZE_MAX: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "The voting can to contain no more than %d options",
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "The voting can contain no more than %d options",
                                                   DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT);
                 return DAP_CHAIN_NET_VOTE_CREATE_COUNT_OPTION_OVERSIZE_MAX;
             } break;
@@ -749,6 +748,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         int res = dap_chain_net_vote_voting(l_cert, l_value_fee, l_wallet_fee, l_voting_hash, l_option_idx_count,
                                             l_net, l_hash_out_type, &l_hash_tx);
         dap_chain_wallet_close(l_wallet_fee);
+
         switch (res) {
             case DAP_CHAIN_NET_VOTE_VOTING_OK: {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s successfully added to mempool", l_hash_tx);
@@ -1213,7 +1213,7 @@ int dap_chain_net_vote_create(const char *a_question, dap_list_t *a_options, dap
     }
 
     // Add vote max count if needed
-    if(a_max_vote != 0){
+    if (a_max_vote != 0) {
         dap_chain_tx_tsd_t* l_max_votes_item = dap_chain_datum_voting_max_votes_count_tsd_create(a_max_vote);
         if(!l_max_votes_item){
             dap_chain_datum_tx_delete(l_tx);
@@ -1574,17 +1574,15 @@ dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net) {
     return l_list;
 }
 
-dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting) {
+dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting)
+{
     if (!a_net || !a_voting)
         return NULL;
     dap_chain_net_votings_t *l_voting = NULL;
     pthread_rwlock_rdlock(&s_votings_rwlock);
-    HASH_FIND(hh, s_votings, &a_voting, sizeof(dap_hash_fast_t), l_voting);
+    HASH_FIND(hh, s_votings, a_voting, sizeof(dap_hash_fast_t), l_voting);
     pthread_rwlock_unlock(&s_votings_rwlock);
-    if(!l_voting){
-        return NULL;
-    }
-    return s_dap_chain_net_vote_extract_info(l_voting);
+    return l_voting ? s_dap_chain_net_vote_extract_info(l_voting) : NULL;
 }
 
 void dap_chain_net_vote_info_free(dap_chain_net_vote_info_t *a_info){
