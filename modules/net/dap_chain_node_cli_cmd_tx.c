@@ -972,6 +972,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
             }
         }
         json_object* json_obj_out = json_object_new_object();
+        json_object_object_add(json_obj_out, "sign ", json_object_new_string(l_sign_str));
         char *l_str_out = NULL;
         dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_str);
         if(l_is_all) {
@@ -1027,7 +1028,6 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         if (json_obj_out) {
             json_object_array_add(*json_arr_reply, json_obj_out);
         }
-        json_object_object_add(json_obj_out, "sign ", json_object_new_string(l_sign_str));
         return 0;       
     }
     else if(l_cmd == CMD_LIST){
