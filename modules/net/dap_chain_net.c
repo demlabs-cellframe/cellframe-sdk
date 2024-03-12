@@ -1396,6 +1396,31 @@ struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
             ? snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(a_net)->node_addr))
             : 0;
     json_object_object_add(l_json, "nodeAddress"     , json_object_new_string(l_tmp ? l_node_addr_str : "0000::0000::0000::0000"));
+    if (PVT(a_net)->state == NET_STATE_SYNC_CHAINS) {
+        json_object *l_jobj_processed_sync = json_object_new_object();
+        dap_chain_t *l_chain = NULL;
+        size_t l_count_el = 0, l_count_el_all = 0;
+        struct net_link *l_link, *l_link_tmp;
+        pthread_mutex_lock(&PVT(a_net)->uplinks_mutex);
+        HASH_ITER(hh,  PVT(a_net)->net_links, l_link, l_link_tmp) {
+            if (l_count_el_all < l_link->link_info->hdr.blocks_events)
+                l_count_el_all = l_link->link_info->hdr.blocks_events;
+        }
+        pthread_mutex_unlock(&PVT(a_net)->uplinks_mutex);
+        DL_FOREACH(a_net->pub.chains, l_chain){
+            l_count_el += l_chain->callback_count_atom(l_chain);
+        }
+        double l_percent = l_count_el_all ? (double)(l_count_el * 100) / l_count_el_all : 0;
+        char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
+        json_object *l_jobj_percent = json_object_new_string(l_percent_str);
+        DAP_DELETE(l_percent_str);
+        json_object *l_jobj_total = json_object_new_uint64(l_count_el_all);
+        json_object *l_jobj_current  = json_object_new_uint64(l_count_el);
+        json_object_object_add(l_jobj_processed_sync, "current", l_jobj_current);
+        json_object_object_add(l_jobj_processed_sync, "total", l_jobj_total);
+        json_object_object_add(l_jobj_processed_sync, "percent", l_jobj_percent);
+        json_object_object_add(l_json, "processed", l_jobj_processed_sync);
+    }
     return l_json;
 }
 
