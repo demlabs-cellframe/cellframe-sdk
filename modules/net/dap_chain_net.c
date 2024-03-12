@@ -423,16 +423,14 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t *a_net)
     dap_return_if_pass(!a_net);
 // func work
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    dap_link_t *l_link = NULL;
     for (size_t i = 0; i < l_net_pvt->seed_nodes_count; i++) {
         //if (PVT(a_net)->seeds_is_poas)
         //    l_link_node_info.hdr.address = l_net_pvt->poa_nodes_addrs[i];
-        if ( !(l_link = dap_link_manager_link_create_or_update(&l_net_pvt->seed_nodes_info[i]->address,
-                l_net_pvt->seed_nodes_info[i]->ext_host,
-                l_net_pvt->seed_nodes_info[i]->ext_port)) )
+        dap_link_t *l_link = dap_link_manager_link_create(&l_net_pvt->seed_nodes_info[i]->address);
+        l_link = dap_link_manager_link_update(l_link, l_net_pvt->seed_nodes_info[i]->ext_host, l_net_pvt->seed_nodes_info[i]->ext_port, false);
+        if (!l_link)
             continue;
-        if (dap_link_manager_link_add(a_net->pub.id.uint64, l_link))
-            DAP_DEL_Z(l_link);
+        dap_link_manager_link_add(a_net->pub.id.uint64, l_link);
     }
 }
 
@@ -557,8 +555,8 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
     char l_err_str[128] = { };
     struct json_object *l_json;
     for(size_t i = 0; i < a_link_full_node_list->count_node; ++i){
-        dap_link_t *l_link = dap_link_manager_link_create_or_update(&l_node_info->address, 
-            l_node_info->ext_host, l_node_info->ext_port);
+        dap_link_t *l_link = dap_link_manager_link_create(&l_node_info->address);
+        l_link = dap_link_manager_link_update(l_link, l_node_info->ext_host, l_node_info->ext_port, false);
         if (!l_link)
             continue;
         switch (dap_link_manager_link_add(l_net->pub.id.uint64, l_link)) {
@@ -656,8 +654,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
                         NODE_ADDR_FP_ARGS(l_net_pvt->permanent_links + i));
                 continue;
             }
-            dap_link_t *l_link = dap_link_manager_link_create_or_update(&l_link_node_info[i].address, 
-                    l_link_node_info[i].ext_host, l_link_node_info[i].ext_port);
+            dap_link_t *l_link = dap_link_manager_link_create(&l_link_node_info[i].address);
+            l_link = dap_link_manager_link_update(l_link, l_link_node_info[i].ext_host, l_link_node_info[i].ext_port, false);
             dap_link_manager_link_add(a_net->pub.id.uint64, l_link);
             DAP_DELETE(l_link_node_info);
         }
@@ -675,14 +673,16 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
             return false;
         }
         for (size_t i = 0; i < l_nodes_count; ++i) {
-            dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
-            dap_link_t *l_link = dap_link_manager_link_create_or_update(&l_node_cand->address, 
-            l_node_cand->ext_host, l_node_cand->ext_port);
+            dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)l_objs[i].value;
+            dap_link_t *l_link = dap_link_manager_link_create(&l_node_info->address);
+            l_link = dap_link_manager_link_update(l_link, l_node_info->ext_host, l_node_info->ext_port, false);
             if (!l_link)
                 continue;
+            dap_link_manager_link_add(a_net->pub.id.uint64, l_link);
         }
         return true;
     }
+    l_load_node_list = !l_load_node_list;
     // dynamic links from http balancer request
     int a_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
     struct balancer_link_request *l_balancer_request = NULL;
@@ -3228,10 +3228,7 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
     if (!l_node_info) {
         return -3;
     }
-    if (a_link != dap_link_manager_link_create_or_update(&l_node_info->address, 
-            l_node_info->ext_host, l_node_info->ext_port)) {
-        log_it(L_WARNING, "LEAKS, links dublicate to node "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(a_link->client->link_info.node_addr));
-    }
+    dap_link_manager_link_update(a_link, l_node_info->ext_host, l_node_info->ext_port, false);
     DAP_DELETE(l_node_info);
     return l_ret;
 }
