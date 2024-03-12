@@ -1174,6 +1174,7 @@ static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
  */
 static int s_cli_net(int argc, char **argv, void **reply)
 {
+    json_object ** json_arr_reply = (json_object **) reply;
     json_object *l_jobj_return = json_object_new_object();
     if (!l_jobj_return) {
         dap_json_rpc_allocation_error;
@@ -1937,7 +1938,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
         }
     }
     if (l_jobj_return) {
-        json_object_array_add(*reply, l_jobj_return);
+        json_object_array_add(*json_arr_reply, l_jobj_return);
     }
     return  l_ret;
 }
