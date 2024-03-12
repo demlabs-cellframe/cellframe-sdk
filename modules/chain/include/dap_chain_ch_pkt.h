@@ -86,6 +86,11 @@ typedef struct dap_chain_ch_sync_request{
     byte_t unused[96];
 } DAP_ALIGN_PACKED dap_chain_ch_sync_request_t;
 
+typedef struct dap_chain_ch_summary {
+    uint64_t num_cur;
+    uint64_t num_last;
+    byte_t reserved[128];
+} DAP_ALIGN_PACKED dap_chain_ch_summary_t;
 
 typedef struct dap_chain_ch_pkt_hdr {
     uint8_t version;

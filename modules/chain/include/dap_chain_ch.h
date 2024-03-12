@@ -48,6 +48,16 @@ typedef enum dap_chain_ch_state {
     DAP_CHAIN_STATE_ERROR
 } dap_chain_ch_state_t;
 
+typedef enum dap_chain_ch_error_type {
+    DAP_CHAIN_CH_ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS,
+    DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE,
+    DAP_CHAIN_CH_ERROR_NET_INVALID_ID,
+    DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND,
+    DAP_CHAIN_CH_ERROR_ATOM_NOT_FOUND,
+    DAP_CHAIN_CH_ERROR_UNKNOWN_CHAIN_PKT_TYPE,
+    DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED
+} dap_chain_ch_error_type_t;
+
 typedef struct dap_chain_ch dap_chain_ch_t;
 typedef void (*dap_chain_ch_callback_packet_t)(dap_chain_ch_t*, uint8_t a_pkt_type,
                                                       dap_chain_ch_pkt_t *a_pkt, size_t a_pkt_data_size,
