@@ -189,7 +189,6 @@ void dap_chain_net_srv_xchange_deinit()
 static bool s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond,
                                            dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
-    return true;//for tests
     if (a_owner)
         return true;
     if(!a_tx_in || !a_tx_out_cond)
