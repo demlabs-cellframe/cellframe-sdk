@@ -40,7 +40,7 @@ void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **l_
  * return history json
  */
 json_object * dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain, const char *a_hash_out_type, dap_chain_net_t * l_net);
-json_object * dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, const char *a_hash_out_type, const char * l_addr_str);
+json_object * dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, const char *a_hash_out_type, const char * l_addr_str, size_t a_limit, size_t a_offset);
 json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                                         dap_hash_fast_t * l_atom_hash,
                                         dap_chain_datum_tx_t * l_tx,
@@ -50,7 +50,9 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                                         int l_ret_code,
                                         bool *accepted_tx,
                                         bool out_brief);
-json_object* dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t* l_net, const char *l_hash_out_type, json_object * json_obj_summary, bool out_brief);
+json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
+                                   const char *l_hash_out_type, json_object *json_obj_summary,
+                                   size_t a_limit, size_t a_offset, bool out_brief);
 
 /**
  * ledger command
