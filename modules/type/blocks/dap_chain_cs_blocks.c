@@ -512,6 +512,8 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
 static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t UNUSED_ARG a_id,
                                 void *a_atom, size_t a_atom_size)
 {
+
+    
     
 }
 
