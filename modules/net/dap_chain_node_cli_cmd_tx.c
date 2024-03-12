@@ -152,7 +152,8 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                                         const char *a_hash_out_type, 
                                         dap_chain_net_t * l_net,
                                         int l_ret_code,
-                                        bool *accepted_tx)
+                                        bool *accepted_tx,
+                                        bool brief_out)
 {
     const char *l_tx_token_ticker = NULL;
     json_object* json_obj_datum = json_object_new_object();
@@ -195,9 +196,12 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     }
     json_object *l_obj_ts_created = json_object_new_string(l_time_str);
     json_object_object_add(json_obj_datum, "tx_created", l_obj_ts_created);
-
-    json_object* datum_tx = dap_chain_datum_tx_to_json(l_tx,&a_chain->net_id);
-    json_object_object_add(json_obj_datum, "items", datum_tx);
+    
+    if(!brief_out)
+    {
+        json_object* datum_tx = dap_chain_datum_tx_to_json(l_tx,&a_chain->net_id);
+        json_object_object_add(json_obj_datum, "items", datum_tx);
+    }
 
     return json_obj_datum;
 }
@@ -222,7 +226,7 @@ json_object * dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash,
                                  (dap_chain_datum_tx_t *)l_datum->data : NULL;
 
     if (l_tx) {
-        return dap_db_tx_history_to_json(a_tx_hash, &l_atom_hash,l_tx, a_chain, a_hash_out_type, l_net, l_ret_code, &accepted_tx);
+        return dap_db_tx_history_to_json(a_tx_hash, &l_atom_hash,l_tx, a_chain, a_hash_out_type, l_net, l_ret_code, &accepted_tx, false);
     } else {
         char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
@@ -602,7 +606,10 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     return json_obj_datum;
 }
 
-json_object* dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t* l_net, const char *l_hash_out_type, json_object * json_obj_summary, size_t a_limit, size_t a_offset) {
+json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
+                                   const char *l_hash_out_type, json_object *json_obj_summary,
+                                   size_t a_limit, size_t a_offset, bool out_brief)
+{
         log_it(L_DEBUG, "Start getting tx from chain");
         size_t l_tx_count = 0;
         size_t l_tx_ledger_accepted = 0;
@@ -642,7 +649,7 @@ json_object* dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t* l_net,
                         dap_hash_fast_t l_ttx_hash = {0};
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
                         bool accepted_tx;
-                        json_object* json_obj_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, l_chain, l_hash_out_type, l_net, 0, &accepted_tx);
+                        json_object* json_obj_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, l_chain, l_hash_out_type, l_net, 0, &accepted_tx, out_brief);
                         if (!json_obj_datum) {
                             log_it(L_CRITICAL, "Memory allocation error");
                             return NULL;
@@ -1002,6 +1009,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
             }
         }
         json_object* json_obj_out = json_object_new_object();
+        json_object_object_add(json_obj_out, "sign ", json_object_new_string(l_sign_str));
         char *l_str_out = NULL;
         dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_str);
         if(l_is_all) {
@@ -1057,7 +1065,6 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         if (json_obj_out) {
             json_object_array_add(*json_arr_reply, json_obj_out);
         }
-        json_object_object_add(json_obj_out, "sign ", json_object_new_string(l_sign_str));
         return 0;       
     }
     else if(l_cmd == CMD_LIST){
