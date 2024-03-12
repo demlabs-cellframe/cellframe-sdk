@@ -325,7 +325,7 @@ uint64_t dap_chain_uint128_to(uint128_t a_from);
 uint64_t dap_chain_uint256_to(uint256_t a_from);
 
 #define dap_chain_balance_print(a_balance) dap_uint256_uninteger_to_char(a_balance)
-#define dap_chain_balance_scan(a_balance) dap_uint256_scan_uninteger(a_balance)
+#define dap_chain_balance_scan(a_balance) dap_uint256_scan_decimal(a_balance)
 #define dap_chain_balance_to_coins(a) dap_uint256_decimal_to_char(a)
 #define dap_chain_coins_to_balance(a) dap_uint256_scan_decimal(a)
 
