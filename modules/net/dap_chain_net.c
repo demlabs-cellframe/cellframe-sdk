@@ -551,12 +551,12 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
 
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *) a_arg;
     dap_chain_net_t * l_net = l_balancer_request->net;
-    dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_link_full_node_list->nodes_info;
-    char l_err_str[128] = { };
+    dap_link_info_t *l_link_info = (dap_link_info_t *)a_link_full_node_list->nodes_info;
+    char l_err_str[128] = {0};
     struct json_object *l_json;
     for(size_t i = 0; i < a_link_full_node_list->count_node; ++i){
-        dap_link_t *l_link = dap_link_manager_link_create(&l_node_info->address);
-        l_link = dap_link_manager_link_update(l_link, l_node_info->ext_host, l_node_info->ext_port, false);
+        dap_link_t *l_link = dap_link_manager_link_create(&l_link_info[i].node_addr);
+        l_link = dap_link_manager_link_update(l_link, l_link_info[i].uplink_addr, l_link_info[i].uplink_port, false);
         if (!l_link)
             continue;
         switch (dap_link_manager_link_add(l_net->pub.id.uint64, l_link)) {
@@ -564,12 +564,12 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
             l_json = s_net_states_json_collect(l_net);
             snprintf(l_err_str, sizeof(l_err_str)
                          , "Link " NODE_ADDR_FP_STR " prepared"
-                         , NODE_ADDR_FP_ARGS_S(l_node_info->address));
+                         , NODE_ADDR_FP_ARGS_S(l_link_info[i].node_addr));
             json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
             dap_notify_server_send_mt(json_object_get_string(l_json));
             json_object_put(l_json);
             debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added",
-                     NODE_ADDR_FP_ARGS_S(l_node_info->address));
+                     NODE_ADDR_FP_ARGS_S(l_link_info[i].node_addr));
             break;
         case 1: debug_if(s_debug_more, L_DEBUG, "Maximum prepared links reached"); break;
         default: break;
@@ -2053,7 +2053,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     // Add network to the list
     dap_chain_net_item_t *l_net_item = DAP_NEW_Z(dap_chain_net_item_t);
     if (!l_net_item) {
-        log_it(L_CRITICAL, g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         dap_chain_net_delete(l_net);
         dap_config_close(l_cfg);
         return -4;
@@ -2118,7 +2118,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
             = dap_strncpy(l_net_pvt->seed_nodes_info[i]->ext_host, l_host, l_hostlen) - l_net_pvt->seed_nodes_info[i]->ext_host;
         if (g_node_addr.uint64 == l_addr.uint64) {
             // We're in PoA seed list, predefine node info regardless of host set in [server] config section
-            dap_mempcpy(&l_net_pvt->node_info, l_net_pvt->seed_nodes_info + i, dap_chain_node_info_get_size(l_net_pvt->seed_nodes_info + i));
+            dap_mempcpy(l_net_pvt->node_info, l_net_pvt->seed_nodes_info[i], dap_chain_node_info_get_size(l_net_pvt->seed_nodes_info[i]));
         }
     }
 
