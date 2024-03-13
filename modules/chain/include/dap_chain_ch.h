@@ -33,8 +33,9 @@
 #include "uthash.h"
 #include "dap_global_db_cluster.h"
 
-#define DAP_CHAIN_NODE_SYNC_TIMEOUT 60  // sec
-#define DAP_SYNC_TICKS_PER_SECOND   10
+#define DAP_CHAIN_NODE_SYNC_TIMEOUT         60  // sec
+#define DAP_SYNC_TICKS_PER_SECOND           10
+#define DAP_CHAIN_CH_SYNC_ACK_WINDOW_SIZE   100 // atoms
 
 typedef enum dap_chain_ch_state {
     DAP_CHAIN_STATE_IDLE = 0,

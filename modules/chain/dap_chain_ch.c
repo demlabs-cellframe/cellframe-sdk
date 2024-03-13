@@ -95,11 +95,23 @@ struct sync_request
     };
 };
 
+#define THREAD_CALL_PACKETS_COUNT_MAX 20
+
+enum sync_context_state {
+    SYNC_STATE_IDLE,
+    SYNC_STATE_BUSY,
+    SYNC_STATE_OVER
+};
+
 struct sync_context {
     atomic_uint_fast64_t allowed_num;
     atomic_uint_fast64_t sent_num;
     atomic_uint_fast16_t state;
     dap_chain_atom_iter_t *iter;
+    dap_stream_node_addr_t addr;
+    dap_chain_net_id_t net_id;
+    dap_chain_id_t chain_id;
+    dap_chain_cell_id_t cell_id;
 };
 
 static void s_ch_chain_go_idle(dap_chain_ch_t *a_ch_chain);
@@ -126,12 +138,12 @@ static bool s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_instance_t *a_dbi,
                                                const size_t a_values_total, const size_t a_values_count,
                                                dap_store_obj_t *a_values, void *a_arg);
 static void s_gdb_in_pkt_error_worker_callback(dap_worker_t *a_thread, void *a_arg);
-static void s_free_log_list_gdb ( dap_chain_ch_t * a_ch_chain);
 
 static void s_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,
                                         uint64_t a_chain_id, uint64_t a_cell_id,
                                         const void * a_data, size_t a_data_size);
 static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, dap_stream_node_addr_t a_sender_addr);
+static bool s_chain_iter_callback(void *a_arg);
 
 static bool s_debug_more=false;
 static uint_fast16_t s_update_pack_size=100; // Number of hashes packed into the one packet
@@ -1220,9 +1232,15 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                              l_chain_pkt->hdr.cell_id.uint64, &l_sum, sizeof(l_sum));
         if (l_sum.num_last - l_sum.num_cur) {
             struct sync_context *l_context = DAP_NEW_Z(struct sync_context);
-
-            //dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_iter);
-        else
+            l_context->iter = l_iter;
+            l_context->net_id = l_chain_pkt->hdr.net_id;
+            l_context->chain_id = l_chain_pkt->hdr.chain_id.;
+            l_context->cell_id = l_chain_pkt->hdr.cell_id;
+            atomic_store(&l_context->sent_num, l_sum.num_last);
+            atomic_store(&l_context->allowed_num, l_sum.num_last + DAP_CHAIN_CH_SYNC_ACK_WINDOW_SIZE);
+            atomic_store(&l_context->state, SYNC_STATE_BUSY);
+            dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_context);
+        } else
             dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN,
                                                  l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
                                                  l_chain_pkt->hdr.cell_id.uint64, NULL, 0);
@@ -1263,7 +1281,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                 l_chain ? l_chain->name : "(null)",
                                             l_chain ? l_chain->net_name : "(null)",
                                                             NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
-                                l_ack_num;
+                                l_ack_num);
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN: {
@@ -1284,14 +1302,36 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                               l_chain_pkt_data_size, l_ch_chain->callback_notify_arg);
 }
 
-
-/**
- * @brief s_ch_chain_go_idle_and_free_log_list
- * @param a_ch_chain
- */
-static void s_free_log_list_gdb ( dap_chain_ch_t * a_ch_chain)
+static bool s_chain_iter_callback(void *a_arg)
 {
-
+    struct sync_context *l_context = a_arg;
+    assert(l_context->iter);)
+    dap_chain_t *l_chain = l_context->iter->chain;
+    if (atomic_load(&l_context->state) == SYNC_STATE_OVER) {
+        l_chain->callback_atom_iter_delete(l_context->iter);
+        DAP_DELETE(l_context);
+        return false;
+    }
+    size_t l_atom_size = l_context->iter->cur_num;
+    dap_chain_atom_ptr_t l_atom = l_context->iter->cur;
+    int l_cycles_count = 0;
+    while (l_atom && l_atom_size) {
+        l_atom = l_chain->callback_atom_iter_get(l_chain, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size);
+        dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_context->net_id.uint64, l_context->chain_id.uint64, l_context->cell_id.uint64,
+                                                         l_atom, l_atom_size);
+        dap_stream_ch_pkt_send_by_addr(l_context->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN, l_pkt, sizeof(dap_chain_ch_pkt_hdr_t) + l_atom_size);
+        DAP_DELETE(l_pkt);
+        atomic_store(&l_context->sent_num, l_context->iter->cur_num);
+        if (l_context->iter->cur_num >= atomic_load(&l_context->allowed_num))
+            break;
+        if (++l_cycles_count >= THREAD_CALL_PACKETS_COUNT_MAX)
+            return true;
+    }
+    if (atomic_exchange(&l_context->state, SYNC_STATE_IDLE) == SYNC_STATE_OVER) {
+        l_chain->callback_atom_iter_delete(l_context->iter);
+        DAP_DELETE(l_context);
+    }
+    return false;
 }
 
 /**
@@ -1326,7 +1366,6 @@ static void s_ch_chain_go_idle(dap_chain_ch_t *a_ch_chain)
     }
     a_ch_chain->remote_atoms = NULL;
     a_ch_chain->sent_breaks = 0;
-    s_free_log_list_gdb(a_ch_chain);
 }
 
 struct chain_io_complete {
