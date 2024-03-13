@@ -87,7 +87,7 @@ static dap_chain_net_srv_xchange_t *s_srv_xchange;
 static bool s_debug_more = true;
 
 /**
- * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
+ * @brief dap_chain_net_srv_xchange_init Init actions for xchanger stream channel
  * @return 0 if everything is okay, lesser then zero if errors
  */
 int dap_chain_net_srv_xchange_init()
@@ -261,14 +261,12 @@ static bool s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_
      * a_cond->subtype.srv_xchange.buy_value * (a_cond->header.value - new_cond->header.value)
      */
 
-    uint256_t l_sell_val, l_buyer_mul, l_seller_mul;
+    uint256_t l_sell_val, l_buyer_val_expected;
     if (compare256(l_sell_again_val, a_tx_out_cond->header.value) >= 0)
         return false;
     SUBTRACT_256_256(a_tx_out_cond->header.value, l_sell_again_val, &l_sell_val);
-    MULT_256_256(a_tx_out_cond->header.value, l_buy_val, &l_seller_mul);
-
-//    MULT_256_256(a_tx_out_cond->subtype.srv_xchange.buy_value, l_sell_val, &l_buyer_mul);
-    if (compare256(l_seller_mul, l_buyer_mul) < 0)
+    MULT_256_COIN(l_sell_val, a_tx_out_cond->subtype.srv_xchange.rate, &l_buyer_val_expected);
+    if (compare256(l_buyer_val_expected, l_buy_val) > 0)
         return false;
 
     /* Check the condition for fee verification success
