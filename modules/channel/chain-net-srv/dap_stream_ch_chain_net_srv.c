@@ -1377,7 +1377,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
                 DAP_DELETE(l_tx_in_hash_str);
             }else{
-                // TODO add ret status handling/ if tx not found start grace again
                 dap_chain_net_srv_grace_t *l_grace = NULL;
                 switch(ret_status){
                 case DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_FIND_FINAL_TX_HASH:
