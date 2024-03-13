@@ -59,6 +59,7 @@
 #include "dap_enc_key.h"
 #include "crc32c_adler.h"
 #include "dap_chain_ledger.h"
+#include "dap_strfuncs.h"
 
 //#define __USE_GNU
 
@@ -953,7 +954,7 @@ ssize_t     l_rc, l_pass_len;
 
     if ( (l_cp = strstr(a_wallet_name, s_wallet_ext)) )
         strncpy(l_wallet_name, a_wallet_name, l_cp - a_wallet_name);
-    else strcpy(l_wallet_name, a_wallet_name);
+    else strncpy(l_wallet_name, a_wallet_name, sizeof(l_wallet_name)-1);
 
     snprintf(l_file_name, sizeof(l_file_name) - 1, "%s/%s%s", a_wallets_path, l_wallet_name, s_wallet_ext);
 

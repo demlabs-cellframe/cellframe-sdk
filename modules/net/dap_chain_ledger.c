@@ -1795,14 +1795,31 @@ int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_toke
     return dap_ledger_token_add(a_ledger, l_token, a_token_size);
 }
 
-json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger)
+json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
     json_object* json_arr_out = json_object_new_array();
     uint32_t l_counter = 0;
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
+    size_t l_arr_start = 0;
+    if (a_offset > 1) {
+        l_arr_start = a_limit * a_offset;
+    }
+    size_t l_arr_end = HASH_COUNT(l_ledger_pvt->threshold_txs);
+    if (a_limit) {
+        l_arr_end = l_arr_start + a_limit;
+        if (l_arr_end > HASH_COUNT(l_ledger_pvt->threshold_txs)) {
+            l_arr_end = HASH_COUNT(l_ledger_pvt->threshold_txs);
+        }
+    }
+    size_t i_tmp = 0;
     HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp){
+        if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+            i_tmp++;
+            continue;
+        }
+        i_tmp++;
         json_object* json_obj_tx = json_object_new_object();
         if (!json_obj_tx) {
             return NULL;
@@ -1848,7 +1865,7 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger)
     return json_arr_out;
 }
 
-json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_threshold_hash)
+json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_threshold_hash, size_t a_limit, size_t a_offset)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
@@ -1857,9 +1874,26 @@ json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_ha
     if (!json_obj_tx) {
         return NULL;
     }
+    size_t l_arr_start = 0;
+    if (a_offset > 1) {
+        l_arr_start = a_limit * a_offset;
+    }
+    size_t l_arr_end = HASH_COUNT(l_ledger_pvt->threshold_txs);
+    if (a_limit) {
+        l_arr_end = l_arr_start + a_limit;
+        if (l_arr_end > HASH_COUNT(l_ledger_pvt->threshold_txs)) {
+            l_arr_end = HASH_COUNT(l_ledger_pvt->threshold_txs);
+        }
+    }
+    size_t i_tmp = 0;
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp){
         if (!memcmp(l_threshold_hash, &l_tx_item->tx_hash_fast, sizeof(dap_chain_hash_fast_t))){
+            if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+                i_tmp++;
+                continue;
+            }
+            i_tmp++;
             char l_tx_hash_str[70]={0};
             dap_chain_hash_fast_to_str(l_threshold_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
             json_object_object_add(json_obj_tx, "Hash was found in ledger tx threshold", json_object_new_string(l_tx_hash_str));
@@ -1874,6 +1908,11 @@ json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_ha
     dap_ledger_token_emission_item_t *l_emission_item, *l_emission_tmp;
     HASH_ITER(hh, l_ledger_pvt->threshold_emissions, l_emission_item, l_emission_tmp){
         if (!memcmp(&l_emission_item->datum_token_emission_hash,l_threshold_hash, sizeof(dap_chain_hash_fast_t))){
+            if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+                i_tmp++;
+                continue;
+            }
+            i_tmp++;
             char l_emission_hash_str[70]={0};
             dap_chain_hash_fast_to_str(l_threshold_hash,l_emission_hash_str,sizeof(l_emission_hash_str));
             json_object_object_add(json_obj_tx, "Hash was found in ledger emission threshold", json_object_new_string(l_emission_hash_str));
@@ -1888,14 +1927,31 @@ json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_ha
     return json_arr_out;
 }
 
-json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger)
+json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     json_object * json_arr_out = json_object_new_array();
     pthread_rwlock_rdlock(&l_ledger_pvt->balance_accounts_rwlock);
     uint32_t l_counter = 0;
     dap_ledger_wallet_balance_t *l_balance_item, *l_balance_tmp;
+    size_t l_arr_start = 0;
+    if (a_offset > 1) {
+        l_arr_start = a_limit * a_offset;
+    }
+    size_t l_arr_end = HASH_COUNT(l_ledger_pvt->balance_accounts);
+    if (a_limit) {
+        l_arr_end = l_arr_start + a_limit;
+        if (l_arr_end > HASH_COUNT(l_ledger_pvt->balance_accounts)) {
+            l_arr_end = HASH_COUNT(l_ledger_pvt->balance_accounts);
+        }
+    }
+    size_t i_tmp = 0;
     HASH_ITER(hh, l_ledger_pvt->balance_accounts, l_balance_item, l_balance_tmp) {
+        if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+            i_tmp++;
+            continue;
+        }
+        i_tmp++;
         json_object* json_obj_tx = json_object_new_object();
         //log_it(L_DEBUG,"Ledger balance key %s, token_ticker: %s, balance: %s", l_balance_key, l_balance_item->token_ticker,
         //                        dap_chain_balance_print(l_balance_item->balance));
@@ -1985,13 +2041,30 @@ dap_list_t * dap_ledger_token_auth_pkeys_hashes(dap_ledger_t *a_ledger, const ch
  * @param a_ledger
  * @return
  */
-json_object *dap_ledger_token_info(dap_ledger_t *a_ledger)
+json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset)
 {
     json_object * json_obj_datum;
     json_object * json_arr_out = json_object_new_array();
     dap_ledger_token_item_t *l_token_item, *l_tmp_item;
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+    size_t l_arr_start = 0;
+    if (a_offset > 1) {
+        l_arr_start = a_limit * a_offset;
+    }
+    size_t l_arr_end = HASH_COUNT(PVT(a_ledger)->tokens);
+    if (a_limit) {
+        l_arr_end = l_arr_start + a_limit;
+        if (l_arr_end > HASH_COUNT(PVT(a_ledger)->tokens)) {
+            l_arr_end = HASH_COUNT(PVT(a_ledger)->tokens);
+        }
+    }
+    size_t i_tmp = 0;
     HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
+        if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+            i_tmp++;
+            continue;
+        }
+        i_tmp++;
         json_obj_datum = json_object_new_object();
         const char *l_type_str;
         const char *l_flags_str = s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags);
