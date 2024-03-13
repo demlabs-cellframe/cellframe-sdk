@@ -174,7 +174,11 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
         return;
     }
     *l_return_code = Http_Status_OK;
-    size_t l_data_send_size = sizeof(uint64_t) + (sizeof(dap_link_info_t) * l_link_full_node_list->count_node);
+    size_t l_data_send_size = sizeof(uint64_t);
+    if (l_protocol_version == 1)
+        l_data_send_size += sizeof(dap_chain_node_info_old_t) * l_link_full_node_list->count_node;
+    else
+        l_data_send_size += sizeof(dap_link_info_t) * l_link_full_node_list->count_node;
     dap_http_simple_reply(a_http_simple, l_link_full_node_list, l_data_send_size);
     DAP_DELETE(l_link_full_node_list);
 }

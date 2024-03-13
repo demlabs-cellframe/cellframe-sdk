@@ -654,8 +654,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
                         NODE_ADDR_FP_ARGS(l_net_pvt->permanent_links + i));
                 continue;
             }
-            dap_link_t *l_link = dap_link_manager_link_create(&l_link_node_info[i].address);
-            l_link = dap_link_manager_link_update(l_link, l_link_node_info[i].ext_host, l_link_node_info[i].ext_port, false);
+            dap_link_t *l_link = dap_link_manager_link_create(&l_link_node_info->address);
+            l_link = dap_link_manager_link_update(l_link, l_link_node_info->ext_host, l_link_node_info->ext_port, false);
             dap_link_manager_link_add(a_net->pub.id.uint64, l_link);
             DAP_DELETE(l_link_node_info);
         }
