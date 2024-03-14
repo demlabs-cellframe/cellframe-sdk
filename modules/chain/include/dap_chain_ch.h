@@ -33,24 +33,23 @@
 #include "uthash.h"
 #include "dap_global_db_cluster.h"
 
-#define DAP_CHAIN_NODE_SYNC_TIMEOUT         60  // sec
 #define DAP_SYNC_TICKS_PER_SECOND           10
-#define DAP_CHAIN_CH_SYNC_ACK_WINDOW_SIZE   100 // atoms
 
 typedef enum dap_chain_ch_state {
-    DAP_CHAIN_STATE_IDLE = 0,
-    DAP_CHAIN_STATE_WAITING,
-    DAP_CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE, // Downloadn GDB hashtable from remote
-    DAP_CHAIN_STATE_UPDATE_GLOBAL_DB, // Update GDB hashtable to remote
-    DAP_CHAIN_STATE_SYNC_GLOBAL_DB,
-    DAP_CHAIN_STATE_UPDATE_CHAINS_REMOTE, // Update chains hashtable from remote
-    DAP_CHAIN_STATE_UPDATE_CHAINS, // Update chains hashtable to remote
-    DAP_CHAIN_STATE_SYNC_CHAINS,
-    DAP_CHAIN_STATE_ERROR
+    DAP_CHAIN_CH_STATE_IDLE = 0,
+    DAP_CHAIN_CH_STATE_WAITING,
+    DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB_REMOTE, // Downloadn GDB hashtable from remote
+    DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB, // Update GDB hashtable to remote
+    DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB,
+    DAP_CHAIN_CH_STATE_UPDATE_CHAINS_REMOTE, // Update chains hashtable from remote
+    DAP_CHAIN_CH_STATE_UPDATE_CHAINS, // Update chains hashtable to remote
+    DAP_CHAIN_CH_STATE_SYNC_CHAINS,
+    DAP_CHAIN_CH_STATE_ERROR
 } dap_chain_ch_state_t;
 
 typedef enum dap_chain_ch_error_type {
     DAP_CHAIN_CH_ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS,
+    DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE,
     DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE,
     DAP_CHAIN_CH_ERROR_NET_INVALID_ID,
     DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND,
@@ -77,9 +76,12 @@ typedef struct dap_chain_ch_hash_item{
 
 typedef struct dap_chain_ch {
     void *_inheritor;
-    dap_chain_ch_state_t state;
+    dap_timerfd_t *sync_timer;
+    void *sync_context;
 
     // Legacy section //
+    int state;
+
     uint64_t stats_request_atoms_processed;
     uint64_t stats_request_gdb_processed;
 
@@ -93,7 +95,7 @@ typedef struct dap_chain_ch {
     dap_chain_ch_pkt_hdr_t request_hdr;
     dap_list_t *request_db_iter;
 
-    int timer_shots;
+    uint32_t timer_shots;
     dap_timerfd_t *activity_timer;
     int sent_breaks;
 

@@ -94,7 +94,8 @@ typedef struct dap_chain_ch_summary {
 
 typedef struct dap_chain_ch_pkt_hdr {
     uint8_t version;
-    uint8_t padding[3];
+    uint8_t num_hi;
+    uint16_t num_lo;
     uint32_t data_size;
     dap_chain_net_id_t net_id;
     dap_chain_id_t chain_id;

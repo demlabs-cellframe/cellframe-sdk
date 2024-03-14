@@ -50,7 +50,7 @@ typedef struct dap_chain_atom_iter {
     dap_chain_atom_ptr_t cur;
     size_t cur_size;
     dap_chain_hash_fast_t *cur_hash;
-    int cur_num;
+    uint64_t cur_num;
 } dap_chain_atom_iter_t;
 
 typedef struct dap_chain_datum_iter {

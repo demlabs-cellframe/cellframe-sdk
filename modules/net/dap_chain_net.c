@@ -2523,7 +2523,7 @@ int s_net_load(dap_chain_net_t *a_net)
     } else if (dap_strcmp(l_node_addr_type, "auto"))
         log_it(L_WARNING, "Unknown node address type will be defalted to 'auto'");
 
-    l_net_pvt->sync_context.sync_idle_time = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
+    l_net_pvt->sync_context.sync_idle_time = dap_config_get_item_uint32_default(g_config, "chain", "sync_idle_time", 60);
     dap_proc_thread_timer_add(NULL, s_sync_timer_callback, l_net, 1000);
 
     if(dap_link_manager_add_net(l_net->pub.id.uint64, l_net_pvt->nodes_cluster->links_cluster)) {
