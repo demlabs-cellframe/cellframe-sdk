@@ -571,7 +571,6 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
             debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added",
                      NODE_ADDR_FP_ARGS_S(l_link_info[i].node_addr));
             break;
-        case 1: debug_if(s_debug_more, L_DEBUG, "Maximum prepared links reached"); break;
         default: break;
         }
     }
@@ -692,7 +691,11 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
         .net = a_net,
         .worker = dap_events_worker_get_auto()
     };
-
+    if (!l_balancer_request->link_info) {
+        log_it(L_ERROR, "Can't process balancer link %s request", PVT(a_net)->balancer_http ? "HTTP" : "DNS");
+        DAP_DELETE(l_balancer_request);
+        return false;
+    }
     log_it(L_DEBUG, "Start balancer %s request to %s",
            PVT(a_net)->balancer_http ? "HTTP" : "DNS", l_balancer_request->link_info->ext_host);
     
@@ -2066,11 +2069,10 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     HASH_ADD(hh2, s_net_ids, net_id, sizeof(l_net_item->net_id), l_net_item);
 
     uint16_t l_seed_nodes_addrs_len =0;
-    char ** l_seed_nodes_addrs = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_addrs", &l_seed_nodes_addrs_len);
-    uint16_t l_permamnet_nodes_count =0;
-    char ** l_permamnet_nodes_addrs = dap_config_get_array_str( l_cfg , "general" ,"permanent_nodes_addrs", &l_permamnet_nodes_count);
-    l_net_pvt->permanent_links_count = l_permamnet_nodes_count;
-    l_net_pvt->permanent_links = DAP_NEW_Z_COUNT(dap_chain_node_addr_t, l_net_pvt->permanent_links_count);
+    char **l_seed_nodes_addrs = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_addrs", &l_seed_nodes_addrs_len);
+    char **l_permamnet_nodes_addrs = dap_config_get_array_str( l_cfg , "general" ,"permanent_nodes_addrs", &l_net_pvt->permanent_links_count);
+    if (l_net_pvt->permanent_links_count)
+        l_net_pvt->permanent_links = DAP_NEW_Z_COUNT(dap_chain_node_addr_t, l_net_pvt->permanent_links_count);
     char **l_poa_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "seed_nodes_addrs", &l_net_pvt->poa_nodes_count);
     if (!l_net_pvt->poa_nodes_count) {
         log_it(L_ERROR, "Can't read seed nodes addresses");

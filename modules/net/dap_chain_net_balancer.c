@@ -30,7 +30,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define LOG_TAG "dap_chain_net_balancer"
 
 static_assert(sizeof(dap_chain_net_node_balancer_t) + sizeof(dap_chain_node_info_old_t) < DAP_BALANCER_MAX_REPLY_SIZE, "DAP_BALANCER_MAX_REPLY_SIZE cannot accommodate information minimum about 1 link");
-static const size_t s_max_link_responce_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_node_balancer_t)) / sizeof(dap_chain_node_info_old_t);
+static const size_t s_max_links_responce_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_node_balancer_t)) / sizeof(dap_chain_node_info_old_t);
 
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t *a_net)
 {
@@ -75,7 +75,7 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
         log_it(L_ERROR, "Active links list in net %s is empty", a_net_name);
         return NULL;
     }
-    size_t l_node_num_send = dap_min(s_max_link_responce_count, dap_min(l_node_num_prep, a_links_need));
+    size_t l_node_num_send = dap_min(s_max_links_responce_count, dap_min(l_node_num_prep, a_links_need));
 // memory alloc
     dap_chain_net_node_balancer_t *l_node_list_res = NULL;
     DAP_NEW_Z_SIZE_RET_VAL(l_node_list_res, dap_chain_net_node_balancer_t, sizeof(dap_chain_net_node_balancer_t) + l_node_num_send * sizeof(dap_link_info_t), NULL, l_links_info);
@@ -110,7 +110,7 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node_old(const char *a
         log_it(L_ERROR, "Active links list in net %s is empty", a_net_name);
         return NULL;
     }
-    size_t l_node_num_send = dap_min(s_max_link_responce_count, dap_min(l_node_num_prep, a_links_need));
+    size_t l_node_num_send = dap_min(s_max_links_responce_count, dap_min(l_node_num_prep, a_links_need));
 // memory alloc
     dap_chain_net_node_balancer_t *l_node_list_res = NULL;
     DAP_NEW_Z_SIZE_RET_VAL(l_node_list_res, dap_chain_net_node_balancer_t, sizeof(dap_chain_net_node_balancer_t) + l_node_num_send * sizeof(dap_chain_node_info_old_t), NULL, l_links_info);
