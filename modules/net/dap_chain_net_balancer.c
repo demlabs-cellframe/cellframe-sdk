@@ -29,8 +29,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_balancer"
 
-static_assert(sizeof(dap_chain_net_node_balancer_t) + sizeof(dap_link_info_t) < DAP_BALANCER_MAX_REPLY_SIZE, "DAP_BALANCER_MAX_REPLY_SIZE cannot accommodate information minimum about 1 link");
-static const size_t s_max_link_responce_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_node_balancer_t)) / sizeof(dap_link_info_t);
+static_assert(sizeof(dap_chain_net_node_balancer_t) + sizeof(dap_chain_node_info_old_t) < DAP_BALANCER_MAX_REPLY_SIZE, "DAP_BALANCER_MAX_REPLY_SIZE cannot accommodate information minimum about 1 link");
+static const size_t s_max_link_responce_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_node_balancer_t)) / sizeof(dap_chain_node_info_old_t);
 
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t *a_net)
 {
@@ -122,13 +122,13 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node_old(const char *a
             size_t j = dap_random_uint16() % l_node_num_prep;
             l_node_info[i].hdr.address.uint64 = l_links_info[j].node_addr.uint64;
             l_node_info[i].hdr.ext_port = l_links_info[j].uplink_port;
-            inet_ntop(AF_INET,&(l_node_info + i)->hdr.ext_addr_v4,l_links_info[j].uplink_addr, INET_ADDRSTRLEN);
+            inet_pton(AF_INET, l_links_info[j].uplink_addr, &l_node_info[i].hdr.ext_addr_v4);
         }
     } else {
         for (size_t i = 0; i < l_node_num_send; ++i) {
             l_node_info[i].hdr.address.uint64 = l_links_info[i].node_addr.uint64;
             l_node_info[i].hdr.ext_port = l_links_info[i].uplink_port;
-            inet_ntop(AF_INET,&(l_node_info + i)->hdr.ext_addr_v4,l_links_info[i].uplink_addr, INET_ADDRSTRLEN);
+            inet_pton(AF_INET, l_links_info[i].uplink_addr, &l_node_info[i].hdr.ext_addr_v4);
         }
     }
     l_node_list_res->count_node = l_node_num_send;
