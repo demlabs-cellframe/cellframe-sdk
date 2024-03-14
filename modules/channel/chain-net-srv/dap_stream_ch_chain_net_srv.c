@@ -899,6 +899,9 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
         RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_NEW_COND);
     }
 
+    bool l_waiting_new_tx_in_ledger = l_grace->usage->is_waiting_new_tx_cond_in_ledger;
+    l_grace->usage->is_waiting_new_tx_cond_in_ledger = false;
+
     dap_chain_net_t * l_net = l_grace->usage->net;
 
     l_err.net_id.uint64 = l_net->pub.id.uint64;
@@ -1092,16 +1095,16 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
             dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_grace->usage->tx_cond_hash);
             log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
             DAP_DELETE(l_tx_in_hash_str);
-            // if (l_receipt == l_grace->usage->receipt){ // if first grace
-            //     l_grace->usage->is_grace = false;
-            //     if (l_grace->usage->service->callbacks.response_success)
-            //         l_grace->usage->service->callbacks.response_success(l_grace->usage->service, l_grace->usage->id,
-            //                                                             l_grace->usage->client, l_receipt,
-            //                                                             sizeof(dap_chain_datum_tx_receipt_t) + l_receipt->size + l_receipt->exts_size);
-            // }
         } else {
             if(ret_status == DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_ENOUGH){
                 log_it(L_ERROR, "Tx cond have not enough funds");
+                if (l_waiting_new_tx_in_ledger){
+                    log_it(L_ERROR, "New tx cond have not enough funds. Waiting for end of service.");
+                    DAP_DELETE(a_grace_item->grace->request);
+                    DAP_DEL_Z(a_grace_item->grace);
+                    RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NEW_TX_COND_NOT_ENOUGH);
+                }
+
                 dap_chain_net_srv_grace_t* l_grace_new = DAP_NEW_Z(dap_chain_net_srv_grace_t);
                 if (!l_grace_new) {
                     log_it(L_CRITICAL, "Memory allocation error");
@@ -1561,6 +1564,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         }
 
         l_usage->is_waiting_new_tx_cond = false;
+        l_usage->is_waiting_new_tx_cond_in_ledger = true;
         dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
         dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get(l_responce->hdr.srv_uid);
         dap_chain_net_srv_grace_usage_t *l_curr_grace_item = NULL;
