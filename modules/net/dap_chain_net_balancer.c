@@ -26,6 +26,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net.h"
 #include "http_status_code.h"
 #include "dap_chain_node_client.h"
+#include "rand/dap_rand.h"
 
 #define LOG_TAG "dap_chain_net_balancer"
 
