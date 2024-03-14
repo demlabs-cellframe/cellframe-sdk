@@ -2634,8 +2634,6 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
     {
         dap_sign_t * l_sign = dap_cert_sign(l_certs[i],  l_datum_token,
            sizeof(*l_datum_token) + l_tsd_size, 0);
-        char *l_dump = dap_dump_hex(l_sign, dap_sign_get_size(l_sign));
-                    log_it(L_DEBUG, "[!]\n%s", l_dump);
         if (l_sign) {
             size_t l_sign_size = dap_sign_get_size(l_sign);
             l_datum_token = DAP_REALLOC(l_datum_token, sizeof(*l_datum_token) + (*l_datum_signs_offset) + l_sign_size);
@@ -2744,11 +2742,11 @@ int com_token_decl_sign(int a_argc, char **a_argv, void ** reply)
                     l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
                 // Check for signatures, are they all in set and are good enought?
                 size_t l_signs_size = 0, i = 1;
-                for (i = 1; i <= l_datum_token->signs_total; i++){
+                uint16_t l_tmp_signs_total = l_datum_token->signs_total;
+                l_datum_token->signs_total = 0;
+                for (i = 1; i <= l_tmp_signs_total; i++){
                     dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->data_n_tsd + l_tsd_size + l_signs_size);
-                    char *l_dump = dap_dump_hex(l_sign, dap_sign_get_size(l_sign));
-                    log_it(L_DEBUG, "[!]\n%s", l_dump);
-                    if( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) - sizeof(uint16_t)) != 1) {
+                    if( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token)) != 1) {
                         log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                 "Datum %s with datum token has wrong signature %zu, break process and exit",
@@ -2761,7 +2759,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void ** reply)
                     }
                     l_signs_size += dap_sign_get_size(l_sign);
                 }
-
+                l_datum_token->signs_total = l_tmp_signs_total;
                 log_it(L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
                                  l_datum_hash_out_str, l_datum_token->signs_total, l_signs_size);
 
