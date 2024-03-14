@@ -994,14 +994,14 @@ static char* s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price,
         }
         SUBTRACT_256_256(l_tx_out_cond->header.value, l_total_fee, &l_coin_back);
         // return coins to owner
-        if (dap_chain_datum_tx_add_out_item(&l_tx, &l_seller_addr, l_coin_back) == -1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_coin_back, l_tx_ticker) == -1) {
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_ERROR, "Cant add returning coins output");
             return l_ret;
         }
         // Network fee
         if (l_net_fee_used &&
-                dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) != 1) {
+                dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_ERROR, "Cant add network fee output");
             return l_ret;
