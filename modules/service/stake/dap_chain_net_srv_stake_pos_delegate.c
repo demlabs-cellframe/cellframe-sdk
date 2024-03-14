@@ -2162,7 +2162,7 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
 
     randombytes(l_test_data, sizeof(l_test_data));
     rc = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
-                                            DAP_CHAIN_CH_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST,
+                                            DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST,
                                             a_net->pub.id,
                                             l_test_data, sizeof(l_test_data));
     if (rc == 0) {
@@ -2311,7 +2311,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 return -35;
                 break;
             case -10:
-                dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't send DAP_CHAIN_CH_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST packet");
+                dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST packet");
                 return -36;
                 break;
             default:

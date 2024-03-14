@@ -90,7 +90,7 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
     a_ch->internal = DAP_NEW_Z(dap_stream_ch_chain_net_t);
-    dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_CHAIN_CH_NET(a_ch);
+    dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(a_ch);
     l_ch_chain_net->ch = a_ch;
 }
 
@@ -112,10 +112,10 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
  */
 void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
 {
-    dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_CHAIN_CH_NET(a_ch);
+    dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(a_ch);
     if(l_ch_chain_net) {
         dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *)a_arg;
-        if (l_ch_pkt->hdr.type == DAP_CHAIN_CH_NET_PKT_TYPE_TEST) {
+        if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_TEST) {
             char *l_data_hash_str;
             dap_get_data_hash_str_static(l_ch_pkt->data, l_ch_pkt->hdr.data_size, l_data_hash_str);
             log_it(L_ATT, "Receive test data packet with hash %s", l_data_hash_str);
@@ -132,7 +132,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                                     l_ch_pkt->hdr.data_size, l_ch_chain_net_pkt->hdr.data_size + sizeof(dap_stream_ch_chain_net_pkt_t));
             return;
         }
-        if (l_ch_pkt->hdr.type == DAP_CHAIN_CH_NET_PKT_TYPE_ERROR) {
+        if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR) {
             char *l_err_str = (char *)l_ch_chain_net_pkt->data;
             log_it(L_WARNING, "Stream channel N for network communication got error on other side: %s", l_err_str);
             return;
@@ -141,7 +141,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
         if (!l_net) {
             log_it(L_ERROR, "Invalid net id in packet");
             char l_err_str[] = "ERROR_NET_INVALID_ID";
-            dap_stream_ch_chain_net_pkt_write(a_ch, DAP_CHAIN_CH_NET_PKT_TYPE_ERROR ,
+            dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR ,
                                               l_ch_chain_net_pkt->hdr.net_id, l_err_str, sizeof(l_err_str));
             return;
         }
@@ -151,7 +151,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             log_it(L_WARNING, "Unauthorized request attempt to network %s",
                    dap_chain_net_by_id(l_ch_chain_net_pkt->hdr.net_id)->pub.name);
             char l_err_str[] = "ERROR_NET_NOT_AUTHORIZED";
-            dap_stream_ch_chain_net_pkt_write(a_ch, DAP_CHAIN_CH_NET_PKT_TYPE_ERROR ,
+            dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR ,
                                               l_ch_chain_net_pkt->hdr.net_id, l_err_str, sizeof(l_err_str));
             return;
         }
@@ -163,29 +163,29 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             return;
         }*/
         switch (l_ch_pkt->hdr.type) {
-        case DAP_CHAIN_CH_NET_PKT_TYPE_ANNOUNCE:
+        case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE:
             assert(!dap_stream_node_addr_is_blank(&a_ch->stream->node));
             dap_accounting_downlink_in_net(l_net->pub.id.uint64, &a_ch->stream->node);
             break;
             // received ping request - > send pong request
-        case DAP_CHAIN_CH_NET_PKT_TYPE_PING:
+        case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING:
             //log_it(L_INFO, "Get CHAIN_CH_NET_PKT_TYPE_PING");
-            dap_stream_ch_chain_net_pkt_write(a_ch, DAP_CHAIN_CH_NET_PKT_TYPE_PONG,
+            dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PONG,
                                               l_ch_chain_net_pkt->hdr.net_id,NULL, 0);
             dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
             break;
             // receive pong request -> send nothing
-        case DAP_CHAIN_CH_NET_PKT_TYPE_PONG:
+        case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PONG:
             //log_it(L_INFO, "Get CHAIN_CH_NET_PKT_TYPE_PONG");
             dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
             break;
 
-        case DAP_CHAIN_CH_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST:{
+        case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST:{
             log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST");
             dap_chain_net_t * l_net = dap_chain_net_by_id( l_ch_chain_net_pkt->hdr.net_id );
             if ( l_net == NULL){
                 char l_err_str[]="ERROR_NET_INVALID_ID";
-                dap_stream_ch_chain_net_pkt_write(a_ch, DAP_CHAIN_CH_NET_PKT_TYPE_ERROR ,
+                dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR ,
                                                   l_ch_chain_net_pkt->hdr.net_id, l_err_str,sizeof (l_err_str));
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 log_it(L_ERROR, "Invalid net id in packet");
@@ -262,7 +262,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                 //add sign
                 if(sign_s)
                     memcpy(send->sign,l_sign,sign_s);
-                dap_stream_ch_chain_net_pkt_write(a_ch, DAP_CHAIN_CH_NET_PKT_TYPE_NODE_VALIDATOR_READY ,
+                dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY ,
                                                  l_ch_chain_net_pkt->hdr.net_id, send, sizeof(dap_chain_ch_validator_test_t) + sign_s);
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 if(l_sign)
@@ -271,7 +271,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             }
         } break;
 
-        case DAP_CHAIN_CH_NET_PKT_TYPE_NODE_VALIDATOR_READY:{
+        case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY:{
             log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY");
 
             dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);

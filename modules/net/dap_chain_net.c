@@ -484,9 +484,9 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
     if(l_net_pvt->state == NET_STATE_LINKS_CONNECTING ){
         l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
     }
-    dap_stream_ch_chain_net_pkt_hdr_t l_announce = { .version = DAP_CHAIN_CH_NET_PKT_VERSION,
+    dap_stream_ch_chain_net_pkt_hdr_t l_announce = { .version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION,
                                                      .net_id  = l_net->pub.id };
-    dap_client_write_unsafe(a_link->client, 'N', DAP_CHAIN_CH_NET_PKT_TYPE_ANNOUNCE,
+    dap_client_write_unsafe(a_link->client, 'N', DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
                                      &l_announce, sizeof(l_announce));
 }
 

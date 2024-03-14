@@ -265,10 +265,10 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
         }
         if(l_node_client->callbacks.connected)
             l_node_client->callbacks.connected(l_node_client, l_node_client->callbacks_arg);
-        dap_stream_ch_chain_net_pkt_hdr_t l_announce = { .version = DAP_CHAIN_CH_NET_PKT_VERSION,
+        dap_stream_ch_chain_net_pkt_hdr_t l_announce = { .version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION,
                                                          .net_id  = l_node_client->net->pub.id };
         // Announce net on downlink
-        dap_client_write_unsafe(a_client, 'N', DAP_CHAIN_CH_NET_PKT_TYPE_ANNOUNCE,
+        dap_client_write_unsafe(a_client, 'N', DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
                                          &l_announce, sizeof(l_announce));
         // Add uplink to clusters
         dap_stream_node_addr_t *l_uplink_addr = &l_node_client->info->address;
@@ -316,7 +316,7 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
 {
     dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
     switch (a_pkt_type) {
-    case DAP_CHAIN_CH_NET_PKT_TYPE_NODE_VALIDATOR_READY: {
+    case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY: {
         if(a_pkt_net_data_size == sizeof(dap_chain_node_addr_t)) {
             l_node_client->remote_node_addr = *(dap_chain_node_addr_t*)a_pkt_net->data;
         }
@@ -351,10 +351,10 @@ static void s_ch_chain_callback_notify_packet_in(dap_chain_ch_t* a_ch_chain, uin
     assert(l_net);
     bool l_finished = false;
     switch (a_pkt_type) {
-        case DAP_CHAIN_CH_NET_PKT_TYPE_ERROR:
+        case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR:
             snprintf(l_node_client->last_error, sizeof(l_node_client->last_error),
                     "%s", (char*) a_pkt->data);
-            log_it(L_WARNING, "In: Received packet DAP_CHAIN_CH_NET_PKT_TYPE_ERROR with error \"%s\"",
+            log_it(L_WARNING, "In: Received packet DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR with error \"%s\"",
                     l_node_client->last_error);
             l_node_client->state = NODE_CLIENT_STATE_ERROR;
             if (!strcmp(l_node_client->last_error, "ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS")) {
@@ -777,7 +777,7 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
         }
         l_ch = dap_stream_ch_find_by_uuid_unsafe(a_node_client->stream_worker, a_node_client->ch_chain_net_uuid);
         if (l_ch) {
-            dap_stream_ch_chain_net_t *l_ch_chain_net = DAP_CHAIN_CH_NET(l_ch);
+            dap_stream_ch_chain_net_t *l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(l_ch);
             l_ch_chain_net->notify_callback = NULL;
         }
     }
@@ -941,7 +941,7 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
             }
                 //  'N'
             case DAP_STREAM_CH_NET_ID: {
-                dap_stream_ch_chain_net_t *l_ch_chain   = DAP_CHAIN_CH_NET(l_ch);
+                dap_stream_ch_chain_net_t *l_ch_chain   = DAP_STREAM_CH_CHAIN_NET(l_ch);
                 l_ch_chain->notify_callback     = s_ch_chain_callback_notify_packet_in2;
                 l_ch_chain->notify_callback_arg = l_node_client;
                 l_node_client->ch_chain_net         = l_ch;
