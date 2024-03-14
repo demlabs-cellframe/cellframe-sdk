@@ -28,6 +28,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define DAP_BALANCER_URI_HASH "f0intlt4eyl03htogu"
 #define DAP_BALANCER_PROTOCOL_VERSION 2
+#define DAP_BALANCER_MAX_REPLY_SIZE 2048
+
 typedef struct dap_chain_net_node_balancer {
     uint64_t count_node;
     byte_t nodes_info[];
