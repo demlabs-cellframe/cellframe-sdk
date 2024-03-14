@@ -702,7 +702,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
                                                 DAP_UPLINK_PATH_BALANCER,
                                                 DAP_BALANCER_URI_HASH,
                                                 DAP_BALANCER_PROTOCOL_VERSION,
-                                                a_required_links_count,
+                                                a_required_links_count * 2,
                                                 a_net->pub.name);
         ret = dap_client_http_request(l_balancer_request->worker,
                                                 l_balancer_request->link_info->ext_host,
