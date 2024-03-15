@@ -2624,7 +2624,7 @@ static void s_sync_timer_callback(void *a_arg)
                                                                l_net_pvt->sync_context.cur_cell ? l_net_pvt->sync_context.cur_cell->id.uint64 : 0,
                                                                &l_sync_chain, sizeof(l_sync_chain));
         dap_stream_ch_pkt_send_by_addr(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
-                                       DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_REQ, l_chain_pkt,
+                                       DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ, l_chain_pkt,
                                        dap_chain_ch_pkt_get_size(l_chain_pkt));
         DAP_DELETE(l_chain_pkt);
     }
