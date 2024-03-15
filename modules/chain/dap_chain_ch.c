@@ -902,7 +902,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (!l_requested_hash)
             l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, NULL);
         if (l_iter->cur) {
-            dap_chain_ch_summary_t l_sum = { .num_cur = l_iter->cur_num, .num_last = l_chain->callback_count_atom(l_chain) };
+            dap_chain_ch_summary_t l_sum = { .num_cur = l_requested_hash ? l_iter->cur_num : 0, .num_last = l_chain->callback_count_atom(l_chain) };
             if (l_sum.num_last - l_sum.num_cur) {
                 dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY,
                                                 l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,

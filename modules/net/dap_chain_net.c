@@ -2615,7 +2615,7 @@ static void s_sync_timer_callback(void *a_arg)
         // TODO make correct working with cells
         assert(l_net_pvt->sync_context.cur_chain);
         l_net_pvt->sync_context.cur_cell = l_net_pvt->sync_context.cur_chain->cells;
-        log_it(L_INFO, "Start synchronization process with " NODE_ADDR_FP_STR "for net %s and chain %s",
+        log_it(L_INFO, "Start synchronization process with " NODE_ADDR_FP_STR " for net %s and chain %s",
                                                         NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
                                                         l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
         dap_hash_fast_t l_last_hash;
