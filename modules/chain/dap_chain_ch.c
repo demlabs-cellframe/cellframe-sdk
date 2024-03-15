@@ -896,39 +896,37 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             break;
         }
         dap_hash_fast_t *l_requested_hash = (dap_hash_fast_t *)l_chain_pkt->data;
-        dap_chain_atom_iter_t *l_iter = l_chain->callback_atom_iter_create(l_chain, l_chain_pkt->hdr.cell_id, l_requested_hash);
         if (dap_hash_fast_is_blank(l_requested_hash))
+            l_requested_hash = NULL;
+        dap_chain_atom_iter_t *l_iter = l_chain->callback_atom_iter_create(l_chain, l_chain_pkt->hdr.cell_id, l_requested_hash);
+        if (!l_requested_hash)
             l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, NULL);
-        else if (!l_iter->cur) {
-            log_it(L_WARNING, "Requested atom with hash %s not found", dap_hash_fast_to_str_static(l_requested_hash));
-            s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
-                    l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
-                    DAP_CHAIN_CH_ERROR_ATOM_NOT_FOUND);
-            l_chain->callback_atom_iter_delete(l_iter);
-            break;
-        }
-        dap_chain_ch_summary_t l_sum = { .num_cur = l_iter->cur_num, .num_last = l_chain->callback_count_atom(l_chain) };
-        dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY,
-                                             l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
-                                             l_chain_pkt->hdr.cell_id.uint64, &l_sum, sizeof(l_sum));
-        if (l_sum.num_last - l_sum.num_cur) {
-            struct sync_context *l_context = DAP_NEW_Z(struct sync_context);
-            l_iter = l_iter;
-            l_context->net_id = l_chain_pkt->hdr.net_id;
-            l_context->chain_id = l_chain_pkt->hdr.chain_id;
-            l_context->cell_id = l_chain_pkt->hdr.cell_id;
-            l_context->num_last = l_sum.num_last;
-            l_context->last_activity = dap_time_now();
-            atomic_store_explicit(&l_context->state, SYNC_STATE_READY, memory_order_relaxed);
-            atomic_store(&l_context->allowed_num, l_sum.num_cur + s_sync_ack_window_size);
-            dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_context);
-            l_ch_chain->sync_context = l_context;
-            l_ch_chain->sync_timer = dap_timerfd_start_on_worker(a_ch->stream_worker->worker, 1000, s_sync_timer_callback, l_ch_chain);
+        if (l_iter->cur) {
+            dap_chain_ch_summary_t l_sum = { .num_cur = l_iter->cur_num, .num_last = l_chain->callback_count_atom(l_chain) };
+            if (l_sum.num_last - l_sum.num_cur) {
+                dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY,
+                                                l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
+                                                l_chain_pkt->hdr.cell_id.uint64, &l_sum, sizeof(l_sum));
+                struct sync_context *l_context = DAP_NEW_Z(struct sync_context);
+                l_context->iter = l_iter;
+                l_context->net_id = l_chain_pkt->hdr.net_id;
+                l_context->chain_id = l_chain_pkt->hdr.chain_id;
+                l_context->cell_id = l_chain_pkt->hdr.cell_id;
+                l_context->num_last = l_sum.num_last;
+                l_context->last_activity = dap_time_now();
+                atomic_store_explicit(&l_context->state, SYNC_STATE_READY, memory_order_relaxed);
+                atomic_store(&l_context->allowed_num, l_sum.num_cur + s_sync_ack_window_size);
+                dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_context);
+                l_ch_chain->sync_context = l_context;
+                l_ch_chain->sync_timer = dap_timerfd_start_on_worker(a_ch->stream_worker->worker, 1000, s_sync_timer_callback, l_ch_chain);
+                break;
+            }
         } else
-            dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN,
-                                                 l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
-                                                 l_chain_pkt->hdr.cell_id.uint64, NULL, 0);
-
+            debug_if(s_debug_more, L_DEBUG, "Requested atom with hash %s not found", dap_hash_fast_to_str_static(l_requested_hash));
+        dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN,
+                                      l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
+                                      l_chain_pkt->hdr.cell_id.uint64, NULL, 0);
+        l_chain->callback_atom_iter_delete(l_iter);
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY: {
