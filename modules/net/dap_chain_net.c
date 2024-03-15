@@ -2603,8 +2603,8 @@ static void s_sync_timer_callback(void *a_arg)
             l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_WAITING;
         } else {
             l_net_pvt->sync_context.cur_chain = l_net_pvt->sync_context.cur_chain->next;
-            if (l_net_pvt->sync_context.last_state == SYNC_STATE_SYNCED) {
-                if (!l_net_pvt->sync_context.cur_chain) {
+            if (!l_net_pvt->sync_context.cur_chain) {
+                if (l_net_pvt->sync_context.last_state == SYNC_STATE_SYNCED) {
                     l_net_pvt->state = NET_STATE_ONLINE;
                     l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_IDLE;
                 } else
