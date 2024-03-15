@@ -327,6 +327,46 @@ static void s_check_db_collect_callback(dap_global_db_context_t UNUSED_ARG *a_gl
     dap_global_db_objs_delete(l_objs, l_objs_count);
 }
 
+void dap_chain_esbocs_add_block_collect(const dap_chain_block_t *a_block_ptr, size_t a_block_size,)
+{
+    dap_sign_t *l_sign = dap_chain_block_sign_get(a_block_ptr, a_block_size, 0);
+    if (dap_pkey_match_sign(PVT(l_session->esbocs)->block_sign_pkey, l_sign)) {
+        dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_last_block_hash);
+        assert(l_block_cache);
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        assert(l_net);
+        uint256_t l_value_fee = uint256_0;
+        dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(
+                                        l_net->pub.ledger, l_block_cache, &l_value_fee);
+        if (!IS_ZERO_256(l_value_fee)) {
+            char *l_fee_group = dap_chain_cs_blocks_get_fee_group(a_chain->net_name);
+            dap_global_db_set(l_fee_group, l_block_cache->block_hash_str, &l_value_fee, sizeof(l_value_fee),
+                              false, s_check_db_collect_callback, l_session);
+            DAP_DELETE(l_fee_group);
+        }
+        dap_list_free_full(l_list_used_out, NULL);
+    }
+    if (dap_chain_block_sign_match_pkey(a_atom, a_atom_size, PVT(l_session->esbocs)->block_sign_pkey)) {
+        dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_last_block_hash);
+        assert(l_block_cache);
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        assert(l_net);
+        if (!dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash,
+                                      &l_session->my_signing_addr.data.hash_fast)) {
+            uint256_t l_value_reward = a_chain->callback_calc_reward(a_chain, &l_block_cache->block_hash,
+                                                                     PVT(l_session->esbocs)->block_sign_pkey);
+            if (!IS_ZERO_256(l_value_reward)) {
+                char *l_reward_group = dap_chain_cs_blocks_get_reward_group(a_chain->net_name);
+                dap_global_db_set(l_reward_group, l_block_cache->block_hash_str, &l_value_reward, sizeof(l_value_reward),
+                                  false, s_check_db_collect_callback, l_session);
+                DAP_DELETE(l_reward_group);
+            }
+        }
+    }    
+}
+
 static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t UNUSED_ARG a_id,
                                 void *a_atom, size_t a_atom_size)
 {
