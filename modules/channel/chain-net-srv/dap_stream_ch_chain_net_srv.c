@@ -96,8 +96,8 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_
                                         (dap_chain_net_srv_stream_session_t *)l_ch->stream->session->_inheritor : NULL;
 
     if (!l_srv_session){
-        DAP_DELETE(a_grace->request);
-        DAP_DELETE(a_grace);
+        DAP_DEL_Z(a_grace->request);
+        DAP_DEL_Z(a_grace);
         return;
     }
 
@@ -106,8 +106,8 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_
         log_it( L_WARNING, "Next receipt is rejected. Waiting until current limits is over.");
         DAP_DEL_Z(a_grace->usage->receipt_next);
         memset(&a_grace->usage->tx_cond_hash, 0, sizeof(a_grace->usage->tx_cond_hash));
-        DAP_DELETE(a_grace->request);
-        DAP_DELETE(a_grace);
+        DAP_DEL_Z(a_grace->request);
+        DAP_DEL_Z(a_grace);
         return;
     }
 
@@ -130,8 +130,8 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_
                 l_item = DAP_NEW_Z(dap_chain_net_srv_banlist_item_t);
                 if (!l_item) {
                     log_it(L_CRITICAL, "Memory allocation error");
-                    DAP_DELETE(a_grace->request);
-                    DAP_DELETE(a_grace);
+                    DAP_DEL_Z(a_grace->request);
+                    DAP_DEL_Z(a_grace);
                     return;
                 }
                 log_it(L_DEBUG, "Add client to banlist");
@@ -146,8 +146,8 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_
 
     } else if (l_srv_session->usage_active)
         dap_chain_net_srv_usage_delete(l_srv_session);
-    DAP_DELETE(a_grace->request);
-    DAP_DELETE(a_grace);
+    DAP_DEL_Z(a_grace->request);
+    DAP_DEL_Z(a_grace);
 }
 
 /**
@@ -1042,7 +1042,6 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                                                                             sizeof(dap_chain_datum_tx_receipt_t) + l_grace->usage->receipt->size + l_grace->usage->receipt->exts_size);
                     DAP_DELETE(l_success);
                 }
-                DAP_DELETE(l_grace->request);
                 DAP_DELETE(l_grace);
                 DAP_DELETE(l_remain_service);
                 RET_WITH_DEL_A_GRACE(0);
@@ -1100,24 +1099,18 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                 log_it(L_ERROR, "Tx cond have not enough funds");
                 if (l_waiting_new_tx_in_ledger){
                     log_it(L_ERROR, "New tx cond have not enough funds. Waiting for end of service.");
-                    DAP_DELETE(a_grace_item->grace->request);
-                    DAP_DEL_Z(a_grace_item->grace);
                     RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NEW_TX_COND_NOT_ENOUGH);
                 }
 
                 dap_chain_net_srv_grace_t* l_grace_new = DAP_NEW_Z(dap_chain_net_srv_grace_t);
                 if (!l_grace_new) {
                     log_it(L_CRITICAL, "Memory allocation error");
-                    DAP_DELETE(a_grace_item->grace->request);
-                    DAP_DEL_Z(a_grace_item->grace);
                     RET_WITH_DEL_A_GRACE(0);
                 }
                 // Parse the request
                 l_grace_new->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
                 if (!l_grace_new->request) {
                     log_it(L_CRITICAL, "Memory allocation error");
-                    DAP_DELETE(a_grace_item->grace->request);
-                    DAP_DEL_Z(a_grace_item->grace);
                     RET_WITH_DEL_A_GRACE(0);
                 }
                 l_grace_new->request->hdr.net_id = a_grace_item->grace->usage->net->pub.id;
@@ -1137,8 +1130,6 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                         l_grace->usage->service->callbacks.response_error(l_grace->usage->service,l_grace->usage->id, l_grace->usage->client,&l_err,sizeof (l_err));
                 }
                 DAP_DELETE(l_tx_in_hash_str);
-                DAP_DELETE(a_grace_item->grace->request);
-                DAP_DEL_Z(a_grace_item->grace);
                 RET_WITH_DEL_A_GRACE(0);
             } else {
                 log_it(L_ERROR, "Can't create input tx cond transaction!");
@@ -1157,8 +1148,6 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
         }
     }
     l_grace->usage->is_grace = false;
-    DAP_DELETE(a_grace_item->grace->request);
-    DAP_DEL_Z(a_grace_item->grace);
     RET_WITH_DEL_A_GRACE(0);
 #undef RET_WITH_DEL_A_GRACE
 }
