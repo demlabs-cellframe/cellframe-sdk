@@ -2581,9 +2581,6 @@ static void s_sync_timer_callback(void *a_arg)
             dap_time_now() - l_net_pvt->sync_context.stage_last_activity > l_net_pvt->sync_context.sync_idle_time) {
         if (!l_net_pvt->sync_context.cur_chain || l_net_pvt->sync_context.last_state == SYNC_STATE_ERROR) {
             // Go no next link
-            l_net_pvt->sync_context.cur_chain = l_net->pub.chains;
-            if (!l_net_pvt->sync_context.cur_chain)
-                return;
             dap_cluster_t *l_cluster = dap_cluster_by_mnemonim(l_net->pub.name);
             if (!dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
                 dap_stream_ch_del_notifier(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
@@ -2594,6 +2591,11 @@ static void s_sync_timer_callback(void *a_arg)
             l_net_pvt->sync_context.current_link = dap_cluster_get_random_link(l_cluster);
             if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link))
                 return;     // No links in cluster
+            l_net_pvt->sync_context.cur_chain = l_net->pub.chains;
+            if (!l_net_pvt->sync_context.cur_chain) {
+                log_it(L_ERROR, "No chains in net %s", l_net->pub.name);
+                return;
+            }
             dap_stream_ch_add_notifier(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
                                        DAP_STREAM_PKT_DIR_IN, s_ch_in_pkt_callback, l_net);
             dap_stream_ch_add_notifier(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
@@ -2607,6 +2609,7 @@ static void s_sync_timer_callback(void *a_arg)
                     l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_IDLE;
                 } else
                     l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_WAITING;
+                return;
             }
         }
         // TODO make correct working with cells
