@@ -124,19 +124,21 @@ int dap_chain_node_info_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_nod
 dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
 {
     char *l_key = dap_chain_node_addr_to_str_static(a_address);
-    size_t node_info_size = 0;
+    size_t l_node_info_size = 0;
     dap_chain_node_info_t *l_node_info
-        = (dap_chain_node_info_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
+        = (dap_chain_node_info_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
 
     if (!l_node_info) {
         log_it(L_NOTICE, "Node with address %s not found in base of %s network", l_key, a_net->pub.name);
         return NULL;
     }
-
-    return dap_chain_node_info_get_size(l_node_info) == node_info_size
-        ? l_node_info : log_it(L_ERROR, "Bad node \"%s\" record size, %zu != %zu", 
-            l_key, dap_chain_node_info_get_size(l_node_info), node_info_size),
-        DAP_DELETE(l_node_info), NULL;
+    size_t l_node_info_size_calced = dap_chain_node_info_get_size(l_node_info);
+    if (l_node_info_size_calced != l_node_info_size) {
+        log_it(L_ERROR, "Bad node \"%s\" record size, %zu != %zu", l_key, l_node_info_size_calced, l_node_info_size);
+        DAP_DELETE(l_node_info);
+        return NULL;
+    }
+    return l_node_info;
 }
 
 bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum) {

@@ -32,6 +32,7 @@
 #include "dap_chain_node.h"
 #include "dap_string.h"
 #include "dap_global_db.h"
+#include "dap_client.h"
 #include "dap_chain_net_balancer.h"
 
 #define LOG_TAG "dap_chain_node_dns_server"
@@ -51,11 +52,7 @@ int dap_dns_zone_register(char *zone, dap_dns_zone_callback_t callback) {
     dap_dns_zone_hash_t *new_zone;
     HASH_FIND_STR(s_dns_server->hash_table, zone, new_zone);
     if (new_zone == NULL) {      // zone is not present
-      new_zone = DAP_NEW(dap_dns_zone_hash_t);
-      if (!new_zone) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return DNS_ERROR_FAILURE;
-      }
+      DAP_NEW_Z_RET_VAL(new_zone, dap_dns_zone_hash_t, DNS_ERROR_FAILURE, NULL);
       new_zone->zone = dap_strdup(zone);
       HASH_ADD_KEYPTR(hh, s_dns_server->hash_table, new_zone->zone, strlen(new_zone->zone), new_zone);
     }                           // if zone present, just reassign callback
@@ -109,40 +106,23 @@ dap_dns_zone_callback_t dap_dns_zone_find(char *hostname) {
  * @param arg Unused
  * @return none
  */
-void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
-    UNUSED(a_arg);
-    if (a_es->buf_in_size < DNS_HEADER_SIZE) {        // Bad request
-        return;
-    }
-    dap_dns_buf_t *dns_message = DAP_NEW(dap_dns_buf_t);
-    if (!dns_message) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return;
-    }
-    dap_dns_buf_t *dns_reply = DAP_NEW(dap_dns_buf_t);
-    if (!dns_reply) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        DAP_DELETE(dns_message);
-        return;
-    }
-    dns_message->data = DAP_NEW_SIZE(char, a_es->buf_in_size + 1);
-    if (!dns_message->data) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        DAP_DELETE(dns_message);
-        DAP_DELETE(dns_reply);
-        return;
-    }
+void dap_dns_client_read(dap_events_socket_t *a_es, UNUSED_ARG void *a_arg) {
+// sanity check
+    dap_return_if_pass(!a_es || a_es->buf_in_size < DNS_HEADER_SIZE);  // Bad request
+// memory alloc
+    int block_len = DNS_HEADER_SIZE;
+    dap_dns_buf_t *dns_message = NULL;
+    dap_dns_buf_t *dns_reply = NULL;
+    DAP_NEW_Z_RET(dns_message, dap_dns_buf_t, NULL);
+    DAP_NEW_Z_RET(dns_reply, dap_dns_buf_t, dns_message);
+    DAP_NEW_Z_SIZE_RET(dns_message->data, char, a_es->buf_in_size + 1, dns_message, dns_reply);
+    DAP_NEW_Z_SIZE_RET(dns_reply->data, char, block_len, dns_message->data, dns_message, dns_reply);
+// func work
     dns_message->data[a_es->buf_in_size] = 0;
     dap_events_socket_pop_from_buf_in(a_es, dns_message->data, a_es->buf_in_size);
     dns_message->size = 0;
 
     // Parse incoming DNS message
-    int block_len = DNS_HEADER_SIZE;
-    dns_reply->data = DAP_NEW_SIZE(char, block_len);
-    if (!dns_reply->data) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return;
-    }
     dns_reply->size = 0;
     uint16_t val = dap_dns_buf_get_uint16(dns_message); // ID
     dap_dns_buf_put_uint16(dns_reply, val);
@@ -226,14 +206,14 @@ void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
         }
     }
     // Find ip addr
-    dap_chain_node_info_t *l_node_info = NULL;
+    dap_link_info_t *l_link_info = NULL;
     if (flags->rcode == DNS_ERROR_NONE) {
         dap_dns_zone_callback_t callback = dap_dns_zone_find(dns_hostname->str);
         if (callback) {
-            l_node_info = callback(dns_hostname->str);
+            l_link_info = callback(dns_hostname->str);
         }
     }
-    if (l_node_info) {
+    if (l_link_info) {
         // Compose DNS answer
         block_len = DNS_ANSWER_SIZE * 2 - sizeof(uint16_t) + sizeof(uint64_t);
         dns_reply->data = DAP_REALLOC(dns_reply->data, dns_reply->size + block_len);
@@ -256,9 +236,9 @@ void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
         dap_dns_buf_put_uint32(dns_reply, ttl);
         val = sizeof(uint16_t) + sizeof(uint64_t);
         dap_dns_buf_put_uint16(dns_reply, val);
-        dap_dns_buf_put_uint16(dns_reply, l_node_info->ext_port);
-        dap_dns_buf_put_uint64(dns_reply, l_node_info->address.uint64);
-        DAP_DELETE(l_node_info);
+        dap_dns_buf_put_uint16(dns_reply, l_link_info->uplink_port);
+        dap_dns_buf_put_uint64(dns_reply, l_link_info->node_addr.uint64);
+        DAP_DELETE(l_link_info);
     } else if (flags->rcode == DNS_ERROR_NONE) {
         flags->rcode = DNS_ERROR_NAME;
     }
@@ -272,20 +252,14 @@ void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
     dap_events_socket_write_unsafe(a_es, dns_reply->data, dns_reply->size);
     dap_string_free(dns_hostname, true);
 cleanup:
-    DAP_DELETE(dns_reply->data);
-    DAP_DELETE(dns_message->data);
-    DAP_DELETE(dns_reply);
-    DAP_DELETE(dns_message);
+    DAP_DEL_MULTY(dns_reply->data, dns_message->data, dns_reply, dns_message);
     return;
 }
 
 void dap_dns_server_start(char *a_port)
 {
-    s_dns_server = DAP_NEW_Z(dap_dns_server_t);
-    if (!s_dns_server) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return;
-    }
+// memory alloc
+    DAP_NEW_Z_RET(s_dns_server, dap_dns_server_t, NULL);
     dap_events_socket_callbacks_t l_cb = {};
     l_cb.read_callback = dap_dns_client_read;
     s_dns_server->instance = dap_server_new(&a_port, 1, DAP_SERVER_UDP, &l_cb);
