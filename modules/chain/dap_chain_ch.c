@@ -1402,10 +1402,10 @@ static bool s_chain_iter_callback(void *a_arg)
         dap_stream_ch_pkt_send_by_addr(&l_context->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN, l_pkt, dap_chain_ch_pkt_get_size(l_pkt));
         DAP_DELETE(l_pkt);
         debug_if(s_debug_more, L_DEBUG, "Out: CHAIN %s for net %s from source " NODE_ADDR_FP_STR "with num %" DAP_UINT64_FORMAT_U
-                                            " hash %s and size %s",
+                                            " hash %s and size %zu",
                                 l_chain ? l_chain->name : "(null)",
                                             l_chain ? l_chain->net_name : "(null)",
-                                                            NODE_ADDR_FP_ARGS_S(l_args->addr),
+                                                            NODE_ADDR_FP_ARGS_S(l_context->addr),
                                 l_iter->cur_num, dap_hash_fast_to_str_static(l_iter->cur_hash), l_iter->cur_size);
         if (atomic_exchange(&l_context->state, SYNC_STATE_BUSY) == SYNC_STATE_OVER) {
             atomic_store(&l_context->state, SYNC_STATE_OVER);
