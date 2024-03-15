@@ -634,7 +634,7 @@ static bool s_sync_in_chains_callback(void *a_arg)
                                                              &l_ack_num, sizeof(uint64_t));
             dap_stream_ch_pkt_send_by_addr(&l_args->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK, l_pkt, dap_chain_ch_pkt_get_size(l_chain_pkt));
             DAP_DELETE(l_pkt);
-            debug_if(s_debug_more, L_DEBUG, "Out: CHAIN_ACK %s for net %s from source " NODE_ADDR_FP_STR "with num %" DAP_UINT64_FORMAT_U,
+            debug_if(s_debug_more, L_DEBUG, "Out: CHAIN_ACK %s for net %s to destination " NODE_ADDR_FP_STR "with num %" DAP_UINT64_FORMAT_U,
                                     l_chain ? l_chain->name : "(null)",
                                                 l_chain ? l_chain->net_name : "(null)",
                                                                 NODE_ADDR_FP_ARGS_S(l_args->addr),
@@ -912,6 +912,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY,
                                                 l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
                                                 l_chain_pkt->hdr.cell_id.uint64, &l_sum, sizeof(l_sum));
+                debug_if(s_debug_more, L_DEBUG, "Out: CHAIN_SUMMARY %s for net %s to destination " NODE_ADDR_FP_STR,
+                                        l_chain ? l_chain->name : "(null)",
+                                                    l_chain ? l_chain->net_name : "(null)",
+                                                                    NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
                 struct sync_context *l_context = DAP_NEW_Z(struct sync_context);
                 l_context->iter = l_iter;
                 l_context->net_id = l_chain_pkt->hdr.net_id;
@@ -931,6 +935,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN,
                                       l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
                                       l_chain_pkt->hdr.cell_id.uint64, NULL, 0);
+        debug_if(s_debug_more, L_DEBUG, "Out: SYNCED_CHAIN %s for net %s to destination " NODE_ADDR_FP_STR,
+                                l_chain ? l_chain->name : "(null)",
+                                            l_chain ? l_chain->net_name : "(null)",
+                                                            NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
         l_chain->callback_atom_iter_delete(l_iter);
     } break;
 
@@ -1401,7 +1409,7 @@ static bool s_chain_iter_callback(void *a_arg)
         l_pkt->hdr.num_hi = (l_iter->cur_num >> 16) & 0xFF;
         dap_stream_ch_pkt_send_by_addr(&l_context->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN, l_pkt, dap_chain_ch_pkt_get_size(l_pkt));
         DAP_DELETE(l_pkt);
-        debug_if(s_debug_more, L_DEBUG, "Out: CHAIN %s for net %s from source " NODE_ADDR_FP_STR "with num %" DAP_UINT64_FORMAT_U
+        debug_if(s_debug_more, L_DEBUG, "Out: CHAIN %s for net %s to destination " NODE_ADDR_FP_STR "with num %" DAP_UINT64_FORMAT_U
                                             " hash %s and size %zu",
                                 l_chain ? l_chain->name : "(null)",
                                             l_chain ? l_chain->net_name : "(null)",
