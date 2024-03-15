@@ -1433,20 +1433,19 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     case CMD_BALANCER: {
         //balancer link list
         size_t l_node_num = 0;
-        dap_string_t * l_string_balanc = dap_string_new("\n");
-        l_node_num = dap_list_length(l_net->pub.link_list);
+        dap_link_info_t *l_links_info_list = dap_link_manager_get_net_links_info_list(l_net->pub.id.uint64, &l_node_num);
+        dap_string_t *l_string_balanc = dap_string_new("\n");
         dap_string_append_printf(l_string_balanc, "Got %d records\n", (uint16_t)l_node_num);
-        for(dap_list_t *ll = l_net->pub.link_list; ll; ll = ll->next)
-        {
-            dap_chain_node_info_t *l_node_link = (dap_chain_node_info_t*)ll->data;
+        for(size_t i = 0; i < l_node_num; ++i) {
             dap_string_append_printf(l_string_balanc, NODE_ADDR_FP_STR"    %-20s%u\n",
-                                     NODE_ADDR_FP_ARGS_S(l_node_link->address),
-                                     l_node_link->ext_host,
+                                     NODE_ADDR_FP_ARGS_S(l_links_info_list[i].node_addr),
+                                     l_links_info_list[i].uplink_addr,
                                      /*l_node_link->info.links_number*/ 0);
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Balancer link list:\n %s \n",
                                           l_string_balanc->str);
         dap_string_free(l_string_balanc, true);
+        DAP_DEL_Z(l_links_info_list);
     } break;
 
     default:
