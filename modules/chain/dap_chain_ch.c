@@ -634,7 +634,7 @@ static bool s_sync_in_chains_callback(void *a_arg)
                                                              &l_ack_num, sizeof(uint64_t));
             dap_stream_ch_pkt_send_by_addr(&l_args->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK, l_pkt, dap_chain_ch_pkt_get_size(l_chain_pkt));
             DAP_DELETE(l_pkt);
-            debug_if(s_debug_more, L_DEBUG, "Out: CHAIN_ACK %s for net %s to destination " NODE_ADDR_FP_STR "with num %" DAP_UINT64_FORMAT_U,
+            debug_if(s_debug_more, L_DEBUG, "Out: CHAIN_ACK %s for net %s to destination " NODE_ADDR_FP_STR " with num %" DAP_UINT64_FORMAT_U,
                                     l_chain ? l_chain->name : "(null)",
                                                 l_chain ? l_chain->net_name : "(null)",
                                                                 NODE_ADDR_FP_ARGS_S(l_args->addr),
@@ -917,6 +917,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                                     l_chain ? l_chain->net_name : "(null)",
                                                                     NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
                 struct sync_context *l_context = DAP_NEW_Z(struct sync_context);
+                l_context->addr = a_ch->stream->node;
                 l_context->iter = l_iter;
                 l_context->net_id = l_chain_pkt->hdr.net_id;
                 l_context->chain_id = l_chain_pkt->hdr.chain_id;
@@ -1401,7 +1402,6 @@ static bool s_chain_iter_callback(void *a_arg)
     dap_chain_atom_ptr_t l_atom = l_iter->cur;
     uint32_t l_cycles_count = 0;
     while (l_atom && l_atom_size) {
-        l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size);
         dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_context->net_id.uint64, l_context->chain_id.uint64, l_context->cell_id.uint64,
                                                          l_atom, l_atom_size);
         // For master format binary complience
@@ -1409,17 +1409,18 @@ static bool s_chain_iter_callback(void *a_arg)
         l_pkt->hdr.num_hi = (l_iter->cur_num >> 16) & 0xFF;
         dap_stream_ch_pkt_send_by_addr(&l_context->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN, l_pkt, dap_chain_ch_pkt_get_size(l_pkt));
         DAP_DELETE(l_pkt);
-        debug_if(s_debug_more, L_DEBUG, "Out: CHAIN %s for net %s to destination " NODE_ADDR_FP_STR "with num %" DAP_UINT64_FORMAT_U
+        debug_if(s_debug_more, L_DEBUG, "Out: CHAIN %s for net %s to destination " NODE_ADDR_FP_STR " with num %" DAP_UINT64_FORMAT_U
                                             " hash %s and size %zu",
                                 l_chain ? l_chain->name : "(null)",
                                             l_chain ? l_chain->net_name : "(null)",
                                                             NODE_ADDR_FP_ARGS_S(l_context->addr),
                                 l_iter->cur_num, dap_hash_fast_to_str_static(l_iter->cur_hash), l_iter->cur_size);
+        l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size);
         if (atomic_exchange(&l_context->state, SYNC_STATE_BUSY) == SYNC_STATE_OVER) {
             atomic_store(&l_context->state, SYNC_STATE_OVER);
             return false;
         }
-        if (l_iter->cur_num >= atomic_load_explicit(&l_context->allowed_num, memory_order_acquire))
+        if (!l_iter->cur_num || l_iter->cur_num >= atomic_load_explicit(&l_context->allowed_num, memory_order_acquire))
             break;
         if (++l_cycles_count >= s_sync_packets_per_thread_call)
             return true;
