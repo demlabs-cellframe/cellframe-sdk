@@ -116,6 +116,8 @@ static const char* c_dap_chain_ch_pkt_type_str[]={
 
 };
 
+DAP_STATIC_INLINE size_t dap_chain_ch_pkt_get_size(dap_chain_ch_pkt_t *a_pkt) { return sizeof(dap_chain_ch_pkt_hdr_t) + a_pkt->hdr.data_size; }
+
 dap_chain_ch_pkt_t *dap_chain_ch_pkt_new(uint64_t a_net_id, uint64_t a_chain_id, uint64_t a_cell_id,
                                          const void *a_data, size_t a_data_size);
 

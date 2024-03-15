@@ -2622,7 +2622,7 @@ static void s_sync_timer_callback(void *a_arg)
                                                                &l_sync_chain, sizeof(l_sync_chain));
         dap_stream_ch_pkt_send_by_addr(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
                                        DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_REQ, l_chain_pkt,
-                                       sizeof(dap_chain_ch_pkt_hdr_t) + sizeof(l_sync_chain));
+                                       dap_chain_ch_pkt_get_size(l_chain_pkt));
         DAP_DELETE(l_chain_pkt);
     }
     if (l_net_pvt->sync_context.last_state != SYNC_STATE_IDLE &&

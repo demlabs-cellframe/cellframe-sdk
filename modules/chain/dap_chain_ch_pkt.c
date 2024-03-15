@@ -35,7 +35,7 @@ size_t dap_chain_ch_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type, uint
                                             const void * a_data, size_t a_data_size)
 {
     dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(a_net_id, a_chain_id, a_cell_id, a_data, a_data_size);
-    size_t l_ret = dap_stream_ch_pkt_write_unsafe(a_ch, a_type, l_chain_pkt, sizeof(dap_chain_ch_pkt_hdr_t) + a_data_size);
+    size_t l_ret = dap_stream_ch_pkt_write_unsafe(a_ch, a_type, l_chain_pkt, dap_chain_ch_pkt_get_size(l_chain_pkt));
     DAP_DELETE(l_chain_pkt);
     return l_ret;
 }

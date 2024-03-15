@@ -583,6 +583,12 @@ static bool s_gdb_in_pkt_proc_callback(void *a_arg)
     return false;
 }
 
+struct atom_processing_args {
+    dap_stream_node_addr_t addr;
+    bool ack_req;
+    byte_t data[];
+};
+
 /**
  * @brief s_sync_in_chains_callback
  * @param a_thread dap_proc_thread_t
@@ -591,8 +597,10 @@ static bool s_gdb_in_pkt_proc_callback(void *a_arg)
  */
 static bool s_sync_in_chains_callback(void *a_arg)
 {
-    dap_chain_ch_pkt_t *l_chain_pkt = a_arg;
-    if (!l_chain_pkt || !l_chain_pkt->hdr.data_size) {
+    assert(a_arg);
+    struct atom_processing_args *l_args = a_arg;
+    dap_chain_ch_pkt_t *l_chain_pkt = (dap_chain_ch_pkt_t *)l_args->data;
+    if (!l_chain_pkt->hdr.data_size) {
         log_it(L_CRITICAL, "Proc thread received corrupted chain packet!");
         return false;
     }
@@ -601,7 +609,7 @@ static bool s_sync_in_chains_callback(void *a_arg)
     dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
     if (!l_chain) {
         debug_if(s_debug_more, L_WARNING, "No chain found for DAP_CHAIN_CH_PKT_TYPE_CHAIN");
-        DAP_DELETE(l_chain_pkt);
+        DAP_DELETE(l_args);
         return false;
     }
     char *l_atom_hash_str = NULL;
@@ -612,19 +620,20 @@ static bool s_sync_in_chains_callback(void *a_arg)
     case ATOM_PASS:
         debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",
                                                 l_atom_hash_str, l_chain->net_name, l_chain->name);
-        //dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
         break;
     case ATOM_MOVE_TO_THRESHOLD:
         debug_if(s_debug_more, L_INFO, "Thresholded atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
-        //dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
         break;
     case ATOM_ACCEPT:
         debug_if(s_debug_more, L_INFO,"Accepted atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
-        int l_res = dap_chain_atom_save(l_chain->cells, l_atom, l_atom_size, NULL);
-        if(l_res < 0) {
+        if (dap_chain_atom_save(l_chain->cells, l_atom, l_atom_size, NULL) < 0)
             log_it(L_ERROR, "Can't save atom %s to the file", l_atom_hash_str);
-        } else {
-            //dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+        if (l_args->ack_req) {
+            uint64_t l_num_ack = (l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo;
+            dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
+                                                             &l_num_ack, sizeof(uint64_t));
+            dap_stream_ch_pkt_send_by_addr(&l_args->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK, l_pkt, dap_chain_ch_pkt_get_size(l_chain_pkt));
+            DAP_DELETE(l_pkt);
         }
         break;
     case ATOM_REJECT: {
@@ -635,11 +644,11 @@ static bool s_sync_in_chains_callback(void *a_arg)
         log_it(L_CRITICAL, "Wtf is this ret code? %d", l_atom_add_res);
         break;
     }
-    DAP_DELETE(l_chain_pkt);
+    DAP_DELETE(l_args);
     return false;
 }
 
-static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, dap_stream_node_addr_t UNUSED_ARG a_sender_addr)
+static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, dap_stream_node_addr_t a_sender_addr)
 {
     assert(a_payload && a_payload_size);
     dap_chain_ch_pkt_t *l_chain_pkt = a_payload;
@@ -648,12 +657,15 @@ static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, da
         log_it(L_WARNING, "Incorrect chain GOSSIP packet size");
         return;
     }
-    dap_chain_ch_pkt_t *l_chain_pkt_copy = DAP_DUP_SIZE(a_payload, a_payload_size);
-    if (!l_chain_pkt_copy) {
-        log_it(L_CRITICAL, "Not enough memory");
+    struct atom_processing_args *l_args = DAP_NEW_SIZE(struct atom_processing_args, a_payload_size + sizeof(struct atom_processing_args));
+    if (!l_args) {
+        log_it(L_CRITICAL, g_error_memory_alloc);
         return;
     }
-    dap_proc_thread_callback_add(NULL, s_sync_in_chains_callback, l_chain_pkt_copy);
+    l_args->addr = a_sender_addr;
+    l_args->ack_req = false;
+    memcpy(l_args->data, a_payload, a_payload_size);
+    dap_proc_thread_callback_add(NULL, s_sync_in_chains_callback, l_args);
 }
 
 /**
@@ -837,19 +849,22 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                         NODE_ADDR_FP_ARGS_S(a_ch->stream->node), l_cluster->mnemonim);
             break;
         }
-        dap_chain_ch_pkt_t *l_chain_pkt_copy = DAP_DUP_SIZE(l_ch_pkt->data, l_ch_pkt->hdr.data_size);
-        if (!l_chain_pkt_copy) {
-            log_it(L_CRITICAL, "Not enough memory");
-            break;
+        struct atom_processing_args *l_args = DAP_NEW_SIZE(struct atom_processing_args, l_ch_pkt->hdr.data_size + sizeof(struct atom_processing_args));
+        if (!l_args) {
+            log_it(L_CRITICAL, g_error_memory_alloc);
+            return;
         }
-        if (l_chain_pkt_copy->hdr.version < 2)
-            l_chain_pkt_copy->hdr.data_size = l_chain_pkt_data_size;
+        l_args->addr = a_ch->stream->node;
+        l_args->ack_req = true;
+        if (l_chain_pkt->hdr.version < 2)
+            l_chain_pkt->hdr.data_size = l_chain_pkt_data_size;
+        memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
         if (s_debug_more) {
             char *l_atom_hash_str;
             dap_get_data_hash_str_static(l_chain_pkt->data, l_chain_pkt_data_size, l_atom_hash_str);
             log_it(L_INFO, "In: CHAIN pkt: atom hash %s (size %zd)", l_atom_hash_str, l_chain_pkt_data_size);
         }
-        dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_chain_pkt_copy);
+        dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_args);
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ: {
@@ -1381,7 +1396,7 @@ static bool s_chain_iter_callback(void *a_arg)
         // For master format binary complience
         l_pkt->hdr.num_lo = l_iter->cur_num & 0xFFFF;
         l_pkt->hdr.num_hi = (l_iter->cur_num >> 16) & 0xFF;
-        dap_stream_ch_pkt_send_by_addr(&l_context->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN, l_pkt, sizeof(dap_chain_ch_pkt_hdr_t) + l_atom_size);
+        dap_stream_ch_pkt_send_by_addr(&l_context->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN, l_pkt, dap_chain_ch_pkt_get_size(l_pkt));
         DAP_DELETE(l_pkt);
         if (atomic_exchange(&l_context->state, SYNC_STATE_BUSY) == SYNC_STATE_OVER) {
             atomic_store(&l_context->state, SYNC_STATE_OVER);
@@ -1419,14 +1434,14 @@ static void s_ch_chain_go_idle(dap_chain_ch_t *a_ch_chain)
 {
     // New protocol
     if (a_ch_chain->sync_context) {
-        atomic_store(&a_ch_chain->sync_context->state, SYNC_STATE_OVER);
+        atomic_store(&((struct sync_context *)a_ch_chain->sync_context)->state, SYNC_STATE_OVER);
         dap_proc_thread_callback_add(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker->proc_queue_input,
                                      s_chain_iter_delete_callback, a_ch_chain->sync_context);
         a_ch_chain->sync_context = NULL;
     }
     if (a_ch_chain->sync_timer) {
-        dap_timerfd_delete_unsafe(l_ch_chain->sync_timer);
-        l_ch_chain->sync_timer = NULL;
+        dap_timerfd_delete_unsafe(a_ch_chain->sync_timer);
+        a_ch_chain->sync_timer = NULL;
     }
 //}
     // Legacy
