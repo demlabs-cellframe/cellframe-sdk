@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <limits.h>
 #include "dap_common.h"
 #include "dap_list.h"
 #include "dap_worker.h"
@@ -32,7 +33,7 @@
 
 typedef struct dap_chain_net dap_chain_net_t;
 
-typedef struct dap_chain_node_info {
+typedef struct dap_chain_node_info_old {
     struct {
         dap_chain_node_addr_t address;
         dap_chain_cell_id_t cell_id;
@@ -48,21 +49,35 @@ typedef struct dap_chain_node_info {
     } DAP_ALIGN_PACKED info;
     uint16_t alias_len;
     byte_t alias[];
+} DAP_ALIGN_PACKED dap_chain_node_info_old_t;
+
+typedef struct dap_chain_node_info {
+    dap_chain_node_addr_t address;
+    dap_chain_cell_id_t cell_id;
+    char alias[64];
+    uint16_t ext_port;
+    uint8_t ext_host_len;
+    char ext_host[];
 } DAP_ALIGN_PACKED dap_chain_node_info_t;
+
+typedef struct dap_chain_node_states_info {
+    dap_chain_node_addr_t address;
+    uint64_t atoms_count;
+    uint32_t links_count;
+    dap_chain_node_addr_t links_addrs[];
+} DAP_ALIGN_PACKED dap_chain_node_states_info_t;
 
 typedef dap_stream_node_addr_t dap_chain_node_addr_t;
 #define dap_chain_node_addr_str_check dap_stream_node_addr_str_check
 #define dap_chain_node_addr_from_str dap_stream_node_addr_from_str
-#define dap_chain_node_addr_not_null dap_stream_node_addr_not_null
+#define dap_chain_node_addr_is_blank dap_stream_node_addr_is_blank
 
 /**
  * Calculate size of struct dap_chain_node_info_t
  */
 DAP_STATIC_INLINE size_t dap_chain_node_info_get_size(dap_chain_node_info_t *a_node_info)
 {
-    if (!a_node_info)
-        return 0;
-    return (sizeof(dap_chain_node_info_t) + a_node_info->alias_len);
+    return !a_node_info ? 0 : sizeof(dap_chain_node_info_t) + a_node_info->ext_host_len + 1;
 }
 
 /**
@@ -89,11 +104,14 @@ bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, 
 bool dap_chain_node_alias_delete(dap_chain_net_t * l_net,const char *alias);
 
 int dap_chain_node_info_save(dap_chain_net_t * l_net,dap_chain_node_info_t *node_info);
-dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t * l_net, dap_chain_node_addr_t *address);
+int dap_chain_node_info_del(dap_chain_net_t * l_net,dap_chain_node_info_t *node_info);
+dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *l_net, dap_chain_node_addr_t *address);
 
-inline static char *dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *a_address)
+inline static char *dap_chain_node_addr_to_str_static(dap_chain_node_addr_t *a_address)
 {
-    return dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_address));
+    static _Thread_local char s_buf[23] = { '\0' };
+    dap_snprintf(s_buf, sizeof(s_buf), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_address));
+    return s_buf;
 }
 
 bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);

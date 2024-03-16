@@ -96,8 +96,8 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_key_hash);
     char *l_key_str = dap_strcmp(a_hash_out_type, "hex")
-            ? dap_enc_base58_encode_hash_to_str(&l_key_hash)
-            : dap_chain_hash_fast_to_str_new(&l_key_hash);
+            ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash)
+            : dap_chain_hash_fast_to_str_static(&l_key_hash);
 
     const char *l_type_str;
     switch (a_datum->header.type_id) {
@@ -112,7 +112,6 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
         if (l_net_id != a_chain->net_id.uint64) {
             log_it(L_WARNING, "Datum emission with hash %s NOT placed in mempool: wallet addr net ID %lu != %lu chain net ID",
                    l_key_str, l_net_id, a_chain->net_id.uint64);
-            DAP_DELETE(l_key_str);
             return NULL;
         }
         l_type_str = "emission";
@@ -132,7 +131,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     else
         log_it(L_WARNING, "Can't place datum %s with hash %s in mempool group %s", l_type_str, l_key_str, l_gdb_group);
     DAP_DELETE(l_gdb_group);
-    return (l_res == DAP_GLOBAL_DB_RC_SUCCESS) ? l_key_str : ({ DAP_DELETE(l_key_str); NULL; });
+    return (l_res == DAP_GLOBAL_DB_RC_SUCCESS) ? dap_strdup(l_key_str) : NULL;
 }
 
 /**
@@ -585,9 +584,8 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     uint256_t l_value_need = {};
     MULT_256_256(dap_chain_uint256_from(a_tx_num), l_single_val, &l_value_need);
     uint256_t l_value_transfer = {}; // how many coins to transfer
-    char *l_balance = dap_chain_balance_to_coins(l_value_need);
+    char *l_balance; dap_uint256_to_char(l_value_need, &l_balance);
     log_it(L_DEBUG, "Create %"DAP_UINT64_FORMAT_U" transactions, summary %s", a_tx_num, l_balance);
-    DAP_DELETE(l_balance);
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
                                                                              a_addr_from, l_value_need, &l_value_transfer);
@@ -614,25 +612,25 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
             char l_in_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(&l_item->tx_hash_fast, l_in_hash_str, sizeof(l_in_hash_str));
 
-            char *l_balance = dap_chain_balance_print(l_item->value);
+            l_balance = dap_uint256_to_char(l_item->value, NULL);
             if (dap_chain_datum_tx_add_in_item(&l_tx_new, &l_item->tx_hash_fast, l_item->num_idx_out)) {
                 SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
                 log_it(L_DEBUG, "Added input %s with %s datoshi", l_in_hash_str, l_balance);
             } else {
                 log_it(L_WARNING, "Can't add input from %s with %s datoshi", l_in_hash_str, l_balance);
             }
-            DAP_DELETE(l_balance);
             DL_DELETE(l_list_used_out, l_used_out);
             DAP_DELETE(l_item);
             if (compare256(l_value_to_items, l_value_transfer) != -1)
                 break;
         }
         if (compare256(l_value_to_items, l_single_val) == -1) {
-            char *l_balance = dap_chain_balance_print(l_value_to_items);
-            char *l_balance_need = dap_chain_balance_print(l_single_val);
-            log_it(L_ERROR, "Not enough values on output to produce enough inputs: %s when need %s", l_balance, l_balance_need);
-            DAP_DELETE(l_balance);
-            DAP_DELETE(l_balance_need);
+            char l_log_str[256] = { '\0' };
+            l_balance = dap_uint256_to_char(l_value_to_items, NULL);
+            dap_snprintf(l_log_str, sizeof(l_log_str),
+                         "Not enough values on output to produce enough inputs: %s when need ", l_balance);
+            strcat(l_log_str, dap_uint256_to_char(l_single_val, NULL));
+            log_it(L_ERROR, "%s", l_log_str);
             DAP_DELETE(l_objs);
             return -5;
         }
@@ -738,7 +736,6 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         //dap_ledger_tx_add( a_chain->ledger, l_tx);
 
         l_objs[i].key = dap_chain_hash_fast_to_str_new(&l_tx_new_hash);
-        //continue;
         l_objs[i].value = (uint8_t *)l_datum;
         l_objs[i].value_len = dap_chain_datum_size(l_datum);
         log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
@@ -1166,6 +1163,24 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_
     return l_ret;
 }
 
+dap_chain_datum_t *dap_chain_mempool_datum_get(dap_chain_t *a_chain, const char *a_datum_hash_str)
+{
+    size_t l_datum_size;
+    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
+                                                    a_datum_hash_str, &l_datum_size, NULL, NULL );
+    if (!l_datum) {
+        char *l_emission_hash_str_from_base58 = dap_enc_base58_to_hex_str_from_str(a_datum_hash_str);
+        l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
+                                    l_emission_hash_str_from_base58, &l_datum_size, NULL, NULL );
+        DAP_DELETE(l_emission_hash_str_from_base58);
+    }
+    
+    DAP_DELETE(l_gdb_group);
+    
+    return l_datum;
+}
+
 dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_chain_t *a_chain, byte_t *a_data, size_t a_size)
 {
     if (!a_chain || !a_data || a_size < sizeof(dap_chain_datum_t))
@@ -1449,7 +1464,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
  * @param sh HTTP server instance
  * @param url URL string
  */
-void dap_chain_mempool_add_proc(dap_http_t * a_http_server, const char * a_url)
+void dap_chain_mempool_add_proc(dap_http_server_t * a_http_server, const char * a_url)
 {
     dap_http_simple_proc_add(a_http_server, a_url, 4096, chain_mempool_proc);
 }
@@ -1468,7 +1483,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     int l_removed = 0;
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     size_t l_objs_size = 0;
-    dap_time_t l_cut_off_time = dap_time_now() - 2592000; // 2592000 sec = 30 days
+    dap_time_t l_cut_off_time = dap_time_now() - 3 * 24 * 3600; // 3 days
     char l_cut_off_time_str[80] = {'\0'};
     dap_time_to_str_rfc822(l_cut_off_time_str, 80, l_cut_off_time);
     dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_size);

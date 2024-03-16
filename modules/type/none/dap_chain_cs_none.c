@@ -168,9 +168,10 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
     l_nochain_priv->group_datums = dap_chain_net_get_gdb_group_nochain_new(a_chain);
     // Add group prefix that will be tracking all changes
     dap_global_db_cluster_t *l_nonconsensus_cluster =
-            dap_global_db_cluster_add(dap_global_db_instance_get_default(), l_net->pub.name,
-                                      l_nochain_priv->group_datums, 0, true,
-                                      DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_ROLE_EMBEDDED);
+            dap_global_db_cluster_add(dap_global_db_instance_get_default(),
+                                      l_net->pub.name, dap_cluster_guuid_compose(l_net->pub.id.uint64, 0),
+                                      l_nochain_priv->group_datums, 0,
+                                      true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_ROLE_EMBEDDED);
     if (!l_nonconsensus_cluster) {
         log_it(L_ERROR, "Can't create global DB cluster for synchronization");
         return -3;
@@ -373,7 +374,7 @@ static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t 
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) a_atom;
     dap_hash_fast_t l_datum_hash;
     dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_hash);
-    if(dap_chain_datum_add(a_chain, l_datum, a_atom_size, &l_datum_hash))
+    if (dap_chain_datum_add(a_chain, l_datum, a_atom_size, &l_datum_hash))
         return ATOM_REJECT;
 
     dap_nonconsensus_datum_hash_item_t * l_hash_item = DAP_NEW_Z(dap_nonconsensus_datum_hash_item_t);

@@ -84,9 +84,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database",
             "global_db cells add -cell <cell id> \n"
             "global_db flush \n\n"
-            "global_db write -group <group_name> -key <key_name> -value <value>"
-            "global_db read -group <group_name> -key <key_name>"
-            "global_db delete -group <group_name> -key <key_name>"
+            "global_db write -group <group_name> -key <key_name> -value <value>\n"
+            "global_db read -group <group_name> -key <key_name>\n"
+            "global_db delete -group <group_name> -key <key_name>\n"
+            "global_db group_list\n"
             "global_db drop_table -group <group_name>\n"
             "global_db get_keys -group <group name>"
 
@@ -97,7 +98,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                "mempool check -cert <priv_cert_name> -net <net_name> {-file <filename> | -hash <hash>} [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
                                           );
     dap_cli_server_cmd_add("node", com_node, "Work with node",
-                    "node add  -net <net_name> -port <port> -ipv4 <ipv4 external address>\n\n"
+                    "node add -net <net_name> [ -port <port> ]\n\n"
                     "node del -net <net_name> {-addr <node_address> | -alias <node_alias>}\n\n"
                     "node link {add | del}  -net <net_name> {-addr <node_address> | -alias <node_alias>} -link <node_address>\n\n"
                     "node alias -addr <node_address> -alias <node_alias>\n\n"
@@ -255,7 +256,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "-addr <addr> [-chain_emission <chain_name>] -net <net_name> -certs <cert list>\n");
 
     dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool",
-                           "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-fast]\n"
+                           "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset]\n"
                            "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"
                            "mempool check -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
                            "\tCheck mempool entrie for presence in selected chain network\n"
@@ -268,7 +269,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "\tDelete datum with hash <datum hash> for selected chain network\n"
                            "mempool dump -net <net_name> -chain <chain_name> -datum <datum_hash>\n"
                            "\tOutput information about datum in mempool\n"
-                           "mempool add_ca -net <net_name> [-chain <chain_name>] -ca_name <priv_cert_name>\n"
+                           "mempool add_ca -net <net_name> [-chain <chain_name>] -ca_name <pub_cert_name>\n"
                            "\tAdd pubic certificate into the mempool to prepare its way to chains\n"
                            "mempool count -net <net_name> [-chain <chain_name>]\n"
                            "\tDisplays the number of elements in the mempool of a given network.");
@@ -301,14 +302,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction history
     dap_cli_server_cmd_add("tx_history", com_tx_history, "Transaction history (for address or by hash)",
-            "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} [-net <net_name>] [-chain <chain_name>]\n"
-            "tx_history -all -net <net_name> [-chain <chain_name>]\n");
+            "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} [-net <net_name>] [-chain <chain_name>] [-limit] [-offset]\n"
+            "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset]\n");
 
 	// Ledger info
     dap_cli_server_cmd_add("ledger", com_ledger, "Ledger information",
-            "ledger list coins -net <net_name>\n"
-            "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name>\n"
-            "ledger list balance -net <net_name>\n"
+            "ledger list coins -net <net_name> [-limit] [-offset]\n"
+            "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name> [-limit] [-offset]\n"
+            "ledger list balance -net <net_name> [-limit] [-offset]\n"
             "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
             "ledger tx -all -net <net_name> [-unspent]\n"
             "ledger tx {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} -net <net_name>\n");

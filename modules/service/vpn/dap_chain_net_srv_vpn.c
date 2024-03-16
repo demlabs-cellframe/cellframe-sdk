@@ -201,7 +201,7 @@ static char* s_ch_vpn_get_my_pkey_str(dap_chain_net_srv_usage_t* a_usage);
 static void s_ch_vpn_new(dap_stream_ch_t* ch, void* arg);
 static void s_ch_vpn_delete(dap_stream_ch_t* ch, void* arg);
 static void s_ch_packet_in(dap_stream_ch_t* ch, void* a_arg);
-static void s_ch_packet_out(dap_stream_ch_t* ch, void* arg);
+static bool s_ch_packet_out(dap_stream_ch_t* ch, void* arg);
 
 static void s_ch_vpn_esocket_assigned(dap_events_socket_t* a_es, dap_worker_t * l_worker);
 static void s_ch_vpn_esocket_unassigned(dap_events_socket_t* a_es, dap_worker_t * l_worker);
@@ -220,8 +220,8 @@ static void s_es_tun_new(dap_events_socket_t * a_es, void * arg);
 static void s_es_tun_delete(dap_events_socket_t * a_es, void * arg);
 static void s_es_tun_read(dap_events_socket_t * a_es, void * arg);
 static void s_es_tun_error(dap_events_socket_t * a_es,int arg);
-static void s_es_tun_write(dap_events_socket_t* a_es, void* arg);
-static void s_es_tun_write_finished(dap_events_socket_t* a_es, void* a_arg, int a_errno);
+static bool s_es_tun_write(dap_events_socket_t* a_es, void* arg);
+static void s_es_tun_write_finished(dap_events_socket_t *a_es, void* a_arg);
 
 static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void * a_msg );
 static void s_tun_send_msg_ip_assigned(uint32_t a_worker_own_id, uint32_t a_worker_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr);
@@ -1862,7 +1862,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
  * @param ch
  * @param arg
  */
-static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
+static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION( a_ch->stream->session );
@@ -1873,7 +1873,7 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothing on this channel");
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-        return;
+        return false;
     }
 
     if ( ! l_usage->is_active ){
@@ -1882,7 +1882,7 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-        return;
+        return false;
     }
     if ( (!l_usage->is_free) && (! l_usage->receipt && !l_usage->is_grace) ){
         log_it(L_WARNING, "No active receipt, switching off");
@@ -1891,12 +1891,9 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-        return;
+        return false;
     }
-    // Check for empty buffer out here to prevent warnings in worker
-    if ( ! a_ch->stream->esocket->buf_out_size )
-        dap_events_socket_set_writable_unsafe(a_ch->stream->esocket,false);
-
+    return false;
 }
 
 /**
@@ -1919,7 +1916,7 @@ static void s_es_tun_delete(dap_events_socket_t * a_es, void * arg)
  * @param a_es
  * @param arg
  */
-static void s_es_tun_write(dap_events_socket_t *a_es, void *arg)
+static bool s_es_tun_write(dap_events_socket_t *a_es, void *arg)
 {
     (void) arg;
     dap_chain_net_srv_vpn_tun_socket_t *l_tun = CH_SF_TUN_SOCKET(a_es);
@@ -1968,11 +1965,12 @@ static void s_es_tun_write(dap_events_socket_t *a_es, void *arg)
     }
     l_tun->buf_size_aux = l_tun->es->buf_out_size;  /* We backup the genuine buffer size... */
     l_tun->es->buf_out_size = 0;                    /* ... and insure the socket against coursing thru regular writing operations */
+    return false;
 }
 
-static void s_es_tun_write_finished(dap_events_socket_t *a_es, void *a_arg, int a_errno) {
+static void s_es_tun_write_finished(dap_events_socket_t *a_es, void *a_arg)
+{
     UNUSED(a_arg);
-    UNUSED(a_errno);
     dap_chain_net_srv_vpn_tun_socket_t *l_tun = CH_SF_TUN_SOCKET(a_es);
     assert(l_tun);
     assert(l_tun->es == a_es);

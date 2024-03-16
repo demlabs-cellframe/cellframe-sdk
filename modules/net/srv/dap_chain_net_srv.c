@@ -397,55 +397,49 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
 
             l_price_unit.uint32 = dap_chain_srv_str_to_unit_enum(l_price_unit_str);
 
-            dap_chain_net_srv_order_t * l_orders;
+            dap_list_t * l_orders;
             size_t l_orders_num = 0;
             if( dap_chain_net_srv_order_find_all_by( l_net, l_direction,l_srv_uid,l_price_unit,l_price_token_str,l_price_min, l_price_max,&l_orders,&l_orders_num) == 0 ){
                 dap_string_append_printf(l_string_ret, "Found %zu orders:\n", l_orders_num);
-                size_t l_orders_size = 0;
-                for (size_t i = 0; i< l_orders_num; i++){
-                    dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
+                for (dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next){
+                    dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) l_temp->data;
                     dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type, l_net->pub.native_ticker);
-                    l_orders_size += dap_chain_net_srv_order_get_size(l_order);
                     dap_string_append(l_string_ret,"\n");
                 }
                 l_ret = 0;
-                if (l_orders_num)
-                    DAP_DELETE(l_orders);
-             }else{
+                dap_list_free_full(l_orders, NULL);
+            }else{
                 l_ret = -5 ;
                 dap_string_append(l_string_ret,"Can't get orders: some internal error or wrong params\n");
             }
-        } else if(!dap_strcmp( l_order_str, "dump" )) {
-            // Select with specified service uid
-            if ( l_order_hash_str ){
-                dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
-                if (l_order) {
-                    dap_chain_net_srv_order_dump_to_string(l_order,l_string_ret, l_hash_out_type, l_net->pub.native_ticker);
-                    l_ret = 0;
-                }else{
-                    l_ret = -7 ;
-                    if(!dap_strcmp(l_hash_out_type,"hex"))
-                        dap_string_append_printf(l_string_ret,"Can't find order with hash %s\n", l_order_hash_hex_str );
-                    else
-                        dap_string_append_printf(l_string_ret,"Can't find order with hash %s\n", l_order_hash_base58_str );
-                }
-            } else {
-
-                dap_chain_net_srv_order_t * l_orders = NULL;
-                size_t l_orders_num = 0;
-                dap_chain_net_srv_uid_t l_srv_uid={{0}};
-                uint256_t l_price_min = {};
-                uint256_t l_price_max = {};
-                dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
-                dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
+            } else if(!dap_strcmp( l_order_str, "dump" )) {
+                // Select with specified service uid
+                if ( l_order_hash_str ){
+                    dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
+                    if (l_order) {
+                        dap_chain_net_srv_order_dump_to_string(l_order,l_string_ret, l_hash_out_type, l_net->pub.native_ticker);
+                        l_ret = 0;
+                    }else{
+                        l_ret = -7 ;
+                        if(!dap_strcmp(l_hash_out_type,"hex"))
+                            dap_string_append_printf(l_string_ret,"Can't find order with hash %s\n", l_order_hash_hex_str );
+                        else
+                            dap_string_append_printf(l_string_ret,"Can't find order with hash %s\n", l_order_hash_base58_str );
+                    }
+                } else {
+                    dap_list_t * l_orders = NULL;
+                    size_t l_orders_num = 0;
+                    dap_chain_net_srv_uid_t l_srv_uid={{0}};
+                    uint256_t l_price_min = {};
+                    uint256_t l_price_max = {};
+                    dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
+                    dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
 
                     if( !dap_chain_net_srv_order_find_all_by( l_net,l_direction,l_srv_uid,l_price_unit, NULL, l_price_min, l_price_max,&l_orders,&l_orders_num) ){
                         dap_string_append_printf(l_string_ret,"Found %zd orders:\n",l_orders_num);
-                        size_t l_orders_size = 0;
-                        for(size_t i = 0; i < l_orders_num; i++) {
-                            dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
+                        for(dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next) {
+                            dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) l_temp->data;
                             dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type, l_net->pub.native_ticker);
-                            l_orders_size += dap_chain_net_srv_order_get_size(l_order);
                             dap_string_append(l_string_ret, "\n");
                         }
                         l_ret = 0;
@@ -453,7 +447,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         l_ret = -5 ;
                         dap_string_append(l_string_ret,"Can't get orders: some internal error or wrong params\n");
                     }
-                    DAP_DELETE(l_orders);
+                    dap_list_free_full(l_orders, NULL);
                 }
             } else if (!dap_strcmp(l_order_str, "delete")) {
                 if (l_order_hash_str) {
@@ -924,7 +918,7 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
     }
 
     uint64_t l_max_price_cfg = dap_config_get_item_uint64_default(g_config, a_config_section, "max_price", 0xFFFFFFFFFFFFFFF);
-    if (l_order->node_addr.uint64 != l_node_addr->uint64 &&
+    if (l_order->node_addr.uint64 != g_node_addr.uint64 &&
         l_order->srv_uid.uint64 != a_srv->uid.uint64) {
         DAP_DELETE(l_price);
         DAP_DEL_Z(l_order);
@@ -961,7 +955,6 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
     l_price->wallet_addr = dap_chain_addr_from_str(l_wallet_addr);
     if(!l_price->wallet_addr){
         log_it(L_ERROR, "Can't get wallet addr from wallet_addr in config file.");
-        DAP_DEL_Z(l_order);
         DAP_DELETE(l_price);
         DAP_DEL_Z(l_order);
         return NULL;
@@ -1039,10 +1032,14 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
     uint64_t l_max_price_cfg = dap_config_get_item_uint64_default(g_config, a_config_section, "max_price", 0xFFFFFFFFFFFFFFF);
     char *l_gdb_order_group = dap_chain_net_srv_order_get_gdb_group(l_net);
     dap_global_db_obj_t *l_orders = dap_global_db_get_all_sync(l_gdb_order_group, &l_orders_count);
-    log_it(L_INFO, "Found %"DAP_UINT64_FORMAT_U"orders.", l_orders_count);
+    log_it(L_INFO, "Found %"DAP_UINT64_FORMAT_U" orders.", l_orders_count);
     for (size_t i=0; i < l_orders_count; i++){
         dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read(l_orders[i].value, l_orders[i].value_len);
-        if (l_order->node_addr.uint64 == l_node_addr->uint64 &&
+        if(!l_order){
+            log_it(L_ERROR, "Invalid order: NULL. Skip order.");
+            continue;
+        }
+        if (l_order->node_addr.uint64 == g_node_addr.uint64 &&
             l_order->srv_uid.uint64 == a_srv->uid.uint64) {
             dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
             if (!l_price) {

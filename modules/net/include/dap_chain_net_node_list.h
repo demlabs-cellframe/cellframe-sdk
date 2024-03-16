@@ -1,9 +1,10 @@
 /*
 * Authors:
 * Roman Khlopkov <roman.khlopkov@demlabs.net>
+* Roman Padenkov <roman.padenkov@demlabs.net>
 * Cellframe       https://cellframe.net
 * DeM Labs Inc.   https://demlabs.net
-* Copyright  (c) 2017-2022
+* Copyright  (c) 2017-2023
 * All rights reserved.
 
 This file is part of CellFrame SDK the open source project
@@ -32,7 +33,6 @@ struct node_link_request {
     dap_chain_node_info_t *link_info;
     dap_chain_net_t *net;
     dap_worker_t *worker;
-    bool from_http;
     int link_replace_tries;
     int response;
     pthread_cond_t wait_cond;
@@ -49,5 +49,5 @@ DAP_STATIC_INLINE char * dap_chain_net_node_list_get_gdb_group(dap_chain_net_t *
 }
 
 void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
-int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request, bool a_sync);
+int dap_chain_net_node_list_request (dap_chain_net_t *a_net, const char *a_addr, uint16_t a_port, bool a_sync, char a_cmd);
 int dap_chain_net_node_list_init();

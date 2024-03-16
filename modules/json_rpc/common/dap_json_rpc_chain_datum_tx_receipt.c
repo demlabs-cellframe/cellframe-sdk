@@ -16,53 +16,16 @@ json_object* dap_chain_receipt_info_to_json(dap_chain_receipt_info_t *a_info){
         dap_json_rpc_allocation_error;
         return NULL;
     }
-    json_object *l_obj_srv_uid = json_object_new_uint64(a_info->srv_uid.uint64);
-    if (!l_obj_srv_uid) {
-        json_object_put(l_obj);
-        dap_json_rpc_allocation_error;
-        return NULL;
-    }
-    json_object_object_add(l_obj, "uid", l_obj_srv_uid);
-
+    json_object_object_add(l_obj, "uid", json_object_new_uint64(a_info->srv_uid.uint64));
 #if DAP_CHAIN_NET_SRV_UID_SIZE == 8
-    json_object *l_obj_addition = json_object_new_uint64(a_info->addition);
-    if (!l_obj_addition){
-        json_object_put(l_obj);
-        dap_json_rpc_allocation_error;
-        return NULL;
-    }
-    json_object_object_add(l_obj, "ext_size", l_obj_addition);
+    json_object_object_add(l_obj, "ext_size", json_object_new_uint64(a_info->addition));
 #endif
+    json_object_object_add(l_obj, "units", json_object_new_uint64(a_info->units));
+    json_object_object_add(l_obj, "units_type", json_object_new_string(dap_chain_srv_unit_enum_to_str(a_info->units_type.enm)));
 
-    json_object * l_obj_units = json_object_new_uint64(a_info->units);
-    json_object *l_obj_units_type = json_object_new_string(dap_chain_srv_unit_enum_to_str(a_info->units_type.enm));
-    if (!l_obj_units_type || !l_obj_units) {
-        json_object_put(l_obj);
-        json_object_put(l_obj_units);
-        json_object_put(l_obj_units_type);
-        dap_json_rpc_allocation_error;
-        return NULL;
-    }
-    json_object_object_add(l_obj, "units", l_obj_units);
-    json_object_object_add(l_obj, "units_type", l_obj_units_type);
-
-    char *l_value = dap_chain_balance_to_coins(a_info->value_datoshi);
-    char *l_datoshi_value = dap_chain_balance_print(a_info->value_datoshi);
-    json_object *l_obj_datoshi = json_object_new_string(l_datoshi_value);
-    json_object *l_obj_value = json_object_new_string(l_value);
-    if (!l_obj_datoshi || !l_obj_value) {
-        json_object_put(l_obj_value);
-        json_object_put(l_obj_datoshi);
-        DAP_DELETE(l_datoshi_value);
-        dap_json_rpc_allocation_error;
-        return NULL;
-    }
-
-    DAP_DELETE(l_datoshi_value);
-    DAP_DELETE(l_value);
-
-    json_object_object_add(l_obj, "value", l_obj_value);
-    json_object_object_add(l_obj, "value_datoshi", l_obj_datoshi);
+    char *l_value, *l_datoshi_value = dap_uint256_to_char(a_info->value_datoshi, &l_value);
+    json_object_object_add(l_obj, "value", json_object_new_string(l_value));
+    json_object_object_add(l_obj, "value_datoshi", json_object_new_string(l_datoshi_value));
     return l_obj;
 }
 

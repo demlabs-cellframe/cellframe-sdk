@@ -78,7 +78,7 @@ typedef struct client_statistic_value{
 static void s_stream_ch_new(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
-static void s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
+static bool s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 
 static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item);
 
@@ -165,7 +165,7 @@ int dap_stream_ch_chain_net_srv_init(dap_chain_net_srv_t *a_srv)
 }
 
 /**
- * @brief dap_stream_ch_chain_deinit
+ * @brief dap_chain_ch_deinit
  */
 void dap_stream_ch_chain_net_srv_deinit(void)
 {
@@ -551,9 +551,8 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 }
                 a_grace->usage->price = l_price;
             } else {
-                char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&a_grace->usage->static_order_hash);
-                log_it(L_MSG, "Get price from order %s.", l_order_hash_str);
-                DAP_DELETE(l_order_hash_str);
+                log_it(L_MSG, "Get price from order %s.",
+                    dap_chain_hash_fast_to_str_static(&a_grace->usage->static_order_hash));
                 if ((l_price = dap_chain_net_srv_get_price_from_order(a_grace->usage->service, "srv_vpn", &a_grace->usage->static_order_hash))){
                     switch (l_price->units_uid.enm) {
                     case SERV_UNIT_MB:
@@ -715,9 +714,8 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 }
             }
         } else {
-            char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&a_grace->usage->static_order_hash);
-            log_it(L_MSG, "Get price from order %s.", l_order_hash_str);
-            DAP_DELETE(l_order_hash_str);
+            log_it(L_MSG, "Get price from order %s.",
+                dap_chain_hash_fast_to_str_static(&a_grace->usage->static_order_hash));
             if ((l_price = dap_chain_net_srv_get_price_from_order(a_grace->usage->service, "srv_vpn", &a_grace->usage->static_order_hash))){
                 if (l_price->net->pub.id.uint64  != a_grace->usage->net->pub.id.uint64){
                     log_it( L_WARNING, "Pricelist is not for net %s.", a_grace->usage->net->pub.name);
@@ -1057,9 +1055,8 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                 }
             }
         } else {
-            char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_grace->usage->static_order_hash);
-            log_it(L_MSG, "Get price from order %s.", l_order_hash_str);
-            DAP_DELETE(l_order_hash_str);
+            log_it(L_MSG, "Get price from order %s.",
+                dap_chain_hash_fast_to_str_static(&l_grace->usage->static_order_hash));
             if ((l_price = dap_chain_net_srv_get_price_from_order(l_grace->usage->service, "srv_vpn", &l_grace->usage->static_order_hash))){
                 if (l_price->net->pub.id.uint64  != l_grace->usage->net->pub.id.uint64){
                     log_it( L_WARNING, "Pricelist is not for net %s.", l_grace->usage->net->pub.name);
@@ -1328,8 +1325,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         if (l_request->data_size_recv) {
             l_request->data_size = l_request->data_size_recv;
             if (!l_request->data_size_send){
-                l_request = (pkt_test_t*)DAP_DUP_SIZE(l_request, sizeof(pkt_test_t));
-                l_request = DAP_REALLOC(l_request, sizeof(pkt_test_t) + l_request->data_size);
+                l_request = DAP_NEW_Z_SIZE(pkt_test_t, sizeof(pkt_test_t) + l_request->data_size);
+                *l_request = *(pkt_test_t*)l_ch_pkt->data;
             }
 
             randombytes(l_request->data, l_request->data_size);
@@ -1340,8 +1337,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         }
         l_request->err_code = 0;
 
-        strncpy(l_request->ip_send, a_ch->stream->esocket->remote_addr_str, INET_ADDRSTRLEN - 1);
-        l_request->ip_send[INET_ADDRSTRLEN - 1] = '\0'; // Compiler warning escape
+        dap_strncpy(l_request->host_send, a_ch->stream->esocket->remote_addr_str, DAP_HOSTADDR_STRLEN);
         l_request->recv_time2 = dap_nanotime_now();
 
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE, l_request,
@@ -1741,9 +1737,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
  * @param a_ch
  * @param a_arg
  */
-void s_stream_ch_packet_out(dap_stream_ch_t* a_ch , UNUSED_ARG void* a_arg)
+static bool s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg)
 {
     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
     // Callback should note that after write action it should restore write flag if it has more data to send on next iteration
     dap_chain_net_srv_call_write_all( a_ch);
+    return false;
 }

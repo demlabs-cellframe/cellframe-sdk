@@ -60,7 +60,6 @@
 static void s_stream_ch_new(dap_stream_ch_t* ch, void* arg);
 static void s_stream_ch_delete(dap_stream_ch_t* ch, void* arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* ch, void* arg);
-static void s_stream_ch_packet_out(dap_stream_ch_t* ch, void* arg);
 
 /**
  * @brief dap_stream_ch_chain_net_init
@@ -69,14 +68,14 @@ static void s_stream_ch_packet_out(dap_stream_ch_t* ch, void* arg);
 int dap_stream_ch_chain_net_init()
 {
     log_it(L_NOTICE, "Chain network channel initialized");
-    dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET, s_stream_ch_new, s_stream_ch_delete,
-            s_stream_ch_packet_in, s_stream_ch_packet_out);
+    dap_stream_ch_proc_add(DAP_STREAM_CH_NET_ID, s_stream_ch_new, s_stream_ch_delete,
+            s_stream_ch_packet_in, NULL);
 
     return 0;
 }
 
 /**
- * @brief dap_stream_ch_chain_deinit
+ * @brief dap_chain_ch_deinit
  */
 void dap_stream_ch_chain_net_deinit()
 {
@@ -156,10 +155,17 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                                               l_ch_chain_net_pkt->hdr.net_id, l_err_str, sizeof(l_err_str));
             return;
         }
+        /*if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+            s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                                                l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
+                                                "ERROR_NET_IS_OFFLINE");
+            a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+            return;
+        }*/
         switch (l_ch_pkt->hdr.type) {
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE:
-            assert(dap_stream_node_addr_not_null(&a_ch->stream->node));
-            dap_chain_net_add_cluster_link(l_net, &a_ch->stream->node);
+            assert(!dap_stream_node_addr_is_blank(&a_ch->stream->node));
+            dap_accounting_downlink_in_net(l_net->pub.id.uint64, &a_ch->stream->node);
             break;
             // received ping request - > send pong request
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING:
@@ -184,7 +190,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 log_it(L_ERROR, "Invalid net id in packet");
             } else {
-                dap_chain_net_srv_order_t * l_orders = NULL;
+                dap_list_t * l_orders = NULL;
                 dap_enc_key_t * enc_key_pvt = NULL;
                 dap_chain_t *l_chain = NULL;
                 DL_FOREACH(l_net->pub.chains, l_chain)
@@ -196,14 +202,15 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                 dap_sign_t *l_sign = NULL;
                 size_t sign_s = 0;
                 size_t l_orders_num = 0;
-                dap_stream_ch_chain_validator_test_t *send = NULL;
+                dap_chain_ch_validator_test_t *send = NULL;
                 dap_chain_net_srv_price_unit_uid_t l_price_unit = { { 0 } };
                 dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
                 uint256_t l_price_min = {};
                 uint256_t l_price_max = {};
                 uint8_t flags = 0;
-                dap_chain_node_addr_t l_cur_node_addr = { 0 };
-                l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+                dap_chain_node_addr_t l_cur_node_addr = {
+                    .uint64 = dap_chain_net_get_cur_addr_int(l_net)
+                };
 
                 if(enc_key_pvt)
                 {
@@ -221,7 +228,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                 else
                     flags = flags & ~F_CERT;//Specified certificate not found
 
-                send = DAP_NEW_Z_SIZE(dap_stream_ch_chain_validator_test_t, sizeof(dap_stream_ch_chain_validator_test_t) + sign_s);
+                send = DAP_NEW_Z_SIZE(dap_chain_ch_validator_test_t, sizeof(dap_chain_ch_validator_test_t) + sign_s);
 #ifdef DAP_VERSION
                 strncpy((char *)send->header.version, (char *)DAP_VERSION, sizeof(send->header.version));
 #endif
@@ -229,20 +236,18 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                 //strncpy(send->header.data,(uint8_t*)l_ch_chain_net_pkt->data,10);
                 flags = (l_net->pub.mempool_autoproc) ? flags | A_PROC : flags & ~A_PROC;
 
-                dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,l_uid,
-                                                   l_price_unit,NULL,l_price_min,l_price_max,&l_orders,&l_orders_num);
-                size_t l_orders_size = 0;
-                for (size_t i = 0; i< l_orders_num; i++){
-                    dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
-                    l_orders_size += dap_chain_net_srv_order_get_size(l_order);
-                    if(l_order->node_addr.uint64 == l_cur_node_addr.uint64)
-                    {
-                        flags = flags | F_ORDR;
-                        break;
+                if (dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,l_uid,
+                                                    l_price_unit,NULL,l_price_min,l_price_max,&l_orders,&l_orders_num)==0){
+                    for (dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next){
+                        dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) l_temp->data;
+                        if(l_order->node_addr.uint64 == l_cur_node_addr.uint64)
+                        {
+                            flags = flags | F_ORDR;
+                            break;
+                        }
                     }
+                    dap_list_free_full(l_orders, NULL);
                 }
-                if (l_orders_num)
-                    DAP_DELETE(l_orders);
                 bool auto_online = dap_config_get_item_bool_default( g_config, "general", "auto_online", false );
                 bool auto_update = false;
                 if((system("systemctl status cellframe-updater.service") == 768) && (system("systemctl status cellframe-updater.timer") == 0))
@@ -256,7 +261,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                 if(sign_s)
                     memcpy(send->sign,l_sign,sign_s);
                 dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY ,
-                                                 l_ch_chain_net_pkt->hdr.net_id, send, sizeof(dap_stream_ch_chain_validator_test_t) + sign_s);
+                                                 l_ch_chain_net_pkt->hdr.net_id, send, sizeof(dap_chain_ch_validator_test_t) + sign_s);
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 if(l_sign)
                     DAP_DELETE(l_sign);
@@ -280,15 +285,4 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                                             l_ch_chain_net_pkt->hdr.data_size, l_ch_chain_net->notify_callback_arg);
 
     }
-}
-
-
-
-/**
- * @brief s_stream_ch_packet_out
- * @param ch
- * @param arg
- */
-void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
-{
 }

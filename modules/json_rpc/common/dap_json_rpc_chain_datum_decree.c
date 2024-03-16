@@ -1,5 +1,6 @@
 
 #include "dap_json_rpc_chain_datum_decree.h"
+#include "dap_json_rpc_chain_common.h"
 #include "json.h"
 
 
@@ -46,16 +47,9 @@ json_object *s_dap_chain_datum_decree_certs_dump_json(byte_t * a_signs, size_t a
             continue;
         }
 
-        char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
-        if (!l_hash_str) {
-            json_object_put(l_jobj_signature);
-            json_object_put(l_jobj_signatures);
-            dap_json_rpc_allocation_error;
-            return NULL;
-        }
-        json_object *l_jobj_hash_str = json_object_new_string(l_hash_str);
+        json_object *l_jobj_hash_str 
+            = json_object_new_string(dap_chain_hash_fast_to_str_static(&l_pkey_hash));
         if (!l_jobj_hash_str) {
-            DAP_DEL_Z(l_hash_str);
             json_object_put(l_jobj_signature);
             json_object_put(l_jobj_signatures);
             dap_json_rpc_allocation_error;
@@ -78,7 +72,6 @@ json_object *s_dap_chain_datum_decree_certs_dump_json(byte_t * a_signs, size_t a
             dap_json_rpc_allocation_error;
             return NULL;
         }
-        DAP_DEL_Z(l_hash_str);
         json_object_object_add(l_jobj_signature, "hash", l_jobj_hash_str);
         json_object_object_add(l_jobj_signature, "type", l_jobj_type_str);
         json_object_object_add(l_jobj_signature, "size", l_jobj_sign_size);
@@ -181,18 +174,7 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                 }
                 uint256_t l_fee_value = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_fee_value);
-                char *l_fee_value_str = dap_chain_balance_print(l_fee_value);
-                if (!l_fee_value_str) {
-                    json_object_put(l_json_tsd_array);
-                    json_object_put(l_json_subtype);
-                    json_object_put(l_jobj_type);
-                    json_object_put(l_jobj_decree);
-                    json_object_put(l_jobj_tsd);
-                    dap_json_rpc_allocation_error;
-                    return NULL;
-                }
-                json_object *l_jobj_fee = json_object_new_string(l_fee_value_str);
-                DAP_DELETE(l_fee_value_str);
+                json_object *l_jobj_fee = json_object_new_string(dap_uint256_to_char(l_fee_value, NULL));
                 if (!l_jobj_fee) {
                     json_object_put(l_json_tsd_array);
                     json_object_put(l_json_subtype);
@@ -286,17 +268,7 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                 }
                 uint256_t l_owner_min = {0};
                 _dap_tsd_get_scalar(l_tsd, &l_owner_min);
-                char *l_owner_min_str = dap_chain_balance_print(l_owner_min);
-                if (!l_owner_min_str) {
-                    json_object_put(l_json_tsd_array);
-                    json_object_put(l_json_subtype);
-                    json_object_put(l_jobj_type);
-                    json_object_put(l_jobj_decree);
-                    json_object_put(l_jobj_tsd);
-                    dap_json_rpc_allocation_error;
-                    return NULL;
-                }
-                json_object *l_jobj_owner_min = json_object_new_string(l_owner_min_str);
+                json_object *l_jobj_owner_min = json_object_new_string(dap_uint256_to_char(l_owner_min, NULL));
                 if (!l_jobj_owner_min) {
                     json_object_put(l_json_tsd_array);
                     json_object_put(l_json_subtype);
@@ -307,7 +279,6 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "owner_min", l_jobj_owner_min);
-                DAP_DELETE(l_owner_min_str);
             } break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET: {
                 json_object *l_obj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET");
@@ -337,19 +308,7 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                 }
                 dap_chain_addr_t l_addr_fee_wallet = {0};
                 _dap_tsd_get_scalar(l_tsd, &l_addr_fee_wallet);
-                char *l_addr_fee_wallet_str = dap_chain_addr_to_str(&l_addr_fee_wallet);
-                if (!l_addr_fee_wallet_str) {
-                    json_object_put(l_json_tsd_array);
-                    json_object_put(l_json_subtype);
-                    json_object_put(l_jobj_type);
-                    json_object_put(l_jobj_decree);
-                    json_object_put(l_jobj_tsd);
-                    dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_ADDR_TO_JSON,
-                                           "Failed to serialize address to JSON.");
-                    return NULL;
-                }
-                json_object *l_jobj_addr_fee_wallet = json_object_new_string(l_addr_fee_wallet_str);
-                DAP_DELETE(l_addr_fee_wallet_str);
+                json_object *l_jobj_addr_fee_wallet = dap_chain_addr_to_json(&l_addr_fee_wallet);
                 if (!l_jobj_addr_fee_wallet) {
                     json_object_put(l_json_tsd_array);
                     json_object_put(l_json_subtype);
@@ -371,18 +330,8 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                 }
                 dap_hash_fast_t l_stake_tx = {0};
                 _dap_tsd_get_scalar(l_tsd, &l_stake_tx);
-                char *l_stake_tx_hash = dap_chain_hash_fast_to_str_new(&l_stake_tx);
-                if (!l_stake_tx_hash) {
-                    json_object_put(l_json_tsd_array);
-                    json_object_put(l_json_subtype);
-                    json_object_put(l_jobj_type);
-                    json_object_put(l_jobj_decree);
-                    json_object_put(l_jobj_tsd);
-                    dap_json_rpc_allocation_error;
-                    return NULL;
-                }
-                json_object *l_jobj_tx_hash = json_object_new_string(l_stake_tx_hash);
-                DAP_DELETE(l_stake_tx_hash);
+                json_object *l_jobj_tx_hash =
+                    json_object_new_string(dap_chain_hash_fast_to_str_static(&l_stake_tx));
                 if (!l_jobj_tx_hash) {
                     json_object_put(l_json_tsd_array);
                     json_object_put(l_json_subtype);
@@ -426,18 +375,7 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                 }
                 uint256_t l_stake_value = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_stake_value);
-                char *l_stake_value_str = dap_chain_balance_print(l_stake_value);
-                if (!l_stake_value_str) {
-                    json_object_put(l_json_tsd_array);
-                    json_object_put(l_json_subtype);
-                    json_object_put(l_jobj_type);
-                    json_object_put(l_jobj_decree);
-                    json_object_put(l_jobj_tsd);
-                    dap_json_rpc_allocation_error;
-                    return NULL;
-                }
-                json_object *l_jobj_stake_value = json_object_new_string(l_stake_value_str);
-                DAP_DELETE(l_stake_value_str);
+                json_object *l_jobj_stake_value = json_object_new_string(dap_uint256_to_char(l_stake_value, NULL));
                 if (!l_jobj_stake_value){
                     json_object_put(l_json_tsd_array);
                     json_object_put(l_json_subtype);
@@ -459,59 +397,17 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                 }
                 dap_chain_addr_t l_stake_addr_signing = {0};
                 _dap_tsd_get_scalar(l_tsd, &l_stake_addr_signing);
-                char *l_stake_addr_signing_str = dap_chain_addr_to_str(&l_stake_addr_signing);
 //                dap_string_append_printf(a_str_out, "\tSigning addr: %s\n", l_stake_addr_signing_str);
-                dap_chain_hash_fast_t *l_pkey_signing = DAP_NEW(dap_chain_hash_fast_t);
-                if (!l_pkey_signing) {
-                    json_object_put(l_json_tsd_array);
-                    json_object_put(l_json_subtype);
-                    json_object_put(l_jobj_type);
-                    json_object_put(l_jobj_decree);
-                    json_object_put(l_jobj_tsd);
-                    dap_json_rpc_allocation_error;
-                    return NULL;
-                }
-                memcpy(l_pkey_signing, l_stake_addr_signing.data.key, sizeof(dap_chain_hash_fast_t));
-                char *l_pkey_signing_str = dap_chain_hash_fast_to_str_new(l_pkey_signing);
-                if (!l_pkey_signing_str){
-                    DAP_DELETE(l_pkey_signing);
-                    json_object_put(l_json_tsd_array);
-                    json_object_put(l_json_subtype);
-                    json_object_put(l_jobj_type);
-                    json_object_put(l_jobj_decree);
-                    json_object_put(l_jobj_tsd);
-                    dap_json_rpc_allocation_error;
-                    return NULL;
-                }
-                json_object *l_jobj_stake_addr_signing = json_object_new_string(l_stake_addr_signing_str);
-                if (!l_jobj_stake_addr_signing) {
-                    json_object_put(l_json_tsd_array);
-                    json_object_put(l_json_subtype);
-                    json_object_put(l_jobj_type);
-                    json_object_put(l_jobj_decree);
-                    json_object_put(l_jobj_tsd);
-                    dap_json_rpc_allocation_error;
-                    return NULL;
-                }
+                dap_chain_hash_fast_t l_pkey_signing = l_stake_addr_signing.data.hash_fast;
+                char *l_pkey_signing_str = dap_chain_hash_fast_to_str_static(&l_pkey_signing);
+                json_object *l_jobj_stake_addr_signing = dap_chain_addr_to_json(&l_stake_addr_signing);
                 json_object *l_jobj_pkey_signing = json_object_new_string(l_pkey_signing_str);
-                if (!l_jobj_pkey_signing) {
-                    json_object_put(l_json_tsd_array);
-                    json_object_put(l_json_subtype);
-                    json_object_put(l_jobj_type);
-                    json_object_put(l_jobj_decree);
-                    json_object_put(l_jobj_tsd);
-                    dap_json_rpc_allocation_error;
-                    return NULL;
-                }
                 json_object_object_add(l_jobj_tsd, "addr", l_jobj_stake_addr_signing);
                 json_object_object_add(l_jobj_tsd, "pkey", l_jobj_pkey_signing);
 //                char *l_pkey_signing_str = dap_strcmp(a_hash_out_type, "hex")
 //                                           ? dap_enc_base58_encode_hash_to_str(l_pkey_signing)
 //                                           : dap_chain_hash_fast_to_str_new(l_pkey_signing);
 //                dap_string_append_printf(a_str_out, "\tSigning pkey fingerprint: %s\n", l_pkey_signing_str);
-                DAP_DELETE(l_stake_addr_signing_str);
-                DAP_DELETE(l_pkey_signing_str);
-                DAP_DELETE(l_pkey_signing);
             } break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR: {
                 json_object *l_obj_tsd_type = json_object_new_string(
@@ -576,10 +472,7 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                 }
                 uint256_t l_min_value = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_min_value);
-                char *l_min_value_str = dap_chain_balance_print(l_min_value);
-                json_object *l_jobj_min_value = json_object_new_string(l_min_value_str);
-                json_object_object_add(l_jobj_tsd, "value", l_jobj_min_value);
-                DAP_DELETE(l_min_value_str);
+                json_object_object_add(l_jobj_tsd, "value", json_object_new_string(dap_uint256_to_char(l_min_value, NULL)));
             } break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT: {
                 json_object *l_obj_tsd_type = json_object_new_string(
@@ -610,17 +503,7 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                 }
                 uint256_t l_min_signers_count = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_min_signers_count);
-                char *l_min_signers_count_str = dap_chain_balance_print(l_min_signers_count);
-                if (!l_min_signers_count_str) {
-                    json_object_put(l_json_tsd_array);
-                    json_object_put(l_json_subtype);
-                    json_object_put(l_jobj_type);
-                    json_object_put(l_jobj_decree);
-                    json_object_put(l_jobj_tsd);
-                    dap_json_rpc_allocation_error;
-                    return NULL;
-                }
-                json_object *l_jobj_min_signers_count = json_object_new_string(l_min_signers_count_str);
+                json_object *l_jobj_min_signers_count = json_object_new_string(dap_uint256_to_char(l_min_signers_count, NULL));
                 if (!l_jobj_min_signers_count) {
                     json_object_put(l_json_tsd_array);
                     json_object_put(l_json_subtype);
@@ -630,7 +513,6 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                     dap_json_rpc_allocation_error;
                     return NULL;
                 }
-                DAP_DELETE(l_min_signers_count_str);
                 json_object_object_add(l_jobj_tsd, "count", l_jobj_min_signers_count);
             } break;
             default: {
