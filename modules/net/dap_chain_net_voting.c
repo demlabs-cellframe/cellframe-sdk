@@ -591,16 +591,12 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             return -103;
         }
 
-        dap_time_t *l_time_expire = NULL;
-        if(l_voting_expire_str){
-            dap_time_t l_expired_time = dap_time_from_str_rfc822(l_voting_expire_str);
-            l_time_expire = &l_expired_time;
-        }
-        uint64_t *l_max_count = NULL;
-        if (l_max_votes_count_str) {
-            uint64_t ll_max_count = atoll(l_max_votes_count_str);
-            l_max_count = &ll_max_count;
-        }
+        dap_time_t l_time_expire = 0;
+        if (l_voting_expire_str)
+            l_time_expire = dap_time_from_str_rfc822(l_voting_expire_str);
+        uint64_t l_max_count = 0;
+        if (l_max_votes_count_str)
+            l_max_count = strtoul(l_max_votes_count_str, NULL, 10);
 
         bool l_is_delegated_key = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-delegated_key_required", NULL) ? true : false;
         bool l_is_vote_changing_allowed = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-vote_changing_allowed", NULL) ? true : false;
@@ -613,6 +609,8 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 
         char *l_hash_ret = NULL;
         int res = dap_chain_net_vote_create(l_question_str, l_options_list, l_time_expire, l_max_count, l_value_fee, l_is_delegated_key, l_is_vote_changing_allowed, l_wallet_fee, l_net, l_hash_out_type, &l_hash_ret);
+        dap_list_free(l_options_list);
+        dap_chain_wallet_close(l_wallet_fee);
 
         switch (res) {
             case DAP_CHAIN_NET_VOTE_CREATE_OK: {
@@ -743,12 +741,14 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             return -112;
         }
 
-        uint64_t l_option_idx_count = atoll(l_option_idx_str);
+        uint64_t l_option_idx_count = strtoul(l_option_idx_str, NULL, 10);
 
         char *l_hash_tx;
 
         int res = dap_chain_net_vote_voting(l_cert, l_value_fee, l_wallet_fee, l_voting_hash, l_option_idx_count,
                                             l_net, l_hash_out_type, &l_hash_tx);
+        dap_chain_wallet_close(l_wallet_fee);
+
         switch (res) {
             case DAP_CHAIN_NET_VOTE_VOTING_OK: {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s successfully added to mempool", l_hash_tx);
@@ -1124,8 +1124,8 @@ static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_has
     return 1;
 }
 
-int dap_chain_net_vote_create(const char *a_question, dap_list_t *a_options, dap_time_t *a_expire_vote,
-                              uint64_t *a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
+int dap_chain_net_vote_create(const char *a_question, dap_list_t *a_options, dap_time_t a_expire_vote,
+                              uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
                               bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
                               dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_output) {
 
@@ -1196,9 +1196,9 @@ int dap_chain_net_vote_create(const char *a_question, dap_list_t *a_options, dap
     }
 
     // add voting expire time if needed
-    if(a_expire_vote){
-        dap_time_t l_expired_vote = *a_expire_vote;
-        if (*a_expire_vote < dap_time_now()){
+    if(a_expire_vote != 0){
+        dap_time_t l_expired_vote = a_expire_vote;
+        if (l_expired_vote < dap_time_now()){
             dap_chain_datum_tx_delete(l_tx);
             return DAP_CHAIN_NET_VOTE_CREATE_INPUT_TIME_MORE_CURRENT_TIME;
         }
@@ -1213,8 +1213,8 @@ int dap_chain_net_vote_create(const char *a_question, dap_list_t *a_options, dap
     }
 
     // Add vote max count if needed
-    if(a_max_vote){
-        dap_chain_tx_tsd_t* l_max_votes_item = dap_chain_datum_voting_max_votes_count_tsd_create(*a_max_vote);
+    if (a_max_vote != 0) {
+        dap_chain_tx_tsd_t* l_max_votes_item = dap_chain_datum_voting_max_votes_count_tsd_create(a_max_vote);
         if(!l_max_votes_item){
             dap_chain_datum_tx_delete(l_tx);
             return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_EXPIRE_TIME;

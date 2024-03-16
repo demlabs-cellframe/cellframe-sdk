@@ -104,7 +104,7 @@ int dap_chain_net_srv_order_find_all_by(
     const dap_chain_net_srv_price_unit_uid_t a_price_unit,
     const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
     const uint256_t a_price_min, const uint256_t a_price_max,
-    dap_chain_net_srv_order_t** a_output_orders,
+    dap_list_t** a_output_orders,
     size_t* a_output_orders_count);
 
 int dap_chain_net_srv_order_delete_by_hash_str_sync( dap_chain_net_t * a_net,const char * a_hash_str );

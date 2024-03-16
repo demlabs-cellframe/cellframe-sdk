@@ -3279,6 +3279,41 @@ dap_hash_fast_t *dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_
     return l_tx_hash;
 }
 
+dap_hash_fast_t* dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_cond_out)
+{
+    dap_hash_fast_t *l_ret_hash = NULL;
+
+    if (!a_ledger || !a_cond_out || !a_tx){
+        log_it(L_ERROR, "Argument is NULL in dap_ledger_get_first_chain_tx_hash()");
+        return NULL;
+    }
+
+    dap_chain_tx_out_cond_subtype_t l_type = a_cond_out->header.subtype;
+
+    int l_item_idx = 0;
+    dap_chain_datum_tx_t * l_prev_tx = a_tx;
+    byte_t *l_tx_item_temp = NULL;
+    dap_hash_fast_t l_hash = {};
+    while((l_tx_item_temp = dap_chain_datum_tx_item_get(l_prev_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL)) != NULL){
+        dap_chain_tx_in_cond_t * l_in_cond_temp = (dap_chain_tx_in_cond_t *) l_tx_item_temp;
+        dap_chain_datum_tx_t *l_prev_tx_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_in_cond_temp->header.tx_prev_hash);
+        dap_chain_tx_out_cond_t *l_out_cond_temp = dap_chain_datum_tx_out_cond_get(l_prev_tx_temp, l_type, NULL);
+        if (l_out_cond_temp){
+            l_item_idx = l_in_cond_temp->header.tx_out_prev_idx;
+            l_prev_tx = l_prev_tx_temp;
+            l_hash = l_in_cond_temp->header.tx_prev_hash;
+        }
+    }
+
+    if(l_prev_tx && !dap_hash_fast_is_blank(&l_hash)){
+        l_ret_hash = DAP_NEW_SIZE(dap_hash_fast_t, sizeof(dap_hash_fast_t));
+        *l_ret_hash = l_hash;
+    }
+
+    return l_ret_hash;
+}
+
+
 /**
  * Check whether used 'out' items (local function)
  */
@@ -3954,14 +3989,25 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                     l_err_num = DAP_LEDGER_TX_CHECK_PREV_OUT_ITEM_MISSTYPED;
                     break;
                 }
+                dap_chain_tx_out_cond_t *l_tx_prev_out_cond = NULL;
+                l_tx_prev_out_cond = (dap_chain_tx_out_cond_t *)l_tx_prev_out;
+
+                // Get owner tx
+                dap_hash_fast_t *l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(a_ledger, l_tx_prev, l_tx_prev_out_cond);
+                dap_chain_datum_tx_t *l_owner_tx = l_tx_prev;
+                if (l_owner_tx_hash){
+                    l_owner_tx = dap_ledger_tx_find_by_hash(a_ledger, l_owner_tx_hash);
+                    DAP_DEL_Z(l_owner_tx_hash);
+                }
+
                 // 5a. Check for condition owner
                 dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx_prev, NULL, TX_ITEM_TYPE_SIG, NULL);
                 dap_sign_t *l_prev_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_prev_sig);
                 dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
                 dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+                dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+                dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
 
-                dap_chain_tx_out_cond_t *l_tx_prev_out_cond = NULL;
-                l_tx_prev_out_cond = (dap_chain_tx_out_cond_t *)l_tx_prev_out;
                 bool l_owner = false;
                 l_owner = dap_sign_compare_pkeys(l_prev_sign, l_sign);
 
@@ -5890,12 +5936,10 @@ const char *dap_ledger_tx_get_main_ticker(dap_ledger_t *a_ledger, dap_chain_datu
 {
     const char *l_main_ticker = NULL;
     dap_chain_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
-    int l_rc = dap_ledger_tx_cache_check(a_ledger, a_tx, l_tx_hash, false, NULL, NULL, (char **)&l_main_ticker);
-    
+    int l_rc = dap_ledger_tx_cache_check(a_ledger, a_tx, l_tx_hash, false, NULL, NULL, (char **)&l_main_ticker);   
+
     if (l_rc == DAP_LEDGER_TX_ALREADY_CACHED)
-    {
         l_main_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, l_tx_hash);
-    }
 
     if (a_ledger_rc)
         *a_ledger_rc = l_rc;

@@ -1755,8 +1755,8 @@ static int s_cli_net(int argc, char **argv, void **reply)
                                                "Can't save public key hash %s in database", l_hash_hex_str);
                         DAP_DELETE(l_hash_hex_str);
                         return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE;
-                    }
-                    DAP_DELETE(l_hash_hex_str);
+                    } else
+                        DAP_DELETE(l_hash_hex_str);
                 } else{
                     json_object_put(l_jobj_return);
                     dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE, "%s",
