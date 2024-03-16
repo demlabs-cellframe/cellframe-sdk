@@ -913,7 +913,7 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
         dap_chain_net_srv_vpn_deinit();
         return -2;
     }
-    dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in,
+    dap_stream_ch_proc_add(DAP_STREAM_CH_NET_SRV_ID_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in,
             s_ch_packet_out);
 
     // add console command to display vpn statistics
@@ -996,13 +996,6 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
                                                              (dap_timerfd_callback_t)s_save_limits, l_args);
         l_srv_session->limits_units_type.uint32 = l_usage_active->receipt->receipt_info.units_type.uint32;
         switch( l_usage_active->receipt->receipt_info.units_type.enm){
-            case SERV_UNIT_DAY:{
-                l_srv_session->last_update_ts = time(NULL);
-                if (!l_usage_active->is_grace && l_srv_session->limits_ts <= 0){
-                    l_srv_session->limits_ts = (time_t)l_usage_active->receipt->receipt_info.units*24*3600;
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", l_usage_active->receipt->receipt_info.units);
-                }
-            } break;
             case SERV_UNIT_SEC:{
                 l_srv_session->last_update_ts = time(NULL);
                 if (!l_usage_active->is_grace && l_srv_session->limits_ts <= 0){
@@ -1013,18 +1006,6 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
             case SERV_UNIT_B:{
                 if (!l_usage_active->is_grace && l_srv_session->limits_bytes <= 0){
                     l_srv_session->limits_bytes = (uintmax_t) l_usage_active->receipt->receipt_info.units;
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
-                }
-            } break;
-            case SERV_UNIT_KB:{
-                if (!l_usage_active->is_grace && l_srv_session->limits_bytes <= 0){
-                    l_srv_session->limits_bytes = 1000ull * ( (uintmax_t) l_usage_active->receipt->receipt_info.units);
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
-                }
-            } break;
-            case SERV_UNIT_MB:{
-                if (!l_usage_active->is_grace && l_srv_session->limits_bytes <= 0){
-                    l_srv_session->limits_bytes = 1000000ull * ( (uintmax_t) l_usage_active->receipt->receipt_info.units);
                     log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
                 }
             } break;
@@ -1199,13 +1180,10 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
 //    l_remain_service.remain_units_type.enm = l_srv_session->limits_units_type.enm;
     switch(l_srv_session->limits_units_type.enm){
         case SERV_UNIT_SEC:
-        case SERV_UNIT_DAY:
             l_remain_service.limits_ts = l_srv_session->limits_ts >= 0 ? l_srv_session->limits_ts : 0;
             if(l_receipt_sign)
                 l_remain_service.limits_ts += l_srv_session->usage_active->receipt_next->receipt_info.units;
             break;
-        case SERV_UNIT_MB:
-        case SERV_UNIT_KB:
         case SERV_UNIT_B:
             l_remain_service.limits_bytes = l_srv_session->limits_bytes >= 0 ? l_srv_session->limits_bytes : 0;            
             if (l_receipt_sign)
@@ -1373,14 +1351,10 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
         return;
     }
 
-    if (a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_DAY ||
-        a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_SEC){
+    if (a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_SEC){
         time_t l_current_limit_ts = 0;
 
         switch( a_usage->receipt->receipt_info.units_type.enm){
-            case SERV_UNIT_DAY:{
-                l_current_limit_ts = (time_t)a_usage->receipt->receipt_info.units*24*3600;
-            } break;
             case SERV_UNIT_SEC:{
                 l_current_limit_ts = (time_t)a_usage->receipt->receipt_info.units;
             }
@@ -1410,10 +1384,6 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
             if ( a_usage->receipt){ // If there is next receipt add the time and request the next receipt
                 a_srv_session->limits_units_type.uint32 = a_usage->receipt->receipt_info.units_type.uint32;
                 switch( a_usage->receipt->receipt_info.units_type.enm){
-                case SERV_UNIT_DAY:{
-                    a_srv_session->limits_ts += (time_t)a_usage->receipt->receipt_info.units*24*3600;
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" days more for VPN usage", a_usage->receipt->receipt_info.units);
-                } break;
                 case SERV_UNIT_SEC:{
                     a_srv_session->limits_ts += (time_t)a_usage->receipt->receipt_info.units;
                     log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", a_usage->receipt->receipt_info.units);
@@ -1434,20 +1404,12 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
             }
         }
-    }else if ( a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_B ||
-               a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_KB ||
-               a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_MB ){
+    }else if ( a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_B){
         intmax_t current_limit_bytes = 0;
         if ( a_usage->receipt){// if we have active receipt and a_srv_session->last_update_ts == 0 then we counts units by traffic
             switch( a_usage->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_B:{
                 current_limit_bytes = (uintmax_t) a_usage->receipt->receipt_info.units;
-            } break;
-            case SERV_UNIT_KB:{
-                current_limit_bytes = 1000ull * ( (uintmax_t) a_usage->receipt->receipt_info.units);
-            } break;
-            case SERV_UNIT_MB:{
-                current_limit_bytes = 1000000ull * ( (uintmax_t) a_usage->receipt->receipt_info.units);
             } break;
             }
         }
@@ -1476,14 +1438,6 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 switch( a_usage->receipt->receipt_info.units_type.enm){
                 case SERV_UNIT_B:{
                     a_srv_session->limits_bytes +=  (uintmax_t) a_usage->receipt->receipt_info.units;
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", a_usage->receipt->receipt_info.units);
-                } break;
-                case SERV_UNIT_KB:{
-                    a_srv_session->limits_bytes += 1000ull * ( (uintmax_t) a_usage->receipt->receipt_info.units);
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", a_usage->receipt->receipt_info.units);
-                } break;
-                case SERV_UNIT_MB:{
-                    a_srv_session->limits_bytes += 1000000ull * ( (uintmax_t) a_usage->receipt->receipt_info.units);
                     log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", a_usage->receipt->receipt_info.units);
                 } break;
                 default: {

@@ -340,10 +340,7 @@ DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chai
 {
     switch ( a_uid.enm) {
         case SERV_UNIT_B: return "BYTE";
-        case SERV_UNIT_KB: return "KILOBYTE";
-        case SERV_UNIT_MB: return "MEGABYTE";
         case SERV_UNIT_SEC: return "SECOND";
-        case SERV_UNIT_DAY: return  "DAY";
         case SERV_UNIT_PCS: return "PIECES";
         default: return "UNKNOWN";
     }
@@ -352,14 +349,8 @@ DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chai
 DAP_STATIC_INLINE dap_chain_net_srv_price_unit_uid_t dap_chain_net_srv_price_unit_uid_from_str( const char  *a_unit_str )
 {
     dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = SERV_UNIT_UNDEFINED };
-    if(!dap_strcmp(a_unit_str, "mb"))
-        l_price_unit.enm = SERV_UNIT_MB;
-    else if(!dap_strcmp(a_unit_str, "sec"))
+    if(!dap_strcmp(a_unit_str, "sec"))
         l_price_unit.enm = SERV_UNIT_SEC;
-    else if(!dap_strcmp(a_unit_str, "day"))
-        l_price_unit.enm = SERV_UNIT_DAY;
-    else if(!dap_strcmp(a_unit_str, "kb"))
-        l_price_unit.enm = SERV_UNIT_KB;
     else if(!dap_strcmp(a_unit_str, "b") || !dap_strcmp(a_unit_str, "bytes"))
         l_price_unit.enm = SERV_UNIT_B;
     else if(!dap_strcmp(a_unit_str, "pcs") || !dap_strcmp(a_unit_str, "pieces"))
