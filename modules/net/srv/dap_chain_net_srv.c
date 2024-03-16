@@ -526,14 +526,32 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
                         dap_chain_hash_fast_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
                     l_price = dap_chain_balance_scan(l_price_str);
 
-                    if (s_str_to_price_unit(l_price_unit_str, &l_price_unit)){
+                    uint64_t l_units = atoi(l_units_str);
+
+                    if (!dap_strcmp(l_price_unit_str, "B")){
+                        l_price_unit.enm = SERV_UNIT_B;
+                    } else if (!dap_strcmp(l_price_unit_str, "KB")){
+                        l_price_unit.enm = SERV_UNIT_B;
+                        l_units *= 1024;
+                    } else if (!dap_strcmp(l_price_unit_str, "MB")){
+                        l_price_unit.enm = SERV_UNIT_B;
+                        l_units *= 1024*1024;
+                    } else if (!dap_strcmp(l_price_unit_str, "DAY")){
+                        l_price_unit.enm = SERV_UNIT_SEC;
+                        l_units *= 3600*24;
+                    } else if (!dap_strcmp(l_price_unit_str, "SEC")){
+                        l_price_unit.enm = SERV_UNIT_SEC;
+                    } else if (!dap_strcmp(l_price_unit_str, "PCS")){
+                        l_price_unit.enm = SERV_UNIT_PCS;
+                    } else {
                         log_it(L_ERROR, "Undefined price unit");
                         dap_string_free(l_string_ret, true);
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong unit type sepcified, possible values: B, KB, MB, SEC, DAY, PCS");
                         return -18;
-                    }
+                    } 
 
-                    uint64_t l_units = atoi(l_units_str);
+
+                    
                     strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                     size_t l_ext_len = l_ext? strlen(l_ext) + 1 : 0;
                     // get cert to order sign
