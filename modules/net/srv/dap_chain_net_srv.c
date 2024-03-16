@@ -570,6 +570,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                 dap_string_append_printf( l_string_ret, "Missed some required params\n");
                 l_ret=-5;
             }
+            }
             else if (l_order_str) {
                 dap_string_append_printf(l_string_ret, "Unrecognized subcommand '%s'", l_order_str);
                 l_ret = -14;
