@@ -143,7 +143,7 @@ DAP_STATIC_INLINE const char *dap_chain_srv_unit_enum_to_str(dap_chain_srv_unit_
     }
 }
 
-DAP_STATIC_INLINE dap_chain_srv_unit_enum_t dap_chain_srv_str_to_unit_enum(char* a_price_unit_str) {
+DAP_STATIC_INLINE dap_chain_srv_unit_enum_t dap_chain_srv_str_to_unit_enum(const char* a_price_unit_str) {
     if (!a_price_unit_str)
         return SERV_UNIT_UNDEFINED;
     if (!dap_strcmp(a_price_unit_str, "SEC")){

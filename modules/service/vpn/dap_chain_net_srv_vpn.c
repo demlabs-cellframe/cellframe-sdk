@@ -101,7 +101,6 @@ typedef struct iphdr dap_os_iphdr_t;
 #include "dap_chain_node_cli.h"
 #include "dap_chain_ledger.h"
 #include "dap_events.h"
-#include "dap_context.h"
 
 #define LOG_TAG "dap_chain_net_srv_vpn"
 
@@ -197,6 +196,7 @@ static dap_stream_ch_chain_net_srv_remain_service_store_t* s_callback_get_remain
                                          dap_chain_net_srv_client_remote_t * a_srv_client);
 static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t usage_id, dap_chain_net_srv_client_remote_t * a_srv_client);
 static bool s_save_limits(void* arg);
+static char* s_ch_vpn_get_my_pkey_str(dap_chain_net_srv_usage_t* a_usage);
 // Stream callbacks
 static void s_ch_vpn_new(dap_stream_ch_t* ch, void* arg);
 static void s_ch_vpn_delete(dap_stream_ch_t* ch, void* arg);
@@ -248,6 +248,7 @@ static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn,
     size_t l_data_sent = dap_stream_ch_pkt_write_unsafe(l_ch_vpn->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out, l_data_to_send);
     s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_data_sent);
     l_srv_session->stats.bytes_recv += l_data_sent;
+    l_usage->client->bytes_received += l_data_sent;
     if ( l_data_sent < l_data_to_send){
         log_it(L_WARNING, "Wasn't sent all the data in tunnel (%zd was sent from %zd): probably buffer overflow", l_data_sent, l_data_to_send);
         l_srv_session->stats.bytes_recv_lost += l_data_to_send - l_data_sent;
@@ -281,6 +282,7 @@ static bool s_tun_client_send_data_inter(dap_events_socket_t * a_es_input, dap_c
         return false;
     }else{
         l_srv_session->stats.bytes_recv += l_data_sent;
+        l_usage->client->bytes_received += l_data_sent;
         l_srv_session->stats.packets_recv++;
         return true;
     }
@@ -870,6 +872,10 @@ static int s_vpn_service_create(dap_config_t * g_config)
 
 
     dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_vpn", &l_srv_callbacks);
+    if (!l_srv){
+        log_it(L_CRITICAL, "VPN service initialization failed.");
+        return -2;
+    }
 
     dap_chain_net_srv_vpn_t* l_srv_vpn  = DAP_NEW_Z( dap_chain_net_srv_vpn_t);
     if(!l_srv_vpn) {
@@ -895,19 +901,24 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
     s_vpn_tun_init();
 
     log_it(L_DEBUG,"Initializing TUN driver...");
-    if(s_vpn_tun_create(g_config) != 0){
+    if(s_vpn_tun_create(g_config)){
         log_it(L_CRITICAL, "Error initializing TUN device driver!");
+        dap_chain_net_srv_vpn_deinit();
         return -1;
     }
 
     log_it(L_INFO,"TUN driver configured successfuly");
-    s_vpn_service_create(g_config);
+    if (s_vpn_service_create(g_config)){
+        log_it(L_CRITICAL, "VPN service creating failed");
+        dap_chain_net_srv_vpn_deinit();
+        return -2;
+    }
     dap_stream_ch_proc_add(DAP_STREAM_CH_NET_SRV_ID_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in,
             s_ch_packet_out);
 
     // add console command to display vpn statistics
     dap_cli_server_cmd_add ("vpn_stat", com_vpn_statistics, "VPN statistics",
-            "vpn_stat -net <net name> [-full]\n"
+            "vpn_stat -net <net_name> [-full]\n"
             );
     return 0;
 }
@@ -919,8 +930,8 @@ void dap_chain_net_srv_vpn_deinit(void)
 {
     pthread_mutex_destroy(&s_tun_sockets_mutex_started);
     pthread_cond_destroy(&s_tun_sockets_cond_started);
-    DAP_DELETE(s_srv_vpn_addr);
-    DAP_DELETE(s_srv_vpn_mask);
+    DAP_DEL_Z(s_srv_vpn_addr);
+    DAP_DEL_Z(s_srv_vpn_mask);
     if(s_raw_server)
         DAP_DELETE(s_raw_server);
 }
@@ -981,17 +992,10 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         l_args->srv = a_srv;
         l_args->srv_client = a_srv_client;
         l_args->usage_id = a_usage_id;
-        l_usage_active->timer_es_uuid = dap_timerfd_start_on_worker(l_usage_active->client->stream_worker->worker, 60 * 1000,
-                                                             (dap_timerfd_callback_t)s_save_limits, l_args)->esocket_uuid;
+        l_usage_active->save_limits_timer = dap_timerfd_start_on_worker(l_usage_active->client->stream_worker->worker, 60 * 1000,
+                                                             (dap_timerfd_callback_t)s_save_limits, l_args);
         l_srv_session->limits_units_type.uint32 = l_usage_active->receipt->receipt_info.units_type.uint32;
         switch( l_usage_active->receipt->receipt_info.units_type.enm){
-            case SERV_UNIT_DAY:{
-                l_srv_session->last_update_ts = time(NULL);
-                if (!l_usage_active->is_grace && l_srv_session->limits_ts <= 0){
-                    l_srv_session->limits_ts = (time_t)l_usage_active->receipt->receipt_info.units*24*3600;
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", l_usage_active->receipt->receipt_info.units);
-                }
-            } break;
             case SERV_UNIT_SEC:{
                 l_srv_session->last_update_ts = time(NULL);
                 if (!l_usage_active->is_grace && l_srv_session->limits_ts <= 0){
@@ -1005,23 +1009,11 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
                     log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
                 }
             } break;
-            case SERV_UNIT_KB:{
-                if (!l_usage_active->is_grace && l_srv_session->limits_bytes <= 0){
-                    l_srv_session->limits_bytes = 1000ull * ( (uintmax_t) l_usage_active->receipt->receipt_info.units);
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
-                }
-            } break;
-            case SERV_UNIT_MB:{
-                if (!l_usage_active->is_grace && l_srv_session->limits_bytes <= 0){
-                    l_srv_session->limits_bytes = 1000000ull * ( (uintmax_t) l_usage_active->receipt->receipt_info.units);
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
-                }
-            } break;
             default: {
                 log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X", l_usage_active->receipt->receipt_info.units_type.uint32 );
+                dap_stream_ch_pkt_write_unsafe(l_usage_active->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                 dap_stream_ch_set_ready_to_write_unsafe(l_usage_active->client->ch,false);
                 dap_stream_ch_set_ready_to_read_unsafe(l_usage_active->client->ch,false);
-                dap_stream_ch_pkt_write_unsafe(l_usage_active->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
             }
         }
     } else if (!l_usage_active->is_free && !l_usage_active->receipt && l_usage_active->is_grace){
@@ -1091,7 +1083,13 @@ static dap_stream_ch_chain_net_srv_remain_service_store_t* s_callback_get_remain
     dap_chain_net_t *l_net = l_usage->net;
 
     // get remain units from DB
-    char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.srv_pay.%s.vpn_srv.remain_limits", l_net->pub.name);
+    char *l_server_pkey_hash = s_ch_vpn_get_my_pkey_str(l_usage);
+    if (!l_server_pkey_hash){
+        log_it(L_DEBUG, "Can't get server pkey hash.");
+        return NULL;
+    }
+    char *l_remain_limits_gdb_group =  dap_strdup_printf( "%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s", l_net->pub.gdb_groups_prefix, a_srv->uid.uint64, l_server_pkey_hash);
+    DAP_DEL_Z(l_server_pkey_hash);
     char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
     log_it(L_DEBUG, "Checkout user %s in group %s", l_user_key, l_remain_limits_gdb_group);
     dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
@@ -1110,6 +1108,33 @@ static bool s_save_limits(void* arg)
     s_callback_save_remain_service(l_args->srv,  l_args->usage_id, l_args->srv_client);
 
     return true;
+}
+
+static char* s_ch_vpn_get_my_pkey_str(dap_chain_net_srv_usage_t* a_usage)
+{
+    dap_chain_net_srv_usage_t* l_usage = a_usage;
+    if (!l_usage){
+        log_it(L_DEBUG, "Can't save remain servis. Usage is NULL.");
+        return NULL;
+    }
+
+    dap_chain_net_srv_price_t *l_price = l_usage->price;
+
+    dap_hash_fast_t price_pkey_hash = {};
+    size_t l_key_size = 0;
+    uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_price->receipt_sign_cert->enc_key, &l_key_size);
+    if (!l_pub_key || !l_key_size)
+    {
+        log_it(L_ERROR, "Can't get pkey from cert %s.", l_price->receipt_sign_cert->name);
+        return NULL;
+    }
+
+    dap_hash_fast(l_pub_key, l_key_size, &price_pkey_hash);
+    DAP_DELETE(l_pub_key);
+    char* l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&price_pkey_hash);
+
+    return l_pkey_hash_str;
+
 }
 
 static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t a_usage_id,
@@ -1136,7 +1161,13 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
     dap_chain_net_t *l_net = l_usage->net;
 
     // save remain units from DB
-    char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.srv_pay.%s.vpn_srv.remain_limits", l_net->pub.name);
+    char *l_server_pkey_hash = s_ch_vpn_get_my_pkey_str(l_usage);
+    if (!l_server_pkey_hash){
+        log_it(L_DEBUG, "Can't get server pkey hash.");
+        return -101;
+    }
+    char *l_remain_limits_gdb_group =  dap_strdup_printf( "%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s", l_net->pub.gdb_groups_prefix, a_srv->uid.uint64, l_server_pkey_hash);
+    DAP_DEL_Z(l_server_pkey_hash);
     char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
     log_it(L_DEBUG, "Save user %s remain service into group %s", l_user_key, l_remain_limits_gdb_group);
 
@@ -1146,16 +1177,13 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
         l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( l_srv_session->usage_active->receipt_next, l_srv_session->usage_active->receipt_next->size, 1);
     }
 
-    l_remain_service.remain_units_type.enm = l_srv_session->limits_units_type.enm;
-    switch(l_remain_service.remain_units_type.enm){
+//    l_remain_service.remain_units_type.enm = l_srv_session->limits_units_type.enm;
+    switch(l_srv_session->limits_units_type.enm){
         case SERV_UNIT_SEC:
-        case SERV_UNIT_DAY:
             l_remain_service.limits_ts = l_srv_session->limits_ts >= 0 ? l_srv_session->limits_ts : 0;
             if(l_receipt_sign)
                 l_remain_service.limits_ts += l_srv_session->usage_active->receipt_next->receipt_info.units;
             break;
-        case SERV_UNIT_MB:
-        case SERV_UNIT_KB:
         case SERV_UNIT_B:
             l_remain_service.limits_bytes = l_srv_session->limits_bytes >= 0 ? l_srv_session->limits_bytes : 0;            
             if (l_receipt_sign)
@@ -1249,14 +1277,16 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_ch_vpn->net_srv->_internal;
 
-    // So complicated to update usage client to be sure that nothing breaks it
-    usage_client_t * l_usage_client = NULL;
+    dap_chain_net_srv_usage_t *l_usage =  NULL;
 
     dap_chain_net_srv_stream_session_t *l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
-    if (l_srv_session && l_srv_session->usage_active &&
-        l_srv_session->usage_active->client && l_srv_session->usage_active->client->stream_worker)
-        dap_timerfd_delete_mt(l_srv_session->usage_active->client->stream_worker->worker, l_srv_session->usage_active->timer_es_uuid);
+    if (l_srv_session)
+        l_usage =  l_srv_session->usage_active;
 
+    if (l_usage && l_usage->save_limits_timer){
+        dap_timerfd_delete_mt(l_usage->save_limits_timer->worker, l_usage->save_limits_timer->esocket_uuid);
+        l_usage->save_limits_timer = NULL;
+    }
     bool l_is_unleased = false;
     if ( l_ch_vpn->addr_ipv4.s_addr ){ // if leased address
         s_tun_send_msg_ip_unassigned_all(a_ch->stream_worker->worker->id,l_ch_vpn, l_ch_vpn->addr_ipv4); // Signal all the workers that we're switching off
@@ -1321,14 +1351,10 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
         return;
     }
 
-    if (a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_DAY ||
-        a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_SEC){
+    if (a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_SEC){
         time_t l_current_limit_ts = 0;
 
         switch( a_usage->receipt->receipt_info.units_type.enm){
-            case SERV_UNIT_DAY:{
-                l_current_limit_ts = (time_t)a_usage->receipt->receipt_info.units*24*3600;
-            } break;
             case SERV_UNIT_SEC:{
                 l_current_limit_ts = (time_t)a_usage->receipt->receipt_info.units;
             }
@@ -1358,44 +1384,32 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
             if ( a_usage->receipt){ // If there is next receipt add the time and request the next receipt
                 a_srv_session->limits_units_type.uint32 = a_usage->receipt->receipt_info.units_type.uint32;
                 switch( a_usage->receipt->receipt_info.units_type.enm){
-                case SERV_UNIT_DAY:{
-                    a_srv_session->limits_ts += (time_t)a_usage->receipt->receipt_info.units*24*3600;
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" days more for VPN usage", a_usage->receipt->receipt_info.units);
-                } break;
                 case SERV_UNIT_SEC:{
                     a_srv_session->limits_ts += (time_t)a_usage->receipt->receipt_info.units;
                     log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", a_usage->receipt->receipt_info.units);
                 } break;
                 default: {
                     log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X for limits_ts", a_usage->receipt->receipt_info.units_type.uint32 );
+                    dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                     dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-                    dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                 }
                 }
             }else if (!a_usage->is_grace){
                 log_it( L_NOTICE, "No activate receipt in usage, switch off write callback for channel");
                 dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
+                dap_stream_ch_pkt_write_unsafe(a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                 dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-                dap_stream_ch_pkt_write_unsafe(a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
             }
         }
-    }else if ( a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_B ||
-               a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_KB ||
-               a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_MB ){
+    }else if ( a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_B){
         intmax_t current_limit_bytes = 0;
         if ( a_usage->receipt){// if we have active receipt and a_srv_session->last_update_ts == 0 then we counts units by traffic
             switch( a_usage->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_B:{
                 current_limit_bytes = (uintmax_t) a_usage->receipt->receipt_info.units;
-            } break;
-            case SERV_UNIT_KB:{
-                current_limit_bytes = 1000ull * ( (uintmax_t) a_usage->receipt->receipt_info.units);
-            } break;
-            case SERV_UNIT_MB:{
-                current_limit_bytes = 1000000ull * ( (uintmax_t) a_usage->receipt->receipt_info.units);
             } break;
             }
         }
@@ -1426,28 +1440,20 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                     a_srv_session->limits_bytes +=  (uintmax_t) a_usage->receipt->receipt_info.units;
                     log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", a_usage->receipt->receipt_info.units);
                 } break;
-                case SERV_UNIT_KB:{
-                    a_srv_session->limits_bytes += 1000ull * ( (uintmax_t) a_usage->receipt->receipt_info.units);
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", a_usage->receipt->receipt_info.units);
-                } break;
-                case SERV_UNIT_MB:{
-                    a_srv_session->limits_bytes += 1000000ull * ( (uintmax_t) a_usage->receipt->receipt_info.units);
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", a_usage->receipt->receipt_info.units);
-                } break;
                 default: {
                     log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X for limits_bytes", a_usage->receipt->receipt_info.units_type.uint32 );
+                    dap_stream_ch_pkt_write_unsafe( a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                     dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-                    dap_stream_ch_pkt_write_unsafe( a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                 }
                 }
             }else if (!a_usage->is_grace){
                 log_it( L_NOTICE, "No activate receipt in usage, switch off write callback for channel");
                 dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
-                dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-                dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
                 dap_stream_ch_pkt_write_unsafe( a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
+                dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+                dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);              
             }
         }
 
@@ -1710,6 +1716,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             "You can't provide service with ID %"DAP_UINT64_FORMAT_X" in net %s. Node role should be not lower than master\n",
             l_usage->service->uid.uint64, l_usage->net->pub.name
             );
+        l_usage->is_active = false;
         if (l_usage->client)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
@@ -1787,6 +1794,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt,
                     sizeof(l_vpn_pkt->header) + l_vpn_pkt->header.op_data.data_size) - sizeof(l_vpn_pkt->header);
                 l_srv_session->stats.bytes_sent += l_ret;
+                l_usage->client->bytes_sent += l_ret;
                 s_update_limits(a_ch, l_srv_session, l_usage, l_ret);
                 if (l_ret == l_vpn_pkt->header.op_data.data_size) {
                     l_srv_session->stats.packets_sent++;
@@ -1830,8 +1838,9 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return false;
     }
-    if ( (! l_usage->is_free) && (! l_usage->receipt && !l_usage->is_grace) ){
+    if ( (!l_usage->is_free) && (! l_usage->receipt && !l_usage->is_grace) ){
         log_it(L_WARNING, "No active receipt, switching off");
+        l_usage->is_active = false;
         if (l_usage->client)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
