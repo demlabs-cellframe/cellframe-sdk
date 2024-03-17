@@ -5020,10 +5020,10 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply)
         return -8;
     }
 
-    dap_chain_net_srv_price_unit_uid_t l_price_unit = dap_chain_net_srv_price_unit_uid_from_str(l_unit_str);
+    dap_chain_net_srv_price_unit_uid_t l_price_unit = dap_chain_srv_str_to_unit_enum(l_unit_str);
 
     if(l_price_unit.enm == SERV_UNIT_UNDEFINED) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize unit '%s'. Unit must look like {mb | kb | b | sec | day}",
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize unit '%s'. Unit must look like { B | SEC }",
                 l_unit_str);
         return -9;
     }
