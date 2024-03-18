@@ -955,7 +955,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
         dap_chain_ch_summary_t *l_sum = (dap_chain_ch_summary_t *)l_chain_pkt->data;
         debug_if(s_debug_more, L_DEBUG, "In: CHAIN_SUMMARY of %s for net %s from source " NODE_ADDR_FP_STR
-                                            " with %" DAP_UINT64_FORMAT_U "atoms to sync from %" DAP_UINT64_FORMAT_U " to %" DAP_UINT64_FORMAT_U,
+                                            " with %" DAP_UINT64_FORMAT_U " atoms to sync from %" DAP_UINT64_FORMAT_U " to %" DAP_UINT64_FORMAT_U,
                                 l_chain ? l_chain->name : "(null)",
                                             l_chain ? l_chain->net_name : "(null)",
                                                             NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
@@ -1399,10 +1399,12 @@ static bool s_chain_iter_callback(void *a_arg)
         atomic_store(&l_context->state, SYNC_STATE_OVER);
         return false;
     }
-    size_t l_atom_size = l_iter->cur_num;
+    size_t l_atom_size = l_iter->cur_size;
     dap_chain_atom_ptr_t l_atom = l_iter->cur;
     uint32_t l_cycles_count = 0;
     while (l_atom && l_atom_size) {
+        if (l_iter->cur_num > atomic_load_explicit(&l_context->allowed_num, memory_order_acquire))
+            break;
         dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_context->net_id.uint64, l_context->chain_id.uint64, l_context->cell_id.uint64,
                                                          l_atom, l_atom_size);
         // For master format binary complience
@@ -1417,16 +1419,16 @@ static bool s_chain_iter_callback(void *a_arg)
                                                             NODE_ADDR_FP_ARGS_S(l_context->addr),
                                 l_iter->cur_num, dap_hash_fast_to_str_static(l_iter->cur_hash), l_iter->cur_size);
         l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size);
+        if (!l_atom || !l_atom_size || l_iter->cur_num > l_context->num_last)
+            break;
         if (atomic_exchange(&l_context->state, SYNC_STATE_BUSY) == SYNC_STATE_OVER) {
             atomic_store(&l_context->state, SYNC_STATE_OVER);
             return false;
         }
-        if (!l_iter->cur_num || l_iter->cur_num >= atomic_load_explicit(&l_context->allowed_num, memory_order_acquire))
-            break;
         if (++l_cycles_count >= s_sync_packets_per_thread_call)
             return true;
     }
-    uint16_t l_state = l_atom && l_atom_size && l_iter->cur_num < l_context->num_last
+    uint16_t l_state = l_atom && l_atom_size && l_iter->cur_num <= l_context->num_last
                 ? SYNC_STATE_IDLE : SYNC_STATE_OVER;
     uint16_t l_prev_state = atomic_exchange(&l_context->state, l_state);
     if (l_prev_state == SYNC_STATE_OVER && l_state != SYNC_STATE_OVER)
