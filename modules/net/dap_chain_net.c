@@ -2545,7 +2545,7 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
     case DAP_CHAIN_CH_PKT_TYPE_ERROR:
         l_net_pvt->sync_context.state = SYNC_STATE_ERROR;
         break;
-    case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS:
+    case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN:
         l_net_pvt->sync_context.state = SYNC_STATE_SYNCED;
         break;
     default:
@@ -2607,6 +2607,7 @@ static void s_sync_timer_callback(void *a_arg)
                 if (l_net_pvt->sync_context.last_state == SYNC_STATE_SYNCED) {
                     l_net_pvt->state = NET_STATE_ONLINE;
                     l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_IDLE;
+                    s_net_states_proc(l_net);
                 } else
                     l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_WAITING;
                 return;
@@ -2618,6 +2619,7 @@ static void s_sync_timer_callback(void *a_arg)
         log_it(L_INFO, "Start synchronization process with " NODE_ADDR_FP_STR " for net %s and chain %s",
                                                         NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
                                                         l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
+        l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_WAITING;
         dap_hash_fast_t l_last_hash;
         dap_chain_get_atom_last_hash(l_net_pvt->sync_context.cur_chain, &l_last_hash, l_net_pvt->sync_context.cur_cell
                                                                                         ? l_net_pvt->sync_context.cur_cell->id : c_dap_chain_cell_id_null);
