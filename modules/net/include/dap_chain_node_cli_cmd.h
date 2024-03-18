@@ -140,6 +140,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply);
 int com_tx_create(int a_argc, char **a_argv, void **a_str_reply);
 int com_tx_create_json(int a_argc, char **a_argv, void **a_str_reply);
 int com_tx_cond_create(int a_argc, char **a_argv, void **a_str_reply);
+int com_txs_cond_remove(int a_argc, char **a_argv, void **a_str_reply);
 
 /**
  * tx_verify command

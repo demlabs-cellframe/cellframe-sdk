@@ -4009,7 +4009,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                 dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
 
                 bool l_owner = false;
-                l_owner = dap_sign_compare_pkeys(l_prev_sign, l_sign);
+                l_owner = dap_sign_compare_pkeys(l_owner_sign, l_sign);
 
                 // 5b. Call verificator for conditional output
                 dap_ledger_verificator_t *l_verificator;
