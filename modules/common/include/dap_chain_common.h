@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -249,7 +249,7 @@ DAP_STATIC_INLINE uint256_t dap_chain_uint256_from_uint128(uint128_t a_from)
 }
 
 #define dap_chain_balance_print dap_uint256_uninteger_to_char
-#define dap_chain_balance_scan dap_uint256_scan_uninteger
+#define dap_chain_balance_scan(a_balance) (strchr(a_balance, '.') && !strchr(a_balance, '+')) ? dap_uint256_scan_decimal(a_balance) : dap_uint256_scan_uninteger(a_balance)
 #define dap_chain_balance_to_coins dap_uint256_decimal_to_char
 #define dap_chain_coins_to_balance dap_uint256_scan_decimal
 #define dap_chain_uint256_to dap_uint256_to_uint64

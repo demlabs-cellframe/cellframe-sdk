@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -159,7 +159,7 @@ int dap_chain_cs_dag_init()
             "\tdoesn't changes after sign add to event. \n\n"
         "dag event dump -net <net_name> -chain <chain_name> -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round id in hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
-        "dag event list -net <net_name> -chain <chain_name> -from {events | events_lasts | threshold | round.new | round.<Round id in hex>}\n\n"
+        "dag event list -net <net_name> -chain <chain_name> -from {events | events_lasts | threshold | round.new | round.<Round id in hex>} [-limit] [-offset]\n\n"
             "\tShow event list \n\n"
         "dag event count -net <net_name> -chain <chain_name>\n"
             "\tShow count event \n\n"
@@ -1780,6 +1780,9 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
             } break;
 
             case SUBCMD_EVENT_LIST: {
+                const char *l_limit_str = NULL, *l_offset_str = NULL;
+                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-limit", &l_limit_str);
+                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-offset", &l_offset_str);
                 if (l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) {
                     char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
                     dap_string_t * l_str_tmp = dap_string_new("");
@@ -1787,9 +1790,23 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         dap_global_db_obj_t * l_objs;
                         size_t l_objs_count = 0;
                         l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
+                        char *ptr;
+                        size_t l_limit = l_limit_str ? strtoull(l_limit_str, &ptr, 10) : 0;
+                        size_t l_offset = l_offset_str ? strtoull(l_offset_str, &ptr, 10) : 0;
+                        size_t l_arr_start = 0;
+                        if (l_offset) {
+                            l_arr_start = l_offset * l_limit;
+                            dap_string_append_printf(l_str_tmp, "limit: %lu", l_arr_start);
+                        }
+                        size_t l_arr_end = l_objs_count;
+                        if (l_limit) {
+                            l_arr_end = l_arr_start + l_limit;
+                            if (l_arr_end > l_objs_count)
+                                l_arr_end = l_objs_count;
+                        }
                         dap_string_append_printf(l_str_tmp,"%s.%s: Found %zu records :\n",l_net->pub.name,l_chain->name,l_objs_count);
 
-                        for (size_t i = 0; i < l_objs_count; i++) {
+                        for (size_t i = l_arr_start; i < l_arr_end; i++) {
                             if (!strcmp(DAG_ROUND_CURRENT_KEY, l_objs[i].key)) {
                                 dap_string_append_printf(l_str_tmp, "\t%s: %" DAP_UINT64_FORMAT_U "\n",
                                                          l_objs[i].key, *(uint64_t *)l_objs[i].value);
@@ -1815,13 +1832,32 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 } else if (!l_from_events_str || (strcmp(l_from_events_str,"events") == 0)) {
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
+                    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+                    size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
+                    size_t l_arr_start = 0;
+                    if (l_offset > 1) {
+                        l_arr_start = l_offset * l_limit;
+                        dap_string_append_printf(l_str_tmp, "limit: %lu\n", l_arr_start);
+                    }
+                    size_t l_arr_end = HASH_COUNT(PVT(l_dag)->events);
+                    if (l_limit) {
+                        l_arr_end = l_arr_start + l_limit;
+                        if (l_arr_end > HASH_COUNT(PVT(l_dag)->events))
+                            l_arr_end = HASH_COUNT(PVT(l_dag)->events);
+                    }
+                    size_t i_tmp = 0;
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
                     HASH_ITER(hh,PVT(l_dag)->events,l_event_item, l_event_item_tmp ) {
-                        char buf[50];
-                        dap_time_to_str_rfc822(buf, 50, l_event_item->event->header.ts_created);
-                        dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s\n",
-                                                 dap_chain_hash_fast_to_str_static( &l_event_item->hash),
-                                                 buf);
+                        if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
+                            i_tmp++;
+                        } else {
+                            i_tmp++;
+                            char buf[50];
+                            dap_time_to_str_rfc822(buf, 50, l_event_item->event->header.ts_created);
+                            dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s\n",
+                                                     dap_chain_hash_fast_to_str_static(&l_event_item->hash),
+                                                     buf);
+                        }
                     }
                     size_t l_events_count = HASH_COUNT(PVT(l_dag)->events);
                     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
@@ -1833,8 +1869,27 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
+                    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+                    size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
+                    size_t l_arr_start = 0;
+                    if (l_offset) {
+                        l_arr_start = l_offset * l_limit;
+                        dap_string_append_printf(l_str_tmp, "limit: %lu", l_arr_start);
+                    }
+                    size_t l_arr_end = HASH_COUNT(PVT(l_dag)->events_treshold);
+                    if (l_limit) {
+                        l_arr_end = l_arr_start + l_limit;
+                        if (l_arr_end > HASH_COUNT(PVT(l_dag)->events_treshold))
+                            l_arr_end = HASH_COUNT(PVT(l_dag)->events_treshold);
+                    }
+                    size_t i_tmp = 0;
                     dap_string_append_printf(l_str_tmp,"\nDAG threshold events:\n");
                     HASH_ITER(hh,PVT(l_dag)->events_treshold,l_event_item, l_event_item_tmp ) {
+                        if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+                            i_tmp++;
+                            continue;
+                        }
+                        i_tmp++;
                         char buf[50];
                         dap_time_to_str_rfc822(buf, 50, l_event_item->event->header.ts_created);
                         dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s\n",

@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -59,6 +59,7 @@
 #include "dap_enc_key.h"
 #include "crc32c_adler.h"
 #include "dap_chain_ledger.h"
+#include "dap_strfuncs.h"
 
 //#define __USE_GNU
 
@@ -953,7 +954,7 @@ ssize_t     l_rc, l_pass_len;
 
     if ( (l_cp = strstr(a_wallet_name, s_wallet_ext)) )
         strncpy(l_wallet_name, a_wallet_name, l_cp - a_wallet_name);
-    else strcpy(l_wallet_name, a_wallet_name);
+    else strncpy(l_wallet_name, a_wallet_name, sizeof(l_wallet_name)-1);
 
     snprintf(l_file_name, sizeof(l_file_name) - 1, "%s/%s%s", a_wallets_path, l_wallet_name, s_wallet_ext);
 

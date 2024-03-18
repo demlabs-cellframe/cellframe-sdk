@@ -3,9 +3,9 @@
  * Dmitriy A. Gerasimov <naeper@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -35,20 +35,17 @@ typedef struct dap_chain_net dap_chain_net_t;
 
 typedef struct dap_chain_node_info_old {
     struct {
-        dap_chain_node_addr_t address;
+        dap_chain_node_addr_t address;        
         dap_chain_cell_id_t cell_id;
+        uint32_t links_number;
         struct in_addr ext_addr_v4;
         struct in6_addr ext_addr_v6;
         uint16_t ext_port; // Port thats node listening
+        char alias[240];
+        dap_chain_node_addr_t owner_address;
+        uint64_t blocks_events; /* truncated alias len */
     } DAP_ALIGN_PACKED hdr;
-    struct {
-        uint64_t atoms_count; /* truncated alias len */
-        uint32_t links_number;
-        dap_chain_node_addr_t owner_addr;
-        byte_t other_info_for_future[232];
-    } DAP_ALIGN_PACKED info;
-    uint16_t alias_len;
-    byte_t alias[];
+    dap_chain_node_addr_t links[]; // dap_chain_addr_t
 } DAP_ALIGN_PACKED dap_chain_node_info_old_t;
 
 typedef struct dap_chain_node_info {
