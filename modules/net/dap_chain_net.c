@@ -2134,6 +2134,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
             = dap_strncpy(l_net_pvt->seed_nodes_info[i]->ext_host, l_host, l_hostlen) - l_net_pvt->seed_nodes_info[i]->ext_host;
         if (g_node_addr.uint64 == l_addr.uint64) {
             // We're in PoA seed list, predefine node info regardless of host set in [server] config section
+            l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1);
             dap_mempcpy(l_net_pvt->node_info, l_net_pvt->seed_nodes_info[i], dap_chain_node_info_get_size(l_net_pvt->seed_nodes_info[i]));
         }
     }
