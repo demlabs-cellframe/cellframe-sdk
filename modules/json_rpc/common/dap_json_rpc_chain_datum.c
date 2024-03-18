@@ -469,6 +469,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
                     dap_json_rpc_allocation_error;
+                    return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
                 json_object_object_add(l_jobj_tsd, "datum_type_blocked_remove", l_jobj_datum_type_blocked_remove);
@@ -697,9 +698,10 @@ json_object * dap_chain_datum_data_to_json(dap_chain_datum_t *a_datum) {
     if (!a_datum)
         return json_object_new_null();
     json_object *l_obj_data;
+
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_TX:
-            l_obj_data = dap_chain_datum_tx_to_json((dap_chain_datum_tx_t*)a_datum->data);
+        l_obj_data = dap_chain_datum_tx_to_json((dap_chain_datum_tx_t*)a_datum->data,NULL);
             if (!l_obj_data) {
                 dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_TX_TO_JSON,
                                        "Can't convert DAP_CHAIN_DATUM_TX to JSON");
