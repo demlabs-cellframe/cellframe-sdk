@@ -326,13 +326,19 @@ static void s_check_db_collect_callback(dap_global_db_context_t UNUSED_ARG *a_gl
     }
     dap_global_db_objs_delete(l_objs, l_objs_count);
 }
+uint256_t collectiong_level;
+uint256_t minimum_fee;
+dap_chain_t chain;
+dap_enc_key_t * blocks_sign_key;
+dap_chain_addr_t * collecting_addr;
 
-void dap_chain_esbocs_add_block_collect(const dap_chain_block_t *a_block_ptr, size_t a_block_size,)
+void dap_chain_esbocs_add_block_collect(dap_chain_t *a_chain, const dap_chain_block_t *a_block_ptr, size_t a_block_size,dap_pkey_t *a_block_sign_pkey,
+                                        dap_chain_hash_fast_t *a_last_block_hash)
 {
     dap_sign_t *l_sign = dap_chain_block_sign_get(a_block_ptr, a_block_size, 0);
-    if (dap_pkey_match_sign(PVT(l_session->esbocs)->block_sign_pkey, l_sign)) {
+    if (dap_pkey_match_sign(a_block_sign_pkey, l_sign)) {
         dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_last_block_hash);
+        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, a_last_block_hash);
         assert(l_block_cache);
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
         assert(l_net);
