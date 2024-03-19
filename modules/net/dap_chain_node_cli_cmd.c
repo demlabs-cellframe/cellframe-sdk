@@ -5402,7 +5402,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void ** reply)
         return -8;
     }
 
-    dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = dap_chain_srv_str_to_unit_enum(l_unit_str)};
+    dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = dap_chain_srv_str_to_unit_enum((char*)l_unit_str)};
 
     if(l_price_unit.enm == SERV_UNIT_UNDEFINED) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize unit '%s'. Unit must look like {mb | kb | b | sec | day}",
@@ -5502,6 +5502,7 @@ static dap_list_t* s_hashes_parse_str_list(const char * a_hashes_str)
 int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
 {
     (void) a_argc;
+    char** l_str_reply = (char**)a_str_reply;
     int arg_index = 1;
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     const char * l_wallet_str = NULL;
@@ -5517,7 +5518,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid parameter -H, valid values: -H <hex | base58>");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
     }
 
@@ -5535,53 +5536,53 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-srv_uid", &l_srv_uid_str);
 
     if (!l_wallet_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "com_txs_cond_remove requires parameter '-w'");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-w'");
         return -2;
     }
     if (!l_cert_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "com_txs_cond_remove requires parameter '-cert'");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-cert'");
         return -3;
     }
     if(!l_value_fee_str){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "com_txs_cond_remove requires parameter '-fee'");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-fee'");
         return -15;
     }
     if(!l_net_name) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "com_txs_cond_remove requires parameter '-net'");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-net'");
         return -5;
     }
     if(!l_hashes_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "com_txs_cond_remove requires parameter '-hashes'");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-hashes'");
         return -5;
     }
     if(!l_srv_uid_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "com_txs_cond_remove requires parameter '-srv_uid'");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-srv_uid'");
         return -5;
     }
 
     dap_chain_net_srv_uid_t l_srv_uid = {};
     l_srv_uid.uint64 = strtoll(l_srv_uid_str, NULL, 10);
     if (!l_srv_uid.uint64) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find service UID %s ", l_srv_uid_str);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find service UID %s ", l_srv_uid_str);
         return -8;
     }
 
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
     if(!l_net) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find net '%s'", l_net_name);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find net '%s'", l_net_name);
         return -11;
     }
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path);
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path, NULL);
     const char* l_sign_str = "";
     if(!l_wallet) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't open wallet '%s'", l_wallet_str);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't open wallet '%s'", l_wallet_str);
         return -12;
     } 
 
     dap_cert_t *l_cert_cond = dap_cert_find_by_name(l_cert_str);
     if(!l_cert_cond) {
         dap_chain_wallet_close(l_wallet);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find cert '%s'", l_cert_str);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find cert '%s'", l_cert_str);
         return -13;
     }
 
@@ -5590,36 +5591,36 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     if (!l_key_cond) {
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_key_from);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Cert '%s' doesn't contain a valid public key", l_cert_str);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Cert '%s' doesn't contain a valid public key", l_cert_str);
         return -14;
     }
 
     l_value_fee = dap_chain_balance_scan(l_value_fee_str);
     if(IS_ZERO_256(l_value_fee)) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize value '%s' as a number", l_value_fee_str);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't recognize value '%s' as a number", l_value_fee_str);
         return -16;
     }
 
     const char *l_native_ticker = l_net->pub.native_ticker;
     if (!l_native_ticker){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find native ticker for net %s", l_net->pub.name);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find native ticker for net %s", l_net->pub.name);
         return -16;
     }
     dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net->pub.name);
     if (!l_ledger){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find ledger for net %s", l_net->pub.name);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find ledger for net %s", l_net->pub.name);
         return -17;
     }
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     if (!l_ledger){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create new tx");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new tx");
         return -18;
     }
 
     dap_list_t *l_hashes_list = s_hashes_parse_str_list(l_hashes_str);
     if (!l_hashes_list){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Requested conditional transaction with hash not found");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Requested conditional transaction with hash not found");
         dap_chain_datum_tx_delete(l_tx);
         return -19;
     }
@@ -5632,7 +5633,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
         // get tx by hash
         dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, l_hash);
         if (!l_cond_tx) {
-            char* l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(l_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
             log_it(L_WARNING, "Requested conditional transaction with hash %s not found. Continue.", l_hash_str);
             continue;
@@ -5703,7 +5704,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     dap_list_free_full(l_hashes_list, NULL);
 
     if (IS_ZERO_256(l_cond_value_sum)){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Conditional outputs sum is zero.");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Conditional outputs sum is zero.");
         dap_chain_datum_tx_delete(l_tx);
         return -20;
     }
@@ -5716,7 +5717,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
         SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
 
     if (compare256(l_total_fee, l_cond_value_sum) >= 0 ){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Sum of conditional outputs less or equal to fee sum.");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Sum of conditional outputs less or equal to fee sum.");
         dap_chain_datum_tx_delete(l_tx);
         return -21;
     }
@@ -5725,7 +5726,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     SUBTRACT_256_256(l_cond_value_sum, l_total_fee, &l_coin_back);
     dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
     // return coins to owner
-    if (dap_chain_datum_tx_add_out_item(&l_tx, &l_wallet_addr, l_coin_back) == -1) {
+    if (dap_chain_datum_tx_add_out_item(&l_tx, l_wallet_addr, l_coin_back) == -1) {
         dap_chain_datum_tx_delete(l_tx);
         log_it(L_ERROR, "Cant add returning coins output");
         DAP_DELETE(l_wallet_addr);
@@ -5774,11 +5775,11 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     DAP_DELETE(l_datum);
 
     if (l_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%sConditional 256bit TX created succefully, hash=%s\n", l_hash_str, l_sign_str);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "%sConditional 256bit TX created succefully, hash=%s\n", l_hash_str, l_sign_str);
         DAP_DELETE(l_hash_str);
         return 0;
     }
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create conditional 256bit TX\n");
+    dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create conditional 256bit TX\n");
     return -1;
 }
 
@@ -5803,6 +5804,7 @@ void s_tx_is_srv_pay_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, 
 int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_str_reply)
 {
     (void) a_argc;
+    char** l_str_reply = (char**)a_str_reply;
     int arg_index = 1;
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     const char * l_cert_str = NULL;
@@ -5814,7 +5816,7 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_str_reply)
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid parameter -H, valid values: -H <hex | base58>");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
     }
 
@@ -5826,51 +5828,51 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-srv_uid", &l_srv_uid_str);
 
     if (!l_cert_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "com_txs_cond_remove requires parameter '-cert'");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-cert'");
         return -3;
     }
     if(!l_net_name) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "com_txs_cond_remove requires parameter '-net'");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-net'");
         return -5;
     }
     if(!l_srv_uid_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "com_txs_cond_remove requires parameter '-srv_uid'");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-srv_uid'");
         return -5;
     }
 
     dap_chain_net_srv_uid_t l_srv_uid = {};
     l_srv_uid.uint64 = strtoll(l_srv_uid_str, NULL, 10);
     if (!l_srv_uid.uint64) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find service UID %s ", l_srv_uid_str);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find service UID %s ", l_srv_uid_str);
         return -8;
     }
 
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
     if(!l_net) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find net '%s'", l_net_name);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find net '%s'", l_net_name);
         return -11;
     }
 
     dap_cert_t *l_cert_cond = dap_cert_find_by_name(l_cert_str);
     if(!l_cert_cond) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find cert '%s'", l_cert_str);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find cert '%s'", l_cert_str);
         return -13;
     }
 
     dap_pkey_t *l_key_cond = dap_pkey_from_enc_key(l_cert_cond->enc_key);
     if (!l_key_cond) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Cert '%s' doesn't contain a valid public key", l_cert_str);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Cert '%s' doesn't contain a valid public key", l_cert_str);
         return -14;
     }
 
     const char *l_native_ticker = l_net->pub.native_ticker;
     if (!l_native_ticker){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find native ticker for net %s", l_net->pub.name);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find native ticker for net %s", l_net->pub.name);
         return -16;
     }
     dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net->pub.name);
     if (!l_ledger){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find ledger for net %s", l_net->pub.name);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find ledger for net %s", l_net->pub.name);
         return -17;
     }
 
@@ -5929,7 +5931,7 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_str_reply)
     char *l_total_coins_str = dap_chain_balance_print(l_total_value); 
     dap_string_append_printf(l_reply_str, "\n\nFound %"DAP_UINT64_FORMAT_U" transactions with total value %s (%s) %s", l_tx_count, l_total_datoshi_str, l_total_coins_str, l_native_ticker);
     dap_list_free_full(l_tx_list, NULL);
-    *a_str_reply = dap_string_free(l_reply_str, false);
+    *l_str_reply = dap_string_free(l_reply_str, false);
 
     return 0;
 }
