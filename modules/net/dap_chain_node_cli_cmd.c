@@ -5118,7 +5118,7 @@ static dap_list_t* s_hashes_parse_str_list(const char * a_hashes_str)
     return  l_ret_list;
 }
 
-int com_txs_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
+int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
 {
     (void) a_argc;
     int arg_index = 1;
@@ -5259,6 +5259,10 @@ int com_txs_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
 
         const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, l_hash);
         if (!l_tx_ticker) {
+            log_it(L_WARNING, "Can't get tx ticker");
+            continue;
+        }
+        if (strcmp(l_native_ticker, l_tx_ticker)) {
             log_it(L_WARNING, "Tx must be in native ticker");
             continue;
         }
@@ -5397,6 +5401,157 @@ int com_txs_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     return -1;
 }
 
+typedef struct tx_check_args {
+    dap_chain_datum_tx_t *tx;
+    dap_hash_fast_t *tx_hash;
+} tx_check_args_t;
+
+void s_tx_is_srv_pay_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
+{
+    UNUSED(a_net);
+    dap_list_t **l_tx_list_ptr = a_arg;
+    if (dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY , NULL)){
+        tx_check_args_t *a_arg = DAP_NEW_Z(tx_check_args_t);
+        a_arg->tx = a_tx;
+        a_arg->tx_hash = a_tx_hash;
+        *l_tx_list_ptr = dap_list_append(*l_tx_list_ptr, a_arg);
+    }
+       
+}
+
+int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_str_reply)
+{
+    (void) a_argc;
+    int arg_index = 1;
+    const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
+    const char * l_cert_str = NULL;
+    const char * l_net_name = NULL;
+    const char * l_srv_uid_str = NULL;
+
+    const char * l_hash_out_type = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+    if(!l_hash_out_type)
+        l_hash_out_type = "hex";
+    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid parameter -H, valid values: -H <hex | base58>");
+        return -1;
+    }
+
+    // Public certifiacte of condition owner
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_str);
+    // net
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
+    // srv_uid
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-srv_uid", &l_srv_uid_str);
+
+    if (!l_cert_str) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "com_txs_cond_remove requires parameter '-cert'");
+        return -3;
+    }
+    if(!l_net_name) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "com_txs_cond_remove requires parameter '-net'");
+        return -5;
+    }
+    if(!l_srv_uid_str) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "com_txs_cond_remove requires parameter '-srv_uid'");
+        return -5;
+    }
+
+    dap_chain_net_srv_uid_t l_srv_uid = {};
+    l_srv_uid.uint64 = strtoll(l_srv_uid_str, NULL, 10);
+    if (!l_srv_uid.uint64) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find service UID %s ", l_srv_uid_str);
+        return -8;
+    }
+
+    dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
+    if(!l_net) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find net '%s'", l_net_name);
+        return -11;
+    }
+
+    dap_cert_t *l_cert_cond = dap_cert_find_by_name(l_cert_str);
+    if(!l_cert_cond) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find cert '%s'", l_cert_str);
+        return -13;
+    }
+
+    dap_pkey_t *l_key_cond = dap_pkey_from_enc_key(l_cert_cond->enc_key);
+    if (!l_key_cond) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Cert '%s' doesn't contain a valid public key", l_cert_str);
+        return -14;
+    }
+
+    const char *l_native_ticker = l_net->pub.native_ticker;
+    if (!l_native_ticker){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find native ticker for net %s", l_net->pub.name);
+        return -16;
+    }
+    dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net->pub.name);
+    if (!l_ledger){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find ledger for net %s", l_net->pub.name);
+        return -17;
+    }
+
+    dap_string_t *l_reply_str = dap_string_new("");
+    dap_list_t *l_tx_list = NULL;
+
+    dap_chain_net_get_tx_all(l_net, TX_SEARCH_TYPE_NET, s_tx_is_srv_pay_check, &l_tx_list);
+    size_t l_tx_count = 0;
+    uint256_t l_total_value = {};
+    for (dap_list_t *it = l_tx_list; it; it = it->next) {
+        tx_check_args_t *l_data_tx = (tx_check_args_t*)it->data;
+        dap_chain_datum_tx_t *l_tx = l_data_tx->tx;
+        int l_prev_cond_idx = 0;
+        dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY , &l_prev_cond_idx);
+        if (!l_out_cond || l_out_cond->header.srv_uid.uint64 != l_srv_uid.uint64 || IS_ZERO_256(l_out_cond->header.value))
+            continue;
+
+        if (dap_ledger_tx_hash_is_used_out_item(l_ledger, l_data_tx->tx_hash, l_prev_cond_idx, NULL)) {
+            continue;
+        }
+
+        const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, l_data_tx->tx_hash);
+        if (!l_tx_ticker) {
+            continue;
+        }
+        if (strcmp(l_native_ticker, l_tx_ticker)) {
+            continue;
+        }
+
+        // Check sign
+        dap_hash_fast_t *l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_data_tx->tx, l_out_cond);
+        if (!l_owner_tx_hash)
+            continue;
+        dap_chain_datum_tx_t *l_owner_tx = dap_ledger_tx_find_by_hash(l_ledger, l_owner_tx_hash);
+        if (!l_owner_tx)
+            continue;
+        dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
+
+        if (!dap_pkey_compare_with_sign(l_key_cond, l_owner_sign)) {
+            continue;
+        }
+
+        char *l_remain_datoshi_str = NULL;
+        char *l_remain_coins_str = NULL; 
+        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(l_data_tx->tx_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        l_remain_coins_str = dap_chain_balance_to_coins(l_out_cond->header.value);
+        l_remain_datoshi_str = dap_chain_balance_print(l_out_cond->header.value);
+
+        dap_string_append_printf(l_reply_str, "Tx %s has %s (%s) %s remaining in cond out\n", l_hash_str, l_remain_coins_str, l_remain_datoshi_str, l_native_ticker);
+        l_tx_count++;
+        SUM_256_256(l_total_value, l_out_cond->header.value, &l_total_value);
+    }
+    char *l_total_datoshi_str = dap_chain_balance_to_coins(l_total_value);
+    char *l_total_coins_str = dap_chain_balance_print(l_total_value); 
+    dap_string_append_printf(l_reply_str, "\n\nFound %"DAP_UINT64_FORMAT_U" transactions with total value %s (%s) %s", l_tx_count, l_total_datoshi_str, l_total_coins_str, l_native_ticker);
+    dap_list_free_full(l_tx_list, NULL);
+    *a_str_reply = dap_string_free(l_reply_str, false);
+
+    return 0;
+}
 typedef enum cmd_mempool_add_ca_error_list{
     COM_MEMPOOL_ADD_CA_ERROR_NET_NOT_FOUND = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
     COM_MEMPOOL_ADD_CA_ERROR_NO_CAINS_FOR_CA_DATUM_IN_NET,
