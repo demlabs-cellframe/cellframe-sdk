@@ -282,9 +282,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         " -cert <pub_cert_name> -value <value_datoshi> -fee <value> -unit {mb | kb | b | sec | day} -srv_uid <numeric_uid>\n" );
         dap_cli_server_cmd_add ("tx_cond_remove", com_tx_cond_remove, "Remove cond transactions and return funds from condition outputs to wallet",
                                         "tx_cond_remove -net <net_name> -hashes <tx cond hashes in format hash1, hash2 ...> -w <wallet_name>"
-                                        " -cert <pub_cert_name> -fee <value> -srv_uid <numeric_uid>\n" );
+                                        "-fee <value> -srv_uid <numeric_uid>\n" );
         dap_cli_server_cmd_add ("tx_cond_unspent_find", com_tx_cond_unspent_find, "Find cond transactions by cert",
-                                        "tx_cond_find -net <net_name> -srv_uid <numeric_uid> -cert <pub_cert_name> \n" );
+                                        "tx_cond_find -net <net_name> -srv_uid <numeric_uid> -w <wallet_name> \n" );
 
     dap_cli_server_cmd_add ("tx_verify", com_tx_verify, "Verifing transaction in mempool",
             "tx_verify -net <net_name> -chain <chain_name> -tx <tx_hash>\n" );
