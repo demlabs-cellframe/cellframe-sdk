@@ -281,7 +281,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
                                         " -cert <pub_cert_name> -value <value_datoshi> -fee <value> -unit {mb | kb | b | sec | day} -srv_uid <numeric_uid>\n" );
         dap_cli_server_cmd_add ("tx_cond_remove", com_tx_cond_remove, "Remove cond transactions and return funds from condition outputs to wallet",
-                                        "tx_cond_remove -net <net_name> -hashes <tx cond hashes in format hash1, hash2 ...> -w <wallet_name>"
+                                        "tx_cond_remove -net <net_name> -hashes <hash1,hash2...> -w <wallet_name>"
                                         " -fee <value> -srv_uid <numeric_uid>\n" );
         dap_cli_server_cmd_add ("tx_cond_unspent_find", com_tx_cond_unspent_find, "Find cond transactions by wallet",
                                         "tx_cond_unspent_find -net <net_name> -srv_uid <numeric_uid> -w <wallet_name> \n" );
