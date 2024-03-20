@@ -3277,6 +3277,40 @@ static dap_ledger_reward_item_t *s_find_reward(dap_ledger_t *a_ledger, dap_ledge
     return l_reward_item;
 }
 
+dap_hash_fast_t* dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_cond_out)
+{
+    dap_hash_fast_t *l_ret_hash = NULL;
+
+    if (!a_ledger || !a_cond_out || !a_tx){
+        log_it(L_ERROR, "Argument is NULL in dap_ledger_get_first_chain_tx_hash()");
+        return NULL;
+    }
+
+    dap_chain_tx_out_cond_subtype_t l_type = a_cond_out->header.subtype;
+
+    int l_item_idx = 0;
+    dap_chain_datum_tx_t * l_prev_tx = a_tx;
+    byte_t *l_tx_item_temp = NULL;
+    dap_hash_fast_t l_hash = {};
+    while((l_tx_item_temp = dap_chain_datum_tx_item_get(l_prev_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL)) != NULL){
+        dap_chain_tx_in_cond_t * l_in_cond_temp = (dap_chain_tx_in_cond_t *) l_tx_item_temp;
+        dap_chain_datum_tx_t *l_prev_tx_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_in_cond_temp->header.tx_prev_hash);
+        dap_chain_tx_out_cond_t *l_out_cond_temp = dap_chain_datum_tx_out_cond_get(l_prev_tx_temp, l_type, NULL);
+        if (l_out_cond_temp){
+            l_item_idx = l_in_cond_temp->header.tx_out_prev_idx;
+            l_prev_tx = l_prev_tx_temp;
+            l_hash = l_in_cond_temp->header.tx_prev_hash;
+        }
+    }
+
+    if(l_prev_tx && !dap_hash_fast_is_blank(&l_hash)){
+        l_ret_hash = DAP_NEW_SIZE(dap_hash_fast_t, sizeof(dap_hash_fast_t));
+        *l_ret_hash = l_hash;
+    }
+
+    return l_ret_hash;
+}
+
 bool dap_ledger_is_used_reward(dap_ledger_t *a_ledger, dap_hash_fast_t *a_block_hash, dap_hash_fast_t *a_sign_pkey_hash)
 {
     dap_ledger_reward_key_t l_search_key = { .block_hash = *a_block_hash, .sign_pkey_hash = *a_sign_pkey_hash };
