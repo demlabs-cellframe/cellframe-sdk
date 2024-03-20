@@ -699,7 +699,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
     log_it(L_DEBUG, "Start balancer %s request to %s",
            PVT(a_net)->balancer_http ? "HTTP" : "DNS", l_balancer_request->link_info->ext_host);
     
-    int ret;
+    int l_ret;
     if (PVT(a_net)->balancer_http) {
         char *l_request = dap_strdup_printf("%s/%s?version=%d,method=r,needlink=%d,net=%s",
                                                 DAP_UPLINK_PATH_BALANCER,
@@ -707,7 +707,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
                                                 DAP_BALANCER_PROTOCOL_VERSION,
                                                 a_required_links_count * 2,
                                                 a_net->pub.name);
-        ret = dap_client_http_request(l_balancer_request->worker,
+        l_ret = dap_client_http_request(l_balancer_request->worker,
                                                 l_balancer_request->link_info->ext_host,
                                                 l_balancer_request->link_info->ext_port,
                                                 "GET",
@@ -724,7 +724,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
     } else {
         l_balancer_request->link_info->ext_port = DNS_LISTEN_PORT;
         // TODO: change signature and implementation
-        ret = /* dap_chain_node_info_dns_request(l_balancer_request->worker,
+        l_ret = /* dap_chain_node_info_dns_request(l_balancer_request->worker,
                                                 l_link_node_info->hdr.ext_addr_v4,
                                                 l_link_node_info->hdr.ext_port,
                                                 a_net->pub.name,
@@ -732,9 +732,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
                                                 s_net_balancer_link_prepare_error,
                                                 l_balancer_request); */ -1;
     }
-    if (ret) {
+    if (l_ret) {
         log_it(L_ERROR, "Can't process balancer link %s request", PVT(a_net)->balancer_http ? "HTTP" : "DNS");
-        DAP_DELETE(l_balancer_request);
         return false;
     }
     return true;
