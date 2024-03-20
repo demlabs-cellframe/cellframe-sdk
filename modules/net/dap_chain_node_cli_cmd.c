@@ -5122,7 +5122,7 @@ static dap_list_t* s_hashes_parse_str_list(const char * a_hashes_str)
 int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
 {
     (void) a_argc;
-    char** l_str_reply = (char**)a_str_reply;
+    void** l_str_reply = a_str_reply;
     int arg_index = 1;
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     const char * l_wallet_str = NULL;
@@ -5185,7 +5185,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
         dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find net '%s'", l_net_name);
         return -11;
     }
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path, NULL);
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path);
     const char* l_sign_str = "";
     if(!l_wallet) {
         dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't open wallet '%s'", l_wallet_str);
@@ -5417,7 +5417,7 @@ void s_tx_is_srv_pay_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, 
 int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_str_reply)
 {
     (void) a_argc;
-    char** l_str_reply = (char**)a_str_reply;
+    void** l_str_reply = a_str_reply;
     int arg_index = 1;
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     const char * l_wallet_str = NULL;
@@ -5466,7 +5466,7 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_str_reply)
         return -11;
     }
 
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path, NULL);
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path);
     const char* l_sign_str = "";
     if(!l_wallet) {
         dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't open wallet '%s'", l_wallet_str);
