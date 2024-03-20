@@ -2098,7 +2098,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         dap_config_close(l_cfg);
         return -4;
     }
-
+    l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1 );
     for (uint16_t i = 0; i < l_net_pvt->poa_nodes_count; ++i) {
         uint16_t l_port = 0;
         char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
@@ -2436,13 +2436,11 @@ int s_net_load(dap_chain_net_t *a_net)
             const char *l_ext_addr = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
             if (!l_ext_addr) {
                 log_it(L_INFO, "External address is not set, will be detected automatically");
-                l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + sizeof(l_host) );
             } else {
                 if ( dap_net_parse_hostname(l_ext_addr, l_host, &l_ext_port) )
                     log_it(L_ERROR, "Invalid server address \"%s\", fix config and restart node", l_ext_addr);
                 else {
                     uint8_t l_hostlen = dap_strlen(l_host);
-                    l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + l_hostlen + 1 );
                     l_net_pvt->node_info->ext_port = l_ext_port;
                     l_net_pvt->node_info->ext_host_len = dap_strncpy(l_net_pvt->node_info->ext_host, l_host, l_hostlen) - l_net_pvt->node_info->ext_host;
                 }
@@ -2461,8 +2459,6 @@ int s_net_load(dap_chain_net_t *a_net)
     } else
         log_it(L_INFO, "Server is disabled");
 
-    if (!l_net_pvt->node_info)
-        l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1 );
     l_net_pvt->node_info->address = g_node_addr;
 
     log_it(L_NOTICE, "Net load information: node_addr " NODE_ADDR_FP_STR ", seed links %u, cell_id 0x%016"DAP_UINT64_FORMAT_X,
