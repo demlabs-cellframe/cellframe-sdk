@@ -295,7 +295,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "tx_create_json -net <net_name> -chain <chain_name> -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
                                         "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
-                                        " -cert <pub_cert_name> -value <value_datoshi> -fee <value> -unit {mb | kb | b | sec | day} -srv_uid <numeric_uid>\n" );
+                                        " -cert <pub_cert_name> -value <value_datoshi> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n" );
+        dap_cli_server_cmd_add ("tx_cond_remove", com_tx_cond_remove, "Remove cond transactions and return funds from condition outputs to wallet",
+                                        "tx_cond_remove -net <net_name> -hashes <hash1,hash2...> -w <wallet_name>"
+                                        " -fee <value> -srv_uid <numeric_uid>\n" );
+        dap_cli_server_cmd_add ("tx_cond_unspent_find", com_tx_cond_unspent_find, "Find cond transactions by wallet",
+                                        "tx_cond_unspent_find -net <net_name> -srv_uid <numeric_uid> -w <wallet_name> \n" );
 
     dap_cli_server_cmd_add ("tx_verify", com_tx_verify, "Verifing transaction in mempool",
             "tx_verify -net <net_name> -chain <chain_name> -tx <tx_hash>\n" );
