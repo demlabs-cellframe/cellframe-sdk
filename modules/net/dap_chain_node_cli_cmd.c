@@ -6837,7 +6837,7 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
     }
 
     dap_chain_hash_fast_t l_tx_hash;
-    if (l_tx_hash_str && dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) < 0) {
+    if (l_tx_hash_str && dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash)) {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_HASH_REC_ERR, "tx hash not recognized");
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_HASH_REC_ERR;
     }
