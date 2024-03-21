@@ -5691,7 +5691,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     dap_list_free_full(l_hashes_list, NULL);
 
     if (IS_ZERO_256(l_cond_value_sum)){
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Conditional outputs sum is zero.");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "No unspent conditional transactions in hashes list for wallet %s. Check input parameters.", l_wallet_str);
         dap_chain_datum_tx_delete(l_tx);
         dap_chain_wallet_close(l_wallet);
         DAP_DEL_Z(l_wallet_pkey);
