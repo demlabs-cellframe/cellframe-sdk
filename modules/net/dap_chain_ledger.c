@@ -3308,7 +3308,7 @@ dap_hash_fast_t* dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_
     if(l_prev_tx && !dap_hash_fast_is_blank(&l_hash)){
         l_ret_hash = DAP_NEW_SIZE(dap_hash_fast_t, sizeof(dap_hash_fast_t));
         *l_ret_hash = l_hash;
-    } 
+    }
 
     return l_ret_hash;
 }
