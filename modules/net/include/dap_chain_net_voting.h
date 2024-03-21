@@ -79,8 +79,8 @@ enum DAP_CHAIN_NET_VOTE_CREATE_ERROR {
     DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_SIGNED_TX,
     DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_POOL_DATUM_IN_MEMPOOL
 };
-int dap_chain_net_vote_create(const char *a_question, dap_list_t *a_options, dap_time_t *a_expire_vote,
-                              uint64_t *a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
+int dap_chain_net_vote_create(const char *a_question, dap_list_t *a_options, dap_time_t a_expire_vote,
+                              uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
                               bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
                               dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_output);
 

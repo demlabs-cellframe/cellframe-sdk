@@ -839,7 +839,6 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                 {
                     log_it(L_ERROR, "Illformed DATUM type %d, TSD section is out-of-buffer (%" DAP_UINT64_FORMAT_U " vs %zu)",
                         l_emission->hdr.type, l_emission->data.type_auth.tsd_total_size, l_emission_size);
-
                     dap_string_append_printf(a_str_out, "  Skip incorrect or illformed DATUM");
                     break;
                 }
