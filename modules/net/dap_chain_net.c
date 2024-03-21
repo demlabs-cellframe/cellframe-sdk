@@ -662,15 +662,11 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
     if(l_net_pvt->links_static_only)
         return true;
     // dynamic links from node list
-    static bool l_load_from_node_list = true;
-    if(l_load_from_node_list) {
-        l_load_from_node_list = !l_load_from_node_list;  // switch mode
-        size_t l_nodes_count = 0;
-        dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
-        if (!l_nodes_count || !l_objs) {
-            log_it(L_ERROR, "Node list is empty");
-            return false;
-        }
+    size_t l_nodes_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
+    if (!l_nodes_count || !l_objs) {
+        log_it(L_ERROR, "Node list is empty");
+    } else {
         for (size_t i = 0; i < l_nodes_count; ++i) {
             dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)l_objs[i].value;
             dap_link_t *l_link = dap_link_manager_link_create(&l_node_info->address);
@@ -679,9 +675,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
                 continue;
             dap_link_manager_link_add(a_net->pub.id.uint64, l_link);
         }
-        return true;
     }
-    l_load_from_node_list = !l_load_from_node_list;
+
     // dynamic links from http balancer request
     int a_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
     struct balancer_link_request *l_balancer_request = NULL;
