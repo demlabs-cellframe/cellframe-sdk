@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2020
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -1962,18 +1962,21 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
             return -21;
         }
     }
-    dap_chain_net_srv_stake_item_t *l_stake;
-    HASH_FIND(ht, s_srv_stake->tx_itemlist, &l_tx_hash, sizeof(dap_hash_t), l_stake);
-    if (l_stake) {
-        char *l_delegated_hash_str = dap_hash_fast_is_blank(&l_spender_hash)
-            ? dap_strdup(l_tx_hash_str2)
-            : dap_hash_fast_to_str_new(&l_spender_hash);
-        char l_pkey_hash_str[DAP_HASH_FAST_STR_SIZE];
-        dap_hash_fast_to_str(&l_stake->signing_addr.data.hash_fast, l_pkey_hash_str, DAP_HASH_FAST_STR_SIZE);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s has active delegated key %s, need to revoke it first",
-                                          l_delegated_hash_str, l_pkey_hash_str);
-        DAP_DELETE(l_delegated_hash_str);
-        return -30;
+
+    if (l_tx_hash_str || l_cert_str) {
+        dap_chain_net_srv_stake_item_t *l_stake;
+        HASH_FIND(ht, s_srv_stake->tx_itemlist, &l_tx_hash, sizeof(dap_hash_t), l_stake);
+        if (l_stake) {
+            char *l_delegated_hash_str = dap_hash_fast_is_blank(&l_spender_hash)
+                ? dap_strdup(l_tx_hash_str2)
+                : dap_hash_fast_to_str_new(&l_spender_hash);
+            char l_pkey_hash_str[DAP_HASH_FAST_STR_SIZE];
+            dap_hash_fast_to_str(&l_stake->signing_addr.data.hash_fast, l_pkey_hash_str, DAP_HASH_FAST_STR_SIZE);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s has active delegated key %s, need to revoke it first",
+                                              l_delegated_hash_str, l_pkey_hash_str);
+            DAP_DELETE(l_delegated_hash_str);
+            return -30;
+        }
     }
 
     if (l_wallet_str) {
