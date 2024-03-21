@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2020
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -91,7 +91,7 @@ static dap_chain_net_srv_xchange_t *s_srv_xchange;
 static bool s_debug_more = true;
 
 /**
- * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
+ * @brief dap_chain_net_srv_xchange_init Init actions for xchanger stream channel
  * @return 0 if everything is okay, lesser then zero if errors
  */
 int dap_chain_net_srv_xchange_init()
@@ -194,7 +194,6 @@ void dap_chain_net_srv_xchange_deinit()
 static bool s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond,
                                            dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
-    return true;//for tests
     if (a_owner)
         return true;
     if(!a_tx_in || !a_tx_out_cond)
@@ -267,14 +266,12 @@ static bool s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_
      * a_cond->subtype.srv_xchange.buy_value * (a_cond->header.value - new_cond->header.value)
      */
 
-    uint256_t l_sell_val, l_buyer_mul, l_seller_mul;
+    uint256_t l_sell_val, l_buyer_val_expected;
     if (compare256(l_sell_again_val, a_tx_out_cond->header.value) >= 0)
         return false;
     SUBTRACT_256_256(a_tx_out_cond->header.value, l_sell_again_val, &l_sell_val);
-    MULT_256_256(a_tx_out_cond->header.value, l_buy_val, &l_seller_mul);
-
-//    MULT_256_256(a_tx_out_cond->subtype.srv_xchange.buy_value, l_sell_val, &l_buyer_mul);
-    if (compare256(l_seller_mul, l_buyer_mul) < 0)
+    MULT_256_COIN(l_sell_val, a_tx_out_cond->subtype.srv_xchange.rate, &l_buyer_val_expected);
+    if (compare256(l_buyer_val_expected, l_buy_val) > 0)
         return false;
 
     /* Check the condition for fee verification success
