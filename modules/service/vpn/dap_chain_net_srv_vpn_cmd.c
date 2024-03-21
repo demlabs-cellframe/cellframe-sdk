@@ -169,12 +169,12 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply)
         // default timeout 10ms
         int l_timeout_test_ms = dap_config_get_item_int32_default( g_config,"cdb", "servers_list_check_timeout", 20) * 1000;// read settings
         // start node check
-        int l_res = dap_chain_net_vpn_client_check(l_net, l_str_addr, NULL, l_srv_port, l_data_size_to_send, l_data_size_to_recv, l_timeout_test_ms);
+        int l_res = dap_chain_net_vpn_client_check(l_net, l_str_addr, l_srv_port, l_data_size_to_send, l_data_size_to_recv, l_timeout_test_ms);
         if(!l_res){
             l_data_size_to_send = 0;// no send data, only recv
             size_t l_data_size_to_recv = 10240;
             int l_timeout_test_ms = -1;// default timeout
-            l_res = dap_chain_net_vpn_client_check(l_net, l_str_addr, NULL, l_srv_port, l_data_size_to_send, l_data_size_to_recv, l_timeout_test_ms);
+            l_res = dap_chain_net_vpn_client_check(l_net, l_str_addr, l_srv_port, l_data_size_to_send, l_data_size_to_recv, l_timeout_test_ms);
         }
         switch (l_res) {
         case 0:
@@ -247,7 +247,7 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply)
                     "VPN server port not defined, use -port <vpn server port>  parameter");
             break;
         }
-        int l_res = dap_chain_net_vpn_client_start(l_net, l_str_addr, NULL, l_srv_port);
+        int l_res = dap_chain_net_vpn_client_start(l_net, l_str_addr, l_srv_port);
         switch (l_res) {
         case 0:
             dap_cli_server_cmd_set_reply_text(a_str_reply, "VPN client started successfully");

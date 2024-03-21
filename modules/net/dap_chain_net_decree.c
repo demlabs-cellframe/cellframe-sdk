@@ -33,7 +33,6 @@
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
-#include "dap_chain_node_net_ban_list.h"
 #include "dap_http_ban_list_client.h"
 
 
@@ -476,17 +475,15 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 }
                 dap_hash_fast_t l_decree_hash = {0};
                 dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
-                if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4){
-                    struct in_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in_addr);
-                    dap_http_ban_list_client_add_ipv4(l_ip_addr, l_decree_hash, a_decree->header.ts_created);
-                } else if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6){
-                    struct in6_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in6_addr);
-                    dap_http_ban_list_client_add_ipv6(l_ip_addr, l_decree_hash, a_decree->header.ts_created);
-                } else if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR){
-                    dap_chain_node_addr_t l_addr_node = dap_tsd_get_scalar(l_tsd, dap_chain_node_addr_t);
-                    if (!dap_chain_node_net_ban_list_add_node_addr(l_addr_node, l_decree_hash, a_decree->header.ts_created, a_net))
+                char *l_addr = dap_tsd_get_string(l_tsd);
+                switch (l_tsd->type) {
+                case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST:
+                case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
+                    if ( dap_http_ban_list_client_add(l_addr, l_decree_hash, a_decree->header.ts_created) ) {
+                        log_it(L_ERROR, "Can't ban addr %s: already banlisted", l_addr);
                         return -4;
-                } else {
+                    } break;
+                default:
                     log_it(L_WARNING, "Invalid section TSD type for sub-decree datum of type "
                                       "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN.");
                     return  -3;
@@ -505,21 +502,18 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                     log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
                     return -2;
                 }
-                dap_hash_fast_t l_decree_hash = {0};
-                dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
-                if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4){
-                    struct in_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in_addr);
-                    dap_http_ban_list_client_remove_ipv4(l_ip_addr);
-                } else if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6){
-                    struct in6_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in6_addr);
-                    dap_http_ban_list_client_remove_ipv6(l_ip_addr);
-                } else if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR){
-                    dap_chain_node_addr_t l_addr_node = dap_tsd_get_scalar(l_tsd, dap_chain_node_addr_t);
-                    dap_chain_node_net_ban_list_remove_node_addr(a_net, l_addr_node);
-                } else {
+                char *l_addr = dap_tsd_get_string(l_tsd);
+                switch (l_tsd->type) {
+                case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST:
+                case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
+                    if ( dap_http_ban_list_client_remove(l_addr) ) {
+                        log_it(L_ERROR, "Can't unban addr %s: not banlisted", l_addr);
+                        return -4;
+                    } break;
+                default:
                     log_it(L_WARNING, "Invalid section TSD type for sub-decree datum of type "
-                                      "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN.");
-                    return  -4;
+                                      "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN.");
+                    return  -3;
                 }
                 l_tsd_offset += l_tsd_size;
             }

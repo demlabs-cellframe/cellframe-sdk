@@ -30,8 +30,11 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_cert.h"
 #include "dap_global_db_driver.h"
 
+#define DAP_STREAM_CH_ESBOCS_ID                     'E'
+
 #define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           8
 #define DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX          "esbocs"
+#define DAP_CHAIN_CLUSTER_ID_ESBOCS                 0x8000
 
 #define DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT            0x04
 #define DAP_CHAIN_ESBOCS_MSG_TYPE_APPROVE           0x08
@@ -51,6 +54,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT             0x11
 
 #define DAP_CHAIN_ESBOCS_DIRECTIVE_TSD_TYPE_ADDR    0x01
+
+#define PKT_SIGN_N_HDR_OVERHEAD (15 * 1024)
 
 typedef struct dap_chain_esbocs_session dap_chain_esbocs_session_t;
 
@@ -73,9 +78,10 @@ typedef struct dap_chain_esbocs_message_hdr {
     uint64_t sign_size;
     uint64_t message_size;
     dap_time_t ts_created;
-    dap_chain_net_id_t net_it;
+    dap_chain_net_id_t net_id;
     dap_chain_id_t chain_id;
     dap_chain_cell_id_t cell_id;
+    dap_stream_node_addr_t recv_addr;
     dap_hash_fast_t candidate_hash;
 } DAP_ALIGN_PACKED dap_chain_esbocs_message_hdr_t;
 

@@ -44,6 +44,7 @@ OC : Oceania			geonameId=6255151
 SA : South America		geonameId=6255150
 AN : Antarctica			geonameId=6255152
  */
+
 char *s_server_continents[]={
         "None",
         "Africa",
@@ -349,18 +350,14 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
     dap_chain_hash_fast_t l_order_hash;
     size_t l_order_size = dap_chain_net_srv_order_get_size(a_order);
     dap_hash_fast(a_order, l_order_size, &l_order_hash);
-    char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_order_hash);
-    if (!l_order_hash_str)
-        return NULL;
+    char *l_order_hash_str = dap_chain_hash_fast_to_str_static(&l_order_hash);
     char *l_gdb_group_str = a_common ? dap_chain_net_srv_order_get_common_group(a_net)
                                      : dap_chain_net_srv_order_get_gdb_group(a_net);
     if (!l_gdb_group_str)
         return NULL;
     int l_rc = dap_global_db_set_sync(l_gdb_group_str, l_order_hash_str, a_order, l_order_size, false);
     DAP_DELETE(l_gdb_group_str);
-    if (l_rc != DAP_GLOBAL_DB_RC_SUCCESS)
-        DAP_DEL_Z(l_order_hash_str);
-    return l_order_hash_str;
+    return l_rc == DAP_GLOBAL_DB_RC_SUCCESS ? dap_strdup(l_order_hash_str) : NULL;
 }
 
 dap_chain_net_srv_order_t *dap_chain_net_srv_order_read(byte_t *a_order, size_t a_order_size)
@@ -453,12 +450,14 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
                                         const dap_chain_net_srv_uid_t a_srv_uid,
                                         const dap_chain_net_srv_price_unit_uid_t a_price_unit,const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
                                         const uint256_t a_price_min, const uint256_t a_price_max,
-                                        dap_chain_net_srv_order_t ** a_output_orders, size_t * a_output_orders_count)
+                                        dap_list_t** a_output_orders, size_t * a_output_orders_count)
 {
     if (!a_net || !a_output_orders || !a_output_orders_count)
         return -1;
     size_t l_orders_size = 0, l_output_orders_count = 0;
     *a_output_orders = NULL;
+
+    dap_list_t* l_out_list = NULL;
 
     for (int i = 0; i < 2; i++) {
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
@@ -468,7 +467,6 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
         log_it( L_DEBUG, "Loaded %zu orders", l_orders_count);
         dap_chain_net_srv_order_t *l_order = NULL;
         for (size_t i = 0; i < l_orders_count; i++) {
-            DAP_DEL_Z(l_order);
             l_order = dap_chain_net_srv_order_read(l_orders[i].value, l_orders[i].value_len);
             if (!l_order) {
                 dap_global_db_del_sync(l_gdb_group_str, l_orders[i].key);
@@ -500,16 +498,16 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
             if (a_price_ticker && strcmp( l_order->price_ticker, a_price_ticker))
                 continue;
             size_t l_order_mem_size = dap_chain_net_srv_order_get_size(l_order);
-            *a_output_orders = DAP_REALLOC(*a_output_orders, l_orders_size + l_order_mem_size);
-            memcpy((byte_t *)*a_output_orders + l_orders_size, l_order, l_order_mem_size);
+            dap_chain_net_srv_order_t *l_output_order = DAP_DUP_SIZE(l_order, l_order_mem_size);
             DAP_DEL_Z(l_order);
-            l_orders_size += l_order_mem_size;
+            l_out_list = dap_list_append(l_out_list, l_output_order);
             l_output_orders_count++;
         }
         dap_global_db_objs_delete(l_orders, l_orders_count);
         DAP_DELETE(l_gdb_group_str);
     }
     *a_output_orders_count = l_output_orders_count;
+    *a_output_orders = l_out_list;
     return 0;
 }
 
@@ -544,8 +542,8 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         dap_chain_hash_fast_t l_hash;
         dap_hash_fast(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
         char *l_hash_str = dap_strcmp(a_hash_out_type,"hex")
-                ? dap_enc_base58_encode_hash_to_str(&l_hash)
-                : dap_chain_hash_fast_to_str_new(&l_hash);
+                ? dap_enc_base58_encode_hash_to_str_static(&l_hash)
+                : dap_chain_hash_fast_to_str_static(&l_hash);
 
         dap_string_append_printf(a_str_out, "== Order %s ==\n", l_hash_str);
         dap_string_append_printf(a_str_out, "  version:          %u\n", a_order->version );
@@ -559,11 +557,9 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         dap_time_to_str_rfc822(buf_time, 50, a_order->ts_created);
         dap_string_append_printf(a_str_out, "  created:          %s\n", buf_time);
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016"DAP_UINT64_FORMAT_X"\n", a_order->srv_uid.uint64 );
-        char *l_balance_coins = dap_chain_balance_to_coins(a_order->price);
-        char *l_balance = dap_chain_balance_print(a_order->price);
+        
+        char *l_balance_coins, *l_balance = dap_uint256_to_char(a_order->price, &l_balance_coins);
         dap_string_append_printf(a_str_out, "  price:            %s (%s)\n", l_balance_coins, l_balance);
-        DAP_DELETE(l_balance_coins);
-        DAP_DELETE(l_balance);
         dap_string_append_printf(a_str_out, "  price_token:      %s\n",  (*a_order->price_ticker) ? a_order->price_ticker: a_native_ticker);
         dap_string_append_printf(a_str_out, "  units:            %zu\n", a_order->units);
         if( a_order->price_unit.uint32 )
@@ -578,11 +574,10 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
             l_continent_str = dap_chain_net_srv_order_continent_to_str(l_continent_num);
         dap_string_append_printf(a_str_out, "  node_location:    %s - %s\n", l_continent_str ? l_continent_str : "None" , l_region ? l_region : "None");
         DAP_DELETE(l_region);
-        DAP_DELETE(l_hash_str);
 
         l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                ? dap_enc_base58_encode_hash_to_str(&a_order->tx_cond_hash)
-                : dap_chain_hash_fast_to_str_new(&a_order->tx_cond_hash);
+                ? dap_enc_base58_encode_hash_to_str_static(&a_order->tx_cond_hash)
+                : dap_chain_hash_fast_to_str_static(&a_order->tx_cond_hash);
         dap_string_append_printf(a_str_out, "  tx_cond_hash:     %s\n", l_hash_str );
         char *l_ext_out = a_order->ext_size ? DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 1) : NULL;
         if(l_ext_out) {
@@ -594,10 +589,8 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
         dap_hash_fast_t l_sign_pkey = {0};
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
-        char *l_sign_pkey_hash_str = dap_hash_fast_to_str_new(&l_sign_pkey);
+        char *l_sign_pkey_hash_str = dap_hash_fast_to_str_static(&l_sign_pkey);
         dap_string_append_printf(a_str_out, "  pkey:             %s\n", l_sign_pkey_hash_str);
-        DAP_DELETE(l_sign_pkey_hash_str);
-        DAP_DELETE(l_hash_str);
         DAP_DELETE(l_ext_out);
     }
 }

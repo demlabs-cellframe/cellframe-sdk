@@ -246,7 +246,7 @@ void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
         uint32_t ttl = DNS_TIME_TO_LIVE;
         dap_dns_buf_put_uint32(dns_reply, ttl);                                    
         dap_dns_buf_put_uint16(dns_reply, 4);           // RD len for ipv4
-        dap_dns_buf_put_uint32(dns_reply, l_node_info->hdr.ext_addr_v4.s_addr);
+        //dap_dns_buf_put_uint32(dns_reply, l_node_info->hdr.ext_addr_v4.s_addr); TODO: implement other response format
         val = 0xc000 | DNS_HEADER_SIZE;                // Link to host name
         dap_dns_buf_put_uint16(dns_reply, val);
         val = DNS_RECORD_TYPE_TXT;
@@ -256,8 +256,8 @@ void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
         dap_dns_buf_put_uint32(dns_reply, ttl);
         val = sizeof(uint16_t) + sizeof(uint64_t);
         dap_dns_buf_put_uint16(dns_reply, val);
-        dap_dns_buf_put_uint16(dns_reply, l_node_info->hdr.ext_port);
-        dap_dns_buf_put_uint64(dns_reply, l_node_info->hdr.address.uint64);
+        dap_dns_buf_put_uint16(dns_reply, l_node_info->ext_port);
+        dap_dns_buf_put_uint64(dns_reply, l_node_info->address.uint64);
         DAP_DELETE(l_node_info);
     } else if (flags->rcode == DNS_ERROR_NONE) {
         flags->rcode = DNS_ERROR_NAME;

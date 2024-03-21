@@ -148,10 +148,8 @@ void s_stake_net_clear(dap_chain_net_t *a_net)
  */
 void s_stake_clear()
 {
-    uint16_t l_net_count;
-    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
-    for (uint16_t i = 0; i < l_net_count; i++) {
-        s_stake_net_clear(l_net_list[i]);
+    for (dap_chain_net_t *it = dap_chain_net_iter_start(); it; it = dap_chain_net_iter_next(it)) {
+        s_stake_net_clear(it);
     }
 }
 
@@ -321,10 +319,9 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     char l_key_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_to_str(&a_signing_addr->data.hash_fast,
                                l_key_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-    char *l_value_str = dap_chain_balance_to_coins(a_value);
+    char *l_value_str; dap_uint256_to_char(a_value, &l_value_str);
     log_it(L_NOTICE, "Added key with fingerprint %s and value %s for node "NODE_ADDR_FP_STR,
                         l_key_hash_str, l_value_str, NODE_ADDR_FP_ARGS(a_node_addr));
-    DAP_DELETE(l_value_str);
 }
 
 void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
@@ -341,10 +338,9 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
         char l_key_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(&a_signing_addr->data.hash_fast,
                                    l_key_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        char *l_value_str = dap_chain_balance_to_coins(l_stake->value);
+        char *l_value_str; dap_uint256_to_char(l_stake->value, &l_value_str);
         log_it(L_NOTICE, "Removed key with fingerprint %s and value %s for node "NODE_ADDR_FP_STR,
                             l_key_hash_str, l_value_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
-        DAP_DELETE(l_value_str);
         DAP_DELETE(l_stake);
     }
 }
@@ -1529,12 +1525,11 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                         dap_string_append(l_reply_str, "Value in this order type means minimum value of m-tokens for validator acceptable for key delegation with supplied tax\n"
                                                        "Order external params:\n");
                         struct validator_odrer_ext *l_ext = (struct validator_odrer_ext *)l_order->ext_n_sign;
-                        char *l_tax_str = dap_chain_balance_to_coins(l_ext->tax);
-                        dap_string_append_printf(l_reply_str, "  tax:              %s%%\n", l_tax_str);
-                        DAP_DEL_Z(l_tax_str);
-                        char *l_max_str = dap_chain_balance_to_coins(l_ext->value_max);
-                        dap_string_append_printf(l_reply_str, "  maximum_value:    %s\n", l_max_str);
-                        DAP_DEL_Z(l_max_str);
+                        char *l_coins_str;
+                        dap_uint256_to_char(l_ext->tax, &l_coins_str);
+                        dap_string_append_printf(l_reply_str, "  tax:              %s%%\n", l_coins_str);
+                        dap_uint256_to_char(l_ext->value_max, &l_coins_str);
+                        dap_string_append_printf(l_reply_str, "  maximum_value:    %s\n", l_coins_str);
                     } else { // l_order->direction = SERV_DIR_BUY
                         dap_string_append(l_reply_str, "Value in this order type means value of m-tokens locked in conditional transaction attached to the order\n"
                                                        "Order conditional tx params:\n");
@@ -1554,12 +1549,9 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                             }
                         }
                         if (!l_error) {
-                            char *l_tax_str = dap_chain_balance_to_coins(l_tax);
-                            dap_string_append_printf(l_reply_str, "  sovereign_tax:    %s%%\n", l_tax_str);
-                            DAP_DEL_Z(l_tax_str);
-                            char *l_addr_str = dap_chain_addr_to_str(&l_addr);
-                            dap_string_append_printf(l_reply_str, "  sovereign_addr:   %s\n", l_addr_str);
-                            DAP_DEL_Z(l_addr_str);
+                            char *l_tax_str; dap_uint256_to_char(l_tax, &l_tax_str);
+                            dap_string_append_printf(l_reply_str, "  sovereign_tax:    %s%%\n  sovereign_addr:   %s\n",
+                                l_tax_str, dap_chain_addr_to_str(&l_addr));
                         } else
                             dap_string_append(l_reply_str, "  Conditional tx not found or illegal\n");
                     }
@@ -1771,26 +1763,18 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
             struct validator_odrer_ext *l_ext = (struct validator_odrer_ext *)l_order->ext_n_sign;
             l_sovereign_tax = l_ext->tax;
             if (l_order_hash_str && compare256(l_value, l_order->price) == -1) {
-                char *l_coin_str = dap_chain_balance_to_coins(l_value);
-                char *l_value_min_str = dap_chain_balance_print(l_order->price);
-                char *l_coin_min_str = dap_chain_balance_to_coins(l_order->price);
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Number in '-value' param %s(%s) is lower than order minimum allowed value %s(%s)",
-                                                  l_coin_str, l_value_str, l_coin_min_str, l_value_min_str);
-                DAP_DELETE(l_coin_str);
-                DAP_DELETE(l_value_min_str);
-                DAP_DELETE(l_coin_min_str);
+                char *l_coin_min_str, *l_value_min_str =
+                    dap_uint256_to_char(l_order->price, &l_coin_min_str);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Number in '-value' param %s is lower than order minimum allowed value %s(%s)",
+                                                  l_value_str, l_coin_min_str, l_value_min_str);
                 dap_enc_key_delete(l_enc_key);
                 return -13;
             }
             if (l_order_hash_str && compare256(l_value, l_ext->value_max) == 1) {
-                char *l_coin_str = dap_chain_balance_to_coins(l_value);
-                char *l_value_max_str = dap_chain_balance_print(l_ext->value_max);
-                char *l_coin_max_str = dap_chain_balance_to_coins(l_ext->value_max);
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Number in '-value' param %s(%s) is higher than order minimum allowed value %s(%s)",
-                                                  l_coin_str, l_value_str, l_coin_max_str, l_value_max_str);
-                DAP_DELETE(l_coin_str);
-                DAP_DELETE(l_value_max_str);
-                DAP_DELETE(l_coin_max_str);
+                char *l_coin_max_str, *l_value_max_str =
+                    dap_uint256_to_char(l_ext->value_max, &l_coin_max_str);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Number in '-value' param %s is higher than order minimum allowed value %s(%s)",
+                                                  l_value_str, l_coin_max_str, l_value_max_str);
                 dap_enc_key_delete(l_enc_key);
                 return -14;
             }
@@ -1829,14 +1813,9 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
         return l_check_result;
     }
     if (compare256(l_value, s_srv_stake->delegate_allowed_min) == -1) {
-        char *l_coin_str = dap_chain_balance_to_coins(l_value);
-        char *l_value_min_str = dap_chain_balance_print(s_srv_stake->delegate_allowed_min);
-        char *l_coin_min_str = dap_chain_balance_to_coins(s_srv_stake->delegate_allowed_min);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Number in '-value' param %s(%s) is lower than minimum allowed value %s(%s)",
-                                          l_coin_str, l_value_str, l_coin_min_str, l_value_min_str);
-        DAP_DELETE(l_coin_str);
-        DAP_DELETE(l_value_min_str);
-        DAP_DELETE(l_coin_min_str);
+        char *l_coin_min_str, *l_value_min_str = dap_uint256_to_char(s_srv_stake->delegate_allowed_min, &l_coin_min_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Number in '-value' param %s is lower than minimum allowed value %s(%s)",
+                                          l_value_str, l_coin_min_str, l_value_min_str);
         dap_enc_key_delete(l_enc_key);
         return -11;
     }
@@ -2013,9 +1992,8 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
             DAP_DELETE(l_out_hash_str);
             DAP_DELETE(l_tx);
         } else {
-            l_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_hash);
+            l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't invalidate transaction %s, examine log files for details", l_tx_hash_str);
-            DAP_DELETE(l_tx_hash_str);
             DAP_DEL_Z(l_tx);
             return -21;
         }
@@ -2073,7 +2051,7 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     if (s_chain_esbocs_started(a_stake->net))
         snprintf(l_active_str, 32, "\tActive: %s\n", a_stake->is_active ? "true" : "false");
     char *l_sov_addr_str = dap_chain_addr_is_blank(&a_stake->sovereign_addr) ?
-                dap_strdup("N/A") : dap_chain_addr_to_str(&a_stake->sovereign_addr);
+                "null" : dap_chain_addr_to_str(&a_stake->sovereign_addr);
     uint256_t l_sov_tax_percent = uint256_0;
     MULT_256_256(a_stake->sovereign_tax, GET_256_FROM_64(100), &l_sov_tax_percent);
     char *l_sov_tax_str = dap_chain_balance_to_coins(l_sov_tax_percent);
@@ -2090,7 +2068,6 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
                              l_sov_addr_str, l_sov_tax_str, l_active_str);
     DAP_DELETE(l_balance);
     DAP_DELETE(l_rel_weight_str);
-    DAP_DELETE(l_sov_addr_str);
     DAP_DELETE(l_sov_tax_str);
 }
 
@@ -2162,16 +2139,11 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
     }
     l_signer_node_addr = &l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr;
 
-    l_key = dap_chain_node_addr_to_hash_str(l_signer_node_addr);
-    if(!l_key)
-    {
-        return -5;
-    }
     // read node
-    l_remote_node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
+    l_remote_node_info = (dap_chain_node_info_t*) dap_global_db_get_sync(a_net->pub.gdb_nodes,
+        dap_chain_node_addr_to_str_static(l_signer_node_addr), &l_node_info_size, NULL, NULL);
 
     if(!l_remote_node_info) {
-        DAP_DELETE(l_key);
         return -6;
     }
 
@@ -2179,10 +2151,8 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
     if(node_info_size_must_be != l_node_info_size) {
         log_it(L_WARNING, "node has bad size in base=%zu (must be %zu)", l_node_info_size, node_info_size_must_be);
         DAP_DELETE(l_remote_node_info);
-        DAP_DELETE(l_key);
         return -7;
     }
-    DAP_DELETE(l_key);
     // start connect
     l_node_client = dap_chain_node_client_connect_channels(a_net,l_remote_node_info,"N");
     if(!l_node_client) {
@@ -2504,19 +2474,16 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                         dap_string_append_printf(l_reply_str, "Total keys count: %zu\n", l_total_count);
                     if (s_chain_esbocs_started(l_net))
                         dap_string_append_printf(l_reply_str, "Inactive keys count: %zu\n", l_inactive_count);
-                    char *l_total_weight_str = dap_chain_balance_print(l_total_weight);
-                    char *l_total_weight_coins = dap_chain_balance_to_coins(l_total_weight);
+                    char *l_total_weight_coins, *l_total_weight_str =
+                            dap_uint256_to_char(l_total_weight, &l_total_weight_coins);
                     dap_string_append_printf(l_reply_str, "Total weight: %s (%s)\n", l_total_weight_coins, l_total_weight_str);
-                    DAP_DELETE(l_total_weight_coins);
-                    DAP_DELETE(l_total_weight_str);
                 }
 
-                char *l_delegate_min_str = dap_chain_balance_to_coins(s_srv_stake->delegate_allowed_min);
+                char *l_delegate_min_str; dap_uint256_to_char(s_srv_stake->delegate_allowed_min, &l_delegate_min_str);
                 char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
                 dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, l_net->pub.native_ticker);
                 dap_string_append_printf(l_reply_str, "Minimum value for key delegating: %s %s",
                                          l_delegate_min_str, l_delegated_ticker);
-                DAP_DELETE(l_delegate_min_str);
                 *a_str_reply = dap_string_free(l_reply_str, false);
             } else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "tx", NULL)) {
                 const char *l_net_str = NULL;
@@ -2558,17 +2525,14 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                                                                                      &l_out_idx_tmp);
                     char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_chain_hash_fast_to_str(&l_datum_hash, l_hash_str, sizeof(l_hash_str));
-                    dap_string_append_printf(l_str_tmp,"%s \n",spaces);
                     dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_datum_tx->header.ts_created);
-                    dap_string_append_printf(l_str_tmp, "%s \n", buf);
-                    dap_string_append_printf(l_str_tmp,"tx_hash:\t%s \n",l_hash_str);
+                    dap_string_append_printf(l_str_tmp,"%s \n%s \ntx_hash:\t%s \n",spaces, buf, l_hash_str);
 
-                    l_signing_addr_str = dap_chain_addr_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);
                     char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_chain_hash_fast_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast, l_pkey_hash_str, sizeof(l_pkey_hash_str));
-                    l_coins = dap_chain_balance_to_coins(l_tx_out_cond->header.value);
-                    l_balance = dap_chain_balance_print(l_tx_out_cond->header.value);
-
+                    l_balance = dap_uint256_to_char(l_tx_out_cond->header.value, &l_coins);
+                    
+                    l_signing_addr_str = dap_chain_addr_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);
                     dap_string_append_printf(l_str_tmp,"signing_addr:\t%s \n",l_signing_addr_str);
                     dap_string_append_printf(l_str_tmp,"signing_hash:\t%s \n",l_pkey_hash_str);
                     l_node_address_text_block = dap_strdup_printf("node_address:\t" NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr));
@@ -2576,9 +2540,6 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"value:\t\t%s (%s) \n",l_coins,l_balance);
 
                     DAP_DELETE(l_node_address_text_block);
-                    DAP_DELETE(l_signing_addr_str);
-                    DAP_DELETE(l_balance);
-                    DAP_DEL_Z(l_coins);
                 }
 
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
@@ -2717,14 +2678,12 @@ void dap_chain_net_srv_stake_get_fee_validators_str(dap_chain_net_t *a_net, dap_
     uint256_t l_min = uint256_0, l_max = uint256_0, l_average = uint256_0, l_median = uint256_0;
     dap_chain_net_srv_stake_get_fee_validators(a_net, &l_max, &l_average, &l_min, &l_median);
     const char *l_native_token  = a_net->pub.native_ticker;
-    char    *l_min_balance      = dap_chain_balance_print(l_min),
-            *l_min_coins        = dap_chain_balance_to_coins(l_min),
-            *l_max_balance      = dap_chain_balance_print(l_max),
-            *l_max_coins        = dap_chain_balance_to_coins(l_max),
-            *l_average_balance  = dap_chain_balance_print(l_average),
-            *l_average_coins    = dap_chain_balance_to_coins(l_average),
-            *l_median_balance   = dap_chain_balance_print(l_median),
-            *l_median_coins     = dap_chain_balance_to_coins(l_median);
+    char *l_coins_str,
+    *l_min_balance      = dap_strdup(dap_uint256_to_char(l_min, &l_coins_str)),     *l_min_coins    = dap_strdup(l_coins_str),
+    *l_max_balance      = dap_strdup(dap_uint256_to_char(l_max, &l_coins_str)),     *l_max_coins    = dap_strdup(l_coins_str),
+    *l_average_balance  = dap_strdup(dap_uint256_to_char(l_average, &l_coins_str)), *l_average_coins= dap_strdup(l_coins_str),
+    *l_median_balance   = dap_strdup(dap_uint256_to_char(l_median, &l_coins_str)),  *l_median_coins = dap_strdup(l_coins_str);
+
     dap_string_append_printf(a_string_ret, "Validator fee: \n"
                                            "\t MIN: %s (%s) %s\n"
                                            "\t MAX: %s (%s) %s\n"
@@ -2733,14 +2692,7 @@ void dap_chain_net_srv_stake_get_fee_validators_str(dap_chain_net_t *a_net, dap_
                                            l_max_coins, l_max_balance, l_native_token,
                                            l_average_coins, l_average_balance, l_native_token,
                                            l_median_coins, l_median_balance, l_native_token);
-    DAP_DELETE(l_min_balance);
-    DAP_DELETE(l_min_coins);
-    DAP_DELETE(l_max_balance);
-    DAP_DELETE(l_max_coins);
-    DAP_DELETE(l_average_balance);
-    DAP_DELETE(l_average_coins);
-    DAP_DELETE(l_median_balance);
-    DAP_DELETE(l_median_coins);
+    DAP_DEL_MULTY(l_min_balance, l_min_coins, l_max_balance, l_max_coins, l_average_balance, l_average_coins, l_median_balance, l_median_coins);
 }
 
 json_object *dap_chain_net_srv_stake_get_fee_validators_json(dap_chain_net_t  *a_net) {
@@ -2749,68 +2701,29 @@ json_object *dap_chain_net_srv_stake_get_fee_validators_json(dap_chain_net_t  *a
     uint256_t l_min = uint256_0, l_max = uint256_0, l_average = uint256_0, l_median = uint256_0;
     dap_chain_net_srv_stake_get_fee_validators(a_net, &l_max, &l_average, &l_min, &l_median);
     const char *l_native_token  = a_net->pub.native_ticker;
-    char    *l_min_balance      = dap_chain_balance_print(l_min),
-            *l_min_coins        = dap_chain_balance_to_coins(l_min),
-            *l_max_balance      = dap_chain_balance_print(l_max),
-            *l_max_coins        = dap_chain_balance_to_coins(l_max),
-            *l_average_balance  = dap_chain_balance_print(l_average),
-            *l_average_coins    = dap_chain_balance_to_coins(l_average),
-            *l_median_balance   = dap_chain_balance_print(l_median),
-            *l_median_coins     = dap_chain_balance_to_coins(l_median);
-    json_object *l_jobj_ret = json_object_new_object();
-    json_object *l_jobj_min = json_object_new_object();
-    json_object *l_jobj_min_coins = json_object_new_string(l_min_coins);
-    json_object *l_jobj_min_balance = json_object_new_string(l_min_balance);
-    json_object *l_jobj_max = json_object_new_object();
-    json_object *l_jobj_max_coins = json_object_new_string(l_max_coins);
-    json_object *l_jobj_max_balance = json_object_new_string(l_max_balance);
-    json_object *l_jobj_average = json_object_new_object();
-    json_object *l_jobj_average_coins = json_object_new_string(l_average_coins);
-    json_object *l_jobj_average_balance = json_object_new_string(l_average_balance);
-    json_object *l_jobj_median = json_object_new_object();
-    json_object *l_jobj_median_coins = json_object_new_string(l_median_coins);
-    json_object *l_jobj_median_balance = json_object_new_string(l_median_balance);
-    json_object *l_jobj_ticker = json_object_new_string(l_native_token);
-    if (!l_jobj_ret || !l_jobj_min || !l_jobj_min_coins || !l_jobj_min_balance || !l_jobj_max || !l_jobj_max_coins ||
-        !l_jobj_max_balance || !l_jobj_average || !l_jobj_average_coins || !l_jobj_average_balance || !l_jobj_median ||
-        !l_jobj_median_coins || !l_jobj_median_balance || !l_jobj_ticker) {
-        json_object_put(l_jobj_ret);
-        json_object_put(l_jobj_min);
-        json_object_put(l_jobj_min_coins);
-        json_object_put(l_jobj_min_balance);
-        json_object_put(l_jobj_max);
-        json_object_put(l_jobj_max_coins);
-        json_object_put(l_jobj_max_balance);
-        json_object_put(l_jobj_average);
-        json_object_put(l_jobj_average_coins);
-        json_object_put(l_jobj_average_balance);
-        json_object_put(l_jobj_median);
-        json_object_put(l_jobj_median_coins);
-        json_object_put(l_jobj_median_balance);
-        json_object_put(l_jobj_ticker);
-        return NULL;
-    }
-    json_object_object_add(l_jobj_min, "coin", l_jobj_min_coins);
-    json_object_object_add(l_jobj_min, "balance", l_jobj_min_balance);
-    json_object_object_add(l_jobj_max, "coin", l_jobj_max_coins);
-    json_object_object_add(l_jobj_max, "balance", l_jobj_max_balance);
-    json_object_object_add(l_jobj_average, "coin", l_jobj_average_coins);
-    json_object_object_add(l_jobj_average, "balance", l_jobj_average_balance);
-    json_object_object_add(l_jobj_median, "coin", l_jobj_median_coins);
-    json_object_object_add(l_jobj_median, "balance", l_jobj_median_balance);
-    json_object_object_add(l_jobj_ret, "min", l_jobj_min);
-    json_object_object_add(l_jobj_ret, "max", l_jobj_max);
-    json_object_object_add(l_jobj_ret, "average", l_jobj_average);
-    json_object_object_add(l_jobj_ret, "median", l_jobj_median);
-    json_object_object_add(l_jobj_ret, "token", l_jobj_ticker);
-    DAP_DELETE(l_min_balance);
-    DAP_DELETE(l_min_coins);
-    DAP_DELETE(l_max_balance);
-    DAP_DELETE(l_max_coins);
-    DAP_DELETE(l_average_balance);
-    DAP_DELETE(l_average_coins);
-    DAP_DELETE(l_median_balance);
-    DAP_DELETE(l_median_coins);
+    json_object *l_jobj_min     = json_object_new_object(), *l_jobj_max     = json_object_new_object(),
+                *l_jobj_average = json_object_new_object(), *l_jobj_median  = json_object_new_object(),
+                *l_jobj_ret     = json_object_new_object();
+                
+    char *l_coins_str;
+    json_object_object_add( l_jobj_min,     "balance",  json_object_new_string(dap_uint256_to_char(l_min, &l_coins_str)) );
+    json_object_object_add( l_jobj_min,     "coin",     json_object_new_string(l_coins_str) );
+
+    json_object_object_add( l_jobj_max,     "balance",  json_object_new_string(dap_uint256_to_char(l_max, &l_coins_str)) );
+    json_object_object_add( l_jobj_max,     "coin",     json_object_new_string(l_coins_str) );
+
+    json_object_object_add( l_jobj_average, "balance",  json_object_new_string(dap_uint256_to_char(l_average, &l_coins_str)) );
+    json_object_object_add( l_jobj_average, "coin",     json_object_new_string(l_coins_str) );
+    
+    json_object_object_add( l_jobj_median, "balance",   json_object_new_string(dap_uint256_to_char(l_median, &l_coins_str)) );
+    json_object_object_add( l_jobj_median, "coin",      json_object_new_string(l_coins_str) );
+
+    json_object_object_add(l_jobj_ret, "min",       l_jobj_min);
+    json_object_object_add(l_jobj_ret, "max",       l_jobj_max);
+    json_object_object_add(l_jobj_ret, "average",   l_jobj_average);
+    json_object_object_add(l_jobj_ret, "median",    l_jobj_median);
+    json_object_object_add(l_jobj_ret, "token",     json_object_new_string(a_net->pub.native_ticker));
+
     return l_jobj_ret;
 }
 

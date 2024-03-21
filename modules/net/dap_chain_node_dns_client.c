@@ -89,14 +89,14 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
     dap_chain_net_node_balancer_t *l_link_full_node_list = DAP_NEW_Z_SIZE(dap_chain_net_node_balancer_t,
                                                                           sizeof(dap_chain_net_node_balancer_t) + sizeof(dap_chain_node_info_t));
     dap_chain_node_info_t l_result = {};
-    l_result.hdr.ext_addr_v4.s_addr = ntohl(*(uint32_t *)l_cur);
+    //l_result.hdr.ext_addr_v4.s_addr = ntohl(*(uint32_t *)l_cur); TODO: implement other request and response
     l_cur = l_buf + 5 * sizeof(uint16_t);
     int l_additions_count = ntohs(*(uint16_t *)l_cur);
     if (l_additions_count == 1) {
         l_cur = l_buf + l_addr_point + DNS_ANSWER_SIZE;
-        l_result.hdr.ext_port = ntohs(*(uint16_t *)l_cur);
+        l_result.ext_port = ntohs(*(uint16_t *)l_cur);
         l_cur += sizeof(uint16_t);
-        l_result.hdr.address.uint64 = be64toh(*(uint64_t *)l_cur);
+        l_result.address.uint64 = be64toh(*(uint64_t *)l_cur);
     }
     *(dap_chain_node_info_t*)l_link_full_node_list->nodes_info = l_result;
     l_link_full_node_list->count_node = 1;
@@ -248,10 +248,10 @@ int dap_chain_node_info_dns_request(dap_worker_t *a_worker, struct in_addr a_add
     l_esocket_callbacks.error_callback = s_dns_client_esocket_error_callback; // Error processing function
 
     dap_events_socket_t * l_esocket = dap_events_socket_create(DESCRIPTOR_TYPE_SOCKET_UDP,&l_esocket_callbacks);
-    l_esocket->remote_addr.sin_family = AF_INET;
+    /*l_esocket->remote_addr.sin_family = AF_INET;
     l_esocket->remote_addr.sin_port = htons(a_port);
     l_esocket->remote_addr.sin_addr = a_addr;
-    l_esocket->_inheritor = l_dns_client;
+    l_esocket->_inheritor = l_dns_client;*/ // TODO fill the address from config string with no passing it as arg...
 
     dap_events_socket_assign_on_worker_mt(l_esocket, a_worker);
     return 0;

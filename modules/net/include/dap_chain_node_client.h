@@ -124,8 +124,6 @@ typedef struct dap_chain_node_client {
     UT_hash_handle hh;
     dap_chain_node_addr_t cur_node_addr;
     dap_chain_node_addr_t remote_node_addr;
-    struct in_addr remote_ipv4;
-    struct in6_addr remote_ipv6;
 
     bool keep_connection;
     bool is_connected;

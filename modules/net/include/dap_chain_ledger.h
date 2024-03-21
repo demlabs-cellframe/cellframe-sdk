@@ -213,7 +213,7 @@ char* dap_ledger_tx_check_err_str(int a_code);
  *
  */
 
-char * dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, bool a_unspent_only);
+json_object * dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, bool a_unspent_only);
 
 /**
  * Check token ticker existance
@@ -231,14 +231,14 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
 int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
 int dap_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
 char *dap_ledger_token_decl_add_err_code_to_str(int a_code);
-dap_list_t *dap_ledger_token_info(dap_ledger_t *a_ledger);
+json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset);
 
 // Get all token-declarations
 dap_list_t* dap_ledger_token_decl_all(dap_ledger_t *a_ledger);
 
-dap_string_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger);
-dap_string_t *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_tx_treshold_hash);
-dap_string_t *dap_ledger_balance_info(dap_ledger_t *a_ledger);
+json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset);
+json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_tx_treshold_hash, size_t a_limit, size_t a_offset);
+json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset);
 
 size_t dap_ledger_token_auth_signs_valid(dap_ledger_t *a_ledger, const char * a_token_ticker);
 size_t dap_ledger_token_auth_signs_total(dap_ledger_t *a_ledger, const char * a_token_ticker);
@@ -273,6 +273,8 @@ bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 // Checking a new transaction before adding to the cache
 int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
                                     bool a_from_threshold, dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out, char **a_main_ticker, bool a_check_for_removing);
+
+const char *dap_ledger_tx_get_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc);
 
 /**
  * Delete all transactions from the cache
@@ -315,6 +317,7 @@ uint256_t dap_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_a
 dap_chain_datum_tx_t* dap_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash);
 dap_chain_datum_tx_t* dap_ledger_tx_unspent_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash);
 dap_hash_fast_t *dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash);
+dap_hash_fast_t *dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_cond_out);
 
  // Get the transaction in the cache by the addr in out item
 dap_chain_datum_tx_t* dap_ledger_tx_find_by_addr(dap_ledger_t *a_ledger, const char * a_token,
