@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2020
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -115,11 +115,11 @@ int dap_chain_net_srv_xchange_init()
         "\tList of exchange transactions\n"
         "\tAll times are in RFC822. For example: \"Thu, 7 Dec 2023 21:18:04\"\n"
 
-    "srv_xchange token_pair -net <net_name> list all\n"
+    "srv_xchange token_pair -net <net_name> list all [-limit <limit>] [-offset <offset>]\n"
         "\tList of all token pairs\n"
     "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker>\n"
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
-    "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] \n"
+    "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] [-limit <limit>] [-offset <offset>]\n"
         "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
         "\tAll times are in RFC822. For example: \"Thu, 7 Dec 2023 21:18:04\"\n"
 
