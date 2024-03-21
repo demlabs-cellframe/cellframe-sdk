@@ -1061,11 +1061,21 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
         }break;
 
         case SUBCMD_AUTOCOLLECT: {
-            const char * l_cert_name = NULL;
+            const char * l_cert_name  = NULL, * l_addr_str = NULL;
             dap_list_t *l_block_list = NULL;
             dap_pkey_t * l_pub_key = NULL;
             dap_hash_fast_t l_pkey_hash = {};
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
+            if(!l_cert_name) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block %s autocollect renew' requires parameter '-cert'", l_subcmd_str);
+                return -20;
+            }
+            if (!l_addr_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block %s autocollect renew' requires parameter '-addr'", l_addr_str);
+                return -20;
+            }
             dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
             l_pub_key = dap_pkey_from_enc_key(l_cert->enc_key);
             if (!l_pub_key) {
@@ -1074,11 +1084,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 return -20;
             }
             dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
-                    .collectiong_level = l_chain->,
+                    .collectiong_level = l_chain->callback_get_collectiong_level,
                     .minimum_fee = l_chain->callback_get_minimum_fee,
                     .chain = l_chain,
-                    .blocks_sign_key = l_chain->PVT(l_session->esbocs)->blocks_sign_key,
-                    .block_sign_pkey = PVT(l_session->esbocs)->block_sign_pkey,
+                    .blocks_sign_key = l_cert->enc_key,
+                    .block_sign_pkey = l_pub_key,
                     .collecting_addr = PVT(l_session->esbocs)->collecting_addr
             };
             //Cleare gdb
@@ -1141,11 +1151,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                         continue;
                     l_block_list = dap_list_append(l_block_list, l_block_cache->block_hash_str);
                 }
-            }
-            
+            }            
 
             dap_chain_esbocs_add_block_collect(a_atom, a_atom_size, &l_last_block_hash, &l_block_collect_params);
-
 
             if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "status") == -1) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect' requires subcommand 'status'");
