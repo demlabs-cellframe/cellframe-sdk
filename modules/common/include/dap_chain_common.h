@@ -186,10 +186,7 @@ extern const dap_chain_addr_t c_dap_chain_addr_blank;
 
 enum dap_chain_srv_unit_enum {
     SERV_UNIT_UNDEFINED = 0 ,
-    SERV_UNIT_MB = 0x00000001, // megabytes
     SERV_UNIT_SEC = 0x00000002, // seconds
-    SERV_UNIT_DAY = 0x00000003,  // days
-    SERV_UNIT_KB = 0x00000010,  // kilobytes
     SERV_UNIT_B = 0x00000011,   // bytes
     SERV_UNIT_PCS = 0x00000022  // pieces
 };
@@ -199,10 +196,7 @@ DAP_STATIC_INLINE const char *dap_chain_srv_unit_enum_to_str(dap_chain_srv_unit_
 {
     switch (a_unit_enum) {
     case SERV_UNIT_UNDEFINED: return "UNDEFINED";
-    case SERV_UNIT_MB: return "MB";
     case SERV_UNIT_SEC: return "SEC";
-    case SERV_UNIT_DAY: return "DAY";
-    case SERV_UNIT_KB: return "KB";
     case SERV_UNIT_B: return "B";
     case SERV_UNIT_PCS: return "PCS";
     default: return "UNDEFINED";
@@ -212,14 +206,8 @@ DAP_STATIC_INLINE const char *dap_chain_srv_unit_enum_to_str(dap_chain_srv_unit_
 DAP_STATIC_INLINE dap_chain_srv_unit_enum_t dap_chain_srv_str_to_unit_enum(char* a_price_unit_str) {
     if (!a_price_unit_str)
         return SERV_UNIT_UNDEFINED;
-    if (!dap_strcmp(a_price_unit_str, "MB")){
-        return SERV_UNIT_MB;
-    } else if (!dap_strcmp(a_price_unit_str, "SEC")){
+    if (!dap_strcmp(a_price_unit_str, "SEC")){
         return SERV_UNIT_SEC;
-    } else if (!dap_strcmp(a_price_unit_str, "DAY")){
-        return SERV_UNIT_DAY;
-    } else if (!dap_strcmp(a_price_unit_str, "KB")){
-        return SERV_UNIT_KB;
     } else if (!dap_strcmp(a_price_unit_str, "B")){
         return SERV_UNIT_B;
     } else if (!dap_strcmp(a_price_unit_str, "PCS")){

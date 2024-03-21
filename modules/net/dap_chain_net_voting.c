@@ -296,6 +296,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
                 *(bool*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.delegate_key_required_offset)){
                 if (!dap_chain_net_srv_stake_check_pkey_hash(&pkey_hash)){
                     log_it(L_ERROR, "The voting required a delegated key.");
+                    dap_list_free(l_signs_list);
                     return false;
                 }
             }
@@ -336,6 +337,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
                 }
                 l_temp = l_temp->next;
             }
+            dap_list_free(l_signs_list);
         }
 
         uint256_t l_weight = {};
@@ -422,6 +424,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
             dap_chain_net_vote_t *l_vote_item = DAP_NEW_Z(dap_chain_net_vote_t);
             if (!l_vote_item){
                 log_it(L_CRITICAL, "Memory allocate_error!");
+                dap_list_free(l_signs_list);
                 return false;
             }
             l_vote_item->vote_hash = l_hash;
@@ -438,15 +441,18 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
                         l_voting->votes = dap_list_append(l_voting->votes, l_vote_item);
 
                         log_it(L_ERROR, "Vote is changed.");
+                        dap_list_free(l_signs_list);
                         return true;
                     } else {
                         log_it(L_ERROR, "The voting don't allow change your vote.");
+                        dap_list_free(l_signs_list);
                         DAP_DELETE(l_vote_item);
                         return false;
                     }
                 }
                 l_temp = l_temp->next;
             }
+            dap_list_free(l_signs_list);
             log_it(L_INFO, "Vote is accepted.");
             l_voting->votes = dap_list_append(l_voting->votes, l_vote_item);
         }
