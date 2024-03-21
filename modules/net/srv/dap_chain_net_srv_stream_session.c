@@ -133,7 +133,7 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_find_unsafe (dap_chain_net_sr
                                                                              uint32_t a_usage_id)
 {
     dap_chain_net_srv_usage_t * l_ret = NULL;
-    if (a_srv_session->usage_active->id == a_usage_id)
+    if (a_srv_session && a_srv_session->usage_active && a_srv_session->usage_active->id == a_usage_id)
         l_ret = a_srv_session->usage_active;
     return  l_ret;
 }
