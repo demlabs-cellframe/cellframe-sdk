@@ -1400,13 +1400,14 @@ struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
         json_object *l_jobj_processed_sync = json_object_new_object();
         dap_chain_t *l_chain = NULL;
         size_t l_count_el = 0, l_count_el_all = 0;
-        struct net_link *l_link, *l_link_tmp;
-        pthread_mutex_lock(&PVT(a_net)->uplinks_mutex);
-        HASH_ITER(hh,  PVT(a_net)->net_links, l_link, l_link_tmp) {
-            if (l_count_el_all < l_link->link_info->hdr.blocks_events)
-                l_count_el_all = l_link->link_info->hdr.blocks_events;
+        size_t l_node_link_nodes = 0;
+        dap_global_db_obj_t *l_nodes = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_node_link_nodes);
+        for (size_t i =0; i< l_node_link_nodes; i++) {
+            dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_nodes[i].value;
+            if (l_count_el_all < l_node_info->hdr.blocks_events)
+                l_count_el_all = l_node_info->hdr.blocks_events;
         }
-        pthread_mutex_unlock(&PVT(a_net)->uplinks_mutex);
+        dap_global_db_objs_delete(l_nodes, l_node_link_nodes);
         DL_FOREACH(a_net->pub.chains, l_chain){
             l_count_el += l_chain->callback_count_atom(l_chain);
         }
