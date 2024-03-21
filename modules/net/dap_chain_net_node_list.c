@@ -107,10 +107,6 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     log_it(L_DEBUG, "HTTP Node check parser retrieve netname %s", l_net_str);
 
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-    dap_chain_t *l_chain;
-    DL_FOREACH(l_net->pub.chains, l_chain) {
-        blocks = l_chain->callback_count_atom(l_chain);
-    }
     dap_chain_node_info_t l_node_info = {
         .hdr.address.uint64 = addr,
         .hdr.owner_address.uint64 = dap_chain_net_get_cur_addr_int(l_net),
