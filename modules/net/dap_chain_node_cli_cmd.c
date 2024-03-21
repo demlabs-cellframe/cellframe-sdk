@@ -5405,7 +5405,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void ** reply)
     dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = dap_chain_srv_str_to_unit_enum((char*)l_unit_str)};
 
     if(l_price_unit.enm == SERV_UNIT_UNDEFINED) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize unit '%s'. Unit must look like {mb | kb | b | sec | day}",
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize unit '%s'. Unit must look like { B | SEC }",
                 l_unit_str);
         return -9;
     }
@@ -5705,7 +5705,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
         SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
 
     if (compare256(l_total_fee, l_cond_value_sum) >= 0 ){
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Sum of conditional outputs less or equal to fee sum.");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Sum of conditional outputs must be greater than fees sum.");
         dap_chain_datum_tx_delete(l_tx);
         dap_chain_wallet_close(l_wallet);
         DAP_DEL_Z(l_wallet_pkey);
@@ -5718,7 +5718,8 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     // return coins to owner
     if (dap_chain_datum_tx_add_out_item(&l_tx, l_wallet_addr, l_coin_back) == -1) {
         dap_chain_datum_tx_delete(l_tx);
-        log_it(L_ERROR, "Cant add returning coins output");
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
+        log_it(L_ERROR, "Can't add returning coins output");
         DAP_DELETE(l_wallet_addr);
         dap_chain_wallet_close(l_wallet);
         DAP_DEL_Z(l_wallet_pkey);
@@ -5731,6 +5732,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
         dap_chain_datum_tx_delete(l_tx);
         dap_chain_wallet_close(l_wallet);
         DAP_DEL_Z(l_wallet_pkey);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
         log_it(L_ERROR, "Cant add network fee output");
         return -23;
     }
@@ -5739,6 +5741,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
         dap_chain_datum_tx_delete(l_tx);
         dap_chain_wallet_close(l_wallet);
         DAP_DEL_Z(l_wallet_pkey);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
         log_it(L_ERROR, "Cant add validator's fee output");
         return -24;
     }
@@ -5748,6 +5751,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     if(dap_chain_datum_tx_add_sign_item(&l_tx, l_owner_key) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         dap_enc_key_delete(l_owner_key);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
         log_it( L_ERROR, "Can't add sign output");
         return -25;
     }
@@ -5760,6 +5764,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     dap_chain_datum_tx_delete(l_tx);
     dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
     if (!l_chain) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
         DAP_DELETE(l_datum);
         return -26;
     }
@@ -5772,7 +5777,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
         DAP_DELETE(l_hash_str);
         return 0;
     }
-    dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create conditional 256bit TX\n");
+    dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
     return -1;
 }
 
