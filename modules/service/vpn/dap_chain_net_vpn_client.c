@@ -6,9 +6,9 @@
  * Copyright  (c) 2019
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
- DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+ DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -440,7 +440,8 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
 {
 
 
-    dap_chain_net_srv_order_t * l_orders = NULL;
+    // dap_chain_net_srv_order_t 
+    dap_list_t* l_orders = NULL;
     size_t l_orders_num = 0;
     dap_chain_net_srv_uid_t l_srv_uid = { { 0 } };
     uint256_t l_price_min = {};
@@ -451,8 +452,8 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
 
     if(dap_chain_net_srv_order_find_all_by(a_net, l_direction, l_srv_uid, l_price_unit, NULL, l_price_min, l_price_max, &l_orders, &l_orders_num) == 0){
         size_t l_orders_size = 0;
-        for(size_t i = 0; i < l_orders_num; i++) {
-            dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
+        for(dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next) {
+            dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *) l_temp->data;
             //dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type);
             dap_chain_hash_fast_t l_hash={0};
             char *l_hash_str;
@@ -476,9 +477,9 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
             }
             dap_string_append_printf(l_string_ret, "Order %s: State %s\n", l_hash_str, l_state_str);
             DAP_DELETE(l_hash_str);
-            l_orders_size += dap_chain_net_srv_order_get_size(l_order);
             //dap_string_append(l_string_ret, "\n");
         }
+        dap_list_free_full(l_orders, NULL);
     }
     // return str from dap_string_t
     return dap_string_free(l_string_ret, false);
