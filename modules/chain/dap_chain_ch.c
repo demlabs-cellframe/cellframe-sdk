@@ -103,8 +103,9 @@ enum sync_context_state {
 };
 
 struct sync_context {
-    atomic_uint_fast64_t allowed_num;
-    atomic_uint_fast16_t state;
+    pthread_rwlock_t lock;
+    uint64_t allowed_num;
+    uint16_t state;
     dap_chain_atom_iter_t *iter;
     dap_stream_node_addr_t addr;
     dap_chain_net_id_t net_id;
@@ -924,8 +925,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_context->cell_id = l_chain_pkt->hdr.cell_id;
                 l_context->num_last = l_sum.num_last;
                 l_context->last_activity = dap_time_now();
-                atomic_store_explicit(&l_context->state, SYNC_STATE_READY, memory_order_relaxed);
-                atomic_store(&l_context->allowed_num, l_sum.num_cur + s_sync_ack_window_size);
+                pthread_rwlock_init(&l_context->lock, NULL);
+                l_context->state = SYNC_STATE_READY;
+                l_context->allowed_num = l_sum.num_cur + s_sync_ack_window_size;
                 dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_context);
                 l_ch_chain->sync_context = l_context;
                 l_ch_chain->sync_timer = dap_timerfd_start_on_worker(a_ch->stream_worker->worker, 1000, s_sync_timer_callback, l_ch_chain);
@@ -994,13 +996,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             break;
         }
         l_context->last_activity = dap_time_now();
-        if (atomic_load_explicit(&l_context->state, memory_order_relaxed) == SYNC_STATE_OVER)
-            break;
-        atomic_store_explicit(&l_context->allowed_num,
-                              dap_min(l_ack_num + s_sync_ack_window_size, l_context->num_last),
-                              memory_order_release);
-        if (atomic_exchange(&l_context->state, SYNC_STATE_READY) == SYNC_STATE_IDLE)
+        pthread_rwlock_wrlock(&l_context->lock);
+        l_context->allowed_num = dap_min(l_ack_num + s_sync_ack_window_size, l_context->num_last);
+        if (l_context->state == SYNC_STATE_IDLE) {
+            l_context->state = SYNC_STATE_READY;
             dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_context);
+        }
+        pthread_rwlock_unlock(&l_context->lock);
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN: {
@@ -1395,16 +1397,23 @@ static bool s_chain_iter_callback(void *a_arg)
     dap_chain_atom_iter_t *l_iter = l_context->iter;
     assert(l_iter);
     dap_chain_t *l_chain = l_iter->chain;
-    if (atomic_exchange(&l_context->state, SYNC_STATE_BUSY) == SYNC_STATE_OVER) {
-        atomic_store(&l_context->state, SYNC_STATE_OVER);
+    pthread_rwlock_wrlock(&l_context->lock);
+    if (l_context->state == SYNC_STATE_OVER) {
+        pthread_rwlock_unlock(&l_context->lock);
         return false;
     }
+    l_context->state = SYNC_STATE_BUSY;
+    pthread_rwlock_unlock(&l_context->lock);
     size_t l_atom_size = l_iter->cur_size;
     dap_chain_atom_ptr_t l_atom = l_iter->cur;
     uint32_t l_cycles_count = 0;
     while (l_atom && l_atom_size) {
-        if (l_iter->cur_num > atomic_load_explicit(&l_context->allowed_num, memory_order_acquire))
+        pthread_rwlock_rdlock(&l_context->lock);
+        if (l_iter->cur_num > l_context->allowed_num) {
+            pthread_rwlock_unlock(&l_context->lock);
             break;
+        }
+        pthread_rwlock_rdlock(&l_context->lock);
         dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_context->net_id.uint64, l_context->chain_id.uint64, l_context->cell_id.uint64,
                                                          l_atom, l_atom_size);
         // For master format binary complience
@@ -1421,20 +1430,25 @@ static bool s_chain_iter_callback(void *a_arg)
         l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size);
         if (!l_atom || !l_atom_size || l_iter->cur_num > l_context->num_last)
             break;
-        if (atomic_exchange(&l_context->state, SYNC_STATE_BUSY) == SYNC_STATE_OVER) {
-            atomic_store(&l_context->state, SYNC_STATE_OVER);
+        pthread_rwlock_rdlock(&l_context->lock);
+        if (l_context->state == SYNC_STATE_OVER) {
+            pthread_rwlock_unlock(&l_context->lock);
             return false;
         }
+        l_context->state = SYNC_STATE_BUSY;
+        pthread_rwlock_unlock(&l_context->lock);
+
         if (++l_cycles_count >= s_sync_packets_per_thread_call)
             return true;
     }
-    uint16_t l_state = l_atom && l_atom_size && l_iter->cur_num <= l_context->num_last
-                ? SYNC_STATE_IDLE : SYNC_STATE_OVER;
-    uint16_t l_prev_state = atomic_exchange(&l_context->state, l_state);
-    if (l_prev_state == SYNC_STATE_OVER && l_state != SYNC_STATE_OVER)
-        atomic_store(&l_context->state, SYNC_STATE_OVER);
-    if (l_prev_state == SYNC_STATE_READY)   // Allowed num was changed since last state updating
+    pthread_rwlock_wrlock(&l_context->lock);
+    if (l_context->state == SYNC_STATE_READY) {  // Allowed num was changed since last state updating
+        pthread_rwlock_unlock(&l_context->lock);
         return true;
+    }
+    if (l_context->state != SYNC_STATE_OVER)
+        l_context->state = l_atom && l_atom_size && l_iter->cur_num <= l_context->num_last;
+    pthread_rwlock_unlock(&l_context->lock);
     return false;
 }
 
@@ -1443,6 +1457,7 @@ static bool s_chain_iter_delete_callback(void *a_arg)
     struct sync_context *l_context = a_arg;
     assert(l_context->iter);
     l_context->iter->chain->callback_atom_iter_delete(l_context->iter);
+    pthread_rwlock_destroy(&l_context->lock);
     DAP_DELETE(l_context);
     return false;
 }
@@ -1455,7 +1470,10 @@ static void s_ch_chain_go_idle(dap_chain_ch_t *a_ch_chain)
 {
     // New protocol
     if (a_ch_chain->sync_context) {
-        atomic_store(&((struct sync_context *)a_ch_chain->sync_context)->state, SYNC_STATE_OVER);
+        struct sync_context *l_context = a_ch_chain->sync_context;
+        pthread_rwlock_wrlock(&l_context->lock);
+        l_context->state = SYNC_STATE_OVER;
+        pthread_rwlock_unlock(&l_context->lock);
         dap_proc_thread_callback_add(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker->proc_queue_input,
                                      s_chain_iter_delete_callback, a_ch_chain->sync_context);
         a_ch_chain->sync_context = NULL;
