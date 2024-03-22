@@ -214,7 +214,7 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
 
 static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net_id);
 static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id, int a_error);
-static void s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_net_id, int a_links_count);
+static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_net_id, int a_links_count);
 static int s_link_manager_fill_net_info(dap_link_t *a_link);
 static void s_link_manager_link_request(uint64_t a_net_id);
 
@@ -473,7 +473,7 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
  * @param a_arg
  */
 
-static void s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_net_id, int a_links_count)
+static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_net_id, int a_links_count)
 {
 // sanity check
     dap_return_if_pass(!a_link);
@@ -2383,7 +2383,7 @@ int s_net_load(dap_chain_net_t *a_net)
         l_gdb_groups_mask = dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix, l_chain->name);
         dap_global_db_cluster_t *l_cluster = dap_global_db_cluster_add(
                                                     dap_global_db_instance_get_default(),
-                                                    l_net->pub.name, dap_cluster_guuid_compose(l_net->pub.id.uint64, 0),
+                                                    l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                     l_gdb_groups_mask, DAP_CHAIN_NET_MEMPOOL_TTL, true,
                                                     DAP_GDB_MEMBER_ROLE_USER,
                                                     DAP_CLUSTER_ROLE_EMBEDDED);
@@ -2399,7 +2399,7 @@ int s_net_load(dap_chain_net_t *a_net)
     // Service orders cluster
     l_gdb_groups_mask = dap_strdup_printf("%s.service.orders", l_net->pub.gdb_groups_prefix);
     l_net_pvt->orders_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                          l_net->pub.name, dap_cluster_guuid_compose(l_net->pub.id.uint64, 0),
+                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                           l_gdb_groups_mask, 0, true,
                                                           DAP_GDB_MEMBER_ROLE_GUEST,
                                                           DAP_CLUSTER_ROLE_EMBEDDED);
@@ -2414,7 +2414,7 @@ int s_net_load(dap_chain_net_t *a_net)
     l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
     l_gdb_groups_mask = dap_strdup_printf("%s.nodes*", l_net->pub.gdb_groups_prefix);
     l_net_pvt->nodes_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                         l_net->pub.name, dap_cluster_guuid_compose(l_net->pub.id.uint64, 0),
+                                                         l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                          l_gdb_groups_mask, 0, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
                                                          DAP_CLUSTER_ROLE_EMBEDDED);
