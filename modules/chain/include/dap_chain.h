@@ -45,13 +45,12 @@ typedef const void * dap_chain_atom_ptr_t;
 // Atomic element iterator
 typedef struct dap_chain_atom_iter {
     dap_chain_t *chain;
+    dap_chain_cell_id_t cell_id;
+     void *cur_item;
     dap_chain_atom_ptr_t cur;
     size_t cur_size;
     dap_chain_hash_fast_t *cur_hash;
-    dap_chain_cell_id_t cell_id;
-    bool with_treshold;
-    bool found_in_treshold;
-    void *cur_item;
+    uint64_t cur_num;
 } dap_chain_atom_iter_t;
 
 typedef struct dap_chain_datum_iter {
@@ -75,6 +74,13 @@ static const char* const dap_chain_atom_verify_res_str[] = {
     [ATOM_MOVE_TO_THRESHOLD] = "thresholded"
 };
 
+typedef enum dap_chain_iter_op {
+    DAP_CHAIN_ITER_OP_FIRST,
+    DAP_CHAIN_ITER_OP_LAST,
+    DAP_CHAIN_ITER_OP_NEXT,
+    DAP_CHAIN_ITER_OP_PREV
+} dap_chain_iter_op_t;
+
 typedef dap_chain_t* (*dap_chain_callback_new_t)(void);
 
 typedef void (*dap_chain_callback_t)(dap_chain_t *);
@@ -86,9 +92,10 @@ typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_form_treshold_t)(dap_chai
 typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_verify_t)(dap_chain_t *, dap_chain_atom_ptr_t , size_t);
 typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)(void);
 
-typedef dap_chain_atom_iter_t* (*dap_chain_callback_atom_iter_create_t)(dap_chain_t *, dap_chain_cell_id_t, bool);
-typedef dap_chain_atom_iter_t* (*dap_chain_callback_atom_iter_create_from_t)(dap_chain_t * ,dap_chain_atom_ptr_t, size_t);
-typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_first_t)(dap_chain_atom_iter_t * , size_t*);
+typedef dap_chain_atom_iter_t * (*dap_chain_callback_atom_iter_create_t)(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);
+typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_t)(dap_chain_atom_iter_t *a_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size);
+typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_find_by_hash_t)(dap_chain_atom_iter_t *a_iter, dap_hash_fast_t *a_atom_hash, size_t *a_atom_size);
+typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *);
 
 typedef dap_chain_datum_iter_t * (*dap_chain_datum_callback_iter_create_t)(dap_chain_t *);
 typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_first_t)(dap_chain_datum_iter_t *);
@@ -98,16 +105,12 @@ typedef void (*dap_chain_datum_callback_iter_delete_t)(dap_chain_datum_iter_t *)
 typedef dap_chain_datum_t** (*dap_chain_callback_atom_get_datum_t)(dap_chain_atom_ptr_t, size_t, size_t * );
 typedef dap_time_t (*dap_chain_callback_atom_get_timestamp_t)(dap_chain_atom_ptr_t);
 
-typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_find_by_hash_t)(dap_chain_atom_iter_t * ,dap_chain_hash_fast_t *,size_t*);
 typedef dap_chain_datum_t * (*dap_chain_callback_datum_find_by_hash_t)(dap_chain_t *, dap_chain_hash_fast_t *, dap_chain_hash_fast_t *, int *);
 
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_block_find_by_hash_t)(dap_chain_t * ,dap_chain_hash_fast_t *, size_t *);
 
 typedef dap_chain_atom_ptr_t * (*dap_chain_callback_atom_iter_get_atoms_t)(dap_chain_atom_iter_t * ,size_t* ,size_t**);
 typedef size_t (*dap_chain_callback_add_datums_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
-
-typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_next_t)(dap_chain_atom_iter_t *  ,size_t*);
-typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *);
 
 typedef void (*dap_chain_callback_notify_t)(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void *a_atom, size_t a_atom_size); //change in chain happened
 
@@ -171,10 +174,6 @@ typedef struct dap_chain {
     dap_chain_callback_add_datums_t callback_add_datums;
     dap_chain_callback_atom_get_hdr_size_t callback_atom_get_hdr_static_size; // Get atom header's size
 
-    dap_chain_callback_atom_iter_create_t callback_atom_iter_create;
-    dap_chain_callback_atom_iter_create_from_t callback_atom_iter_create_from;
-    dap_chain_callback_atom_iter_get_first_t callback_atom_iter_get_first;
-
     dap_chain_callback_atom_get_datum_t callback_atom_get_datums;
     dap_chain_callback_atom_get_timestamp_t callback_atom_get_timestamp;
 
@@ -183,10 +182,11 @@ typedef struct dap_chain {
 
     dap_chain_callback_block_find_by_hash_t callback_block_find_by_tx_hash;
 
-    dap_chain_callback_atom_iter_get_next_t callback_atom_iter_get_next;
-    dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_links;
-    dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_lasts;
+    dap_chain_callback_atom_iter_create_t callback_atom_iter_create;
+    dap_chain_callback_atom_iter_get_t callback_atom_iter_get;
     dap_chain_callback_atom_iter_delete_t callback_atom_iter_delete;
+    // WRN: No iterator used or changed with it
+    dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_links;
 
     dap_chain_callback_get_count callback_count_tx;
     dap_chain_callback_get_list callback_get_txs;

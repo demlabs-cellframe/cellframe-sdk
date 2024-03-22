@@ -1159,7 +1159,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         log_it(L_NOTICE, "Stream connection established");
 
         dap_chain_ch_sync_request_t l_sync_request = {};
-        dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_STREAM_CH_CHAIN_ID);
+        dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_CHAIN_CH_ID);
         // fill begin id
         l_sync_request.id_start = 1;
         // fill current node address
@@ -1167,7 +1167,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
         log_it(L_INFO, "Requested GLOBAL_DB syncronizatoin, %"DAP_UINT64_FORMAT_U":%"DAP_UINT64_FORMAT_U" period",
                                                         l_sync_request.id_start, l_sync_request.id_end);
-        if(0 == dap_chain_ch_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
+        if(0 == dap_chain_ch_pkt_write_unsafe(l_ch_chain, DAP_CHAIN_CH_PKT_TYPE_SYNC_GLOBAL_DB,
                 l_net->pub.id.uint64, 0, 0, &l_sync_request,
                 sizeof(l_sync_request))) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
@@ -1202,7 +1202,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             dap_chain_node_client_reset(l_node_client);
             // send request
             dap_chain_ch_sync_request_t l_sync_request = {};
-            if(0 == dap_chain_ch_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
+            if(0 == dap_chain_ch_pkt_write_unsafe(l_ch_chain, DAP_CHAIN_CH_PKT_TYPE_SYNC_CHAINS,
                     l_net->pub.id.uint64, l_chain->id.uint64, l_remote_node_info->hdr.cell_id.uint64, &l_sync_request,
                     sizeof(l_sync_request))) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
@@ -7702,7 +7702,7 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, void **a_str_
     size_t l_atom_size = 0, l_datums_count = 0;
 
     HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
-        l_iter = l_cell->chain->callback_atom_iter_create(l_cell->chain, l_cell->id, 0);
+        l_iter = l_cell->chain->callback_atom_iter_create(l_cell->chain, l_cell->id, NULL);
         dap_chain_atom_ptr_t l_atom = l_cell->chain->callback_atom_find_by_hash(l_iter, &l_hash_tmp, &l_atom_size);
         dap_chain_datum_t **l_datums = l_cell->chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
         for (size_t i = 0; i < l_datums_count; i++) {
