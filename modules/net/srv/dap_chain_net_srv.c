@@ -92,7 +92,6 @@ int dap_chain_net_srv_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL, NULL);
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL);
-    dap_stream_ch_chain_net_srv_init();
 
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
         "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
@@ -109,13 +108,6 @@ int dap_chain_net_srv_init()
         "net_srv get_limits -net <net_name> -srv_uid <Service_UID> -provider_pkey_hash <Service_provider_public_key_hash> -client_pkey_hash <Client_public_key_hash>\n"
         "net_srv report\n"
         "\tGet report about srv usage"
-#ifdef DAP_MODULES_DYNAMIC
-        "\tOrder create\n"
-            "net_srv -net <net_name> order static [save | delete]\n"
-            "\tStatic nodelist create/delete\n"
-            "net_srv -net <net_name> order recheck\n"
-            "\tCheck the availability of orders\n"
-#endif
         );
 
     s_load_all();

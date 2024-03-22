@@ -1240,6 +1240,7 @@ static int s_delete_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block
     for(size_t i=0; i<a_block_cache->datum_count && l_block_offset +sizeof(a_block_cache->block->hdr) < a_block_cache->block_size;
             i++, l_block_offset += l_datum_size){
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
+        dap_chain_datum_t *l_datum = a_block_cache->datum[i];
         int l_res = dap_chain_datum_remove(a_blocks->chain, l_datum, l_datum_size, l_datum_hash);
         l_ret++;
 

@@ -744,7 +744,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     dap_hash_fast(l_event, l_event_size, &l_event_hash);
     bool l_res = false;
     if (l_dag->is_add_directly) {
-        dap_chain_atom_verify_res_t l_verify_res = s_chain_callback_atom_add(a_chain, l_event, l_event_size);
+        dap_chain_atom_verify_res_t l_verify_res = s_chain_callback_atom_add(a_chain, l_event, l_event_size, &l_event_hash);
         if (l_verify_res == ATOM_ACCEPT)
             l_res = dap_chain_atom_save(a_chain->cells, (uint8_t *)l_event, l_event_size, &l_event_hash) > 0;
         else
@@ -1553,7 +1553,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_string_append_printf( l_str_ret_tmp, "Event %s verification passed\n", l_objs[i].key);
                     // If not verify only mode we add
                     if ( ! l_verify_only ){
-                        if (s_chain_callback_atom_add(l_chain, l_event, l_event_size) != ATOM_ACCEPT) { // Add new atom in chain
+                        if (s_chain_callback_atom_add(l_chain, l_event, l_event_size, &l_event_hash) != ATOM_ACCEPT) { // Add new atom in chain
                             dap_string_append_printf(l_str_ret_tmp, "Event %s not added in chain\n", l_objs[i].key);
                         } else {
                             // add event to delete

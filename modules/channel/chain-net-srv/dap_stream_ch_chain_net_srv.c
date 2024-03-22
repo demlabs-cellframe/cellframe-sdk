@@ -275,11 +275,14 @@ char *dap_stream_ch_chain_net_srv_create_statistic_report()
     return dap_string_free(l_ret, false);
 }
 
-void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED_ARG dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
+void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED_ARG dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chan_ledger_notify_opcodes_t a_opcode)
 {
 // sanity check
     dap_return_if_pass(!a_tx);
 // func work
+    if(a_opcode != DAP_LEDGER_NOTIFY_OPCODE_ADDED)
+        return;
+        
     dap_chain_net_srv_grace_usage_t *l_item = NULL;
     dap_hash_fast_t l_tx_cond_hash = {0};
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);

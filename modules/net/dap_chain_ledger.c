@@ -2875,7 +2875,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
             }
             //Update value in ledger memory object
             if (!s_ledger_token_supply_check_update(a_ledger, l_token_item,
-                                                    l_token_emission_item->datum_token_emission->hdr.value)) {
+                                                    l_token_emission_item->datum_token_emission->hdr.value, false)) {
                 DAP_DELETE(l_token_emission_item->datum_token_emission);
                 DAP_DELETE(l_token_emission_item);
                 return DAP_LEDGER_EMISSION_ADD_CHECK_VALUE_EXEEDS_CURRENT_SUPPLY;
@@ -4387,7 +4387,7 @@ int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     }
 
     int l_ret_check = dap_ledger_tx_cache_check(a_ledger, a_tx, a_datum_hash,
-                                                      false, NULL, NULL, NULL);
+                                                      false, NULL, NULL, NULL, false);
     if(s_debug_more) {
         char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(a_datum_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
@@ -4856,7 +4856,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     if( (l_ret_check = dap_ledger_tx_cache_check(a_ledger, a_tx, a_tx_hash, false,
                                                        &l_list_bound_items, &l_list_tx_out,
                                                        &l_main_token_ticker, true))) {
-        debug_if(s_debug_more, L_WARNING, "dap_ledger_tx_add() tx %s not passed the check: %s ", l_tx_hash_str,
+        debug_if(s_debug_more, L_WARNING, "dap_ledger_tx_remove() tx %s not passed the check: %s ", l_tx_hash_str,
                     dap_ledger_tx_check_err_str(l_ret_check));
         return l_ret_check;
     }
@@ -4912,8 +4912,11 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             dap_ledger_reward_item_t *l_item = NULL;
             pthread_rwlock_wrlock(&l_ledger_pvt->rewards_rwlock);
             HASH_FIND(hh, l_ledger_pvt->rewards, &l_bound_item->reward_key, sizeof(l_bound_item->reward_key), l_item);
-            if(l_item)
+            if(l_item){
                 HASH_DEL(l_ledger_pvt->rewards, l_item);
+                DAP_DEL_Z(l_item);
+            }
+                
             pthread_rwlock_unlock(&l_ledger_pvt->rewards_rwlock);
         }
         l_outs_used--; // Do not calc this output with tx used items
@@ -6228,7 +6231,7 @@ const char *dap_ledger_tx_get_main_ticker(dap_ledger_t *a_ledger, dap_chain_datu
 {
     const char *l_main_ticker = NULL;
     dap_chain_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
-    int l_rc = dap_ledger_tx_cache_check(a_ledger, a_tx, l_tx_hash, false, NULL, NULL, (char **)&l_main_ticker);   
+    int l_rc = dap_ledger_tx_cache_check(a_ledger, a_tx, l_tx_hash, false, NULL, NULL, (char **)&l_main_ticker, false);   
 
     if (l_rc == DAP_LEDGER_TX_ALREADY_CACHED)
         l_main_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, l_tx_hash);
