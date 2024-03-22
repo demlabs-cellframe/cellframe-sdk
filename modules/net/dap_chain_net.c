@@ -1417,10 +1417,10 @@ struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
         DAP_DELETE(l_percent_str);
         json_object *l_jobj_total = json_object_new_uint64(l_count_el_all);
         json_object *l_jobj_current  = json_object_new_uint64(l_count_el);
-        json_object_object_add(l_jobj_processed_sync, "current", l_jobj_current);
-        json_object_object_add(l_jobj_processed_sync, "total", l_jobj_total);
+        json_object_object_add(l_jobj_processed_sync, "sync_datums", l_jobj_current);
+        json_object_object_add(l_jobj_processed_sync, "total_datums", l_jobj_total);
         json_object_object_add(l_jobj_processed_sync, "percent", l_jobj_percent);
-        json_object_object_add(l_json, "processed", l_jobj_processed_sync);
+        json_object_object_add(l_json, "sync_status", l_jobj_processed_sync);
     }
     return l_json;
 }
