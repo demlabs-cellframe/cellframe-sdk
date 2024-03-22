@@ -115,11 +115,11 @@ int dap_chain_net_srv_xchange_init()
         "\tList of exchange transactions\n"
         "\tAll times are in RFC822. For example: \"Thu, 7 Dec 2023 21:18:04\"\n"
 
-    "srv_xchange token_pair -net <net_name> list all\n"
+    "srv_xchange token_pair -net <net_name> list all [-limit <limit>] [-offset <offset>]\n"
         "\tList of all token pairs\n"
     "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker>\n"
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
-    "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] \n"
+    "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] [-limit <limit>] [-offset <offset>]\n"
         "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
         "\tAll times are in RFC822. For example: \"Thu, 7 Dec 2023 21:18:04\"\n"
 
@@ -1220,100 +1220,54 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                 }
                 case XCHANGE_CREATE_ERROR_INVALID_ARGUMENT: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Some parameters could not be set during a function call");
-                    DAP_DELETE(l_hash_ret);
                     return -24;
                 }
                 case XCHANGE_CREATE_ERROR_TOKEN_TICKER_SELL_IS_NOT_FOUND_LEDGER: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_sell_str);
-                    DAP_DELETE(l_hash_ret);
                     return -6;
                 }
                 case XCHANGE_CREATE_ERROR_TOKEN_TICKER_BUY_IS_NOT_FOUND_LEDGER: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_buy_str);
-                    DAP_DELETE(l_hash_ret);
                     return -6;
                 }
                 case XCHANGE_CREATE_ERROR_RATE_IS_ZERO: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -rate n.n = buy / sell (eg: 1.0, 1.135)");
-                    DAP_DELETE(l_hash_ret);
                     return -9;
                 }
                 case XCHANGE_CREATE_ERROR_FEE_IS_ZERO: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <unsigned integer 256>");
-                    DAP_DELETE(l_hash_ret);
                     return -21;
                 }
                 case XCHANGE_CREATE_ERROR_VALUE_SELL_IS_ZERO: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <unsigned integer 256>");
-                    DAP_DELETE(l_hash_ret);
                     return -9;
                 }
                 case XCHANGE_CREATE_ERROR_INTEGER_OVERFLOW_WITH_SUM_OF_VALUE_AND_FEE: {
                     log_it(L_ERROR, "Integer overflow with sum of value and fee");
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Integer overflow with sum of value and fee");
-                    DAP_DELETE(l_hash_ret);
                     return -22;
                 }
                 case XCHANGE_CREATE_ERROR_NOT_ENOUGH_CASH_FOR_FEE_IN_SPECIFIED_WALLET: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nNot enough cash for fee in specified wallet", l_sign_str);
-                    DAP_DELETE(l_hash_ret);
                     return -23;
                 }
                 case XCHANGE_CREATE_ERROR_NOT_ENOUGH_CASH_IN_SPECIFIED_WALLET: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nNot enough cash in specified wallet", l_sign_str);
-                    DAP_DELETE(l_hash_ret);
                     return -12;
                 }
                 case XCHANGE_CREATE_ERROR_MEMORY_ALLOCATED: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory");
-                    DAP_DELETE(l_hash_ret);
                     return -1;
                 }
                 case XCHANGE_CREATE_ERROR_CAN_NOT_COMPOSE_THE_CONDITIONAL_TRANSACTION: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't compose the conditional transaction", l_sign_str);
-                    DAP_DELETE(l_hash_ret);
                     return -14;
                 }
                 case XCHANGE_CREATE_ERROR_CAN_NOT_PUT_TRANSACTION_TO_MEMPOOL: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't compose the conditional transaction", l_sign_str);
-                    DAP_DELETE(l_hash_ret);
                     return -15;
                 }
             }
-
-            // Create the price
-            dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
-            if (!l_price) {
-                log_it(L_CRITICAL, "Memory allocation error");
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory");
-                dap_chain_wallet_close(l_wallet);
-                return -1;
-            }
-            dap_stpcpy(l_price->token_sell, l_token_sell_str);
-            l_price->net = l_net;
-            dap_stpcpy(l_price->token_buy, l_token_buy_str);
-            l_price->datoshi_sell = l_datoshi_sell;
-            l_price->rate = l_rate;
-            l_price->fee = l_fee;
-            // Create conditional transaction
-            dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_request(l_price, l_wallet);
-            if (!l_tx) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't compose the conditional transaction", l_sign_str);
-                DAP_DELETE(l_price);
-                dap_chain_wallet_close(l_wallet);
-                return -14;
-            }
-            dap_hash_fast_t l_tx_hash ={};
-            dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
-            char* l_ret = NULL;
-            if(!(l_ret = s_xchange_tx_put(l_tx, l_net))) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't put transaction to mempool", l_sign_str);
-                DAP_DELETE(l_price);
-                return -15;
-            }
-            // To avoid confusion, the term "order" will apply to the original conditional exchange offer transactions.
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nSuccessfully created order %s", l_sign_str, l_ret);
-            DAP_DELETE(l_ret);
         } break;
 
         case CMD_HISTORY:{
@@ -1826,6 +1780,22 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
             char l_tx_prev_cond_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&l_in_cond->header.tx_prev_hash,l_tx_prev_cond_hash_str, sizeof(l_tx_prev_cond_hash_str));
 
+            dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_in_cond->header.tx_prev_hash);
+            if (!l_prev_tx)
+                return false;
+
+            int l_out_num = l_in_cond->header.tx_out_prev_idx;
+            dap_hash_fast_t l_order_hash = l_in_cond->header.tx_prev_hash;
+            dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_out_num);
+            dap_hash_fast_t *l_order_hash_ptr = dap_ledger_get_first_chain_tx_hash(a_net->pub.ledger, a_tx, l_out_cond);
+            if (l_order_hash_ptr){
+                l_order_hash = *l_order_hash_ptr;
+                DAP_DEL_Z(l_order_hash_ptr);
+            }
+
+            char *l_value_from_str = dap_chain_balance_to_coins(l_out_prev_cond_item->header.value);
+            char *l_value_from_datoshi_str = dap_chain_balance_print(l_out_prev_cond_item->header.value);
+
             dap_string_append_printf(a_reply_str, "Hash: %s\n", l_tx_hash_str);
             if(a_print_ts){
                 char l_tmp_buf[DAP_TIME_STR_SIZE];
@@ -1834,8 +1804,10 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
             }
             if (a_print_status)
                 dap_string_append_printf(a_reply_str, "  Status: inactive,");
-            char *l_value_from_str, *l_value_from_datoshi_str = dap_uint256_to_char(l_out_prev_cond_item->header.value, &l_value_from_str);
-            dap_string_append_printf(a_reply_str, "  returned %s(%s) %s to owner", l_value_from_str, l_value_from_datoshi_str, l_tx_input_ticker);
+
+            char l_order_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_hash_fast_to_str(&l_order_hash, l_order_hash_str, sizeof(l_order_hash_str));
+            dap_string_append_printf(a_reply_str, "  returned %s(%s) %s to owner from order %s", l_value_from_str, l_value_from_datoshi_str, l_tx_input_ticker, l_order_hash_str);
             if(a_print_prev_hash)
                 dap_string_append_printf(a_reply_str, "\n  Prev cond: %s", l_tx_prev_cond_hash_str);
         } break;
@@ -1860,7 +1832,7 @@ size_t l_tx_total;
 
     memset(&l_tx_first_hash, 0, sizeof(dap_chain_hash_fast_t));             /* Initial hash == zero */
 
-
+    size_t l_tx_count = 0;
     for (l_tx_total = 0;
             (l_datum_tx = dap_ledger_tx_find_by_addr(a_net->pub.ledger, NULL, a_addr, &l_tx_first_hash));
                 l_tx_total++)
@@ -1872,8 +1844,11 @@ size_t l_tx_total;
         if ( a_before && (l_datum_tx->header.ts_created > a_before) )
             continue;
 
-        s_string_append_tx_cond_info(l_reply_str, a_net, l_datum_tx, a_opt_status, false, true, false);
+        if (s_string_append_tx_cond_info(l_reply_str, a_net, l_datum_tx, a_opt_status, false, true, false))
+            l_tx_count++;
     }
+
+    dap_string_append_printf(l_reply_str, "\nFound %"DAP_UINT64_FORMAT_U" transactions", l_tx_count);
     *a_str_reply = dap_string_free(l_reply_str, false);                     /* Free string descriptor, but keep ASCIZ buffer itself */
     return  0;
 }

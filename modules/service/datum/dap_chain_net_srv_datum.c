@@ -51,14 +51,6 @@ int dap_chain_net_srv_datum_init()
         return -1;
     }
     s_srv_datum->uid.uint64 = DAP_CHAIN_NET_SRV_DATUM_ID;
-    dap_chain_net_srv_price_apply_from_my_order(s_srv_datum, "srv_datum");
-    dap_chain_net_srv_price_t *l_price;
-    DL_FOREACH(s_srv_datum->pricelist, l_price) {
-        dap_chain_net_t *l_net = l_price->net;
-        if (!l_net)
-            continue;
-        dap_chain_net_srv_order_add_notify_callback(l_net, s_order_notficator, l_net);
-    }
     return 0;
 }
 
@@ -214,10 +206,7 @@ void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
     if (!dap_chain_net_srv_uid_compare(l_order->srv_uid, s_srv_datum->uid))
         return; // order from another service
     dap_chain_net_srv_price_t *l_price = NULL;
-    DL_FOREACH(s_srv_datum->pricelist, l_price) {
-        if (l_price->net == l_net)
-            break;
-    }
+
     if (!l_price || l_price->net != l_net) {
         log_it(L_DEBUG, "Price for net %s is not set", l_net->pub.name);
         return; // price not set for this network

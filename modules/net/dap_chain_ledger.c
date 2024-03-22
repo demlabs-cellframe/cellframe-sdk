@@ -4009,7 +4009,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                 dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
 
                 bool l_owner = false;
-                l_owner = dap_sign_compare_pkeys(l_prev_sign, l_sign);
+                l_owner = dap_sign_compare_pkeys(l_owner_sign, l_sign);
 
                 // 5b. Call verificator for conditional output
                 dap_ledger_verificator_t *l_verificator;
@@ -5936,12 +5936,10 @@ const char *dap_ledger_tx_get_main_ticker(dap_ledger_t *a_ledger, dap_chain_datu
 {
     const char *l_main_ticker = NULL;
     dap_chain_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
-    int l_rc = dap_ledger_tx_cache_check(a_ledger, a_tx, l_tx_hash, false, NULL, NULL, (char **)&l_main_ticker);
-    
+    int l_rc = dap_ledger_tx_cache_check(a_ledger, a_tx, l_tx_hash, false, NULL, NULL, (char **)&l_main_ticker);   
+
     if (l_rc == DAP_LEDGER_TX_ALREADY_CACHED)
-    {
         l_main_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, l_tx_hash);
-    }
 
     if (a_ledger_rc)
         *a_ledger_rc = l_rc;
