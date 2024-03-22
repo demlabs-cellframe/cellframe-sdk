@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2020
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -91,7 +91,7 @@ static dap_chain_net_srv_xchange_t *s_srv_xchange;
 static bool s_debug_more = true;
 
 /**
- * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
+ * @brief dap_chain_net_srv_xchange_init Init actions for xchanger stream channel
  * @return 0 if everything is okay, lesser then zero if errors
  */
 int dap_chain_net_srv_xchange_init()
@@ -194,7 +194,6 @@ void dap_chain_net_srv_xchange_deinit()
 static bool s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond,
                                            dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
-    return true;//for tests
     if (a_owner)
         return true;
     if(!a_tx_in || !a_tx_out_cond)
@@ -267,14 +266,12 @@ static bool s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_
      * a_cond->subtype.srv_xchange.buy_value * (a_cond->header.value - new_cond->header.value)
      */
 
-    uint256_t l_sell_val, l_buyer_mul, l_seller_mul;
+    uint256_t l_sell_val, l_buyer_val_expected;
     if (compare256(l_sell_again_val, a_tx_out_cond->header.value) >= 0)
         return false;
     SUBTRACT_256_256(a_tx_out_cond->header.value, l_sell_again_val, &l_sell_val);
-    MULT_256_256(a_tx_out_cond->header.value, l_buy_val, &l_seller_mul);
-
-//    MULT_256_256(a_tx_out_cond->subtype.srv_xchange.buy_value, l_sell_val, &l_buyer_mul);
-    if (compare256(l_seller_mul, l_buyer_mul) < 0)
+    MULT_256_COIN(l_sell_val, a_tx_out_cond->subtype.srv_xchange.rate, &l_buyer_val_expected);
+    if (compare256(l_buyer_val_expected, l_buy_val) > 0)
         return false;
 
     /* Check the condition for fee verification success
@@ -1001,7 +998,7 @@ static char* s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price,
         }
         // Network fee
         if (l_net_fee_used &&
-                dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) != 1) {
+            dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_ERROR, "Cant add network fee output");
             return l_ret;
@@ -1761,6 +1758,19 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
             char l_tx_prev_cond_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&l_in_cond->header.tx_prev_hash,l_tx_prev_cond_hash_str, sizeof(l_tx_prev_cond_hash_str));
 
+            dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_in_cond->header.tx_prev_hash);
+            if (!l_prev_tx)
+                return false;
+
+            int l_out_num = l_in_cond->header.tx_out_prev_idx;
+            dap_hash_fast_t l_order_hash = l_in_cond->header.tx_prev_hash;
+            dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_out_num);
+            dap_hash_fast_t *l_order_hash_ptr = dap_ledger_get_first_chain_tx_hash(a_net->pub.ledger, a_tx, l_out_cond);
+            if (l_order_hash_ptr){
+                l_order_hash = *l_order_hash_ptr;
+                DAP_DEL_Z(l_order_hash_ptr);
+            }
+
             char *l_value_from_str = dap_chain_balance_to_coins(l_out_prev_cond_item->header.value);
             char *l_value_from_datoshi_str = dap_chain_balance_print(l_out_prev_cond_item->header.value);
 
@@ -1772,7 +1782,10 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
             }
             if (a_print_status)
                 dap_string_append_printf(a_reply_str, "  Status: inactive,");
-            dap_string_append_printf(a_reply_str, "  returned %s(%s) %s to owner", l_value_from_str, l_value_from_datoshi_str, l_tx_input_ticker);
+
+            char l_order_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_hash_fast_to_str(&l_order_hash, l_order_hash_str, sizeof(l_order_hash_str));
+            dap_string_append_printf(a_reply_str, "  returned %s(%s) %s to owner from order %s", l_value_from_str, l_value_from_datoshi_str, l_tx_input_ticker, l_order_hash_str);
             if(a_print_prev_hash)
                 dap_string_append_printf(a_reply_str, "\n  Prev cond: %s", l_tx_prev_cond_hash_str);
 
@@ -1806,7 +1819,7 @@ size_t l_tx_total;
 
     memset(&l_tx_first_hash, 0, sizeof(dap_chain_hash_fast_t));             /* Initial hash == zero */
 
-
+    size_t l_tx_count = 0;
     for (l_tx_total = 0;
             (l_datum_tx = dap_ledger_tx_find_by_addr(a_net->pub.ledger, NULL, a_addr, &l_tx_first_hash));
                 l_tx_total++)
@@ -1818,8 +1831,11 @@ size_t l_tx_total;
         if ( a_before && (l_datum_tx->header.ts_created > a_before) )
             continue;
 
-        s_string_append_tx_cond_info(l_reply_str, a_net, l_datum_tx, a_opt_status, false, true, false);
+        if (s_string_append_tx_cond_info(l_reply_str, a_net, l_datum_tx, a_opt_status, false, true, false))
+            l_tx_count++;
     }
+
+    dap_string_append_printf(l_reply_str, "\nFound %"DAP_UINT64_FORMAT_U" transactions", l_tx_count);
     *a_str_reply = dap_string_free(l_reply_str, false);                     /* Free string descriptor, but keep ASCIZ buffer itself */
     return  0;
 }
