@@ -57,8 +57,6 @@ typedef enum dap_chain_net_state{
     NET_STATE_LINKS_PREPARE,
     NET_STATE_LINKS_CONNECTING,
     NET_STATE_LINKS_ESTABLISHED,
-    NET_STATE_ADDR_REQUEST, // Waiting for address assign
-    NET_STATE_SYNC_GDB,
     NET_STATE_SYNC_CHAINS,
     NET_STATE_ONLINE
 } dap_chain_net_state_t;
@@ -124,7 +122,6 @@ inline static int dap_chain_net_stop(dap_chain_net_t *a_net)
     return false;
 }
 inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }
-inline static int dap_chain_net_sync_gdb(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_GDB); }
 inline static int dap_chain_net_sync_chains(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 
@@ -152,7 +149,7 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * a_net);
 dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net);
 dap_chain_node_info_t** dap_chain_net_get_seed_nodes(dap_chain_net_t * a_net, uint16_t *a_count);
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
-dap_chain_node_info_t *dap_chain_net_balancer_link_from_cfg(dap_chain_net_t *a_net);
+const dap_link_info_t *dap_chain_net_balancer_link_from_cfg(dap_chain_net_t *a_net);
 dap_chain_node_info_t *dap_chain_net_get_my_node_info(dap_chain_net_t *a_net);
 
 int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster);
@@ -213,7 +210,6 @@ int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
 void dap_chain_net_announce_addrs(dap_chain_net_t *a_net);
 char *dap_chain_net_links_dump(dap_chain_net_t*);
-int dap_chain_net_link_manager_init();
 
 enum dap_chain_net_json_rpc_error_list{
     DAP_CHAIN_NET_JSON_RPC_OK,
