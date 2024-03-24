@@ -1066,7 +1066,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             dap_pkey_t * l_pub_key = NULL;
             dap_hash_fast_t l_pkey_hash = {};
             dap_chain_addr_t *l_addr = NULL;
-            dap_chain_hash_fast_t l_last_block_hash;            
             int fl_renew = dap_cli_server_cmd_check_option(a_argv, arg_index,a_argc, "renew");
             if(fl_renew)
             {
@@ -1107,7 +1106,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 if(l_objs_rew_count)dap_global_db_objs_delete(l_objs_rew,l_objs_rew_count);
                 DAP_DELETE(l_group_fee);
                 DAP_DELETE(l_group_rew);
-                s_get_last_block_hash(l_chain, &l_last_block_hash);
+
                 for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
                     bool l_found_fee = false;
                     dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
@@ -1155,7 +1154,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                         l_found_fee = true;
                     }
                     if(l_found_fee)
-                        dap_chain_esbocs_add_block_collect(l_block_cache->block, l_block_cache->block_size, &l_last_block_hash, &l_block_collect_params);
+                        dap_chain_esbocs_add_block_collect(l_block_cache->block, l_block_cache->block_size, &l_block_collect_params);
                 }                
             }else{
                 if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "status") == -1) {
