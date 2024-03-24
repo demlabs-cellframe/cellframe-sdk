@@ -99,14 +99,8 @@ dap_link_info_t *s_get_links_info_list(dap_chain_net_t *a_net, size_t *a_count)
     assert(a_net && a_count);
     dap_link_info_t *l_ret = NULL;
     dap_store_obj_t *l_objs = dap_global_db_driver_cond_read(a_net->pub.gdb_nodes, l_last_read_hash, a_count);
-    if (!l_objs) {
-        l_ret = dap_chain_net_balancer_link_from_cfg(l_net);
-        if (l_ret) {
-            a_count = 1;
-            return DAP_DUP_SIZE(l_ret, sizeof(*l_ret);
-        }
+    if (!l_objs)
         return NULL;
-    }
     DAP_NEW_Z_COUNT_RET_VAL(l_ret, dap_link_info_t, l_count, NULL, NULL);
 
 }
