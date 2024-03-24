@@ -202,7 +202,10 @@ int dap_chain_cs_blocks_init()
         "Rewards and fees autocollect status:\n"
             "block -net <net_name> -chain <chain_name> autocollect status\n"
                 "\t\t Show rewards and fees automatic collecting status (enabled or not)."
-                    " Show prepared blocks for collecting rewards and fees if status is enabled\n"
+                    " Show prepared blocks for collecting rewards and fees if status is enabled\n\n"
+            "block -net <net_name> -chain <chain_name> autocollect renew\n"
+                "\t\t Update reward and fees block table."
+                    " Automatic collection of commission in case of triggering of the setting\n\n"
                                         );
     if( dap_chain_block_cache_init() ) {
         log_it(L_WARNING, "Can't init blocks cache");
@@ -1062,7 +1065,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
 
         case SUBCMD_AUTOCOLLECT: {
             const char * l_cert_name  = NULL, * l_addr_str = NULL;
-            dap_list_t *l_block_list = NULL;
             dap_pkey_t * l_pub_key = NULL;
             dap_hash_fast_t l_pkey_hash = {};
             dap_chain_addr_t *l_addr = NULL;
