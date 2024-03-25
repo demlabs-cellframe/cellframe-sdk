@@ -79,6 +79,7 @@
 #include "dap_chain_node_ping.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_tx.h"
+#include "dap_chain_net_balancer.h"
 #include "dap_chain_block.h"
 #include "dap_chain_cs_blocks.h"
 
@@ -993,7 +994,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             return -3;
         }*/
         // Synchronous request, wait for reply
-        int l_res = dap_chain_net_node_list_request(l_net, NULL,
+        int l_res = dap_chain_net_node_list_request(l_net,
             l_port_str ? strtoul(l_port_str, NULL, 10) : dap_chain_net_get_my_node_info(l_net)->ext_port,
             true, 'a');
         switch (l_res)
@@ -1013,7 +1014,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     case CMD_DEL:
         // handler of command 'node del'
     {
-        int l_res = dap_chain_net_node_list_request(l_net, NULL, 0, true, 'r');
+        int l_res = dap_chain_net_node_list_request(l_net, 0, true, 'r');
         switch (l_res) {
             case 8:  dap_cli_server_cmd_set_reply_text(a_str_reply, "Sucessfully deleted"); break;
             default: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res); break;
@@ -1289,7 +1290,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cluster_t *l_cluster = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cluster", &l_guuid_str);
             if (l_guuid_str) {
-                dap_guuid_t l_guuid = { .raw = dap_uint128_from_hex_str(l_guuid_str) };
+                dap_guuid_t l_guuid = dap_guuid_from_hex_str(l_guuid_str);
                 l_cluster = dap_cluster_find(l_guuid);
                 if (!l_cluster) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found cluster with ID %s", l_guuid_str);
@@ -1432,19 +1433,19 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
     case CMD_BALANCER: {
         //balancer link list
-        size_t l_node_num = 0;
-        dap_link_info_t *l_links_info_list = dap_link_manager_get_net_links_info_list(l_net->pub.id.uint64, &l_node_num);
-        dap_string_t *l_string_balanc = dap_string_new("\n");
-        dap_string_append_printf(l_string_balanc, "Got %d records\n", (uint16_t)l_node_num);
-        for(size_t i = 0; i < l_node_num; ++i) {
-            dap_string_append_printf(l_string_balanc, NODE_ADDR_FP_STR"    %-20s%u\n",
-                                     NODE_ADDR_FP_ARGS_S(l_links_info_list[i].node_addr),
-                                     l_links_info_list[i].uplink_addr,
-                                     /*l_node_link->info.links_number*/ 0);
+        dap_chain_net_links_t *l_links_info_list = dap_chain_net_balancer_get_node(l_net->pub.name, 0);
+        dap_string_t *l_links_str = dap_string_new(l_links_info_list ? "" : "Empty");
+        uint64_t l_node_num = l_links_info_list ? l_links_info_list->count_node : 0;
+        for (uint64_t i = 0; i < l_node_num; ++i) {
+            dap_link_info_t *l_link_info = (dap_link_info_t *)l_links_info_list->nodes_info + i;
+            dap_string_append_printf(l_links_str, NODE_ADDR_FP_STR"    %-20s\n",
+                                     NODE_ADDR_FP_ARGS_S(l_link_info->node_addr),
+                                     l_link_info->uplink_addr);
+                                     /*l_node_link->info.links_number);*/
         }
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Balancer link list:\n %s \n",
-                                          l_string_balanc->str);
-        dap_string_free(l_string_balanc, true);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Balancer link list for total %" DAP_UINT64_FORMAT_U " records:\n %s \n",
+                                          l_node_num, l_links_str->str);
+        dap_string_free(l_links_str, true);
         DAP_DEL_Z(l_links_info_list);
     } break;
 

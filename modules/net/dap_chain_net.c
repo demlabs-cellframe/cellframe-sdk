@@ -413,8 +413,22 @@ static struct request_link_info *s_balancer_link_from_cfg(dap_chain_net_t *a_net
     }
 }
 
-dap_chain_node_info_t *dap_chain_net_get_my_node_info(dap_chain_net_t *a_net) {
+dap_chain_node_info_t *dap_chain_net_get_my_node_info(dap_chain_net_t *a_net)
+{
+    dap_return_val_if_fail(a_net, NULL);
     return PVT(a_net)->node_info;
+}
+
+bool dap_chain_net_is_my_node_authorized(dap_chain_net_t *a_net)
+{
+    dap_return_val_if_fail(a_net, false);
+    return dap_cluster_member_find_role(PVT(a_net)->nodes_cluster->role_cluster, &g_node_addr) == DAP_GDB_MEMBER_ROLE_ROOT;
+}
+
+dap_stream_node_addr_t *dap_chain_net_get_authorized_nodes(dap_chain_net_t *a_net, size_t *a_nodes_count)
+{
+    dap_return_val_if_fail(a_net, false);
+    return dap_cluster_get_all_members_addrs(PVT(a_net)->nodes_cluster->role_cluster, a_nodes_count, DAP_GDB_MEMBER_ROLE_ROOT);
 }
 
 static int s_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr, const char *a_host, uint16_t a_port)
@@ -673,19 +687,6 @@ int s_link_manager_link_request(uint64_t a_net_id)
         return -6;
     }
     return 0;
-}
-
-void dap_chain_net_announce_addrs(dap_chain_net_t *a_net)
-{
-    dap_return_if_fail(a_net);
-    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    if ( l_net_pvt->node_info->ext_port ) {
-        dap_chain_net_node_list_request(a_net, NULL, l_net_pvt->node_info->ext_port, false, 'a');
-        log_it(L_INFO, "Announce our node address "NODE_ADDR_FP_STR" [ %s : %u ] in net %s",
-               NODE_ADDR_FP_ARGS_S(g_node_addr),
-               l_net_pvt->node_info->ext_host,
-               l_net_pvt->node_info->ext_port, a_net->pub.name);
-    }
 }
 
 int s_link_manager_fill_net_info(dap_link_t *a_link)
@@ -1610,7 +1611,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
 
         } else if( l_sync_str) {
             json_object *l_jobj_state_machine = json_object_new_object();
-            json_object *l_jobj_requested;
+            json_object *l_jobj_requested = json_object_new_string("SYNC_ALL");
             json_object *l_jobj_current = json_object_new_string(c_net_states[PVT(l_net)->state]);
             if (!l_jobj_state_machine || !l_jobj_current) {
                 json_object_put(l_jobj_state_machine);
@@ -2315,7 +2316,7 @@ int s_net_load(dap_chain_net_t *a_net)
             log_it(L_ERROR, "Can't initialize mempool cluster for network %s", l_net->pub.name);
             return -1;
         }
-        dap_chain_net_add_poa_certs_to_cluster(l_net, l_cluster);
+        dap_chain_net_add_auth_nodes_to_cluster(l_net, l_cluster);
         DAP_DELETE(l_gdb_groups_mask);
         if (l_net->pub.chains == l_chain)   // Pointer for first mempool cluster in global double-linked list of clusters
             l_net_pvt->mempool_clusters = l_cluster;
@@ -2331,7 +2332,7 @@ int s_net_load(dap_chain_net_t *a_net)
         log_it(L_ERROR, "Can't initialize orders cluster for network %s", l_net->pub.name);
         return -1;
     }
-    dap_chain_net_add_poa_certs_to_cluster(l_net, l_net_pvt->orders_cluster);
+    dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->orders_cluster);
     DAP_DELETE(l_gdb_groups_mask);
     // Nodes and its aliases cluster
     l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes",l_net->pub.gdb_groups_prefix);
@@ -2346,7 +2347,7 @@ int s_net_load(dap_chain_net_t *a_net)
         log_it(L_ERROR, "Can't initialize nodes cluster for network %s", l_net->pub.name);
         return -1;
     }
-    dap_chain_net_add_poa_certs_to_cluster(l_net, l_net_pvt->nodes_cluster);
+    dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->nodes_cluster);
     dap_chain_net_add_nodelist_notify_callback(l_net, s_nodelist_change_notify, l_net);
     DAP_DELETE(l_gdb_groups_mask);
 
@@ -2623,7 +2624,7 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
     dap_global_db_cluster_add_notify_callback(PVT(a_net)->orders_cluster, a_callback, a_cb_arg);
 }
 
-int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster)
+int dap_chain_net_add_auth_nodes_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster)
 {
     dap_return_val_if_fail(a_net && a_cluster, -1);
     for (uint16_t i = 0; i < PVT(a_net)->authorized_nodes_count; i++)
@@ -2849,40 +2850,6 @@ void dap_chain_net_set_state(dap_chain_net_t *l_net, dap_chain_net_state_t a_sta
 dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net)
 {
     return  PVT(l_net)->node_info ? &PVT(l_net)->node_info->cell_id: 0;
-}
-
-/**
- * Get remote nodes list (list of dap_chain_node_addr_t struct)
- */
-dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t *l_net)
-{
-    dap_list_t *l_node_list = NULL;
-
-    // get nodes list from global_db
-    dap_global_db_obj_t *l_objs = NULL;
-    size_t l_nodes_count = 0;
-    // read all node
-    l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
-    if(!l_nodes_count || !l_objs)
-        return l_node_list;
-    for(size_t i = 0; i < l_nodes_count; i++) {
-        dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) l_objs[i].value;
-        dap_chain_node_addr_t *l_address = DAP_NEW(dap_chain_node_addr_t);
-        if (!l_address) {
-        log_it(L_CRITICAL, "Memory allocation error");
-            return NULL;
-        }
-        l_address->uint64 = l_node_info->address.uint64;
-        l_node_list = dap_list_append(l_node_list, l_address);
-    }
-    dap_global_db_objs_delete(l_objs, l_nodes_count);
-    return l_node_list;
-}
-
-dap_chain_node_addr_t *dap_chain_net_get_authorized_nodes(dap_chain_net_t *a_net, uint16_t *a_count)
-{
-    dap_return_val_if_fail(a_net && a_count, NULL);
-    return *a_count = PVT(a_net)->authorized_nodes_count, PVT(a_net)->authorized_nodes_addrs;
 }
 
 /**
@@ -3217,4 +3184,17 @@ uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num)
             return l_reward->reward;
     }
     return uint256_0;
+}
+
+void dap_chain_net_announce_addrs(dap_chain_net_t *a_net)
+{
+    dap_return_if_fail(a_net);
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    if ( l_net_pvt->node_info->ext_port ) {
+        dap_chain_net_node_list_request(a_net, l_net_pvt->node_info->ext_port, false, 'a');
+        log_it(L_INFO, "Announce our node address "NODE_ADDR_FP_STR" [ %s : %u ] in net %s",
+               NODE_ADDR_FP_ARGS_S(g_node_addr),
+               l_net_pvt->node_info->ext_host,
+               l_net_pvt->node_info->ext_port, a_net->pub.name);
+    }
 }

@@ -318,7 +318,7 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
                                                                        l_dag->gdb_group_events_round_new, 900, true,
                                                                        DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_ROLE_AUTONOMIC);
     dap_global_db_cluster_add_notify_callback(l_dag_cluster, s_round_changes_notify, l_dag);
-    dap_chain_net_add_poa_certs_to_cluster(l_net, l_dag_cluster);
+    dap_chain_net_add_auth_nodes_to_cluster(l_net, l_dag_cluster);
     byte_t *l_current_round = dap_global_db_get_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
     l_dag->round_current = l_current_round ? *(uint64_t*)l_current_round : 0;
     DAP_DELETE(l_current_round);

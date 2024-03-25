@@ -94,37 +94,47 @@ dap_link_info_t *dap_link_manager_get_net_links_info_list(uint64_t a_net_id, siz
 }
 */
 
-dap_link_info_t *s_get_links_info_list(dap_chain_net_t *a_net, size_t *a_count)
+dap_link_info_t *s_get_links_info_list(dap_chain_net_t *a_net, size_t *a_count, bool a_external_call)
 {
+    static _Thread_local dap_global_db_driver_hash_t l_last_read_hash = {};
     assert(a_net && a_count);
-    dap_link_info_t *l_ret = NULL;
-    dap_store_obj_t *l_objs = dap_global_db_driver_cond_read(a_net->pub.gdb_nodes, l_last_read_hash, a_count);
-    if (!l_objs)
+    size_t l_count = *a_count;
+    if (!l_count)
+        l_count = dap_global_db_driver_count(a_net->pub.gdb_nodes, c_dap_global_db_driver_hash_blank);
+    dap_store_obj_t *l_objs = dap_global_db_driver_cond_read(a_net->pub.gdb_nodes, l_last_read_hash, &l_count);
+    if (!l_objs || !l_count) {
+        *a_count = 0;
         return NULL;
+    }
+    l_last_read_hash = dap_global_db_driver_hash_get(l_objs + l_count - 1);
+    if (dap_global_db_driver_hash_is_blank(&l_last_read_hash) == 0)
+        l_count--;
+    dap_link_info_t *l_ret = NULL;
     DAP_NEW_Z_COUNT_RET_VAL(l_ret, dap_link_info_t, l_count, NULL, NULL);
-
+    for (size_t i = 0; i < l_count; i++) {
+        dap_link_info_t *l_cur_info = l_ret + i;
+        dap_chain_node_info_t *l_db_info = (dap_chain_node_info_t *)(l_objs + i)->value;
+        l_cur_info->node_addr = l_db_info->address;
+        l_cur_info->uplink_port = l_db_info->ext_port;
+        dap_strncpy(l_cur_info->uplink_addr, l_db_info->ext_host, dap_min(l_db_info->ext_host_len, DAP_HOSTADDR_STRLEN));
+    }
+    dap_store_obj_free(l_objs, l_count);
+    if (a_external_call && l_count < *a_count) {
+        size_t l_total_count = dap_global_db_driver_count(a_net->pub.gdb_nodes, c_dap_global_db_driver_hash_blank);
+        if (l_count < l_total_count) {
+            size_t l_tail_count = dap_min(l_total_count, *a_count) - l_count;
+            dap_link_info_t *l_tail = s_get_links_info_list(a_net, &l_tail_count, false);
+            if (l_tail && l_tail_count) {
+                l_ret = DAP_REALLOC(l_ret, sizeof(dap_link_info_t) * (l_count + l_tail_count));
+                memcpy(l_ret + sizeof(dap_link_info_t) * l_count, l_tail, sizeof(dap_link_info_t) * l_tail_count);
+                l_count += l_tail_count;
+                DAP_DELETE(l_tail);
+            }
+        }
+    }
+    *a_count = l_count;
+    return l_ret;
 }
-
-for(size_t i=0;i<l_link_full_node_list->count_node;i++)
-{
-    log_it(L_DEBUG, "Network balancer issues ip %s, [%ld blocks]",inet_ntoa((l_node_info + i)->hdr.ext_addr_v4),l_node_info->hdr.blocks_events);
-
-}
-return l_link_full_node_list;
-}
-else
-{
-
-if(l_link_node_info)
-{
-    log_it(L_DEBUG, "Network balancer issues ip from net conf - %s",inet_ntoa(l_link_node_info->hdr.ext_addr_v4));
-    dap_chain_net_node_balancer_t * l_node_list_res = DAP_NEW_Z_SIZE(dap_chain_net_node_balancer_t,
-                                                                     sizeof(dap_chain_net_node_balancer_t) + sizeof(dap_chain_node_info_t));
-    l_node_list_res->count_node = 1;
-    *(dap_chain_node_info_t*)l_node_list_res->nodes_info = *l_link_node_info;
-    return l_node_list_res;
-}
-
 
 dap_chain_net_links_t *dap_chain_net_balancer_get_node(const char *a_net_name, uint16_t a_links_need)
 {
@@ -137,7 +147,7 @@ dap_chain_net_links_t *dap_chain_net_balancer_get_node(const char *a_net_name, u
     }
 // preparing
     size_t l_node_num_prep = a_links_need;
-    dap_link_info_t *l_links_info = s_get_links_info_list(l_net, &l_node_num_prep);
+    dap_link_info_t *l_links_info = s_get_links_info_list(l_net, &l_node_num_prep, true);
     if (!l_links_info || !l_node_num_prep){        
         log_it(L_ERROR, "Active links list in net %s is empty", a_net_name);
         return NULL;
@@ -172,7 +182,7 @@ dap_chain_net_links_t *dap_chain_net_balancer_get_node_old(const char *a_net_nam
     }
 // preparing
     size_t l_node_num_prep = a_links_need;
-    dap_link_info_t *l_links_info = s_get_links_info_list(l_net, &l_node_num_prep);
+    dap_link_info_t *l_links_info = s_get_links_info_list(l_net, &l_node_num_prep, true);
     if (!l_links_info || !l_node_num_prep){        
         log_it(L_ERROR, "Active links list in net %s is empty", a_net_name);
         return NULL;
