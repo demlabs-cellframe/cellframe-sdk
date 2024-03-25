@@ -586,10 +586,16 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
     for (int i = 0; a_net && a_hash_str && i < 2; i++) {
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
                                   : dap_chain_net_srv_order_get_common_group(a_net);
-        l_ret = dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
-        DAP_DELETE(l_gdb_group_str);
-        if (!l_ret)
-            break;
+        if (dap_global_db_driver_is(l_gdb_group_str, a_hash_str)) {
+            l_ret = dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
+            DAP_DELETE(l_gdb_group_str);
+            if (!l_ret)
+                break;
+        } else {
+            log_it(L_ERROR, "In group %s not found record with %s key", l_gdb_group_str, a_hash_str);
+            DAP_DELETE(l_gdb_group_str);
+            return -3;
+        }
     }
     return l_ret;
 }
