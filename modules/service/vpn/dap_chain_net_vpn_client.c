@@ -441,7 +441,8 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
 {
 
 
-    dap_chain_net_srv_order_t * l_orders = NULL;
+    // dap_chain_net_srv_order_t 
+    dap_list_t* l_orders = NULL;
     size_t l_orders_num = 0;
     dap_chain_net_srv_uid_t l_srv_uid = { { 0 } };
     uint256_t l_price_min = {};
@@ -452,8 +453,8 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
 
     if(dap_chain_net_srv_order_find_all_by(a_net, l_direction, l_srv_uid, l_price_unit, NULL, l_price_min, l_price_max, &l_orders, &l_orders_num) == 0){
         size_t l_orders_size = 0;
-        for(size_t i = 0; i < l_orders_num; i++) {
-            dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
+        for(dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next) {
+            dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *) l_temp->data;
             //dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type);
             dap_chain_hash_fast_t l_hash={0};
             char *l_hash_str;
@@ -477,9 +478,9 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
             }
             dap_string_append_printf(l_string_ret, "Order %s: State %s\n", l_hash_str, l_state_str);
             DAP_DELETE(l_hash_str);
-            l_orders_size += dap_chain_net_srv_order_get_size(l_order);
             //dap_string_append(l_string_ret, "\n");
         }
+        dap_list_free_full(l_orders, NULL);
     }
     // return str from dap_string_t
     return dap_string_free(l_string_ret, false);

@@ -169,14 +169,14 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             break;
             // received ping request - > send pong request
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING:
-            //log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_PING");
+            //log_it(L_INFO, "Get CHAIN_CH_NET_PKT_TYPE_PING");
             dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PONG,
                                               l_ch_chain_net_pkt->hdr.net_id,NULL, 0);
             dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
             break;
             // receive pong request -> send nothing
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PONG:
-            //log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_PONG");
+            //log_it(L_INFO, "Get CHAIN_CH_NET_PKT_TYPE_PONG");
             dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
             break;
 
@@ -190,7 +190,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 log_it(L_ERROR, "Invalid net id in packet");
             } else {
-                dap_chain_net_srv_order_t * l_orders = NULL;
+                dap_list_t * l_orders = NULL;
                 dap_enc_key_t * enc_key_pvt = NULL;
                 dap_chain_t *l_chain = NULL;
                 DL_FOREACH(l_net->pub.chains, l_chain)
@@ -236,20 +236,18 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                 //strncpy(send->header.data,(uint8_t*)l_ch_chain_net_pkt->data,10);
                 flags = (l_net->pub.mempool_autoproc) ? flags | A_PROC : flags & ~A_PROC;
 
-                dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,l_uid,
-                                                   l_price_unit,NULL,l_price_min,l_price_max,&l_orders,&l_orders_num);
-                size_t l_orders_size = 0;
-                for (size_t i = 0; i< l_orders_num; i++){
-                    dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
-                    l_orders_size += dap_chain_net_srv_order_get_size(l_order);
-                    if(l_order->node_addr.uint64 == l_cur_node_addr.uint64)
-                    {
-                        flags = flags | F_ORDR;
-                        break;
+                if (dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,l_uid,
+                                                    l_price_unit,NULL,l_price_min,l_price_max,&l_orders,&l_orders_num)==0){
+                    for (dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next){
+                        dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) l_temp->data;
+                        if(l_order->node_addr.uint64 == l_cur_node_addr.uint64)
+                        {
+                            flags = flags | F_ORDR;
+                            break;
+                        }
                     }
+                    dap_list_free_full(l_orders, NULL);
                 }
-                if (l_orders_num)
-                    DAP_DELETE(l_orders);
                 bool auto_online = dap_config_get_item_bool_default( g_config, "general", "auto_online", false );
                 bool auto_update = false;
                 if((system("systemctl status cellframe-updater.service") == 768) && (system("systemctl status cellframe-updater.timer") == 0))

@@ -1159,7 +1159,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         log_it(L_NOTICE, "Stream connection established");
 
         dap_chain_ch_sync_request_t l_sync_request = {};
-        dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_STREAM_CH_CHAIN_ID);
+        dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_CHAIN_CH_ID);
         // fill begin id
         l_sync_request.id_start = 1;
         // fill current node address
@@ -1167,7 +1167,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
         log_it(L_INFO, "Requested GLOBAL_DB syncronizatoin, %"DAP_UINT64_FORMAT_U":%"DAP_UINT64_FORMAT_U" period",
                                                         l_sync_request.id_start, l_sync_request.id_end);
-        if(0 == dap_chain_ch_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
+        if(0 == dap_chain_ch_pkt_write_unsafe(l_ch_chain, DAP_CHAIN_CH_PKT_TYPE_SYNC_GLOBAL_DB,
                 l_net->pub.id.uint64, 0, 0, &l_sync_request,
                 sizeof(l_sync_request))) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
@@ -1202,7 +1202,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             dap_chain_node_client_reset(l_node_client);
             // send request
             dap_chain_ch_sync_request_t l_sync_request = {};
-            if(0 == dap_chain_ch_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
+            if(0 == dap_chain_ch_pkt_write_unsafe(l_ch_chain, DAP_CHAIN_CH_PKT_TYPE_SYNC_CHAINS,
                     l_net->pub.id.uint64, l_chain->id.uint64, l_remote_node_info->hdr.cell_id.uint64, &l_sync_request,
                     sizeof(l_sync_request))) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
@@ -5019,10 +5019,10 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply)
         return -8;
     }
 
-    dap_chain_net_srv_price_unit_uid_t l_price_unit = dap_chain_net_srv_price_unit_uid_from_str(l_unit_str);
+    dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = dap_chain_srv_str_to_unit_enum((char*)l_unit_str)};
 
     if(l_price_unit.enm == SERV_UNIT_UNDEFINED) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize unit '%s'. Unit must look like {mb | kb | b | sec | day}",
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize unit '%s'. Unit must look like { B | SEC }",
                 l_unit_str);
         return -9;
     }
@@ -5086,6 +5086,478 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply)
     return -1;
 }
 
+static dap_list_t* s_hashes_parse_str_list(const char * a_hashes_str)
+{
+    dap_list_t *l_ret_list = NULL;
+    char * l_hashes_tmp_ptrs = NULL;
+    char * l_hash_str_dup = strdup(a_hashes_str);
+    if (!l_hash_str_dup) {
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        return NULL;
+    }
+    char *l_hash_str = strtok_r(l_hash_str_dup, ",", &l_hashes_tmp_ptrs);
+
+    // Second pass we parse them all
+    strcpy(l_hash_str_dup, a_hashes_str);
+    l_hash_str = strtok_r(l_hash_str_dup, ",", &l_hashes_tmp_ptrs);
+
+    while(l_hash_str) {
+        // trim whitespace in certificate's name
+        l_hash_str = dap_strstrip(l_hash_str);// removes leading and trailing spaces
+        // get certificate by name
+        dap_hash_fast_t* l_hash = DAP_NEW_Z(dap_hash_fast_t);
+        if (dap_chain_hash_fast_from_str(l_hash_str, l_hash)){
+            log_it(L_ERROR, "Can't get hash from string. Continue.");
+            DAP_DEL_Z(l_hash);
+            continue;
+        }
+        l_ret_list = dap_list_append(l_ret_list, l_hash);
+        l_hash_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
+    }
+    free(l_hash_str_dup);
+    return  l_ret_list;
+}
+
+int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
+{
+    (void) a_argc;
+    void** l_str_reply = a_str_reply;
+    int arg_index = 1;
+    const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
+    const char * l_wallet_str = NULL;
+    const char * l_value_fee_str = NULL;
+    const char * l_net_name = NULL;
+    const char * l_hashes_str = NULL;
+    const char * l_srv_uid_str = NULL;
+    uint256_t l_value_datoshi = {};    
+    uint256_t l_value_fee = {};
+    const char * l_hash_out_type = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+    if(!l_hash_out_type)
+        l_hash_out_type = "hex";
+    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Invalid parameter -H, valid values: -H <hex | base58>");
+        return -1;
+    }
+
+    // Wallet name 
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-w", &l_wallet_str);
+    // fee
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_value_fee_str);
+    // net
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
+    // tx cond hahses 
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hashes", &l_hashes_str);
+    // srv_uid
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-srv_uid", &l_srv_uid_str);
+
+    if (!l_wallet_str) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-w'");
+        return -2;
+    }
+    if(!l_value_fee_str){
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-fee'");
+        return -15;
+    }
+    if(!l_net_name) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-net'");
+        return -5;
+    }
+    if(!l_hashes_str) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-hashes'");
+        return -5;
+    }
+    if(!l_srv_uid_str) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-srv_uid'");
+        return -5;
+    }
+
+    dap_chain_net_srv_uid_t l_srv_uid = {};
+    l_srv_uid.uint64 = strtoll(l_srv_uid_str, NULL, 10);
+    if (!l_srv_uid.uint64) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find service UID %s ", l_srv_uid_str);
+        return -8;
+    }
+
+    dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
+    if(!l_net) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find net '%s'", l_net_name);
+        return -11;
+    }
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path);
+    const char* l_sign_str = "";
+    if(!l_wallet) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't open wallet '%s'", l_wallet_str);
+        return -12;
+    } 
+
+    dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
+    dap_pkey_t *l_wallet_pkey = dap_pkey_from_enc_key(l_key_from);
+
+    l_value_fee = dap_chain_balance_scan(l_value_fee_str);
+    if(IS_ZERO_256(l_value_fee)) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't recognize value '%s' as a number", l_value_fee_str);
+        return -16;
+    }
+
+    const char *l_native_ticker = l_net->pub.native_ticker;
+    if (!l_native_ticker){
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find native ticker for net %s", l_net->pub.name);
+        return -16;
+    }
+    dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net->pub.name);
+    if (!l_ledger){
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find ledger for net %s", l_net->pub.name);
+        return -17;
+    }
+    // create empty transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_ledger){
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new tx");
+        return -18;
+    }
+
+    dap_list_t *l_hashes_list = s_hashes_parse_str_list(l_hashes_str);
+    if (!l_hashes_list){
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Requested conditional transaction with hash not found");
+        dap_chain_datum_tx_delete(l_tx);
+        return -19;
+    }
+
+    uint256_t l_cond_value_sum = {};
+    size_t l_num_of_hashes = dap_list_length(l_hashes_list);
+    log_it(L_INFO, "Found %"DAP_UINT64_FORMAT_U" hashes. Start returning funds from transactions.", l_num_of_hashes);
+    for (dap_list_t * l_tmp = l_hashes_list; l_tmp; l_tmp=l_tmp->next){
+        dap_hash_fast_t *l_hash = (dap_hash_fast_t*)l_tmp->data;
+        // get tx by hash
+        dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, l_hash);
+        if (!l_cond_tx) {
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_chain_hash_fast_to_str(l_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            log_it(L_WARNING, "Requested conditional transaction with hash %s not found. Continue.", l_hash_str);
+            continue;
+        }
+
+        const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, l_hash);
+        if (!l_tx_ticker) {
+            log_it(L_WARNING, "Can't get tx ticker");
+            continue;
+        }
+        if (strcmp(l_native_ticker, l_tx_ticker)) {
+            log_it(L_WARNING, "Tx must be in native ticker");
+            continue;
+        }
+
+        // Get out_cond from l_cond_tx
+        int l_prev_cond_idx = 0;
+        dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY,
+                                                                             &l_prev_cond_idx);
+        if (!l_tx_out_cond) {
+            log_it(L_WARNING, "Requested conditional transaction has no contitional output with srv_uid %"DAP_UINT64_FORMAT_U, l_srv_uid.uint64);
+            continue;
+        }
+        if (l_tx_out_cond->header.srv_uid.uint64 != l_srv_uid.uint64)
+            continue;
+        
+        if (dap_ledger_tx_hash_is_used_out_item(l_ledger, l_hash, l_prev_cond_idx, NULL)) {
+            log_it(L_WARNING, "Requested conditional transaction is already used out");
+            continue;
+        }
+        // Get owner tx
+        dap_hash_fast_t *l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_cond_tx, l_tx_out_cond);
+        dap_chain_datum_tx_t *l_owner_tx = l_cond_tx;
+        if (l_owner_tx_hash){
+            l_owner_tx = dap_ledger_tx_find_by_hash(l_ledger, l_owner_tx_hash);
+            DAP_DEL_Z(l_owner_tx_hash);
+        }
+        if (!l_owner_tx)
+            continue;
+        dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
+
+        if (!l_owner_sign) {
+            log_it(L_WARNING, "Can't get sign.");
+            continue;
+        }
+
+        if (!dap_pkey_compare_with_sign(l_wallet_pkey, l_owner_sign)) {
+            log_it(L_WARNING, "Only owner can return funds from tx cond");
+            continue;
+        }
+
+        // get final tx 
+        dap_hash_fast_t *l_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash);
+        dap_chain_datum_tx_t *l_final_tx = dap_ledger_tx_find_by_hash(l_ledger, l_final_hash);
+        if (!l_final_tx){
+            log_it(L_WARNING, "Only get final tx hash or tx is already used out.");
+            continue;
+        }
+
+        // get and check tx_cond_out
+        int l_final_cond_idx = 0;
+        dap_chain_tx_out_cond_t *l_final_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_final_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY,
+                                                                             &l_final_cond_idx);
+        if (!l_final_tx_out_cond || IS_ZERO_256(l_final_tx_out_cond->header.value)) 
+            continue;
+
+        
+        // add in_cond to new tx
+        // add 'in' item to buy from conditional transaction
+        dap_chain_datum_tx_add_in_cond_item(&l_tx, l_final_hash, l_final_cond_idx, 0);
+        SUM_256_256(l_cond_value_sum, l_final_tx_out_cond->header.value, &l_cond_value_sum);
+    }
+    dap_list_free_full(l_hashes_list, NULL);
+
+    if (IS_ZERO_256(l_cond_value_sum)){
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "No unspent conditional transactions in hashes list for wallet %s. Check input parameters.", l_wallet_str);
+        dap_chain_datum_tx_delete(l_tx);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        return -20;
+    }
+
+    uint256_t l_net_fee = {};
+    dap_chain_addr_t l_addr_fee = {};
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_net->pub.id, &l_net_fee, &l_addr_fee);
+    uint256_t l_total_fee = l_value_fee;
+    if (l_net_fee_used)
+        SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
+
+    if (compare256(l_total_fee, l_cond_value_sum) >= 0 ){
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Sum of conditional outputs must be greater than fees sum.");
+        dap_chain_datum_tx_delete(l_tx);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        return -21;
+    }
+
+    uint256_t l_coin_back = {};
+    SUBTRACT_256_256(l_cond_value_sum, l_total_fee, &l_coin_back);
+    dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+    // return coins to owner
+    if (dap_chain_datum_tx_add_out_item(&l_tx, l_wallet_addr, l_coin_back) == -1) {
+        dap_chain_datum_tx_delete(l_tx);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
+        log_it(L_ERROR, "Can't add returning coins output");
+        DAP_DELETE(l_wallet_addr);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        return -22;
+    }
+     DAP_DELETE(l_wallet_addr);
+    // Network fee
+    if (l_net_fee_used &&
+            dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
+        log_it(L_ERROR, "Cant add network fee output");
+        return -23;
+    }
+    // Validator's fee
+    if (dap_chain_datum_tx_add_fee_item(&l_tx, l_value_fee) == -1) {
+        dap_chain_datum_tx_delete(l_tx);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
+        log_it(L_ERROR, "Cant add validator's fee output");
+        return -24;
+    }
+
+    // add 'sign' items
+    dap_enc_key_t *l_owner_key = dap_chain_wallet_get_key(l_wallet, 0);
+    if(dap_chain_datum_tx_add_sign_item(&l_tx, l_owner_key) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        dap_enc_key_delete(l_owner_key);
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
+        log_it( L_ERROR, "Can't add sign output");
+        return -25;
+    }
+
+    dap_chain_wallet_close(l_wallet);
+    DAP_DEL_Z(l_wallet_pkey);
+
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    dap_chain_datum_tx_delete(l_tx);
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+    if (!l_chain) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
+        DAP_DELETE(l_datum);
+        return -26;
+    }
+    // Processing will be made according to autoprocess policy
+    char *l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
+    DAP_DELETE(l_datum);
+
+    if (l_hash_str) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Successfuly created transaction with hash %s\n", l_hash_str);
+        DAP_DELETE(l_hash_str);
+        return 0;
+    }
+    dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
+    return -1;
+}
+
+typedef struct tx_check_args {
+    dap_chain_datum_tx_t *tx;
+    dap_hash_fast_t tx_hash;
+} tx_check_args_t;
+
+void s_tx_is_srv_pay_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
+{
+    UNUSED(a_net);
+    dap_list_t **l_tx_list_ptr = a_arg;
+    if (dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY , NULL)){
+        tx_check_args_t *l_arg = DAP_NEW_Z(tx_check_args_t);
+        l_arg->tx = a_tx;
+        l_arg->tx_hash = *a_tx_hash;
+        *l_tx_list_ptr = dap_list_append(*l_tx_list_ptr, l_arg);
+    }
+       
+}
+
+int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_str_reply)
+{
+    (void) a_argc;
+    void** l_str_reply = a_str_reply;
+    int arg_index = 1;
+    const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
+    const char * l_wallet_str = NULL;
+    const char * l_net_name = NULL;
+    const char * l_srv_uid_str = NULL;
+
+    const char * l_hash_out_type = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+    if(!l_hash_out_type)
+        l_hash_out_type = "hex";
+    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Invalid parameter -H, valid values: -H <hex | base58>");
+        return -1;
+    }
+
+    // Public certifiacte of condition owner
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-w", &l_wallet_str);
+    // net
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
+    // srv_uid
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-srv_uid", &l_srv_uid_str);
+
+    if (!l_wallet_str) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-w'");
+        return -3;
+    }
+    if(!l_net_name) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-net'");
+        return -5;
+    }
+    if(!l_srv_uid_str) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-srv_uid'");
+        return -5;
+    }
+
+    dap_chain_net_srv_uid_t l_srv_uid = {};
+    l_srv_uid.uint64 = strtoll(l_srv_uid_str, NULL, 10);
+    if (!l_srv_uid.uint64) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find service UID %s ", l_srv_uid_str);
+        return -8;
+    }
+
+    dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
+    if(!l_net) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find net '%s'", l_net_name);
+        return -11;
+    }
+
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path);
+    const char* l_sign_str = "";
+    if(!l_wallet) {
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't open wallet '%s'", l_wallet_str);
+        return -12;
+    } 
+
+    dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
+    dap_pkey_t *l_wallet_pkey = dap_pkey_from_enc_key(l_key_from);
+
+    const char *l_native_ticker = l_net->pub.native_ticker;
+    if (!l_native_ticker){
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find native ticker for net %s", l_net->pub.name);
+        return -16;
+    }
+    dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net->pub.name);
+    if (!l_ledger){
+        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find ledger for net %s", l_net->pub.name);
+        return -17;
+    }
+
+    dap_string_t *l_reply_str = dap_string_new("");
+    dap_list_t *l_tx_list = NULL;
+
+    dap_chain_net_get_tx_all(l_net, TX_SEARCH_TYPE_NET, s_tx_is_srv_pay_check, &l_tx_list);
+    size_t l_tx_count = 0;
+    uint256_t l_total_value = {};
+    for (dap_list_t *it = l_tx_list; it; it = it->next) {
+        tx_check_args_t *l_data_tx = (tx_check_args_t*)it->data;
+        if (l_data_tx->tx_hash.raw[0] == 0x5A && l_data_tx->tx_hash.raw[1] == 0xc1){
+            log_it(L_INFO, "found!");
+        }
+        dap_chain_datum_tx_t *l_tx = l_data_tx->tx;
+        int l_prev_cond_idx = 0;
+        dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY , &l_prev_cond_idx);
+        if (!l_out_cond || l_out_cond->header.srv_uid.uint64 != l_srv_uid.uint64 || IS_ZERO_256(l_out_cond->header.value))
+            continue;
+
+        if (dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_data_tx->tx_hash, l_prev_cond_idx, NULL)) {
+            continue;
+        }
+
+        const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_data_tx->tx_hash);
+        if (!l_tx_ticker) {
+            continue;
+        }
+        if (strcmp(l_native_ticker, l_tx_ticker)) {
+            continue;
+        }
+
+        // Check sign
+        dap_hash_fast_t *l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_data_tx->tx, l_out_cond);
+        dap_chain_datum_tx_t *l_owner_tx = l_tx;
+        if (l_owner_tx_hash){
+            l_owner_tx = dap_ledger_tx_find_by_hash(l_ledger, l_owner_tx_hash);
+            DAP_DEL_Z(l_owner_tx_hash);
+        }
+            
+        if (!l_owner_tx)
+            continue;
+        dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
+
+
+        if (!dap_pkey_compare_with_sign(l_wallet_pkey, l_owner_sign)) {
+            continue;
+        }
+
+        char *l_remain_datoshi_str = NULL;
+        char *l_remain_coins_str = NULL; 
+        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(&l_data_tx->tx_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        l_remain_coins_str = dap_chain_balance_to_coins(l_out_cond->header.value);
+        l_remain_datoshi_str = dap_chain_balance_print(l_out_cond->header.value);
+
+        dap_string_append_printf(l_reply_str, "Tx %s has %s (%s) %s remaining in cond out\n", l_hash_str, l_remain_coins_str, l_remain_datoshi_str, l_native_ticker);
+        l_tx_count++;
+        SUM_256_256(l_total_value, l_out_cond->header.value, &l_total_value);
+    }
+    char *l_total_datoshi_str = dap_chain_balance_to_coins(l_total_value);
+    char *l_total_coins_str = dap_chain_balance_print(l_total_value); 
+    dap_string_append_printf(l_reply_str, "\n\nFound %"DAP_UINT64_FORMAT_U" transactions with total value %s (%s) %s", l_tx_count, l_total_datoshi_str, l_total_coins_str, l_native_ticker);
+    dap_list_free_full(l_tx_list, NULL);
+    *l_str_reply = dap_string_free(l_reply_str, false);
+    DAP_DEL_Z(l_wallet_pkey);
+    dap_chain_wallet_close(l_wallet);
+    return 0;
+}
 typedef enum cmd_mempool_add_ca_error_list{
     COM_MEMPOOL_ADD_CA_ERROR_NET_NOT_FOUND = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
     COM_MEMPOOL_ADD_CA_ERROR_NO_CAINS_FOR_CA_DATUM_IN_NET,
@@ -7230,7 +7702,7 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, void **a_str_
     size_t l_atom_size = 0, l_datums_count = 0;
 
     HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
-        l_iter = l_cell->chain->callback_atom_iter_create(l_cell->chain, l_cell->id, 0);
+        l_iter = l_cell->chain->callback_atom_iter_create(l_cell->chain, l_cell->id, NULL);
         dap_chain_atom_ptr_t l_atom = l_cell->chain->callback_atom_find_by_hash(l_iter, &l_hash_tmp, &l_atom_size);
         dap_chain_datum_t **l_datums = l_cell->chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
         for (size_t i = 0; i < l_datums_count; i++) {
