@@ -204,6 +204,7 @@ int dap_chain_cs_blocks_init()
                 "\t\t Show rewards and fees automatic collecting status (enabled or not)."
                     " Show prepared blocks for collecting rewards and fees if status is enabled\n\n"
             "block -net <net_name> -chain <chain_name> autocollect renew\n"
+            " -cert <priv_cert_name> -addr <addr>\n"
                 "\t\t Update reward and fees block table."
                     " Automatic collection of commission in case of triggering of the setting\n\n"
                                         );
@@ -1069,7 +1070,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             dap_hash_fast_t l_pkey_hash = {};
             dap_chain_addr_t *l_addr = NULL;
             int fl_renew = dap_cli_server_cmd_check_option(a_argv, arg_index,a_argc, "renew");
-            if(fl_renew)
+            if(fl_renew != -1)
             {
                 dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
                 dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
@@ -1083,6 +1084,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                     return -20;
                 }
                 dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
+                if (!l_cert) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find \"%s\" certificate", l_cert_name);
+                    return -20;
+                }
                 l_pub_key = dap_pkey_from_enc_key(l_cert->enc_key);
                 if (!l_pub_key) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
