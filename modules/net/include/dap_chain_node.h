@@ -60,7 +60,8 @@ typedef struct dap_chain_node_info {
 typedef struct dap_chain_node_states_info {
     dap_chain_node_addr_t address;
     uint64_t atoms_count;
-    uint32_t links_count;
+    uint32_t uplinks_count;
+    uint32_t downlinks_count;
     dap_chain_node_addr_t links_addrs[];
 } DAP_ALIGN_PACKED dap_chain_node_states_info_t;
 
