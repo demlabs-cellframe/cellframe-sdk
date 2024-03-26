@@ -1849,7 +1849,12 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return false;
     }
-    return false;
+    // Check for empty buffer out here to prevent warnings in worker
+    if ( ! a_ch->stream->esocket->buf_out_size ) {
+        dap_events_socket_set_writable_unsafe(a_ch->stream->esocket,false);
+        return false;
+    }
+    return true;
 }
 
 /**
