@@ -324,6 +324,25 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     return dap_chain_net_decree_apply(a_decree_hash, a_decree, a_chain);
 }
 
+int dap_chain_net_decree_reset_applied(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_decree_hash)
+{
+    if (!a_chain || !a_decree_hash)
+        return -1;
+    struct decree_hh* l_decree_hh = NULL;
+    HASH_FIND(hh, s_decree_hh, a_decree_hash, sizeof(dap_hash_fast_t), l_decree_hh);
+    if (!l_decree_hh)
+        return -2;
+
+    l_decree_hh->is_applied = false;
+
+    return 0;
+}
+
+int dap_chain_net_decree_reset_to_default(dap_chain_t *a_chain, dap_chain_datum_decree_t *a_decree)
+{
+
+}
+
 dap_chain_datum_decree_t *dap_chain_net_decree_get_by_hash(dap_hash_fast_t *a_hash, bool *is_applied)
 {
     struct decree_hh* l_decree_hh = NULL;

@@ -4780,13 +4780,13 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     dap_list_t *l_notifier;
     DL_FOREACH(PVT(a_ledger)->tx_add_notifiers, l_notifier) {
         dap_ledger_tx_notifier_t *l_notify = (dap_ledger_tx_notifier_t*)l_notifier->data;
-        l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx, false);
+        l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx, DAP_LEDGER_NOTIFY_OPCODE_ADDED);
     }
     if (l_cross_network) {
         dap_list_t *l_notifier;
         DL_FOREACH(PVT(a_ledger)->bridged_tx_notifiers, l_notifier) {
             dap_ledger_bridged_tx_notifier_t *l_notify = l_notifier->data;
-            l_notify->callback(a_ledger, a_tx, a_tx_hash, l_notify->arg, false);
+            l_notify->callback(a_ledger, a_tx, a_tx_hash, l_notify->arg, DAP_LEDGER_NOTIFY_OPCODE_ADDED);
         }
     }
     // Count TPS
@@ -4868,7 +4868,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     dap_store_obj_t *l_cache_used_outs = NULL;
     char *l_ledger_cache_group = NULL;
     if (PVT(a_ledger)->cached) {
-        dap_store_obj_t *l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * (l_outs_used + 1));
+        dap_store_obj_t *l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * (l_outs_used));
         if ( !l_cache_used_outs ) {
             log_it(L_CRITICAL, "Memory allocation error");
             l_ret = -1;
@@ -4883,10 +4883,6 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     for (dap_list_t *it = l_list_bound_items; it; it = it->next) {
         dap_ledger_tx_bound_t *l_bound_item = it->data;
         dap_chain_tx_item_type_t l_type = l_bound_item->type;
-        if (l_type == TX_ITEM_TYPE_IN || l_type == TX_ITEM_TYPE_IN_COND) {
-            l_spent_idx++;
-        }
-
         if ((l_type == TX_ITEM_TYPE_IN_EMS_LOCK || l_type == TX_ITEM_TYPE_IN_REWARD) &&
                 !s_ledger_token_supply_check_update(a_ledger, l_bound_item->token_item, l_bound_item->value, true))
             log_it(L_ERROR, "Insufficient supply for token %s", l_bound_item->token_item->ticker);
@@ -4987,6 +4983,10 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         // mark previous transactions as used with the extra timestamp
         if(l_prev_item_out->cache_data.n_outs_used != l_prev_item_out->cache_data.n_outs)
             l_prev_item_out->cache_data.ts_spent = 0;
+
+        if (l_type == TX_ITEM_TYPE_IN || l_type == TX_ITEM_TYPE_IN_COND) {
+            l_spent_idx++;
+        }
     }
 
     // Update balance: deducts all outs from balances
@@ -5084,16 +5084,23 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     dap_list_t *l_notifier;
     DL_FOREACH(PVT(a_ledger)->tx_add_notifiers, l_notifier) {
         dap_ledger_tx_notifier_t *l_notify = (dap_ledger_tx_notifier_t*)l_notifier->data;
-        l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx, true);
+        l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx, DAP_LEDGER_NOTIFY_OPCODE_DELETED);
     }
     if (l_cross_network) {
         dap_list_t *l_notifier;
         DL_FOREACH(PVT(a_ledger)->bridged_tx_notifiers, l_notifier) {
             dap_ledger_bridged_tx_notifier_t *l_notify = l_notifier->data;
-            l_notify->callback(a_ledger, a_tx, a_tx_hash, l_notify->arg, true);
+            l_notify->callback(a_ledger, a_tx, a_tx_hash, l_notify->arg, DAP_LEDGER_NOTIFY_OPCODE_DELETED);
         }
     }
 
+    if (PVT(a_ledger)->cached) {
+        // Add it to cache
+        dap_global_db_del_sync(l_ledger_cache_group, l_tx_hash_str);
+        // Apply it with single DB transaction
+        if (dap_global_db_set_raw(l_cache_used_outs, l_outs_used, NULL, NULL))
+            debug_if(s_debug_more, L_WARNING, "Ledger cache mismatch");
+    }
 FIN:
     if (l_list_bound_items)
         dap_list_free_full(l_list_bound_items, NULL);
@@ -5101,7 +5108,7 @@ FIN:
         dap_list_free(l_list_tx_out);
     DAP_DEL_Z(l_main_token_ticker);
     if (PVT(a_ledger)->cached) {
-        for (size_t i = 1; i <= l_outs_used; i++) {
+        for (size_t i = 1; i < l_outs_used; i++) {
             DAP_DEL_Z(l_cache_used_outs[i].key);
             DAP_DEL_Z(l_cache_used_outs[i].value);
         }

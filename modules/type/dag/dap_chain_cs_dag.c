@@ -524,7 +524,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     // verify hashes and consensus
     switch (ret) {
     case ATOM_ACCEPT:
-        ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size, &a_atom_hash);
+        ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size, &l_event_hash);
         if (ret == ATOM_MOVE_TO_THRESHOLD) {
             if (!s_threshold_enabled && !dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id)))
                 ret = ATOM_REJECT;

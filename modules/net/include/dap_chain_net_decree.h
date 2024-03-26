@@ -39,5 +39,8 @@ void dap_chain_net_decree_purge(dap_chain_net_t *a_net);
 int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain);
 int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash);
 int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_decree_hash);
+int dap_chain_net_decree_reset_applied(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_decree_hash);
+int dap_chain_net_decree_reset_to_default(dap_chain_t *a_chain, uint16_t a_decree_type, uint16_t a_decree_subtype);
+
 
 dap_chain_datum_decree_t *dap_chain_net_decree_get_by_hash(dap_hash_fast_t *a_hash, bool *is_applied);
