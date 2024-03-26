@@ -6550,7 +6550,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_str_reply)
  * @param str_reply
  * @return int
  */
-int com_tx_create(int a_argc, char **a_argv, void **a_str_reply)
+s_com_tx_create_err_t com_tx_create(int a_argc, char **a_argv, void **reply)
 {
     int arg_index = 1;
 //    int cmd_num = 1;
@@ -6577,15 +6577,15 @@ int com_tx_create(int a_argc, char **a_argv, void **a_str_reply)
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_HASH_INVALID, "Invalid parameter -H, valid values: -H <hex | base58>");
+        return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_HASH_INVALID;
     }
 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
     dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_name);
     if (l_net == NULL) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "not found net by name '%s'", l_net_name);
-        return -7;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NET_NOT_FOUND, "not found net by name '%s'", l_net_name);
+        return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NET_NOT_FOUND;
     }
 
     uint256_t l_value = {};
@@ -6606,19 +6606,13 @@ int com_tx_create(int a_argc, char **a_argv, void **a_str_reply)
     if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &str_tmp))
         l_value_fee = dap_chain_balance_scan(str_tmp);
     if (IS_ZERO_256(l_value_fee) && (!l_emission_hash_str || (str_tmp && strcmp(str_tmp, "0")))) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "tx_create requires parameter '-fee' to be valid uint256");
-        return -5;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256, "tx_create requires parameter '-fee' to be valid uint256");
+        return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256;
     }
 
     if((!l_from_wallet_name && !l_emission_hash_str)||(l_from_wallet_name && l_emission_hash_str)) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires one of parameters '-from_wallet' or '-from_emission'");
-        return -1;
-    }
-
-    if(!l_net_name) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-net'");
-        return -6;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_WALLET_OR_FROM_EMISSION, "tx_create requires one of parameters '-from_wallet' or '-from_emission'");
+        return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_WALLET_OR_FROM_EMISSION;
     }
 
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
@@ -6626,9 +6620,10 @@ int com_tx_create(int a_argc, char **a_argv, void **a_str_reply)
     dap_chain_t *l_emission_chain = NULL;
     if (l_emission_hash_str) {
         if (dap_chain_hash_fast_from_str(l_emission_hash_str, &l_emission_hash)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-from_emission' "
-                                                         "to be valid string containing hash in hex or base58 format");
-            return -3;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_EMISSION,
+                                   "tx_create requires parameter '-from_emission' "
+                                   "to be valid string containing hash in hex or base58 format");
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_EMISSION;
         }
         if (l_emission_chain_name) {
             l_emission_chain = dap_chain_net_get_chain_by_name(l_net, l_emission_chain_name);
@@ -6636,56 +6631,58 @@ int com_tx_create(int a_argc, char **a_argv, void **a_str_reply)
             l_emission_chain = dap_chain_net_get_default_chain_by_chain_type(l_net,CHAIN_TYPE_EMISSION);
         }
         if (!l_emission_chain) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-chain_emission' "
-                                                         "to be a valid chain name or set default datum type in chain configuration file");
-            return -9;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_CHAIN_EMISSION,
+                                   "tx_create requires parameter '-chain_emission' "
+                                   "to be a valid chain name or set default datum type in chain configuration file");
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_CHAIN_EMISSION;
         }
 
         if (l_wallet_fee_name){
             l_wallet_fee = dap_chain_wallet_open(l_wallet_fee_name, c_wallets_path);
             if (!l_wallet_fee) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet %s does not exist", l_wallet_fee_name);
-                return -12;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_WALLET_FEE,
+                                       "Wallet %s does not exist", l_wallet_fee_name);
+                return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_WALLET_FEE;
             }
             l_priv_key = dap_chain_wallet_get_key(l_wallet_fee, 0);
         } else if (l_cert_str) {
             l_cert = dap_cert_find_by_name(l_cert_str);
             if (!l_cert) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Certificate %s is invalid", l_cert_str);
-                return -5;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CERT_IS_INVALID, "Certificate %s is invalid", l_cert_str);
+                return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CERT_IS_INVALID;
             }
             l_priv_key = l_cert->enc_key;
         } else {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_CERT_OR_WALLET_FEE,
                                               "tx_create requires parameter '-cert' or '-wallet_fee' for create base tx for emission");
-            return -10;
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_CERT_OR_WALLET_FEE;
         }
     } else {
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-token", &l_token_ticker);
         if (!l_token_ticker) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-token'");
-            return -3;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_TOKEN, "tx_create requires parameter '-token'");
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_TOKEN;
         }
         if (!dap_ledger_token_ticker_check(l_net->pub.ledger, l_token_ticker)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Ticker '%s' is not declared on network '%s'.",
-                                              l_token_ticker, l_net_name);
-            return -16;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_TOKEN_NOT_DECLARATED_IN_NET,
+                                   "Ticker '%s' is not declared on network '%s'.", l_token_ticker, l_net_name);
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_TOKEN_NOT_DECLARATED_IN_NET;
         }
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_addr", &addr_base58_to);
         if (!addr_base58_to) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-to_addr'");
-            return -2;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_TO_ADDR, "tx_create requires parameter '-to_addr'");
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_TO_ADDR;
         }
         l_addr_to = dap_chain_addr_from_str(addr_base58_to);
         if(!l_addr_to) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "destination address is invalid");
-            return -11;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID, "destination address is invalid");
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID;
         }
         if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &str_tmp))
             l_value = dap_chain_balance_scan(str_tmp);
         if (IS_ZERO_256(l_value)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-value' to be valid uint256 value");
-            return -4;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE, "tx_create requires parameter '-value' to be valid uint256 value");
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE;
         }
     }
 
@@ -6697,32 +6694,40 @@ int com_tx_create(int a_argc, char **a_argv, void **a_str_reply)
     }
 
     if(!l_chain) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "not found chain name '%s', try use parameter '-chain' or set default datum type in chain configuration file",
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NOT_FOUND_CHAIN,
+                               "not found chain name '%s', try use parameter '-chain' or set default datum type in chain configuration file",
                 l_chain_name);
-        return -8;
+        return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NOT_FOUND_CHAIN;
     }
 
-    dap_string_t *l_string_ret = dap_string_new(NULL);
-    int l_ret = 0;
+    int l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CREATE_OK;
     if (l_emission_hash_str) {
         char *l_tx_hash_str = NULL;
         if (!l_priv_key) {
-            dap_string_append_printf(l_string_ret, "No private key defined for creating the underlying "
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NO_PRIVATE_KEY_DEFINED, "No private key defined for creating the underlying "
                                                    "transaction no '-wallet_fee' or '-cert' parameter specified.");
-            l_ret = -10;
+            l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NO_PRIVATE_KEY_DEFINED;
         }
         l_tx_hash_str = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_emission_chain->id,
                                                          uint256_0, NULL, NULL, // Get this params from emission itself
                                                          l_priv_key, l_hash_out_type, l_value_fee);
+        json_object *l_jobj_emission = json_object_new_object();
+        json_object *l_jobj_emi_status = NULL;
+        json_object *l_jobj_emi_hash = NULL;
         if (l_tx_hash_str) {
-            dap_string_append_printf(l_string_ret, "\nDatum %s with 256bit TX is placed in datum pool\n", l_tx_hash_str);
+            l_jobj_emi_status = json_object_new_string("Ok");
+            l_jobj_emi_hash = json_object_new_string(l_tx_hash_str);
             DAP_DELETE(l_tx_hash_str);
+            json_object_object_add(l_jobj_emission, "emission", l_jobj_emi_status);
+            json_object_object_add(l_jobj_emission, "hash", l_jobj_emi_hash);
         } else {
-            dap_string_append_printf(l_string_ret, "\nCan't place TX datum in mempool, examine log files\n");
-            l_ret = -15;
+            l_jobj_emi_status = json_object_new_string("False");
+            json_object_object_add(l_jobj_emission, "emission", l_jobj_emi_status);
+            json_object *l_jobj_msg = json_object_new_string("Can't place TX datum in mempool, examine log files\n");
+            json_object_object_add(l_jobj_emission, "message", l_jobj_msg);
+            l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_ADD_DATUM_IN_MEMPOOL;
         }
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_ret->str);
-        dap_string_free(l_string_ret, true);
+        json_object_array_add(*reply, l_jobj_emission);
         DAP_DELETE(l_addr_to);
         if (l_wallet_fee) {
             dap_chain_wallet_close(l_wallet_fee);
@@ -6734,16 +6739,17 @@ int com_tx_create(int a_argc, char **a_argv, void **a_str_reply)
     dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_from_wallet_name, c_wallets_path);
 
     if(!l_wallet) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_from_wallet_name);
-        return -9;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WALLET_DOES_NOT_EXIST,
+                               "wallet %s does not exist", l_from_wallet_name);
+        return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WALLET_DOES_NOT_EXIST;
     } else {
-        dap_string_append(l_string_ret, dap_chain_wallet_check_sign(l_wallet));
+        json_object *l_jobj_check_wallet = json_object_new_string(dap_chain_wallet_check_sign(l_wallet));
     }
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
     if(!addr_from) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "source address is invalid");
-        return -10;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID, "source address is invalid");
+        return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID;
     }
 
     if (l_addr_to->net_id.uint64 != l_net->pub.id.uint64 && !dap_chain_addr_is_blank(l_addr_to)) {
@@ -6759,35 +6765,42 @@ int com_tx_create(int a_argc, char **a_argv, void **a_str_reply)
             dap_string_append_printf(l_allowed_list, "0x%016"DAP_UINT64_FORMAT_X, l_net->pub.id.uint64);
             for (dap_list_t *it = l_net->pub.bridged_networks; it; it = it->next)
                 dap_string_append_printf(l_allowed_list, ", 0x%016"DAP_UINT64_FORMAT_X, ((dap_chain_net_id_t *)it->data)->uint64);
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Destination network ID=0x%"DAP_UINT64_FORMAT_x
-                                                           " is unreachable. List of available network IDs:\n%s"
-                                                           " Please, change network name or wallet address",
-                                              l_addr_to->net_id.uint64, l_allowed_list->str);
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_NETWORK_IS_UNREACHEBLE,
+                                   "Destination network ID=0x%"DAP_UINT64_FORMAT_x
+                                   " is unreachable. List of available network IDs:\n%s"
+                                   " Please, change network name or wallet address",
+                                   l_addr_to->net_id.uint64, l_allowed_list->str);
             dap_string_free(l_allowed_list, true);
-            return -13;
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_NETWORK_IS_UNREACHEBLE;
         }
     }
+
+    json_object *l_jobj_transfer_status = NULL;
+    json_object *l_jobj_tx_hash = NULL;
+    json_object *l_jobj_result = json_object_new_object();
 
     l_priv_key = dap_chain_wallet_get_key(l_wallet, 0);
     if(l_tx_num){
         l_ret = dap_chain_mempool_tx_create_massive(l_chain, l_priv_key, addr_from,
                                                   l_addr_to, l_token_ticker, l_value, l_value_fee, l_tx_num);
-
-        dap_string_append_printf(l_string_ret, "transfer=%s\n",
-                (l_ret == 0) ? "Ok" : (l_ret == -2) ? "False, not enough funds for transfer" : "False");
+        l_jobj_transfer_status = json_object_new_string((l_ret == 0) ? "Ok" : (l_ret == -2) ? "False, not enough funds for transfer" : "False");
+        json_object_object_add(l_jobj_result, "transfer", l_jobj_transfer_status);
     } else {
         char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, addr_from, l_addr_to,
                                                                   l_token_ticker, l_value, l_value_fee, l_hash_out_type);
         if (l_tx_hash_str) {
-            dap_string_append_printf(l_string_ret, "transfer=Ok\ntx_hash=%s\n",l_tx_hash_str);
+            l_jobj_transfer_status = json_object_new_string("Ok");
+            l_jobj_tx_hash = json_object_new_string(l_tx_hash_str);
+            json_object_object_add(l_jobj_result, "transfer", l_jobj_transfer_status);
+            json_object_object_add(l_jobj_result, "hash", l_jobj_tx_hash);
             DAP_DELETE(l_tx_hash_str);
         } else {
-            dap_string_append_printf(l_string_ret, "transfer=False\n");
-            l_ret = -14;
+            l_jobj_transfer_status = json_object_new_string("False");
+            json_object_object_add(l_jobj_result, "transfer", l_jobj_transfer_status);
+            l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
         }
     }
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_ret->str);
-    dap_string_free(l_string_ret, true);
+    json_object_array_add(*reply, l_jobj_result);
 
     DAP_DELETE(l_addr_to);
     dap_chain_wallet_close(l_wallet);

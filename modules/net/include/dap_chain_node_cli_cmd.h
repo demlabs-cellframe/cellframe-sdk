@@ -137,7 +137,31 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply);
  *
  * Create transaction
  */
-int com_tx_create(int a_argc, char **a_argv, void **a_str_reply);
+typedef enum s_com_tx_create_err{
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_HASH_INVALID = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NET_NOT_FOUND,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_WALLET_OR_FROM_EMISSION,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_EMISSION,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_CHAIN_EMISSION,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_WALLET_FEE,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CERT_IS_INVALID,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_CERT_OR_WALLET_FEE,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_TOKEN,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_TOKEN_NOT_DECLARATED_IN_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_TO_ADDR,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NOT_FOUND_CHAIN,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NO_PRIVATE_KEY_DEFINED,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_ADD_DATUM_IN_MEMPOOL,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WALLET_DOES_NOT_EXIST,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_NETWORK_IS_UNREACHEBLE,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION
+}s_com_tx_create_err_t;
+s_com_tx_create_err_t com_tx_create(int a_argc, char **a_argv, void **a_str_reply);
 int com_tx_create_json(int a_argc, char **a_argv, void **a_str_reply);
 int com_tx_cond_create(int a_argc, char **a_argv, void **a_str_reply);
 int com_tx_cond_remove(int a_argc, char **a_argv, void **a_str_reply);
@@ -210,5 +234,4 @@ int com_chain_ca_pub( int a_argc,  char **a_argv, void **a_str_reply);
 int com_chain_ca_copy( int a_argc,  char **a_argv, void **a_str_reply);
 int com_signer(int a_argc, char **a_argv, void **a_str_reply);
 //remove func
-int cmd_remove(int a_argc, char **a_argv, void **a_str_reply);
-
+int cmd_remove(int a_argc, char **a_argv, void
