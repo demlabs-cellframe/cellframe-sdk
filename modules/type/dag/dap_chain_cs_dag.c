@@ -82,7 +82,6 @@ typedef struct dap_chain_cs_dag_pvt {
     dap_chain_cs_dag_event_item_t * events_treshold_conflicted;
     dap_chain_cs_dag_event_item_t * events_lasts_unlinked;
     dap_chain_cs_dag_blocked_t *removed_events_from_treshold;
-    dap_interval_timer_t mempool_timer;
     dap_interval_timer_t treshold_fee_timer;
     size_t tx_count;
 } dap_chain_cs_dag_pvt_t;
@@ -178,41 +177,6 @@ int dap_chain_cs_dag_init()
 void dap_chain_cs_dag_deinit(void)
 {
 
-}
-
-static void s_round_changes_notify(dap_store_obj_t *a_obj, void *a_arg)
-{
-    dap_chain_cs_dag_t *l_dag = (dap_chain_cs_dag_t *)a_arg;
-    assert(l_dag);
-    dap_chain_net_t *l_net = dap_chain_net_by_id(l_dag->chain->net_id);
-    debug_if(s_debug_more, L_DEBUG, "%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%zu",
-        l_net->pub.name, l_dag->chain->name, a_obj->type, a_obj->group, a_obj->key, a_obj->value_len);
-    if (a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD && l_dag->callback_cs_event_round_sync) {
-        if (dap_strcmp(a_obj->key, DAG_ROUND_CURRENT_KEY))  // check key for round increment, if no than process event
-            l_dag->callback_cs_event_round_sync(l_dag, a_obj->type, a_obj->group, a_obj->key, a_obj->value, a_obj->value_len);
-        else
-            log_it(L_INFO, "Global round ID: %lu", *(uint64_t*)a_obj->value);
-    }
-}
-
-static bool s_dag_rounds_events_iter(dap_global_db_instance_t *a_dbi,
-                                     int a_rc, const char *a_group,
-                                     const size_t a_values_current, const size_t a_values_count,
-                                     dap_store_obj_t *a_values, void *a_arg)
-{
-    dap_return_val_if_pass(a_rc == DAP_GLOBAL_DB_RC_ERROR, false);
-
-    for (size_t i = 0; i < a_values_count; i++) {
-        dap_store_obj_t *l_obj_cur = a_values + i;
-        l_obj_cur->type = DAP_GLOBAL_DB_OPTYPE_ADD;
-        s_round_changes_notify(a_values + i, a_arg);
-    }
-    return true;
-}
-
-static void s_timer_process_callback(void *a_arg)
-{
-    dap_chain_node_mempool_process_all((dap_chain_t *)a_arg, false);
 }
 
 /**
@@ -313,30 +277,10 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     l_dag->gdb_group_events_round_new = dap_strdup_printf(l_dag->is_celled ? "dag-%s-%s-%016llx-round.new" : "dag-%s-%s-round.new",
                                           l_net->pub.gdb_groups_prefix, a_chain->name, 0LLU);
-    dap_global_db_cluster_t *l_dag_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
-                                                                       dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_DAG),
-                                                                       l_dag->gdb_group_events_round_new, 900, true,
-                                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_ROLE_AUTONOMIC);
-    dap_global_db_cluster_add_notify_callback(l_dag_cluster, s_round_changes_notify, l_dag);
-    dap_chain_net_add_auth_nodes_to_cluster(l_net, l_dag_cluster);
-    dap_link_manager_add_net_associate(l_net->pub.id, l_dag_cluster->links_cluster);
 
-    byte_t *l_current_round = dap_global_db_get_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
-    l_dag->round_current = l_current_round ? *(uint64_t*)l_current_round : 0;
-    DAP_DELETE(l_current_round);
-    debug_if(s_debug_more, L_INFO, "Current round id %"DAP_UINT64_FORMAT_U, l_dag->round_current);
-
-    dap_global_db_get_all_raw(l_dag->gdb_group_events_round_new, 0, 0, s_dag_rounds_events_iter, l_dag);
-
-
-    PVT(l_dag)->mempool_timer = dap_interval_timer_create(15000, s_timer_process_callback, a_chain);
-    PVT(l_dag)->events_treshold = NULL;
-    PVT(l_dag)->events_treshold_conflicted = NULL;
     PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_dap_chain_cs_dag_threshold_free, l_dag);
-    if (l_dag->is_single_line)
-        log_it (L_NOTICE, "DAG chain initialized (single line)");
-    else
-        log_it (L_NOTICE, "DAG chain initialized (multichain)");
+
+    log_it (L_NOTICE, "DAG chain initialized (%s)", l_dag->is_single_line ? "single line" : "multichain");
 
     return 0;
 }
@@ -346,7 +290,7 @@ static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag) {
     dap_chain_cs_dag_event_item_t *l_current = NULL, *l_tmp = NULL;
     dap_nanotime_t  l_time_cut_off = dap_nanotime_now() - dap_nanotime_from_sec(7200); //7200 sec = 2 hours.
     pthread_mutex_lock(&l_pvt->events_mutex);
-    //Fee treshold
+    //Free threshold
     HASH_ITER(hh, l_pvt->events_treshold, l_current, l_tmp) {
         if (l_current->ts_added < l_time_cut_off) {
             dap_chain_cs_dag_blocked_t *l_el = DAP_NEW(dap_chain_cs_dag_blocked_t);
@@ -416,7 +360,6 @@ static void s_chain_cs_dag_delete(dap_chain_t * a_chain)
     s_dap_chain_cs_dag_purge(a_chain);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     pthread_mutex_destroy(& PVT(l_dag)->events_mutex);
-    dap_interval_timer_delete(PVT(l_dag)->mempool_timer);
     if(l_dag->callback_delete )
         l_dag->callback_delete(l_dag);
     if(l_dag->_inheritor)

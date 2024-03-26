@@ -501,9 +501,9 @@ static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_
     dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     bool l_link_is_permanent = s_net_check_link_is_premanent(l_net, &a_link->addr);
-    log_it(L_INFO, "%s."NODE_ADDR_FP_STR" can't connect for now.%s", l_net ? l_net->pub.name : "(unknown)" ,
+    log_it(L_INFO, "%s."NODE_ADDR_FP_STR" can't connect for now. %s", l_net ? l_net->pub.name : "(unknown)" ,
             NODE_ADDR_FP_ARGS_S(a_link->addr),
-            l_link_is_permanent ? "" : " Drop it.");
+            l_link_is_permanent ? "Setting reconnection pause for it." : "Dropping it.");
     if (!a_links_count && l_net_pvt->state == NET_STATE_ONLINE)
         l_net_pvt->state = NET_STATE_LINKS_PREPARE;
     return l_link_is_permanent;
@@ -543,24 +543,23 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
  */
 static void s_balancer_link_prepare_success(dap_chain_net_t *a_net, dap_chain_net_links_t *a_link_full_node_list)
 {
-    dap_link_info_t *l_link_info = (dap_link_info_t *)a_link_full_node_list->nodes_info;
     char l_err_str[128] = {0};
     struct json_object *l_json;
     for (size_t i = 0; i < a_link_full_node_list->count_node; ++i) {
         dap_link_info_t *l_link_info = (dap_link_info_t *)a_link_full_node_list->nodes_info + i;
         debug_if(s_debug_more, L_DEBUG,"Link " NODE_ADDR_FP_STR " [ %s : %u ] prepare success",
                NODE_ADDR_FP_ARGS_S(l_link_info->node_addr), l_link_info->uplink_addr, l_link_info->uplink_port);
-        if (s_net_link_add(a_net, &l_link_info[i].node_addr, l_link_info[i].uplink_addr, l_link_info[i].uplink_port))
+        if (s_net_link_add(a_net, &l_link_info->node_addr, l_link_info->uplink_addr, l_link_info->uplink_port))
             continue;
         l_json = s_net_states_json_collect(a_net);
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " prepared"
-                     , NODE_ADDR_FP_ARGS_S(l_link_info[i].node_addr));
+                     , NODE_ADDR_FP_ARGS_S(l_link_info->node_addr));
         json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
         dap_notify_server_send_mt(json_object_get_string(l_json));
         json_object_put(l_json);
         debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added",
-                 NODE_ADDR_FP_ARGS_S(l_link_info[i].node_addr));
+                 NODE_ADDR_FP_ARGS_S(l_link_info->node_addr));
     }
 }
 
@@ -630,7 +629,7 @@ int s_link_manager_link_request(uint64_t a_net_id)
     dap_chain_net_links_t *l_links = dap_chain_net_balancer_get_node(l_net->pub.name, l_required_links_count);
     if (l_links) {
         s_balancer_link_prepare_success(l_net, l_links);
-        return -3;
+        return 0;
     }
     // dynamic links from http balancer request
     struct balancer_link_request *l_balancer_request = NULL;
@@ -2014,14 +2013,12 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     if (l_net_pvt->permanent_links_count)
         l_net_pvt->permanent_links = DAP_NEW_Z_COUNT(dap_chain_node_addr_t, l_net_pvt->permanent_links_count);
     for (uint16_t i = 0; i < l_net_pvt->permanent_links_count; ++i) {
-        dap_chain_node_addr_t l_addr;
-        if (dap_stream_node_addr_from_str(&l_addr, l_permanent_nodes_addrs[i])) {
+        if (dap_stream_node_addr_from_str(l_net_pvt->permanent_links + i, l_permanent_nodes_addrs[i])) {
             log_it(L_ERROR, "Incorrect format of address \"%s\", fix net config and restart node", l_permanent_nodes_addrs[i]);
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
             return -16;
         }
-        l_net_pvt->permanent_links[i].uint64 = l_addr.uint64;
     }
     char **l_authorized_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "authorized_nodes_addrs", &l_net_pvt->authorized_nodes_count);
     if (!l_net_pvt->authorized_nodes_count)
@@ -2351,6 +2348,11 @@ int s_net_load(dap_chain_net_t *a_net)
     dap_chain_net_add_nodelist_notify_callback(l_net, s_nodelist_change_notify, l_net);
     DAP_DELETE(l_gdb_groups_mask);
 
+    if (dap_link_manager_add_net(l_net->pub.id.uint64, l_net_pvt->nodes_cluster->links_cluster,
+                                dap_config_get_item_uint16_default(l_cfg, "general", "links_required", 3))) {
+        log_it(L_WARNING, "Can't add net %s to link manager", l_net->pub.name);
+    }
+
     DL_FOREACH(l_net->pub.chains, l_chain)
         if (l_chain->callback_created)
             l_chain->callback_created(l_chain, l_cfg);
@@ -2414,10 +2416,10 @@ int s_net_load(dap_chain_net_t *a_net)
     l_net_pvt->sync_context.sync_idle_time = dap_config_get_item_uint32_default(g_config, "chain", "sync_idle_time", 60);
     dap_proc_thread_timer_add(NULL, s_sync_timer_callback, l_net, 1000);
 
-    if (dap_link_manager_add_net(l_net->pub.id.uint64, l_net_pvt->nodes_cluster->links_cluster,
-                                dap_config_get_item_uint16_default(l_cfg, "general", "links_required", 3))) {
-        log_it(L_WARNING, "Can't add net %s to link manager", l_net->pub.name);
-    }
+    for (uint16_t i = 0; i < l_net_pvt->permanent_links_count; ++i)
+        if (!dap_link_manager_link_create(l_net_pvt->permanent_links + i, true, a_net->pub.id.uint64))
+            log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(l_net_pvt->permanent_links + i));
+
     log_it(L_INFO, "Chain network \"%s\" initialized",l_net->pub.name);
     dap_config_close(l_cfg);
 

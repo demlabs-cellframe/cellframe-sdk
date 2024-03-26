@@ -1286,7 +1286,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             }
             *a_str_reply = dap_cluster_get_links_info(l_links_cluster);
         } else {
-            const char *l_guuid_str;
+            const char *l_guuid_str = NULL;
             dap_cluster_t *l_cluster = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cluster", &l_guuid_str);
             if (l_guuid_str) {

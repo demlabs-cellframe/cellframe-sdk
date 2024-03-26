@@ -103,11 +103,11 @@ dap_link_info_t *s_get_links_info_list(dap_chain_net_t *a_net, size_t *a_count, 
         l_count = dap_global_db_driver_count(a_net->pub.gdb_nodes, c_dap_global_db_driver_hash_blank);
     dap_store_obj_t *l_objs = dap_global_db_driver_cond_read(a_net->pub.gdb_nodes, l_last_read_hash, &l_count);
     if (!l_objs || !l_count) {
-        *a_count = 0;
-        return NULL;
+        l_last_read_hash = c_dap_global_db_driver_hash_blank;
+        return s_get_links_info_list(a_net, a_count, false);
     }
     l_last_read_hash = dap_global_db_driver_hash_get(l_objs + l_count - 1);
-    if (dap_global_db_driver_hash_is_blank(&l_last_read_hash) == 0)
+    if (dap_global_db_driver_hash_is_blank(&l_last_read_hash))
         l_count--;
     dap_link_info_t *l_ret = NULL;
     DAP_NEW_Z_COUNT_RET_VAL(l_ret, dap_link_info_t, l_count, NULL, NULL);
