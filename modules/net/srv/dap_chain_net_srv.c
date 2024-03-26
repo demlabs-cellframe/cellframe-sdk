@@ -454,17 +454,12 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
                 }
             } else if (!dap_strcmp(l_order_str, "delete")) {
                 if (l_order_hash_str) {
-                    if (dap_strlen(l_order_hash_str) != DAP_HASH_FAST_STR_SIZE) {
-                        dap_string_append_printf(l_string_ret, "The specified hash %s is not valid.\n", l_order_hash_str);
-                        l_ret = -10;
-                    } else {
-                        l_ret = dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
-                        if (!l_ret)
-                            dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_str);
-                        else {
-                            l_ret = -8;
-                            dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_str);
-                        }
+                    l_ret = dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
+                    if (!l_ret)
+                        dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_str);
+                    else {
+                        l_ret = -8;
+                        dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_str);
                     }
                 } else {
                     l_ret = -9 ;
