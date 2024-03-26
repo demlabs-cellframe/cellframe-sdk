@@ -378,23 +378,24 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         log_it(L_ERROR, "Can't change state of loading network '%s'", a_net->pub.name);
         return -1;
     }
-    if (PVT(a_net)->state != NET_STATE_OFFLINE){
-        PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
-        s_net_states_proc(a_net);
-    }
-    PVT(a_net)->state_target = a_new_state;
-    //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
-    if(a_new_state == NET_STATE_ONLINE) {
-        dap_chain_esbocs_start_timer(a_net->pub.id);
-        dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
-    }
-
-    if (a_new_state == NET_STATE_OFFLINE){
-        dap_chain_esbocs_stop_timer(a_net->pub.id);
-        dap_link_manager_set_net_condition(a_net->pub.id.uint64, false);
+    if (PVT(a_net)->state_target == a_new_state) {
+        log_it(L_NOTICE, "Network %s already %s state %s", a_net->pub.name,
+                                PVT(a_net)->state == a_new_state ? "have" : "going to", dap_chain_net_state_to_str(a_new_state));
         return 0;
     }
-
+    //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
+    PVT(a_net)->state_target = a_new_state;
+    if (a_new_state == NET_STATE_OFFLINE) {
+        dap_link_manager_set_net_condition(a_net->pub.id.uint64, false);
+        dap_chain_esbocs_stop_timer(a_net->pub.id);
+    } else if (PVT(a_net)->state == NET_STATE_OFFLINE) {
+        dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
+        for (uint16_t i = 0; i < PVT(a_net)->permanent_links_count; ++i)
+            if (!dap_link_manager_link_create(PVT(a_net)->permanent_links + i, true, a_net->pub.id.uint64))
+                log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(a_net)->permanent_links + i));
+        if (a_new_state == NET_STATE_ONLINE)
+            dap_chain_esbocs_start_timer(a_net->pub.id);
+    }
     return dap_proc_thread_callback_add(NULL, s_net_states_proc, a_net);
 }
 
@@ -435,7 +436,8 @@ static int s_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr
 {
     dap_link_t *l_link = dap_link_manager_link_create(a_addr, true, a_net->pub.id.uint64);
     if (!l_link) {
-        log_it(L_ERROR, "Can't create link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_addr));
+        if (a_addr->uint64 != g_node_addr.uint64)
+            log_it(L_ERROR, "Can't create link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_addr));
         return -1;
     }
     int rc = dap_link_manager_link_update(l_link, a_host, a_port, false);
@@ -2415,10 +2417,6 @@ int s_net_load(dap_chain_net_t *a_net)
 
     l_net_pvt->sync_context.sync_idle_time = dap_config_get_item_uint32_default(g_config, "chain", "sync_idle_time", 60);
     dap_proc_thread_timer_add(NULL, s_sync_timer_callback, l_net, 1000);
-
-    for (uint16_t i = 0; i < l_net_pvt->permanent_links_count; ++i)
-        if (!dap_link_manager_link_create(l_net_pvt->permanent_links + i, true, a_net->pub.id.uint64))
-            log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(l_net_pvt->permanent_links + i));
 
     log_it(L_INFO, "Chain network \"%s\" initialized",l_net->pub.name);
     dap_config_close(l_cfg);

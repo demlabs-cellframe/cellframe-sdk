@@ -99,12 +99,15 @@ dap_link_info_t *s_get_links_info_list(dap_chain_net_t *a_net, size_t *a_count, 
     static _Thread_local dap_global_db_driver_hash_t l_last_read_hash = {};
     assert(a_net && a_count);
     size_t l_count = *a_count;
-    if (!l_count)
+    if (!l_count) {
         l_count = dap_global_db_driver_count(a_net->pub.gdb_nodes, c_dap_global_db_driver_hash_blank);
+        if (!l_count)
+            return NULL;
+    }
     dap_store_obj_t *l_objs = dap_global_db_driver_cond_read(a_net->pub.gdb_nodes, l_last_read_hash, &l_count);
     if (!l_objs || !l_count) {
         l_last_read_hash = c_dap_global_db_driver_hash_blank;
-        return s_get_links_info_list(a_net, a_count, false);
+        return a_external_call ? s_get_links_info_list(a_net, a_count, false) : NULL;
     }
     l_last_read_hash = dap_global_db_driver_hash_get(l_objs + l_count - 1);
     if (dap_global_db_driver_hash_is_blank(&l_last_read_hash))
@@ -149,7 +152,7 @@ dap_chain_net_links_t *dap_chain_net_balancer_get_node(const char *a_net_name, u
     size_t l_node_num_prep = a_links_need;
     dap_link_info_t *l_links_info = s_get_links_info_list(l_net, &l_node_num_prep, true);
     if (!l_links_info || !l_node_num_prep){        
-        log_it(L_ERROR, "Active links list in net %s is empty", a_net_name);
+        log_it(L_ERROR, "Active node list in net %s is empty", a_net_name);
         return NULL;
     }
     size_t l_node_num_send = dap_min(s_max_links_responce_count, l_node_num_prep);
@@ -184,7 +187,7 @@ dap_chain_net_links_t *dap_chain_net_balancer_get_node_old(const char *a_net_nam
     size_t l_node_num_prep = a_links_need;
     dap_link_info_t *l_links_info = s_get_links_info_list(l_net, &l_node_num_prep, true);
     if (!l_links_info || !l_node_num_prep){        
-        log_it(L_ERROR, "Active links list in net %s is empty", a_net_name);
+        log_it(L_ERROR, "Active node list in net %s is empty", a_net_name);
         return NULL;
     }
     size_t l_node_num_send = dap_min(s_max_links_responce_count, l_node_num_prep);
