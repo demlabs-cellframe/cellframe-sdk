@@ -31,7 +31,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define LOG_TAG "dap_chain_net_balancer"
 
 static_assert(sizeof(dap_chain_net_links_t) + sizeof(dap_chain_node_info_old_t) < DAP_BALANCER_MAX_REPLY_SIZE, "DAP_BALANCER_MAX_REPLY_SIZE cannot accommodate information minimum about 1 link");
-static const size_t s_max_links_responce_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_links_t)) / sizeof(dap_chain_node_info_old_t);
+static const size_t s_max_links_response_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_links_t)) / sizeof(dap_chain_node_info_old_t);
 
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t *a_net)
 {
@@ -155,7 +155,7 @@ dap_chain_net_links_t *dap_chain_net_balancer_get_node(const char *a_net_name, u
         log_it(L_ERROR, "Active node list in net %s is empty", a_net_name);
         return NULL;
     }
-    size_t l_node_num_send = dap_min(s_max_links_responce_count, l_node_num_prep);
+    size_t l_node_num_send = dap_min(s_max_links_response_count, l_node_num_prep);
 // memory alloc
     dap_chain_net_links_t *l_node_list_res = NULL;
     DAP_NEW_Z_SIZE_RET_VAL(l_node_list_res, dap_chain_net_links_t, sizeof(dap_chain_net_links_t) + l_node_num_send * sizeof(dap_link_info_t), NULL, l_links_info);
@@ -190,7 +190,7 @@ dap_chain_net_links_t *dap_chain_net_balancer_get_node_old(const char *a_net_nam
         log_it(L_ERROR, "Active node list in net %s is empty", a_net_name);
         return NULL;
     }
-    size_t l_node_num_send = dap_min(s_max_links_responce_count, l_node_num_prep);
+    size_t l_node_num_send = dap_min(s_max_links_response_count, l_node_num_prep);
 // memory alloc
     dap_chain_net_links_t *l_node_list_res = NULL;
     DAP_NEW_Z_SIZE_RET_VAL(l_node_list_res, dap_chain_net_links_t, sizeof(dap_chain_net_links_t) + l_node_num_send * sizeof(dap_chain_node_info_old_t), NULL, l_links_info);
@@ -254,7 +254,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     strncpy(l_net_name, l_net_str, 127);
     links_need = links_need ? links_need : 5;
     log_it(L_DEBUG, "HTTP balancer parser retrieve netname %s", l_net_name);
-    dap_chain_net_links_t *l_link_full_node_list = s_balancer_issue_link(l_net_name,links_need, l_protocol_version);
+    dap_chain_net_links_t *l_link_full_node_list = s_balancer_issue_link(l_net_name, links_need, l_protocol_version);
     if (!l_link_full_node_list) {
         log_it(L_WARNING, "Can't issue link for network %s, no acceptable links found", l_net_name);
         *l_return_code = Http_Status_NotFound;

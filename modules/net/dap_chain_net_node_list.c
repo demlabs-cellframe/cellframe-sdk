@@ -255,10 +255,6 @@ int dap_chain_net_node_list_request(dap_chain_net_t *a_net, uint16_t a_port, boo
     if (!a_net)
         return -1;
     
-    if (dap_chain_net_is_my_node_authorized(a_net))
-        // We're in authorized list, add directly
-        return s_dap_chain_net_node_list_add(a_net, dap_chain_net_get_my_node_info(a_net));
-
     struct node_link_request *l_link_node_request = s_node_list_request_init();
     if (!l_link_node_request) {
         log_it(L_CRITICAL, "Memory allocation error");

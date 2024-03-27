@@ -33,7 +33,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 typedef struct dap_chain_net_node_balancer {
     uint64_t count_node;
     byte_t nodes_info[];
-} dap_chain_net_links_t;
+} DAP_ALIGN_PACKED dap_chain_net_links_t;
 
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
 dap_link_info_t *dap_chain_net_balancer_dns_issue_link(char *a_str);

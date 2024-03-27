@@ -141,6 +141,7 @@ struct balancer_link_request {
     struct request_link_info *info;
     dap_chain_net_t *net;
     dap_worker_t *worker;
+    uint16_t links_requested_count;
 };
 
 struct block_reward {
@@ -182,7 +183,7 @@ typedef struct dap_chain_net_pvt{
     bool load_mode;
 
     uint16_t permanent_links_count;
-    dap_stream_node_addr_t *permanent_links;
+    dap_link_info_t **permanent_links;
 
     uint16_t authorized_nodes_count;
     dap_stream_node_addr_t *authorized_nodes_addrs;
@@ -390,9 +391,16 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         dap_chain_esbocs_stop_timer(a_net->pub.id);
     } else if (PVT(a_net)->state == NET_STATE_OFFLINE) {
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
-        for (uint16_t i = 0; i < PVT(a_net)->permanent_links_count; ++i)
-            if (!dap_link_manager_link_create(PVT(a_net)->permanent_links + i, true, a_net->pub.id.uint64))
-                log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(a_net)->permanent_links + i));
+        for (uint16_t i = 0; i < PVT(a_net)->permanent_links_count; ++i) {
+            dap_link_info_t *l_permalink_info = PVT(a_net)->permanent_links[i];
+            dap_link_t *l_link = dap_link_manager_link_create(&l_permalink_info->node_addr, true, a_net->pub.id.uint64);
+            if (!l_link) {
+                log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_permalink_info->node_addr));
+                continue;
+            }
+            if (l_permalink_info->uplink_port)
+                dap_link_manager_link_update(l_link, l_permalink_info->uplink_addr, l_permalink_info->uplink_port);
+        }
         if (a_new_state == NET_STATE_ONLINE)
             dap_chain_esbocs_start_timer(a_net->pub.id);
     }
@@ -440,7 +448,7 @@ static int s_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr
             log_it(L_ERROR, "Can't create link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_addr));
         return -1;
     }
-    int rc = dap_link_manager_link_update(l_link, a_host, a_port, false);
+    int rc = dap_link_manager_link_update(l_link, a_host, a_port);
     if (rc)
         log_it(L_ERROR, "Can't update link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_addr));
     return rc;
@@ -483,7 +491,7 @@ static bool s_net_check_link_is_premanent(dap_chain_net_t *a_net, dap_stream_nod
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     for (uint16_t i = 0; i < l_net_pvt->permanent_links_count; i++) {
-        if ((l_net_pvt->permanent_links + i)->uint64 == a_addr->uint64)
+        if (l_net_pvt->permanent_links[i]->node_addr.uint64 == a_addr->uint64)
             return true;
     }
     return false;
@@ -591,10 +599,9 @@ void s_http_balancer_link_prepare_success(void *a_response, size_t a_response_si
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *)a_arg;
     dap_chain_net_links_t *l_link_full_node_list = (dap_chain_net_links_t*)a_response;
 
-    size_t l_response_size_need = sizeof(dap_chain_net_links_t) + (sizeof(dap_link_info_t) * l_link_full_node_list->count_node);
-    log_it(L_WARNING, "Get data size - %lu need - (%lu)", a_response_size, l_response_size_need);
-    if (a_response_size != l_response_size_need) {
-        log_it(L_ERROR, "Invalid balancer response size %lu (expected %lu)", a_response_size, l_response_size_need);
+    size_t l_response_size_need = sizeof(dap_chain_net_links_t) + (sizeof(dap_link_info_t) * l_balancer_request->links_requested_count);
+    if (a_response_size < sizeof(dap_chain_net_links_t) + sizeof(dap_link_info_t) || a_response_size > l_response_size_need) {
+        log_it(L_ERROR, "Invalid balancer response size %zu (expected %zu)", a_response_size, l_response_size_need);
         DAP_DELETE(l_balancer_request);
         return;
     }
@@ -627,19 +634,20 @@ int s_link_manager_link_request(uint64_t a_net_id)
     if (l_net_pvt->state == NET_STATE_LINKS_PREPARE)
         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
     size_t l_required_links_count = dap_link_manager_needed_links_count(l_net->pub.id.uint64);
-    // TODO make correct asynchronous local balancer request
+    /* TODO make correct asynchronous local balancer request
     dap_chain_net_links_t *l_links = dap_chain_net_balancer_get_node(l_net->pub.name, l_required_links_count);
     if (l_links) {
         s_balancer_link_prepare_success(l_net, l_links);
         return 0;
-    }
+    }*/
     // dynamic links from http balancer request
     struct balancer_link_request *l_balancer_request = NULL;
     DAP_NEW_Z_RET_VAL(l_balancer_request, struct balancer_link_request, -4, NULL);
     *l_balancer_request = (struct balancer_link_request) {
         .info = s_balancer_link_from_cfg(l_net),
         .net = l_net,
-        .worker = dap_events_worker_get_auto()
+        .worker = dap_events_worker_get_auto(),
+        .links_requested_count = l_required_links_count
     };
     if (!l_balancer_request->info) {
         log_it(L_ERROR, "Can't process balancer link %s request", PVT(l_net)->balancer_type == 0 ? "HTTP" : "DNS");
@@ -655,7 +663,7 @@ int s_link_manager_link_request(uint64_t a_net_id)
                                                 DAP_UPLINK_PATH_BALANCER,
                                                 DAP_BALANCER_URI_HASH,
                                                 DAP_BALANCER_PROTOCOL_VERSION,
-                                                (int)l_required_links_count * 2,
+                                                (int)l_required_links_count,
                                                 l_net->pub.name);
         ret = dap_client_http_request(l_balancer_request->worker,
                                                 l_balancer_request->info->addr,
@@ -702,7 +710,7 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
             break;
     if (!l_node_info)
         return -3;
-    dap_link_manager_link_update(a_link, l_node_info->ext_host, l_node_info->ext_port, false);
+    dap_link_manager_link_update(a_link, l_node_info->ext_host, l_node_info->ext_port);
     DAP_DELETE(l_node_info);
     return 0;
 }
@@ -2012,16 +2020,46 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     HASH_ADD(hh2, s_net_ids, net_id, sizeof(l_net_item->net_id), l_net_item);
 
     char **l_permanent_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "permanent_nodes_addrs", &l_net_pvt->permanent_links_count);
-    if (l_net_pvt->permanent_links_count)
-        l_net_pvt->permanent_links = DAP_NEW_Z_COUNT(dap_chain_node_addr_t, l_net_pvt->permanent_links_count);
+    if (l_net_pvt->permanent_links_count) {
+        l_net_pvt->permanent_links = DAP_NEW_Z_COUNT(dap_link_info_t *, l_net_pvt->permanent_links_count);
+        if (!l_net_pvt->permanent_links) {
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -4;
+        }
+    }
     for (uint16_t i = 0; i < l_net_pvt->permanent_links_count; ++i) {
-        if (dap_stream_node_addr_from_str(l_net_pvt->permanent_links + i, l_permanent_nodes_addrs[i])) {
+        l_net_pvt->permanent_links[i] = DAP_NEW_Z(dap_link_info_t);
+        if (l_net_pvt->permanent_links[i]) {
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -4;
+        }
+        if (dap_stream_node_addr_from_str(&l_net_pvt->permanent_links[i]->node_addr, l_permanent_nodes_addrs[i])) {
             log_it(L_ERROR, "Incorrect format of address \"%s\", fix net config and restart node", l_permanent_nodes_addrs[i]);
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
             return -16;
         }
     }
+    uint16_t l_permalink_hosts_count = 0;
+    char **l_permanent_links_hosts = dap_config_get_array_str(l_cfg, "general", "seed_nodes_hosts", &l_permalink_hosts_count);
+    for (uint16_t i = 0; i < dap_min(l_permalink_hosts_count, l_net_pvt->permanent_links_count); ++i) {
+        uint16_t l_port = 0;
+        char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
+        if (dap_net_parse_hostname(l_permanent_links_hosts[i], l_host, &l_port) || !l_port) {
+            log_it(L_ERROR, "Incorrect format of address \"%s\", fix net config and restart node",
+                            l_permanent_links_hosts[i]);
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -16;
+        }
+        l_net_pvt->permanent_links[i]->uplink_port = l_port;
+        dap_strncpy(l_net_pvt->permanent_links[i]->uplink_addr, l_host, DAP_HOSTADDR_STRLEN);
+    }
+
     char **l_authorized_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "authorized_nodes_addrs", &l_net_pvt->authorized_nodes_count);
     if (!l_net_pvt->authorized_nodes_count)
         log_it(L_WARNING, "Can't read PoA nodes addresses");
@@ -2051,7 +2089,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     for (uint16_t i = 0; i < l_net_pvt->seed_nodes_count; ++i) {
         uint16_t l_port = 0;
         char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
-        if (dap_net_parse_hostname(l_seed_nodes_hosts[i], l_host, &l_port)) {
+        if (dap_net_parse_hostname(l_seed_nodes_hosts[i], l_host, &l_port) || !l_port) {
             log_it(L_ERROR, "Incorrect format of address \"%s\", fix net config and restart node",
                             l_seed_nodes_hosts[i]);
             dap_chain_net_delete(l_net);
@@ -2059,6 +2097,12 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
             return -16;
         }
         l_net_pvt->seed_nodes_info[i] = DAP_NEW_Z(struct request_link_info);
+        if (!l_net_pvt->seed_nodes_info[i]) {
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -4;
+        }
         l_net_pvt->seed_nodes_info[i]->port = l_port;
         dap_strncpy(l_net_pvt->seed_nodes_info[i]->addr, l_host, DAP_HOSTADDR_STRLEN);
     }
