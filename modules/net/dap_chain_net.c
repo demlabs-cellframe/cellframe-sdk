@@ -2161,7 +2161,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
             continue;
         char *l_entry_name = dap_strdup(l_dir_entry->d_name);
         if (!l_entry_name) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             dap_chain_net_delete(l_net);
             closedir(l_chains_dir);
             return -8;
@@ -2175,7 +2175,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
                 if(l_cfg_new) {
                     list_priority *l_chain_prior = DAP_NEW_Z(list_priority);
                     if (!l_chain_prior) {
-                        log_it(L_CRITICAL, "Memory allocation error");
+                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                         DAP_DELETE(l_entry_name);
                         dap_config_close(l_cfg_new);
                         closedir(l_chains_dir);
@@ -2468,7 +2468,7 @@ int s_net_load(dap_chain_net_t *a_net)
     } else
         log_it(L_INFO, "Server is disabled");
 
-    l_net_pvt->node_info->address = g_node_addr;
+    l_net_pvt->node_info->address.uint64 = g_node_addr.uint64;
 
     log_it(L_NOTICE, "Net load information: node_addr " NODE_ADDR_FP_STR ", seed links %u, cell_id 0x%016"DAP_UINT64_FORMAT_X,
            NODE_ADDR_FP_ARGS_S(g_node_addr),
@@ -2948,7 +2948,7 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t *l_net)
         dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) l_objs[i].value;
         dap_chain_node_addr_t *l_address = DAP_NEW(dap_chain_node_addr_t);
         if (!l_address) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return NULL;
         }
         l_address->uint64 = l_node_info->address.uint64;

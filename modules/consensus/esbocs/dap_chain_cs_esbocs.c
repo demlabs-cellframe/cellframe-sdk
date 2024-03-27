@@ -207,7 +207,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     if (!l_esbocs_pvt) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         l_ret = - 5;
         goto lb_err;
     }
@@ -259,7 +259,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 
         dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
         if (!l_validator) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             l_ret = - 5;
             goto lb_err;
         }
@@ -2169,7 +2169,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         // store for new candidate
         l_store = DAP_NEW_Z(dap_chain_esbocs_store_t);
         if (!l_store) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             goto session_unlock;
         }
         l_store->candidate_size = l_candidate_size;
@@ -2418,7 +2418,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             l_message->hdr.sign_size = l_sign_size;
             l_message = DAP_REALLOC(l_message, l_message_size + l_sign_size);
             if (!l_message) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 return;
             }
             memcpy(l_message->msg_n_sign + a_data_size, l_sign, l_sign_size);
@@ -2621,7 +2621,7 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
         size_t l_sign_size = dap_sign_get_size(l_sign);
         l_decree = DAP_REALLOC(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
         if (!l_decree) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             DAP_DELETE(l_sign);
             return NULL;
         }

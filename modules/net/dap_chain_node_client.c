@@ -672,7 +672,7 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
     }
     dap_chain_node_client_t *l_node_client = DAP_NEW_Z(dap_chain_node_client_t);
     if (!l_node_client) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return NULL;
     }
 

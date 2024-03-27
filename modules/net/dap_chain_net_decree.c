@@ -266,7 +266,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
     } else {
         l_decree_hh = DAP_NEW_Z(struct decree_hh);
         if (!l_decree_hh) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return -1;
         }
         l_decree_hh->decree = DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));

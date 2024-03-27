@@ -875,7 +875,7 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
 
     dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
     if (!l_price) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         DAP_DEL_Z(l_order);
         return NULL;
     }
@@ -995,7 +995,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
     if(!l_sdata) {
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         if (!l_srv) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             pthread_mutex_unlock(&s_srv_list_mutex);
             return NULL;
         }
@@ -1005,7 +1005,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         if (!l_sdata) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             DAP_DEL_Z(l_srv);
             pthread_mutex_unlock(&s_srv_list_mutex);
             return NULL;

@@ -226,7 +226,7 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
 {
     UNUSED(a_arg);
     if (!(a_ch->internal = DAP_NEW_Z(dap_chain_ch_t))) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return;
     };
     dap_chain_ch_t *l_ch_chain = DAP_CHAIN_CH(a_ch);
@@ -707,7 +707,7 @@ struct sync_request *dap_chain_ch_create_sync_request(dap_chain_ch_pkt_t *a_chai
     }
     struct sync_request *l_sync_request = DAP_NEW_Z(struct sync_request);
     if (!l_sync_request) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return NULL;
     }
     *l_sync_request = (struct sync_request) {
@@ -1086,7 +1086,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 if (!l_hash_item) {
                     l_hash_item = DAP_NEW_Z(dap_chain_ch_hash_item_t);
                     if (!l_hash_item) {
-                        log_it(L_CRITICAL, "Memory allocation error");
+                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                         return;
                     }
                     l_hash_item->hash = l_element->hash;
@@ -1261,7 +1261,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 if( ! l_hash_item ){
                     l_hash_item = DAP_NEW_Z(dap_chain_ch_hash_item_t);
                     if (!l_hash_item) {
-                        log_it(L_CRITICAL, "Memory allocation error");
+                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                         return;
                     }
                     l_hash_item->hash = l_element->hash;
@@ -1730,7 +1730,7 @@ static bool s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
                 } else {
                     l_hash_item = DAP_NEW_Z(dap_chain_ch_hash_item_t);
                     if (!l_hash_item) {
-                        log_it(L_CRITICAL, "Memory allocation error");
+                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                         return;
                     }
                     l_hash_item->hash = l_obj->hash;
@@ -1835,7 +1835,7 @@ static bool s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
                 }else{
                     l_hash_item = DAP_NEW_Z(dap_chain_ch_hash_item_t);
                     if (!l_hash_item) {
-                        log_it(L_CRITICAL, "Memory allocation error");
+                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                         return false;
                     }
                     l_hash_item->hash = *l_ch_chain->request_atom_iter->cur_hash;
