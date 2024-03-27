@@ -39,25 +39,33 @@ int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_cha
     return l_client ? dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 5000) : -1;
 }
 
-/*static uint64_t min_count_blocks_events(dap_global_db_obj_t * a_objs, size_t a_node_count, dap_chain_node_info_t **a_node_info_list, size_t a_count)
+static size_t s_node_sort(dap_global_db_obj_t *a_objs, size_t a_node_count, const char *a_group)
 {
-    uint64_t l_blocks_events = 0;
-    for (size_t i = 0; i < a_node_count; i++) {
-        dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)a_objs[i].value;
-        if (!l_node_cand) {
+// sanity check
+    dap_return_val_if_pass(!a_objs || !a_node_count || !a_group, 0);
+// func work
+    size_t l_valid_obj = 0;
+    for (size_t i = 0; i < a_node_count; ++i) {
+        if (!a_objs[i].value) {
             log_it(L_ERROR, "Invalid record, key %s", a_objs[i].key);
             continue;
         }
-        for (dap_list_t *node_i = a_node_info_list; node_i; node_i = node_i->next) {
-            if( !dap_strcmp(((dap_chain_node_info_t*)node_i->data)->ext_host, l_node_cand->ext_host) ) {
-                if (!l_blocks_events || l_blocks_events > l_node_cand->info.atoms_count)
-                    l_blocks_events = l_node_cand->info.atoms_count;
-                break;
-            }
+        dap_store_obj_t *l_store_obj = dap_global_db_get_raw_sync(a_group, a_objs[i].key);
+        if (l_store_obj) {
+            log_it(L_ERROR, "Can't find state about %s node", a_objs[i].key);
+            continue;
         }
+        dap_stream_node_addr_t l_cur_addr = { 0 };
+        dap_stream_node_addr_from_str(&l_cur_addr, l_store_obj->key);
+        if (l_cur_addr.uint64 != dap_stream_node_addr_from_sign(l_store_obj->sign).uint64) {
+            log_it(L_ERROR, "Invalid sign to %s node state record", a_objs[i].key);
+            dap_global_db_get_del_ts_sync(a_group, a_objs[i].key);
+            continue;
+        }
+        ++l_valid_obj;
     }
-    return l_blocks_events;
-}*/
+    return l_valid_obj;
+}
 
 
 dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net_name, uint16_t a_links_need)
@@ -70,27 +78,28 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
         return NULL;
     }
 // preparing
-    size_t l_node_num_prep = 0;
-    dap_link_info_t *l_links_info = NULL;  // TODO
-    if (!l_links_info || !l_node_num_prep){        
-        log_it(L_ERROR, "Active links list in net %s is empty", a_net_name);
+    size_t l_nodes_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
+    if (!l_nodes_count || !l_objs) {        
+        log_it(L_ERROR, "Node list in net %s is empty", a_net_name);
         return NULL;
     }
-    size_t l_node_num_send = dap_min(s_max_links_responce_count, dap_min(l_node_num_prep, a_links_need));
+    // node sort;
+    size_t l_node_num_send = dap_min(s_max_links_responce_count, dap_min(l_nodes_count, a_links_need));
 // memory alloc
     dap_chain_net_node_balancer_t *l_node_list_res = NULL;
-    DAP_NEW_Z_SIZE_RET_VAL(l_node_list_res, dap_chain_net_node_balancer_t, sizeof(dap_chain_net_node_balancer_t) + l_node_num_send * sizeof(dap_link_info_t), NULL, l_links_info);
-    dap_link_info_t *l_node_info = (dap_link_info_t *)l_node_list_res->nodes_info;
+    // DAP_NEW_Z_SIZE_RET_VAL(l_node_list_res, dap_chain_net_node_balancer_t, sizeof(dap_chain_net_node_balancer_t) + l_node_num_send * sizeof(dap_link_info_t), NULL, l_links_info);
+    // dap_link_info_t *l_node_info = (dap_link_info_t *)l_node_list_res->nodes_info;
 // func work
     // if we can't send full list, choose random, not always firsts
-    if (l_node_num_send < l_node_num_prep) {
-        for (size_t i = 0; i < l_node_num_send; ++i)
-            dap_mempcpy(l_node_info + i, l_links_info + dap_random_uint16() % l_node_num_prep, sizeof(dap_link_info_t));
-    } else {
-        dap_mempcpy(l_node_info, l_links_info, l_node_num_send * sizeof(dap_link_info_t));
-    }
-    l_node_list_res->count_node = l_node_num_send;
-    DAP_DELETE(l_links_info);
+    // if (l_node_num_send < l_node_num_prep) {
+    //     for (size_t i = 0; i < l_node_num_send; ++i)
+    //         dap_mempcpy(l_node_info + i, l_links_info + dap_random_uint16() % l_node_num_prep, sizeof(dap_link_info_t));
+    // } else {
+    //     dap_mempcpy(l_node_info, l_links_info, l_node_num_send * sizeof(dap_link_info_t));
+    // }
+    // l_node_list_res->count_node = l_node_num_send;
+    // DAP_DELETE(l_links_info);
     return l_node_list_res;
 }
 
