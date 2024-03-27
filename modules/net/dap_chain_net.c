@@ -1120,6 +1120,7 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
     }
 
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *) a_arg;
+    log_it(L_NOTICE, "Balancer link prepare success pointer - %p ", l_balancer_request);
     dap_chain_net_t * l_net = l_balancer_request->net;
     dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)a_link_full_node_list->nodes_info;
     int l_res = 0;
@@ -1178,8 +1179,8 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
 
     if (!l_balancer_request->link_replace_tries)
         s_net_links_complete_and_start(l_net, a_worker);
-    DAP_DELETE(l_balancer_request->link_info);
-    DAP_DELETE(l_balancer_request);
+    DAP_DEL_Z(l_balancer_request->link_info);
+    DAP_DEL_Z(l_balancer_request);
 
 }
 
@@ -1193,6 +1194,7 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
 static void s_net_balancer_link_prepare_error(dap_worker_t * a_worker, void * a_arg, int a_errno)
 {
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *)a_arg;
+    log_it(L_NOTICE, "Balancer link prepare error pointer - %p ", l_balancer_request);
     dap_chain_net_t * l_net = l_balancer_request->net;
     dap_chain_node_info_t *l_node_info = l_balancer_request->link_info;
     char l_node_addr_str[INET_ADDRSTRLEN]={};
@@ -1316,6 +1318,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     log_it(L_DEBUG, "Start balancer %s request to %s", PVT(a_net)->balancer_http ? "HTTP" : "DNS", l_node_addr_str);
     struct balancer_link_request *l_balancer_request = DAP_NEW_Z(struct balancer_link_request);
+    log_it(L_NOTICE, "Alocated request pointer %p ", l_balancer_request);
     if (!l_balancer_request) {
         log_it(L_CRITICAL, "Memory allocation error");
         DAP_DELETE(l_link_node_info);
@@ -1359,8 +1362,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     }
     if (ret) {
         log_it(L_ERROR, "Can't process balancer link %s request", PVT(a_net)->balancer_http ? "HTTP" : "DNS");
-        DAP_DEL_Z(l_balancer_request->link_info);
-        DAP_DEL_Z(l_balancer_request);
+        //DAP_DEL_Z(l_balancer_request->link_info);
+        //DAP_DEL_Z(l_balancer_request);
         return false;
     }
     if (!a_link_replace_tries)
