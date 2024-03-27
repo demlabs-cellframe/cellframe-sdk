@@ -277,7 +277,7 @@ dap_chain_node_states_info_t *dap_chain_node_get_node_states_info(dap_chain_net_
     dap_return_val_if_pass(!a_net, NULL);
     size_t l_uplinks_count = 0, l_downlinks_count = 0, l_size = 0;
     dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, (dap_chain_id_t){ .uint64 = 1 });
-    dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_info(a_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count );
+    dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count );
     dap_return_val_if_pass(!l_chain || !l_linked_node_addrs, NULL);
 // memory alloc
     dap_chain_node_states_info_t *l_ret = NULL;

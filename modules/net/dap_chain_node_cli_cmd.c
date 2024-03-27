@@ -1433,7 +1433,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     case CMD_BALANCER: {
         //balancer link list
         size_t l_node_num = 0;
-        dap_link_info_t *l_links_info_list = dap_link_manager_get_net_links_info_list(l_net->pub.id.uint64, &l_node_num);
+        dap_link_info_t *l_links_info_list = NULL; //TODO
         dap_string_t *l_string_balanc = dap_string_new("\n");
         dap_string_append_printf(l_string_balanc, "Got %d records\n", (uint16_t)l_node_num);
         for(size_t i = 0; i < l_node_num; ++i) {

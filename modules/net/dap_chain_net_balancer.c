@@ -71,7 +71,7 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
     }
 // preparing
     size_t l_node_num_prep = 0;
-    dap_link_info_t *l_links_info = dap_link_manager_get_net_links_info_list(l_net->pub.id.uint64, &l_node_num_prep);
+    dap_link_info_t *l_links_info = NULL;  // TODO
     if (!l_links_info || !l_node_num_prep){        
         log_it(L_ERROR, "Active links list in net %s is empty", a_net_name);
         return NULL;
@@ -106,7 +106,7 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node_old(const char *a
     }
 // preparing
     size_t l_node_num_prep = 0;
-    dap_link_info_t *l_links_info = dap_link_manager_get_net_links_info_list(l_net->pub.id.uint64, &l_node_num_prep);
+    dap_link_info_t *l_links_info = NULL;  // TODO
     if (!l_links_info || !l_node_num_prep){        
         log_it(L_ERROR, "Active links list in net %s is empty", a_net_name);
         return NULL;
