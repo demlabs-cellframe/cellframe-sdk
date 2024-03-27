@@ -50,6 +50,14 @@
 
 #define LOG_TAG "chain_node"
 
+typedef struct dap_chain_node_states_info {
+    dap_chain_node_addr_t address;
+    uint64_t atoms_count;
+    uint32_t uplinks_count;
+    uint32_t downlinks_count;
+    dap_chain_node_addr_t links_addrs[];
+} DAP_ALIGN_PACKED dap_chain_node_states_info_t;
+
 /**
  * Register alias in base
  */
@@ -268,27 +276,35 @@ bool dap_chain_node_mempool_autoproc_init()
 
 /**
  * @brief get states info about current
- * @param a_size - output calculated size
- * @return pointer to dap_chain_node_states_info_t, if ERROR - NULL
+ * @param a_net - net to update states info
  */
-dap_chain_node_states_info_t *dap_chain_node_get_node_states_info(dap_chain_net_t *a_net, size_t *a_size)
+void dap_chain_node_update_node_states_info(dap_chain_net_t *a_net)
 {
 // sanity check
-    dap_return_val_if_pass(!a_net, NULL);
-    size_t l_uplinks_count = 0, l_downlinks_count = 0, l_size = 0;
+    dap_return_if_pass(!a_net);
+    size_t
+        l_uplinks_count = 0,
+        l_downlinks_count = 0,
+        l_info_size = 0,
+        l_info_signed_size = 0;
     dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, (dap_chain_id_t){ .uint64 = 1 });
     dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count );
-    dap_return_val_if_pass(!l_chain || !l_linked_node_addrs, NULL);
-// memory alloc
-    dap_chain_node_states_info_t *l_ret = NULL;
-    l_size = sizeof(dap_chain_node_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
-    DAP_NEW_Z_SIZE_RET_VAL(l_ret, dap_chain_node_states_info_t, l_size, NULL, l_linked_node_addrs);
+    dap_cert_t *l_cert = dap_cert_find_by_name(DAP_STREAM_NODE_ADDR_CERT_NAME);
+    dap_return_if_pass(!l_chain || !l_linked_node_addrs || !l_cert);
+// memory alloc first
+    dap_chain_node_states_info_t *l_info = NULL;
+    l_info_size = sizeof(dap_chain_node_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
+    DAP_NEW_Z_SIZE_RET(l_info, dap_chain_node_states_info_t, l_info_size, l_linked_node_addrs);
 // func work
-    l_ret->uplinks_count = l_uplinks_count;
-    l_ret->downlinks_count = l_downlinks_count;
-    l_ret->atoms_count = l_chain->callback_count_atom ? l_chain->callback_count_atom(l_chain) : 0;
-    memcpy(&l_ret->address, l_linked_node_addrs, (l_ret->uplinks_count + l_ret->downlinks_count) * sizeof(dap_chain_node_addr_t));
-    if (a_size)
-        *a_size = l_size;
-    return l_ret;
+    // data preparing
+    l_info->address.uint64 = g_node_addr.uint64;
+    l_info->uplinks_count = l_uplinks_count;
+    l_info->downlinks_count = l_downlinks_count;
+    l_info->atoms_count = l_chain->callback_count_atom ? l_chain->callback_count_atom(l_chain) : 0;
+    memcpy(l_info->links_addrs, l_linked_node_addrs, (l_info->uplinks_count + l_info->downlinks_count) * sizeof(dap_chain_node_addr_t));
+    // DB write
+    char *l_gdb_group = dap_strdup_printf("%s.node_states_info",a_net->pub.gdb_groups_prefix);
+    char *l_node_addr_str = dap_stream_node_addr_to_str(l_info->address, false);
+    int l_res = dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_signed_size, false);
+    DAP_DEL_MULTY(l_linked_node_addrs, l_info, l_gdb_group, l_node_addr_str);
 }

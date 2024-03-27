@@ -653,6 +653,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
 // sanity check
     dap_return_val_if_pass(!a_net || !PVT(a_net) || PVT(a_net)->state_target == NET_STATE_OFFLINE , false);
 // func work
+    dap_chain_node_update_node_states_info(a_net);  // update node info
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     if (l_net_pvt->state == NET_STATE_LINKS_PREPARE && l_net_pvt->state_target != NET_STATE_OFFLINE) {
         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
@@ -691,9 +692,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
             dap_link_manager_link_add(a_net->pub.id.uint64, l_link);
         }
     }
-
     // dynamic links from http balancer request
-    int a_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
+    size_t a_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
     struct balancer_link_request *l_balancer_request = NULL;
     DAP_NEW_Z_RET_VAL(l_balancer_request, struct balancer_link_request, false, NULL);
     *l_balancer_request = (struct balancer_link_request) {
@@ -711,7 +711,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
     
     int l_ret;
     if (PVT(a_net)->balancer_http) {
-        char *l_request = dap_strdup_printf("%s/%s?version=%d,method=r,needlink=%d,net=%s",
+        char *l_request = dap_strdup_printf("%s/%s?version=%d,method=r,needlink="DAP_UINT64_FORMAT_U",net=%s",
                                                 DAP_UPLINK_PATH_BALANCER,
                                                 DAP_BALANCER_URI_HASH,
                                                 DAP_BALANCER_PROTOCOL_VERSION,

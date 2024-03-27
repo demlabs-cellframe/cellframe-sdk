@@ -57,14 +57,6 @@ typedef struct dap_chain_node_info {
     char ext_host[];
 } DAP_ALIGN_PACKED dap_chain_node_info_t;
 
-typedef struct dap_chain_node_states_info {
-    dap_chain_node_addr_t address;
-    uint64_t atoms_count;
-    uint32_t uplinks_count;
-    uint32_t downlinks_count;
-    dap_chain_node_addr_t links_addrs[];
-} DAP_ALIGN_PACKED dap_chain_node_states_info_t;
-
 typedef dap_stream_node_addr_t dap_chain_node_addr_t;
 #define dap_chain_node_addr_str_check dap_stream_node_addr_str_check
 #define dap_chain_node_addr_from_str dap_stream_node_addr_from_str
@@ -117,3 +109,4 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
 void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force);
 bool dap_chain_node_mempool_autoproc_init();
 inline static void dap_chain_node_mempool_autoproc_deinit() {}
+void dap_chain_node_update_node_states_info(dap_chain_net_t *a_net);
