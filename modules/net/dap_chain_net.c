@@ -677,15 +677,11 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
     if(l_net_pvt->links_static_only)
         return true;
     // dynamic links from node list
-    static bool l_load_from_node_list = true;
-    if(l_load_from_node_list) {
-        l_load_from_node_list = !l_load_from_node_list;  // switch mode
-        size_t l_nodes_count = 0;
-        dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
-        if (!l_nodes_count || !l_objs) {
-            log_it(L_ERROR, "Node list is empty");
-            return false;
-        }
+    size_t l_nodes_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
+    if (!l_nodes_count || !l_objs) {
+        log_it(L_ERROR, "Node list is empty");
+    } else {
         for (size_t i = 0; i < l_nodes_count; ++i) {
             dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)l_objs[i].value;
             dap_link_t *l_link = dap_link_manager_link_create(&l_node_info->address);
@@ -694,9 +690,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
                 continue;
             dap_link_manager_link_add(a_net->pub.id.uint64, l_link);
         }
-        return true;
     }
-    l_load_from_node_list = !l_load_from_node_list;
+
     // dynamic links from http balancer request
     int a_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
     struct balancer_link_request *l_balancer_request = NULL;
@@ -714,7 +709,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
     log_it(L_DEBUG, "Start balancer %s request to %s",
            PVT(a_net)->balancer_http ? "HTTP" : "DNS", l_balancer_request->link_info->ext_host);
     
-    int ret;
+    int l_ret;
     if (PVT(a_net)->balancer_http) {
         char *l_request = dap_strdup_printf("%s/%s?version=%d,method=r,needlink=%d,net=%s",
                                                 DAP_UPLINK_PATH_BALANCER,
@@ -722,7 +717,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
                                                 DAP_BALANCER_PROTOCOL_VERSION,
                                                 a_required_links_count * 2,
                                                 a_net->pub.name);
-        ret = dap_client_http_request(l_balancer_request->worker,
+        l_ret = dap_client_http_request(l_balancer_request->worker,
                                                 l_balancer_request->link_info->ext_host,
                                                 l_balancer_request->link_info->ext_port,
                                                 "GET",
@@ -739,7 +734,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
     } else {
         l_balancer_request->link_info->ext_port = DNS_LISTEN_PORT;
         // TODO: change signature and implementation
-        ret = /* dap_chain_node_info_dns_request(l_balancer_request->worker,
+        l_ret = /* dap_chain_node_info_dns_request(l_balancer_request->worker,
                                                 l_link_node_info->hdr.ext_addr_v4,
                                                 l_link_node_info->hdr.ext_port,
                                                 a_net->pub.name,
@@ -747,9 +742,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net)
                                                 s_net_balancer_link_prepare_error,
                                                 l_balancer_request); */ -1;
     }
-    if (ret) {
+    if (l_ret) {
         log_it(L_ERROR, "Can't process balancer link %s request", PVT(a_net)->balancer_http ? "HTTP" : "DNS");
-        DAP_DELETE(l_balancer_request);
         return false;
     }
     return true;
@@ -2113,7 +2107,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         dap_config_close(l_cfg);
         return -4;
     }
-
+    l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1 );
     for (uint16_t i = 0; i < l_net_pvt->poa_nodes_count; ++i) {
         uint16_t l_port = 0;
         char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
@@ -2134,8 +2128,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
             = dap_strncpy(l_net_pvt->seed_nodes_info[i]->ext_host, l_host, l_hostlen) - l_net_pvt->seed_nodes_info[i]->ext_host;
         if (g_node_addr.uint64 == l_addr.uint64) {
             // We're in PoA seed list, predefine node info regardless of host set in [server] config section
-            l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1);
-            dap_mempcpy(l_net_pvt->node_info, l_net_pvt->seed_nodes_info[i], dap_chain_node_info_get_size(l_net_pvt->seed_nodes_info[i]));
+            dap_mempcpy(l_net_pvt->node_info, l_net_pvt->seed_nodes_info[i], dap_min((size_t)DAP_HOSTADDR_STRLEN, dap_chain_node_info_get_size(l_net_pvt->seed_nodes_info[i])));
         }
     }
 
@@ -2452,13 +2445,11 @@ int s_net_load(dap_chain_net_t *a_net)
             const char *l_ext_addr = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
             if (!l_ext_addr) {
                 log_it(L_INFO, "External address is not set, will be detected automatically");
-                l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + sizeof(l_host) );
             } else {
                 if ( dap_net_parse_hostname(l_ext_addr, l_host, &l_ext_port) )
                     log_it(L_ERROR, "Invalid server address \"%s\", fix config and restart node", l_ext_addr);
                 else {
                     uint8_t l_hostlen = dap_strlen(l_host);
-                    l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + l_hostlen + 1 );
                     l_net_pvt->node_info->ext_port = l_ext_port;
                     l_net_pvt->node_info->ext_host_len = dap_strncpy(l_net_pvt->node_info->ext_host, l_host, l_hostlen) - l_net_pvt->node_info->ext_host;
                 }
@@ -2477,8 +2468,6 @@ int s_net_load(dap_chain_net_t *a_net)
     } else
         log_it(L_INFO, "Server is disabled");
 
-    if (!l_net_pvt->node_info)
-        l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1 );
     l_net_pvt->node_info->address = g_node_addr;
 
     log_it(L_NOTICE, "Net load information: node_addr " NODE_ADDR_FP_STR ", seed links %u, cell_id 0x%016"DAP_UINT64_FORMAT_X,
