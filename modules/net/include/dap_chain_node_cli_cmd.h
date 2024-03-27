@@ -167,12 +167,21 @@ int com_tx_cond_create(int a_argc, char **a_argv, void **a_str_reply);
 int com_tx_cond_remove(int a_argc, char **a_argv, void **a_str_reply);
 int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_str_reply);
 
+typedef enum s_com_tx_verify{
+    DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_REQUIRE_PARAMETER_TX = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_NET_CHAIN_UNDEFINED,
+    DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_INVALID_TX_HASH,
+    DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_SPECIFIED_TX_NOT_FOUND,
+    DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_TX_NOT_VERIFY
+}s_com_tx_verify_t;
 /**
  * tx_verify command
  *
  * Verifing transaction
  */
-int com_tx_verify(int a_argc, char ** a_argv, void **a_str_reply);
+
+s_com_tx_verify_t com_tx_verify(int a_argc, char ** a_argv, void **a_str_reply);
 
 typedef enum s_com_tx_history_err{
     DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK = 0,
@@ -234,4 +243,4 @@ int com_chain_ca_pub( int a_argc,  char **a_argv, void **a_str_reply);
 int com_chain_ca_copy( int a_argc,  char **a_argv, void **a_str_reply);
 int com_signer(int a_argc, char **a_argv, void **a_str_reply);
 //remove func
-int cmd_remove(int a_argc, char **a_argv, void
+int cmd_remove(int a_argc, char **a_argv, void **a_str_reply);

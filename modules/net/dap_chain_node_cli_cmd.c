@@ -6819,7 +6819,7 @@ s_com_tx_create_err_t com_tx_create(int a_argc, char **a_argv, void **reply)
  * @param str_reply
  * @return int
  */
-int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply)
+s_com_tx_verify_t com_tx_verify(int a_argc, char **a_argv, void **reply)
 {
     const char * l_tx_hash_str = NULL;
     dap_chain_net_t * l_net = NULL;
@@ -6828,23 +6828,25 @@ int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply)
 
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tx", &l_tx_hash_str);
     if(!l_tx_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_verify requires parameter '-tx'");
-        return -1;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_REQUIRE_PARAMETER_TX, "tx_verify requires parameter '-tx'");
+        return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_REQUIRE_PARAMETER_TX;
     }
-    dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
+//    dap_chain_node_
+//    dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&l_arg_index, a_argc, a_argv, &l_chain, &l_net);
     if (!l_net || !l_chain) {
-        return -2;
-    } else if (a_str_reply && *a_str_reply) {
-        DAP_DELETE(*a_str_reply);
-        *a_str_reply = NULL;
+        return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_NET_CHAIN_UNDEFINED;
+    } else if (reply && *reply) {
+        DAP_DELETE(*reply);
+        *reply = NULL;
     }
     dap_hash_fast_t l_tx_hash;
     char *l_hex_str_from58 = NULL;
     if (dap_chain_hash_fast_from_hex_str(l_tx_hash_str, &l_tx_hash)) {
         l_hex_str_from58 = dap_enc_base58_to_hex_str_from_str(l_tx_hash_str);
         if (dap_chain_hash_fast_from_hex_str(l_hex_str_from58, &l_tx_hash)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid tx hash format, need hex or base58");
-            return -3;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_INVALID_TX_HASH, "Invalid tx hash format, need hex or base58");
+            return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_INVALID_TX_HASH;
         }
     }
     size_t l_tx_size = 0;
@@ -6853,16 +6855,34 @@ int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply)
             dap_global_db_get_sync(l_gdb_group, l_hex_str_from58 ? l_hex_str_from58 : l_tx_hash_str, &l_tx_size, NULL, NULL );
     DAP_DEL_Z(l_hex_str_from58);
     if (!l_tx) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified tx not found");
-        return -3;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_SPECIFIED_TX_NOT_FOUND, "Specified tx not found");
+        return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_SPECIFIED_TX_NOT_FOUND;
     }
     int l_ret = dap_ledger_tx_add_check(l_net->pub.ledger, l_tx, l_tx_size, &l_tx_hash);
+    json_object *l_obj_ret = json_object_new_object();
+    json_object *l_obj_hash = json_object_new_string(l_tx_hash_str);
+    json_object_object_add(l_obj_ret, "hash", l_obj_hash);
+    json_object *l_jobj_verfiy = NULL;
+    json_object *l_jobj_error = NULL;
     if (l_ret) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified tx verify fail with return code=%d", l_ret);
-        return -4;
+        l_jobj_verfiy = json_object_new_boolean(false);
+        json_object *l_jobj_err_str = json_object_new_string(dap_ledger_tx_check_err_str(l_ret));
+        json_object *l_jobj_err_code = json_object_new_int64(l_ret);
+        json_object_object_add(l_jobj_error, "code", l_jobj_err_code);
+        json_object_object_add(l_jobj_error, "message", l_jobj_err_str);
+        json_object_object_add(l_obj_ret, "hash", l_obj_hash);
+        json_object_object_add(l_obj_ret, "verify", l_jobj_verfiy);
+        json_object_object_add(l_obj_ret, "error", l_jobj_error);
+        json_object_array_add(*reply, l_obj_ret);
+        return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_TX_NOT_VERIFY;
+    } else {
+        l_jobj_verfiy = json_object_new_boolean(true);
+        l_jobj_error = json_object_new_null();
+        json_object_object_add(l_obj_ret, "verify", l_jobj_verfiy);
+        json_object_object_add(l_obj_ret, "error", l_jobj_error);
+        json_object_array_add(*reply, l_obj_ret);
+        return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_OK;
     }
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified tx verified successfully");
-    return 0;
 }
 
 
