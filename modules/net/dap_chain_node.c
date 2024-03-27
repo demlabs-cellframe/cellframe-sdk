@@ -303,8 +303,8 @@ void dap_chain_node_update_node_states_info(dap_chain_net_t *a_net)
     l_info->atoms_count = l_chain->callback_count_atom ? l_chain->callback_count_atom(l_chain) : 0;
     memcpy(l_info->links_addrs, l_linked_node_addrs, (l_info->uplinks_count + l_info->downlinks_count) * sizeof(dap_chain_node_addr_t));
     // DB write
-    char *l_gdb_group = dap_strdup_printf("%s.node_states_info",a_net->pub.gdb_groups_prefix);
+    char *l_gdb_group = dap_strdup_printf("%s.node.states", a_net->pub.gdb_groups_prefix);
     char *l_node_addr_str = dap_stream_node_addr_to_str(l_info->address, false);
-    int l_res = dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_signed_size, false);
+    dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_signed_size, false);
     DAP_DEL_MULTY(l_linked_node_addrs, l_info, l_gdb_group, l_node_addr_str);
 }

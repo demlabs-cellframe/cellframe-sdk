@@ -2417,6 +2417,15 @@ int s_net_load(dap_chain_net_t *a_net)
     }
     dap_chain_net_add_poa_certs_to_cluster(l_net, l_net_pvt->orders_cluster);
     DAP_DELETE(l_gdb_groups_mask);
+    // node states cluster
+    l_gdb_groups_mask = dap_strdup_printf("%s.node.states", l_net->pub.gdb_groups_prefix);
+    dap_global_db_cluster_add(
+        dap_global_db_instance_get_default(),
+        l_net->pub.name, dap_cluster_guuid_compose(l_net->pub.id.uint64, 1),
+        l_gdb_groups_mask, 0, false,
+        DAP_GDB_MEMBER_ROLE_USER,
+        DAP_CLUSTER_ROLE_EMBEDDED);
+    DAP_DELETE(l_gdb_groups_mask);
     // Nodes and its aliases cluster
     l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes",l_net->pub.gdb_groups_prefix);
     l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
