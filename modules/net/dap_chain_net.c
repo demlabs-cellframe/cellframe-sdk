@@ -2031,7 +2031,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     }
     for (uint16_t i = 0; i < l_net_pvt->permanent_links_count; ++i) {
         l_net_pvt->permanent_links[i] = DAP_NEW_Z(dap_link_info_t);
-        if (l_net_pvt->permanent_links[i]) {
+        if (!l_net_pvt->permanent_links[i]) {
             log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
