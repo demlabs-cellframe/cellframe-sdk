@@ -1227,7 +1227,7 @@ void s_net_http_link_prepare_success(void *a_response, size_t a_response_size, v
     size_t l_response_size_need = sizeof(dap_chain_net_node_balancer_t) + (sizeof(dap_chain_node_info_t) * l_link_full_node_list->count_node);
     log_it(L_WARNING, "Get data size - %lu need - (%lu)", a_response_size, l_response_size_need);
     if (a_response_size != l_response_size_need) {
-        log_it(L_ERROR, "Invalid balancer response size %lu (expected %lu)", a_response_size, l_response_size_need);
+        log_it(L_ERROR, "Invalid balancer response size %lu (expected %lu)- free pointer - %p", a_response_size, l_response_size_need,l_balancer_request);
         s_new_balancer_link_request(l_balancer_request->net, l_balancer_request->link_replace_tries);
         DAP_DEL_Z(l_balancer_request->link_info);
         DAP_DEL_Z(l_balancer_request);
