@@ -129,7 +129,7 @@ dap_link_info_t *s_get_links_info_list(dap_chain_net_t *a_net, size_t *a_count, 
             dap_link_info_t *l_tail = s_get_links_info_list(a_net, &l_tail_count, false);
             if (l_tail && l_tail_count) {
                 l_ret = DAP_REALLOC(l_ret, sizeof(dap_link_info_t) * (l_count + l_tail_count));
-                memcpy(l_ret + sizeof(dap_link_info_t) * l_count, l_tail, sizeof(dap_link_info_t) * l_tail_count);
+                memcpy(l_ret + l_count, l_tail, sizeof(dap_link_info_t) * l_tail_count);
                 l_count += l_tail_count;
                 DAP_DELETE(l_tail);
             }
