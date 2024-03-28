@@ -5053,7 +5053,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_reply)
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_OPEN_WALLET, "Can't open wallet '%s'", l_wallet_str);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_OPEN_WALLET;
     } else {
-        l_sign_str = dap_chain_wallet_check_sign(l_wallet);
+//        l_sign_str = dap_chain_wallet_check_sign(l_wallet);
     }
 
     dap_cert_t *l_cert_cond = dap_cert_find_by_name(l_cert_str);
@@ -5130,10 +5130,10 @@ static dap_list_t* s_hashes_parse_str_list(const char * a_hashes_str)
     return  l_ret_list;
 }
 
-int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
+int com_tx_cond_remove(int a_argc, char ** a_argv, void **reply)
 {
     (void) a_argc;
-    void** l_str_reply = a_str_reply;
+//    void** l_str_reply = a_str_reply;
     int arg_index = 1;
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     const char * l_wallet_str = NULL;
@@ -5148,8 +5148,9 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_INVALID_PARAMETER_HEX,
+                               "Invalid parameter -H, valid values: -H <hex | base58>");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_INVALID_PARAMETER_HEX;
     }
 
     // Wallet name 
@@ -5164,43 +5165,43 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-srv_uid", &l_srv_uid_str);
 
     if (!l_wallet_str) {
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-w'");
-        return -2;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_W, "com_txs_cond_remove requires parameter '-w'");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_W;
     }
     if(!l_value_fee_str){
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-fee'");
-        return -15;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_FEE, "com_txs_cond_remove requires parameter '-fee'");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_FEE;
     }
     if(!l_net_name) {
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-net'");
-        return -5;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_NET, "com_txs_cond_remove requires parameter '-net'");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_NET;
     }
     if(!l_hashes_str) {
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-hashes'");
-        return -5;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_HASHES, "com_txs_cond_remove requires parameter '-hashes'");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_HASHES;
     }
     if(!l_srv_uid_str) {
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "com_txs_cond_remove requires parameter '-srv_uid'");
-        return -5;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_SRV_UID, "com_txs_cond_remove requires parameter '-srv_uid'");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_SRV_UID;
     }
 
     dap_chain_net_srv_uid_t l_srv_uid = {};
     l_srv_uid.uint64 = strtoll(l_srv_uid_str, NULL, 10);
     if (!l_srv_uid.uint64) {
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find service UID %s ", l_srv_uid_str);
-        return -8;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_SERVICE_UID, "Can't find service UID %s ", l_srv_uid_str);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_SERVICE_UID;
     }
 
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
     if(!l_net) {
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find net '%s'", l_net_name);
-        return -11;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_NET, "Can't find net '%s'", l_net_name);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_NET;
     }
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path);
-    const char* l_sign_str = "";
+//    const char* l_sign_str = "";
     if(!l_wallet) {
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't open wallet '%s'", l_wallet_str);
-        return -12;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_OPEN_WALLET, "Can't open wallet '%s'", l_wallet_str);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_OPEN_WALLET;
     } 
 
     dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
@@ -5208,32 +5209,32 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
 
     l_value_fee = dap_chain_balance_scan(l_value_fee_str);
     if(IS_ZERO_256(l_value_fee)) {
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't recognize value '%s' as a number", l_value_fee_str);
-        return -16;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_RECOGNIZE_VALUE_FEE, "Can't recognize value '%s' as a number", l_value_fee_str);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_RECOGNIZE_VALUE_FEE;
     }
 
     const char *l_native_ticker = l_net->pub.native_ticker;
     if (!l_native_ticker){
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find native ticker for net %s", l_net->pub.name);
-        return -16;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_NATIVE_TICKER_IN_NET, "Can't find native ticker for net %s", l_net->pub.name);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_NATIVE_TICKER_IN_NET;
     }
     dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net->pub.name);
     if (!l_ledger){
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't find ledger for net %s", l_net->pub.name);
-        return -17;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_LEDGER_FOR_NET, "Can't find ledger for net %s", l_net->pub.name);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_LEDGER_FOR_NET;
     }
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     if (!l_ledger){
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new tx");
-        return -18;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_CREATE_NEW_TX, "Can't create new tx");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_CREATE_NEW_TX;
     }
 
     dap_list_t *l_hashes_list = s_hashes_parse_str_list(l_hashes_str);
     if (!l_hashes_list){
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Requested conditional transaction with hash not found");
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUESTED_COND_TX_WITH_HASH_NOT_FOUND, "Requested conditional transaction with hash not found");
         dap_chain_datum_tx_delete(l_tx);
-        return -19;
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUESTED_COND_TX_WITH_HASH_NOT_FOUND;
     }
 
     uint256_t l_cond_value_sum = {};
@@ -5320,12 +5321,23 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     }
     dap_list_free_full(l_hashes_list, NULL);
 
+//    json_object *l_jobj_ret = json_object_new_object();
+
     if (IS_ZERO_256(l_cond_value_sum)){
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "No unspent conditional transactions in hashes list for wallet %s. Check input parameters.", l_wallet_str);
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_UNSPENT_COND_TX_IN_HASH_LIST_FOR_WALLET,
+                               "No unspent conditional transactions in hashes list for wallet %s. Check input parameters.", l_wallet_str);
+//        json_object *l_jobj_tx_create = json_object_new_boolean(false);
+//        json_object_object_add(l_jobj_ret, "tx_create", l_jobj_tx_create);
+//        char *l_char_msg = dap_strdup_printf("No unspent conditional transactions in hashes list for wallet %s. Check input parameters.", l_wallet_str);
+//        json_object *l_jobj_msg = json_object_new_string(l_char_msg);
+//        DAP_DELETE(l_char_msg);
+//        json_object_object_add(l_jobj_ret, "tx_create", l_jobj_tx_create);
+//        json_object_object_add(l_jobj_ret, "msg", l_jobj_msg);
+//        json_object_array_add(*reply, l_jobj_ret);
         dap_chain_datum_tx_delete(l_tx);
         dap_chain_wallet_close(l_wallet);
         DAP_DEL_Z(l_wallet_pkey);
-        return -20;
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_UNSPENT_COND_TX_IN_HASH_LIST_FOR_WALLET;
     }
 
     uint256_t l_net_fee = {};
@@ -5336,11 +5348,12 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
         SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
 
     if (compare256(l_total_fee, l_cond_value_sum) >= 0 ){
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Sum of conditional outputs must be greater than fees sum.");
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_SUM_COND_OUTPUTS_MUST_GREATER_THAN_FEES_SUM,
+                               "Sum of conditional outputs must be greater than fees sum.");
         dap_chain_datum_tx_delete(l_tx);
         dap_chain_wallet_close(l_wallet);
         DAP_DEL_Z(l_wallet_pkey);
-        return -21;
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_SUM_COND_OUTPUTS_MUST_GREATER_THAN_FEES_SUM;
     }
 
     uint256_t l_coin_back = {};
@@ -5349,12 +5362,13 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     // return coins to owner
     if (dap_chain_datum_tx_add_out_item(&l_tx, l_wallet_addr, l_coin_back) == -1) {
         dap_chain_datum_tx_delete(l_tx);
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_RETURNING_COINS_OUTPUT,
+                               "Can't create new TX. Something went wrong.\n");
         log_it(L_ERROR, "Can't add returning coins output");
         DAP_DELETE(l_wallet_addr);
         dap_chain_wallet_close(l_wallet);
         DAP_DEL_Z(l_wallet_pkey);
-        return -22;
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_RETURNING_COINS_OUTPUT-22;
     }
      DAP_DELETE(l_wallet_addr);
     // Network fee
@@ -5363,18 +5377,18 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
         dap_chain_datum_tx_delete(l_tx);
         dap_chain_wallet_close(l_wallet);
         DAP_DEL_Z(l_wallet_pkey);
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_NETWORK_FEE_OUTPUT, "Can't create new TX. Something went wrong.\n");
         log_it(L_ERROR, "Cant add network fee output");
-        return -23;
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_NETWORK_FEE_OUTPUT;
     }
     // Validator's fee
     if (dap_chain_datum_tx_add_fee_item(&l_tx, l_value_fee) == -1) {
         dap_chain_datum_tx_delete(l_tx);
         dap_chain_wallet_close(l_wallet);
         DAP_DEL_Z(l_wallet_pkey);
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_VALIDATORS_FEE_OUTPUT, "Can't create new TX. Something went wrong.\n");
         log_it(L_ERROR, "Cant add validator's fee output");
-        return -24;
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_VALIDATORS_FEE_OUTPUT;
     }
 
     // add 'sign' items
@@ -5382,9 +5396,9 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     if(dap_chain_datum_tx_add_sign_item(&l_tx, l_owner_key) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         dap_enc_key_delete(l_owner_key);
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_SIGN_OUTPUT, "Can't create new TX. Something went wrong.\n");
         log_it( L_ERROR, "Can't add sign output");
-        return -25;
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_SIGN_OUTPUT;
     }
 
     dap_chain_wallet_close(l_wallet);
@@ -5395,21 +5409,27 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_str_reply)
     dap_chain_datum_tx_delete(l_tx);
     dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
     if (!l_chain) {
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_FIND_DEFAULT_CHAIN_WITH_TX_FOR_NET,
+                               "Can't create new TX. Something went wrong.\n");
         DAP_DELETE(l_datum);
-        return -26;
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_FIND_DEFAULT_CHAIN_WITH_TX_FOR_NET;
     }
     // Processing will be made according to autoprocess policy
     char *l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
     DAP_DELETE(l_datum);
 
     if (l_hash_str) {
-        dap_cli_server_cmd_set_reply_text(l_str_reply, "Successfuly created transaction with hash %s\n", l_hash_str);
+        json_object *l_jobj_ret = json_object_new_object();
+        json_object *l_jobj_tx_status = json_object_new_boolean(true);
+        json_object *l_jobj_tx_hash = json_object_new_string(l_hash_str);
+        json_object_object_add(l_jobj_ret, "tx_create", l_jobj_tx_hash);
+        json_object_object_add(l_jobj_ret, "hash", l_jobj_tx_hash);
         DAP_DELETE(l_hash_str);
-        return 0;
+        json_object_array_add(*reply, l_jobj_ret);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_OK;
     }
-    dap_cli_server_cmd_set_reply_text(l_str_reply, "Can't create new TX. Something went wrong.\n");
-    return -1;
+    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_OTHER_ERROR, "Can't create new TX. Something went wrong.");
+    return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_OTHER_ERROR;
 }
 
 typedef struct tx_check_args {
