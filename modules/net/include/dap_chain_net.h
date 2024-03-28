@@ -82,9 +82,7 @@ typedef struct dap_chain_net{
         // Net fee
         uint256_t fee_value;
         dap_chain_addr_t fee_addr;
-
-        pthread_mutex_t balancer_mutex;
-        dap_list_t *link_list;
+        
         dap_list_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TX
     } pub;
     uint8_t pvt[];
