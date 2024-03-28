@@ -45,30 +45,31 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
 // sanity check
     dap_return_val_if_pass(!a_net_name || !a_links_need, NULL);
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
-    if (l_net == NULL) {
+    if (!l_net) {
         log_it(L_WARNING, "There isn't any network by this name - %s", a_net_name);
         return NULL;
     }
 // preparing
-    size_t l_nodes_count = 0;
-    
-    // node sort;
-    size_t l_node_num_send = dap_min(s_max_links_responce_count, dap_min(l_nodes_count, a_links_need));
+    dap_list_t *l_nodes_list = dap_get_nodes_states_list_sort(l_net);
+    if (!l_nodes_list) {
+        log_it(L_ERROR, "There isn't any nodes in net %s", a_net_name);
+        return NULL;
+    }
+    size_t l_nodes_count = dap_min(s_max_links_responce_count, dap_min(dap_list_length(l_nodes_list), a_links_need));
 // memory alloc
-    dap_chain_net_node_balancer_t *l_node_list_res = NULL;
-    // DAP_NEW_Z_SIZE_RET_VAL(l_node_list_res, dap_chain_net_node_balancer_t, sizeof(dap_chain_net_node_balancer_t) + l_node_num_send * sizeof(dap_link_info_t), NULL, l_links_info);
-    // dap_link_info_t *l_node_info = (dap_link_info_t *)l_node_list_res->nodes_info;
+    dap_chain_net_node_balancer_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_node_balancer_t, sizeof(dap_chain_net_node_balancer_t) + l_nodes_count * sizeof(dap_link_info_t));
+    if (!l_ret) {
+        log_it(L_ERROR, "%s", g_error_memory_alloc);
+        dap_list_free_full(l_nodes_list, NULL);
+        return NULL;
+    }
 // func work
-    // if we can't send full list, choose random, not always firsts
-    // if (l_node_num_send < l_node_num_prep) {
-    //     for (size_t i = 0; i < l_node_num_send; ++i)
-    //         dap_mempcpy(l_node_info + i, l_links_info + dap_random_uint16() % l_node_num_prep, sizeof(dap_link_info_t));
-    // } else {
-    //     dap_mempcpy(l_node_info, l_links_info, l_node_num_send * sizeof(dap_link_info_t));
-    // }
-    // l_node_list_res->count_node = l_node_num_send;
-    // DAP_DELETE(l_links_info);
-    return l_node_list_res;
+    dap_link_info_t *l_node_info = (dap_link_info_t *)l_ret->nodes_info;
+    for(dap_list_t *i = l_nodes_list; i && l_ret->count_node < l_nodes_count; i = i->next, --l_ret->count_node) {
+        dap_mempcpy(l_node_info + l_ret->count_node, &((dap_chain_node_states_info_t *)i->data)->link_info , sizeof(dap_link_info_t));
+    }
+    dap_list_free_full(l_nodes_list, NULL);
+    return l_ret;
 }
 
 
@@ -77,41 +78,34 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node_old(const char *a
 // sanity check
     dap_return_val_if_pass(!a_net_name || !a_links_need, NULL);
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
-    if (l_net == NULL) {
+    if (!l_net) {
         log_it(L_WARNING, "There isn't any network by this name - %s", a_net_name);
         return NULL;
     }
 // preparing
-    size_t l_node_num_prep = 0;
-    dap_link_info_t *l_links_info = NULL;  // TODO
-    if (!l_links_info || !l_node_num_prep){        
-        log_it(L_ERROR, "Active links list in net %s is empty", a_net_name);
+    dap_list_t *l_nodes_list = dap_get_nodes_states_list_sort(l_net);
+    if (!l_nodes_list) {
+        log_it(L_ERROR, "There isn't any nodes in net %s", a_net_name);
         return NULL;
     }
-    size_t l_node_num_send = dap_min(s_max_links_responce_count, dap_min(l_node_num_prep, a_links_need));
+    size_t l_nodes_count = dap_min(s_max_links_responce_count, dap_min(dap_list_length(l_nodes_list), a_links_need));
 // memory alloc
-    dap_chain_net_node_balancer_t *l_node_list_res = NULL;
-    DAP_NEW_Z_SIZE_RET_VAL(l_node_list_res, dap_chain_net_node_balancer_t, sizeof(dap_chain_net_node_balancer_t) + l_node_num_send * sizeof(dap_chain_node_info_old_t), NULL, l_links_info);
-    dap_chain_node_info_old_t *l_node_info = (dap_chain_node_info_old_t *)l_node_list_res->nodes_info;
-// func work
-    // if we can't send full list, choose random, not always firsts
-    if (l_node_num_send < l_node_num_prep) {
-        for (size_t i = 0; i < l_node_num_send; ++i) {
-            size_t j = dap_random_uint16() % l_node_num_prep;
-            l_node_info[i].hdr.address.uint64 = l_links_info[j].node_addr.uint64;
-            l_node_info[i].hdr.ext_port = l_links_info[j].uplink_port;
-            inet_pton(AF_INET, l_links_info[j].uplink_addr, &l_node_info[i].hdr.ext_addr_v4);
-        }
-    } else {
-        for (size_t i = 0; i < l_node_num_send; ++i) {
-            l_node_info[i].hdr.address.uint64 = l_links_info[i].node_addr.uint64;
-            l_node_info[i].hdr.ext_port = l_links_info[i].uplink_port;
-            inet_pton(AF_INET, l_links_info[i].uplink_addr, &l_node_info[i].hdr.ext_addr_v4);
-        }
+    dap_chain_net_node_balancer_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_node_balancer_t, sizeof(dap_chain_net_node_balancer_t) + l_nodes_count * sizeof(dap_chain_node_info_old_t));
+    if (!l_ret) {
+        log_it(L_ERROR, "%s", g_error_memory_alloc);
+        dap_list_free_full(l_nodes_list, NULL);
+        return NULL;
     }
-    l_node_list_res->count_node = l_node_num_send;
-    DAP_DELETE(l_links_info);
-    return l_node_list_res;
+// func work
+   
+    dap_chain_node_info_old_t *l_node_info = (dap_chain_node_info_old_t *)l_ret->nodes_info;
+    for(dap_list_t *i = l_nodes_list; i && l_ret->count_node < l_nodes_count; i = i->next, --l_ret->count_node) {
+        l_node_info[l_ret->count_node].hdr.address.uint64 = ((dap_chain_node_states_info_t *)i->data)->link_info.node_addr.uint64;
+        l_node_info[l_ret->count_node].hdr.ext_port = ((dap_chain_node_states_info_t *)i->data)->link_info.uplink_port;
+        inet_pton(AF_INET, ((dap_chain_node_states_info_t *)i->data)->link_info.uplink_addr, &l_node_info[l_ret->count_node].hdr.ext_addr_v4);
+    }
+    dap_list_free_full(l_nodes_list, NULL);
+    return l_ret;
 }
 
 dap_chain_net_node_balancer_t *s_balancer_issue_link(const char *a_net_name, uint16_t a_links_need, int a_protocol_version)

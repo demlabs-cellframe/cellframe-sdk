@@ -345,7 +345,7 @@ dap_list_t *dap_get_nodes_states_list_sort(dap_chain_net_t *a_net)
         log_it(L_ERROR, "Node list in net %s is empty", a_net->pub.name);
         return NULL;
     }
-    char *l_group = NULL;  // TODO
+    char *l_gdb_group = dap_strdup_printf("%s.nodes.states", a_net->pub.gdb_groups_prefix);
     dap_list_t *l_ret = NULL;
     for (size_t i = 0; i < l_node_count; ++i) {
         if (!l_objs[i].value) {
@@ -353,7 +353,7 @@ dap_list_t *dap_get_nodes_states_list_sort(dap_chain_net_t *a_net)
             continue;
         }
         dap_nanotime_t l_timestamp = 0;
-        dap_chain_node_net_states_info_t *l_store_obj = dap_global_db_get_sync(l_group, l_objs[i].key, NULL, NULL, &l_timestamp);
+        dap_chain_node_net_states_info_t *l_store_obj = dap_global_db_get_sync(l_gdb_group, l_objs[i].key, NULL, NULL, &l_timestamp);
         if (l_store_obj) {
             log_it(L_ERROR, "Can't find state about %s node", l_objs[i].key);
             continue;
