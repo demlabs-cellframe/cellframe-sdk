@@ -359,6 +359,10 @@ dap_list_t *dap_get_nodes_states_list_sort(dap_chain_net_t *a_net)
             continue;
         }
         dap_chain_node_states_info_t *l_item = DAP_NEW_Z(dap_chain_node_states_info_t);
+        if(!l_item) {
+            log_it(L_ERROR, "%s", g_error_memory_alloc);
+            break;
+        }
         l_item->link_info.node_addr.uint64 = ((dap_chain_node_info_t*)(l_objs + i)->value)->address.uint64;
         l_item->link_info.uplink_port = ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_port;
         dap_strncpy(l_item->link_info.uplink_addr, ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_host, sizeof(l_item->link_info.uplink_addr) - 1);
@@ -366,7 +370,8 @@ dap_list_t *dap_get_nodes_states_list_sort(dap_chain_net_t *a_net)
         l_item->downlinks_count = l_store_obj->downlinks_count;
         l_item->timestamp = l_timestamp;
         l_ret = dap_list_insert_sorted(l_ret, (void *)l_item, s_node_states_info_cmp);
+        DAP_DELETE(l_store_obj);
     }
-    
+    dap_global_db_objs_delete(l_objs, l_node_count);
     return l_ret;
 }
