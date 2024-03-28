@@ -57,8 +57,6 @@ typedef enum dap_chain_net_state{
     NET_STATE_LINKS_PREPARE,
     NET_STATE_LINKS_CONNECTING,
     NET_STATE_LINKS_ESTABLISHED,
-    NET_STATE_ADDR_REQUEST, // Waiting for address assign
-    NET_STATE_SYNC_GDB,
     NET_STATE_SYNC_CHAINS,
     NET_STATE_ONLINE
 } dap_chain_net_state_t;
@@ -124,9 +122,7 @@ inline static int dap_chain_net_stop(dap_chain_net_t *a_net)
     return false;
 }
 inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }
-inline static int dap_chain_net_sync_gdb(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_GDB); }
-inline static int dap_chain_net_sync_chains(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
-inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
+inline static int dap_chain_net_sync(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);
 void dap_chain_net_proc_mempool(dap_chain_net_t *a_net);
@@ -147,15 +143,13 @@ uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net);
 dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net);
 const char* dap_chain_net_get_type(dap_chain_t *l_chain);
 
-dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_only_cur_cell);
-dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * a_net);
-dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net);
-dap_chain_node_info_t** dap_chain_net_get_seed_nodes(dap_chain_net_t * a_net, uint16_t *a_count);
+// Get inintial authorized nodes pointed by config
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
-dap_chain_node_info_t *dap_chain_net_balancer_link_from_cfg(dap_chain_net_t *a_net);
 dap_chain_node_info_t *dap_chain_net_get_my_node_info(dap_chain_net_t *a_net);
+bool dap_chain_net_is_my_node_authorized(dap_chain_net_t *a_net);
+dap_stream_node_addr_t *dap_chain_net_get_authorized_nodes(dap_chain_net_t *a_net, size_t *a_nodes_count);
 
-int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster);
+int dap_chain_net_add_auth_nodes_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster);
 bool dap_chain_net_add_validator_to_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr);
 bool dap_chain_net_remove_validator_from_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr);
 dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain);
@@ -213,7 +207,6 @@ int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
 void dap_chain_net_announce_addrs(dap_chain_net_t *a_net);
 char *dap_chain_net_links_dump(dap_chain_net_t*);
-int dap_chain_net_link_manager_init();
 
 enum dap_chain_net_json_rpc_error_list{
     DAP_CHAIN_NET_JSON_RPC_OK,
