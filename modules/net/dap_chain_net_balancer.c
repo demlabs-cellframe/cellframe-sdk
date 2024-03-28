@@ -39,34 +39,6 @@ int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_cha
     return l_client ? dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 5000) : -1;
 }
 
-static size_t s_node_sort(dap_global_db_obj_t *a_objs, size_t a_node_count, const char *a_group)
-{
-// sanity check
-    dap_return_val_if_pass(!a_objs || !a_node_count || !a_group, 0);
-// func work
-    size_t l_valid_obj = 0;
-    for (size_t i = 0; i < a_node_count; ++i) {
-        if (!a_objs[i].value) {
-            log_it(L_ERROR, "Invalid record, key %s", a_objs[i].key);
-            continue;
-        }
-        dap_store_obj_t *l_store_obj = dap_global_db_get_raw_sync(a_group, a_objs[i].key);
-        if (l_store_obj) {
-            log_it(L_ERROR, "Can't find state about %s node", a_objs[i].key);
-            continue;
-        }
-        dap_stream_node_addr_t l_cur_addr = { 0 };
-        dap_stream_node_addr_from_str(&l_cur_addr, l_store_obj->key);
-        if (l_cur_addr.uint64 != dap_stream_node_addr_from_sign(l_store_obj->sign).uint64) {
-            log_it(L_ERROR, "Invalid sign to %s node state record", a_objs[i].key);
-            dap_global_db_get_del_ts_sync(a_group, a_objs[i].key);
-            continue;
-        }
-        ++l_valid_obj;
-    }
-    return l_valid_obj;
-}
-
 
 dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net_name, uint16_t a_links_need)
 {
@@ -79,11 +51,7 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
     }
 // preparing
     size_t l_nodes_count = 0;
-    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
-    if (!l_nodes_count || !l_objs) {        
-        log_it(L_ERROR, "Node list in net %s is empty", a_net_name);
-        return NULL;
-    }
+    
     // node sort;
     size_t l_node_num_send = dap_min(s_max_links_responce_count, dap_min(l_nodes_count, a_links_need));
 // memory alloc

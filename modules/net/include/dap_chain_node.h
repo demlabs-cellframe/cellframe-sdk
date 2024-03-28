@@ -30,6 +30,7 @@
 #include "dap_chain_common.h"
 #include "dap_global_db.h"
 #include "dap_chain.h"
+#include "dap_client.h"
 
 typedef struct dap_chain_net dap_chain_net_t;
 
@@ -56,6 +57,13 @@ typedef struct dap_chain_node_info {
     uint8_t ext_host_len;
     char ext_host[];
 } DAP_ALIGN_PACKED dap_chain_node_info_t;
+
+typedef struct dap_chain_node_states_info {
+    dap_link_info_t link_info;
+    uint64_t atoms_count;
+    uint32_t downlinks_count;
+    dap_nanotime_t timestamp;
+} dap_chain_node_states_info_t;
 
 typedef dap_stream_node_addr_t dap_chain_node_addr_t;
 #define dap_chain_node_addr_str_check dap_stream_node_addr_str_check
@@ -110,3 +118,4 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force);
 bool dap_chain_node_mempool_autoproc_init();
 inline static void dap_chain_node_mempool_autoproc_deinit() {}
 void dap_chain_node_update_node_states_info(dap_chain_net_t *a_net);
+dap_list_t *dap_get_nodes_states_list_sort(dap_chain_net_t *a_net);

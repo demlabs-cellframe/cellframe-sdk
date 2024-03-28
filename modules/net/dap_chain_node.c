@@ -50,13 +50,13 @@
 
 #define LOG_TAG "chain_node"
 
-typedef struct dap_chain_node_states_info {
+typedef struct dap_chain_node_net_states_info {
     dap_chain_node_addr_t address;
     uint64_t atoms_count;
     uint32_t uplinks_count;
     uint32_t downlinks_count;
     dap_chain_node_addr_t links_addrs[];
-} DAP_ALIGN_PACKED dap_chain_node_states_info_t;
+} DAP_ALIGN_PACKED dap_chain_node_net_states_info_t;
 
 /**
  * Register alias in base
@@ -273,7 +273,6 @@ bool dap_chain_node_mempool_autoproc_init()
     return true;
 }
 
-
 /**
  * @brief get states info about current
  * @param a_net - net to update states info
@@ -292,9 +291,9 @@ void dap_chain_node_update_node_states_info(dap_chain_net_t *a_net)
     dap_cert_t *l_cert = dap_cert_find_by_name(DAP_STREAM_NODE_ADDR_CERT_NAME);
     dap_return_if_pass(!l_chain || !l_linked_node_addrs || !l_cert);
 // memory alloc first
-    dap_chain_node_states_info_t *l_info = NULL;
-    l_info_size = sizeof(dap_chain_node_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
-    DAP_NEW_Z_SIZE_RET(l_info, dap_chain_node_states_info_t, l_info_size, l_linked_node_addrs);
+    dap_chain_node_net_states_info_t *l_info = NULL;
+    l_info_size = sizeof(dap_chain_node_net_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
+    DAP_NEW_Z_SIZE_RET(l_info, dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
 // func work
     // data preparing
     l_info->address.uint64 = g_node_addr.uint64;
@@ -303,8 +302,71 @@ void dap_chain_node_update_node_states_info(dap_chain_net_t *a_net)
     l_info->atoms_count = l_chain->callback_count_atom ? l_chain->callback_count_atom(l_chain) : 0;
     memcpy(l_info->links_addrs, l_linked_node_addrs, (l_info->uplinks_count + l_info->downlinks_count) * sizeof(dap_chain_node_addr_t));
     // DB write
-    char *l_gdb_group = dap_strdup_printf("%s.node.states", a_net->pub.gdb_groups_prefix);
+    char *l_gdb_group = dap_strdup_printf("%s.nodes.states", a_net->pub.gdb_groups_prefix);
     char *l_node_addr_str = dap_stream_node_addr_to_str(l_info->address, false);
     dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_signed_size, false);
     DAP_DEL_MULTY(l_linked_node_addrs, l_info, l_gdb_group, l_node_addr_str);
+}
+
+
+/**
+ * @brief comparing dap_chain_node_states_info_t
+ * @param a_first - pointer to first item
+ * @param a_second - pointer to second 
+ * @return a_first < a_second -1, a_first > a_second 1, a_first = a_second 0
+ */
+static int s_node_states_info_cmp(void *a_first, void *a_second)
+{
+  dap_chain_node_states_info_t *a = a_first;
+  dap_chain_node_states_info_t *b = a_second;
+
+  if(a->timestamp > b->timestamp && a->timestamp - b->timestamp > 1000000) return -1;
+  if(b->timestamp > a->timestamp && b->timestamp - a->timestamp > 1000000) return 1;
+  if(a->atoms_count > b->atoms_count && a->atoms_count - b->atoms_count > 100) return -1;
+  if(b->atoms_count > a->atoms_count && b->atoms_count - a->atoms_count > 100) return 1;
+  if(a->downlinks_count < b->downlinks_count) return -1;
+  if(b->downlinks_count < a->downlinks_count) return 1;
+  return 0;
+}
+
+/**
+ * @brief geting sorted list with nodes states
+ * @param a_net - pointer to net
+ * @return pointer to sorted list or NULL if error
+ */
+dap_list_t *dap_get_nodes_states_list_sort(dap_chain_net_t *a_net)
+{
+// sanity check
+    dap_return_val_if_pass(!a_net, NULL);
+// func work
+    size_t l_node_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_node_count);
+    if (!l_node_count || !l_objs) {        
+        log_it(L_ERROR, "Node list in net %s is empty", a_net->pub.name);
+        return NULL;
+    }
+    char *l_group = NULL;  // TODO
+    dap_list_t *l_ret = NULL;
+    for (size_t i = 0; i < l_node_count; ++i) {
+        if (!l_objs[i].value) {
+            log_it(L_ERROR, "Invalid record, key %s", l_objs[i].key);
+            continue;
+        }
+        dap_nanotime_t l_timestamp = 0;
+        dap_chain_node_net_states_info_t *l_store_obj = dap_global_db_get_sync(l_group, l_objs[i].key, NULL, NULL, &l_timestamp);
+        if (l_store_obj) {
+            log_it(L_ERROR, "Can't find state about %s node", l_objs[i].key);
+            continue;
+        }
+        dap_chain_node_states_info_t *l_item = DAP_NEW_Z(dap_chain_node_states_info_t);
+        l_item->link_info.node_addr.uint64 = ((dap_chain_node_info_t*)(l_objs + i)->value)->address.uint64;
+        l_item->link_info.uplink_port = ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_port;
+        dap_strncpy(l_item->link_info.uplink_addr, ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_host, sizeof(l_item->link_info.uplink_addr) - 1);
+        l_item->atoms_count = l_store_obj->atoms_count;
+        l_item->downlinks_count = l_store_obj->downlinks_count;
+        l_item->timestamp = l_timestamp;
+        l_ret = dap_list_insert_sorted(l_ret, (void *)l_item, s_node_states_info_cmp);
+    }
+    
+    return l_ret;
 }
