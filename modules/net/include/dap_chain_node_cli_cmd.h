@@ -161,8 +161,20 @@ typedef enum s_com_tx_create_err{
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_NETWORK_IS_UNREACHEBLE,
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION
 }s_com_tx_create_err_t;
-s_com_tx_create_err_t com_tx_create(int a_argc, char **a_argv, void **a_str_reply);
-int com_tx_create_json(int a_argc, char **a_argv, void **a_str_reply);
+int com_tx_create(int a_argc, char **a_argv, void **a_str_reply);
+typedef enum s_com_tx_create_json_err {
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_REQUIRE_PARAMETER_JSON = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_WRONG_JSON_FORMAT,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_REQUIRE_PARAMETER_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_INVALID_ITEMS,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL
+}s_com_tx_create_json_err_t;
+int com_tx_create_json(int a_argc, char **a_argv, void **reply);
 typedef enum s_com_tx_cond_create{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_INVALID_PARAMETER_HEX = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -184,7 +196,7 @@ typedef enum s_com_tx_cond_create{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CERT_DOES_NOT_CONATIN_VALID_PUBLIC_KEY,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_CONDITIONAL_TX_CREATE
 }s_com_tx_cond_create_t;
-int com_tx_cond_create(int a_argc, char **a_argv, void **a_str_reply);
+int com_tx_cond_create(int a_argc, char **a_argv, void **reply);
 typedef enum s_com_tx_cond_remove{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_INVALID_PARAMETER_HEX = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -210,7 +222,7 @@ typedef enum s_com_tx_cond_remove{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_FIND_DEFAULT_CHAIN_WITH_TX_FOR_NET,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_OTHER_ERROR
 }s_com_tx_cond_remove_t;
-s_com_tx_cond_remove_t com_tx_cond_remove(int a_argc, char **a_argv, void **reply);
+int com_tx_cond_remove(int a_argc, char **a_argv, void **reply);
 typedef enum s_com_tx_cond_unspent_find{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_INVALID_PARAMETER_HEX = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -239,7 +251,7 @@ typedef enum s_com_tx_verify{
  * Verifing transaction
  */
 
-s_com_tx_verify_t com_tx_verify(int a_argc, char ** a_argv, void **a_str_reply);
+int com_tx_verify(int a_argc, char ** a_argv, void **a_str_reply);
 
 typedef enum s_com_tx_history_err{
     DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK = 0,
