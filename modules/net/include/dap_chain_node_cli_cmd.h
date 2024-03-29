@@ -210,8 +210,20 @@ typedef enum s_com_tx_cond_remove{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_FIND_DEFAULT_CHAIN_WITH_TX_FOR_NET,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_OTHER_ERROR
 }s_com_tx_cond_remove_t;
-int com_tx_cond_remove(int a_argc, char **a_argv, void **reply);
-int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_str_reply);
+s_com_tx_cond_remove_t com_tx_cond_remove(int a_argc, char **a_argv, void **reply);
+typedef enum s_com_tx_cond_unspent_find{
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_INVALID_PARAMETER_HEX = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_INVALID_PARAMETER_W,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_INVALID_PARAMETER_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_INVALID_PARAMETER_SRV_UID,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_SERVICE_UID,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_OPEN_WALLET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_NATIVE_TICKER_IN_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_LEDGER_FOR_NET,
+}s_com_tx_cond_unspent_find_t;
+int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply);
 
 typedef enum s_com_tx_verify{
     DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_OK = 0,
