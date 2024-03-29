@@ -1174,6 +1174,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 }
                 dap_string_append_printf(l_str_tmp, "%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks\n",
                                      l_net->pub.name, l_chain->name, l_block_count);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                 dap_string_free(l_str_tmp, true);
 
             }else{
