@@ -203,6 +203,7 @@ int dap_chain_cs_blocks_init()
             "block -net <net_name> -chain <chain_name> autocollect status\n"
                 "\t\t Show rewards and fees automatic collecting status (enabled or not)."
                     " Show prepared blocks for collecting rewards and fees if status is enabled\n\n"
+
         "Rewards and fees autocollect renew:\n"
             "block -net <net_name> -chain <chain_name> autocollect renew\n"
             " -cert <priv_cert_name> -addr <addr>\n"
