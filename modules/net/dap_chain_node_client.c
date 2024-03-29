@@ -475,7 +475,7 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
             l_ret = 0;
             switch (a_ch_id) {
                 //  'N'
-            case DAP_STREAM_CH_NET_ID: {
+            case DAP_STREAM_CH_CHAIN_NET_ID: {
                 dap_stream_ch_chain_net_t *l_ch_chain   = DAP_STREAM_CH_CHAIN_NET(l_ch);
                 l_ch_chain->notify_callback     = s_ch_chain_callback_notify_packet_in2;
                 l_ch_chain->notify_callback_arg = l_node_client;

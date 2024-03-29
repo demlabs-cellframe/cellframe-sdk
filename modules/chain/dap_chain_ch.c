@@ -900,6 +900,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND);
             break;
         }
+        if (!dap_link_manager_get_net_condition(l_chain_pkt->hdr.net_id.uint64)) {
+            log_it(L_WARNING, "Net id 0x%016" DAP_UINT64_FORMAT_x " is offline", l_chain_pkt->hdr.net_id.uint64);
+            s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                    l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
+                    DAP_CHAIN_CH_ERROR_NET_IS_OFFLINE);
+            break;
+        }
         dap_hash_fast_t *l_requested_hash = (dap_hash_fast_t *)l_chain_pkt->data;
         if (dap_hash_fast_is_blank(l_requested_hash))
             l_requested_hash = NULL;

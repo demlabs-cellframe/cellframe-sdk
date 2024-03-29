@@ -55,7 +55,8 @@ typedef enum dap_chain_ch_error_type {
     DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND,
     DAP_CHAIN_CH_ERROR_ATOM_NOT_FOUND,
     DAP_CHAIN_CH_ERROR_UNKNOWN_CHAIN_PKT_TYPE,
-    DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED
+    DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED,
+    DAP_CHAIN_CH_ERROR_NET_IS_OFFLINE
 } dap_chain_ch_error_type_t;
 
 typedef struct dap_chain_ch dap_chain_ch_t;
