@@ -874,6 +874,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
             l_err.code = error ; \
             s_grace_error(l_grace, l_err); \
         } \
+        DAP_DELETE(l_grace); \
         DAP_DELETE(a_grace_item); \
         return false; \
     } \
@@ -1042,7 +1043,6 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                                                                             sizeof(dap_chain_datum_tx_receipt_t) + l_grace->usage->receipt->size + l_grace->usage->receipt->exts_size);
                     DAP_DELETE(l_success);
                 }
-                DAP_DELETE(l_grace);
                 DAP_DELETE(l_remain_service);
                 RET_WITH_DEL_A_GRACE(0);
             }

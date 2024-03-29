@@ -840,7 +840,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN: {
-        dap_cluster_t *l_cluster = dap_cluster_find(dap_cluster_guuid_compose(l_chain_pkt->hdr.net_id.uint64, 0));
+        dap_cluster_t *l_cluster = dap_cluster_find(dap_guuid_compose(l_chain_pkt->hdr.net_id.uint64, 0));
         if (!l_cluster) {
             log_it(L_WARNING, "Can't find cluster with ID 0x%" DAP_UINT64_FORMAT_X, l_chain_pkt->hdr.net_id.uint64);
             s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,

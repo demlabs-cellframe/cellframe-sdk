@@ -164,6 +164,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
         }*/
         switch (l_ch_pkt->hdr.type) {
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE:
+            if (!a_ch->stream->authorized) {
+                log_it(L_WARNING, "Trying to announce net from not authorized stream");
+                break;
+            }
             assert(!dap_stream_node_addr_is_blank(&a_ch->stream->node));
             dap_accounting_downlink_in_net(l_net->pub.id.uint64, &a_ch->stream->node);
             break;

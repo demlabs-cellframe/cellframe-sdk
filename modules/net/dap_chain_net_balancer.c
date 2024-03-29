@@ -30,8 +30,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_balancer"
 
-static_assert(sizeof(dap_chain_net_node_balancer_t) + sizeof(dap_chain_node_info_old_t) < DAP_BALANCER_MAX_REPLY_SIZE, "DAP_BALANCER_MAX_REPLY_SIZE cannot accommodate information minimum about 1 link");
-static const size_t s_max_links_responce_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_node_balancer_t)) / sizeof(dap_chain_node_info_old_t);
+static_assert(sizeof(dap_chain_net_links_t) + sizeof(dap_chain_node_info_old_t) < DAP_BALANCER_MAX_REPLY_SIZE, "DAP_BALANCER_MAX_REPLY_SIZE cannot accommodate information minimum about 1 link");
+static const size_t s_max_links_response_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_links_t)) / sizeof(dap_chain_node_info_old_t);
 
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t *a_net)
 {
@@ -40,7 +40,52 @@ int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_cha
 }
 
 
-dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net_name, uint16_t a_links_need)
+dap_link_info_t *s_get_links_info_list(dap_chain_net_t *a_net, size_t *a_count, bool a_external_call)
+{
+    static _Thread_local dap_global_db_driver_hash_t l_last_read_hash = {};
+    assert(a_net && a_count);
+    size_t l_count = *a_count;
+    if (!l_count) {
+        l_count = dap_global_db_driver_count(a_net->pub.gdb_nodes, c_dap_global_db_driver_hash_blank);
+        if (!l_count)
+            return NULL;
+    }
+    dap_store_obj_t *l_objs = dap_global_db_driver_cond_read(a_net->pub.gdb_nodes, l_last_read_hash, &l_count);
+    if (!l_objs || !l_count) {
+        l_last_read_hash = c_dap_global_db_driver_hash_blank;
+        return a_external_call ? s_get_links_info_list(a_net, a_count, false) : NULL;
+    }
+    l_last_read_hash = dap_global_db_driver_hash_get(l_objs + l_count - 1);
+    if (dap_global_db_driver_hash_is_blank(&l_last_read_hash))
+        l_count--;
+    dap_link_info_t *l_ret = NULL;
+    DAP_NEW_Z_COUNT_RET_VAL(l_ret, dap_link_info_t, l_count, NULL, NULL);
+    for (size_t i = 0; i < l_count; i++) {
+        dap_link_info_t *l_cur_info = l_ret + i;
+        dap_chain_node_info_t *l_db_info = (dap_chain_node_info_t *)(l_objs + i)->value;
+        l_cur_info->node_addr = l_db_info->address;
+        l_cur_info->uplink_port = l_db_info->ext_port;
+        dap_strncpy(l_cur_info->uplink_addr, l_db_info->ext_host, dap_min(l_db_info->ext_host_len, DAP_HOSTADDR_STRLEN));
+    }
+    dap_store_obj_free(l_objs, l_count);
+    if (a_external_call && l_count < *a_count) {
+        size_t l_total_count = dap_global_db_driver_count(a_net->pub.gdb_nodes, c_dap_global_db_driver_hash_blank);
+        if (l_count < l_total_count) {
+            size_t l_tail_count = dap_min(l_total_count, *a_count) - l_count;
+            dap_link_info_t *l_tail = s_get_links_info_list(a_net, &l_tail_count, false);
+            if (l_tail && l_tail_count) {
+                l_ret = DAP_REALLOC(l_ret, sizeof(dap_link_info_t) * (l_count + l_tail_count));
+                memcpy(l_ret + l_count, l_tail, sizeof(dap_link_info_t) * l_tail_count);
+                l_count += l_tail_count;
+                DAP_DELETE(l_tail);
+            }
+        }
+    }
+    *a_count = l_count;
+    return l_ret;
+}
+
+dap_chain_net_links_t *dap_chain_net_balancer_get_node(const char *a_net_name, uint16_t a_links_need)
 {
 // sanity check
     dap_return_val_if_pass(!a_net_name || !a_links_need, NULL);
@@ -55,9 +100,9 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
         log_it(L_ERROR, "There isn't any nodes in net %s", a_net_name);
         return NULL;
     }
-    size_t l_nodes_count = dap_min(s_max_links_responce_count, dap_min(dap_list_length(l_nodes_list), a_links_need));
+    size_t l_nodes_count = dap_min(s_max_links_response_count, dap_min(dap_list_length(l_nodes_list), a_links_need));
 // memory alloc
-    dap_chain_net_node_balancer_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_node_balancer_t, sizeof(dap_chain_net_node_balancer_t) + l_nodes_count * sizeof(dap_link_info_t));
+    dap_chain_net_links_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_links_t, sizeof(dap_chain_net_links_t) + l_nodes_count * sizeof(dap_link_info_t));
     if (!l_ret) {
         log_it(L_ERROR, "%s", g_error_memory_alloc);
         dap_list_free_full(l_nodes_list, NULL);
@@ -73,7 +118,7 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
 }
 
 
-dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node_old(const char *a_net_name, uint16_t a_links_need)
+dap_chain_net_links_t *dap_chain_net_balancer_get_node_old(const char *a_net_name, uint16_t a_links_need)
 {
 // sanity check
     dap_return_val_if_pass(!a_net_name || !a_links_need, NULL);
@@ -88,9 +133,9 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node_old(const char *a
         log_it(L_ERROR, "There isn't any nodes in net %s", a_net_name);
         return NULL;
     }
-    size_t l_nodes_count = dap_min(s_max_links_responce_count, dap_min(dap_list_length(l_nodes_list), a_links_need));
+    size_t l_nodes_count = dap_min(s_max_links_response_count, dap_min(dap_list_length(l_nodes_list), a_links_need));
 // memory alloc
-    dap_chain_net_node_balancer_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_node_balancer_t, sizeof(dap_chain_net_node_balancer_t) + l_nodes_count * sizeof(dap_chain_node_info_old_t));
+    dap_chain_net_links_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_links_t, sizeof(dap_chain_net_links_t) + l_nodes_count * sizeof(dap_chain_node_info_old_t));
     if (!l_ret) {
         log_it(L_ERROR, "%s", g_error_memory_alloc);
         dap_list_free_full(l_nodes_list, NULL);
@@ -108,23 +153,9 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node_old(const char *a
     return l_ret;
 }
 
-dap_chain_net_node_balancer_t *s_balancer_issue_link(const char *a_net_name, uint16_t a_links_need, int a_protocol_version)
+DAP_STATIC_INLINE dap_chain_net_links_t *s_balancer_issue_link(const char *a_net_name, uint16_t a_links_need, int a_protocol_version)
 {
-    dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
-    dap_chain_net_node_balancer_t *l_link_full_node_list = NULL;
-    if (a_protocol_version == 1) {
-        l_link_full_node_list = dap_chain_net_balancer_get_node_old(a_net_name, a_links_need);
-    } else {
-        l_link_full_node_list = dap_chain_net_balancer_get_node(a_net_name, a_links_need);
-    }
-    if (!l_link_full_node_list)
-        return NULL;
-    dap_link_info_t *l_node_info = (dap_link_info_t *)l_link_full_node_list->nodes_info;
-    for(size_t i = 0; i < l_link_full_node_list->count_node; i++) {
-        log_it(L_DEBUG, "Network balancer issues ip %s",
-                (l_node_info + i)->uplink_addr);
-    }
-    return l_link_full_node_list;
+    return a_protocol_version == 1 ? dap_chain_net_balancer_get_node_old(a_net_name, a_links_need) : dap_chain_net_balancer_get_node(a_net_name, a_links_need);
 }
 
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
@@ -160,7 +191,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     strncpy(l_net_name, l_net_str, 127);
     links_need = links_need ? links_need : 5;
     log_it(L_DEBUG, "HTTP balancer parser retrieve netname %s", l_net_name);
-    dap_chain_net_node_balancer_t *l_link_full_node_list = s_balancer_issue_link(l_net_name,links_need, l_protocol_version);
+    dap_chain_net_links_t *l_link_full_node_list = s_balancer_issue_link(l_net_name, links_need, l_protocol_version);
     if (!l_link_full_node_list) {
         log_it(L_WARNING, "Can't issue link for network %s, no acceptable links found", l_net_name);
         *l_return_code = Http_Status_NotFound;
@@ -184,7 +215,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
 dap_link_info_t *dap_chain_net_balancer_dns_issue_link(char *a_str)
 {
     log_it(L_DEBUG, "DNS balancer parser retrieve netname %s", a_str);
-    dap_chain_net_node_balancer_t *l_balancer_reply = s_balancer_issue_link(a_str, 1, DAP_BALANCER_PROTOCOL_VERSION);
+    dap_chain_net_links_t *l_balancer_reply = s_balancer_issue_link(a_str, 1, DAP_BALANCER_PROTOCOL_VERSION);
     if (!l_balancer_reply || !l_balancer_reply->count_node) {
         DAP_DEL_Z(l_balancer_reply);
         return NULL;
