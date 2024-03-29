@@ -338,11 +338,6 @@ int dap_chain_net_decree_reset_applied(dap_chain_t *a_chain, dap_chain_hash_fast
     return 0;
 }
 
-int dap_chain_net_decree_reset_to_default(dap_chain_t *a_chain, dap_chain_datum_decree_t *a_decree)
-{
-
-}
-
 dap_chain_datum_decree_t *dap_chain_net_decree_get_by_hash(dap_hash_fast_t *a_hash, bool *is_applied)
 {
     struct decree_hh* l_decree_hh = NULL;

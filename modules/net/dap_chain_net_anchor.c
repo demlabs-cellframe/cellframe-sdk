@@ -232,7 +232,7 @@ dap_chain_datum_anchor_t * s_find_previous_anchor(dap_chain_datum_anchor_t * a_a
             if ( ! (l_datum = l_datums[l_datum_n]) )
                 continue;
 
-            if (l_datum->header.type_id != DAP_CHAIN_DATUM_ANCHOR || a_anchor == l_datum->data)
+            if (l_datum->header.type_id != DAP_CHAIN_DATUM_ANCHOR || a_anchor == (dap_chain_datum_anchor_t *)l_datum->data)
                 continue;
 
             dap_chain_datum_anchor_t *l_curr_anchor = (dap_chain_datum_anchor_t *)l_datum->data;
@@ -240,12 +240,31 @@ dap_chain_datum_anchor_t * s_find_previous_anchor(dap_chain_datum_anchor_t * a_a
             if (dap_chain_datum_anchor_get_hash_from_data(l_curr_anchor, &l_hash) != 0)
                 continue;
             
-            bool *l_is_applied = false;
+            bool l_is_applied = false;
             dap_chain_datum_decree_t *l_decree = dap_chain_net_decree_get_by_hash(&l_hash, &l_is_applied);
             if (!l_decree)
                 continue;
 
-            if (l_decree->header.type == l_old_decree_type && l_decree->header.sub_type == l_old_decree_subtype){
+            if (l_decree->header.type == l_old_decree_type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON && 
+                l_old_decree_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE &&
+                l_decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE){
+                
+                dap_chain_addr_t l_addr_old, l_addr_new = {};
+                if (dap_chain_datum_decree_get_stake_signing_addr(l_old_decree, &l_addr_old)){
+                    continue;
+                }
+
+                if (dap_chain_datum_decree_get_stake_signer_node_addr(l_decree, &l_addr_new)){
+                    continue;
+                }
+
+                if(dap_chain_addr_compare(&l_addr_old, &l_addr_new)){
+                    l_ret_anchor = l_curr_anchor;
+                    dap_chain_net_decree_reset_applied(a_chain, &l_hash);
+                break;
+                }
+            } else if (l_decree->header.type == l_old_decree_type && l_decree->header.sub_type == l_old_decree_subtype){
+                // check addr if l_decree type is stake approve
                 l_ret_anchor = l_curr_anchor;
                 dap_chain_net_decree_reset_applied(a_chain, &l_hash);
                 break;
@@ -319,11 +338,31 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                 }
             }
             break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
-                
+            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:{
+                // Invalidate canceled stake
+                dap_chain_addr_t l_signing_addr = {};
+                if ((ret_val = dap_chain_datum_decree_get_stake_signing_addr(l_decree, &l_signing_addr)) != 0){
+                log_it(L_WARNING,"Can't get signing address from decree.");
+                    return -105;
+                }
+                dap_chain_net_srv_stake_key_invalidate(&l_signing_addr);
+            }
             break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:
-
+            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:{
+                // Find previous anchor with this stake approve and apply it 
+                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor, a_chain);
+                if (l_new_anchor){// if previous anchor is founded apply it
+                    dap_chain_hash_fast_t l_hash = {0};
+                    if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_new_anchor, &l_hash)) != 0){
+                        log_it(L_WARNING,"Can not find datum hash in anchor data");
+                        return -109;
+                    }
+                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain))!=0){
+                        log_it(L_WARNING,"Decree applying failed");
+                        return ret_val;
+                    }
+                }
+            }
             break;
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:{
                 dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor, a_chain);
@@ -333,19 +372,17 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                         log_it(L_WARNING,"Can not find datum hash in anchor data");
                         return -109;
                     }
-                    uint256_t l_uint256_buffer = {};
-                    if (dap_chain_datum_decree_get_stake_min_value(l_decree, &l_uint256_buffer)){
-                        log_it(L_WARNING,"Can't get min stake value from decree.");
-                        return -105;
+                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain))!=0){
+                        log_it(L_WARNING,"Decree applying failed");
+                        return ret_val;
                     }
-                    dap_chain_net_srv_stake_set_allowed_min_value(l_uint256_buffer);
                 } else {
                     dap_chain_addr_t a_addr = {};
                     dap_chain_net_srv_stake_set_allowed_min_value(dap_chain_coins_to_balance("1.0"));
                 }
             }
             break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:
+            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:{
                 dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor, a_chain);
                 if (l_new_anchor){// if previous anchor is founded apply it
                     dap_chain_hash_fast_t l_hash = {0};
@@ -353,18 +390,20 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                         log_it(L_WARNING,"Can not find datum hash in anchor data");
                         return -109;
                     }
-                    uint256_t l_uint256_buffer = {};
-                    if (dap_chain_datum_decree_get_stake_min_value(l_decree, &l_uint256_buffer)){
-                        log_it(L_WARNING,"Can't get min stake value from decree.");
-                        return -105;
+
+                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain))!=0){
+                        log_it(L_WARNING,"Decree applying failed");
+                        return ret_val;
                     }
-                    a_chain->callback_set_min_validators_count(a_chain,  (uint16_t)dap_chain_uint256_to(l_uint256_buffer));
                 } else {
                     a_chain->callback_set_min_validators_count(a_chain, 0);                    
                 }
+            }
             break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD:
-
+            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD:{
+                // find previous anchor with rewarrd and apply it
+                dap_chain_net_remove_last_reward(dap_chain_net_by_id(a_chain->net_id));
+            }
             break;
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:

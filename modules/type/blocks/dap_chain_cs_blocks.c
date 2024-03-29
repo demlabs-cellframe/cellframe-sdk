@@ -1428,16 +1428,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
     switch (ret) {
     case ATOM_ACCEPT:{
-        //TODO: reimplement on new blockchain arcitecture with forks. Check chains length and pick longest
         dap_chain_block_cache_t * l_prev_bcache = NULL, *l_tmp = NULL;
         uint64_t l_current_item_index = 0;
         pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);
-        HASH_ITER(hh, PVT(l_blocks)->blocks, l_prev_bcache, l_tmp){
-            if (l_current_item_index < (HASH_CNT(hh, PVT(l_blocks)->blocks) - DAP_FORK_ACCOUNTING_DEPTH - 1)){
-                l_current_item_index++;
-                continue;
-            }
-
+        for (l_prev_bcache = PVT(l_blocks)->blocks->hh.tbl->tail; l_prev_bcache && l_current_item_index < DAP_FORK_MAX_DEPTH; l_current_item_index++, l_prev_bcache->hh.prev){
             if (l_prev_bcache && dap_hash_fast_compare(&l_prev_bcache->block_hash, &l_block_prev_hash)){
                 ++PVT(l_blocks)->blocks_count;
                 HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
@@ -1461,7 +1455,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     }
                     l_forked_branches = l_forked_branches->next;
                 }
-
             }
             l_current_item_index++;
         }
