@@ -273,6 +273,7 @@ int dap_chain_net_init()
     dap_chain_net_voting_init();
     dap_http_ban_list_client_init();
     dap_link_manager_init(&s_link_manager_callbacks);
+    dap_chain_node_init();
     dap_cli_server_cmd_add ("net", s_cli_net, "Network commands",
         "net list [chains -net <chain net name>]\n"
             "\tList all networks or list all chains in selected network\n"
@@ -1903,9 +1904,7 @@ void dap_chain_net_deinit()
     HASH_ITER(hh, s_net_ids, l_current_item, l_tmp)
         HASH_DELETE(hh2, s_net_ids, l_current_item);
     HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
-        HASH_DEL(s_net_items, l_current_item);
         dap_chain_net_delete(l_current_item->chain_net);
-        DAP_DELETE(l_current_item);
     }
     dap_http_ban_list_client_deinit();
 }

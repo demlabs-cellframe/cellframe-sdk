@@ -77,26 +77,6 @@ DAP_STATIC_INLINE size_t dap_chain_node_info_get_size(dap_chain_node_info_t *a_n
 {
     return !a_node_info ? 0 : sizeof(dap_chain_node_info_t) + a_node_info->ext_host_len + 1;
 }
-
-/**
- * Compare addresses of two dap_chain_node_info_t structures
- *
- * @return True if addresses are equal, otherwise false
- */
-bool dap_chain_node_info_addr_match(dap_chain_node_info_t *node_info1, dap_chain_node_info_t *node_info2);
-
-/**
- * Compare two struct dap_chain_node_info_t
- */
-bool dap_chain_node_info_match(dap_chain_node_info_t *node_info1, dap_chain_node_info_t *node_info2);
-
-/**
- * Serialize dap_chain_node_info_t
- * size[out] - length of output string
- * return data or NULL if error
- */
-//uint8_t* dap_chain_node_info_serialize(dap_chain_node_info_t *node_info, size_t *size);
-
 dap_chain_node_addr_t * dap_chain_node_alias_find(dap_chain_net_t * l_net,const char *alias);
 bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, dap_chain_node_addr_t *a_addr);
 bool dap_chain_node_alias_delete(dap_chain_net_t * l_net,const char *alias);
@@ -112,10 +92,10 @@ inline static char *dap_chain_node_addr_to_str_static(dap_chain_node_addr_t *a_a
     return s_buf;
 }
 
+int dap_chain_node_init();
 bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
 bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_datum_hash_str);
 void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force);
 bool dap_chain_node_mempool_autoproc_init();
 inline static void dap_chain_node_mempool_autoproc_deinit() {}
-void dap_chain_node_update_node_states_info(dap_chain_net_t *a_net);
 dap_list_t *dap_get_nodes_states_list_sort(dap_chain_net_t *a_net);
