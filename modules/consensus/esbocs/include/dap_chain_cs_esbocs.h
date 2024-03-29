@@ -205,4 +205,4 @@ dap_pkey_t *dap_chain_esbocs_get_sign_pkey(dap_chain_net_id_t a_net_id);
 uint256_t dap_chain_esbocs_get_fee(dap_chain_net_id_t a_net_id);
 bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id);
 void dap_chain_esbocs_add_block_collect(dap_chain_block_t *a_block_ptr, size_t a_block_size,
-                                        dap_chain_esbocs_block_collect_t *a_block_collect_params);
+                                        dap_chain_esbocs_block_collect_t *a_block_collect_params,int a_type);

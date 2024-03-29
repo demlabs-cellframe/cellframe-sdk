@@ -203,6 +203,7 @@ int dap_chain_cs_blocks_init()
             "block -net <net_name> -chain <chain_name> autocollect status\n"
                 "\t\t Show rewards and fees automatic collecting status (enabled or not)."
                     " Show prepared blocks for collecting rewards and fees if status is enabled\n\n"
+        "Rewards and fees autocollect renew:\n"
             "block -net <net_name> -chain <chain_name> autocollect renew\n"
             " -cert <priv_cert_name> -addr <addr>\n"
                 "\t\t Update reward and fees block table."
@@ -1069,6 +1070,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             dap_pkey_t * l_pub_key = NULL;
             dap_hash_fast_t l_pkey_hash = {};
             dap_chain_addr_t *l_addr = NULL;
+            size_t l_block_count = 0;
             int fl_renew = dap_cli_server_cmd_check_option(a_argv, arg_index,a_argc, "renew");
             if(fl_renew != -1)
             {
@@ -1113,9 +1115,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 if(l_objs_rew_count)dap_global_db_objs_delete(l_objs_rew,l_objs_rew_count);
                 DAP_DELETE(l_group_fee);
                 DAP_DELETE(l_group_rew);
+                dap_string_t *l_str_tmp = dap_string_new(NULL);
 
                 for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
-                    bool l_found_fee = false;
                     dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                     dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                     if (!l_pub_key) {
@@ -1133,36 +1135,46 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                         if (NULL == dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, &l_out_idx_tmp))
                             continue;
                         if (!dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + i, l_out_idx_tmp, NULL)) {
-                                l_found_fee = true;
+                            dap_chain_esbocs_add_block_collect(l_block_cache->block, l_block_cache->block_size, &l_block_collect_params,1);
+                            char l_buf[50];
+                            dap_time_to_str_rfc822(l_buf, 50, l_ts);
+                            dap_string_append_printf(l_str_tmp, "fee - \t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
+                            l_block_count++;
                             break;
                         }
                     } 
                     if (l_ts < DAP_REWARD_INIT_TIMESTAMP)
                             continue;
-                    if(!l_found_fee)
-                    {
-                        if (!l_pub_key) {
-                            bool l_found = false;
-                            for (size_t i = 0; i < l_block_cache->sign_count ; i++) {
-                                dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
-                                dap_hash_fast_t l_sign_pkey_hash;
-                                dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
-                                if (dap_hash_fast_compare(&l_pkey_hash, &l_sign_pkey_hash)) {
-                                    l_found = true;
-                                    break;
-                                }
+                    
+                    if (!l_pub_key) {
+                        bool l_found = false;
+                        for (size_t i = 0; i < l_block_cache->sign_count ; i++) {
+                            dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
+                            dap_hash_fast_t l_sign_pkey_hash;
+                            dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
+                            if (dap_hash_fast_compare(&l_pkey_hash, &l_sign_pkey_hash)) {
+                                l_found = true;
+                                break;
                             }
-                            if(!l_found)
-                                continue;
-                        } else if (!dap_chain_block_sign_match_pkey(l_block_cache->block, l_block_cache->block_size, l_pub_key))
+                        }
+                        if(!l_found)
                             continue;
-                        if (dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash, &l_pkey_hash))
-                            continue;
-                        l_found_fee = true;
-                    }
-                    if(l_found_fee)
-                        dap_chain_esbocs_add_block_collect(l_block_cache->block, l_block_cache->block_size, &l_block_collect_params);
-                }                
+                    } else if (!dap_chain_block_sign_match_pkey(l_block_cache->block, l_block_cache->block_size, l_pub_key))
+                        continue;
+                    if (dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash, &l_pkey_hash))
+                        continue;
+                    dap_chain_esbocs_add_block_collect(l_block_cache->block, l_block_cache->block_size, &l_block_collect_params,2);
+                    {   
+                        char l_buf[50];
+                        dap_time_to_str_rfc822(l_buf, 50, l_ts);
+                        dap_string_append_printf(l_str_tmp, "rewards - \t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
+                        l_block_count++; 
+                    }                   
+                }
+                dap_string_append_printf(l_str_tmp, "%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks\n",
+                                     l_net->pub.name, l_chain->name, l_block_count);
+                dap_string_free(l_str_tmp, true);
+
             }else{
                 if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "status") == -1) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect' requires subcommand 'status'");

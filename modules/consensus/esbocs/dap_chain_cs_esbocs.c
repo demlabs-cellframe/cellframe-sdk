@@ -329,15 +329,14 @@ static void s_check_db_collect_callback(dap_global_db_context_t UNUSED_ARG *a_gl
     dap_global_db_objs_delete(l_objs, l_objs_count);
 }
 
-
 void dap_chain_esbocs_add_block_collect(dap_chain_block_t *a_block_ptr, size_t a_block_size,
-                                        dap_chain_esbocs_block_collect_t *a_block_collect_params)
+                                        dap_chain_esbocs_block_collect_t *a_block_collect_params,int a_type)
 {
     dap_hash_fast_t l_last_block_hash;
     s_get_last_block_hash(a_block_collect_params->chain, &l_last_block_hash);
     dap_chain_t *l_chain = a_block_collect_params->chain;
     dap_sign_t *l_sign = dap_chain_block_sign_get(a_block_ptr, a_block_size, 0);
-    if (dap_pkey_match_sign(a_block_collect_params->block_sign_pkey, l_sign)) {
+    if (dap_pkey_match_sign(a_block_collect_params->block_sign_pkey, l_sign)&&(!a_type||a_type==1)) {
         dap_chain_esbocs_block_collect_t *l_block_collect_params = DAP_NEW_Z(dap_chain_esbocs_block_collect_t);
         l_block_collect_params->collectiong_level = a_block_collect_params->collectiong_level;
         l_block_collect_params->minimum_fee = a_block_collect_params->minimum_fee;
@@ -362,7 +361,7 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_t *a_block_ptr, size_t a
         }
         dap_list_free_full(l_list_used_out, NULL);
     }
-    if (dap_chain_block_sign_match_pkey(a_block_ptr, a_block_size, a_block_collect_params->block_sign_pkey)) {
+    if (dap_chain_block_sign_match_pkey(a_block_ptr, a_block_size, a_block_collect_params->block_sign_pkey)&&(!a_type||a_type==2)) {
         dap_chain_esbocs_block_collect_t *l_block_collect_params = DAP_NEW_Z(dap_chain_esbocs_block_collect_t);
         l_block_collect_params->collectiong_level = a_block_collect_params->collectiong_level;
         l_block_collect_params->minimum_fee = a_block_collect_params->minimum_fee;
@@ -411,7 +410,7 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
             .block_sign_pkey = PVT(l_session->esbocs)->block_sign_pkey,
             .collecting_addr = PVT(l_session->esbocs)->collecting_addr
     };
-    dap_chain_esbocs_add_block_collect(a_atom, a_atom_size, &l_block_collect_params);
+    dap_chain_esbocs_add_block_collect(a_atom, a_atom_size, &l_block_collect_params,0);
 }
 
 /* *** Temporary added section for over-consensus sync. Remove this after global DB sync refactoring *** */
