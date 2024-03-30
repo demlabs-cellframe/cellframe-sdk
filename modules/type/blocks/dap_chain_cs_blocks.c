@@ -1431,7 +1431,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         dap_chain_block_cache_t * l_prev_bcache = NULL, *l_tmp = NULL;
         uint64_t l_current_item_index = 0;
         pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);
-        for (l_prev_bcache = PVT(l_blocks)->blocks->hh.tbl->tail; l_prev_bcache && l_current_item_index < DAP_FORK_MAX_DEPTH; l_current_item_index++, l_prev_bcache->hh.prev){
+        l_prev_bcache = PVT(l_blocks)->blocks ? PVT(l_blocks)->blocks->hh.tbl->tail->prev : NULL;
+        for (l_prev_bcache = l_prev_bcache ? l_prev_bcache->hh.next : PVT(l_blocks)->blocks; l_prev_bcache && l_current_item_index < DAP_FORK_MAX_DEPTH; l_current_item_index++, l_prev_bcache = l_prev_bcache->hh.prev){
             if (l_prev_bcache && dap_hash_fast_compare(&l_prev_bcache->block_hash, &l_block_prev_hash)){
                 ++PVT(l_blocks)->blocks_count;
                 HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
