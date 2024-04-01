@@ -388,6 +388,15 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
     //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
     PVT(a_net)->state_target = a_new_state;
     if (a_new_state == NET_STATE_OFFLINE) {
+        char l_err_str[] = "ERROR_NET_IS_OFFLINE";
+        size_t l_error_size = sizeof(dap_stream_ch_chain_net_pkt_t) + sizeof(l_err_str);
+        dap_stream_ch_chain_net_pkt_t *l_error = DAP_NEW_STACK_SIZE(dap_stream_ch_chain_net_pkt_t, l_error_size);
+        l_error->hdr.version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION;
+        l_error->hdr.net_id = a_net->pub.id;
+        l_error->hdr.data_size = sizeof(l_err_str);
+        memcpy(l_error->data, l_err_str, sizeof(l_err_str));
+        dap_cluster_broadcast(PVT(a_net)->nodes_cluster->links_cluster, DAP_STREAM_CH_CHAIN_NET_ID,
+                              DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR, l_error, l_error_size, NULL, 0);
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, false);
         dap_chain_esbocs_stop_timer(a_net->pub.id);
     } else if (PVT(a_net)->state == NET_STATE_OFFLINE) {

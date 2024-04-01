@@ -3777,6 +3777,10 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply)
             l_datum_hash = dap_enc_base58_to_hex_str_from_str(l_datum_hash_in);
         } else
             l_datum_hash = dap_strdup(l_datum_hash_in);
+        if (!l_datum_hash) {
+            dap_json_rpc_error_add(-4, "Can't convert hash string %s to hex string", l_datum_hash_in);
+            return -4;
+        }
     }
     int ret = -100;
     switch (l_cmd) {
