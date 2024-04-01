@@ -3266,9 +3266,9 @@ dap_hash_fast_t* dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_
         dap_chain_tx_out_cond_t *l_out_cond_temp = dap_chain_datum_tx_out_cond_get(l_prev_tx_temp, l_type, NULL);
         if (l_out_cond_temp){
             l_item_idx = l_in_cond_temp->header.tx_out_prev_idx;
-            l_prev_tx = l_prev_tx_temp;
             l_hash = l_in_cond_temp->header.tx_prev_hash;
         }
+        l_prev_tx = l_prev_tx_temp;
     }
 
     if(l_prev_tx && !dap_hash_fast_is_blank(&l_hash)){
