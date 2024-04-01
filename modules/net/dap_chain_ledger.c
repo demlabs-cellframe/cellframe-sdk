@@ -3310,9 +3310,9 @@ dap_hash_fast_t* dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_
         dap_chain_tx_out_cond_t *l_out_cond_temp = dap_chain_datum_tx_out_cond_get(l_prev_tx_temp, l_type, NULL);
         if (l_out_cond_temp){
             l_item_idx = l_in_cond_temp->header.tx_out_prev_idx;
-            l_prev_tx = l_prev_tx_temp;
             l_hash = l_in_cond_temp->header.tx_prev_hash;
         }
+        l_prev_tx = l_prev_tx_temp;
     }
 
     if(l_prev_tx && !dap_hash_fast_is_blank(&l_hash)){
@@ -4939,7 +4939,6 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
                 if(s_debug_more)
                     log_it(L_ERROR,"!!! Attempt to SPEND from some non-existent balance !!!: %s %s", l_addr_str, l_cur_token_ticker);
             }
-            DAP_DELETE(l_addr_str);
             DAP_DELETE(l_wallet_balance_key);
         } break;
 
@@ -5063,7 +5062,6 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         } else {
             log_it(L_CRITICAL, "Wallet is not presented in cache. Can't substract out value from balance.");
         }
-        DAP_DELETE (l_addr_str);
     }
 
     if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL) && s_voting_callbacks.voting_delete_callback)
