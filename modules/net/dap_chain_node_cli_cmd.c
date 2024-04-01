@@ -7005,7 +7005,6 @@ int com_tx_verify(int a_argc, char **a_argv, void **reply)
         json_object *l_jobj_err_code = json_object_new_int64(l_ret);
         json_object_object_add(l_jobj_error, "code", l_jobj_err_code);
         json_object_object_add(l_jobj_error, "message", l_jobj_err_str);
-        json_object_object_add(l_obj_ret, "hash", l_obj_hash);
         json_object_object_add(l_obj_ret, "verify", l_jobj_verfiy);
         json_object_object_add(l_obj_ret, "error", l_jobj_error);
         json_object_array_add(*reply, l_obj_ret);
