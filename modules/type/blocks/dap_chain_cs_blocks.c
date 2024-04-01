@@ -636,12 +636,13 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         } break;
 
         case SUBCMD_NEW_COMPLETE:{
-            dap_chain_net_sync_all(l_net);
+            // TODO
         } break;
 
         case SUBCMD_DROP:{
-            dap_chain_net_sync_all(l_net);
+            // TODO
         }break;
+
         case SUBCMD_DUMP:{
             dap_chain_hash_fast_t l_block_hash={0};
             if (!l_subcmd_str_arg) {
