@@ -110,7 +110,7 @@ dap_chain_net_links_t *dap_chain_net_balancer_get_node(const char *a_net_name, u
     }
 // func work
     dap_link_info_t *l_node_info = (dap_link_info_t *)l_ret->nodes_info;
-    for(dap_list_t *i = l_nodes_list; i && l_ret->count_node < l_nodes_count; i = i->next, --l_ret->count_node) {
+    for(dap_list_t *i = l_nodes_list; i && l_ret->count_node < l_nodes_count; i = i->next, ++l_ret->count_node) {
         dap_mempcpy(l_node_info + l_ret->count_node, &((dap_chain_node_states_info_t *)i->data)->link_info , sizeof(dap_link_info_t));
     }
     dap_list_free_full(l_nodes_list, NULL);

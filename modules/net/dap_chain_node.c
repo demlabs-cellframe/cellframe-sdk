@@ -58,7 +58,7 @@ typedef struct dap_chain_node_net_states_info {
     dap_chain_node_addr_t links_addrs[];
 } DAP_ALIGN_PACKED dap_chain_node_net_states_info_t;
 
-static const uint64_t s_cmp_delta_timestamp = 1000000;  // ms
+static const uint64_t s_cmp_delta_timestamp = 1000000000000;  // ms
 static const uint64_t s_cmp_delta_atom = 50;
 static const uint64_t s_timer_update_states_info = 10000;
 
@@ -73,8 +73,7 @@ static void s_chain_node_update_node_states_info(UNUSED_ARG void *a_arg)
             size_t
                 l_uplinks_count = 0,
                 l_downlinks_count = 0,
-                l_info_size = 0,
-                l_info_signed_size = 0;
+                l_info_size = 0;
             dap_chain_t *l_chain = dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 1 });
             dap_cert_t *l_cert = dap_cert_find_by_name(DAP_STREAM_NODE_ADDR_CERT_NAME);
             dap_return_if_pass(!l_chain || !l_cert);
@@ -93,7 +92,7 @@ static void s_chain_node_update_node_states_info(UNUSED_ARG void *a_arg)
             // DB write
             char *l_gdb_group = dap_strdup_printf("%s.nodes.states", l_net->pub.gdb_groups_prefix);
             char *l_node_addr_str = dap_stream_node_addr_to_str(l_info->address, false);
-            dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_signed_size, false);
+            dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_size, false);
             DAP_DEL_MULTY(l_linked_node_addrs, l_info, l_gdb_group, l_node_addr_str);
         }
     }
@@ -371,7 +370,7 @@ dap_list_t *dap_get_nodes_states_list_sort(dap_chain_net_t *a_net)
         }
         dap_nanotime_t l_timestamp = 0;
         dap_chain_node_net_states_info_t *l_store_obj = (dap_chain_node_net_states_info_t *)dap_global_db_get_sync(l_gdb_group, l_objs[i].key, NULL, NULL, &l_timestamp);
-        if (l_store_obj) {
+        if (!l_store_obj) {
             log_it(L_ERROR, "Can't find state about %s node", l_objs[i].key);
             continue;
         }
