@@ -1359,8 +1359,6 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     }
     if (ret) {
         log_it(L_ERROR, "Can't process balancer link %s request", PVT(a_net)->balancer_http ? "HTTP" : "DNS");
-        DAP_DEL_Z(l_balancer_request->link_info);
-        DAP_DEL_Z(l_balancer_request);
         return false;
     }
     if (!a_link_replace_tries)
