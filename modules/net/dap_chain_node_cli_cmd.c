@@ -2669,7 +2669,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
     }
     json_object_object_add(l_obj_chain, "removed", l_jobj_removed);
     size_t l_objs_count = 0;
-    size_t l_objs_addr = 0;
     dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
     json_object  *l_jobj_datums;
     size_t l_offset = a_limit * a_offset;
@@ -2689,7 +2688,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             json_object *l_jobj_offset = json_object_new_uint64(l_offset);
             json_object_object_add(l_obj_chain, "offset", l_jobj_offset);
         }
-        size_t l_arr_end = 0;
+        size_t l_arr_end = l_objs_count;
         if (a_limit) {
             l_arr_end = l_offset + a_limit;
             if (l_arr_end > l_objs_count)
