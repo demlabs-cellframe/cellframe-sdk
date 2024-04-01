@@ -6971,14 +6971,9 @@ int com_tx_verify(int a_argc, char **a_argv, void **reply)
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_REQUIRE_PARAMETER_TX, "tx_verify requires parameter '-tx'");
         return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_REQUIRE_PARAMETER_TX;
     }
-//    dap_chain_node_
-//    dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
     dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&l_arg_index, a_argc, a_argv, &l_chain, &l_net);
     if (!l_net || !l_chain) {
         return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_NET_CHAIN_UNDEFINED;
-    } else if (reply && *reply) {
-        DAP_DELETE(*reply);
-        *reply = NULL;
     }
     dap_hash_fast_t l_tx_hash;
     char *l_hex_str_from58 = NULL;
@@ -7006,6 +7001,7 @@ int com_tx_verify(int a_argc, char **a_argv, void **reply)
     json_object *l_jobj_error = NULL;
     if (l_ret) {
         l_jobj_verfiy = json_object_new_boolean(false);
+        l_jobj_error = json_object_new_object();
         json_object *l_jobj_err_str = json_object_new_string(dap_ledger_tx_check_err_str(l_ret));
         json_object *l_jobj_err_code = json_object_new_int64(l_ret);
         json_object_object_add(l_jobj_error, "code", l_jobj_err_code);
