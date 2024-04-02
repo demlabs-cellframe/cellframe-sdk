@@ -2116,7 +2116,6 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
     dap_chain_node_info_t *l_remote_node_info = NULL;
     dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_net->pub.name);
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
-    dap_chain_node_addr_t *l_signer_node_addr = NULL;
     int l_overall_correct = false;
 
     int l_prev_cond_idx = 0;
@@ -2125,11 +2124,10 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
     if (!l_tx_out_cond) {
         return -4;
     }
-    l_signer_node_addr = &l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr;
-
     // read node
     l_remote_node_info = (dap_chain_node_info_t*) dap_global_db_get_sync(a_net->pub.gdb_nodes,
-        dap_chain_node_addr_to_str_static(l_signer_node_addr), &l_node_info_size, NULL, NULL);
+        dap_chain_node_addr_to_str_static(l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr),
+        &l_node_info_size, NULL, NULL);
 
     if(!l_remote_node_info) {
         return -6;

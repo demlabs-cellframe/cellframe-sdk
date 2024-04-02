@@ -2707,6 +2707,7 @@ size_t dap_chain_net_count() {
 }
 
 dap_chain_net_t *dap_chain_net_iter_start() {
+    dap_return_val_if_pass(!s_net_items, NULL);
     return s_net_items->chain_net;
 }
 

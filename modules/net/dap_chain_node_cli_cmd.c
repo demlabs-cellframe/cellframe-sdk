@@ -166,7 +166,6 @@ static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, 
     dap_chain_node_info_t* l_res = dap_chain_node_info_read(a_net, a_address);
     if (!l_res)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Node record is corrupted or doesn't exist");
-
     return l_res;
 }
 
@@ -184,7 +183,7 @@ static int node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_info
 {
     return !a_node_info || !a_node_info->address.uint64
         ? dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid node address"), -1
-        : dap_global_db_set_sync(a_net->pub.gdb_nodes, dap_chain_node_addr_to_str_static(&a_node_info->address),
+        : dap_global_db_set_sync(a_net->pub.gdb_nodes, dap_chain_node_addr_to_str_static(a_node_info->address),
             (uint8_t*)a_node_info, dap_chain_node_info_get_size(a_node_info), false);
 }
 
@@ -233,7 +232,7 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
 }
 
 /**
- * @brief node_info_dump_with_reply Handler of command 'node dump'
+ * @brief s_node_info_list_with_reply Handler of command 'node dump'
  * @param a_net
  * @param a_addr
  * @param a_is_full
@@ -241,11 +240,25 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
  * @param a_str_reply
  * @return int 0 Ok, -1 error
  */
-static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_addr_t * a_addr, bool a_is_full,
+static int s_node_info_dump_with_reply(dap_chain_net_t *a_net, dap_chain_node_addr_t a_addr, void **a_str_reply)
+{
+
+}
+
+/**
+ * @brief s_node_info_list_with_reply Handler of command 'node dump'
+ * @param a_net
+ * @param a_addr
+ * @param a_is_full
+ * @param a_alias
+ * @param a_str_reply
+ * @return int 0 Ok, -1 error
+ */
+static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_addr_t * a_addr, bool a_is_full,
         const char *a_alias, void **a_str_reply)
 {
     int l_ret = 0;
-    dap_string_t *l_string_reply = dap_string_new("Node dump:\n");
+    dap_string_t *l_string_reply = dap_string_new("Node list:\n");
 
     if ((a_addr && a_addr->uint64) || a_alias) {
         dap_chain_node_addr_t *l_addr = a_alias
@@ -956,7 +969,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         ? sizeof(dap_chain_node_info_t) + dap_strlen(l_hostname) + 1
         : sizeof(dap_chain_node_info_t);
     dap_chain_node_info_t *l_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, l_info_size);
-
+    memset(l_node_info, 0, l_info_size);;
     //TODO need to rework with new node info / alias /links concept
 
     if (l_addr_str) {
@@ -1042,11 +1055,16 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         }
     }
 
-    case CMD_LIST:
-    case CMD_DUMP: {
+    case CMD_LIST:{
         // handler of command 'node dump'
         bool l_is_full = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-full", NULL);
-        return node_info_dump_with_reply(l_net, &l_node_addr, l_is_full, alias_str, a_str_reply);
+        return s_node_info_list_with_reply(l_net, &l_node_addr, l_is_full, alias_str, a_str_reply);
+    }
+    case CMD_DUMP: {
+        dap_string_t *l_string_reply = dap_chain_node_states_info_read(l_net, l_node_info->address);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
+        dap_string_free(l_string_reply, true);
+        return 0;
     }
         // add alias
     case CMD_ALIAS:
