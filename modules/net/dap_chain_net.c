@@ -647,7 +647,10 @@ int s_link_manager_link_request(uint64_t a_net_id)
     dap_chain_net_links_t *l_links = dap_chain_net_balancer_get_node(l_net->pub.name, l_required_links_count);
     if (l_links) {
         s_balancer_link_prepare_success(l_net, l_links);
-        return 0;
+        if (l_links->count_node >= l_required_links_count)
+            return 0;
+        else
+            l_required_links_count -= l_links->count_node;
     }
     // dynamic links from http balancer request
     struct balancer_link_request *l_balancer_request = NULL;
