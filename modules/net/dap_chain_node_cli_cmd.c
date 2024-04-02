@@ -951,7 +951,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     dap_chain_net_t *l_net = NULL;
 
     if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net) < 0) {
-        if (cmd_num != CMD_BANLIST && cmd_num != CMD_CONNECTIONS)
+        if (cmd_num != CMD_BANLIST && cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP)
             return -11;
     }
 

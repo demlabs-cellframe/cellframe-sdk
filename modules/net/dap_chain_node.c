@@ -113,17 +113,22 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, char *a_node_addr_str, 
     char l_ts[80] = { '\0' };
     dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_timestamp);
     dap_string_append_printf(l_info_str,
-        "Record timestamp: %s\nNode addr: %s\nNet: %s\nAtoms count: %"DAP_UINT64_FORMAT_U"\nUplinks count: %"DAP_UINT64_FORMAT_U"\nDownlinks count: %"DAP_UINT64_FORMAT_U"\n",
+        "Record timestamp: %s\nNode addr: %s\nNet: %s\nAtoms count: %"DAP_UINT64_FORMAT_U"\nUplinks count: %u\nDownlinks count: %u\n",
         l_ts, a_node_addr_str, a_net->pub.name, l_store_obj->atoms_count, l_store_obj->uplinks_count, l_store_obj->downlinks_count);
     size_t l_max_links = dap_max(l_store_obj->uplinks_count, l_store_obj->downlinks_count);
     if(l_max_links) {
-        dap_string_append_printf(l_info_str, "|\tUplinks node addrs\t|\tDownlinks node addrs\t|\n");
+        dap_string_append_printf(l_info_str,
+        "-----------------------------------------------------------------\n"
+        "|\tUplinks node addrs\t|\tDownlinks node addrs\t|\n"
+        "-----------------------------------------------------------------\n");
     }
     for (size_t i = 0; i < l_max_links; ++i) {
-        dap_string_append_printf(l_info_str, "|\t%s\t|\t%s\t|\n",
-            i < l_store_obj->uplinks_count ? dap_chain_node_addr_to_str_static(l_store_obj->links_addrs[i]) : "\t",
-            i < l_store_obj->downlinks_count ? dap_chain_node_addr_to_str_static(l_store_obj->links_addrs[i + l_store_obj->uplinks_count]) : "\t");
+        char *l_upnlinks = i < l_store_obj->uplinks_count ? dap_stream_node_addr_to_str(l_store_obj->links_addrs[i], false) : dap_strdup("\t\t");
+        char *l_downlinks = i < l_store_obj->downlinks_count ? dap_stream_node_addr_to_str(l_store_obj->links_addrs[i + l_store_obj->uplinks_count], false) : dap_strdup("\t\t");
+        dap_string_append_printf(l_info_str, "|\t%s\t|\t%s\t|\n", l_upnlinks, l_downlinks);
+        DAP_DEL_MULTY(l_upnlinks, l_downlinks);
     }
+    dap_string_append_printf(l_info_str, "-----------------------------------------------------------------\n");
     DAP_DEL_MULTY(l_store_obj, l_gdb_group);
 }
 

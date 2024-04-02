@@ -57,7 +57,7 @@ typedef struct dap_chain_node_info {
     uint8_t ext_host_len;
     char ext_host[];
 } DAP_ALIGN_PACKED dap_chain_node_info_t;
-
+// using to easy sorting and formin in balancer
 typedef struct dap_chain_node_states_info {
     dap_link_info_t link_info;
     uint64_t atoms_count;
