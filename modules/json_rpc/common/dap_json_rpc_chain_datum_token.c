@@ -230,11 +230,11 @@ json_object *dap_chain_datum_token_to_json(dap_chain_datum_token_t * a_token, si
     }
     size_t l_offset = 0;
     size_t l_certs_field_size = a_token_size - sizeof(*a_token);
-    while (l_offset < l_certs_field_size) {
+    while ((l_offset + l_tsd_total_size) < l_certs_field_size) {
         dap_sign_t *l_sign = (dap_sign_t *) ((byte_t*)a_token->data_n_tsd + l_tsd_total_size + l_offset);
         l_offset += dap_sign_get_size(l_sign);
         json_object *l_obj_sign = dap_sign_to_json(l_sign);
-        if (!l_obj_sign) {
+        if (!l_obj_sign || !dap_sign_get_size(l_sign)) {
             json_object_put(l_obj_signs);
             json_object_put(l_jobj_token);
             dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_SIGN_TO_JSON, "Failed to convert signature to JSON.");
