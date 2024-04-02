@@ -35,7 +35,7 @@ size_t dap_chain_ch_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type, uint
                                             const void * a_data, size_t a_data_size)
 {
     dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(a_net_id, a_chain_id, a_cell_id, a_data, a_data_size);
-    size_t l_ret = dap_stream_ch_pkt_write_unsafe(a_ch, a_type, l_chain_pkt, sizeof(dap_chain_ch_pkt_hdr_t) + a_data_size);
+    size_t l_ret = dap_stream_ch_pkt_write_unsafe(a_ch, a_type, l_chain_pkt, dap_chain_ch_pkt_get_size(l_chain_pkt));
     DAP_DELETE(l_chain_pkt);
     return l_ret;
 }
@@ -47,10 +47,11 @@ dap_chain_ch_pkt_t *dap_chain_ch_pkt_new(uint64_t a_net_id, uint64_t a_chain_id,
     dap_chain_ch_pkt_t *l_chain_pkt = DAP_NEW_Z_SIZE(dap_chain_ch_pkt_t, l_chain_pkt_size);
     if (l_chain_pkt) {
         *l_chain_pkt = (dap_chain_ch_pkt_t) {
-                .hdr = { .version = DAP_STREAM_CH_CHAIN_PKT_VERSION,
+                .hdr = { .version = DAP_CHAIN_CH_PKT_VERSION,
                          .data_size = a_data_size,
                          .net_id.uint64 = a_net_id,
-                         .cell_id.uint64 = a_cell_id, .chain_id.uint64 = a_chain_id }
+                         .cell_id.uint64 = a_cell_id,
+                         .chain_id.uint64 = a_chain_id }
         };
         if (a_data_size && a_data)
             memcpy(l_chain_pkt->data, a_data, a_data_size);
@@ -79,7 +80,7 @@ size_t dap_chain_ch_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_uu
             ? DAP_NEW_Z_SIZE(dap_chain_ch_pkt_t, l_chain_pkt_size)
             : DAP_NEW_STACK_SIZE(dap_chain_ch_pkt_t, l_chain_pkt_size);
     *l_chain_pkt = (dap_chain_ch_pkt_t){
-            .hdr = { .version = DAP_STREAM_CH_CHAIN_PKT_VERSION, .net_id.uint64 = a_net_id, .cell_id.uint64 = a_cell_id, .chain_id.uint64 = a_chain_id }
+            .hdr = { .version = DAP_CHAIN_CH_PKT_VERSION, .net_id.uint64 = a_net_id, .cell_id.uint64 = a_cell_id, .chain_id.uint64 = a_chain_id }
     };
 
     if (a_data_size && a_data)
@@ -100,7 +101,7 @@ size_t dap_chain_ch_pkt_write_multi_mt(dap_stream_ch_cachet_t *a_links, size_t a
             ? DAP_NEW_Z_SIZE(dap_chain_ch_pkt_t, l_chain_pkt_size)
             : DAP_NEW_STACK_SIZE(dap_chain_ch_pkt_t, l_chain_pkt_size);
     *l_chain_pkt = (dap_chain_ch_pkt_t){
-            .hdr = { .version = DAP_STREAM_CH_CHAIN_PKT_VERSION, .net_id.uint64 = a_net_id, .cell_id.uint64 = a_cell_id, .chain_id.uint64 = a_chain_id }
+            .hdr = { .version = DAP_CHAIN_CH_PKT_VERSION, .net_id.uint64 = a_net_id, .cell_id.uint64 = a_cell_id, .chain_id.uint64 = a_chain_id }
     };
 
     if (a_data_size && a_data)
@@ -141,7 +142,7 @@ size_t dap_chain_ch_pkt_write_inter(dap_events_socket_t * a_es_input, dap_stream
     size_t l_chain_pkt_size = sizeof(dap_chain_ch_pkt_hdr_t) + a_data_size;
     dap_chain_ch_pkt_t *l_chain_pkt = DAP_NEW_Z_SIZE(dap_chain_ch_pkt_t, l_chain_pkt_size );
     *l_chain_pkt = (dap_chain_ch_pkt_t){
-            .hdr = { .version = DAP_STREAM_CH_CHAIN_PKT_VERSION, .net_id.uint64 = a_net_id, .cell_id.uint64 = a_cell_id, .chain_id.uint64 = a_chain_id }
+            .hdr = { .version = DAP_CHAIN_CH_PKT_VERSION, .net_id.uint64 = a_net_id, .cell_id.uint64 = a_cell_id, .chain_id.uint64 = a_chain_id }
     };
 
     if (a_data_size && a_data)

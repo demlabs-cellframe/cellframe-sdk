@@ -66,9 +66,7 @@ static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t 
 static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t); //    Verify new event in gdb
 static size_t s_nonconsensus_callback_atom_get_static_hdr_size(void); //    Get gdb event header size
 
-static dap_chain_atom_iter_t* s_nonconsensus_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id, bool a_with_treshold);
-static dap_chain_atom_iter_t* s_nonconsensus_callback_atom_iter_create_from(dap_chain_t * a_chain,
-        dap_chain_atom_ptr_t a, size_t a_atom_size);
+static dap_chain_atom_iter_t* s_nonconsensus_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);
 
 // Delete iterator
 static void s_nonconsensus_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter); //    Get the fisrt event from gdb
@@ -77,12 +75,8 @@ static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_find_by_hash(dap_c
         dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 
 // Get event(s) from gdb
-static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_get_first(dap_chain_atom_iter_t * a_atom_iter, size_t * a_atom_size); //    Get the fisrt event from gdb
-static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_get_next(dap_chain_atom_iter_t * a_atom_iter, size_t * a_atom_size); //    Get the next event from gdb
-static dap_chain_atom_ptr_t *s_nonconsensus_callback_atom_iter_get_links(dap_chain_atom_iter_t * a_atom_iter,
-        size_t * a_links_size_ptr, size_t ** a_lasts_sizes_ptr); //    Get list of linked events
-static dap_chain_atom_ptr_t *s_nonconsensus_callback_atom_iter_get_lasts(dap_chain_atom_iter_t * a_atom_iter,
-        size_t * a_lasts_size_ptr, size_t ** a_lasts_sizes_ptr); //    Get list of linked events
+static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size);
+static dap_chain_atom_ptr_t *s_nonconsensus_callback_atom_iter_get_links(dap_chain_atom_iter_t *a_atom_iter, size_t *a_links_size_ptr, size_t **a_lasts_sizes_ptr); //    Get list of linked events
 static dap_chain_datum_t **s_nonconsensus_callback_atom_get_datum(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t *a_datums_count);
 static dap_time_t s_nonconsensus_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_datum_t *)a_atom)->header.ts_create; }
 static size_t s_nonconsensus_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums,
@@ -169,7 +163,7 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
     // Add group prefix that will be tracking all changes
     dap_global_db_cluster_t *l_nonconsensus_cluster =
             dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                      l_net->pub.name, dap_cluster_guuid_compose(l_net->pub.id.uint64, 0),
+                                      l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                       l_nochain_priv->group_datums, 0,
                                       true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_ROLE_EMBEDDED);
     if (!l_nonconsensus_cluster) {
@@ -191,15 +185,12 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
     a_chain->callback_atom_get_hdr_static_size = s_nonconsensus_callback_atom_get_static_hdr_size; // Get dag event hdr size
 
     a_chain->callback_atom_iter_create = s_nonconsensus_callback_atom_iter_create;
-    a_chain->callback_atom_iter_create_from = s_nonconsensus_callback_atom_iter_create_from;
     a_chain->callback_atom_iter_delete = s_nonconsensus_callback_atom_iter_delete;
-    // Linear pass through
-    a_chain->callback_atom_iter_get_first = s_nonconsensus_callback_atom_iter_get_first; // Get the fisrt element from chain
-    a_chain->callback_atom_iter_get_next = s_nonconsensus_callback_atom_iter_get_next; // Get the next element from chain from the current one
+    a_chain->callback_atom_iter_get = s_nonconsensus_callback_atom_iter_get; // Linear pass through
     a_chain->callback_atom_find_by_hash = s_nonconsensus_callback_atom_iter_find_by_hash;
 
     a_chain->callback_atom_iter_get_links = s_nonconsensus_callback_atom_iter_get_links; // Get the next element from chain from the current one
-    a_chain->callback_atom_iter_get_lasts = s_nonconsensus_callback_atom_iter_get_lasts;
+
     a_chain->callback_atom_get_datums = s_nonconsensus_callback_atom_get_datum;
     a_chain->callback_atom_get_timestamp = s_nonconsensus_callback_atom_get_timestamp;
 
@@ -250,24 +241,6 @@ const char* dap_nonconsensus_get_group(dap_chain_t * a_chain)
     return l_nochain_priv->group_datums;
 }
 
-
-/**
- * @brief compare_datum_items
- * @param l_a
- * @param l_b
- * @return
- */
-
-/*static int compare_datum_items(const void * l_a, const void * l_b)
-{
-    const dap_chain_datum_t *l_item_a = (const dap_chain_datum_t*) l_a;
-    const dap_chain_datum_t *l_item_b = (const dap_chain_datum_t*) l_b;
-    if(l_item_a->header.ts_create == l_item_b->header.ts_create)
-        return 0;
-    if(l_item_a->header.ts_create < l_item_b->header.ts_create)
-        return -1;
-    return 1;
-}*/
 
 /**
  * @brief s_ledger_load_callback
@@ -432,7 +405,7 @@ static size_t s_nonconsensus_callback_atom_get_static_hdr_size()
  * @param a_chain dap_chain_t a_chain
  * @return dap_chain_atom_iter_t*
  */
-static dap_chain_atom_iter_t* s_nonconsensus_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id, bool a_with_treshold)
+static dap_chain_atom_iter_t* s_nonconsensus_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from)
 {
     dap_chain_atom_iter_t * l_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     if (!l_iter) {
@@ -441,33 +414,10 @@ static dap_chain_atom_iter_t* s_nonconsensus_callback_atom_iter_create(dap_chain
     }
     l_iter->chain = a_chain;
     l_iter->cell_id = a_cell_id;
-    l_iter->with_treshold = a_with_treshold;
+    if (a_hash_from)
+        s_nonconsensus_callback_atom_iter_find_by_hash(l_iter, a_hash_from, NULL);
     return l_iter;
 }
-
-/**
- * @brief create atom object (dap_chain_atom_iter_t)
- *
- * @param a_chain chain object
- * @param a_atom pointer to atom
- * @param a_atom_size size of atom
- * @return dap_chain_atom_iter_t*
- */
-static dap_chain_atom_iter_t* s_nonconsensus_callback_atom_iter_create_from(dap_chain_t * a_chain,
-        dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
-{
-    dap_chain_atom_iter_t * l_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
-    if (!l_iter) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return NULL;
-    }
-    l_iter->chain = a_chain;
-    l_iter->cur = a_atom;
-    l_iter->cur_size = a_atom_size;
-    dap_hash_fast(a_atom, a_atom_size, l_iter->cur_hash);
-    return l_iter;
-}
-
 
 /**
  * @brief Delete dag event iterator
@@ -502,6 +452,7 @@ static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_find_by_hash(dap_c
         l_ret = dap_global_db_get_sync(PVT(l_nochain)->group_datums, l_key, &l_ret_size, NULL, NULL);
         *a_atom_size = l_ret_size;
     }
+    //TODO set a_atom_iter item field
     return l_ret;
 }
 
@@ -512,68 +463,45 @@ static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_find_by_hash(dap_c
  * @param a_atom_size a_atom_size atom size
  * @return dap_chain_atom_ptr_t
  */
-static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_get_first(dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size)
+static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size)
 {
-    if (!a_atom_iter)
-        return NULL;
+    dap_return_val_if_fail(a_atom_iter, NULL);
     if (a_atom_iter->cur_item) { /* Iterator creates copies, free them at delete routine! */
         DAP_DEL_Z(a_atom_iter->cur);
         DAP_DEL_Z(a_atom_iter->cur_hash);
     }
-    dap_chain_datum_t * l_datum = NULL;
-    dap_nonconsensus_datum_hash_item_t *l_item = PVT(DAP_NONCONSENSUS(a_atom_iter->chain))->hash_items;
-    a_atom_iter->cur_item = l_item;
+    dap_nonconsensus_datum_hash_item_t *l_head = PVT(DAP_NONCONSENSUS(a_atom_iter->chain))->hash_items;
+    switch (a_operation) {
+    case DAP_CHAIN_ITER_OP_FIRST:
+        a_atom_iter->cur_item = l_head;
+        break;
+    case DAP_CHAIN_ITER_OP_LAST:
+        a_atom_iter->cur_item = l_head ? l_head->prev : NULL;
+        break;
+    case DAP_CHAIN_ITER_OP_NEXT:
+        if (a_atom_iter->cur_item)
+            a_atom_iter->cur_item = ((dap_nonconsensus_datum_hash_item_t *)a_atom_iter->cur_item)->next;
+        break;
+    case DAP_CHAIN_ITER_OP_PREV:
+        if (a_atom_iter->cur_item)
+            a_atom_iter->cur_item = ((dap_nonconsensus_datum_hash_item_t *)a_atom_iter->cur_item)->prev->next
+                    ? ((dap_nonconsensus_datum_hash_item_t *)a_atom_iter->cur_item)->prev
+                    : NULL;
+        break;
+    }
     if (a_atom_iter->cur_item) {
-        size_t l_datum_size = 0;
-        l_datum = (dap_chain_datum_t*)dap_global_db_get_sync(PVT(DAP_NONCONSENSUS(a_atom_iter->chain))->group_datums,
-                                                             l_item->key, &l_datum_size, NULL, NULL);
-        a_atom_iter->cur = l_datum;
-        a_atom_iter->cur_size = l_datum_size;
+        dap_nonconsensus_datum_hash_item_t *l_item = a_atom_iter->cur_item;
+
+        a_atom_iter->cur = dap_global_db_get_sync(PVT(DAP_NONCONSENSUS(a_atom_iter->chain))->group_datums,
+                                                  l_item->key, &a_atom_iter->cur_size, NULL, NULL);
         a_atom_iter->cur_hash = DAP_NEW_Z(dap_hash_fast_t);
         dap_chain_hash_fast_from_str(l_item->key, a_atom_iter->cur_hash);
-        if (a_atom_size)
-            *a_atom_size = l_datum_size;
-    } else {
-        a_atom_iter->cur_size = 0;
-        if (a_atom_size)
-            *a_atom_size = 0;
-    }
-    return l_datum;
-}
-
-
-/**
- * @brief Get the next dag event from database
- *
- * @param a_atom_iter dap_chain_atom_iter_t
- * @param a_atom_size size_t a_atom_size
- * @return dap_chain_atom_ptr_t
- */
-static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_get_next(dap_chain_atom_iter_t *a_atom_iter, size_t *a_atom_size)
-{
-    dap_chain_datum_t * l_datum = NULL;
-    dap_nonconsensus_datum_hash_item_t *l_item = (dap_nonconsensus_datum_hash_item_t*)a_atom_iter->cur_item;
-    if (l_item)
-        l_item = l_item->next;
-    a_atom_iter->cur_item = l_item;
-    if (a_atom_iter->cur_item ){
-        size_t l_datum_size =0;
-        l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(PVT(DAP_NONCONSENSUS(a_atom_iter->chain))->group_datums, l_item->key, &l_datum_size, NULL, NULL);
-        if (a_atom_iter->cur) // This iterator should clean up data for it because its allocate it
-            DAP_DELETE(a_atom_iter->cur);
-        a_atom_iter->cur = l_datum;
-        a_atom_iter->cur_size = l_datum_size;
-        dap_chain_hash_fast_from_str(l_item->key, a_atom_iter->cur_hash);
-        if (a_atom_size)
-            *a_atom_size = l_datum_size;
-    } else {
-        DAP_DEL_Z(a_atom_iter->cur_hash);
-        DAP_DEL_Z(a_atom_iter->cur);
-        a_atom_iter->cur_size = 0;
-        if (a_atom_size)
-            *a_atom_size = 0;
-    }
-    return l_datum;
+    } else
+        *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
+                                                 .cell_id = a_atom_iter->cell_id };
+    if (a_atom_size)
+        *a_atom_size = a_atom_iter->cur_size;
+    return a_atom_iter->cur;
 }
 
 /**
@@ -589,23 +517,6 @@ static dap_chain_atom_ptr_t* s_nonconsensus_callback_atom_iter_get_links(dap_cha
 {
     (void) a_atom_iter;
     (void) a_links_size_ptr;
-    (void) a_links_sizes_ptr;
-    return NULL;
-}
-
-/**
- * @brief return null in current implementation
- *
- * @param a_atom_iter
- * @param a_lasts_size_ptr
- * @param a_links_sizes_ptr
- * @return dap_chain_atom_ptr_t*
- */
-static dap_chain_atom_ptr_t* s_nonconsensus_callback_atom_iter_get_lasts(dap_chain_atom_iter_t * a_atom_iter,
-        size_t * a_lasts_size_ptr,  size_t **a_links_sizes_ptr)
-{
-    (void) a_atom_iter;
-    (void) a_lasts_size_ptr;
     (void) a_links_sizes_ptr;
     return NULL;
 }

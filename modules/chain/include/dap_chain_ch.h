@@ -33,20 +33,36 @@
 #include "uthash.h"
 #include "dap_global_db_cluster.h"
 
-#define DAP_CHAIN_NODE_SYNC_TIMEOUT 60  // sec
-#define DAP_SYNC_TICKS_PER_SECOND   10
+#define DAP_SYNC_TICKS_PER_SECOND           10
+
+typedef enum dap_chain_ch_state {
+    DAP_CHAIN_CH_STATE_IDLE = 0,
+    DAP_CHAIN_CH_STATE_WAITING,
+    DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB_REMOTE, // Downloadn GDB hashtable from remote
+    DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB, // Update GDB hashtable to remote
+    DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB,
+    DAP_CHAIN_CH_STATE_UPDATE_CHAINS_REMOTE, // Update chains hashtable from remote
+    DAP_CHAIN_CH_STATE_UPDATE_CHAINS, // Update chains hashtable to remote
+    DAP_CHAIN_CH_STATE_SYNC_CHAINS,
+    DAP_CHAIN_CH_STATE_ERROR
+} dap_chain_ch_state_t;
+
+typedef enum dap_chain_ch_error_type {
+    DAP_CHAIN_CH_ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS,
+    DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE,
+    DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE,
+    DAP_CHAIN_CH_ERROR_NET_INVALID_ID,
+    DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND,
+    DAP_CHAIN_CH_ERROR_ATOM_NOT_FOUND,
+    DAP_CHAIN_CH_ERROR_UNKNOWN_CHAIN_PKT_TYPE,
+    DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED,
+    DAP_CHAIN_CH_ERROR_NET_IS_OFFLINE
+} dap_chain_ch_error_type_t;
 
 typedef struct dap_chain_ch dap_chain_ch_t;
 typedef void (*dap_chain_ch_callback_packet_t)(dap_chain_ch_t*, uint8_t a_pkt_type,
                                                       dap_chain_ch_pkt_t *a_pkt, size_t a_pkt_data_size,
                                                       void * a_arg);
-typedef struct dap_chain_atom_item{
-    dap_chain_hash_fast_t atom_hash;
-    dap_chain_atom_ptr_t atom;
-    size_t atom_size;
-    UT_hash_handle hh;
-} dap_chain_atom_item_t;
-
 typedef struct dap_chain_pkt_item {
     uint64_t pkt_data_size;
     byte_t *pkt_data;
@@ -61,8 +77,12 @@ typedef struct dap_chain_ch_hash_item{
 
 typedef struct dap_chain_ch {
     void *_inheritor;
+    dap_timerfd_t *sync_timer;
+    void *sync_context;
 
-    dap_chain_ch_state_t state;
+    // Legacy section //
+    int state;
+
     uint64_t stats_request_atoms_processed;
     uint64_t stats_request_gdb_processed;
 
@@ -76,7 +96,7 @@ typedef struct dap_chain_ch {
     dap_chain_ch_pkt_hdr_t request_hdr;
     dap_list_t *request_db_iter;
 
-    int timer_shots;
+    uint32_t timer_shots;
     dap_timerfd_t *activity_timer;
     int sent_breaks;
 
@@ -85,10 +105,10 @@ typedef struct dap_chain_ch {
     void *callback_notify_arg;
 } dap_chain_ch_t;
 
-#define DAP_STREAM_CH_CHAIN(a) ((dap_chain_ch_t *) ((a)->internal) )
+#define DAP_CHAIN_CH(a) ((dap_chain_ch_t *) ((a)->internal) )
 #define DAP_STREAM_CH(a) ((dap_stream_ch_t *)((a)->_inheritor))
 #define DAP_CHAIN_PKT_EXPECT_SIZE 7168
-#define DAP_STREAM_CH_CHAIN_ID 'C'
+#define DAP_CHAIN_CH_ID 'C'
 
 int dap_chain_ch_init(void);
 void dap_chain_ch_deinit(void);
