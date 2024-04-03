@@ -399,7 +399,7 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                 _dap_tsd_get_scalar(l_tsd, &l_stake_addr_signing);
 //                dap_string_append_printf(a_str_out, "\tSigning addr: %s\n", l_stake_addr_signing_str);
                 dap_chain_hash_fast_t l_pkey_signing = l_stake_addr_signing.data.hash_fast;
-                char *l_pkey_signing_str = dap_chain_hash_fast_to_str_static(&l_pkey_signing);
+                const char *l_pkey_signing_str = dap_chain_hash_fast_to_str_static(&l_pkey_signing);
                 json_object *l_jobj_stake_addr_signing = dap_chain_addr_to_json(&l_stake_addr_signing);
                 json_object *l_jobj_pkey_signing = json_object_new_string(l_pkey_signing_str);
                 json_object_object_add(l_jobj_tsd, "addr", l_jobj_stake_addr_signing);

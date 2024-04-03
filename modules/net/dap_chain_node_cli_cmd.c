@@ -2568,8 +2568,8 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                 l_datum_size = dap_chain_datum_size(l_datum);
                 dap_chain_hash_fast_t l_key_hash = { };
                 dap_hash_fast(l_datum->data, l_token_size, &l_key_hash);
-                char *l_key_str = dap_chain_hash_fast_to_str_static(&l_key_hash);
-                char *l_key_str_base58 = dap_enc_base58_encode_hash_to_str_static(&l_key_hash);
+                const char *l_key_str = dap_chain_hash_fast_to_str_static(&l_key_hash);
+                const char *l_key_str_base58 = dap_enc_base58_encode_hash_to_str_static(&l_key_hash);
                 const char *l_key_out_str = dap_strcmp(l_hash_out_type, "hex")
                         ? l_key_str_base58 : l_key_str;
                 // Add datum to mempool with datum_token hash as a key
@@ -2711,8 +2711,8 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             dap_hash_fast_t l_datum_hash_from_key = {0};
             dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_real_hash);
             dap_chain_hash_fast_from_str(l_objs[i].key, &l_datum_hash_from_key);
-            char buff_time[50];
-            dap_time_to_str_rfc822(buff_time, 50, l_datum->header.ts_create);
+            char buff_time[DAP_TIME_STR_SIZE];
+            dap_time_to_str_rfc822(buff_time, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
             json_object *l_jobj_type = json_object_new_string(l_datum_type);
             json_object *l_jobj_hash = json_object_new_string(l_objs[i].key);
             json_object *l_jobj_ts_created = json_object_new_object();
@@ -4534,7 +4534,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
     // Calc datum's hash
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
-    char * l_key_str = !dap_strcmp(l_hash_out_type, "hex") ?
+    const char *l_key_str = !dap_strcmp(l_hash_out_type, "hex") ?
                 dap_chain_hash_fast_to_str_static(&l_key_hash) :
                 dap_enc_base58_encode_hash_to_str_static(&l_key_hash);
 
@@ -4737,8 +4737,8 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
     // Calc datum's hash
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
-    char * l_key_str = dap_chain_hash_fast_to_str_static(&l_key_hash);
-    char * l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
+    const char *l_key_str = dap_chain_hash_fast_to_str_static(&l_key_hash);
+    const char *l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
                            dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str;
 
     // Add datum to mempool with datum_token hash as a key
