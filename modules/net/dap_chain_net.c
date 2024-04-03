@@ -630,7 +630,28 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
 {
 // sanity check
     dap_return_val_if_pass(!a_net, NULL);
-    return NULL;
+// data preparing
+    size_t
+        l_size = 0,
+        l_uplinks_count = 0,
+        l_low_availability_count = 0;
+    dap_stream_node_addr_t *l_uplinks = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64, &l_uplinks_count, NULL, true);
+    dap_stream_node_addr_t *l_low_availability = NULL;  // TODO create criteria to low availability nodes
+    if(!l_uplinks && !l_low_availability) {
+        return NULL;
+    }
+    l_size = sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * (l_uplinks_count + l_low_availability_count);
+// memory alloc
+    dap_chain_net_links_t *l_ret = NULL;
+    DAP_NEW_Z_SIZE_RET_VAL(l_ret, dap_chain_net_links_t, l_size, NULL, NULL);
+// func work
+    memcpy(l_ret->nodes_info, l_uplinks, l_uplinks_count * sizeof(dap_stream_node_addr_t));
+    // memcpy(l_ret->nodes_info, l_low_availability, l_low_availability_count * sizeof(dap_stream_node_addr_t));
+    l_ret->count_node = l_uplinks_count + l_low_availability_count;
+    if (a_size)
+        *a_size = l_size;
+    DAP_DEL_MULTY(l_uplinks, l_low_availability);
+    return l_ret;
 }
 
 /**
@@ -684,9 +705,9 @@ int s_link_manager_link_request(uint64_t a_net_id)
         char *l_ignored_addrs_str = NULL;
         if (l_ignored_addrs) {
             DAP_NEW_Z_SIZE_RET_VAL(
-                l_ignored_addrs_str, char, DAP_ENC_BASE64_ENCODE_SIZE(sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_addrs->count_node) + 1,
+                l_ignored_addrs_str, char, DAP_ENC_BASE64_ENCODE_SIZE(l_ignored_addrs_size) + 1,
                 -7, l_ignored_addrs, l_balancer_request);
-            dap_enc_base64_encode(l_ignored_addrs, sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_addrs->count_node, l_ignored_addrs_str, DAP_ENC_DATA_TYPE_B64);
+            dap_enc_base64_encode(l_ignored_addrs, l_ignored_addrs_size, l_ignored_addrs_str, DAP_ENC_DATA_TYPE_B64);
             DAP_DELETE(l_ignored_addrs);
         }
         // request prepare
@@ -710,7 +731,7 @@ int s_link_manager_link_request(uint64_t a_net_id)
                                                 s_http_balancer_link_prepare_error,
                                                 l_balancer_request,
                                                 NULL) == NULL;
-        DAP_DEL_MULTY(l_ignored_addrs_str, l_ignored_addrs, l_request);
+        DAP_DEL_MULTY(l_ignored_addrs_str, l_request);
     } else {
         l_balancer_request->info->port = DNS_LISTEN_PORT;
         // TODO: change signature and implementation
