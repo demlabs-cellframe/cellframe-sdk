@@ -88,6 +88,19 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx(dap_enc_key_t *a_key_from, dap_c
     return l_tx;
 }
 
+dap_chain_datum_tx_t *dap_ledger_test_create_tx(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev,
+                                                      dap_chain_addr_t *a_addr_to, uint256_t a_value) {
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_hash_prev, 0);
+    dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(a_addr_to, a_value);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
+    dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from);
+    DAP_DEL_Z(l_in);
+    DAP_DEL_Z(l_out);
+    return l_tx;
+}
+
 dap_chain_datum_tx_t *dap_ledger_test_create_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev,
                                                       dap_chain_addr_t *a_addr_to, uint256_t a_value) {
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
@@ -120,21 +133,20 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     // Check common tx removing  
     dap_chain_datum_tx_t *l_first_tx = dap_ledger_test_create_tx(a_from_key, a_prev_hash,
                                                                        &l_addr_first, dap_chain_uint256_from(s_standard_value_tx - s_fee));
-    dap_assert_PIF(l_first_tx, "Creating of first tx is");  
+    dap_assert(l_first_tx, "Creating of first tx is");  
     dap_chain_hash_fast_t l_first_tx_hash = {0};
-    dap_assert_PIF(!dap_ledger_tx_add(a_ledger, l_first_tx, &l_first_tx_hash, false), "Adding of first transaction to ledger is");
+    dap_assert(!dap_ledger_tx_add(a_ledger, l_first_tx, &l_first_tx_hash, false), "Adding of first transaction to ledger is");
     dap_hash_fast(l_first_tx, dap_chain_datum_tx_get_size(l_first_tx), &l_first_tx_hash);
     uint256_t l_balance_after = dap_ledger_calc_balance(a_ledger, &l_addr, s_token_ticker);
     l_balanse_str = dap_chain_balance_print(l_balance_after);
     dap_test_msg("Balance after adding is %s", l_balanse_str);
     DAP_DELETE(l_balanse_str);
-    dap_assert_PIF(!dap_ledger_tx_remove(a_ledger, l_first_tx, &l_first_tx_hash), "Tx adding to ledger is ");
+    dap_assert(!dap_ledger_tx_remove(a_ledger, l_first_tx, &l_first_tx_hash), "Tx adding to ledger is ");
     l_balance_after = dap_ledger_calc_balance(a_ledger, &l_addr, s_token_ticker);
     l_balanse_str = dap_chain_balance_print(l_balance_after);
     dap_test_msg("Balance after removing is %s", l_balanse_str);
     DAP_DELETE(l_balanse_str);
-    dap_assert_PIF(!compare256(l_balance_before, l_balance_after), "Removing tx from ledger testing");
-    dap_pass_msg("Removing tx from ledger testing");
+    dap_assert(!compare256(l_balance_before, l_balance_after), "Removing tx from ledger testing");
     
     // check cond tx removing 
     dap_chain_datum_tx_t *l_cond_tx = dap_ledger_test_create_tx_cond(a_from_key, a_prev_hash,
@@ -142,18 +154,17 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     dap_assert_PIF(l_cond_tx, "Creating of conditional tx is");  
     dap_chain_hash_fast_t l_cond_tx_hash = {0};
     dap_hash_fast(l_cond_tx, dap_chain_datum_tx_get_size(l_first_tx), &l_cond_tx_hash);
-    dap_assert_PIF(!dap_ledger_tx_add(a_ledger, l_cond_tx, &l_cond_tx_hash, false), "Adding of cond transaction to ledger is");
+    dap_assert(!dap_ledger_tx_add(a_ledger, l_cond_tx, &l_cond_tx_hash, false), "Adding of cond transaction to ledger is");
     l_balance_after = dap_ledger_calc_balance(a_ledger, &l_addr, s_token_ticker);
     l_balanse_str = dap_chain_balance_print(l_balance_after);
     dap_test_msg("Balance after ading cond tx is %s", l_balanse_str);
     DAP_DELETE(l_balanse_str);
-    dap_assert_PIF(!dap_ledger_tx_remove(a_ledger, l_cond_tx, &l_cond_tx_hash), "Tx cond adding to ledger is ");
+    dap_assert(!dap_ledger_tx_remove(a_ledger, l_cond_tx, &l_cond_tx_hash), "Tx cond adding to ledger is ");
     l_balance_after = dap_ledger_calc_balance(a_ledger, &l_addr, s_token_ticker);
     l_balanse_str = dap_chain_balance_print(l_balance_after);
     dap_test_msg("Balance after removing cond tx is %s", l_balanse_str);
     DAP_DELETE(l_balanse_str);
-    dap_assert_PIF(!compare256(l_balance_before, l_balance_after), "Removing conditional tx from ledger testing");
-    dap_pass_msg("Removing conditional tx from ledger testing");
+    dap_assert(!compare256(l_balance_before, l_balance_after), "Removing conditional tx from ledger testing");
 
     // Check vote removing 
 
@@ -161,14 +172,11 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
 
 }
 
-void dap_ledger_test_double_spending(
-    dap_ledger_t *a_ledger, dap_hash_fast_t *a_prev_hash, dap_enc_key_t  *a_from_key, dap_chain_net_id_t a_net_id) {
+dap_hash_fast_t dap_ledger_test_double_spending(
+    dap_ledger_t *a_ledger, dap_hash_fast_t *a_prev_hash, dap_enc_key_t  *a_from_key, dap_chain_addr_t a_addr_to, dap_chain_net_id_t a_net_id) {
     dap_print_module_name("dap_ledger_double_spending");
-    dap_cert_t *l_first_cert = dap_cert_generate_mem_with_seed("newCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, "FMknbirh8*^#$RYU*H", 18);
-    dap_chain_addr_t l_addr_first = {0};
-    dap_chain_addr_fill_from_key(&l_addr_first, l_first_cert->enc_key, a_net_id);
     dap_chain_datum_tx_t *l_first_tx = dap_ledger_test_create_tx(a_from_key, a_prev_hash,
-                                                                       &l_addr_first, dap_chain_uint256_from(s_standard_value_tx - s_fee));
+                                                                       &a_addr_to, dap_chain_uint256_from(s_standard_value_tx - s_fee));
     dap_assert_PIF(l_first_tx, "Can't creating base transaction.");
     dap_chain_hash_fast_t l_first_tx_hash = {0};
     dap_hash_fast(l_first_tx, dap_chain_datum_tx_get_size(l_first_tx), &l_first_tx_hash);
@@ -176,11 +184,12 @@ void dap_ledger_test_double_spending(
     //uint256_t l_balance = dap_ledger_calc_balance(a_ledger, &l_addr_first, s_token_ticker);
     // Second tx
     dap_chain_datum_tx_t *l_second_tx = dap_ledger_test_create_tx(a_from_key, a_prev_hash,
-                                                                       &l_addr_first, dap_chain_uint256_from(s_standard_value_tx - s_fee));
+                                                                       &a_addr_to, dap_chain_uint256_from(s_standard_value_tx - s_fee));
     dap_chain_hash_fast_t l_second_tx_hash = {0};
     dap_hash_fast(l_second_tx, dap_chain_datum_tx_get_size(l_second_tx), &l_second_tx_hash);
     dap_assert_PIF(dap_ledger_tx_add(a_ledger, l_second_tx, &l_second_tx_hash, false), "Added second transaction on ledger");
     dap_pass_msg("The verification test is not able to make two normal transactions per one basic transaction.");
+    return l_first_tx_hash; 
 }
 
 void dap_ledger_test_excess_supply(dap_ledger_t *a_ledger, dap_cert_t *a_cert, dap_chain_addr_t *a_addr){
@@ -502,9 +511,15 @@ void dap_ledger_test_run(void){
     } else {
         dap_fail("Checking for a failure to add a second base transaction for the same issue to the ledger.");
     }	
-    // dap_ledger_test_double_spending(l_ledger, &l_hash_btx, l_cert->enc_key, l_iddn);
-    dap_ledger_test_datums_removing(l_ledger, &l_hash_btx, l_cert->enc_key, l_iddn);
-    // dap_ledger_test_excess_supply(l_ledger, l_cert, &l_addr);
-    // dap_ledger_test_write_back_list(l_ledger, l_cert, l_iddn);
-	
+
+    dap_cert_t *l_first_cert = dap_cert_generate_mem_with_seed("newCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, "FMknbirh8*^#$RYU*H", 18);
+    dap_chain_addr_t l_addr_first = {0};
+    dap_chain_addr_fill_from_key(&l_addr_first, l_first_cert->enc_key, l_iddn);
+    dap_hash_fast_t l_first_tx_hash = dap_ledger_test_double_spending(l_ledger, &l_hash_btx, l_cert->enc_key, l_addr_first, l_iddn);
+    dap_ledger_test_excess_supply(l_ledger, l_cert, &l_addr);
+    //dap_ledger_test_datums_adding(l_ledger, &l_hash_btx, l_cert->enc_key, l_iddn);//check adding all types of datums into ledger
+    dap_ledger_test_datums_removing(l_ledger, &l_first_tx_hash, l_first_cert->enc_key, l_iddn);//check removing all types of datums from ledger
+    dap_ledger_test_write_back_list(l_ledger, l_cert, l_iddn);
+    
+
 }
