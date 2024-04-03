@@ -4843,7 +4843,6 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_list_t *l_list_bound_items = NULL;
     dap_list_t *l_list_tx_out = NULL;
-    dap_ledger_tx_item_t *l_item_tmp = NULL;
     char *l_main_token_ticker = NULL;
 
     char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -4852,7 +4851,6 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     // Get boundary items list into l_list_bound_items
     // Get tx outs list into l_list_tx_out
     int l_ret_check;
-    l_item_tmp = NULL;
     if( (l_ret_check = dap_ledger_tx_cache_check(a_ledger, a_tx, a_tx_hash, false,
                                                        &l_list_bound_items, &l_list_tx_out,
                                                        &l_main_token_ticker, true))) {
@@ -4861,7 +4859,14 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         return l_ret_check;
     }
 
-
+    dap_ledger_tx_item_t *l_ledger_item;
+    pthread_rwlock_rdlock(&PVT(a_ledger)->ledger_rwlock);
+    HASH_FIND(hh, PVT(a_ledger)->ledger_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_ledger_item);
+    pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
+    if (l_ledger_item && l_ledger_item->cache_data.n_outs_used != 0) {     // transaction already present in the cache list
+        return DAP_LEDGER_TX_CHECK_OUT_ITEM_ALREADY_USED;
+    }
+    
     // find all bound pairs 'in' and 'out'
     size_t l_outs_used = dap_list_length(l_list_bound_items);
 
