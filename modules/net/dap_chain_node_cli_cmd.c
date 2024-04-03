@@ -2446,7 +2446,6 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
     {
         dap_sign_t * l_sign = dap_cert_sign(l_certs[i],  l_datum_token,
            sizeof(*l_datum_token) + l_tsd_size, 0);
-
         if (l_sign) {
             size_t l_sign_size = dap_sign_get_size(l_sign);
             l_datum_token = DAP_REALLOC(l_datum_token, sizeof(*l_datum_token) + (*l_datum_signs_offset) + l_sign_size);
@@ -2552,9 +2551,11 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                     l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
                 // Check for signatures, are they all in set and are good enought?
                 size_t l_signs_size = 0, i = 1;
-                for (i = 1; i <= l_datum_token->signs_total; i++){
+                uint16_t l_tmp_signs_total = l_datum_token->signs_total;
+                l_datum_token->signs_total = 0;
+                for (i = 1; i <= l_tmp_signs_total; i++){
                     dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->data_n_tsd + l_tsd_size + l_signs_size);
-                    if(dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) - sizeof(uint16_t))) {
+                    if( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token)) != 1) {
                         log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                 "Datum %s with datum token has wrong signature %zu, break process and exit",
@@ -2567,7 +2568,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                     }
                     l_signs_size += dap_sign_get_size(l_sign);
                 }
-
+                l_datum_token->signs_total = l_tmp_signs_total;
                 log_it(L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
                                  l_datum_hash_out_str, l_datum_token->signs_total, l_signs_size);
 
@@ -2687,7 +2688,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
     }
     json_object_object_add(l_obj_chain, "removed", l_jobj_removed);
     size_t l_objs_count = 0;
-    size_t l_objs_addr = 0;
     dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
     json_object  *l_jobj_datums;
     size_t l_offset = a_limit * a_offset;
@@ -2707,7 +2707,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             json_object *l_jobj_offset = json_object_new_uint64(l_offset);
             json_object_object_add(l_obj_chain, "offset", l_jobj_offset);
         }
-        size_t l_arr_end = 0;
+        size_t l_arr_end = l_objs_count;
         if (a_limit) {
             l_arr_end = l_offset + a_limit;
             if (l_arr_end > l_objs_count)
@@ -4908,24 +4908,24 @@ int com_token_emit(int a_argc, char **a_argv, void **a_str_reply)
         }
     }
 
-    // Check, if network ID is same as ID in destination wallet address. If not - operation is cancelled.
-    if (!dap_chain_addr_is_blank(l_addr) && l_addr->net_id.uint64 != l_net->pub.id.uint64) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "destination wallet network ID=0x%"DAP_UINT64_FORMAT_x
-                                                       " and network ID=0x%"DAP_UINT64_FORMAT_x" is not equal."
-                                                       " Please, change network name or wallet address",
-                                                       l_addr->net_id.uint64, l_net->pub.id.uint64);
-        DAP_DEL_Z(l_addr);
-        DAP_DEL_Z(l_emission);
-        return -3;
-    }
-
-    if(!l_ticker) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "token_emit requires parameter '-token'");
-        DAP_DEL_Z(l_addr);
-        return -3;
-    }
-
     if (!l_add_sign) {
+        // Check, if network ID is same as ID in destination wallet address. If not - operation is cancelled.
+        if (!dap_chain_addr_is_blank(l_addr) && l_addr->net_id.uint64 != l_net->pub.id.uint64) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "destination wallet network ID=0x%"DAP_UINT64_FORMAT_x
+                                                           " and network ID=0x%"DAP_UINT64_FORMAT_x" is not equal."
+                                                           " Please, change network name or wallet address",
+                                                           l_addr->net_id.uint64, l_net->pub.id.uint64);
+            DAP_DEL_Z(l_addr);
+            DAP_DEL_Z(l_emission);
+            return -3;
+        }
+
+        if(!l_ticker) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "token_emit requires parameter '-token'");
+            DAP_DEL_Z(l_addr);
+            return -3;
+        }
+    
         if (!l_chain_emission) {
 			if ( (l_chain_emission = dap_chain_net_get_default_chain_by_chain_type(l_net,CHAIN_TYPE_EMISSION)) == NULL ) {
 				DAP_DEL_Z(l_addr);

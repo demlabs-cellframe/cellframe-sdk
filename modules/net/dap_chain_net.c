@@ -403,13 +403,12 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
         for (uint16_t i = 0; i < PVT(a_net)->permanent_links_count; ++i) {
             dap_link_info_t *l_permalink_info = PVT(a_net)->permanent_links[i];
-            dap_link_t *l_link = dap_link_manager_link_create(&l_permalink_info->node_addr, true, a_net->pub.id.uint64);
-            if (!l_link) {
+            if (dap_link_manager_link_create(&l_permalink_info->node_addr, a_net->pub.id.uint64)) {
                 log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_permalink_info->node_addr));
                 continue;
             }
             if (l_permalink_info->uplink_port)
-                dap_link_manager_link_update(l_link, l_permalink_info->uplink_addr, l_permalink_info->uplink_port);
+                dap_link_manager_link_update(&l_permalink_info->node_addr, l_permalink_info->uplink_addr, l_permalink_info->uplink_port);
         }
         if (a_new_state == NET_STATE_ONLINE)
             dap_chain_esbocs_start_timer(a_net->pub.id);
@@ -452,13 +451,14 @@ dap_stream_node_addr_t *dap_chain_net_get_authorized_nodes(dap_chain_net_t *a_ne
 
 static int s_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr, const char *a_host, uint16_t a_port)
 {
-    dap_link_t *l_link = dap_link_manager_link_create(a_addr, true, a_net->pub.id.uint64);
-    if (!l_link) {
-        if (a_addr->uint64 != g_node_addr.uint64)
-            log_it(L_ERROR, "Can't create link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_addr));
+    bool l_is_link_present = dap_link_manager_link_find(a_addr, a_net->pub.id.uint64);
+    if (l_is_link_present || a_addr->uint64 == g_node_addr.uint64)
+        return -3; // Link is already found for this net or link is to yourself
+    if (dap_link_manager_link_create(a_addr, a_net->pub.id.uint64)) {
+        log_it(L_ERROR, "Can't create link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_addr));
         return -1;
     }
-    int rc = dap_link_manager_link_update(l_link, a_host, a_port);
+    int rc = dap_link_manager_link_update(a_addr, a_host, a_port);
     if (rc)
         log_it(L_ERROR, "Can't update link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_addr));
     return rc;
@@ -647,7 +647,10 @@ int s_link_manager_link_request(uint64_t a_net_id)
     dap_chain_net_links_t *l_links = dap_chain_net_balancer_get_node(l_net->pub.name, l_required_links_count);
     if (l_links) {
         s_balancer_link_prepare_success(l_net, l_links);
-        return 0;
+        if (l_links->count_node >= l_required_links_count)
+            return 0;
+        else
+            l_required_links_count -= l_links->count_node;
     }
     // dynamic links from http balancer request
     struct balancer_link_request *l_balancer_request = NULL;
@@ -718,7 +721,9 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
             break;
     if (!l_node_info)
         return -3;
-    dap_link_manager_link_update(a_link, l_node_info->ext_host, l_node_info->ext_port);
+    a_link->uplink.ready = true;
+    if (dap_link_manager_link_update(&a_link->addr, l_node_info->ext_host, l_node_info->ext_port))
+        a_link->uplink.ready = true;
     DAP_DELETE(l_node_info);
     return 0;
 }

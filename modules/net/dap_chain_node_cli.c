@@ -252,8 +252,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             );
 
     dap_cli_server_cmd_add ("token_emit", com_token_emit, "Token emission",
-                            "token_emit { sign | -token <mempool_token_ticker> -emission_value <value>"
-                            "-addr <addr> [-chain_emission <chain_name>] -net <net_name> -certs <cert list>\n");
+                            "token_emit { sign -emission <hash> | -token <mempool_token_ticker> -emission_value <value>\n" 
+                            "\t-addr <addr> } [-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n");
 
     dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool",
                            "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset]\n"
