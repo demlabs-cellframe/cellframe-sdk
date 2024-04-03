@@ -183,7 +183,7 @@ static int node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_info
 {
     return !a_node_info || !a_node_info->address.uint64
         ? dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid node address"), -1
-        : dap_global_db_set_sync(a_net->pub.gdb_nodes, dap_chain_node_addr_to_str_static(a_node_info->address),
+        : dap_global_db_set_sync(a_net->pub.gdb_nodes, dap_stream_node_addr_to_str_static(a_node_info->address),
             (uint8_t*)a_node_info, dap_chain_node_info_get_size(a_node_info), false);
 }
 

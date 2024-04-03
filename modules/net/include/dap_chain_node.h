@@ -85,13 +85,6 @@ int dap_chain_node_info_save(dap_chain_net_t * l_net,dap_chain_node_info_t *node
 int dap_chain_node_info_del(dap_chain_net_t * l_net,dap_chain_node_info_t *node_info);
 dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *l_net, dap_chain_node_addr_t *address);
 
-inline static char *dap_chain_node_addr_to_str_static(dap_chain_node_addr_t a_address)
-{
-    static _Thread_local char s_buf[23] = { '\0' };
-    dap_snprintf(s_buf, sizeof(s_buf), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(a_address));
-    return s_buf;
-}
-
 int dap_chain_node_init();
 bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
 bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_datum_hash_str);

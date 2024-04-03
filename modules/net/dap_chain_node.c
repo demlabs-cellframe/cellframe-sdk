@@ -58,9 +58,9 @@ typedef struct dap_chain_node_net_states_info {
     dap_chain_node_addr_t links_addrs[];
 } DAP_ALIGN_PACKED dap_chain_node_net_states_info_t;
 
-static const uint64_t s_cmp_delta_timestamp = 1000000000000;  // ms
+static const uint64_t s_cmp_delta_timestamp = 1000 /*sec*/ * 1000000000;
 static const uint64_t s_cmp_delta_atom = 50;
-static const uint64_t s_timer_update_states_info = 10000;
+static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
 
 /**
  * @brief get states info about current
@@ -91,7 +91,7 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
             memcpy(l_info->links_addrs, l_linked_node_addrs, (l_info->uplinks_count + l_info->downlinks_count) * sizeof(dap_chain_node_addr_t));
             // DB write
             char *l_gdb_group = dap_strdup_printf("%s.nodes.states", l_net->pub.gdb_groups_prefix);
-            char *l_node_addr_str = dap_chain_node_addr_to_str_static(l_info->address);
+            char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->address);
             dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_size, false);
             DAP_DEL_MULTY(l_linked_node_addrs, l_info, l_gdb_group);
         }
@@ -139,7 +139,7 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, char *a_node_addr_str, 
 dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
 {
     dap_string_t *l_ret = dap_string_new("");
-    char *l_node_addr_str = dap_chain_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr);
+    char *l_node_addr_str = dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr);
     if(!a_net) {
         for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
             s_states_info_to_str(l_net, l_node_addr_str, l_ret);
@@ -215,7 +215,7 @@ int dap_chain_node_info_save(dap_chain_net_t *a_net, dap_chain_node_info_t *a_no
     return !a_node_info || !a_node_info->address.uint64
         ? log_it(L_ERROR,"Can't save node info, %s", a_node_info ? "null arg" : "zero address"), -1
         : dap_global_db_set_sync( a_net->pub.gdb_nodes,
-                                 dap_chain_node_addr_to_str_static(a_node_info->address),
+                                 dap_stream_node_addr_to_str_static(a_node_info->address),
                                  a_node_info,
                                  dap_chain_node_info_get_size(a_node_info), false );
 }
@@ -224,7 +224,7 @@ int dap_chain_node_info_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_nod
     return !a_node_info || !a_node_info->address.uint64
         ? log_it(L_ERROR,"Can't delete node info, %s", a_node_info ? "null arg" : "zero address"), -1
         : dap_global_db_del_sync( a_net->pub.gdb_nodes,
-                                 dap_chain_node_addr_to_str_static(a_node_info->address) );
+                                 dap_stream_node_addr_to_str_static(a_node_info->address) );
 }
 
 /**
@@ -232,7 +232,7 @@ int dap_chain_node_info_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_nod
  */
 dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
 {
-    char *l_key = dap_chain_node_addr_to_str_static(*a_address);
+    char *l_key = dap_stream_node_addr_to_str_static(*a_address);
     size_t l_node_info_size = 0;
     dap_chain_node_info_t *l_node_info
         = (dap_chain_node_info_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
