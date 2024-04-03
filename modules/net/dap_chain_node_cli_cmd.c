@@ -1875,6 +1875,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 struct dirent * l_dir_entry = NULL;
 
                 while( (l_dir_entry = readdir(l_dir)) ) {
+                    if (dap_strcmp(l_dir_entry->d_name, "..") == 0 || dap_strcmp(l_dir_entry->d_name, ".") == 0)
+                        continue;
                     json_object * json_obj_wall = json_object_new_object();
                     if (!json_obj_wall) {
                         json_object_put(json_arr_out);
