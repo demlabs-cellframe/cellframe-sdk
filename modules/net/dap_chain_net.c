@@ -626,6 +626,13 @@ void s_http_balancer_link_prepare_error(int a_error_code, void *a_arg)
     DAP_DELETE(l_balancer_request);
 }
 
+static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, size_t *a_size)
+{
+// sanity check
+    dap_return_val_if_pass(!a_net, NULL);
+    return NULL;
+}
+
 /**
  * @brief Launch a connect with a link
  * @param a_net
@@ -671,12 +678,25 @@ int s_link_manager_link_request(uint64_t a_net_id)
     
     int ret;
     if (PVT(l_net)->balancer_type == 0) {
-        char *l_request = dap_strdup_printf("%s/%s?version=%d,method=r,needlink=%d,net=%s",
+        // prepare list of the ignred addrs
+        size_t l_ignored_addrs_size = 0;
+        dap_chain_net_links_t *l_ignored_addrs = s_get_ignored_node_addrs(l_net, &l_ignored_addrs_size); // TODO ignored forming dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_ignored_addrs_count, NULL, true);
+        char *l_ignored_addrs_str = NULL;
+        if (l_ignored_addrs) {
+            DAP_NEW_Z_SIZE_RET_VAL(
+                l_ignored_addrs_str, char, DAP_ENC_BASE64_ENCODE_SIZE(sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_addrs->count_node) + 1,
+                -7, l_ignored_addrs, l_balancer_request);
+            dap_enc_base64_encode(l_ignored_addrs, sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_addrs->count_node, l_ignored_addrs_str, DAP_ENC_DATA_TYPE_B64);
+            DAP_DELETE(l_ignored_addrs);
+        }
+        // request prepare
+        char *l_request = dap_strdup_printf("%s/%s?version=%d,method=r,needlink=%d,net=%s,ignored=%s",
                                                 DAP_UPLINK_PATH_BALANCER,
                                                 DAP_BALANCER_URI_HASH,
                                                 DAP_BALANCER_PROTOCOL_VERSION,
                                                 (int)l_required_links_count,
-                                                l_net->pub.name);
+                                                l_net->pub.name,
+                                                l_ignored_addrs_str ? l_ignored_addrs_str : "");
         ret = dap_client_http_request(l_balancer_request->worker,
                                                 l_balancer_request->info->addr,
                                                 l_balancer_request->info->port,
@@ -690,7 +710,7 @@ int s_link_manager_link_request(uint64_t a_net_id)
                                                 s_http_balancer_link_prepare_error,
                                                 l_balancer_request,
                                                 NULL) == NULL;
-        DAP_DELETE(l_request);
+        DAP_DEL_MULTY(l_ignored_addrs_str, l_ignored_addrs, l_request);
     } else {
         l_balancer_request->info->port = DNS_LISTEN_PORT;
         // TODO: change signature and implementation

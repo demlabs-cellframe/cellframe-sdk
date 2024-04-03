@@ -58,7 +58,7 @@ typedef struct dap_chain_node_net_states_info {
     dap_chain_node_addr_t links_addrs[];
 } DAP_ALIGN_PACKED dap_chain_node_net_states_info_t;
 
-static const uint64_t s_cmp_delta_timestamp = 1000 /*sec*/ * 1000000000;
+static const uint64_t s_cmp_delta_timestamp = (uint64_t)1000 /*sec*/ * (uint64_t)1000000000;
 static const uint64_t s_cmp_delta_atom = 50;
 static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
 
@@ -78,7 +78,7 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
             dap_cert_t *l_cert = dap_cert_find_by_name(DAP_STREAM_NODE_ADDR_CERT_NAME);
             dap_return_if_pass(!l_chain || !l_cert);
         // memory alloc first
-            dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count );
+            dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, false);
             dap_chain_node_net_states_info_t *l_info = NULL;
             l_info_size = sizeof(dap_chain_node_net_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
             DAP_NEW_Z_SIZE_RET(l_info, dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
