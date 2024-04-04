@@ -194,7 +194,7 @@ static const char *s_error_type_to_string(dap_chain_ch_error_type_t a_error)
  */
 int dap_chain_ch_init()
 {
-    log_it(L_NOTICE, "Chains and global db exchange channel initialized");
+    log_it(L_NOTICE, "Chains exchange channel initialized");
     dap_stream_ch_proc_add(DAP_CHAIN_CH_ID, s_stream_ch_new, s_stream_ch_delete, s_stream_ch_packet_in,
             s_stream_ch_packet_out);
     s_sync_timeout = dap_config_get_item_uint32_default(g_config, "chain", "sync_timeout", s_sync_timeout);
@@ -205,8 +205,7 @@ int dap_chain_ch_init()
     for (int i = 0; i < MEMSTAT$K_NR; i++)
         dap_memstat_reg(&s_memstat[i]);
 #endif
-    assert(!dap_stream_ch_gossip_callback_add(DAP_CHAIN_CH_ID, s_gossip_payload_callback));
-    return 0;
+    return dap_stream_ch_gossip_callback_add(DAP_CHAIN_CH_ID, s_gossip_payload_callback);
 }
 
 /**
