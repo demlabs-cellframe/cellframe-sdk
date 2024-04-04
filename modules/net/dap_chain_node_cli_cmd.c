@@ -3699,7 +3699,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         json_object_array_add(*a_json_reply, l_jobj_datum);
         return 0;
     } else {
-        l_find_bool = json_object_new_boolean(TRUE);
+        l_find_bool = json_object_new_boolean(FALSE);
         if (!l_find_bool) {
             json_object_put(l_jobj_datum);
             dap_json_rpc_allocation_error;
