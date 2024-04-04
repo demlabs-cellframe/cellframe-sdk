@@ -172,10 +172,11 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     int l_protocol_version = 0;
     char l_issue_method = 0;
     const char l_net_token[] = "net=";
+    const char l_ignored_token[] = "ignored=";
     uint16_t links_need = 0;
-    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,needlink=%hu,net=",
+    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,needlink=%hu",
                                                             &l_protocol_version, &l_issue_method, &links_need);
-    if ((l_protocol_version != DAP_BALANCER_PROTOCOL_VERSION && l_protocol_version != 1) || l_issue_method != 'r') {
+    if (l_protocol_version > DAP_BALANCER_PROTOCOL_VERSION || l_protocol_version < 1 || l_issue_method != 'r') {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_balancer module");
         *l_return_code = Http_Status_MethodNotAllowed;
         return;
@@ -187,13 +188,23 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
         return;
     }
     l_net_str += sizeof(l_net_token) - 1;
-    char l_net_name[128] = {};
-    strncpy(l_net_name, l_net_str, 127);
-    links_need = links_need ? links_need : 5;
-    log_it(L_DEBUG, "HTTP balancer parser retrieve netname %s", l_net_name);
-    dap_chain_net_links_t *l_link_full_node_list = s_balancer_issue_link(l_net_name, links_need, l_protocol_version);
+    links_need = links_need ? links_need : s_max_links_response_count;
+
+    char *l_ignored_str = NULL;
+    if (l_protocol_version > 1) {
+        l_ignored_str = strstr(a_http_simple->http_client->in_query_string, l_ignored_token);
+        if (!l_ignored_str) {
+            log_it(L_ERROR, "Net ignored token not found in the request to dap_chain_net_balancer module");
+            *l_return_code = Http_Status_NotFound;
+            return;
+        }
+        *(l_ignored_str - 1) = 0; // set 0 terminator to split string
+        l_ignored_str += sizeof(l_ignored_token) - 1;
+    } 
+    log_it(L_DEBUG, "HTTP balancer parser retrieve netname %s", l_net_str);
+    dap_chain_net_links_t *l_link_full_node_list = s_balancer_issue_link(l_net_str, links_need, l_protocol_version);
     if (!l_link_full_node_list) {
-        log_it(L_WARNING, "Can't issue link for network %s, no acceptable links found", l_net_name);
+        log_it(L_WARNING, "Can't issue link for network %s, no acceptable links found", l_net_str);
         *l_return_code = Http_Status_NotFound;
         return;
     }
