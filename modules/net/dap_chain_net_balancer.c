@@ -153,9 +153,24 @@ dap_chain_net_links_t *dap_chain_net_balancer_get_node_old(const char *a_net_nam
     return l_ret;
 }
 
-DAP_STATIC_INLINE dap_chain_net_links_t *s_balancer_issue_link(const char *a_net_name, uint16_t a_links_need, int a_protocol_version)
+static dap_chain_net_links_t *s_balancer_issue_link(const char *a_net_name, uint16_t a_links_need, int a_protocol_version, const char *a_ignored_enc)
 {
-    return a_protocol_version == 1 ? dap_chain_net_balancer_get_node_old(a_net_name, a_links_need) : dap_chain_net_balancer_get_node(a_net_name, a_links_need);
+    if(a_protocol_version == 1)
+        return dap_chain_net_balancer_get_node_old(a_net_name, a_links_need);
+    // prepare list of the ignred addrs
+    size_t l_ignored_size = strlen(a_ignored_enc);
+    dap_chain_net_links_t *l_ignored_dec = NULL;
+    if (l_ignored_size) {
+        DAP_NEW_Z_SIZE_RET_VAL(l_ignored_dec, dap_chain_node_addr_t, l_ignored_size, NULL, NULL);
+        dap_enc_base64_decode(a_ignored_enc, l_ignored_size, l_ignored_dec, DAP_ENC_DATA_TYPE_B64);
+        if (l_ignored_size < DAP_ENC_BASE64_ENCODE_SIZE(sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node)) {
+            log_it(L_ERROR, "Cant't decode ignored node list");
+            DAP_DEL_Z(l_ignored_dec);
+        }
+    }
+    dap_chain_net_links_t *l_ret = dap_chain_net_balancer_get_node(a_net_name, a_links_need);
+    DAP_DEL_Z(l_ignored_dec);
+    return l_ret;
 }
 
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
@@ -202,7 +217,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
         l_ignored_str += sizeof(l_ignored_token) - 1;
     } 
     log_it(L_DEBUG, "HTTP balancer parser retrieve netname %s", l_net_str);
-    dap_chain_net_links_t *l_link_full_node_list = s_balancer_issue_link(l_net_str, links_need, l_protocol_version);
+    dap_chain_net_links_t *l_link_full_node_list = s_balancer_issue_link(l_net_str, links_need, l_protocol_version, l_ignored_str);
     if (!l_link_full_node_list) {
         log_it(L_WARNING, "Can't issue link for network %s, no acceptable links found", l_net_str);
         *l_return_code = Http_Status_NotFound;
@@ -226,7 +241,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
 dap_link_info_t *dap_chain_net_balancer_dns_issue_link(char *a_str)
 {
     log_it(L_DEBUG, "DNS balancer parser retrieve netname %s", a_str);
-    dap_chain_net_links_t *l_balancer_reply = s_balancer_issue_link(a_str, 1, DAP_BALANCER_PROTOCOL_VERSION);
+    dap_chain_net_links_t *l_balancer_reply = s_balancer_issue_link(a_str, 1, DAP_BALANCER_PROTOCOL_VERSION, NULL);
     if (!l_balancer_reply || !l_balancer_reply->count_node) {
         DAP_DEL_Z(l_balancer_reply);
         return NULL;

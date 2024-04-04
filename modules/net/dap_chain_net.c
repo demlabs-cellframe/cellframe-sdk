@@ -671,14 +671,19 @@ int s_link_manager_link_request(uint64_t a_net_id)
         return -2;
     if (l_net_pvt->state == NET_STATE_LINKS_PREPARE)
         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
+    size_t l_ignored_addrs_size = 0; // prepare list of the ignored addrs
+    dap_chain_net_links_t *l_ignored_addrs = s_get_ignored_node_addrs(l_net, &l_ignored_addrs_size);
     size_t l_required_links_count = dap_link_manager_needed_links_count(l_net->pub.id.uint64);
     dap_chain_net_links_t *l_links = dap_chain_net_balancer_get_node(l_net->pub.name, l_required_links_count);
     if (l_links) {
         s_balancer_link_prepare_success(l_net, l_links);
-        if (l_links->count_node >= l_required_links_count)
+        if (l_links->count_node >= l_required_links_count) {
+            DAP_DEL_MULTY(l_ignored_addrs, l_links);
             return 0;
+        }
         else
             l_required_links_count -= l_links->count_node;
+        DAP_DELETE(l_links);
     }
     // dynamic links from http balancer request
     struct balancer_link_request *l_balancer_request = NULL;
@@ -691,7 +696,7 @@ int s_link_manager_link_request(uint64_t a_net_id)
     };
     if (!l_balancer_request->info) {
         log_it(L_ERROR, "Can't process balancer link %s request", PVT(l_net)->balancer_type == 0 ? "HTTP" : "DNS");
-        DAP_DELETE(l_balancer_request);
+        DAP_DEL_MULTY(l_balancer_request, l_ignored_addrs);
         return -5;
     }
     log_it(L_DEBUG, "Start balancer %s request to %s",
@@ -699,9 +704,6 @@ int s_link_manager_link_request(uint64_t a_net_id)
     
     int ret;
     if (PVT(l_net)->balancer_type == 0) {
-        // prepare list of the ignred addrs
-        size_t l_ignored_addrs_size = 0;
-        dap_chain_net_links_t *l_ignored_addrs = s_get_ignored_node_addrs(l_net, &l_ignored_addrs_size); // TODO ignored forming dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_ignored_addrs_count, NULL, true);
         char *l_ignored_addrs_str = NULL;
         if (l_ignored_addrs) {
             DAP_NEW_Z_SIZE_RET_VAL(
