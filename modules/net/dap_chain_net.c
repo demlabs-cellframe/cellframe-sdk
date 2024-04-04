@@ -674,7 +674,7 @@ int s_link_manager_link_request(uint64_t a_net_id)
     size_t l_ignored_addrs_size = 0; // prepare list of the ignored addrs
     dap_chain_net_links_t *l_ignored_addrs = s_get_ignored_node_addrs(l_net, &l_ignored_addrs_size);
     size_t l_required_links_count = dap_link_manager_needed_links_count(l_net->pub.id.uint64);
-    dap_chain_net_links_t *l_links = dap_chain_net_balancer_get_node(l_net->pub.name, l_required_links_count);
+    dap_chain_net_links_t *l_links = dap_chain_net_balancer_get_node(l_net->pub.name, l_required_links_count, l_ignored_addrs);
     if (l_links) {
         s_balancer_link_prepare_success(l_net, l_links);
         if (l_links->count_node >= l_required_links_count) {

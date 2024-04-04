@@ -402,10 +402,10 @@ static int s_node_states_info_cmp(dap_list_t *a_first, dap_list_t *a_second)
  * @param a_net - pointer to net
  * @return pointer to sorted list or NULL if error
  */
-dap_list_t *dap_get_nodes_states_list_sort(dap_chain_net_t *a_net)
+dap_list_t *dap_get_nodes_states_list_sort(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_ignored, size_t a_ignored_count)
 {
 // sanity check
-    dap_return_val_if_pass(!a_net, NULL);
+    dap_return_val_if_pass(!a_net || (a_ignored_count && !a_ignored), NULL);
 // func work
     size_t l_node_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_node_count);
@@ -426,6 +426,12 @@ dap_list_t *dap_get_nodes_states_list_sort(dap_chain_net_t *a_net)
             log_it(L_ERROR, "Can't find state about %s node", l_objs[i].key);
             continue;
         }
+        bool l_ignored = false;
+        for(size_t j = 0; !l_ignored && j < a_ignored_count; ++j) {
+            l_ignored = a_ignored[j].uint64 == ((dap_chain_node_info_t*)(l_objs + i)->value)->address.uint64;
+        }
+        if (l_ignored)
+            continue;
         dap_chain_node_states_info_t *l_item = DAP_NEW_Z(dap_chain_node_states_info_t);
         if(!l_item) {
             log_it(L_ERROR, "%s", g_error_memory_alloc);

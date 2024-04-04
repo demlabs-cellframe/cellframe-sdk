@@ -85,7 +85,7 @@ dap_link_info_t *s_get_links_info_list(dap_chain_net_t *a_net, size_t *a_count, 
     return l_ret;
 }
 
-dap_chain_net_links_t *dap_chain_net_balancer_get_node(const char *a_net_name, uint16_t a_links_need)
+dap_chain_net_links_t *dap_chain_net_balancer_get_node(const char *a_net_name, uint16_t a_links_need, dap_chain_net_links_t *a_ignored)
 {
 // sanity check
     dap_return_val_if_pass(!a_net_name || !a_links_need, NULL);
@@ -95,7 +95,7 @@ dap_chain_net_links_t *dap_chain_net_balancer_get_node(const char *a_net_name, u
         return NULL;
     }
 // preparing
-    dap_list_t *l_nodes_list = dap_get_nodes_states_list_sort(l_net);
+    dap_list_t *l_nodes_list = dap_get_nodes_states_list_sort(l_net, a_ignored ? a_ignored->nodes_info : NULL, a_ignored ? a_ignored->count_node : 0);
     if (!l_nodes_list) {
         log_it(L_ERROR, "There isn't any nodes in net %s", a_net_name);
         return NULL;
@@ -128,7 +128,7 @@ dap_chain_net_links_t *dap_chain_net_balancer_get_node_old(const char *a_net_nam
         return NULL;
     }
 // preparing
-    dap_list_t *l_nodes_list = dap_get_nodes_states_list_sort(l_net);
+    dap_list_t *l_nodes_list = dap_get_nodes_states_list_sort(l_net, NULL, 0);
     if (!l_nodes_list) {
         log_it(L_ERROR, "There isn't any nodes in net %s", a_net_name);
         return NULL;
@@ -168,7 +168,7 @@ static dap_chain_net_links_t *s_balancer_issue_link(const char *a_net_name, uint
             DAP_DEL_Z(l_ignored_dec);
         }
     }
-    dap_chain_net_links_t *l_ret = dap_chain_net_balancer_get_node(a_net_name, a_links_need);
+    dap_chain_net_links_t *l_ret = dap_chain_net_balancer_get_node(a_net_name, a_links_need, l_ignored_dec);
     DAP_DEL_Z(l_ignored_dec);
     return l_ret;
 }
