@@ -95,7 +95,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_key_hash);
-    char *l_key_str = dap_strcmp(a_hash_out_type, "hex")
+    const char *l_key_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash)
             : dap_chain_hash_fast_to_str_static(&l_key_hash);
 
@@ -1484,8 +1484,8 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     size_t l_objs_size = 0;
     dap_time_t l_cut_off_time = dap_time_now() - 3 * 24 * 3600; // 3 days
-    char l_cut_off_time_str[80] = {'\0'};
-    dap_time_to_str_rfc822(l_cut_off_time_str, 80, l_cut_off_time);
+    char l_cut_off_time_str[DAP_TIME_STR_SIZE] = {'\0'};
+    dap_time_to_str_rfc822(l_cut_off_time_str, DAP_TIME_STR_SIZE, l_cut_off_time);
     dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_size);
     for (size_t i = 0; i < l_objs_size; i++) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;

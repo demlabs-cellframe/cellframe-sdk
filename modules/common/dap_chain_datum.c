@@ -134,7 +134,7 @@ void dap_chain_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_tok
         }
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD:
             if(l_tsd->size >= sizeof(dap_pkey_t)) {
-                char *l_hash_str;
+                const char *l_hash_str;
                 dap_pkey_t *l_pkey = (dap_pkey_t*)l_tsd->data;
                 dap_hash_fast_t l_hf = { };
                 if (!dap_pkey_get_hash(l_pkey, &l_hf)) {
@@ -152,7 +152,7 @@ void dap_chain_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_tok
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE:
                 if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
-                    char *l_hash_str = (!dap_strcmp(a_hash_out_type,"hex")|| !dap_strcmp(a_hash_out_type, "content_hash"))
+                    const char *l_hash_str = (!dap_strcmp(a_hash_out_type,"hex")|| !dap_strcmp(a_hash_out_type, "content_hash"))
                             ? dap_chain_hash_fast_to_str_static((dap_chain_hash_fast_t*) l_tsd->data)
                             : dap_enc_base58_encode_hash_to_str_static((dap_chain_hash_fast_t*) l_tsd->data);
                     dap_string_append_printf(a_str_out,"total_pkeys_remove: %s\n", l_hash_str);
@@ -400,7 +400,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
     if (l_in_item && dap_hash_fast_is_blank(&l_in_item->header.tx_prev_hash))
         l_is_first = true;
     char l_tmp_buf[DAP_TIME_STR_SIZE];
-    char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+    const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
             : dap_chain_hash_fast_to_str_static(a_tx_hash);
     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_datum->header.ts_created);
@@ -677,7 +677,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
         } break;
         case TX_ITEM_TYPE_VOTE:{
             dap_chain_tx_vote_t *l_vote_item = (dap_chain_tx_vote_t *)item;
-            char *l_hash_str = dap_chain_hash_fast_to_str_static(&l_vote_item->voting_hash);
+            const char *l_hash_str = dap_chain_hash_fast_to_str_static(&l_vote_item->voting_hash);
             dap_string_append_printf(a_str_out, "\t VOTE: \n"
                                                 "\t Voting hash: %s\n"
                                                 "\t Vote answer idx: %"DAP_UINT64_FORMAT_U"\n", l_hash_str, l_vote_item->answer_idx);
@@ -715,7 +715,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
     }
     dap_hash_fast_t l_datum_hash;
     dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_datum_hash);
-    char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+    const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(&l_datum_hash)
             : dap_chain_hash_fast_to_str_static(&l_datum_hash);
     switch (a_datum->header.type_id) {

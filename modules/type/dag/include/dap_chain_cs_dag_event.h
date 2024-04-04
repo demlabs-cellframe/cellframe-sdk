@@ -149,7 +149,7 @@ static inline size_t dap_chain_cs_dag_event_round_item_get_size(dap_chain_cs_dag
 
 void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, dap_store_obj_t *a_obj, dap_global_db_instance_t *a_dbi);
 
-bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_hash_str, dap_chain_cs_dag_event_t *a_event,
+bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, const char *a_event_hash_str, dap_chain_cs_dag_event_t *a_event,
                                     size_t a_event_size, dap_chain_cs_dag_event_round_item_t *a_round_item);
 
 dap_chain_cs_dag_event_t *dap_chain_cs_dag_event_gdb_get(const char *a_event_hash_str, size_t *a_event_size,

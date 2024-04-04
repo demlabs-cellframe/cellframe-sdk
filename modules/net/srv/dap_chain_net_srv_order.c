@@ -350,7 +350,7 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
     dap_chain_hash_fast_t l_order_hash;
     size_t l_order_size = dap_chain_net_srv_order_get_size(a_order);
     dap_hash_fast(a_order, l_order_size, &l_order_hash);
-    char *l_order_hash_str = dap_chain_hash_fast_to_str_static(&l_order_hash);
+    const char *l_order_hash_str = dap_chain_hash_fast_to_str_static(&l_order_hash);
     char *l_gdb_group_str = a_common ? dap_chain_net_srv_order_get_common_group(a_net)
                                      : dap_chain_net_srv_order_get_gdb_group(a_net);
     if (!l_gdb_group_str)
@@ -541,7 +541,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
     if (a_order && a_str_out ){
         dap_chain_hash_fast_t l_hash;
         dap_hash_fast(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
-        char *l_hash_str = dap_strcmp(a_hash_out_type,"hex")
+        const char *l_hash_str = dap_strcmp(a_hash_out_type,"hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&l_hash)
                 : dap_chain_hash_fast_to_str_static(&l_hash);
 
@@ -553,8 +553,8 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         case SERV_DIR_SELL:         dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_SELL\n" );        break;
         case SERV_DIR_BUY:          dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_BUY\n" );         break;
         }
-        char buf_time[50];
-        dap_time_to_str_rfc822(buf_time, 50, a_order->ts_created);
+        char buf_time[DAP_TIME_STR_SIZE];
+        dap_time_to_str_rfc822(buf_time, DAP_TIME_STR_SIZE, a_order->ts_created);
         dap_string_append_printf(a_str_out, "  created:          %s\n", buf_time);
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016"DAP_UINT64_FORMAT_X"\n", a_order->srv_uid.uint64 );
         
@@ -589,7 +589,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
         dap_hash_fast_t l_sign_pkey = {0};
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
-        char *l_sign_pkey_hash_str = dap_hash_fast_to_str_static(&l_sign_pkey);
+        const char *l_sign_pkey_hash_str = dap_hash_fast_to_str_static(&l_sign_pkey);
         dap_string_append_printf(a_str_out, "  pkey:             %s\n", l_sign_pkey_hash_str);
         DAP_DELETE(l_ext_out);
     }

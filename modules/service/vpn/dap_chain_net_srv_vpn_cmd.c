@@ -46,7 +46,7 @@ int com_vpn_statistics(int a_argc, char ** a_argv, void **a_str_reply)
             l_conn++;
             // time start/length
             uint32_t l_time_len_sec = time(NULL) - l_session->time_created;
-            char l_buf[70] = { '\0' };
+            char l_buf[DAP_TIME_STR_SIZE] = { '\0' };
             if(dap_time_to_str_rfc822(l_buf, sizeof(l_buf), l_session->time_created) > 0)
                 dap_string_append_printf(l_str, "  start at %s (length %02u:%02u:%02u)\n", l_buf,
                         l_time_len_sec / 3600, (l_time_len_sec % 3600) / 60, l_time_len_sec % 60);

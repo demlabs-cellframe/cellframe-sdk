@@ -172,13 +172,13 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     }
 
     if (l_atom_hash) {
-        char *l_atom_hash_str = dap_strcmp(a_hash_out_type, "hex")
+        const char *l_atom_hash_str = dap_strcmp(a_hash_out_type, "hex")
                             ? dap_enc_base58_encode_hash_to_str_static(l_atom_hash)
                             : dap_chain_hash_fast_to_str_static(l_atom_hash);
         json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
     }
 
-    char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+    const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                         ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
                         : dap_chain_hash_fast_to_str_static(a_tx_hash);
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_hash_str));
@@ -228,7 +228,7 @@ json_object * dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash,
     if (l_tx) {
         return dap_db_tx_history_to_json(a_tx_hash, &l_atom_hash,l_tx, a_chain, a_hash_out_type, l_net, l_ret_code, &accepted_tx, false);
     } else {
-        char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
+        const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
                 : dap_chain_hash_fast_to_str_static(a_tx_hash);
         dap_json_rpc_error_add(-1, "TX hash %s not founds in chains", l_tx_hash_str);
@@ -803,9 +803,9 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                 dap_chain_datum_t *l_datum = l_datums[l_datum_n];
                 if(!l_datum)
                     continue;
-                char l_time_str[70];
+                char l_time_str[DAP_TIME_STR_SIZE];
                 // get time of create datum
-                if(dap_time_to_str_rfc822(l_time_str, 71, l_datum->header.ts_create) < 1)
+                if(dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, l_datum->header.ts_create) < 1)
                     l_time_str[0] = '\0';
                 switch (l_datum->header.type_id) {
                 // token
