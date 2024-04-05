@@ -1269,6 +1269,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                 return -4;
             }
         }
+        l_node_addr = l_node_info->address;
         if(!l_node_addr.uint64) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Addr not found");
             return -5;
