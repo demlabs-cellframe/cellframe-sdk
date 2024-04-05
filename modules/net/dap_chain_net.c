@@ -636,7 +636,7 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
         l_uplinks_count = 0,
         l_low_availability_count = 0;
     dap_stream_node_addr_t *l_uplinks = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64, &l_uplinks_count, NULL, true);
-    dap_stream_node_addr_t *l_low_availability = NULL;  // TODO create criteria to low availability nodes
+    dap_stream_node_addr_t *l_low_availability = dap_link_manager_get_ignored_addrs();
     if(!l_uplinks && !l_low_availability) {
         return NULL;
     }
