@@ -148,10 +148,10 @@ int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_cha
     return l_client ? dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 5000) : -1;
 }
 
-static dap_chain_net_links_t *s_get_node_addrs(const char *a_net_name, uint16_t a_links_need, dap_chain_net_links_t *a_ignored)
+static dap_chain_net_links_t *s_get_node_addrs(const char *a_net_name, uint16_t a_links_need, dap_chain_net_links_t *a_ignored, bool a_external_call)
 {
 // sanity check
-    dap_return_val_if_pass(!a_net_name || !a_links_need, NULL);
+    dap_return_val_if_pass(!a_net_name, NULL);
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
     if (!l_net) {
         log_it(L_WARNING, "There isn't any network by this name - %s", a_net_name);
@@ -163,7 +163,13 @@ static dap_chain_net_links_t *s_get_node_addrs(const char *a_net_name, uint16_t 
         log_it(L_WARNING, "There isn't any nodes in net %s", a_net_name);
         return NULL;
     }
-    size_t l_nodes_count = dap_min(s_max_links_response_count, dap_min(dap_list_length(l_nodes_list), a_links_need));
+    size_t l_nodes_count = dap_list_length(l_nodes_list);
+    if (a_links_need) {
+       l_nodes_count = dap_min(l_nodes_count, a_links_need);
+    }
+    if (a_external_call) {
+        l_nodes_count = dap_min(l_nodes_count, s_max_links_response_count);
+    }
 // memory alloc
     dap_chain_net_links_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_links_t, sizeof(dap_chain_net_links_t) + l_nodes_count * sizeof(dap_link_info_t));
     if (!l_ret) {
@@ -231,7 +237,7 @@ static dap_chain_net_links_t *s_balancer_issue_link(const char *a_net_name, uint
             DAP_DEL_Z(l_ignored_dec);
         }
     }
-    dap_chain_net_links_t *l_ret = s_get_node_addrs(a_net_name, a_links_need, l_ignored_dec);
+    dap_chain_net_links_t *l_ret = s_get_node_addrs(a_net_name, a_links_need, l_ignored_dec, true);
     DAP_DEL_Z(l_ignored_dec);
     return l_ret;
 }
@@ -321,7 +327,7 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, dap_link_info_t *a_ba
     size_t l_ignored_addrs_size = 0; // prepare list of the ignored addrs
     dap_chain_net_links_t *l_ignored_addrs = s_get_ignored_node_addrs(a_net, &l_ignored_addrs_size);
     size_t l_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
-    dap_chain_net_links_t *l_links = s_get_node_addrs(a_net->pub.name, l_required_links_count, l_ignored_addrs);
+    dap_chain_net_links_t *l_links = s_get_node_addrs(a_net->pub.name, l_required_links_count, l_ignored_addrs, false);
     if (l_links) {
         s_balancer_link_prepare_success(a_net, l_links);
         if (l_links->count_node >= l_required_links_count) {
@@ -400,7 +406,7 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, dap_link_info_t *a_ba
 
 dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
 {
-    dap_chain_net_links_t *l_links_info_list = s_get_node_addrs(a_net->pub.name, 99999, NULL);  // TODO
+    dap_chain_net_links_t *l_links_info_list = s_get_node_addrs(a_net->pub.name, 0, NULL, false);  // TODO
     dap_string_t *l_ret = dap_string_new(l_links_info_list ? "" : "Empty");
     uint64_t l_node_num = l_links_info_list ? l_links_info_list->count_node : 0;
     for (uint64_t i = 0; i < l_node_num; ++i) {
@@ -409,6 +415,9 @@ dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
                                     NODE_ADDR_FP_ARGS_S(l_link_info->node_addr),
                                     l_link_info->uplink_addr);
                                     /*l_node_link->info.links_number);*/
+        if(i + 1 == s_max_links_response_count ) {
+            dap_string_append_printf(l_ret, "-----------------------------------\n");
+        }
     }
     dap_string_prepend_printf(l_ret, "Balancer link list for total %" DAP_UINT64_FORMAT_U " records:\n",
                                           l_node_num);
