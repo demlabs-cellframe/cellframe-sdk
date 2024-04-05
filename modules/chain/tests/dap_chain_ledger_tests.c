@@ -6,6 +6,7 @@
 #include "dap_math_ops.h"
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
+#include "dap_chain_net_srv_vpn.h"
 
 static const uint64_t s_fee = 2;
 static const uint64_t s_total_supply = 500;
@@ -133,6 +134,51 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx_cond(dap_enc_key_t *a_key_from, 
     dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from);
     DAP_DEL_Z(l_in);
     DAP_DEL_Z(l_out_cond);
+    DAP_DEL_Z(l_out_change);
+    return l_tx;
+}
+
+dap_chain_datum_tx_t *dap_ledger_test_create_spend_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev,
+                                                      dap_enc_key_t *a_key_to, uint256_t a_value, dap_ledger_t *a_ledger) {
+    dap_chain_addr_t l_addr = {0};
+    dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_ledger->net->pub.id);
+    // get previous transaction
+    dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
+     // get previous cond out
+    int l_out_idx = 1;
+    dap_chain_tx_out_cond_t *l_tx_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT_COND, NULL);
+
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    dap_chain_tx_in_cond_t *l_in_cond = dap_chain_datum_tx_item_in_cond_create(a_hash_prev, 1, 0);
+
+    // create conditional output
+    dap_chain_net_srv_uid_t l_srv_uid = {.uint64 = 1};
+    dap_chain_net_srv_price_unit_uid_t l_unit_type = {.enm = SERV_UNIT_SEC};
+    dap_pkey_t *l_pkey = dap_pkey_from_enc_key(a_key_from);
+    uint256_t l_cond_change = {};
+    SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &l_cond_change);
+    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_pay(l_pkey, l_tx_prev_out->header.srv_uid, l_cond_change, uint256_0, l_tx_prev_out->subtype.srv_pay.unit, NULL, 0);
+
+    // create receipt
+    dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_unit_type, 1, a_value, NULL, 0);
+    // Sign with our wallet
+    l_receipt = dap_chain_datum_tx_receipt_sign_add(l_receipt, a_key_to);
+    l_receipt = dap_chain_datum_tx_receipt_sign_add(l_receipt, a_key_from);
+    
+    
+    // add all items to tx
+    dap_chain_addr_t l_addr_to = {0};
+    dap_chain_addr_fill_from_key(&l_addr, a_key_to, a_ledger->net->pub.id);
+    dap_chain_tx_out_t *l_out_change = dap_chain_datum_tx_item_out_create(&l_addr_to, a_value);
+    dap_chain_datum_tx_add_item(&l_tx, (byte_t*)l_receipt);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_cond);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_cond);
+    dap_chain_datum_tx_add_sign_item(&l_tx, a_key_to);
+    DAP_DEL_Z(l_in_cond);
+    DAP_DEL_Z(l_out_cond);
+    DAP_DEL_Z(l_receipt);
+    DAP_DEL_Z(l_out_change);
     return l_tx;
 }
 
@@ -171,10 +217,13 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     dap_assert(!dap_ledger_tx_add(a_ledger, l_second_tx, &l_second_tx_hash, false), "Adding of second transaction to ledger is");
     dap_ledger_test_print_balance(a_ledger, &l_addr);
 
+    // try to remove spent tx
     dap_assert(dap_ledger_tx_remove(a_ledger, l_first_tx, &l_first_tx_hash), "Spent Tx removing from ledger is ");
     
-
-
+    dap_assert(!dap_ledger_tx_remove(a_ledger, l_second_tx, &l_second_tx_hash), "Tx removing from ledger is ");
+    dap_assert(!dap_ledger_tx_remove(a_ledger, l_first_tx, &l_first_tx_hash), "Tx removing from ledger is ");
+    uint256_t l_balance_after = dap_ledger_test_print_balance(a_ledger, &l_addr);
+    dap_assert(!compare256(l_balance_before, l_balance_after), "Removing conditional tx from ledger testing");
 
     // check cond tx removing 
     dap_chain_datum_tx_t *l_cond_tx = dap_ledger_test_create_tx_cond(a_from_key, a_prev_hash,
@@ -185,10 +234,27 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     dap_assert(!dap_ledger_tx_add(a_ledger, l_cond_tx, &l_cond_tx_hash, false), "Adding of cond transaction to ledger is");
     dap_ledger_test_print_balance(a_ledger, &l_addr);
     dap_assert(!dap_ledger_tx_remove(a_ledger, l_cond_tx, &l_cond_tx_hash), "Tx cond removing from ledger is ");
-    uint256_t l_balance_after = dap_ledger_test_print_balance(a_ledger, &l_addr);
+    l_balance_after = dap_ledger_test_print_balance(a_ledger, &l_addr);
     dap_assert(!compare256(l_balance_before, l_balance_after), "Removing conditional tx from ledger testing");
 
+    // try to spend cond tx 
+    l_cond_tx = dap_ledger_test_create_tx_cond(a_from_key, a_prev_hash,
+                                                                       &l_addr_first, dap_chain_uint256_from(2U),a_ledger);
+    dap_assert_PIF(l_cond_tx, "Creating of conditional tx is");  
+    dap_hash_fast(l_cond_tx, dap_chain_datum_tx_get_size(l_cond_tx), &l_cond_tx_hash);
+    dap_assert(!dap_ledger_tx_add(a_ledger, l_cond_tx, &l_cond_tx_hash, false), "Adding of cond transaction to ledger is");
+    dap_ledger_test_print_balance(a_ledger, &l_addr);
 
+    dap_cert_t *l_cond_spending_cert = dap_cert_generate_mem_with_seed("newCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, "FMknbirh8*^#$RYU*q", 18);
+    dap_chain_addr_t l_cond_spending_addr = {0};
+    dap_chain_addr_fill_from_key(&l_cond_spending_addr, l_cond_spending_cert->enc_key, a_net_id);
+    uint256_t l_cond_spending_balance_before = dap_ledger_test_print_balance(a_ledger, &l_cond_spending_addr);
+    dap_chain_datum_tx_t *l_cond_spendind_tx = dap_ledger_test_create_spend_tx_cond(a_from_key, &l_cond_tx_hash, l_cond_spending_cert->enc_key, dap_chain_uint256_from(1U),a_ledger);
+    dap_chain_hash_fast_t l_spend_cond_tx_hash = {0};
+    dap_hash_fast(l_cond_spendind_tx, dap_chain_datum_tx_get_size(l_cond_spendind_tx), &l_spend_cond_tx_hash);
+    dap_assert(!dap_ledger_tx_add(a_ledger, l_cond_spendind_tx, &l_spend_cond_tx_hash, false), "Spending of cond transaction to ledger is");
+    uint256_t l_cond_spending_balance_after = dap_ledger_test_print_balance(a_ledger, &l_cond_spending_addr);
+    dap_assert(compare256(l_cond_spending_balance_after, dap_chain_uint256_from(1U)), "Spending of conditional tx from ledger testing");
 
 
     // Check vote removing 
@@ -475,6 +541,7 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
 
 void dap_ledger_test_run(void){
     dap_chain_net_srv_stake_pos_delegate_init();
+    dap_assert_PIF(!dap_chain_net_srv_init(), "Srv initializstion");
     dap_chain_net_id_t l_iddn = {0};
     dap_sscanf("0xFA0", "0x%16"DAP_UINT64_FORMAT_x, &l_iddn.uint64);
     dap_print_module_name("dap_ledger");
