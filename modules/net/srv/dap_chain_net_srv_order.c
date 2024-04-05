@@ -492,7 +492,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_find_by_hash_str(dap_chain_ne
             return NULL;
         }
         l_order = dap_chain_net_srv_order_read(l_gdb_order, l_order_size);
-        if (!l_order || l_order->ts_expires < dap_time_now()){
+        if (!l_order || (l_order->ts_expires &&  l_order->ts_expires < dap_time_now())){
             DAP_DEL_Z(l_order);
             DAP_DELETE(l_gdb_order);
             continue;
@@ -540,7 +540,7 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
                 dap_global_db_del_sync(l_gdb_group_str, l_orders[i].key);
                 continue; // order is corrupted
             }
-            if (l_order->ts_expires < dap_time_now()){
+            if (l_order->ts_expires && l_order->ts_expires < dap_time_now()){
                 DAP_DEL_Z(l_order);
                 continue;
             }
@@ -627,7 +627,7 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
             return -1;
         }
         l_order = dap_chain_net_srv_order_read(l_gdb_order, l_order_size);
-        if (l_order->ts_expires < dap_time_now()){
+        if (l_order->ts_expires &&l_order->ts_expires < dap_time_now()){
             DAP_DEL_Z(l_order);
             DAP_DELETE(l_gdb_order);
             DAP_DELETE(l_gdb_group_str);
