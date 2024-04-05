@@ -249,8 +249,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
         if (!l_esbocs_pvt->poa_mode) { // auth certs in PoA mode will be first PoS validators keys
             dap_hash_fast_t l_stake_tx_hash = {};
-            uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value();
-            dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, &l_stake_tx_hash,
+            uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(l_net->pub.id);
+            dap_chain_net_srv_stake_key_delegate(&l_signing_addr, &l_stake_tx_hash,
                                                  l_weight, &l_signer_node_addr);
         }
         // Preset reward for block signs, before first reward decree
@@ -743,10 +743,10 @@ static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a
     else {
         dap_hash_fast_t l_stake_tx_hash = {};
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value();
+        uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
         for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
             dap_chain_esbocs_validator_t *l_validator = it->data;
-            dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
+            dap_chain_net_srv_stake_key_delegate(&l_validator->signing_addr, &l_stake_tx_hash,
                                                  l_weight, &l_validator->node_addr);
         }
         l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
@@ -2161,7 +2161,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                     log_it(L_CRITICAL, "Memory allocation error");
                     goto session_unlock;
                 }
-                dap_chain_net_srv_stake_item_t *l_item = dap_chain_net_srv_stake_check_pkey_hash(&l_signing_addr.data.hash_fast);
+                dap_chain_net_srv_stake_item_t *l_item = dap_chain_net_srv_stake_check_pkey_hash(l_signing_addr.net_id, &l_signing_addr.data.hash_fast);
                 if (!l_item)
                     break;
                 l_validator->node_addr = l_item->node_addr;
