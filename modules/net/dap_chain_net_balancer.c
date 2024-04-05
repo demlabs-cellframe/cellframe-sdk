@@ -39,52 +39,6 @@ int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_cha
     return l_client ? dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 5000) : -1;
 }
 
-
-dap_link_info_t *s_get_links_info_list(dap_chain_net_t *a_net, size_t *a_count, bool a_external_call)
-{
-    static _Thread_local dap_global_db_driver_hash_t l_last_read_hash = {};
-    assert(a_net && a_count);
-    size_t l_count = *a_count;
-    if (!l_count) {
-        l_count = dap_global_db_driver_count(a_net->pub.gdb_nodes, c_dap_global_db_driver_hash_blank);
-        if (!l_count)
-            return NULL;
-    }
-    dap_store_obj_t *l_objs = dap_global_db_driver_cond_read(a_net->pub.gdb_nodes, l_last_read_hash, &l_count);
-    if (!l_objs || !l_count) {
-        l_last_read_hash = c_dap_global_db_driver_hash_blank;
-        return a_external_call ? s_get_links_info_list(a_net, a_count, false) : NULL;
-    }
-    l_last_read_hash = dap_global_db_driver_hash_get(l_objs + l_count - 1);
-    if (dap_global_db_driver_hash_is_blank(&l_last_read_hash))
-        l_count--;
-    dap_link_info_t *l_ret = NULL;
-    DAP_NEW_Z_COUNT_RET_VAL(l_ret, dap_link_info_t, l_count, NULL, NULL);
-    for (size_t i = 0; i < l_count; i++) {
-        dap_link_info_t *l_cur_info = l_ret + i;
-        dap_chain_node_info_t *l_db_info = (dap_chain_node_info_t *)(l_objs + i)->value;
-        l_cur_info->node_addr = l_db_info->address;
-        l_cur_info->uplink_port = l_db_info->ext_port;
-        dap_strncpy(l_cur_info->uplink_addr, l_db_info->ext_host, dap_min(l_db_info->ext_host_len, DAP_HOSTADDR_STRLEN));
-    }
-    dap_store_obj_free(l_objs, l_count);
-    if (a_external_call && l_count < *a_count) {
-        size_t l_total_count = dap_global_db_driver_count(a_net->pub.gdb_nodes, c_dap_global_db_driver_hash_blank);
-        if (l_count < l_total_count) {
-            size_t l_tail_count = dap_min(l_total_count, *a_count) - l_count;
-            dap_link_info_t *l_tail = s_get_links_info_list(a_net, &l_tail_count, false);
-            if (l_tail && l_tail_count) {
-                l_ret = DAP_REALLOC(l_ret, sizeof(dap_link_info_t) * (l_count + l_tail_count));
-                memcpy(l_ret + l_count, l_tail, sizeof(dap_link_info_t) * l_tail_count);
-                l_count += l_tail_count;
-                DAP_DELETE(l_tail);
-            }
-        }
-    }
-    *a_count = l_count;
-    return l_ret;
-}
-
 dap_chain_net_links_t *dap_chain_net_balancer_get_node(const char *a_net_name, uint16_t a_links_need, dap_chain_net_links_t *a_ignored)
 {
 // sanity check
@@ -97,7 +51,7 @@ dap_chain_net_links_t *dap_chain_net_balancer_get_node(const char *a_net_name, u
 // preparing
     dap_list_t *l_nodes_list = dap_get_nodes_states_list_sort(l_net, a_ignored ? a_ignored->nodes_info : NULL, a_ignored ? a_ignored->count_node : 0);
     if (!l_nodes_list) {
-        log_it(L_ERROR, "There isn't any nodes in net %s", a_net_name);
+        log_it(L_WARNING, "There isn't any nodes in net %s", a_net_name);
         return NULL;
     }
     size_t l_nodes_count = dap_min(s_max_links_response_count, dap_min(dap_list_length(l_nodes_list), a_links_need));
@@ -130,7 +84,7 @@ dap_chain_net_links_t *dap_chain_net_balancer_get_node_old(const char *a_net_nam
 // preparing
     dap_list_t *l_nodes_list = dap_get_nodes_states_list_sort(l_net, NULL, 0);
     if (!l_nodes_list) {
-        log_it(L_ERROR, "There isn't any nodes in net %s", a_net_name);
+        log_it(L_WARNING, "There isn't any nodes in net %s", a_net_name);
         return NULL;
     }
     size_t l_nodes_count = dap_min(s_max_links_response_count, dap_min(dap_list_length(l_nodes_list), a_links_need));
