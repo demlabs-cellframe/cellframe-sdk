@@ -2693,7 +2693,7 @@ dap_chain_net_srv_xchange_purchase_error_t dap_chain_net_srv_xchange_purchase(da
         if (l_tx && (l_ret = s_xchange_tx_put(l_tx, a_net)) &&
             dap_hash_fast_is_blank(&l_price->order_hash)) {
                 char *l_order_hash_str = dap_hash_fast_to_str_new(a_order_hash);
-                dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net, l_order_hash_str);
+                dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net, l_order_hash_str, NULL);
                 DAP_DELETE(l_order_hash_str);
         }
         DAP_DELETE(l_price);
