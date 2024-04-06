@@ -166,7 +166,8 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 */
 DAP_STATIC_INLINE char * dap_chain_net_srv_order_get_gdb_group(dap_chain_net_t * a_net)
 {
-    return a_net ? dap_strdup_printf("%s.service.orders",a_net->pub.gdb_groups_prefix) : NULL;
+    // return a_net ? dap_strdup_printf("%s.service.orders",a_net->pub.gdb_groups_prefix) : NULL;
+    return a_net ? dap_strdup_printf("%s.service-orders",a_net->pub.gdb_groups_prefix) : NULL;
 }
 
 DAP_STATIC_INLINE char *dap_chain_net_srv_order_get_common_group(dap_chain_net_t * a_net)
