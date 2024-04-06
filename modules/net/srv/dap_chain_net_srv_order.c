@@ -672,7 +672,7 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
         l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size + l_sign_size);
         memcpy(l_order->ext_n_sign + l_order->ext_size, l_sign, l_sign_size);
 
-        int l_ret = dap_global_db_set_sync(l_gdb_group_str, a_hash_str, l_order, l_order_size, false);
+        l_ret = dap_global_db_set_sync(l_gdb_group_str, a_hash_str, l_order, l_order_size, false);
         DAP_DELETE(l_gdb_group_str);
     }
     return l_ret;
