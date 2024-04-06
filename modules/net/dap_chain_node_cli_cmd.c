@@ -2038,7 +2038,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     switch (l_rc) {
                     case 0:
                         json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet_name));
-                        json_object_object_add(json_obj_wall, "protection", CMD_WALLET_ACTIVATE ?
+                        json_object_object_add(json_obj_wall, "protection", cmd_num == CMD_WALLET_ACTIVATE ?
                         json_object_new_string("is activated") : json_object_new_string("is deactivated"));
                         break;
                     case -EBUSY:
