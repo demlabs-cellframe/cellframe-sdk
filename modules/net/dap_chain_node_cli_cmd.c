@@ -5162,7 +5162,6 @@ static dap_list_t* s_hashes_parse_str_list(const char * a_hashes_str)
 int com_tx_cond_remove(int a_argc, char ** a_argv, void **reply)
 {
     (void) a_argc;
-//    void** l_str_reply = a_str_reply;
     int arg_index = 1;
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     const char * l_wallet_str = NULL;
@@ -5350,19 +5349,9 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **reply)
     }
     dap_list_free_full(l_hashes_list, NULL);
 
-//    json_object *l_jobj_ret = json_object_new_object();
-
     if (IS_ZERO_256(l_cond_value_sum)){
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_UNSPENT_COND_TX_IN_HASH_LIST_FOR_WALLET,
                                "No unspent conditional transactions in hashes list for wallet %s. Check input parameters.", l_wallet_str);
-//        json_object *l_jobj_tx_create = json_object_new_boolean(false);
-//        json_object_object_add(l_jobj_ret, "tx_create", l_jobj_tx_create);
-//        char *l_char_msg = dap_strdup_printf("No unspent conditional transactions in hashes list for wallet %s. Check input parameters.", l_wallet_str);
-//        json_object *l_jobj_msg = json_object_new_string(l_char_msg);
-//        DAP_DELETE(l_char_msg);
-//        json_object_object_add(l_jobj_ret, "tx_create", l_jobj_tx_create);
-//        json_object_object_add(l_jobj_ret, "msg", l_jobj_msg);
-//        json_object_array_add(*reply, l_jobj_ret);
         dap_chain_datum_tx_delete(l_tx);
         dap_chain_wallet_close(l_wallet);
         DAP_DEL_Z(l_wallet_pkey);
@@ -5451,7 +5440,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **reply)
         json_object *l_jobj_ret = json_object_new_object();
         json_object *l_jobj_tx_status = json_object_new_boolean(true);
         json_object *l_jobj_tx_hash = json_object_new_string(l_hash_str);
-        json_object_object_add(l_jobj_ret, "tx_create", l_jobj_tx_hash);
+        json_object_object_add(l_jobj_ret, "tx_create", l_jobj_tx_status);
         json_object_object_add(l_jobj_ret, "hash", l_jobj_tx_hash);
         DAP_DELETE(l_hash_str);
         json_object_array_add(*reply, l_jobj_ret);
