@@ -245,7 +245,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         l_validator->node_addr = l_signer_node_addr;
         l_validator->weight = uint256_1;
         l_esbocs_pvt->poa_validators = dap_list_append(l_esbocs_pvt->poa_validators, l_validator);
-
+        dap_chain_net_srv_stake_add_net(l_signing_addr.net_id);
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
         if (!l_esbocs_pvt->poa_mode) { // auth certs in PoA mode will be first PoS validators keys
             dap_hash_fast_t l_stake_tx_hash = {};

@@ -48,6 +48,7 @@ typedef struct dap_chain_net_srv_stake_item {
 int dap_chain_net_srv_stake_pos_delegate_init();
 void dap_chain_net_srv_stake_pos_delegate_deinit();
 
+int dap_chain_net_srv_stake_add_net(dap_chain_net_id_t);
 void dap_chain_net_srv_stake_key_delegate(dap_chain_addr_t *a_signing_addr, dap_hash_fast_t *a_stake_tx_hash,
                                           uint256_t a_value, dap_chain_node_addr_t *a_node_addr);
 void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr);
