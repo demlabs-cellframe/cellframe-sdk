@@ -446,8 +446,9 @@ static void s_cli_meta_hex_print(  dap_string_t * a_str_tmp, const char * a_meta
 static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_reply_str, const char *a_table_name)
 {
     bool l_status = dap_chain_esbocs_get_autocollect_status(a_net->pub.id);
-    dap_string_append_printf(a_reply_str, "\nAutocollect status for network %s is %s\n", a_net->pub.name,
-                                        l_status ? "active" : "inactive, cause the network config or consensus starting problems");
+    dap_string_append_printf(a_reply_str, "\nAutocollect status for %s in network %s is %s\n",
+                                         dap_strdown(a_table_name, -1), a_net->pub.name,
+                                         l_status ? "active" : "inactive, cause the network config or consensus starting problems");
     if (!l_status)
         return;
     dap_string_append_printf(a_reply_str, "\nAutocollect tables content for:\n=== %s ===\n", a_table_name);
@@ -662,8 +663,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_string_append_printf(l_str_tmp, "\t\t\tversion: 0x%04X\n", l_block->hdr.version);
             dap_string_append_printf(l_str_tmp, "\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n", l_block->hdr.cell_id.uint64);
             dap_string_append_printf(l_str_tmp, "\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n", l_block->hdr.chain_id.uint64);
-            char buf[50];
-            dap_time_to_str_rfc822(buf, 50, l_block->hdr.ts_created);
+            char buf[DAP_TIME_STR_SIZE];
+            dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_block->hdr.ts_created);
             dap_string_append_printf(l_str_tmp, "\t\t\tts_created: %s\n", buf);
 
             // Dump Metadata
@@ -714,7 +715,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 const char * l_datum_type_str="UNKNOWN";
                 DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\ttype_id:=%s\n", l_datum_type_str);
-                dap_time_to_str_rfc822(buf, 50, l_datum->header.ts_create);
+                dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n", buf);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
                 dap_chain_datum_dump(l_str_tmp, l_datum, "hex", l_net->pub.id);
@@ -901,8 +902,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                             continue;
                     }
                 }
-                char l_buf[50];
-                dap_time_to_str_rfc822(l_buf, 50, l_ts);
+                char l_buf[DAP_TIME_STR_SIZE];
+                dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
                 dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
                 l_block_count++;
                 if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_block_cache->block_hash))
