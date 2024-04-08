@@ -485,11 +485,11 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
                                      &l_announce, sizeof(l_announce));
 }
 
-static bool s_net_check_link_is_premanent(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr)
+bool dap_chain_net_check_link_is_premanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     for (uint16_t i = 0; i < l_net_pvt->permanent_links_count; i++) {
-        if (l_net_pvt->permanent_links[i]->node_addr.uint64 == a_addr->uint64)
+        if (l_net_pvt->permanent_links[i]->node_addr.uint64 == a_addr.uint64)
             return true;
     }
     return false;
@@ -508,7 +508,7 @@ static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_
 // func work
     dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
-    bool l_link_is_permanent = s_net_check_link_is_premanent(l_net, &a_link->addr);
+    bool l_link_is_permanent = dap_chain_net_check_link_is_premanent(l_net, a_link->addr);
     log_it(L_INFO, "%s."NODE_ADDR_FP_STR" can't connect for now. %s", l_net ? l_net->pub.name : "(unknown)" ,
             NODE_ADDR_FP_ARGS_S(a_link->addr),
             l_link_is_permanent ? "Setting reconnection pause for it." : "Dropping it.");

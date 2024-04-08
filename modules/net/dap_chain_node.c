@@ -61,6 +61,7 @@ typedef struct dap_chain_node_net_states_info {
 static const uint64_t s_cmp_delta_timestamp = (uint64_t)1000 /*sec*/ * (uint64_t)1000000000;
 static const uint64_t s_cmp_delta_atom = 50;
 static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
+static _Thread_local dap_chain_net_t *s_checked_net = NULL;
 
 /**
  * @brief get states info about current
@@ -68,6 +69,7 @@ static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
  */
 static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 {
+    // s_chain_fill();
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
         if(dap_chain_net_get_state(l_net) != NET_STATE_OFFLINE ) {
             size_t
@@ -385,9 +387,11 @@ static int s_node_states_info_cmp(dap_list_t *a_first, dap_list_t *a_second)
   dap_chain_node_states_info_t *a = (dap_chain_node_states_info_t *)a_first->data;
   dap_chain_node_states_info_t *b = (dap_chain_node_states_info_t *)a_second->data;
 
-  if(a->link_info.node_addr.uint64 == b->link_info.node_addr.uint64) return 0;
-  if(a->link_info.node_addr.uint64 == g_node_addr.uint64) return 1;
-  if(b->link_info.node_addr.uint64 == g_node_addr.uint64) return -1;
+  bool l_a_permanent = dap_chain_net_check_link_is_premanent(s_checked_net, a->link_info.node_addr);
+  bool l_b_permanent = dap_chain_net_check_link_is_premanent(s_checked_net, b->link_info.node_addr);
+  if(l_a_permanent && l_b_permanent) return 0;
+  if(l_a_permanent) return 1;
+  if(l_b_permanent) return -1;
   if(a->timestamp > b->timestamp && a->timestamp - b->timestamp > s_cmp_delta_timestamp) return -1;
   if(b->timestamp > a->timestamp && b->timestamp - a->timestamp > s_cmp_delta_timestamp) return 1;
   if(a->atoms_count > b->atoms_count && a->atoms_count - b->atoms_count > s_cmp_delta_atom) return -1;
@@ -415,6 +419,7 @@ dap_list_t *dap_get_nodes_states_list_sort(dap_chain_net_t *a_net, dap_chain_nod
     }
     char *l_gdb_group = dap_strdup_printf("%s.nodes.states", a_net->pub.gdb_groups_prefix);
     dap_list_t *l_ret = NULL;
+    s_checked_net = a_net;
     for (size_t i = 0; i < l_node_count; ++i) {
         if (!l_objs[i].value) {
             log_it(L_ERROR, "Invalid record, key %s", l_objs[i].key);
