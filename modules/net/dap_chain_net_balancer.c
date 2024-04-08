@@ -419,16 +419,18 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, dap_link_info_t *a_ba
 dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
 {
     dap_chain_net_links_t *l_links_info_list = s_get_node_addrs(a_net->pub.name, 0, NULL, false);  // TODO
-    dap_string_t *l_ret = dap_string_new(l_links_info_list ? "" : "Empty");
+    dap_string_t *l_ret = dap_string_new(l_links_info_list ?
+        "-----------------------------------------------------------------\n"
+        "|\t\tNode addr\t|\tHost addr\t\t|\n"
+        "--Send in balancer response--------------------------------------\n" : "Empty");
     uint64_t l_node_num = l_links_info_list ? l_links_info_list->count_node : 0;
     for (uint64_t i = 0; i < l_node_num; ++i) {
         dap_link_info_t *l_link_info = (dap_link_info_t *)l_links_info_list->nodes_info + i;
-        dap_string_append_printf(l_ret, NODE_ADDR_FP_STR"    %-20s\n",
+        dap_string_append_printf(l_ret, "|\t"NODE_ADDR_FP_STR"\t|\t%-16s:%u\t|\n",
                                     NODE_ADDR_FP_ARGS_S(l_link_info->node_addr),
-                                    l_link_info->uplink_addr);
-                                    /*l_node_link->info.links_number);*/
-        if(i + 1 == s_max_links_response_count ) {
-            dap_string_append_printf(l_ret, "-----------------------------------\n");
+                                    l_link_info->uplink_addr, l_link_info->uplink_port);
+        if(i + 1 == s_max_links_response_count && i + 1 < l_node_num) {
+            dap_string_append_printf(l_ret, "--Not send in balancer response----------------------------------\n");
         }
     }
     dap_string_prepend_printf(l_ret, "Balancer link list for total %" DAP_UINT64_FORMAT_U " records:\n",
