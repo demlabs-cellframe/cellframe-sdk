@@ -120,7 +120,6 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter
                                                                   size_t ** a_lasts_size_ptr );  //    Get list of linked blocks
 //Get list of hashes
 static dap_list_t *s_block_parse_str_list(char *a_hash_str, size_t * a_hash_size, dap_chain_t * a_chain);
-static void s_blocks_print_list_str(char **a_str_reply, dap_list_t *a_block_list);
 // Delete iterator
 static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );                  //    Get the fisrt block
 
@@ -1043,8 +1042,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             }
             // NOTE: This call will modify source string
             l_block_list = s_block_parse_str_list((char *)l_hash_str, &l_hashes_count, l_chain);
-            s_blocks_print_list_str(a_str_reply, l_block_list);
-            return -22;
             if (!l_block_list || !l_hashes_count) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Block fee collection requires at least one hash to create a transaction");
@@ -1241,16 +1238,6 @@ static dap_list_t *s_block_parse_str_list(char *a_hash_str, size_t *a_hash_size,
     return l_block_list;
 }
 
-static void s_blocks_print_list_str(char **a_str_reply, dap_list_t *a_block_list)
-{
-    for (dap_list_t *it = a_block_list; it; it = it->next) {
-        dap_hash_fast_t *l_block_hash = it->data;
-        char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
-        dap_hash_fast_to_str(l_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s,",l_block_hash_str);
-    }
-    
-}
 
 /**
  * @brief s_callback_delete
