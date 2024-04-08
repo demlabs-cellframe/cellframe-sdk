@@ -422,7 +422,7 @@ dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
     dap_string_t *l_ret = dap_string_new(l_links_info_list ?
         "-----------------------------------------------------------------\n"
         "|\t\tNode addr\t|\tHost addr\t\t|\n"
-        "--Send in balancer response--------------------------------------\n" : "Empty");
+        "--Send in balancer http response---------------------------------\n" : "Empty");
     uint64_t l_node_num = l_links_info_list ? l_links_info_list->count_node : 0;
     for (uint64_t i = 0; i < l_node_num; ++i) {
         dap_link_info_t *l_link_info = (dap_link_info_t *)l_links_info_list->nodes_info + i;
@@ -430,11 +430,11 @@ dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
                                     NODE_ADDR_FP_ARGS_S(l_link_info->node_addr),
                                     l_link_info->uplink_addr, l_link_info->uplink_port);
         if(i + 1 == s_max_links_response_count && i + 1 < l_node_num) {
-            dap_string_append_printf(l_ret, "--Not send in balancer response----------------------------------\n");
+            dap_string_append_printf(l_ret, "--Not send in http balancer response-----------------------------\n");
         }
     }
-    dap_string_prepend_printf(l_ret, "Balancer link list for total %" DAP_UINT64_FORMAT_U " records:\n",
-                                          l_node_num);
+    dap_string_prepend_printf(l_ret, "Balancer link list for total %" DAP_UINT64_FORMAT_U " records:\n", l_node_num);
+    dap_string_append(l_ret, "-----------------------------------------------------------------\n");
     DAP_DEL_Z(l_links_info_list);
     return l_ret;
 }
