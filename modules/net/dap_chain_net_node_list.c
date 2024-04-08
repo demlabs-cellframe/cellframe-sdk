@@ -398,7 +398,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                                       s_net_node_link_prepare_success,
                                       s_net_node_link_prepare_error,
                                       l_node_list_request,
-                                      NULL))
+                                      "some text for test"))
         {
             ret = a_sync ? dap_chain_net_node_list_wait(l_node_list_request, 10000) : ADD_OK;
         }
