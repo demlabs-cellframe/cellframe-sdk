@@ -96,6 +96,14 @@ struct sync_request
     };
 };
 
+typedef struct gdb_pkt_cache {
+    unsigned hashval;
+    dap_nanotime_t ts;
+    UT_hash_handle hh;
+} gdb_pkt_cache_t;
+
+static _Thread_local gdb_pkt_cache_t* s_gdb_pkt_cache = NULL;
+
 static void s_ch_chain_go_idle(dap_stream_ch_chain_t *a_ch_chain);
 static inline bool s_ch_chain_get_idle(dap_stream_ch_chain_t *a_ch_chain) { return a_ch_chain->state == CHAIN_STATE_IDLE; }
 
@@ -769,6 +777,28 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     continue;
                 }
             }
+            char l_group_key_str[DAP_GLOBAL_DB_KEY_MAX + DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX + 3] = { '\0 '};
+            dap_snprintf(l_group_key_str, sizeof(l_group_key_str), "%s:%s:%c", l_obj->group, l_obj->key, l_obj->type);
+            unsigned l_hashval; HASH_VALUE(l_group_key_str, sizeof(l_group_key_str), l_hashval);
+            gdb_pkt_cache_t *l_gdb_pkt_el = NULL;
+            HASH_FIND_BYHASHVALUE(hh, s_gdb_pkt_cache, &l_hashval, sizeof(l_hashval), l_hashval, l_gdb_pkt_el);
+            if (!l_gdb_pkt_el) {
+                l_gdb_pkt_el = DAP_NEW_Z(gdb_pkt_cache_t);
+                *l_gdb_pkt_el = (gdb_pkt_cache_t) { .hashval = l_hashval, .ts = l_obj->timestamp };
+                HASH_ADD_BYHASHVALUE(hh, s_gdb_pkt_cache, hashval, sizeof(unsigned), l_hashval, l_gdb_pkt_el);
+            } else if (l_obj->timestamp > l_gdb_pkt_el->ts) {
+                l_gdb_pkt_el->ts = l_obj->timestamp;
+            } else {
+                debug_if(s_debug_more, L_DEBUG, "GDB packet \"%s : %s\" '%c' skipped, already cached", l_obj->group, l_obj->key, l_obj->type);
+                dap_store_obj_clear_one(l_obj);
+                if (l_obj < l_last_obj) {
+                    *l_obj-- = *l_last_obj;
+                }
+                l_last_obj->group = NULL; l_last_obj->key = NULL; l_last_obj->value = NULL;
+                --l_last_obj;
+                --l_data_obj_count;
+                continue;
+            }
         }
 
 #if 0
@@ -821,7 +851,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 #endif
         if (l_data_obj_count) {
             debug_if(s_debug_more && l_data_obj_count < l_initial_count, L_INFO, "Only %zu / %zu of records will be applied", l_data_obj_count, l_initial_count);
-            dap_global_db_remote_apply_obj(l_store_obj, l_data_obj_count, s_gdb_in_pkt_proc_set_raw_callback, l_sync_request);
+            //dap_global_db_remote_apply_obj(l_store_obj, l_data_obj_count, s_gdb_in_pkt_proc_set_raw_callback, l_sync_request);
+            dap_global_db_remote_apply_obj_unsafe(dap_global_db_context_get_default(), l_store_obj, l_data_obj_count, s_gdb_in_pkt_proc_set_raw_callback, l_sync_request);
         } else {
             debug_if(s_debug_more, L_INFO, "No objects will be applied, all %zu are filtered out", l_initial_count);
             DAP_DELETE(l_sync_request);
