@@ -159,18 +159,30 @@ void s_stake_net_clear(dap_chain_net_t *a_net)
     HASH_FIND(hh, s_srv_stake_table, &a_net->pub.id, sizeof(dap_chain_net_id_t), l_stake_rec);
     if (l_stake_rec) {
         HASH_CLEAR(ht, l_stake_rec->tx_itemlist);
-        dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp = NULL;
-        HASH_ITER(hh, l_stake_rec->itemlist, l_stake, l_tmp) {
-            HASH_DEL(l_stake_rec->itemlist, l_stake);
-            DAP_DELETE(l_stake);
-        }
         dap_chain_net_srv_stake_cache_item_t *l_cache_item = NULL, *l_cache_tmp = NULL;
         HASH_ITER(hh, l_stake_rec->cache, l_cache_item, l_cache_tmp) {
             HASH_DEL(l_stake_rec->cache, l_cache_item);
             DAP_DELETE(l_cache_item);
         }
-        HASH_DEL(s_srv_stake_table, l_stake_rec);
-        DAP_DELETE(l_stake_rec);
+        dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp = NULL;
+        HASH_ITER(hh, l_stake_rec->itemlist, l_stake, l_tmp) {
+            if ( dap_hash_fast_is_blank(&l_stake->tx_hash) ) {
+                char l_key_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(&l_stake->signing_addr.data.hash_fast,
+                               l_key_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                char *l_value_str = dap_chain_balance_to_coins(l_stake->value);
+                log_it(L_NOTICE, "Preserve key with fingerprint %s and value %s for node "NODE_ADDR_FP_STR,
+                        l_key_hash_str, l_value_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
+                DAP_DELETE(l_value_str);
+            } else {
+                HASH_DEL(l_stake_rec->itemlist, l_stake);
+                DAP_DELETE(l_stake);
+            }
+        }
+        if ( !HASH_COUNT(l_stake_rec->itemlist) ) {
+            HASH_DEL(s_srv_stake_table, l_stake_rec);
+            DAP_DELETE(l_stake_rec);
+        }
     }
 }
 
