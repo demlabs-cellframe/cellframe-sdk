@@ -42,6 +42,19 @@ typedef struct dap_balancer_link_request {
 static_assert(sizeof(dap_chain_net_links_t) + sizeof(dap_chain_node_info_old_t) < DAP_BALANCER_MAX_REPLY_SIZE, "DAP_BALANCER_MAX_REPLY_SIZE cannot accommodate information minimum about 1 link");
 static const size_t s_max_links_response_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_links_t)) / sizeof(dap_chain_node_info_old_t);
 
+
+struct json_object *s_balancer_states_json_collect(dap_chain_net_t *a_net, dap_link_info_t *a_server_info)
+{
+    struct json_object *l_json = json_object_new_object();
+    json_object_object_add(l_json, "class"          , json_object_new_string("BalancerRequest"));
+    json_object_object_add(l_json, "networkName"    , json_object_new_string((const char*)a_net->pub.name));
+    json_object_object_add(l_json, "nodeAddress"    , json_object_new_string(dap_stream_node_addr_to_str_static(a_server_info->node_addr)));
+    json_object_object_add(l_json, "hostAddress"    , json_object_new_string(a_server_info ? a_server_info->uplink_addr : "localhost"));
+    if (a_server_info)
+        json_object_object_add(l_json, "hostPort"       , json_object_new_int(a_server_info->uplink_port));
+    return l_json;
+}
+
 static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, size_t *a_size)
 {
 // sanity check
@@ -77,7 +90,7 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
  * @param a_node_info
  * @param a_arg
  */
-static void s_balancer_link_prepare_success(dap_chain_net_t *a_net, dap_chain_net_links_t *a_link_full_node_list)
+static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_chain_net_links_t *a_link_full_node_list, dap_link_info_t *a_server_info)
 {
     char l_err_str[128] = {0};
     struct json_object *l_json;
@@ -87,7 +100,7 @@ static void s_balancer_link_prepare_success(dap_chain_net_t *a_net, dap_chain_ne
                NODE_ADDR_FP_ARGS_S(l_link_info->node_addr), l_link_info->uplink_addr, l_link_info->uplink_port);
         if (dap_net_link_add(a_net, &l_link_info->node_addr, l_link_info->uplink_addr, l_link_info->uplink_port))
             continue;
-        // l_json = s_net_states_json_collect(a_net);  TODO for balancer
+        l_json = s_balancer_states_json_collect(a_net, a_server_info);
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " prepared"
                      , NODE_ADDR_FP_ARGS_S(l_link_info->node_addr));
@@ -107,10 +120,9 @@ void s_http_balancer_link_prepare_success(void *a_response, size_t a_response_si
     size_t l_response_size_need = sizeof(dap_chain_net_links_t) + (sizeof(dap_link_info_t) * l_balancer_request->links_requested_count);
     if (a_response_size < sizeof(dap_chain_net_links_t) + sizeof(dap_link_info_t) || a_response_size > l_response_size_need) {
         log_it(L_ERROR, "Invalid balancer response size %zu (expected %zu)", a_response_size, l_response_size_need);
-        DAP_DELETE(l_balancer_request);
-        return;
+    } else {
+        s_balancer_link_prepare_success(l_balancer_request->net, l_link_full_node_list, l_balancer_request->info);
     }
-    s_balancer_link_prepare_success(l_balancer_request->net, l_link_full_node_list);
     DAP_DELETE(l_balancer_request);
 }
 
@@ -121,10 +133,9 @@ void s_http_balancer_link_prepare_success(void *a_response, size_t a_response_si
  * @param a_arg
  * @param a_errno
  */
-static void s_balancer_link_prepare_error(dap_chain_net_t *a_net, const char *a_addr, int a_errno)
+static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request, const char *a_addr, int a_errno)
 {
-    struct json_object *l_json = NULL; // TODO
-    //s_net_states_json_collect(a_net);
+    struct json_object *l_json = s_balancer_states_json_collect(a_request->net, a_request->info);
     char l_err_str[512] = { '\0' };
     dap_snprintf(l_err_str, sizeof(l_err_str)
                  , "Link from balancer %s can't be prepared, errno %d"
@@ -138,7 +149,7 @@ static void s_balancer_link_prepare_error(dap_chain_net_t *a_net, const char *a_
 void s_http_balancer_link_prepare_error(int a_error_code, void *a_arg)
 {
     dap_balancer_link_request_t *l_balancer_request = (dap_balancer_link_request_t *)a_arg;
-    s_balancer_link_prepare_error(l_balancer_request->net, l_balancer_request->info->uplink_addr, a_error_code);
+    s_balancer_link_prepare_error(l_balancer_request, l_balancer_request->info->uplink_addr, a_error_code);
     DAP_DELETE(l_balancer_request);
 }
 
@@ -327,9 +338,10 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, dap_link_info_t *a_ba
     size_t l_ignored_addrs_size = 0; // prepare list of the ignored addrs
     dap_chain_net_links_t *l_ignored_addrs = s_get_ignored_node_addrs(a_net, &l_ignored_addrs_size);
     size_t l_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
+    // links from local GDB
     dap_chain_net_links_t *l_links = s_get_node_addrs(a_net->pub.name, l_required_links_count, l_ignored_addrs, false);
     if (l_links) {
-        s_balancer_link_prepare_success(a_net, l_links);
+        s_balancer_link_prepare_success(a_net, l_links, NULL);
         if (l_links->count_node >= l_required_links_count) {
             DAP_DEL_MULTY(l_ignored_addrs, l_links);
             return 0;
