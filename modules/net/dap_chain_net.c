@@ -565,7 +565,7 @@ int s_link_manager_link_request(uint64_t a_net_id)
         log_it(L_ERROR, "Can't process balancer link %s request", PVT(l_net)->balancer_type == 0 ? "HTTP" : "DNS");
         return -5;
     }
-    return dap_chain_net_balancer_request(l_net, *a_balancer_link, PVT(l_net)->balancer_type);
+    return dap_chain_net_balancer_request(l_net, a_balancer_link, PVT(l_net)->balancer_type);
 }
 
 int s_link_manager_fill_net_info(dap_link_t *a_link)
