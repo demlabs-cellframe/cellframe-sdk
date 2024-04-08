@@ -1287,6 +1287,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                 return -4;
             }
         }
+        l_node_addr = l_node_info->address;
         if(!l_node_addr.uint64) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Addr not found");
             return -5;
@@ -1978,7 +1979,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 json_object_object_add(json_obj_wall, "sign", json_object_new_string(
                                                                   strlen(dap_chain_wallet_check_sign(l_wallet))!=0 ?
                                                                   dap_chain_wallet_check_sign(l_wallet) : "correct"));
-                json_object_object_add(json_obj_wall, "nwallet", json_object_new_string(l_wallet->name));
+                json_object_object_add(json_obj_wall, "wallet", json_object_new_string(l_wallet->name));
             }
             json_object_object_add(json_obj_wall, "addr", l_l_addr_str ? json_object_new_string(l_l_addr_str) : json_object_new_string("-"));
             json_object_object_add(json_obj_wall, "network", l_net_name? json_object_new_string(l_net_name) : json_object_new_string("-"));
@@ -7713,7 +7714,7 @@ int cmd_remove(int a_argc, char **a_argv, void **a_str_reply)
        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error when deleting, because:\n%s", return_message);
     }
     else if (successful) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Successful removal: %s %s", successful & REMOVED_GDB ? "gdb" : "-", successful & REMOVED_CHAINS ? "chains" : "-");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Successful removal: %s", successful & REMOVED_GDB && successful & REMOVED_CHAINS ? "gdb, chains" : successful & REMOVED_GDB ? "gdb" : successful & REMOVED_CHAINS ? "chains" : "");
     } else {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Nothing to delete. Check if the command is correct.\nUse flags: -gdb or/and -chains [-net <net_name> | -all]\n"
                                                        "Be careful, the '-all' option will delete ALL CHAINS and won't ask you for permission!");
