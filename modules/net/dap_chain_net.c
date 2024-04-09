@@ -3559,6 +3559,7 @@ int s_net_load(dap_chain_net_t *a_net)
         log_it(L_WARNING,"Start one time ledger cache reloading");
         dap_ledger_purge(l_net->pub.ledger, false);
         dap_chain_net_srv_stake_purge(l_net);
+        dap_chain_net_srv_stake_add_net(l_net->pub.id);
     } else
         dap_chain_net_srv_stake_load_cache(l_net);
 
