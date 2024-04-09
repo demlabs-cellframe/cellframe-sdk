@@ -582,16 +582,20 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
  */
 int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, const char *a_hash_str)
 {
+    bool l_is_search = false;
     int l_ret = -2;
     for (int i = 0; a_net && a_hash_str && i < 2; i++) {
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
                                   : dap_chain_net_srv_order_get_common_group(a_net);
-        l_ret = dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
+        if (dap_global_db_driver_is(l_gdb_group_str, a_hash_str)) {
+            l_is_search = true;
+            l_ret = dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
+        } else {
+            log_it(L_NOTICE, "In group %s not found record with %s key", l_gdb_group_str, a_hash_str);
+        }
         DAP_DELETE(l_gdb_group_str);
-        if (!l_ret)
-            break;
     }
-    return l_ret;
+    return l_is_search ? l_ret: -3;
 }
 
 /**
