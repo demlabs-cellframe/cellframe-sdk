@@ -95,7 +95,6 @@
 #include "dap_chain_net_decree.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_balancer.h"
-#include "dap_chain_net_voting.h"
 #include "dap_chain_pvt.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
@@ -315,7 +314,7 @@ int dap_chain_net_init()
     dap_stream_ch_chain_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
-    dap_chain_net_voting_init();
+    
     dap_cli_server_cmd_add ("net", s_cli_net, "Network commands",
         "net list [chains -net <chain net name>]\n"
             "\tList all networks or list all chains in selected network\n"
@@ -3538,7 +3537,7 @@ int s_net_load(dap_chain_net_t *a_net)
 
         time_t l_chain_load_time_taken = clock() - l_chain_load_start_time; 
         double time_taken = ((double)l_chain_load_time_taken)/CLOCKS_PER_SEC; // in seconds 
-        log_it(L_NOTICE, "[%s] Cahin %s processing took %f seconds", l_chain->net_name, l_chain->name, time_taken);
+        log_it(L_NOTICE, "[%s] Chain [%s] processing took %f seconds", l_chain->net_name, l_chain->name, time_taken);
         l_chain = l_chain->next;
     }
     // Process thresholds if any

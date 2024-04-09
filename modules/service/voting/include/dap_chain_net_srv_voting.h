@@ -28,6 +28,8 @@
 #include "dap_chain_common.h"
 #include "dap_chain_wallet.h"
 
+#define DAP_CHAIN_NET_SRV_VOTING_ID 0x06
+
 
 //typedef struct dap_chain_net_vote_info_result {
 //    uint64_t answer_idx;
@@ -62,8 +64,8 @@ typedef struct dap_chain_net_vote_info{
     } options;
 }dap_chain_net_vote_info_t;
 
-int dap_chain_net_voting_init();
-
+int dap_chain_net_srv_voting_init();
+void dap_chain_net_srv_voting_deinit();
 
 uint64_t* dap_chain_net_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_voting_hash);
 

@@ -81,6 +81,39 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
 static dap_chain_net_srv_xchange_t *s_srv_xchange;
 static bool s_debug_more = true;
 
+
+static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_tag_action_type_t *a_action)
+{
+
+    //xchange by xchange module
+    xchange_tx_type_t type = dap_chain_net_srv_xchange_tx_get_type(a_ledger, a_tx, NULL, NULL, NULL);
+    switch(type)
+    {
+        case TX_TYPE_ORDER:
+        { 
+            if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
+            return true;
+        }
+
+        case TX_TYPE_EXCHANGE:
+        { 
+            if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_USE;
+            return true;
+        }
+
+        case TX_TYPE_INVALIDATE:
+        { 
+            if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_CLOSE;
+            return true;
+        }
+
+        default:
+            return false;
+        
+    }
+    
+}
+
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
  * @return 0 if everything is okay, lesser then zero if errors
@@ -88,6 +121,7 @@ static bool s_debug_more = true;
 int dap_chain_net_srv_xchange_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, s_xchange_verificator_callback, NULL);
+    
     dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
 
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -w <wallet_name>"
@@ -131,6 +165,10 @@ int dap_chain_net_srv_xchange_init()
     l_srv_callbacks.response_error = s_callback_response_error;
     l_srv_callbacks.receipt_next_success = s_callback_receipt_next_success;
     l_srv_callbacks.decree = s_callback_decree;
+
+    //register service for tagging
+    dap_ledger_service_add(l_uid, "xchange", s_tag_check_xchange);
+
 
     dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_xchange", &l_srv_callbacks);
     s_srv_xchange = DAP_NEW_Z(dap_chain_net_srv_xchange_t);

@@ -856,6 +856,13 @@ static int s_vpn_tun_init()
     return 0;
 }
 
+static bool s_tag_check_vpn(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_tag_action_type_t *a_action)
+{
+    
+    return false;
+}
+
+
 /**
  * @brief s_vpn_service_create
  * @param g_config
@@ -889,6 +896,8 @@ static int s_vpn_service_create(dap_config_t * g_config)
 
     // Read if we need to dump all pkt operations
     s_debug_more= dap_config_get_item_bool_default(g_config,"srv_vpn", "debug_more",false);
+    dap_ledger_service_add(l_uid, "vpn", s_tag_check_vpn);
+    
     return 0;
 
 }

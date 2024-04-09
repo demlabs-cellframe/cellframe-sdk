@@ -58,8 +58,40 @@ static void s_stake_net_clear(dap_chain_net_t *a_net);
 
 static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
 
+static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_tag_action_type_t *a_action)
+{
+    // keydelegation open: have STAK_POS_DELEGATE out
+    dap_list_t *l_cond_out=NULL;
+    if (l_cond_out = dap_chain_datum_tx_out_cond_get((dap_chain_datum_tx_t*) a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL)) {
+        a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
+        //dap_list_free(l_cond_out);
+        return true;
+    }
+
+    //key delegation invalidation (close): have IN_COND linked with STAKE_POS_DELEGATE out
+    dap_list_t *l_in_cond_items=NULL;
+    if ((l_in_cond_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_IN_COND, NULL))) {
+       for (dap_list_t *it = l_in_cond_items; it; it = it->next) {
+            dap_chain_tx_in_cond_t *l_tx_in = it->data;
+            dap_hash_fast_t *l_tx_prev_hash = &l_tx_in->header.tx_prev_hash;    
+            uint32_t l_tx_prev_out_idx = l_tx_in->header.tx_out_prev_idx;
+            dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash (a_ledger,l_tx_prev_hash);
+            
+            int out_idx = -1;
+            dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &out_idx);
+            if (l_tx_out_cond && (uint32_t)out_idx == l_tx_prev_out_idx) {
+                    *a_action = DAP_CHAIN_TX_TAG_ACTION_CLOSE;
+                    dap_list_free(l_in_cond_items);
+                    return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 /**
- * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
+ * @brief init stake delegate module
  * @return 0 if everything is okay, lesser then zero if errors
  */
 int dap_chain_net_srv_stake_pos_delegate_init()
@@ -109,6 +141,9 @@ int dap_chain_net_srv_stake_pos_delegate_init()
         return -1;
     }
     s_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
+
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
+    dap_ledger_service_add(l_uid, "pos_delegate", s_tag_check_key_delegation);
 
     return 0;
 }
