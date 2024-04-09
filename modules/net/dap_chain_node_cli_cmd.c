@@ -2195,7 +2195,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 json_object_object_add(json_obj_wall, "sign", json_object_new_string(
                                                                   strlen(dap_chain_wallet_check_sign(l_wallet))!=0 ?
                                                                   dap_chain_wallet_check_sign(l_wallet) : "correct"));
-                json_object_object_add(json_obj_wall, "nwallet", json_object_new_string(l_wallet->name));
+                json_object_object_add(json_obj_wall, "wallet", json_object_new_string(l_wallet->name));
             }
             json_object_object_add(json_obj_wall, "addr", (l_l_addr_str) ? json_object_new_string(l_l_addr_str) : json_object_new_string("-"));
             json_object_object_add(json_obj_wall, "network", (l_net_name) ? json_object_new_string(l_net_name) : json_object_new_string("-"));
