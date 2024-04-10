@@ -104,6 +104,7 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_
 
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
                                                                        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
+static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num);
 static dap_chain_datum_t *s_chain_callback_atom_find_by_datum_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
                                                                    dap_chain_hash_fast_t *a_event_hash, int *a_ret_code);
 static dap_chain_datum_t** s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a_event, size_t a_atom_size, size_t *a_datums_count);
@@ -218,6 +219,7 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_atom_iter_delete = s_chain_callback_atom_iter_delete;
     a_chain->callback_atom_iter_get = s_chain_callback_atom_iter_get;               // Linear pass through
     a_chain->callback_atom_find_by_hash = s_chain_callback_atom_iter_find_by_hash;  // Get element by hash
+    a_chain->callback_atom_get_by_num = s_chain_callback_atom_iter_get_by_num;
     a_chain->callback_atom_iter_get_links = s_chain_callback_atom_iter_get_links;
 
     a_chain->callback_atom_get_datums = s_chain_callback_atom_get_datum;
@@ -1143,16 +1145,39 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_at
     dap_chain_cs_dag_event_item_t *l_event_item = NULL;
     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
     HASH_FIND(hh, PVT(l_dag)->events, a_atom_hash, sizeof(*a_atom_hash), l_event_item);
-    pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
-    if (!l_event_item)
-        return NULL;
-    a_atom_iter->cur_item = l_event_item;
-    a_atom_iter->cur = l_event_item->event;
-    a_atom_iter->cur_size= l_event_item->event_size;
-    a_atom_iter->cur_hash = &l_event_item->hash;
-    a_atom_iter->cur_num = l_event_item->event_number;
+    if (l_event_item) {
+        a_atom_iter->cur_item = l_event_item;
+        a_atom_iter->cur = l_event_item->event;
+        a_atom_iter->cur_size = l_event_item->event_size;
+        a_atom_iter->cur_hash = &l_event_item->hash;
+        a_atom_iter->cur_num = l_event_item->event_number;
+    } else
+        *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
+                                                 .cell_id = a_atom_iter->cell_id };
     if (a_atom_size)
         *a_atom_size = l_event_item->event_size;
+    pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
+    return l_event_item->event;
+}
+
+static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num)
+{
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_atom_iter->chain);
+    dap_chain_cs_dag_event_item_t *l_event_item = NULL;
+    pthread_mutex_rdlock(&PVT(l_dag)->events_mutex);
+    for (l_event_item = PVT(l_dag)->events; l_event_item; l_event_item = l_event_item->hh.next)
+        if (l_event_item->event_number == a_atom_num)
+            break;
+    if (l_event_item) {
+        a_atom_iter->cur_item = l_event_item;
+        a_atom_iter->cur = l_event_item->event;
+        a_atom_iter->cur_size = l_event_item->event_size;
+        a_atom_iter->cur_hash = &l_event_item->hash;
+        a_atom_iter->cur_num = l_event_item->event_number;
+    } else
+        *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
+                                                 .cell_id = a_atom_iter->cell_id };
+    pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     return l_event_item->event;
 }
 

@@ -60,6 +60,7 @@
 
 // Stable
 #define DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ                 0x80
+#define DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS                0x69
 #define DAP_CHAIN_CH_PKT_TYPE_CHAIN                     0x01
 #define DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY             0x81
 #define DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK                 0x82
@@ -75,15 +76,33 @@
 #define DAP_CHAIN_CH_PKT_TYPE_UPDATE_TSD_HASH_FIRST   0x0004   // Hash of first(s) item
 #define DAP_CHAIN_CH_PKT_TYPE_UPDATE_TSD_LAST_ID      0x0100   // Last ID of GDB synced group
 
+// *** Legacy *** //
+
 typedef struct dap_chain_ch_update_element{
     dap_hash_fast_t hash;
     uint32_t size;
 } DAP_ALIGN_PACKED dap_chain_ch_update_element_t;
 
-typedef struct dap_chain_ch_sync_request{
+typedef struct dap_chain_ch_sync_request_old {
     dap_chain_node_addr_t node_addr; // Requesting node's address
     dap_chain_hash_fast_t hash_from;
     byte_t unused[96];
+} DAP_ALIGN_PACKED dap_chain_ch_sync_request_old_t;
+
+static const char* c_dap_chain_ch_pkt_type_str[]={
+    [DAP_CHAIN_CH_PKT_TYPE_CHAIN] = "DAP_CHAIN_CH_PKT_TYPE_CHAIN",
+    [DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB] = "DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB",
+    [DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS] = "DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS",
+    [DAP_CHAIN_CH_PKT_TYPE_SYNCED_GLOBAL_DB] = "DAP_CHAIN_CH_PKT_TYPE_SYNCED_GLOBAL_DB",
+    [DAP_CHAIN_CH_PKT_TYPE_ERROR] = "DAP_CHAIN_CH_PKT_TYPE_ERROR"
+
+};
+
+// *** Active *** //
+
+typedef struct dap_chain_ch_sync_request {
+    dap_chain_hash_fast_t last_hash;
+    uint64_t last_num;
 } DAP_ALIGN_PACKED dap_chain_ch_sync_request_t;
 
 typedef struct dap_chain_ch_summary {
@@ -91,6 +110,12 @@ typedef struct dap_chain_ch_summary {
     uint64_t num_last;
     byte_t reserved[128];
 } DAP_ALIGN_PACKED dap_chain_ch_summary_t;
+
+typedef struct dap_chain_ch_miss_info {
+    dap_hash_fast_t missed_hash;
+    dap_hash_fast_t last_hash;
+    uint64_t last_num;
+} DAP_ALIGN_PACKED dap_chain_ch_miss_info_t;
 
 typedef struct dap_chain_ch_pkt_hdr {
     uint8_t version;
@@ -106,15 +131,6 @@ typedef struct dap_chain_ch_pkt {
     dap_chain_ch_pkt_hdr_t hdr;
     uint8_t data[];
 } DAP_ALIGN_PACKED dap_chain_ch_pkt_t;
-
-static const char* c_dap_chain_ch_pkt_type_str[]={
-    [DAP_CHAIN_CH_PKT_TYPE_CHAIN] = "DAP_CHAIN_CH_PKT_TYPE_CHAIN",
-    [DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB] = "DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB",
-    [DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS] = "DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS",
-    [DAP_CHAIN_CH_PKT_TYPE_SYNCED_GLOBAL_DB] = "DAP_CHAIN_CH_PKT_TYPE_SYNCED_GLOBAL_DB",
-    [DAP_CHAIN_CH_PKT_TYPE_ERROR] = "DAP_CHAIN_CH_PKT_TYPE_ERROR"
-
-};
 
 DAP_STATIC_INLINE size_t dap_chain_ch_pkt_get_size(dap_chain_ch_pkt_t *a_pkt) { return sizeof(dap_chain_ch_pkt_hdr_t) + a_pkt->hdr.data_size; }
 
