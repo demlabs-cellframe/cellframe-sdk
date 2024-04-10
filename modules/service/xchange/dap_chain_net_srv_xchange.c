@@ -1599,18 +1599,24 @@ static bool s_filter_tx_list(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, v
     int l_item_idx = 0;
     byte_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL);
     dap_chain_tx_in_cond_t * l_in_cond = l_tx_item ? (dap_chain_tx_in_cond_t *) l_tx_item : NULL;
-    int l_prev_cond_idx = 0;
+    uint32_t l_prev_cond_idx = 0;
     dap_chain_datum_tx_t * l_prev_tx = l_in_cond ? dap_ledger_tx_find_by_hash(a_ledger, &l_in_cond->header.tx_prev_hash) : NULL;
     dap_chain_tx_out_cond_t *l_out_prev_cond_item = l_prev_tx ? dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
                                                                                                 &l_prev_cond_idx) : NULL;
 
     if(l_out_prev_cond_item && l_out_prev_cond_item->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE)
         return l_tx_type;
-
+    
+    if (l_in_cond && l_prev_cond_idx != l_in_cond->header.tx_out_prev_idx)
+        return l_tx_type;
+    
     if (l_out_cond_item && !l_out_prev_cond_item)
         l_tx_type = TX_TYPE_ORDER;
     else if (l_out_cond_item && l_out_prev_cond_item)
+    {
+        
         l_tx_type = TX_TYPE_EXCHANGE;
+    }
     else if (!l_out_cond_item && l_out_prev_cond_item){
         dap_chain_datum_tx_t * l_prev_tx_temp = a_tx;
         byte_t *l_tx_item_temp = NULL;
@@ -1619,17 +1625,27 @@ static bool s_filter_tx_list(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, v
                 l_prev_tx_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_in_cond_temp->header.tx_prev_hash);
         }
 
-        dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_prev_tx_temp, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_prev_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_prev_sig);
-        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+        //have to find EXCHANGE tx_out_cond!
+        l_out_cond_item = NULL;
+        l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_prev_tx_temp, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
+                                                                               &l_cond_idx);
+        if (!l_out_cond_item) {
+            l_tx_type = TX_TYPE_UNDEFINED;
+        } else {
+            dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_prev_tx_temp, NULL, TX_ITEM_TYPE_SIG, NULL);
+            dap_sign_t *l_prev_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_prev_sig);
+            dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+            dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
 
-        bool l_owner = false;
-        l_owner = dap_sign_match_pkey_signs(l_prev_sign,l_sign);
-        if (l_owner)
+            bool l_owner = false;
+            l_owner = dap_sign_match_pkey_signs(l_prev_sign,l_sign);
+            if (l_owner)
                 l_tx_type = TX_TYPE_INVALIDATE;
-        else
+            else
+            {
                 l_tx_type = TX_TYPE_EXCHANGE;
+            }
+        }
     }
 
     if(a_out_cond_item)

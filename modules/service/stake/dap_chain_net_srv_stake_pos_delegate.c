@@ -61,10 +61,9 @@ static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
 static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_tag_action_type_t *a_action)
 {
     // keydelegation open: have STAK_POS_DELEGATE out
-    dap_list_t *l_cond_out=NULL;
+    dap_chain_tx_out_cond_t *l_cond_out=NULL;
     if (l_cond_out = dap_chain_datum_tx_out_cond_get((dap_chain_datum_tx_t*) a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL)) {
-        a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
-        //dap_list_free(l_cond_out);
+        if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
         return true;
     }
 
@@ -80,7 +79,7 @@ static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_t
             int out_idx = -1;
             dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &out_idx);
             if (l_tx_out_cond && (uint32_t)out_idx == l_tx_prev_out_idx) {
-                    *a_action = DAP_CHAIN_TX_TAG_ACTION_CLOSE;
+                    if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_CLOSE;
                     dap_list_free(l_in_cond_items);
                     return true;
             }

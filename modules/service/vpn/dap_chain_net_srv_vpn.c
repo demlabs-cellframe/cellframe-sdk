@@ -859,6 +859,36 @@ static int s_vpn_tun_init()
 static bool s_tag_check_vpn(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_tag_action_type_t *a_action)
 {
     
+    //VPN  open: have SRV_PAY out with vpn uid
+    dap_chain_tx_out_cond_t *l_cond_out=NULL; 
+    if (l_cond_out = dap_chain_datum_tx_out_cond_get((dap_chain_datum_tx_t*) a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL)) {
+        if (l_cond_out->header.srv_uid.uint64 == DAP_CHAIN_NET_SRV_VPN_ID)
+           if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
+        return true;
+    }
+    
+    //VPN native use: have IN_COND linked with DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY out with vpn uid
+    dap_list_t *l_in_cond_items=NULL; 
+    if ((l_in_cond_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_IN_COND, NULL))) {
+       for (dap_list_t *it = l_in_cond_items; it; it = it->next) {
+            dap_chain_tx_in_cond_t *l_tx_in = it->data;
+            dap_hash_fast_t *l_tx_prev_hash = &l_tx_in->header.tx_prev_hash;    
+            uint32_t l_tx_prev_out_idx = l_tx_in->header.tx_out_prev_idx;
+            dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash (a_ledger,l_tx_prev_hash);
+            
+            //stake close: have IN_COND to a STAKE_LOCK out
+            //check if in-cond is linked to out-cond type srv_stake_lock
+            int out_idx = -1;
+            dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &out_idx);
+            if (l_tx_out_cond && (uint32_t)out_idx == l_tx_prev_out_idx && l_tx_out_cond->header.srv_uid.uint64 == DAP_CHAIN_NET_SRV_VPN_ID) {
+                    if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_USE;
+                    dap_list_free(l_in_cond_items);
+                    return true;
+            }
+        }
+        dap_list_free(l_in_cond_items);
+    }
+
     return false;
 }
 
@@ -872,6 +902,7 @@ static int s_vpn_service_create(dap_config_t * g_config)
 {
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
     dap_chain_net_srv_callbacks_t l_srv_callbacks = {};
+    
     l_srv_callbacks.requested = s_callback_requested;
     l_srv_callbacks.response_success = s_callback_response_success;
     l_srv_callbacks.response_error = s_callback_response_error;
@@ -896,12 +927,18 @@ static int s_vpn_service_create(dap_config_t * g_config)
 
     // Read if we need to dump all pkt operations
     s_debug_more= dap_config_get_item_bool_default(g_config,"srv_vpn", "debug_more",false);
-    dap_ledger_service_add(l_uid, "vpn", s_tag_check_vpn);
+    
     
     return 0;
 
 }
 
+int dap_chain_net_srv_vpn_pre_init()
+{
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
+    dap_ledger_service_add(l_uid, "vpn", s_tag_check_vpn);
+    return 0;
+}
 
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
@@ -910,6 +947,8 @@ static int s_vpn_service_create(dap_config_t * g_config)
  */
 int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
 
+    
+    
     s_vpn_tun_init();
 
     log_it(L_DEBUG,"Initializing TUN driver...");

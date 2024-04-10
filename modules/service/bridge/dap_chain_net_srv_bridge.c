@@ -68,16 +68,7 @@ bool s_get_ems_bridge_action(dap_chain_datum_token_emission_t *a_ems, dap_chain_
         *a_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
 
     size_t src_tsd_size = 0;
-    //special case for old bridge datums
-    //if emission has 5, 8, 6 section (it's enough) -> this is old bridge tx
-    if (dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_NET_ID, &src_tsd_size) &&
-        dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_BLOCK_NUM, &src_tsd_size) &&
-        dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_OUTER_TX_HASH, &src_tsd_size))
-    {
-        *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
-        return true;
-    }
-
+    
     src_tsd_size = 0;
     size_t subsrc_tsd_size = 0;
     
@@ -87,7 +78,7 @@ bool s_get_ems_bridge_action(dap_chain_datum_token_emission_t *a_ems, dap_chain_
     if (ems_src && src_tsd_size)
     {   
         //old bridge ems
-        if (s_tsd_str_cmp(ems_src, src_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_BRIDGE_COMMISSION_OLD) != 0)
+        if (s_tsd_str_cmp(ems_src, src_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_BRIDGE_COMMISSION_OLD) == 0)
         {
             *a_action =  DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION;
             return true;      
@@ -96,6 +87,19 @@ bool s_get_ems_bridge_action(dap_chain_datum_token_emission_t *a_ems, dap_chain_
         //not bridge
         if (s_tsd_str_cmp(ems_src, src_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_BRIDGE) != 0)
             return false;
+    }
+    else
+    {
+        //special case for old bridge datums
+        //no SOURCE, but have all this
+        //if emission has 5, 8, 6 section (it's enough) -> this is old bridge tx
+        if (dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_NET_ID, &src_tsd_size) &&
+            dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_BLOCK_NUM, &src_tsd_size) &&
+            dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_OUTER_TX_HASH, &src_tsd_size))
+         {
+            *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+           return true;
+         }
     }
 
     if (ems_subsrc && subsrc_tsd_size)

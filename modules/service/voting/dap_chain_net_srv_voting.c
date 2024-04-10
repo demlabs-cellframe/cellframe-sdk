@@ -103,7 +103,6 @@ static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_t
     if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL))) {
         *a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
         dap_list_free(l_items_voting);
-        log_it(L_NOTICE, "chkvote");
         return true;
     }
 
@@ -112,7 +111,6 @@ static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_t
     if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL))) {
         *a_action = DAP_CHAIN_TX_TAG_ACTION_USE;
         dap_list_free(l_items_voting);
-        log_it(L_NOTICE, "chkvote");
         return true;
     }
 
