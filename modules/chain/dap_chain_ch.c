@@ -1054,7 +1054,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_chain_ch_miss_info_t *l_miss_info = (dap_chain_ch_miss_info_t *)l_chain_pkt->data;
         if (s_debug_more) {
             char l_last_hash_str[DAP_HASH_FAST_STR_SIZE];
-            dap_hash_fast_to_str(&l_miss_info.last_hash, l_last_hash_str, DAP_HASH_FAST_STR_SIZE);
+            dap_hash_fast_to_str(&l_miss_info->last_hash, l_last_hash_str, DAP_HASH_FAST_STR_SIZE);
             log_it(L_INFO, "In: CHAIN_MISS %s for net %s from source " NODE_ADDR_FP_STR
                                          " with hash missed %s, hash last %s and num last %" DAP_UINT64_FORMAT_U,
                     l_chain ? l_chain->name : "(null)",
@@ -1063,6 +1063,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     dap_hash_fast_to_str_static(&l_miss_info->missed_hash),
                     l_last_hash_str,
                     l_miss_info->last_num);
+        }
         // Will be processed upper in net packet notifier callback
     } break;
 
@@ -1433,8 +1434,10 @@ static bool s_sync_timer_callback(void *a_arg)
     dap_chain_ch_t *l_ch_chain = a_arg;
     struct sync_context *l_context = l_ch_chain->sync_context;
     if (l_context->last_activity + s_sync_timeout <= dap_time_now()) {
-        log_it(L_ERROR, "Sync timeout for node " NODE_ADDR_FP_STR, l_context->addr, l_context->net_id.uint64,
-                                                                   l_context->chain_id.uint64, l_context->cell_id.uint64);
+        log_it(L_ERROR, "Sync timeout for node " NODE_ADDR_FP_STR " with net 0x%016" DAP_UINT64_FORMAT_x
+                            " chain 0x%016" DAP_UINT64_FORMAT_x " cell 0x%016" DAP_UINT64_FORMAT_x,
+                                        NODE_ADDR_FP_ARGS_S(l_context->addr), l_context->net_id.uint64,
+                                        l_context->chain_id.uint64, l_context->cell_id.uint64);
         dap_stream_ch_write_error_unsafe(DAP_STREAM_CH(l_ch_chain), l_context->net_id.uint64,
                                          l_context->chain_id.uint64, l_context->cell_id.uint64,
                                          DAP_CHAIN_CH_ERROR_SYNC_TIMEOUT);
