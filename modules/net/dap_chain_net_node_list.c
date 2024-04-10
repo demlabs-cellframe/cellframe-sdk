@@ -465,7 +465,7 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
                 };
                 //dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
                 dap_global_db_driver_delete(&store_data, 1);
-            } else {
+            } else if (l_node_info->hdr.address.uint64 != dap_chain_net_get_cur_addr_int(l_net)) {
                 dap_nanotime_t l_local_ts;
                 dap_chain_node_info_t *l_rec = (dap_chain_node_info_t*)dap_global_db_get_sync(l_net->pub.gdb_nodes - 6, a_obj->key, NULL, NULL, &l_local_ts);
                 if ( !l_rec || dap_nanotime_to_sec(dap_nanotime_now()) - dap_nanotime_to_sec(l_local_ts) >= 24 * 3600 ) {
