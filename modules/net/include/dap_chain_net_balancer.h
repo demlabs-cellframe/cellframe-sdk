@@ -36,7 +36,7 @@ typedef struct dap_chain_net_links {
 } DAP_ALIGN_PACKED dap_chain_net_links_t;
 
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
-dap_link_info_t *dap_chain_net_balancer_dns_issue_link(char *a_str);
-void dap_chain_net_balancer_set_link_ban(dap_chain_node_info_t *a_node_info, const char *a_net_name);
-int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net);
+dap_link_info_t *dap_chain_net_balancer_dns_issue_link(const char *a_net_name);
+int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t * a_net);
 dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net);
+int dap_chain_net_balancer_request(dap_chain_net_t *a_net, dap_link_info_t *a_balancer_link, int a_balancer_type);

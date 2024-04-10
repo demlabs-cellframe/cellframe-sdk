@@ -242,7 +242,7 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
  */
 static int s_node_info_dump_with_reply(dap_chain_net_t *a_net, dap_chain_node_addr_t a_addr, void **a_str_reply)
 {
-
+    return 0;
 }
 
 /**
