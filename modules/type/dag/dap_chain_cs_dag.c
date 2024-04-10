@@ -517,16 +517,15 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             debug_if(s_debug_more, L_WARNING, "... added with ledger code %d", l_consensus_check);
             break;
         }
-        dap_chain_cs_dag_event_item_t *l_tail = PVT(l_dag)->events ? PVT(l_dag)->events->hh.tbl->tail->prev : NULL;
-        if (!l_tail)
-            l_tail = PVT(l_dag)->events;
-        else
-            l_tail = l_tail->hh.next;
-        if (l_tail && l_tail->event->header.ts_created > l_event->header.ts_created)
+        dap_chain_cs_dag_event_item_t *l_tail;
+        HASH_LAST(PVT(l_dag)->events, l_tail);
+        if (l_tail && l_tail->event->header.ts_created > l_event->header.ts_created) {
             DAP_CHAIN_PVT(a_chain)->need_reorder = true;
-        if (DAP_CHAIN_PVT(a_chain)->need_reorder)
             HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
-        else
+            dap_chain_cs_dag_event_item_t *it = PVT(l_dag)->events;
+            for (uint64_t i = 0; it; it = it->hh.next)  // renumber chain events
+                it->event_number = ++i;
+        } else
             HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
     } break;
