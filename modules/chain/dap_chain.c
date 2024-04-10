@@ -690,7 +690,7 @@ bool dap_chain_get_atom_last_hash_num(dap_chain_t *a_chain, dap_chain_cell_id_t 
     if (a_atom_hash)
         *a_atom_hash = l_iter->cur_hash ? *l_iter->cur_hash : (dap_hash_fast_t){0};
     if (a_atom_num)
-        *a_atom_num = l_iter->cur_num
+        *a_atom_num = l_iter->cur_num;
     a_chain->callback_atom_iter_delete(l_iter);
     return true;
 }

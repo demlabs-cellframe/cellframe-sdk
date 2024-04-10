@@ -101,8 +101,8 @@ static const char* c_dap_chain_ch_pkt_type_str[]={
 // *** Active *** //
 
 typedef struct dap_chain_ch_sync_request {
-    dap_chain_hash_fast_t last_hash;
-    uint64_t last_num;
+    dap_chain_hash_fast_t hash_from;
+    uint64_t num_from;
 } DAP_ALIGN_PACKED dap_chain_ch_sync_request_t;
 
 typedef struct dap_chain_ch_summary {

@@ -1164,7 +1164,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_by_num(dap_chain_atom
 {
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_atom_iter->chain);
     dap_chain_cs_dag_event_item_t *l_event_item = NULL;
-    pthread_mutex_rdlock(&PVT(l_dag)->events_mutex);
+    pthread_mutex_lock(&PVT(l_dag)->events_mutex);
     for (l_event_item = PVT(l_dag)->events; l_event_item; l_event_item = l_event_item->hh.next)
         if (l_event_item->event_number == a_atom_num)
             break;

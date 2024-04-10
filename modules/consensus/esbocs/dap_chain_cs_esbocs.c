@@ -51,7 +51,7 @@ enum s_esbocs_session_state {
 
 static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_validators);
 static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s_esbocs_session_state a_new_state, dap_time_t a_time);
-static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg);
+static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg);
 static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain_node_addr_t *a_sender_node_addr, uint8_t *a_data, size_t a_data_size);
 static void s_session_round_clear(dap_chain_esbocs_session_t *a_session);
 static void s_session_round_new(dap_chain_esbocs_session_t *a_session);
@@ -1862,32 +1862,32 @@ static bool s_process_incoming_message(void *a_arg)
     return false;
 }
 
-static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
+static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
 {
     dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *)a_arg;
     if (!l_ch_pkt)
-        return;
+        return false;
     dap_chain_esbocs_message_t *l_message = (dap_chain_esbocs_message_t *)l_ch_pkt->data;
     size_t l_message_size = l_ch_pkt->hdr.data_size;
     if (l_message_size < sizeof(dap_chain_esbocs_message_t) ||
             l_message_size > DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE + PKT_SIGN_N_HDR_OVERHEAD ||
             l_message_size != sizeof(*l_message) + l_message->hdr.sign_size + l_message->hdr.message_size) {
         log_it(L_WARNING, "Invalid message size %zu, drop this packet", l_message_size);
-        return;
+        return false;
     }
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_message->hdr.net_id);
     if (!l_net) {
         log_it(L_WARNING, "Can't find net with ID 0x%" DAP_UINT64_FORMAT_x, l_message->hdr.net_id.uint64);
-        return;
+        return false;
     }
     if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
         log_it(L_MSG, "Reject packet because net %s is offline", l_net->pub.name);
         a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
-        return;
+        return false;
     }
     if (l_message->hdr.recv_addr.uint64 != g_node_addr.uint64) {
         log_it(L_WARNING, "Wrong packet destination address" NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_message->hdr.recv_addr));
-        return;
+        return false;
     }
     dap_chain_esbocs_session_t *l_session;
     DL_FOREACH(s_session_items, l_session)
@@ -1896,14 +1896,14 @@ static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     if (!l_session) {
         log_it(L_WARNING, "Session for net %s not found", l_net->pub.name);
         a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
-        return;
+        return false;
     }
     if (l_message->hdr.version != DAP_CHAIN_ESBOCS_PROTOCOL_VERSION) {
         debug_if(PVT(l_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
                             " Message is rejected - different protocol version %hu (need %u)",
                                 l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                     l_message->hdr.version, DAP_CHAIN_ESBOCS_PROTOCOL_VERSION);
-        return;
+        return false;
     }
     debug_if(PVT(l_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                             " Receive pkt type:0x%x from addr:"NODE_ADDR_FP_STR", my_addr:"NODE_ADDR_FP_STR"",
@@ -1913,13 +1913,14 @@ static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args, sizeof(struct esbocs_msg_args) + l_message_size);
     if (!l_args) {
         log_it(L_CRITICAL, g_error_memory_alloc);
-        return;
+        return false;
     }
     l_args->addr_from = a_ch->stream->node;
     l_args->session = l_session;
     l_args->message_size = l_message_size;
     memcpy(l_args->message, l_message, l_message_size);
     dap_proc_thread_callback_add(NULL, s_process_incoming_message, l_args);
+    return true;
 }
 
 /**
