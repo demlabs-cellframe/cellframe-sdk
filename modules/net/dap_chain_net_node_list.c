@@ -385,7 +385,6 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                                       l_link_node_request->hdr.links_number,
                                       l_link_node_request->hdr.blocks_events,
                                       a_net->pub.name);
-
         if (dap_client_http_request(l_node_list_request->worker,
                                       l_node_addr_str,
                                       l_link_node_info->hdr.ext_port,
