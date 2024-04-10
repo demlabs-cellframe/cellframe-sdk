@@ -854,9 +854,9 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ: {
-        if (l_chain_pkt_data_size != sizeof(dap_hash_fast_t)) {
+        if (l_chain_pkt_data_size != sizeof(dap_chain_ch_sync_request_t)) {
             log_it(L_WARNING, "DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ: Wrong chain packet size %zd when expected %zd",
-                                                                            l_chain_pkt_data_size, sizeof(dap_hash_fast_t));
+                                                                            l_chain_pkt_data_size, sizeof(dap_chain_ch_sync_request_t));
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                     l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                     DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE);
@@ -942,7 +942,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS,
                                           l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
                                           l_chain_pkt->hdr.cell_id.uint64, &l_miss_info, sizeof(l_miss_info));
-            debug_if(s_debug_more, L_NOTICE, "In: CHAIN_MISS %s for net %s from source " NODE_ADDR_FP_STR
+            debug_if(s_debug_more, L_INFO, "Out: CHAIN_MISS %s for net %s to source " NODE_ADDR_FP_STR
                                              " with hash missed %s, hash last %s and num last %" DAP_UINT64_FORMAT_U,
                         l_chain ? l_chain->name : "(null)",
                                     l_chain ? l_chain->net_name : "(null)",
@@ -1041,7 +1041,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
         dap_chain_ch_miss_info_t *l_miss_info = (dap_chain_ch_miss_info_t *)l_chain_pkt->data;
-        debug_if(s_debug_more, L_NOTICE, "In: CHAIN_MISS %s for net %s from source " NODE_ADDR_FP_STR
+        debug_if(s_debug_more, L_INFO, "In: CHAIN_MISS %s for net %s from source " NODE_ADDR_FP_STR
                                          " with hash missed %s, hash last %s and num last %" DAP_UINT64_FORMAT_U,
                     l_chain ? l_chain->name : "(null)",
                                 l_chain ? l_chain->net_name : "(null)",

@@ -1155,9 +1155,9 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_at
         *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
                                                  .cell_id = a_atom_iter->cell_id };
     if (a_atom_size)
-        *a_atom_size = l_event_item->event_size;
+        *a_atom_size = a_atom_iter->cur_size;
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
-    return l_event_item->event;
+    return a_atom_iter->cur;
 }
 
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num)
@@ -1178,7 +1178,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_by_num(dap_chain_atom
         *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
                                                  .cell_id = a_atom_iter->cell_id };
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
-    return l_event_item->event;
+    return a_atom_iter->cur;
 }
 
 /**
