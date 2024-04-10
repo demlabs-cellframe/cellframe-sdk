@@ -1399,7 +1399,7 @@ struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
         dap_chain_t *l_chain = NULL;
         size_t l_count_el = 0, l_count_el_all = 0;
         size_t l_node_link_nodes = 0;
-        dap_global_db_obj_t *l_nodes = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_node_link_nodes);
+        dap_global_db_obj_t *l_nodes = dap_global_db_get_all_sync(a_net->pub.gdb_nodes - 6, &l_node_link_nodes);
         for (size_t i =0; i< l_node_link_nodes; i++) {
             dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_nodes[i].value;
             if (l_count_el_all < l_node_info->hdr.blocks_events)
@@ -1799,7 +1799,7 @@ json_object* s_set_reply_text_node_status_json(dap_chain_net_t *a_net) {
     json_object *l_jobj_processed_sync = json_object_new_object();
     dap_chain_t *l_chain = NULL;
     size_t l_count_el = 0, l_count_el_all = 0;
-    char *l_gdb_nodes = a_net->pub.gdb_nodes;
+    char *l_gdb_nodes = a_net->pub.gdb_nodes - 6;
     size_t l_node_link_nodes = 0;
     dap_global_db_obj_t *l_nodes = dap_global_db_get_all_sync(l_gdb_nodes, &l_node_link_nodes);
     for (size_t i =0; i< l_node_link_nodes; i++) {
@@ -2551,7 +2551,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 } else{
                     size_t node_info_size = 0;
                     dap_chain_node_info_t *l_node_inf_check;
-                    l_node_inf_check = (dap_chain_node_info_t *) dap_global_db_get_sync(l_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
+                    l_node_inf_check = (dap_chain_node_info_t *) dap_global_db_get_sync(l_net->pub.gdb_nodes - 6, l_key, &node_info_size, NULL, NULL);
                     if(!l_node_inf_check){
                         for(int i=0;i<PVT(l_net)->seed_aliases_count;i++)
                         {
@@ -3053,7 +3053,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     dap_global_db_add_sync_group(l_net->pub.name, "global", s_gbd_history_callback_notify, l_net);
     dap_global_db_add_sync_group(l_net->pub.name, l_net->pub.gdb_groups_prefix, s_gbd_history_callback_notify, l_net);
 
-    l_net->pub.gdb_nodes = dap_strdup_printf("%s."NODELIST_GROUP_NAME, l_net->pub.gdb_groups_prefix);
+    l_net->pub.gdb_nodes = dap_strdup_printf("local.%s."NODELIST_GROUP_NAME, l_net->pub.gdb_groups_prefix) + 6;
     l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
 
     // Bridged netwoks allowed to send transactions to
@@ -4006,7 +4006,7 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
     dap_global_db_obj_t *l_objs = NULL;
     size_t l_nodes_count = 0;
     // read all node
-    l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
+    l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes - 6, &l_nodes_count);
     if(!l_nodes_count || !l_objs)
         return l_node_list;
     for(size_t i = 0; i < l_nodes_count; i++) {
@@ -4455,4 +4455,14 @@ char *dap_chain_net_links_dump(dap_chain_net_t *a_net) {
     dap_string_free(l_str_uplinks, true);
     dap_string_free(l_str_downlinks, true);
     return l_res_str;
+}
+
+bool dap_chain_net_find_link(dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info) {
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
+    uint64_t l_addr = a_node_info->hdr.ext_addr_v4.s_addr;
+    struct net_link *l_link = NULL;
+    HASH_FIND(hh, l_net_pvt->net_links, &l_addr, sizeof(l_addr), l_link);
+    pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
+    return !!l_link;
 }

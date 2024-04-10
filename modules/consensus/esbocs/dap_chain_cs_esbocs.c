@@ -380,7 +380,7 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
 
 /* *** Temporary added section for over-consensus sync. Remove this after global DB sync refactoring *** */
 
-static bool s_change_db_broadcast(UNUSED_ARG dap_proc_thread_t *a_thread, void *a_arg)
+static bool s_change_db_broadcast(dap_proc_thread_t UNUSED_ARG *a_thread, void *a_arg)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
     pthread_mutex_lock(&l_session->mutex);
@@ -428,7 +428,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
 
     if (l_pkt)
         dap_hash_fast(l_pkt->data, l_pkt->data_size, &l_session->db_hash);
-    //else
+    else
         l_session->db_hash = (dap_hash_fast_t){};
     if (PVT(l_session->esbocs)->debug) {
         char l_sync_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -462,7 +462,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_change_db_broadcast, l_session);
 }
 
-static void s_session_db_clear(UNUSED_ARG dap_global_db_context_t *a_context, void *a_arg)
+static void s_session_db_clear(dap_global_db_context_t UNUSED_ARG *a_context, void *a_arg)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
     char *l_sync_group = s_get_penalty_group(l_session->chain->net_id);
@@ -583,11 +583,13 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_esbocs->session = l_session;
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     l_session->my_signing_addr = l_my_signing_addr;
+#ifdef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
     dap_global_db_context_exec(s_session_db_clear, l_session);
     char *l_penalty_mask = dap_strdup_printf(DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX".%s.penalty*", l_net->pub.gdb_groups_prefix);
     dap_global_db_add_notify_group_mask(dap_global_db_context_get_default()->instance,
                                         l_penalty_mask, s_db_change_notifier, l_session, 72);
     DAP_DELETE(l_penalty_mask);
+#endif
     pthread_mutexattr_t l_mutex_attr;
     pthread_mutexattr_init(&l_mutex_attr);
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
@@ -1218,8 +1220,10 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         a_session->cur_round.attempt_submit_validator = l_validator->signing_addr;
         if (dap_chain_addr_compare(&a_session->cur_round.attempt_submit_validator, &a_session->my_signing_addr)) {
             dap_chain_esbocs_directive_t *l_directive = NULL;
+#ifdef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
             if (!a_session->cur_round.directive && !PVT(a_session->esbocs)->emergency_mode)
                 l_directive = s_session_directive_ready(a_session);
+#endif
             if (l_directive) {
                 dap_hash_fast_t l_directive_hash;
                 dap_hash_fast(l_directive, l_directive->size, &l_directive_hash);
@@ -2415,6 +2419,10 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     } break;
 
     case DAP_CHAIN_ESBOCS_MSG_TYPE_DIRECTIVE: {
+#ifndef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
+        debug_if(l_cs_debug, L_MSG, "Directive processing is disabled");
+        break;
+#endif
         if (l_session->cur_round.directive) {
             log_it(L_WARNING, "Only one directive can be processed by round");
             break;
@@ -2452,6 +2460,10 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
     case DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR:
     case DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST: {
+#ifndef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
+        debug_if(l_cs_debug, L_MSG, "Directive processing is disabled");
+        break;
+#endif
         if (dap_hash_fast_is_blank(l_candidate_hash)) {
             log_it(L_WARNING, "Receive VOTE %s for empty directive",
                                     l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR ?
