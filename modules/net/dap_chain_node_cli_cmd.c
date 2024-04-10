@@ -5162,7 +5162,6 @@ static dap_list_t* s_hashes_parse_str_list(const char * a_hashes_str)
 int com_tx_cond_remove(int a_argc, char ** a_argv, void **reply)
 {
     (void) a_argc;
-//    void** l_str_reply = a_str_reply;
     int arg_index = 1;
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     const char * l_wallet_str = NULL;
@@ -5350,19 +5349,9 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **reply)
     }
     dap_list_free_full(l_hashes_list, NULL);
 
-//    json_object *l_jobj_ret = json_object_new_object();
-
     if (IS_ZERO_256(l_cond_value_sum)){
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_UNSPENT_COND_TX_IN_HASH_LIST_FOR_WALLET,
                                "No unspent conditional transactions in hashes list for wallet %s. Check input parameters.", l_wallet_str);
-//        json_object *l_jobj_tx_create = json_object_new_boolean(false);
-//        json_object_object_add(l_jobj_ret, "tx_create", l_jobj_tx_create);
-//        char *l_char_msg = dap_strdup_printf("No unspent conditional transactions in hashes list for wallet %s. Check input parameters.", l_wallet_str);
-//        json_object *l_jobj_msg = json_object_new_string(l_char_msg);
-//        DAP_DELETE(l_char_msg);
-//        json_object_object_add(l_jobj_ret, "tx_create", l_jobj_tx_create);
-//        json_object_object_add(l_jobj_ret, "msg", l_jobj_msg);
-//        json_object_array_add(*reply, l_jobj_ret);
         dap_chain_datum_tx_delete(l_tx);
         dap_chain_wallet_close(l_wallet);
         DAP_DEL_Z(l_wallet_pkey);
@@ -5451,7 +5440,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **reply)
         json_object *l_jobj_ret = json_object_new_object();
         json_object *l_jobj_tx_status = json_object_new_boolean(true);
         json_object *l_jobj_tx_hash = json_object_new_string(l_hash_str);
-        json_object_object_add(l_jobj_ret, "tx_create", l_jobj_tx_hash);
+        json_object_object_add(l_jobj_ret, "tx_create", l_jobj_tx_status);
         json_object_object_add(l_jobj_ret, "hash", l_jobj_tx_hash);
         DAP_DELETE(l_hash_str);
         json_object_array_add(*reply, l_jobj_ret);
@@ -6987,16 +6976,23 @@ int com_tx_verify(int a_argc, char **a_argv, void **reply)
             return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_INVALID_TX_HASH;
         }
     }
-    size_t l_tx_size = 0;
+    size_t l_datum_size = 0;
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)
-            dap_global_db_get_sync(l_gdb_group, l_hex_str_from58 ? l_hex_str_from58 : l_tx_hash_str, &l_tx_size, NULL, NULL );
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t*)dap_global_db_get_sync(l_gdb_group, l_hex_str_from58 ? l_hex_str_from58 : l_tx_hash_str, &l_datum_size, NULL, NULL);
     DAP_DEL_Z(l_hex_str_from58);
-    if (!l_tx) {
+    if (!l_datum) {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_SPECIFIED_TX_NOT_FOUND, "Specified tx not found");
         return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_SPECIFIED_TX_NOT_FOUND;
     }
-    int l_ret = dap_ledger_tx_add_check(l_net->pub.ledger, l_tx, l_tx_size, &l_tx_hash);
+    if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX){
+        char *l_str_err = dap_strdup_printf("Based on the specified hash, the type %s was found and not a transaction.",
+                                            dap_chain_datum_type_id_to_str(l_datum->header.type_id));
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_HASH_IS_NOT_TX_HASH, l_str_err);
+        DAP_DELETE(l_str_err);
+        return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_HASH_IS_NOT_TX_HASH;
+    }
+    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
+    int l_ret = dap_ledger_tx_add_check(l_net->pub.ledger, l_tx, l_datum->header.data_size, &l_tx_hash);
     json_object *l_obj_ret = json_object_new_object();
     json_object *l_obj_hash = json_object_new_string(l_tx_hash_str);
     json_object_object_add(l_obj_ret, "hash", l_obj_hash);
