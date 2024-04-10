@@ -3099,7 +3099,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         }
                         for (dap_list_t *it = l_vote_list; it; it = it->next) {
                             json_object *l_jobj_vote = dap_chain_datum_tx_item_vote_to_json(
-                                    (dap_chain_tx_vote_t *) it->data);
+                                    (dap_chain_tx_vote_t *) it->data, a_net->pub.ledger);
                             json_object_array_add(l_jobj_tx_vote, l_jobj_vote);
                         }
                         for (dap_list_t *it = l_voting_list; it; it = it->next) {
