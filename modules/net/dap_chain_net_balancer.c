@@ -1,9 +1,11 @@
 /*
 * Authors:
 * Dmitriy Gerasimov <naeper@demlabs.net>
+* Roman Khlopkov <roman.khlopkov@demlabs.net>
+* Pavel Uhanov <pavel.uhanov@demlabs.net>
 * Cellframe       https://cellframe.net
 * DeM Labs Inc.   https://demlabs.net
-* Copyright  (c) 2017-2019
+* Copyright  (c) 2017-2024
 * All rights reserved.
 
 This file is part of CellFrame SDK the open source project
@@ -75,7 +77,7 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
         l_uplinks_count = 0,
         l_low_availability_count = 0;
     dap_stream_node_addr_t *l_uplinks = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64, &l_uplinks_count, NULL, true);
-    dap_stream_node_addr_t *l_low_availability = dap_link_manager_get_ignored_addrs();
+    dap_stream_node_addr_t *l_low_availability = dap_link_manager_get_ignored_addrs(&l_low_availability_count);
     if(!l_uplinks && !l_low_availability) {
         return NULL;
     }
