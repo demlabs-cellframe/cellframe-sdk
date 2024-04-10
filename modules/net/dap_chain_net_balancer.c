@@ -152,7 +152,7 @@ dap_chain_net_links_t *dap_chain_net_balancer_get_node(const char *a_net_name, u
     size_t l_node_num_prep = a_links_need;
     dap_link_info_t *l_links_info = s_get_links_info_list(l_net, &l_node_num_prep, true);
     if (!l_links_info || !l_node_num_prep){        
-        log_it(L_ERROR, "Active node list in net %s is empty", a_net_name);
+        log_it(L_WARNING, "Active node list in net %s is empty", a_net_name);
         return NULL;
     }
     size_t l_node_num_send = dap_min(s_max_links_response_count, l_node_num_prep);
@@ -187,7 +187,7 @@ dap_chain_net_links_t *dap_chain_net_balancer_get_node_old(const char *a_net_nam
     size_t l_node_num_prep = a_links_need;
     dap_link_info_t *l_links_info = s_get_links_info_list(l_net, &l_node_num_prep, true);
     if (!l_links_info || !l_node_num_prep){        
-        log_it(L_ERROR, "Active node list in net %s is empty", a_net_name);
+        log_it(L_WARNING, "Active node list in net %s is empty", a_net_name);
         return NULL;
     }
     size_t l_node_num_send = dap_min(s_max_links_response_count, l_node_num_prep);

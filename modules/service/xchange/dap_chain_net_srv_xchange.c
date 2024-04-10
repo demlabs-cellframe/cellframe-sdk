@@ -1420,7 +1420,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                 case XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX: {
                     dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
                     dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_cond_tx, &l_fee, false);
-                    char *l_final_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_price->tx_hash);
+                    const char *l_final_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_price->tx_hash);
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create invalidate transaction from: %s\n", l_final_tx_hash_str);
                     DAP_DELETE(l_price);
                 } break;
@@ -1689,7 +1689,7 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
     dap_hash_fast_t l_tx_hash = {0};
 
     dap_hash_fast(a_tx, l_tx_size, &l_tx_hash);
-    char *l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
+    const char *l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
 
     // Get input token ticker
     const char * l_tx_input_ticker = dap_ledger_tx_get_token_ticker_by_hash(
@@ -2025,7 +2025,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
                 dap_hash_fast_t l_tx_hash = {};
                 dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
-                char *l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
+                const char *l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
 
                 uint64_t l_percent_completed = dap_chain_net_srv_xchange_get_order_completion_rate(l_net, l_tx_hash);
 

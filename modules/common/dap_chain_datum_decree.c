@@ -245,7 +245,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 dap_hash_fast_t *l_stake_tx = /*{ };
                 _dap_tsd_get_scalar(l_tsd, &l_stake_tx);*/ _dap_tsd_get_object(l_tsd, dap_hash_fast_t);
-                char *l_stake_tx_hash = dap_strcmp(a_hash_out_type, "hex")
+                const char *l_stake_tx_hash = dap_strcmp(a_hash_out_type, "hex")
                         ? dap_enc_base58_encode_hash_to_str_static(l_stake_tx)
                         : dap_chain_hash_fast_to_str_static(l_stake_tx);
                 dap_string_append_printf(a_str_out, "\tStake tx: %s\n", l_stake_tx_hash);
@@ -269,7 +269,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 _dap_tsd_get_scalar(l_tsd, &l_stake_addr_signing);*/ _dap_tsd_get_object(l_tsd, dap_chain_addr_t);
                 dap_string_append_printf(a_str_out, "\tSigning addr: %s\n", dap_chain_addr_to_str(l_stake_addr_signing));
                 dap_chain_hash_fast_t l_pkey_signing = l_stake_addr_signing->data.hash_fast;
-                char *l_pkey_signing_str = dap_strcmp(a_hash_out_type, "hex")
+                const char *l_pkey_signing_str = dap_strcmp(a_hash_out_type, "hex")
                         ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_signing)
                         : dap_chain_hash_fast_to_str_static(&l_pkey_signing);
                 dap_string_append_printf(a_str_out, "\tSigning pkey fingerprint: %s\n", l_pkey_signing_str);
@@ -341,7 +341,7 @@ void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
             continue;
         }
 
-        char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+        const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
                 : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
         dap_string_append_printf(a_str_out, "%d) %s, %s, %u bytes\n", i, l_hash_str,

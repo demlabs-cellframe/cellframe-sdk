@@ -221,7 +221,7 @@ size_t dap_chain_cs_dag_event_round_sign_add(dap_chain_cs_dag_event_round_item_t
  * @param a_group
  * @return
  */
-bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_hash_str, dap_chain_cs_dag_event_t *a_event,
+bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, const char *a_event_hash_str, dap_chain_cs_dag_event_t *a_event,
                                     size_t a_event_size, dap_chain_cs_dag_event_round_item_t *a_round_item)
 {
     size_t l_signs_size = (size_t)(a_round_item->data_size-a_round_item->event_size);

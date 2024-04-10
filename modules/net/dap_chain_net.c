@@ -165,6 +165,8 @@ struct chain_sync_context {
     dap_stream_node_addr_t current_link;
     dap_chain_t *cur_chain;
     dap_chain_cell_t *cur_cell;
+    dap_hash_fast_t requested_atom_hash;
+    uint64_t requested_atom_num;
 };
 
 /**
@@ -2482,6 +2484,8 @@ int s_net_load(dap_chain_net_t *a_net)
     return 0;
 }
 
+static const uint64_t s_fork_sync_step = 20; // TODO get it from config
+
 static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const void *a_data, size_t a_data_size, void *a_arg)
 {
     debug_if(s_debug_more, L_DEBUG, "Got IN sync packet type %hhu size %zu from addr " NODE_ADDR_FP_STR,
@@ -2491,10 +2495,76 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
     switch (a_type) {
     case DAP_CHAIN_CH_PKT_TYPE_ERROR:
         l_net_pvt->sync_context.state = SYNC_STATE_ERROR;
-        break;
+        return;
+
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN:
         l_net_pvt->sync_context.state = SYNC_STATE_SYNCED;
-        break;
+        return;
+
+    case DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS: {
+        dap_chain_ch_miss_info_t *l_miss_info = (dap_chain_ch_miss_info_t *)(((dap_chain_ch_pkt_t *)(a_data))->data);
+        if (!dap_hash_fast_compare(&l_miss_info->missed_hash, &l_net_pvt->sync_context.requested_atom_hash)) {
+            char l_missed_hash_str[DAP_HASH_FAST_STR_SIZE];
+            dap_hash_fast_to_str(&l_miss_info->missed_hash, l_missed_hash_str, DAP_HASH_FAST_STR_SIZE);
+            log_it(L_WARNING, "Get irrelevant chain sync MISSED packet with missed hash %s, but requested hash is %s",
+                                                                        l_missed_hash_str,
+                                                                        dap_hash_fast_to_str_static(&l_net_pvt->sync_context.requested_atom_hash));
+            dap_stream_ch_write_error_unsafe(a_ch, l_net->pub.id.uint64,
+                                             l_net_pvt->sync_context.cur_chain->id.uint64,
+                                             l_net_pvt->sync_context.cur_cell
+                                             ? l_net_pvt->sync_context.cur_cell->id.uint64
+                                             : 0,
+                                             DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
+            return;
+        }
+        dap_chain_atom_iter_t *l_iter = l_net_pvt->sync_context.cur_chain->callback_atom_iter_create(
+                                                                            l_net_pvt->sync_context.cur_chain,
+                                                                            l_net_pvt->sync_context.cur_cell
+                                                                            ? l_net_pvt->sync_context.cur_cell->id
+                                                                            : c_dap_chain_cell_id_null,
+                                                                            NULL);
+        if (!l_iter) {
+            log_it(L_CRITICAL, g_error_memory_alloc);
+            dap_stream_ch_write_error_unsafe(a_ch, l_net->pub.id.uint64,
+                                             l_net_pvt->sync_context.cur_chain->id.uint64,
+                                             l_net_pvt->sync_context.cur_cell
+                                             ? l_net_pvt->sync_context.cur_cell->id.uint64
+                                             : 0,
+                                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
+            return;
+        }
+        dap_chain_atom_ptr_t l_atom = l_net_pvt->sync_context.cur_chain->callback_atom_find_by_hash(l_iter, &l_miss_info->last_hash, NULL);
+        if (l_atom && l_iter->cur_num == l_miss_info->last_num) {       // We already have this subchain in our chain
+            l_net_pvt->sync_context.state = SYNC_STATE_SYNCED;
+            return;
+        }
+        dap_chain_ch_sync_request_t l_request = {};
+        l_request.num_from = l_net_pvt->sync_context.requested_atom_num > s_fork_sync_step
+                            ? l_net_pvt->sync_context.requested_atom_num - s_fork_sync_step
+                            : 0;
+        if (l_request.num_from) {
+            l_atom = l_net_pvt->sync_context.cur_chain->callback_atom_get_by_num(l_iter, l_request.num_from);
+            assert(l_atom);
+            l_request.hash_from = *l_iter->cur_hash;
+        }
+        l_net_pvt->sync_context.cur_chain->callback_atom_iter_delete(l_iter);
+        debug_if(s_debug_more, L_INFO, "Send sync request to node " NODE_ADDR_FP_STR
+                                        " for net %s and chain %s, hash from %s, num from %" DAP_UINT64_FORMAT_U,
+                                                        NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
+                                                        l_net->pub.name, l_net_pvt->sync_context.cur_chain->name,
+                                                        dap_hash_fast_to_str_static(&l_request.hash_from), l_request.num_from);
+        dap_chain_ch_pkt_write_unsafe(a_ch,
+                                      DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ,
+                                      l_net->pub.id.uint64,
+                                      l_net_pvt->sync_context.cur_chain->id.uint64,
+                                      l_net_pvt->sync_context.cur_cell
+                                      ? l_net_pvt->sync_context.cur_cell->id.uint64
+                                      : 0,
+                                      &l_request,
+                                      sizeof(l_request));
+        l_net_pvt->sync_context.requested_atom_hash = l_request.hash_from;
+        l_net_pvt->sync_context.requested_atom_num = l_request.num_from;
+    }
     default:
         break;
     }
@@ -2563,19 +2633,37 @@ static void s_sync_timer_callback(void *a_arg)
         // TODO make correct working with cells
         assert(l_net_pvt->sync_context.cur_chain);
         l_net_pvt->sync_context.cur_cell = l_net_pvt->sync_context.cur_chain->cells;
-        log_it(L_INFO, "Start synchronization process with " NODE_ADDR_FP_STR " for net %s and chain %s",
-                                                        NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
-                                                        l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
         l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_WAITING;
-        dap_hash_fast_t l_last_hash;
-        dap_chain_get_atom_last_hash(l_net_pvt->sync_context.cur_chain, &l_last_hash, l_net_pvt->sync_context.cur_cell
-                                                                                        ? l_net_pvt->sync_context.cur_cell->id : c_dap_chain_cell_id_null);
+        dap_chain_ch_sync_request_t l_request = {};
+        uint64_t l_last_num = 0;
+        if (!dap_chain_get_atom_last_hash_num(l_net_pvt->sync_context.cur_chain,
+                                              l_net_pvt->sync_context.cur_cell
+                                              ? l_net_pvt->sync_context.cur_cell->id
+                                              : c_dap_chain_cell_id_null,
+                                              &l_request.hash_from,
+                                              &l_last_num)) {
+            log_it(L_ERROR, "Can't get last atom hash and number for chain %s with net %s", l_net_pvt->sync_context.cur_chain->name,
+                                                                                            l_net->pub.name);
+            return;
+        }
+        l_request.num_from = l_last_num;
         dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(l_net->pub.id.uint64, l_net_pvt->sync_context.cur_chain->id.uint64,
                                                                l_net_pvt->sync_context.cur_cell ? l_net_pvt->sync_context.cur_cell->id.uint64 : 0,
-                                                               &l_last_hash, sizeof(l_last_hash));
+                                                               &l_request, sizeof(l_request));
+        if (!l_chain_pkt) {
+            log_it(L_CRITICAL, g_error_memory_alloc);
+            return;
+        }
+        log_it(L_INFO, "Start synchronization process with " NODE_ADDR_FP_STR
+                        " for net %s and chain %s, last hash %s, last num %" DAP_UINT64_FORMAT_U,
+                                                        NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
+                                                        l_net->pub.name, l_net_pvt->sync_context.cur_chain->name,
+                                                        dap_hash_fast_to_str_static(&l_request.hash_from), l_last_num);
         dap_stream_ch_pkt_send_by_addr(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
                                        DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ, l_chain_pkt,
                                        dap_chain_ch_pkt_get_size(l_chain_pkt));
+        l_net_pvt->sync_context.requested_atom_hash = l_request.hash_from;
+        l_net_pvt->sync_context.requested_atom_num = l_request.num_from;
         DAP_DELETE(l_chain_pkt);
     }
     if (l_net_pvt->sync_context.last_state != SYNC_STATE_IDLE &&
