@@ -2546,6 +2546,11 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
             l_request.hash_from = *l_iter->cur_hash;
         }
         l_net_pvt->sync_context.cur_chain->callback_atom_iter_delete(l_iter);
+        debug_if(s_debug_more, L_INFO, "Send sync request to node " NODE_ADDR_FP_STR
+                                        " for net %s and chain %s, hash from %s, num  from %" DAP_UINT64_FORMAT_U,
+                                                        NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
+                                                        l_net->pub.name, l_net_pvt->sync_context.cur_chain->name,
+                                                        dap_hash_fast_to_str_static(&l_request.hash_from), l_request.num_from);
         dap_chain_ch_pkt_write_unsafe(a_ch,
                                       DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ,
                                       l_net->pub.id.uint64,
@@ -2626,9 +2631,6 @@ static void s_sync_timer_callback(void *a_arg)
         // TODO make correct working with cells
         assert(l_net_pvt->sync_context.cur_chain);
         l_net_pvt->sync_context.cur_cell = l_net_pvt->sync_context.cur_chain->cells;
-        log_it(L_INFO, "Start synchronization process with " NODE_ADDR_FP_STR " for net %s and chain %s",
-                                                        NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
-                                                        l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
         l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_WAITING;
         dap_chain_ch_sync_request_t l_request = {};
         uint64_t l_last_num = 0;
@@ -2650,6 +2652,11 @@ static void s_sync_timer_callback(void *a_arg)
             log_it(L_CRITICAL, g_error_memory_alloc);
             return;
         }
+        log_it(L_INFO, "Start synchronization process with " NODE_ADDR_FP_STR
+                        " for net %s and chain %s, last hash %s, last num %" DAP_UINT64_FORMAT_U,
+                                                        NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
+                                                        l_net->pub.name, l_net_pvt->sync_context.cur_chain->name,
+                                                        dap_hash_fast_to_str_static(&l_request.hash_from), l_last_num);
         dap_stream_ch_pkt_send_by_addr(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
                                        DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ, l_chain_pkt,
                                        dap_chain_ch_pkt_get_size(l_chain_pkt));
