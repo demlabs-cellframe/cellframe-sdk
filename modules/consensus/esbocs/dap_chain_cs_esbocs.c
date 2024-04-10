@@ -79,6 +79,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size);
 static uint256_t s_callback_get_minimum_fee(dap_chain_t *a_chain);
+static uint256_t s_callback_get_collectiong_level(dap_chain_t *a_chain);
 static dap_enc_key_t *s_callback_get_sign_key(dap_chain_t *a_chain);
 static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
 static void s_db_change_notifier(dap_store_obj_t *a_obj, void * a_arg);
@@ -202,6 +203,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs->chain = a_chain;
     a_chain->callback_set_min_validators_count = s_callback_set_min_validators_count;
     a_chain->callback_get_minimum_fee = s_callback_get_minimum_fee;
+    a_chain->callback_get_collectiong_level = s_callback_get_collectiong_level;
     a_chain->callback_get_signing_certificate = s_callback_get_sign_key;
 
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
@@ -309,8 +311,7 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
     }
     log_it(L_NOTICE, "The block %s was successfully added to autocollect %s list", a_key, l_fee_collect ? "fee" : "reward");
     assert(a_value_size == sizeof(uint256_t));
-    dap_chain_esbocs_session_t *l_session = a_arg;
-    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_session->esbocs);
+    dap_chain_esbocs_block_collect_t *l_block_collect_params = a_arg;
     bool l_level_reached = false;
     uint256_t l_value_total = uint256_0;
     size_t l_objs_count = 0;
@@ -318,7 +319,7 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
     if (l_objs_count >= 10) {
         for (size_t i = 0; i < l_objs_count; i++) {
             SUM_256_256(l_value_total, *(uint256_t*)l_objs[i].value, &l_value_total);
-            if (compare256(l_value_total, l_esbocs_pvt->collecting_level) >= 0) {
+            if (compare256(l_value_total, l_block_collect_params->collecting_level) >= 0) {
                 l_level_reached = true;
                 break;
             }
@@ -331,13 +332,13 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
             dap_chain_hash_fast_from_hex_str(l_objs[i].key, &block_hash);
             l_block_list = dap_list_append(l_block_list, DAP_DUP(&block_hash));
         }
-        dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_session->chain);
+        dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_block_collect_params->chain);
         char *l_tx_hash_str = l_fee_collect ?
-                    dap_chain_mempool_tx_coll_fee_create(l_blocks, l_esbocs_pvt->blocks_sign_key,
-                                     l_esbocs_pvt->collecting_addr, l_block_list, l_esbocs_pvt->minimum_fee, "hex")
+                    dap_chain_mempool_tx_coll_fee_create(l_blocks, l_block_collect_params->blocks_sign_key,
+                                     l_block_collect_params->collecting_addr, l_block_list, l_block_collect_params->minimum_fee, "hex")
                   :
-                    dap_chain_mempool_tx_reward_create(l_blocks, l_esbocs_pvt->blocks_sign_key,
-                                     l_esbocs_pvt->collecting_addr, l_block_list, l_esbocs_pvt->minimum_fee, "hex");
+                    dap_chain_mempool_tx_reward_create(l_blocks, l_block_collect_params->blocks_sign_key,
+                                     l_block_collect_params->collecting_addr, l_block_list, l_block_collect_params->minimum_fee, "hex");
         if (l_tx_hash_str) {
             log_it(L_NOTICE, "%s collect transaction successfully created, hash = %s",
                             l_fee_collect ? "Fee" : "Reward", l_tx_hash_str);
@@ -346,7 +347,68 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
             log_it(L_ERROR, "%s collect transaction creation error", l_fee_collect ? "Fee" : "Reward");
         dap_global_db_del_sync(a_group, NULL);
     }
+    DAP_DELETE(l_block_collect_params);
     dap_global_db_objs_delete(l_objs, l_objs_count);
+}
+
+void dap_chain_esbocs_add_block_collect(dap_chain_block_t *a_block_ptr, size_t a_block_size,
+                                        dap_chain_esbocs_block_collect_t *a_block_collect_params,int a_type)
+{
+    dap_hash_fast_t l_last_block_hash;
+    dap_chain_get_atom_last_hash(a_block_collect_params->chain, &l_last_block_hash,a_block_collect_params->cell_id);
+    dap_chain_t *l_chain = a_block_collect_params->chain;
+    dap_sign_t *l_sign = dap_chain_block_sign_get(a_block_ptr, a_block_size, 0);
+    if (dap_pkey_match_sign(a_block_collect_params->block_sign_pkey, l_sign)&&(!a_type||a_type==1)) {
+        dap_chain_esbocs_block_collect_t *l_block_collect_params = DAP_NEW_Z(dap_chain_esbocs_block_collect_t);
+        l_block_collect_params->collecting_level = a_block_collect_params->collecting_level;
+        l_block_collect_params->minimum_fee = a_block_collect_params->minimum_fee;
+        l_block_collect_params->chain = a_block_collect_params->chain;
+        l_block_collect_params->blocks_sign_key = a_block_collect_params->blocks_sign_key;
+        l_block_collect_params->block_sign_pkey = a_block_collect_params->block_sign_pkey;
+        l_block_collect_params->collecting_addr = a_block_collect_params->collecting_addr;
+
+        dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_last_block_hash);
+        assert(l_block_cache);
+        dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
+        assert(l_net);
+        uint256_t l_value_fee = uint256_0;
+        dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(
+                                        l_net->pub.ledger, l_block_cache, &l_value_fee);
+        if (!IS_ZERO_256(l_value_fee)) {
+            char *l_fee_group = dap_chain_cs_blocks_get_fee_group(l_chain->net_name);
+            dap_global_db_set(l_fee_group, l_block_cache->block_hash_str, &l_value_fee, sizeof(l_value_fee),
+                                false, s_check_db_collect_callback, l_block_collect_params);
+            DAP_DELETE(l_fee_group);
+        }
+        dap_list_free_full(l_list_used_out, NULL);
+    }
+    if (dap_chain_block_sign_match_pkey(a_block_ptr, a_block_size, a_block_collect_params->block_sign_pkey)&&(!a_type||a_type==2)) {
+        dap_chain_esbocs_block_collect_t *l_block_collect_params = DAP_NEW_Z(dap_chain_esbocs_block_collect_t);
+        l_block_collect_params->collecting_level = a_block_collect_params->collecting_level;
+        l_block_collect_params->minimum_fee = a_block_collect_params->minimum_fee;
+        l_block_collect_params->chain = a_block_collect_params->chain;
+        l_block_collect_params->blocks_sign_key = a_block_collect_params->blocks_sign_key;
+        l_block_collect_params->block_sign_pkey = a_block_collect_params->block_sign_pkey;
+        l_block_collect_params->collecting_addr = a_block_collect_params->collecting_addr;
+
+        dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_last_block_hash);
+        assert(l_block_cache);
+        dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
+        assert(l_net);
+        if (!dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash,
+                                        &l_block_collect_params->collecting_addr->data.hash_fast)) {
+            uint256_t l_value_reward = l_chain->callback_calc_reward(l_chain, &l_block_cache->block_hash,
+                                                                     l_block_collect_params->block_sign_pkey);
+            if (!IS_ZERO_256(l_value_reward)) {
+                char *l_reward_group = dap_chain_cs_blocks_get_reward_group(l_chain->net_name);
+                dap_global_db_set(l_reward_group, l_block_cache->block_hash_str, &l_value_reward, sizeof(l_value_reward),
+                                    false, s_check_db_collect_callback, l_block_collect_params);
+                DAP_DELETE(l_reward_group);
+            }
+        }
+    }
 }
 
 static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id,
@@ -362,42 +424,16 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
     pthread_mutex_unlock(&l_session->mutex);
     if (!PVT(l_session->esbocs)->collecting_addr)
         return;
-    dap_sign_t *l_sign = dap_chain_block_sign_get(a_atom, a_atom_size, 0);
-    if (dap_pkey_match_sign(PVT(l_session->esbocs)->block_sign_pkey, l_sign)) {
-        dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_last_block_hash);
-        assert(l_block_cache);
-        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        assert(l_net);
-        uint256_t l_value_fee = uint256_0;
-        dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(
-                                        l_net->pub.ledger, l_block_cache, &l_value_fee);
-        if (!IS_ZERO_256(l_value_fee)) {
-            char *l_fee_group = dap_chain_cs_blocks_get_fee_group(a_chain->net_name);
-            dap_global_db_set(l_fee_group, l_block_cache->block_hash_str, &l_value_fee, sizeof(l_value_fee),
-                              false, s_check_db_collect_callback, l_session);
-            DAP_DELETE(l_fee_group);
-        }
-        dap_list_free_full(l_list_used_out, NULL);
-    }
-    if (dap_chain_block_sign_match_pkey(a_atom, a_atom_size, PVT(l_session->esbocs)->block_sign_pkey)) {
-        dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_last_block_hash);
-        assert(l_block_cache);
-        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        assert(l_net);
-        if (!dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash,
-                                      &l_session->my_signing_addr.data.hash_fast)) {
-            uint256_t l_value_reward = a_chain->callback_calc_reward(a_chain, &l_block_cache->block_hash,
-                                                                     PVT(l_session->esbocs)->block_sign_pkey);
-            if (!IS_ZERO_256(l_value_reward)) {
-                char *l_reward_group = dap_chain_cs_blocks_get_reward_group(a_chain->net_name);
-                dap_global_db_set(l_reward_group, l_block_cache->block_hash_str, &l_value_reward, sizeof(l_value_reward),
-                                  false, s_check_db_collect_callback, l_session);
-                DAP_DELETE(l_reward_group);
-            }
-        }
-    }
+    dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
+            .collecting_level = PVT(l_session->esbocs)->collecting_level,
+            .minimum_fee = PVT(l_session->esbocs)->minimum_fee,
+            .chain = a_chain,
+            .blocks_sign_key = PVT(l_session->esbocs)->blocks_sign_key,
+            .block_sign_pkey = PVT(l_session->esbocs)->block_sign_pkey,
+            .collecting_addr = PVT(l_session->esbocs)->collecting_addr,
+            .cell_id = a_id
+    };
+    dap_chain_esbocs_add_block_collect(a_atom, a_atom_size, &l_block_collect_params,0);
 }
 
 bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id)
@@ -638,6 +674,15 @@ static uint256_t s_callback_get_minimum_fee(dap_chain_t *a_chain)
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
     return l_esbocs_pvt->minimum_fee;
+}
+
+static uint256_t s_callback_get_collectiong_level(dap_chain_t *a_chain)
+{
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+
+    return l_esbocs_pvt->collecting_level;
 }
 
 static dap_enc_key_t *s_callback_get_sign_key(dap_chain_t *a_chain)
