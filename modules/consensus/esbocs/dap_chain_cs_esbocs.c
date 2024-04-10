@@ -355,7 +355,7 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_t *a_block_ptr, size_t a
                                         dap_chain_esbocs_block_collect_t *a_block_collect_params,int a_type)
 {
     dap_hash_fast_t l_last_block_hash;
-    dap_chain_get_atom_last_hash(a_block_collect_params->chain, &l_last_block_hash,a_block_collect_params->cell_id);
+    dap_chain_get_atom_last_hash(a_block_collect_params->chain, a_block_collect_params->cell_id, &l_last_block_hash);
     dap_chain_t *l_chain = a_block_collect_params->chain;
     dap_sign_t *l_sign = dap_chain_block_sign_get(a_block_ptr, a_block_size, 0);
     if (dap_pkey_match_sign(a_block_collect_params->block_sign_pkey, l_sign)&&(!a_type||a_type==1)) {
