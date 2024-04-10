@@ -102,6 +102,7 @@ static size_t s_callback_atom_get_static_hdr_size(void);
 static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);
 static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
                                                                        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
+static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num);
 static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
                                                         dap_chain_hash_fast_t *a_block_hash, int *a_ret_code);
 
@@ -253,6 +254,7 @@ static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_c
     a_chain->callback_atom_get_timestamp = s_chain_callback_atom_get_timestamp;
 
     a_chain->callback_atom_find_by_hash = s_callback_atom_iter_find_by_hash;
+    a_chain->callback_atom_get_by_num = s_callback_atom_iter_get_by_num;
     a_chain->callback_datum_find_by_hash = s_callback_datum_find_by_hash;
 
     a_chain->callback_block_find_by_tx_hash = s_callback_block_find_by_tx_hash;
@@ -1465,6 +1467,28 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_ite
                                                  .cell_id = a_atom_iter->cell_id };
     if (a_atom_size)
         *a_atom_size = a_atom_iter->cur_size;
+    return a_atom_iter->cur;
+}
+
+static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num)
+{
+    assert(a_atom_iter);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
+    dap_chain_block_cache_t *l_block_cache = NULL;
+    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    for (l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next)
+        if (l_block_cache->block_number == a_atom_num)
+            break;
+    a_atom_iter->cur_item = l_block_cache;
+    if (l_block_cache) {
+        a_atom_iter->cur        = l_block_cache->block;
+        a_atom_iter->cur_size   = l_block_cache->block_size;
+        a_atom_iter->cur_hash   = &l_block_cache->block_hash;
+        a_atom_iter->cur_num    = l_block_cache->block_number;
+    } else
+        *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
+                                                 .cell_id = a_atom_iter->cell_id };
+    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     return a_atom_iter->cur;
 }
 

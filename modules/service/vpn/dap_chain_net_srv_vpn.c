@@ -200,7 +200,7 @@ static char* s_ch_vpn_get_my_pkey_str(dap_chain_net_srv_usage_t* a_usage);
 // Stream callbacks
 static void s_ch_vpn_new(dap_stream_ch_t* ch, void* arg);
 static void s_ch_vpn_delete(dap_stream_ch_t* ch, void* arg);
-static void s_ch_packet_in(dap_stream_ch_t* ch, void* a_arg);
+static bool s_ch_packet_in(dap_stream_ch_t* ch, void* a_arg);
 static bool s_ch_packet_out(dap_stream_ch_t* ch, void* arg);
 
 static void s_ch_vpn_esocket_assigned(dap_events_socket_t* a_es, dap_worker_t * l_worker);
@@ -1687,7 +1687,7 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_
  * @param ch
  * @param arg
  */
-void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
+static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
     dap_stream_ch_pkt_t * l_pkt = (dap_stream_ch_pkt_t *) a_arg;
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (a_ch->stream->session );
@@ -1698,7 +1698,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothing on this channel");
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-        return;
+        return false;
     }
 
     if ( ! l_usage->is_active ){
@@ -1707,7 +1707,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-        return;
+        return false;
     }
     // check role
     if (dap_chain_net_get_role(l_usage->net).enums > NODE_ROLE_MASTER) {
@@ -1720,7 +1720,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-        return;
+        return false;
     }
 
     // TODO move address leasing to this structure
@@ -1808,6 +1808,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 log_it(L_WARNING, "Can't process SF type 0x%02x", l_vpn_pkt->header.op_code);
         }
     }
+    return true;
 }
 
 /**
