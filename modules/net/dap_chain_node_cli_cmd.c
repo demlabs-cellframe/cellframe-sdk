@@ -215,7 +215,7 @@ static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, 
     size_t node_info_size = 0;
     dap_chain_node_info_t *node_info;
     // read node
-    node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
+    node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_net->pub.gdb_nodes - 6, l_key, &node_info_size, NULL, NULL);
 
     if(!node_info) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "node not found in base");
@@ -387,7 +387,7 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
     char *a_key = dap_chain_node_addr_to_hash_str(address);
     if(a_key){
         // delete node
-        int l_res = dap_global_db_del_sync(a_net->pub.gdb_nodes, a_key);
+        int l_res = dap_global_db_del_sync(a_net->pub.gdb_nodes, a_key) + dap_global_db_del_sync(a_net->pub.gdb_nodes - 6, a_key);
         if(l_res == 0) {
             // delete all aliases for node address
             {
@@ -634,7 +634,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
 
     } else { // Dump list with !a_addr && !a_alias
         size_t l_nodes_count = 0;
-        dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
+        dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes - 6, &l_nodes_count);
 
         if(!l_nodes_count || !l_objs) {
             dap_string_append_printf(l_string_reply, "No records\n");

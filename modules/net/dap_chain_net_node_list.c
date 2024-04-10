@@ -44,19 +44,21 @@ enum RetCode {
     ERR_UNKNOWN
 };
 
+static pthread_attr_t s_attr_detached;
+typedef struct hs_thread_arg {
+    dap_chain_node_info_t *node_info;
+    dap_chain_net_t *net;
+    char *group, *key;
+} hs_thread_arg_t;
+
 static int s_dap_chain_net_node_list_add_downlink(const char * a_group, const char *a_key, dap_chain_node_info_t * a_node_info) {
     char l_node_addr_str[INET_ADDRSTRLEN]={};
     inet_ntop(AF_INET, &a_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-    if (!dap_global_db_set_sync(a_group, a_key, (uint8_t*)a_node_info, sizeof(dap_chain_node_info_t), true)) {
-        log_it(L_DEBUG, "Add address"NODE_ADDR_FP_STR" (%s) to node list by "NODE_ADDR_FP_STR"",
+    dap_global_db_set(a_group, a_key, (uint8_t*)a_node_info, sizeof(dap_chain_node_info_t), true, NULL, NULL);
+    log_it(L_DEBUG, "Add address "NODE_ADDR_FP_STR" (%s) to node list by "NODE_ADDR_FP_STR"",
                     NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),l_node_addr_str,
                     NODE_ADDR_FP_ARGS_S(a_node_info->hdr.owner_address));
-        return ADD_OK;
-    } else {
-        log_it(L_ERROR, "Address"NODE_ADDR_FP_STR" (%s) not added",
-                    NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),l_node_addr_str);
-        return ERR_NOT_ADDED;
-    }
+    return ADD_OK;
 }
 
 /**
@@ -132,7 +134,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
                 if((l_node_info.hdr.links_number != l_node_inf_check->hdr.links_number) ||
                    (l_node_info.hdr.ext_addr_v4.s_addr != l_node_inf_check->hdr.ext_addr_v4.s_addr))
                 {
-                    dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
+                    //dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
                     response = s_dap_chain_net_node_list_add_downlink(l_net->pub.gdb_nodes,l_key,&l_node_info);
                 }
                 else
@@ -428,6 +430,21 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
     return ret;
 }
 
+static void* s_node_handshake_and_add(void *a_arg) {
+    hs_thread_arg_t *arg = (hs_thread_arg_t*)a_arg;
+    if ( dap_chain_net_balancer_handshake(arg->node_info, arg->net) ) {
+        s_dap_chain_net_node_list_add_downlink(arg->group, arg->key, arg->node_info);
+    } else {
+        char l_hostaddr[INET_ADDRSTRLEN] = { '\0' };
+        inet_ntop(AF_INET, &arg->node_info->hdr.ext_addr_v4, l_hostaddr, INET_ADDRSTRLEN);
+        log_it(L_ERROR, "Can't handshake with "NODE_ADDR_FP_STR" [%s]", NODE_ADDR_FP_ARGS_S(arg->node_info->hdr.address), l_hostaddr);
+    }
+    DAP_DELETE(arg->key);
+    DAP_DELETE(arg->node_info);
+    DAP_DELETE(arg);
+    return NULL;
+}
+
 static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
 {
     if (!a_arg || !a_obj || !a_obj->key)
@@ -438,28 +455,42 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
     if (!dap_strcmp(a_obj->group, l_net->pub.gdb_nodes)) {
         if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD) {
             dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
-            if(l_node_info->hdr.owner_address.uint64 == 0){
-                log_it(L_NOTICE, "Node %s removed, there is not pinners", a_obj->key);
-                dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
+            char l_hostaddr[INET_ADDRSTRLEN] = { '\0' };
+            inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_hostaddr, INET_ADDRSTRLEN);
+            if(l_node_info->hdr.owner_address.uint64 == 0 || l_hostaddr[0] == '0' || l_node_info->hdr.ext_port == 0){
+                log_it(L_NOTICE, "Node %s removed, invalid record", a_obj->key);
+                dap_store_obj_t store_data = {
+                    .key    = a_obj->key,
+                    .group  = a_obj->group
+                };
+                //dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
+                dap_global_db_driver_delete(&store_data, 1);
             } else {
-                char l_node_ipv4_str[INET_ADDRSTRLEN]={ '\0' }, l_node_ipv6_str[INET6_ADDRSTRLEN]={ '\0' };
-                inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
-                inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
-                char l_ts[128] = { '\0' };
-                dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
-
-                log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" %s %u, pinned by "NODE_ADDR_FP_STR" at %s",
-                                         NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
-                                         l_node_ipv4_str, l_node_info->hdr.ext_port,
-                                         NODE_ADDR_FP_ARGS_S(l_node_info->hdr.owner_address),
-                                         l_ts);
+                dap_nanotime_t l_local_ts;
+                dap_chain_node_info_t *l_rec = (dap_chain_node_info_t*)dap_global_db_get_sync(l_net->pub.gdb_nodes - 6, a_obj->key, NULL, NULL, &l_local_ts);
+                if ( !l_rec || dap_nanotime_to_sec(dap_nanotime_now()) - dap_nanotime_to_sec(l_local_ts) >= 24 * 3600 ) {
+                    if (l_node_info->hdr.owner_address.uint64 == dap_chain_net_get_cur_addr_int(l_net)) {
+                        dap_global_db_set_sync(l_net->pub.gdb_nodes - 6, a_obj->key, (byte_t*)l_node_info, sizeof(*l_node_info), true);
+                    } else {
+                        if ( !dap_chain_net_find_link(l_net, l_node_info) ) {
+                            pthread_t l_thr;
+                            hs_thread_arg_t *targ = DAP_NEW(hs_thread_arg_t);
+                            *targ = (hs_thread_arg_t) {.node_info = DAP_DUP(l_node_info), .net = l_net, .group = l_net->pub.gdb_nodes - 6, .key = dap_strdup(a_obj->key) };
+                            pthread_create(&l_thr, &s_attr_detached, s_node_handshake_and_add, targ);
+                        }
+                    }
+                } else if (l_rec)
+                    DAP_DELETE(l_rec);
             }
-        }
+        } else if (a_obj->type == DAP_DB$K_OPTYPE_DEL)
+            dap_global_db_del_sync(l_net->pub.gdb_nodes - 6, a_obj->key);
     }
 }
 
 int dap_chain_net_node_list_init()
 {
+    pthread_attr_init(&s_attr_detached);
+    pthread_attr_setdetachstate(&s_attr_detached, PTHREAD_CREATE_DETACHED);
     uint16_t l_net_count = 0;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (uint16_t i = 0; i < l_net_count; i++) {
@@ -468,4 +499,3 @@ int dap_chain_net_node_list_init()
     DAP_DELETE(l_net_list);
     return 0;
 }
-
