@@ -251,7 +251,7 @@ json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote, d
     json_object *l_voting_hash = json_object_new_string(l_voting_hash_str);
     DAP_DELETE(l_voting_hash_str);
     json_object *l_answer_idx = json_object_new_uint64(a_vote->answer_idx);
-    char *l_answer_text_str = s_get_vote_answer_text(&a_vote->voting_hash, a_vote->answer_idx, a_ledger);
+    const char *l_answer_text_str = s_get_vote_answer_text(&a_vote->voting_hash, a_vote->answer_idx, a_ledger);
     json_object *l_answer_text = NULL;
     if (!l_answer_text_str) {
         l_answer_text = json_object_new_string("{UNDEFINED}");

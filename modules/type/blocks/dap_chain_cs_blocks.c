@@ -1080,11 +1080,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
                 l_addr = dap_chain_addr_from_str(l_addr_str);
                 if(!l_cert_name) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-cert'", l_subcmd_str);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-cert'");
                     return -20;
                 }
                 if (!l_addr_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-addr'", l_addr_str);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-addr'");
                     return -20;
                 }
                 dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
@@ -1099,8 +1099,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     return -20;
                 }
                 dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
-                        .collecting_level = l_chain->callback_get_collectiong_level,
-                        .minimum_fee = l_chain->callback_get_minimum_fee,
+                        .collecting_level = l_chain->callback_get_collectiong_level(l_chain),
+                        .minimum_fee = l_chain->callback_get_minimum_fee(l_chain),
                         .chain = l_chain,
                         .blocks_sign_key = l_cert->enc_key,
                         .block_sign_pkey = l_pub_key,
