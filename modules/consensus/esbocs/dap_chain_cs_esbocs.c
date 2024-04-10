@@ -482,6 +482,8 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     l_session->my_signing_addr = l_my_signing_addr;
+// TODO make correct link management w/o global DB cluster
+#ifdef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
     char *l_sync_group = s_get_penalty_group(l_net->pub.id);
     l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
                                                       dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_ESBOCS),
@@ -489,6 +491,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_ROLE_AUTONOMIC);
     DAP_DELETE(l_sync_group);
     dap_global_db_cluster_add_notify_callback(l_session->db_cluster, s_db_change_notifier, l_session);
+#endif
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_session->db_cluster->links_cluster);
 
     for (dap_list_t *it = l_validators; it; it = it->next) {
@@ -1158,8 +1161,10 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         a_session->cur_round.attempt_submit_validator = l_validator->signing_addr;
         if (dap_chain_addr_compare(&a_session->cur_round.attempt_submit_validator, &a_session->my_signing_addr)) {
             dap_chain_esbocs_directive_t *l_directive = NULL;
+#ifdef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
             if (!a_session->cur_round.directive && !PVT(a_session->esbocs)->emergency_mode)
                 l_directive = s_session_directive_ready(a_session);
+#endif
             if (l_directive) {
                 dap_hash_fast_t l_directive_hash;
                 dap_hash_fast(l_directive, l_directive->size, &l_directive_hash);
@@ -2301,6 +2306,10 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
     } break;
 
     case DAP_CHAIN_ESBOCS_MSG_TYPE_DIRECTIVE: {
+#ifndef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
+        debug_if(l_cs_debug, L_MSG, "Directive processing is disabled");
+        break;
+#endif
         if (l_session->cur_round.directive) {
             log_it(L_WARNING, "Only one directive can be processed by round");
             break;
@@ -2337,6 +2346,10 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
 
     case DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR:
     case DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST: {
+#ifndef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
+        debug_if(l_cs_debug, L_MSG, "Directive processing is disabled");
+        break;
+#endif
         if (dap_hash_fast_is_blank(l_candidate_hash)) {
             log_it(L_WARNING, "Receive VOTE %s for empty directive",
                                     l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR ?

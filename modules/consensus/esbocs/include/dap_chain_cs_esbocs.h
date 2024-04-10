@@ -49,6 +49,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_BLOCKS_SESSION_ROUND_ID_SIZE		8
 #define DAP_CHAIN_BLOCKS_SESSION_MESSAGE_ID_SIZE	8
 
+#define DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT     // Uncomment it for enable directve supporting
 #define DAP_CHAIN_ESBOCS_DIRECTIVE_VERSION          1
 #define DAP_CHAIN_ESBOCS_DIRECTIVE_KICK             0x10
 #define DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT             0x11
