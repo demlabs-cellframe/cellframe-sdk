@@ -680,14 +680,19 @@ void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_not
  * @param a_atom_hash
  * @return
  */
-bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_hash, dap_chain_cell_id_t a_cell_id)
+bool dap_chain_get_atom_last_hash_num(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash, uint64_t *a_atom_num)
 {
-    dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, a_cell_id, false);
+    dap_return_val_if_fail(a_atom_hash || a_atom_num, false);
+    dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, a_cell_id, NULL);
+    if (!l_iter)
+        return false;
     a_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_LAST, NULL);
-    *a_atom_hash = l_iter->cur_hash ? *l_iter->cur_hash : (dap_hash_fast_t){0};
-    bool l_ret = l_iter->cur_hash;
+    if (a_atom_hash)
+        *a_atom_hash = l_iter->cur_hash ? *l_iter->cur_hash : (dap_hash_fast_t){0};
+    if (a_atom_num)
+        *a_atom_num = l_iter->cur_num;
     a_chain->callback_atom_iter_delete(l_iter);
-    return l_ret;
+    return true;
 }
 
 struct chain_thread_notifier {

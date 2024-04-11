@@ -95,6 +95,7 @@ typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)(void);
 typedef dap_chain_atom_iter_t * (*dap_chain_callback_atom_iter_create_t)(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_t)(dap_chain_atom_iter_t *a_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size);
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_find_by_hash_t)(dap_chain_atom_iter_t *a_iter, dap_hash_fast_t *a_atom_hash, size_t *a_atom_size);
+typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_by_num_t)(dap_chain_atom_iter_t *a_iter, uint64_t a_atom_num);
 typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *);
 
 typedef dap_chain_datum_iter_t * (*dap_chain_datum_callback_iter_create_t)(dap_chain_t *);
@@ -119,6 +120,7 @@ typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t 
 typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *count_verify);
 typedef void (*dap_chain_callback_set_min_validators_count)(dap_chain_t *a_chain,  uint16_t a_new_value);
 typedef uint256_t (*dap_chain_callback_get_minimum_fee)(dap_chain_t *a_chain);
+typedef uint256_t (*dap_chain_callback_get_collectiong_level)(dap_chain_t *a_chain);
 typedef dap_enc_key_t* (*dap_chain_callback_get_signing_certificate)(dap_chain_t *a_chain);
 typedef void (*dap_chain_callback_load_from_gdb)(dap_chain_t *a_chain);
 typedef uint256_t (*dap_chain_callback_calc_reward)(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
@@ -178,6 +180,7 @@ typedef struct dap_chain {
     dap_chain_callback_atom_get_timestamp_t callback_atom_get_timestamp;
 
     dap_chain_callback_atom_iter_find_by_hash_t callback_atom_find_by_hash;
+    dap_chain_callback_atom_iter_get_by_num_t callback_atom_get_by_num;
     dap_chain_callback_datum_find_by_hash_t callback_datum_find_by_hash;
 
     dap_chain_callback_block_find_by_hash_t callback_block_find_by_tx_hash;
@@ -197,6 +200,7 @@ typedef struct dap_chain {
     dap_chain_callback_get_poa_certs callback_get_poa_certs;
     dap_chain_callback_set_min_validators_count callback_set_min_validators_count;
     dap_chain_callback_get_minimum_fee callback_get_minimum_fee;
+    dap_chain_callback_get_collectiong_level callback_get_collectiong_level;
     dap_chain_callback_get_signing_certificate callback_get_signing_certificate;
     dap_chain_callback_calc_reward callback_calc_reward;
     dap_chain_callback_load_from_gdb callback_load_from_gdb;
@@ -258,7 +262,11 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 void dap_chain_delete(dap_chain_t * a_chain);
 void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_notify_t a_callback, void * a_arg);
 dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
-bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_hash, dap_chain_cell_id_t a_cell_id);
+bool dap_chain_get_atom_last_hash_num(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash, uint64_t *a_atom_num);
+DAP_STATIC_INLINE bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash)
+{
+    return dap_chain_get_atom_last_hash_num(a_chain, a_cell_id, a_atom_hash, NULL);
+}
 ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size, dap_hash_fast_t *a_new_atom_hash);
 int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name);
 const char* dap_chain_get_path(dap_chain_t *a_chain);

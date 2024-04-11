@@ -496,7 +496,7 @@ dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
     dap_string_t *l_ret = dap_string_new(l_links_info_list ?
         "-----------------------------------------------------------------\n"
         "|\t\tNode addr\t|\tHost addr\t\t|\n"
-        "--Send in balancer http response---------------------------------\n" : "Empty");
+        "--Send in balancer http response---------------------------------\n" : "Empty\n");
     uint64_t l_node_num = l_links_info_list ? l_links_info_list->count_node : 0;
     for (uint64_t i = 0; i < l_node_num; ++i) {
         dap_link_info_t *l_link_info = (dap_link_info_t *)l_links_info_list->nodes_info + i;

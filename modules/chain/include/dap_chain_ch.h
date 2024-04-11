@@ -50,13 +50,16 @@ typedef enum dap_chain_ch_state {
 typedef enum dap_chain_ch_error_type {
     DAP_CHAIN_CH_ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS,
     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE,
+    DAP_CHAIN_CH_ERROR_SYNC_TIMEOUT,
     DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE,
     DAP_CHAIN_CH_ERROR_NET_INVALID_ID,
     DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND,
     DAP_CHAIN_CH_ERROR_ATOM_NOT_FOUND,
     DAP_CHAIN_CH_ERROR_UNKNOWN_CHAIN_PKT_TYPE,
     DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED,
-    DAP_CHAIN_CH_ERROR_NET_IS_OFFLINE
+    DAP_CHAIN_CH_ERROR_NET_IS_OFFLINE,
+    DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY,
+    DAP_CHAIN_CH_ERROR_INTERNAL
 } dap_chain_ch_error_type_t;
 
 typedef struct dap_chain_ch dap_chain_ch_t;
@@ -68,7 +71,7 @@ typedef struct dap_chain_pkt_item {
     byte_t *pkt_data;
 } dap_chain_pkt_item_t;
 
-typedef struct dap_chain_ch_hash_item{
+typedef struct dap_chain_ch_hash_item {
     dap_hash_fast_t hash;
     uint32_t size;
     UT_hash_handle hh;
@@ -92,17 +95,13 @@ typedef struct dap_chain_ch {
     // request section
     dap_chain_atom_iter_t *request_atom_iter;
     //dap_db_log_list_t *request_db_log; // list of global db records
-    dap_chain_ch_sync_request_t request;
+    dap_chain_ch_sync_request_old_t request;
     dap_chain_ch_pkt_hdr_t request_hdr;
     dap_list_t *request_db_iter;
 
     uint32_t timer_shots;
     dap_timerfd_t *activity_timer;
     int sent_breaks;
-
-    dap_chain_ch_callback_packet_t callback_notify_packet_out;
-    dap_chain_ch_callback_packet_t callback_notify_packet_in;
-    void *callback_notify_arg;
 } dap_chain_ch_t;
 
 #define DAP_CHAIN_CH(a) ((dap_chain_ch_t *) ((a)->internal) )
@@ -114,4 +113,5 @@ int dap_chain_ch_init(void);
 void dap_chain_ch_deinit(void);
 
 void dap_chain_ch_timer_start(dap_chain_ch_t *a_ch_chain);
-void dap_chain_ch_reset_unsafe(dap_chain_ch_t *a_ch_chain);
+
+void dap_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net_id, uint64_t a_chain_id, uint64_t a_cell_id, dap_chain_ch_error_type_t a_error);

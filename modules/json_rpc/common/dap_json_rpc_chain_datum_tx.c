@@ -10,6 +10,7 @@
 #include "dap_json_rpc_chain_datum_tx_receipt.h"
 #include "json.h"
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_chain_net.h"
 
 #define LOG_TAG "dap_json_rpc_chain_datum_tx"
 
@@ -110,7 +111,8 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx,dap_chain_net
                 break;
             case TX_ITEM_TYPE_VOTE:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_VOTE");
-                l_obj_item_data = dap_chain_datum_tx_item_vote_to_json((dap_chain_tx_vote_t*)item);
+                dap_chain_net_t *l_net = dap_chain_net_by_id(*a_net_id);
+                l_obj_item_data = dap_chain_datum_tx_item_vote_to_json((dap_chain_tx_vote_t*)item, l_net->pub.ledger);
             break;
             case TX_ITEM_TYPE_VOTING:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_VOTING");
