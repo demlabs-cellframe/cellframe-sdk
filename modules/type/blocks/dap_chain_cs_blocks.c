@@ -459,7 +459,7 @@ static void s_cli_meta_hex_print(  dap_string_t * a_str_tmp, const char * a_meta
 static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_reply_str, const char *a_table_name)
 {
     bool l_status = dap_chain_esbocs_get_autocollect_status(a_net->pub.id);
-    dap_string_append_printf(a_reply_str, "\nAutocollect status for network %s is %s\n", a_net->pub.name,
+    dap_string_append_printf(a_reply_str, "\nAutocollect status for %s in network %s is %s\n", a_table_name, a_net->pub.name,
                                         l_status ? "active" : "inactive, cause the network config or consensus starting problems");
     if (!l_status)
         return;
@@ -488,7 +488,7 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
             dap_pkey_t *l_my_sign_pkey = dap_chain_esbocs_get_sign_pkey(a_net->pub.id);
             dap_hash_t l_my_sign_pkey_hash;
             dap_hash_fast(l_my_sign_pkey->pkey, l_my_sign_pkey->header.size, &l_my_sign_pkey_hash);
-            dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_my_sign_pkey_hash);
+            dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_net->pub.id, &l_my_sign_pkey_hash);
             if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
                     !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
                 MULT_256_COIN(l_collect_value, l_key_item->sovereign_tax, &l_collect_tax);

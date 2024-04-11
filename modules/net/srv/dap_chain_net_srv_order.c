@@ -679,7 +679,7 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
         DAP_DEL_Z(l_order);
         DAP_DELETE(l_gdb_group_str);
     }
-    return l_ret;
+    return l_is_search ? l_ret: -3;
 }
 
 /**

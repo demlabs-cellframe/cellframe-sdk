@@ -215,7 +215,7 @@ static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, 
     size_t node_info_size = 0;
     dap_chain_node_info_t *node_info;
     // read node
-    node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
+    node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_net->pub.gdb_nodes - 6, l_key, &node_info_size, NULL, NULL);
 
     if(!node_info) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "node not found in base");
@@ -387,7 +387,7 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
     char *a_key = dap_chain_node_addr_to_hash_str(address);
     if(a_key){
         // delete node
-        int l_res = dap_global_db_del_sync(a_net->pub.gdb_nodes, a_key);
+        int l_res = dap_global_db_del_sync(a_net->pub.gdb_nodes, a_key) + dap_global_db_del_sync(a_net->pub.gdb_nodes - 6, a_key);
         if(l_res == 0) {
             // delete all aliases for node address
             {
@@ -634,7 +634,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
 
     } else { // Dump list with !a_addr && !a_alias
         size_t l_nodes_count = 0;
-        dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
+        dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes - 6, &l_nodes_count);
 
         if(!l_nodes_count || !l_objs) {
             dap_string_append_printf(l_string_reply, "No records\n");
@@ -2097,6 +2097,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 struct dirent * l_dir_entry = NULL;
 
                 while( (l_dir_entry = readdir(l_dir)) ) {
+                    if (dap_strcmp(l_dir_entry->d_name, "..") == 0 || dap_strcmp(l_dir_entry->d_name, ".") == 0)
+                        continue;
                     json_object * json_obj_wall = json_object_new_object();
                     if (!json_obj_wall) {
                         json_object_put(json_arr_out);
@@ -2131,7 +2133,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                         } else{
                             json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
-                            if(res==4)json_object_object_add(json_obj_wall, "status", json_object_new_string("protected-incative"));
+                            if(res==4)json_object_object_add(json_obj_wall, "status", json_object_new_string("protected-inactive"));
                             else if(res != 0)json_object_object_add(json_obj_wall, "status", json_object_new_string("invalid"));
                         }
                     } else if ((l_file_name_len > 7) && (!strcmp(l_file_name + l_file_name_len - 7, ".backup"))) {
@@ -2193,7 +2195,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 json_object_object_add(json_obj_wall, "sign", json_object_new_string(
                                                                   strlen(dap_chain_wallet_check_sign(l_wallet))!=0 ?
                                                                   dap_chain_wallet_check_sign(l_wallet) : "correct"));
-                json_object_object_add(json_obj_wall, "nwallet", json_object_new_string(l_wallet->name));
+                json_object_object_add(json_obj_wall, "wallet", json_object_new_string(l_wallet->name));
             }
             json_object_object_add(json_obj_wall, "addr", (l_l_addr_str) ? json_object_new_string(l_l_addr_str) : json_object_new_string("-"));
             json_object_object_add(json_obj_wall, "network", (l_net_name) ? json_object_new_string(l_net_name) : json_object_new_string("-"));
@@ -2263,7 +2265,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     switch (l_rc) {
                     case 0:
                         json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet_name));
-                        json_object_object_add(json_obj_wall, "protection", CMD_WALLET_ACTIVATE ?
+                        json_object_object_add(json_obj_wall, "protection", cmd_num == CMD_WALLET_ACTIVATE ?
                         json_object_new_string("is activated") : json_object_new_string("is deactivated"));
                         break;
                     case -EBUSY:
@@ -3699,7 +3701,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         json_object_array_add(*a_json_reply, l_jobj_datum);
         return 0;
     } else {
-        l_find_bool = json_object_new_boolean(TRUE);
+        l_find_bool = json_object_new_boolean(FALSE);
         if (!l_find_bool) {
             json_object_put(l_jobj_datum);
             dap_json_rpc_allocation_error;
@@ -7910,7 +7912,7 @@ int cmd_remove(int a_argc, char **a_argv, void ** reply)
        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error when deleting, because:\n%s", return_message);
     }
     else if (successful) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Successful removal: %s %s", successful & REMOVED_GDB ? "gdb" : "-", successful & REMOVED_CHAINS ? "chains" : "-");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Successful removal: %s", (successful & REMOVED_GDB && successful & REMOVED_CHAINS) ? "gdb, chains" : successful & REMOVED_GDB ? "gdb" : successful & REMOVED_CHAINS ? "chains" : "");
     } else {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Nothing to delete. Check if the command is correct.\nUse flags: -gdb or/and -chains [-net <net_name> | -all]\n"
                                                        "Be careful, the '-all' option will delete ALL CHAINS and won't ask you for permission!");

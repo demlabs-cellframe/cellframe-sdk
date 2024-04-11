@@ -3266,9 +3266,9 @@ dap_hash_fast_t* dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_
         dap_chain_tx_out_cond_t *l_out_cond_temp = dap_chain_datum_tx_out_cond_get(l_prev_tx_temp, l_type, NULL);
         if (l_out_cond_temp){
             l_item_idx = l_in_cond_temp->header.tx_out_prev_idx;
-            l_prev_tx = l_prev_tx_temp;
             l_hash = l_in_cond_temp->header.tx_prev_hash;
         }
+        l_prev_tx = l_prev_tx_temp;
     }
 
     if(l_prev_tx && !dap_hash_fast_is_blank(&l_hash)){
@@ -4088,7 +4088,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
     }
 
-    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_tx_first_sign_pkey_hash);
+    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_ledger->net->pub.id, &l_tx_first_sign_pkey_hash);
     bool l_tax_check = l_key_item && !dap_chain_addr_is_blank(&l_key_item->sovereign_addr) && !IS_ZERO_256(l_key_item->sovereign_tax);
 
     // find 'out' items
@@ -4817,7 +4817,7 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
 {
     if (dap_chain_net_get_load_mode(a_ledger->net)) {
         if (PVT(a_ledger)->cache_tx_check_callback)
-            PVT(a_ledger)->cache_tx_check_callback(a_tx_hash);
+            PVT(a_ledger)->cache_tx_check_callback(a_ledger, a_tx_hash);
         dap_ledger_tx_item_t *l_tx_item;
         unsigned l_hash_value;
         HASH_VALUE(a_tx_hash, sizeof(dap_chain_hash_fast_t), l_hash_value);
