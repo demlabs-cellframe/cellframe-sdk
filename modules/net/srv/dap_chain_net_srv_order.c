@@ -605,11 +605,11 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
  */
 int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, const char *a_hash_str, dap_enc_key_t *a_key)
 {
-    int l_ret = -3;
+    int l_ret = -2;
+    bool l_is_found = false;
     if(!a_key){
         return l_ret;
     }
-    l_ret = -2;
     dap_chain_net_srv_order_t *l_order = NULL;
     for (int i = 0; a_net && a_hash_str && i < 2; i++) {
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
@@ -619,9 +619,10 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
         byte_t *l_gdb_order = dap_global_db_get_sync(l_gdb_group_str, a_hash_str, &l_order_size, NULL, NULL);
         if (!l_gdb_order){
             DAP_DELETE(l_gdb_group_str);
+            log_it(L_NOTICE, "In group %s not found record with %s key", l_gdb_group_str, a_hash_str);
             continue;
         }
-            
+        l_is_found = true;    
         // check order size
         size_t l_expected_size = dap_chain_net_srv_order_get_size((dap_chain_net_srv_order_t *)l_gdb_order);
         if (l_order_size != l_expected_size) {
@@ -679,7 +680,8 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
         DAP_DEL_Z(l_order);
         DAP_DELETE(l_gdb_group_str);
     }
-    return l_is_search ? l_ret: -3;
+
+    return l_is_found ? l_ret: -3;
 }
 
 /**
