@@ -323,9 +323,9 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     char l_issue_method = 0;
     const char l_net_token[] = "net=";
     const char l_ignored_token[] = "ignored=";
-    uint16_t links_need = 0;
+    uint16_t l_links_need = 0;
     sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,needlink=%hu",
-                                                            &l_protocol_version, &l_issue_method, &links_need);
+                                                            &l_protocol_version, &l_issue_method, &l_links_need);
     if (l_protocol_version > DAP_BALANCER_PROTOCOL_VERSION || l_protocol_version < 1 || l_issue_method != 'r') {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_balancer module");
         *l_return_code = Http_Status_MethodNotAllowed;
@@ -338,7 +338,6 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
         return;
     }
     l_net_str += sizeof(l_net_token) - 1;
-    links_need = links_need ? links_need : s_max_links_response_count;
 
     char *l_ignored_str = NULL;
     if (l_protocol_version > 1) {
@@ -352,7 +351,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
         l_ignored_str += sizeof(l_ignored_token) - 1;
     } 
     log_it(L_DEBUG, "HTTP balancer parser retrieve netname %s", l_net_str);
-    dap_chain_net_links_t *l_link_full_node_list = s_balancer_issue_link(l_net_str, links_need, l_protocol_version, l_ignored_str);
+    dap_chain_net_links_t *l_link_full_node_list = s_balancer_issue_link(l_net_str, l_links_need, l_protocol_version, l_ignored_str);
     if (!l_link_full_node_list) {
         log_it(L_WARNING, "Can't issue link for network %s, no acceptable links found", l_net_str);
         *l_return_code = Http_Status_NotFound;
@@ -430,10 +429,10 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, dap_link_info_t *a_ba
         .required_links_count = l_required_links_count
     };
     log_it(L_DEBUG, "Start balancer %s request to %s:%u",
-           a_balancer_type == 0 ? "HTTP" : "DNS", l_balancer_request->info->uplink_addr, l_balancer_request->info->uplink_port);
+           dap_chain_net_balancer_type_to_str(a_balancer_type), l_balancer_request->info->uplink_addr, l_balancer_request->info->uplink_port);
     
     int ret;
-    if (a_balancer_type == 0) {
+    if (a_balancer_type == DAP_CHAIN_NET_BALANCER_TYPE_HTTP) {
         char *l_ignored_addrs_str = NULL;
         if (l_ignored_addrs) {
             DAP_NEW_Z_SIZE_RET_VAL(
@@ -476,7 +475,7 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, dap_link_info_t *a_ba
                                                 l_balancer_request); */ -1;
     }
     if (ret) {
-        log_it(L_ERROR, "Can't process balancer link %s request", a_balancer_type == 0 ? "HTTP" : "DNS");
+        log_it(L_ERROR, "Can't process balancer link %s request", dap_chain_net_balancer_type_to_str(a_balancer_type));
         return -6;
     }
     return 0;

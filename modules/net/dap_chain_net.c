@@ -169,7 +169,7 @@ typedef struct dap_chain_net_pvt{
 
     dap_chain_node_info_t *node_info;  // Current node's info
 
-    int balancer_type;
+    dap_balancer_type_t balancer_type;
     bool load_mode;
 
     uint16_t permanent_links_count;
@@ -562,12 +562,12 @@ int s_link_manager_link_request(uint64_t a_net_id)
         return -2;
     if (l_net_pvt->state == NET_STATE_LINKS_PREPARE)
         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
-    dap_link_info_t *a_balancer_link = s_balancer_link_from_cfg(l_net);
-    if (!a_balancer_link) {
-        log_it(L_ERROR, "Can't process balancer link %s request", PVT(l_net)->balancer_type == 0 ? "HTTP" : "DNS");
+    dap_link_info_t *l_balancer_link = s_balancer_link_from_cfg(l_net);
+    if (!l_balancer_link) {
+        log_it(L_ERROR, "Can't process balancer link %s request", dap_chain_net_balancer_type_to_str(PVT(l_net)->balancer_type));
         return -5;
     }
-    return dap_chain_net_balancer_request(l_net, a_balancer_link, PVT(l_net)->balancer_type);
+    return dap_chain_net_balancer_request(l_net, l_balancer_link, PVT(l_net)->balancer_type);
 }
 
 int s_link_manager_fill_net_info(dap_link_t *a_link)

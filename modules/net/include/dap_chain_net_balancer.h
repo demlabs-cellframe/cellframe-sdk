@@ -35,6 +35,21 @@ typedef struct dap_chain_net_links {
     byte_t nodes_info[];
 } DAP_ALIGN_PACKED dap_chain_net_links_t;
 
+typedef enum dap_balancer_type {
+    DAP_CHAIN_NET_BALANCER_TYPE_HTTP,
+    DAP_CHAIN_NET_BALANCER_TYPE_DNS
+} dap_balancer_type_t;
+
+
+DAP_STATIC_INLINE const char *dap_chain_net_balancer_type_to_str(dap_balancer_type_t a_type)
+{
+    switch (a_type) {
+        case DAP_CHAIN_NET_BALANCER_TYPE_HTTP: return "HTTP";
+        case DAP_CHAIN_NET_BALANCER_TYPE_DNS: return "DNS";
+        default: return "UNDEFINED";//DAP_ENC_KEY_TYPE_NULL;
+    }
+}
+
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
 dap_link_info_t *dap_chain_net_balancer_dns_issue_link(const char *a_net_name);
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t * a_net);
