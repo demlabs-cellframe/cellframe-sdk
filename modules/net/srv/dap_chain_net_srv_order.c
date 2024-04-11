@@ -644,7 +644,6 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
         dap_pkey_t *l_pkey_new = dap_pkey_from_enc_key(a_key);
         if(!l_pkey_new){
             DAP_DEL_Z(l_order);
-            DAP_DELETE(l_gdb_order);
             DAP_DELETE(l_gdb_group_str);
             continue;
         }
@@ -653,7 +652,6 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
         if (dap_pkey_compare_with_sign(l_pkey_new, (dap_sign_t*)(l_order->ext_n_sign + l_order->ext_size))){
             log_it(L_ERROR, "Pkeys in cert and order sign doesn't match");
             DAP_DEL_Z(l_order);
-            DAP_DELETE(l_gdb_order);
             DAP_DELETE(l_gdb_group_str);
             continue;
         }
@@ -665,7 +663,6 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
         dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
         if (!l_sign) {
             DAP_DEL_Z(l_order);
-            DAP_DELETE(l_gdb_order);
             DAP_DELETE(l_gdb_group_str);
             continue;
         }
