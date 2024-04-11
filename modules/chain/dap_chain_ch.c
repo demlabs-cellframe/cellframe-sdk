@@ -1438,11 +1438,11 @@ static bool s_sync_timer_callback(void *a_arg)
                             " chain 0x%016" DAP_UINT64_FORMAT_x " cell 0x%016" DAP_UINT64_FORMAT_x,
                                         NODE_ADDR_FP_ARGS_S(l_context->addr), l_context->net_id.uint64,
                                         l_context->chain_id.uint64, l_context->cell_id.uint64);
+        l_ch_chain->sync_timer = NULL;      // Preserve timer removing from s_ch_chain_go_idle()
         dap_stream_ch_write_error_unsafe(DAP_STREAM_CH(l_ch_chain), l_context->net_id.uint64,
                                          l_context->chain_id.uint64, l_context->cell_id.uint64,
                                          DAP_CHAIN_CH_ERROR_SYNC_TIMEOUT);
-        l_ch_chain->sync_timer = NULL;
-        s_ch_chain_go_idle(l_ch_chain);
+
         return false;
     }
     return true;
