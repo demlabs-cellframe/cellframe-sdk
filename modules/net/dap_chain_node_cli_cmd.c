@@ -240,20 +240,6 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
  * @param a_str_reply
  * @return int 0 Ok, -1 error
  */
-static int s_node_info_dump_with_reply(dap_chain_net_t *a_net, dap_chain_node_addr_t a_addr, void **a_str_reply)
-{
-    return 0;
-}
-
-/**
- * @brief s_node_info_list_with_reply Handler of command 'node dump'
- * @param a_net
- * @param a_addr
- * @param a_is_full
- * @param a_alias
- * @param a_str_reply
- * @return int 0 Ok, -1 error
- */
 static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_addr_t * a_addr, bool a_is_full,
         const char *a_alias, void **a_str_reply)
 {

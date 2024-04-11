@@ -48,7 +48,7 @@
 #include "dap_chain_cell.h"
 #include "dap_chain_ledger.h"
 
-#define LOG_TAG "chain_node"
+#define LOG_TAG "dap_chain_node"
 
 typedef struct dap_chain_node_net_states_info {
     dap_chain_node_addr_t address;
@@ -69,16 +69,13 @@ static _Thread_local dap_chain_net_t *s_checked_net = NULL;
  */
 static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 {
-    // s_chain_fill();
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
-        if(dap_chain_net_get_state(l_net) != NET_STATE_OFFLINE ) {
+        dap_chain_t *l_chain = NULL;
+        if(dap_chain_net_get_state(l_net) != NET_STATE_OFFLINE && (l_chain = dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 1 })) ) {
             size_t
                 l_uplinks_count = 0,
                 l_downlinks_count = 0,
                 l_info_size = 0;
-            dap_chain_t *l_chain = dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 1 });
-            dap_cert_t *l_cert = dap_cert_find_by_name(DAP_STREAM_NODE_ADDR_CERT_NAME);
-            dap_return_if_pass(!l_chain || !l_cert);
         // memory alloc first
             dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, false);
             dap_chain_node_net_states_info_t *l_info = NULL;
