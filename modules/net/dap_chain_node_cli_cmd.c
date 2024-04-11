@@ -2481,6 +2481,8 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
         dap_string_t* l_net_str = dap_cli_list_net();
         l_str_to_reply = dap_strcat2(l_str_to_reply,l_net_str->str);
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND, "%s can't find network \"%s\"\n%s", a_argv[0], l_net_str->str, l_str_to_reply);
+        DAP_DELETE(l_str_to_reply);
+        dap_string_free(l_net_str, true);
         return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND;
     }
 
@@ -2505,6 +2507,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
                     l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
                 }
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND, l_str_to_reply);
+                DAP_DELETE(l_str_to_reply);
                 return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND;
             }
         }
@@ -2557,6 +2560,8 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
         dap_string_t* l_net_str = dap_cli_list_net();
         l_str_to_reply = dap_strcat2(l_str_to_reply,l_net_str->str);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
+        DAP_DELETE(l_str_to_reply);
+        dap_string_free(l_net_str, true);
         return -102;
     }
 
@@ -2581,6 +2586,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                         l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
                 }
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
+                DAP_DELETE(l_str_to_reply);
                 return -103;
             }
         }
