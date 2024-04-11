@@ -821,8 +821,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 #endif
         if (l_data_obj_count) {
             debug_if(s_debug_more && l_data_obj_count < l_initial_count, L_INFO, "Only %zu / %zu of records will be applied", l_data_obj_count, l_initial_count);
-            //dap_global_db_remote_apply_obj(l_store_obj, l_data_obj_count, s_gdb_in_pkt_proc_set_raw_callback, l_sync_request);
-            dap_global_db_remote_apply_obj_unsafe(dap_global_db_context_get_default(), l_store_obj, l_data_obj_count, s_gdb_in_pkt_proc_set_raw_callback, l_sync_request);
+            dap_global_db_remote_apply_obj(l_store_obj, l_data_obj_count, s_gdb_in_pkt_proc_set_raw_callback, l_sync_request);
         } else {
             debug_if(s_debug_more, L_INFO, "No objects will be applied, all %zu are filtered out", l_initial_count);
             DAP_DELETE(l_sync_request);
