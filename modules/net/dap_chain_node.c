@@ -450,6 +450,7 @@ dap_list_t *dap_get_nodes_states_list_sort(dap_chain_net_t *a_net, dap_chain_nod
         l_ret = dap_list_insert_sorted(l_ret, (void *)l_item, s_node_states_info_cmp);
         DAP_DELETE(l_store_obj);
     }
+    DAP_DELETE(l_gdb_group);
     dap_global_db_objs_delete(l_objs, l_node_count);
     return l_ret;
 }
