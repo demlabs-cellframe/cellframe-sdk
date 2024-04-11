@@ -907,8 +907,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_sync_from_begin)
             l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, NULL);
         bool l_missed_hash = false;
+        uint64_t l_last_num = l_chain->callback_count_atom(l_chain);
         if (l_iter->cur) {
-            uint64_t l_last_num = l_chain->callback_count_atom(l_chain);
             if (l_sync_from_begin ||
                     (l_request->num_from == l_iter->cur_num &&
                     l_last_num > l_iter->cur_num)) {
@@ -937,9 +937,9 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             }
             if (l_request->num_from < l_iter->cur_num || l_last_num > l_iter->cur_num)
                 l_missed_hash = true;
-        } else if (!l_sync_from_begin) {
+        } else if (!l_sync_from_begin && l_last_num >= l_request->num_from) {
             l_missed_hash = true;
-            debug_if(s_debug_more, L_DEBUG, "Requested atom with hash %s not found", dap_hash_fast_to_str_static(&l_request->hash_from));
+            debug_if(s_debug_more, L_WARNING, "Requested atom with hash %s not found", dap_hash_fast_to_str_static(&l_request->hash_from));
         }
         if (l_missed_hash) {
             l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_LAST, NULL);
