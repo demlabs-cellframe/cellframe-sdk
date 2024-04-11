@@ -435,8 +435,10 @@ dap_list_t *dap_get_nodes_states_list_sort(dap_chain_net_t *a_net, dap_chain_nod
         for(size_t j = 0; !l_ignored && j < a_ignored_count; ++j) {
             l_ignored = a_ignored[j].uint64 == ((dap_chain_node_info_t*)(l_objs + i)->value)->address.uint64;
         }
-        if (l_ignored)
+        if (l_ignored) {
+            log_it(L_DEBUG, "Link to "NODE_ADDR_FP_STR" ignored", NODE_ADDR_FP_ARGS_S(((dap_chain_node_info_t*)(l_objs + i)->value)->address));
             continue;
+        }
         dap_chain_node_states_info_t *l_item = DAP_NEW_Z(dap_chain_node_states_info_t);
         if(!l_item) {
             log_it(L_ERROR, "%s", g_error_memory_alloc);
