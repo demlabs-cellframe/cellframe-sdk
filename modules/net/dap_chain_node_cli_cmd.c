@@ -1227,7 +1227,7 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
     }
     const char *l_addr_str = NULL, *alias_str = NULL;
     const char *l_cell_str = NULL, *l_link_str = NULL;
-
+    const char *l_ipv4_str = NULL, *l_port_str = NULL;
     // find net
     dap_chain_net_t *l_net = NULL;
 
@@ -1239,7 +1239,8 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-alias", &alias_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cell", &l_cell_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-link", &l_link_str);
-
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ipv4", &l_ipv4_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-port", &l_port_str);
     // struct to write to the global db
     dap_chain_node_addr_t l_node_addr = { 0 };
     dap_chain_node_addr_t l_link = { 0 };
@@ -1624,26 +1625,36 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
     }
         // make handshake
     case CMD_HANDSHAKE: {
+        dap_chain_node_info_t *node_info = DAP_NEW_Z(dap_chain_node_info_t);
         // get address from alias if addr not defined
-        if(alias_str && !l_node_addr.uint64) {
+        /*if (!alias_str && !l_node_addr.uint64) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "No alias and addr specified");
+            return -5;
+        } else if(alias_str) {
             dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(l_net, alias_str);
             if(address_tmp) {
                 l_node_addr = *address_tmp;
                 DAP_DELETE(address_tmp);
-            }
-            else {
+            } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "No address found by alias");
                 return -4;
             }
-        }
-        if(!l_node_addr.uint64) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Addr not found");
-            return -5;
-        }
-
-        dap_chain_node_info_t *node_info = node_info_read_and_reply(l_net, &l_node_addr, a_str_reply);
+        } else if (l_node_addr.uint64) {
+            node_info = node_info_read_and_reply(l_net, &l_node_addr, a_str_reply);
+            if (!node_info) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Addr not found");
+                return -5;
+            }
+        } else if (l_ipv4_str && l_port_str) {
+            
         if(!node_info)
             return -6;
+        } else if(!l_node_addr.uint64) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Addr not found");
+            return -5;
+        }*/
+        inet_pton(AF_INET, l_ipv4_str, &node_info->hdr.ext_addr_v4);
+        node_info->hdr.ext_port = strtoul(l_port_str, NULL, 10);
         int timeout_ms = 5000; //5 sec = 5000 ms
         // start handshake
         dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net,node_info);
@@ -1663,6 +1674,7 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
         }
         DAP_DELETE(node_info);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Connection established");
+        break;
     }
     case CMD_CONNECTIONS: {
         char *l_reply = dap_chain_net_links_dump(l_net);
