@@ -223,7 +223,7 @@ dap_chain_datum_anchor_t * s_find_previous_anchor(dap_chain_datum_anchor_t * a_a
     dap_chain_cell_t *l_cell = a_chain->cells;
     size_t l_atom_size = 0;
     dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, 0);
-    dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get_last(l_atom_iter, &l_atom_size);
+    dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_LAST, &l_atom_size);
     while(l_atom && l_atom_size){
         size_t l_datums_count = 0;
         dap_chain_datum_t **l_datums = a_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
@@ -245,7 +245,7 @@ dap_chain_datum_anchor_t * s_find_previous_anchor(dap_chain_datum_anchor_t * a_a
             if (!l_decree)
                 continue;
 
-            if (l_decree->header.type == l_old_decree_type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON && 
+            if (l_decree->header.type == l_old_decree_type && l_old_decree_type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON && 
                 l_old_decree_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE &&
                 l_decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE){
                 
@@ -254,7 +254,7 @@ dap_chain_datum_anchor_t * s_find_previous_anchor(dap_chain_datum_anchor_t * a_a
                     continue;
                 }
 
-                if (dap_chain_datum_decree_get_stake_signer_node_addr(l_decree, &l_addr_new)){
+                if (dap_chain_datum_decree_get_stake_signing_addr(l_decree, &l_addr_new)){
                     continue;
                 }
 
@@ -274,7 +274,7 @@ dap_chain_datum_anchor_t * s_find_previous_anchor(dap_chain_datum_anchor_t * a_a
         if (l_ret_anchor)
             break;
         // go to previous atom
-        l_atom = a_chain->callback_atom_iter_get_prev(l_atom_iter, &l_atom_size);
+        l_atom = a_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_PREV, &l_atom_size);
     }
     a_chain->callback_atom_iter_delete(l_atom_iter);
 

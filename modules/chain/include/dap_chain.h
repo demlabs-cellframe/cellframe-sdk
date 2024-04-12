@@ -177,11 +177,6 @@ typedef struct dap_chain {
     dap_chain_callback_add_datums_t callback_add_datums;
     dap_chain_callback_atom_get_hdr_size_t callback_atom_get_hdr_static_size; // Get atom header's size
 
-    dap_chain_callback_atom_iter_create_t callback_atom_iter_create;
-    dap_chain_callback_atom_iter_create_from_t callback_atom_iter_create_from;
-    dap_chain_callback_atom_iter_get_first_t callback_atom_iter_get_first;
-    dap_chain_callback_atom_iter_get_first_t callback_atom_iter_get_last;
-
     dap_chain_callback_atom_get_datum_t callback_atom_get_datums;
     dap_chain_callback_atom_get_timestamp_t callback_atom_get_timestamp;
 
@@ -191,10 +186,8 @@ typedef struct dap_chain {
 
     dap_chain_callback_block_find_by_hash_t callback_block_find_by_tx_hash;
 
-    dap_chain_callback_atom_iter_get_next_t callback_atom_iter_get_next;
-    dap_chain_callback_atom_iter_get_next_t callback_atom_iter_get_prev;
-    dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_links;
-    dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_lasts;
+    dap_chain_callback_atom_iter_create_t callback_atom_iter_create;
+    dap_chain_callback_atom_iter_get_t callback_atom_iter_get;
     dap_chain_callback_atom_iter_delete_t callback_atom_iter_delete;
     // WRN: No iterator used or changed with it
     dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_links;

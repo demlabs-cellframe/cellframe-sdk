@@ -114,10 +114,7 @@ static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_ato
 static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_block_t *)a_atom)->hdr.ts_created; }
 static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
 //    Get blocks
-static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size ); //    Get the fisrt block
-static dap_chain_atom_ptr_t s_callback_atom_iter_get_last(dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size); // get last block
-static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size );  //    Get the next block
-static dap_chain_atom_ptr_t s_callback_atom_iter_get_previous(dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size ); // Get prev block
+static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size);
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter_t * a_atom_iter , size_t *a_links_size,
                                                                   size_t ** a_links_size_ptr );  //    Get list of linked blocks
 //Get list of hashes
@@ -251,13 +248,9 @@ static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_c
 
     a_chain->callback_atom_iter_create = s_callback_atom_iter_create;
     a_chain->callback_atom_iter_delete = s_callback_atom_iter_delete;
-    // Linear pass through
-    a_chain->callback_atom_iter_get_first = s_callback_atom_iter_get_first; // Get the fisrt element from chain
-    a_chain->callback_atom_iter_get_next = s_callback_atom_iter_get_next; // Get the next element from chain from the current one
-    a_chain->callback_atom_iter_get_prev = s_callback_atom_iter_get_previous; // get the previuos element from the current one 
-    a_chain->callback_atom_iter_get_last = s_callback_atom_iter_get_last; // get the last element from the current one 
-    a_chain->callback_atom_iter_get_links = s_callback_atom_iter_get_links; // Get the next element from chain from the current one
-    a_chain->callback_atom_iter_get_lasts = s_callback_atom_iter_get_lasts;
+    a_chain->callback_atom_iter_get = s_callback_atom_iter_get; // Linear pass through
+
+    a_chain->callback_atom_iter_get_links = s_callback_atom_iter_get_links;
 
     // Datum operations callbacks
     a_chain->callback_datum_iter_create = s_chain_callback_datum_iter_create; // Datum iterator create
@@ -1902,74 +1895,12 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_at
 }
 
 /**
- * @brief s_callback_atom_iter_get_last
- * @param a_atom_iter
- * @param a_atom_size
- * @return
- */
-static dap_chain_atom_ptr_t s_callback_atom_iter_get_last(dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size)
-{
-    if(!a_atom_iter) {
-        log_it(L_CRITICAL, "Invalid argument");
-        return NULL;
-    }
-    dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
-    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = l_blocks ? PVT(l_blocks) : NULL;
-    assert(l_blocks_pvt);
-    //pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
-    dap_chain_block_cache_t *l_last_block = l_blocks_pvt->blocks ? l_blocks_pvt->blocks->hh.tbl->tail->prev : NULL;
-    a_atom_iter->cur_item  = l_last_block;
-    if (a_atom_iter->cur_item) {
-        a_atom_iter->cur        = l_last_block->block;
-        a_atom_iter->cur_size   = l_last_block->block_size;
-        a_atom_iter->cur_hash   = &l_last_block->block_hash;
-    } else {
-        a_atom_iter->cur        = NULL;
-        a_atom_iter->cur_size   = 0;
-        a_atom_iter->cur_hash   = NULL;
-    }
-    //pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
-    if (a_atom_size)
-        *a_atom_size = a_atom_iter->cur_size;
-
-    return a_atom_iter->cur;
-}
-
-/**
- * @brief s_callback_atom_iter_get_next
+ * @brief s_callback_atom_iter_delete
  * @param a_atom_iter
  */
 static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
 {
     DAP_DELETE(a_atom_iter);
-}
-
-/**
- * @brief s_callback_atom_iter_get_previous
- * @param a_atom_iter
- * @param a_atom_size
- * @return
- */
-static dap_chain_atom_ptr_t s_callback_atom_iter_get_previous(dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size )
-{
-    assert(a_atom_iter);
-    assert(a_atom_iter->cur_item);
-
-    dap_chain_block_cache_t *l_prev_item = ((dap_chain_block_cache_t*)a_atom_iter->cur_item)->hh.prev;
-    a_atom_iter->cur_item = l_prev_item;
-    if (a_atom_iter->cur_item) {
-        a_atom_iter->cur        = l_prev_item->block;
-        a_atom_iter->cur_size   = l_prev_item->block_size;
-        a_atom_iter->cur_hash   = &l_prev_item->block_hash;
-    } else {
-        a_atom_iter->cur        = NULL;
-        a_atom_iter->cur_size   = 0;
-        a_atom_iter->cur_hash   = NULL;
-    }
-    if(a_atom_size)
-        *a_atom_size = a_atom_iter->cur_size;
-
-    return a_atom_iter->cur;
 }
 
 /**
