@@ -139,7 +139,7 @@ int dap_chain_net_srv_xchange_init()
     dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_xchange", &l_srv_callbacks);
     s_srv_xchange = DAP_NEW_Z(dap_chain_net_srv_xchange_t);
     if (!s_srv_xchange || !l_srv) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return -1;
     }
     l_srv->_internal = s_srv_xchange;
@@ -153,7 +153,7 @@ int dap_chain_net_srv_xchange_init()
     uint256_t l_fee_value = dap_chain_coins_to_balance(dap_config_get_item_str_default(g_config, "srv_xchange", "fee_value", "0.02"));
     const char *l_wallet_addr = dap_config_get_item_str_default(g_config, "srv_xchange", "wallet_addr", NULL);
     if(!l_wallet_addr){
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return -1;
     }
     const char *l_net_str = dap_config_get_item_str_default(g_config, "srv_xchange", "net", NULL);
@@ -359,7 +359,7 @@ static dap_chain_datum_tx_receipt_t *s_xchange_receipt_create(dap_chain_net_srv_
     uint32_t l_ext_size = sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX;
     uint8_t *l_ext = DAP_NEW_STACK_SIZE(uint8_t, l_ext_size);
     if (!l_ext) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return NULL;
     }
     memcpy(l_ext, &a_datoshi_buy, sizeof(uint256_t));
@@ -1067,7 +1067,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
         return NULL;
     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
     if (!l_price) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return NULL;
     }
     l_price->creation_date = a_order->header.ts_created;
@@ -1828,7 +1828,7 @@ dap_string_t *l_reply_str;
 size_t l_tx_total;
 
     if ( !(l_reply_str = dap_string_new("")) )                              /* Prepare output string discriptor*/
-        return  log_it(L_CRITICAL, "Memory allocation error"), -ENOMEM;
+        return  log_it(L_CRITICAL, "%s", g_error_memory_alloc), -ENOMEM;
 
     memset(&l_tx_first_hash, 0, sizeof(dap_chain_hash_fast_t));             /* Initial hash == zero */
 
@@ -2621,7 +2621,7 @@ dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_ch
     // Create the price
     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
     if (!l_price) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return XCHANGE_CREATE_ERROR_MEMORY_ALLOCATED;
     }
     dap_stpcpy(l_price->token_sell, a_token_sell);

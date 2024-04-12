@@ -166,7 +166,6 @@ static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, 
     dap_chain_node_info_t* l_res = dap_chain_node_info_read(a_net, a_address);
     if (!l_res)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Node record is corrupted or doesn't exist");
-
     return l_res;
 }
 
@@ -184,7 +183,7 @@ static int node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_info
 {
     return !a_node_info || !a_node_info->address.uint64
         ? dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid node address"), -1
-        : dap_global_db_set_sync(a_net->pub.gdb_nodes, dap_chain_node_addr_to_str_static(&a_node_info->address),
+        : dap_global_db_set_sync(a_net->pub.gdb_nodes, dap_stream_node_addr_to_str_static(a_node_info->address),
             (uint8_t*)a_node_info, dap_chain_node_info_get_size(a_node_info), false);
 }
 
@@ -233,7 +232,7 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
 }
 
 /**
- * @brief node_info_dump_with_reply Handler of command 'node dump'
+ * @brief s_node_info_list_with_reply Handler of command 'node dump'
  * @param a_net
  * @param a_addr
  * @param a_is_full
@@ -241,11 +240,11 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
  * @param a_str_reply
  * @return int 0 Ok, -1 error
  */
-static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_addr_t * a_addr, bool a_is_full,
+static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_addr_t * a_addr, bool a_is_full,
         const char *a_alias, void **a_str_reply)
 {
     int l_ret = 0;
-    dap_string_t *l_string_reply = dap_string_new("Node dump:\n");
+    dap_string_t *l_string_reply = dap_string_new("Node list:\n");
 
     if ((a_addr && a_addr->uint64) || a_alias) {
         dap_chain_node_addr_t *l_addr = a_alias
@@ -631,7 +630,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_get_data_hash_str_static(l_value, l_value_len, l_hash_str);
                 char *l_value_str = DAP_NEW_Z_SIZE(char, l_value_len * 2 + 2);
                 if(!l_value_str) {
-                    log_it(L_CRITICAL, "Memory allocation error");
+                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                     DAP_DELETE(l_value);
                     return -1;
                 }
@@ -938,7 +937,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     dap_chain_net_t *l_net = NULL;
 
     if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net) < 0) {
-        if (cmd_num != CMD_BANLIST && cmd_num != CMD_CONNECTIONS)
+        if (cmd_num != CMD_BANLIST && cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP)
             return -11;
     }
 
@@ -956,7 +955,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         ? sizeof(dap_chain_node_info_t) + dap_strlen(l_hostname) + 1
         : sizeof(dap_chain_node_info_t);
     dap_chain_node_info_t *l_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, l_info_size);
-
+    memset(l_node_info, 0, l_info_size);;
     //TODO need to rework with new node info / alias /links concept
 
     if (l_addr_str) {
@@ -1042,11 +1041,16 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         }
     }
 
-    case CMD_LIST:
-    case CMD_DUMP: {
+    case CMD_LIST:{
         // handler of command 'node dump'
         bool l_is_full = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-full", NULL);
-        return node_info_dump_with_reply(l_net, &l_node_addr, l_is_full, alias_str, a_str_reply);
+        return s_node_info_list_with_reply(l_net, &l_node_addr, l_is_full, alias_str, a_str_reply);
+    }
+    case CMD_DUMP: {
+        dap_string_t *l_string_reply = dap_chain_node_states_info_read(l_net, l_node_info->address);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
+        dap_string_free(l_string_reply, true);
+        return 0;
     }
         // add alias
     case CMD_ALIAS:
@@ -1455,20 +1459,9 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
     case CMD_BALANCER: {
         //balancer link list
-        dap_chain_net_links_t *l_links_info_list = dap_chain_net_balancer_get_node(l_net->pub.name, 0);
-        dap_string_t *l_links_str = dap_string_new(l_links_info_list ? "" : "Empty");
-        uint64_t l_node_num = l_links_info_list ? l_links_info_list->count_node : 0;
-        for (uint64_t i = 0; i < l_node_num; ++i) {
-            dap_link_info_t *l_link_info = (dap_link_info_t *)l_links_info_list->nodes_info + i;
-            dap_string_append_printf(l_links_str, NODE_ADDR_FP_STR"    %-20s\n",
-                                     NODE_ADDR_FP_ARGS_S(l_link_info->node_addr),
-                                     l_link_info->uplink_addr);
-                                     /*l_node_link->info.links_number);*/
-        }
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Balancer link list for total %" DAP_UINT64_FORMAT_U " records:\n %s \n",
-                                          l_node_num, l_links_str->str);
+        dap_string_t *l_links_str = dap_chain_net_balancer_get_node_str(l_net);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_links_str->str);
         dap_string_free(l_links_str, true);
-        DAP_DEL_Z(l_links_info_list);
     } break;
 
     default:
@@ -2182,7 +2175,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             l_seed_size = (l_restore_str_size - 2) / 2;
                             l_seed = DAP_NEW_Z_SIZE(uint8_t, l_seed_size);
                             if(!l_seed) {
-                                log_it(L_CRITICAL, "Memory allocation error");
+                                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                                 json_object_put(json_arr_out);
                                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
                             }
@@ -4157,7 +4150,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
     size_t l_tsd_offset = 0;
     a_params->ext.parsed_tsd = DAP_NEW_SIZE(byte_t, l_tsd_total_size);
     if(l_tsd_total_size && !a_params->ext.parsed_tsd) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return -1;
     }
     for (dap_list_t *l_iter = dap_list_first(l_tsd_list); l_iter; l_iter = l_iter->next) {
@@ -4290,7 +4283,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
     dap_sdk_cli_params* l_params = DAP_NEW_Z(dap_sdk_cli_params);
 
     if (!l_params) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return -1;
     }
 
@@ -4401,7 +4394,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_tsd_total_size);
             if (!l_datum_token) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory in com_token_decl");
                 DAP_DEL_Z(l_params);
                 return -1;
@@ -4492,7 +4485,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             if (!l_datum_token) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory in com_token_decl");
                 DAP_DEL_Z(l_params);
                 return -1;
@@ -4623,7 +4616,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
     dap_sdk_cli_params* l_params = DAP_NEW_Z(dap_sdk_cli_params);
 
     if (!l_params) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return -1;
     }
 
@@ -4661,7 +4654,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size);
             if (!l_datum_token) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 return -1;
             }
             l_datum_token->version = 2;
@@ -4698,7 +4691,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             if (!l_datum_token) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 return -1;
             }
             l_datum_token->version = 2;
@@ -5808,7 +5801,7 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply)
                                                       l_cert_new->enc_key->pub_key_data_size =
                                                       l_cert->enc_key->pub_key_data_size );
     if(!l_cert_new->enc_key->pub_key_data) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         DAP_DELETE(l_cert_new->enc_key);
         DAP_DELETE(l_cert_new);
         return -11;
@@ -7404,7 +7397,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply)
             char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size);
             char *l_sign_str = DAP_NEW_Z_SIZE(char, l_sign_size);
             if(!l_value_enc_str) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 return -1;
             }
             dap_enc_base64_encode(l_store_obj[i].value, l_store_obj[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
@@ -7495,7 +7488,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
         size_t l_records_count = json_object_array_length(l_json_records);
         dap_store_obj_t *l_group_store = DAP_NEW_Z_SIZE(dap_store_obj_t, l_records_count * sizeof(dap_store_obj_t));
         if(!l_group_store) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return -1;
         }
         for (size_t j = 0; j < l_records_count; ++j) {
@@ -7517,7 +7510,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
             const char *l_value_str = json_object_get_string(l_value);
             char *l_val = DAP_NEW_Z_SIZE(char, l_group_store[j].value_len);
             if(!l_val) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 l_records_count = j;
                 break;
             }
@@ -7620,7 +7613,7 @@ int cmd_remove(int a_argc, char **a_argv, void **a_str_reply)
             size_t l_aliases_count = 0;
             _pvt_net_aliases_list_t *l_gdb_groups = DAP_NEW(_pvt_net_aliases_list_t);
             if (!l_gdb_groups) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 dap_list_free(l_net_returns);
                 return -1;
             }
@@ -8190,7 +8183,7 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
     int l_power = 1;
     byte_t *l_buf = DAP_CALLOC(l_part * l_power++, 1);
     if (!l_buf) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return NULL;
     }
     size_t l_counter = 0;
@@ -8206,7 +8199,7 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
             l_part_power = l_part * l_power++;
             l_buf = (byte_t *) DAP_REALLOC(l_buf, l_part_power);
             if (!l_buf) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 return NULL;
             }
         }
@@ -8229,7 +8222,7 @@ static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash
     *a_fullsize += sizeof (a_chain_hash->raw) + 1;
     uint8_t *l_fullbuf = DAP_CALLOC(*a_fullsize, 1);
     if (!l_fullbuf) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         DAP_DELETE(l_buf);
         return NULL;
     }
@@ -8248,7 +8241,7 @@ static char *s_strdup_by_index (const char *a_file, const int a_index)
 {
     char *l_buf = DAP_CALLOC(a_index + 1, 1);
     if (!l_buf) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return NULL;
     }
     strncpy (l_buf, a_file, a_index);

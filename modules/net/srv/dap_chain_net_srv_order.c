@@ -161,7 +161,7 @@ bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_o
         if(l_size > 0) {
             *a_region = DAP_NEW_SIZE(char, l_size);
             if (!a_region) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 return false;
             }
             memcpy(*a_region, a_order_static->ext_n_sign + 1 + sizeof(uint8_t), l_size);
@@ -296,7 +296,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
     if (a_ext_size) {
         l_order = (dap_chain_net_srv_order_t *)DAP_NEW_Z_SIZE(void, sizeof(dap_chain_net_srv_order_t) + a_ext_size);
         if (!l_order) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return NULL;
         }
         memcpy(l_order->ext_n_sign, a_ext, a_ext_size);
@@ -305,7 +305,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
     else {
         l_order = DAP_NEW_Z(dap_chain_net_srv_order_t);
         if (!l_order) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return NULL;
         }
         dap_chain_net_srv_order_set_continent_region(&l_order, a_continent_num, a_region);
