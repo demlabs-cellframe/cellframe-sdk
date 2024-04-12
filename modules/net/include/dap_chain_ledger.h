@@ -130,7 +130,9 @@ typedef enum dap_chain_tx_tag_action_type {
     DAP_CHAIN_TX_TAG_ACTION_OPEN =                  1 << 6,
     DAP_CHAIN_TX_TAG_ACTION_USE =                   1 << 7,
     DAP_CHAIN_TX_TAG_ACTION_EXTEND =                1 << 8,
-    DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 9,
+    DAP_CHAIN_TX_TAG_ACTION_CHANGE =                1 << 9,
+    DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 10,
+    
     
     DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
 } dap_chain_tx_tag_action_type_t;

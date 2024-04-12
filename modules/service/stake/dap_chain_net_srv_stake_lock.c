@@ -146,7 +146,7 @@ bool s_get_ems_staking_action(dap_chain_datum_token_emission_t *a_ems, dap_chain
             *a_action =  DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD;
 
         if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_ADDLIQ)==0) 
-            a_action =  DAP_CHAIN_TX_TAG_ACTION_EXTEND;
+            *a_action =  DAP_CHAIN_TX_TAG_ACTION_EXTEND;
         
         if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_UNSTAKE_FINALIZATION)==0)
             *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD;

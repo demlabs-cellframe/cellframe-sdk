@@ -3600,6 +3600,7 @@ char * dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag)
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_USE) return "use";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EXTEND) return "extend";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_CLOSE) return "close";
+    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_CHANGE) return "change";
 
     return "WTFSUBTAG";
 
@@ -3618,7 +3619,7 @@ dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(char *str){
     if (strcmp("use", str) == 0) return DAP_CHAIN_TX_TAG_ACTION_USE;
     if (strcmp("extend", str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EXTEND;
     if (strcmp("close", str) == 0) return DAP_CHAIN_TX_TAG_ACTION_CLOSE;
-    if (strcmp("close", str) == 0) return DAP_CHAIN_TX_TAG_ACTION_CLOSE;
+    if (strcmp("change", str) == 0) return DAP_CHAIN_TX_TAG_ACTION_CHANGE;
 
     return DAP_CHAIN_TX_TAG_ACTION_ALL;
 }
@@ -3668,7 +3669,6 @@ bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             if (a_action) *a_action =  action;
             res = true;
             vcount_ok ++;
-            //log_it(L_WARNING, "Transaction %s anknolaged by %s", l_tx_hash_str,  l_sinfo_current->tag_str); 
         }
     } 
     pthread_rwlock_unlock(&s_services_rwlock);
@@ -3686,7 +3686,6 @@ bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         dap_chain_tx_tag_action_type_t action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
         if (l_sinfo_current->callback && l_sinfo_current->callback(a_ledger, a_tx, &action)){
             log_it(L_WARNING, "%s %s", l_sinfo_current->tag_str, dap_ledger_tx_action_str(action));
-            //log_it(L_WARNING, "Transaction %s anknolaged by %s", l_tx_hash_str,  ); 
         }
         } 
         pthread_rwlock_unlock(&s_services_rwlock);
