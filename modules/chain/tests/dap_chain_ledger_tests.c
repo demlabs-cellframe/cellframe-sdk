@@ -182,6 +182,50 @@ dap_chain_datum_tx_t *dap_ledger_test_create_spend_tx_cond(dap_enc_key_t *a_key_
     return l_tx;
 }
 
+dap_chain_datum_tx_t *dap_ledger_test_create_return_from_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev,
+                                                      dap_enc_key_t *a_key_to, uint256_t a_value, dap_ledger_t *a_ledger) {
+    dap_chain_addr_t l_addr = {0};
+    dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_ledger->net->pub.id);
+    // get previous transaction
+    dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
+     // get previous cond out
+    int l_out_idx = 1;
+    dap_chain_tx_out_cond_t *l_tx_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT_COND, NULL);
+
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    dap_chain_tx_in_cond_t *l_in_cond = dap_chain_datum_tx_item_in_cond_create(a_hash_prev, 1, 0);
+
+    // create conditional output
+    dap_chain_net_srv_uid_t l_srv_uid = {.uint64 = 1};
+    dap_chain_net_srv_price_unit_uid_t l_unit_type = {.enm = SERV_UNIT_SEC};
+    dap_pkey_t *l_pkey = dap_pkey_from_enc_key(a_key_from);
+    uint256_t l_cond_change = {};
+    SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &l_cond_change);
+    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_pay(l_pkey, l_tx_prev_out->header.srv_uid, l_cond_change, uint256_0, l_tx_prev_out->subtype.srv_pay.unit, NULL, 0);
+
+    // create receipt
+    dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_unit_type, 1, a_value, NULL, 0);
+    // Sign with our wallet
+    l_receipt = dap_chain_datum_tx_receipt_sign_add(l_receipt, a_key_to);
+    l_receipt = dap_chain_datum_tx_receipt_sign_add(l_receipt, a_key_from);
+    
+    
+    // add all items to tx
+    dap_chain_addr_t l_addr_to = {0};
+    dap_chain_addr_fill_from_key(&l_addr, a_key_to, a_ledger->net->pub.id);
+    dap_chain_tx_out_t *l_out_change = dap_chain_datum_tx_item_out_create(&l_addr_to, a_value);
+    dap_chain_datum_tx_add_item(&l_tx, (byte_t*)l_receipt);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_cond);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_cond);
+    dap_chain_datum_tx_add_sign_item(&l_tx, a_key_to);
+    DAP_DEL_Z(l_in_cond);
+    DAP_DEL_Z(l_out_cond);
+    DAP_DEL_Z(l_receipt);
+    DAP_DEL_Z(l_out_change);
+    return l_tx;
+}
+
 uint256_t dap_ledger_test_print_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr)
 {
     uint256_t l_balance_after = dap_ledger_calc_balance(a_ledger, a_addr, s_token_ticker);
