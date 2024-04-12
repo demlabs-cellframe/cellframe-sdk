@@ -148,7 +148,6 @@ dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
 dap_chain_node_info_t *dap_chain_net_get_my_node_info(dap_chain_net_t *a_net);
 bool dap_chain_net_is_my_node_authorized(dap_chain_net_t *a_net);
 dap_stream_node_addr_t *dap_chain_net_get_authorized_nodes(dap_chain_net_t *a_net, size_t *a_nodes_count);
-bool dap_chain_net_check_link_is_premanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr);
 
 int dap_chain_net_add_auth_nodes_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster);
 bool dap_chain_net_add_validator_to_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr);
@@ -157,7 +156,7 @@ dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain)
 
 int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_t a_block_num);
 uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num);
-int dap_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr, const char *a_host, uint16_t a_port);
+int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr, const char *a_host, uint16_t a_port);
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool

@@ -54,4 +54,4 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
 dap_link_info_t *dap_chain_net_balancer_dns_issue_link(const char *a_net_name);
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t * a_net);
 dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net);
-int dap_chain_net_balancer_request(dap_chain_net_t *a_net, dap_link_info_t *a_balancer_link, int a_balancer_type);
+int dap_chain_net_balancer_request(dap_chain_net_t *a_net, const char *a_host_addr, uint16_t a_host_port, int a_balancer_type);
