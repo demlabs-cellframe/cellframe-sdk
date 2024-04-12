@@ -102,7 +102,7 @@ typedef union _dap_dns_message_flags_t {
     int val;
 } dap_dns_message_flags_t;
 
-typedef dap_link_info_t *(*dap_dns_zone_callback_t) (char *hostname); // Callback for DNS zone operations
+typedef dap_link_info_t *(*dap_dns_zone_callback_t) (const char *hostname); // Callback for DNS zone operations
 
 typedef struct _dap_dns_zone_hash_t {
     char *zone;

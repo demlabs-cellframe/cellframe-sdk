@@ -156,6 +156,7 @@ dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain)
 
 int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_t a_block_num);
 uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num);
+int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr, const char *a_host, uint16_t a_port);
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool
