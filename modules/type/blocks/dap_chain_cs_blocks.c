@@ -101,10 +101,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
 //    Get block header size
 static size_t s_callback_atom_get_static_hdr_size(void);
 
-static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool a_with_treshold);
-static dap_chain_atom_iter_t* s_callback_atom_iter_create_from(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size);
+static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);
 static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
                                                                        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
+static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num);
 static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
                                                         dap_chain_hash_fast_t *a_block_hash, int *a_ret_code);
 
@@ -120,8 +120,6 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_previous(dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size ); // Get prev block
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter_t * a_atom_iter , size_t *a_links_size,
                                                                   size_t ** a_links_size_ptr );  //    Get list of linked blocks
-static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter_t * a_atom_iter ,size_t *a_links_size,
-                                                                  size_t ** a_lasts_size_ptr );  //    Get list of linked blocks
 //Get list of hashes
 static dap_list_t *s_block_parse_str_list(char *a_hash_str, size_t * a_hash_size, dap_chain_t * a_chain);
 
@@ -209,7 +207,13 @@ int dap_chain_cs_blocks_init()
         "Rewards and fees autocollect status:\n"
             "block -net <net_name> -chain <chain_name> autocollect status\n"
                 "\t\t Show rewards and fees automatic collecting status (enabled or not)."
-                    " Show prepared blocks for collecting rewards and fees if status is enabled\n"
+                    " Show prepared blocks for collecting rewards and fees if status is enabled\n\n"
+
+        "Rewards and fees autocollect renew:\n"
+            "block -net <net_name> -chain <chain_name> autocollect renew\n"
+            " -cert <priv_cert_name> -addr <addr>\n"
+                "\t\t Update reward and fees block table."
+                    " Automatic collection of commission in case of triggering of the setting\n\n"
                                         );
     if( dap_chain_block_cache_init() ) {
         log_it(L_WARNING, "Can't init blocks cache");
@@ -246,7 +250,6 @@ static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_c
     a_chain->callback_atom_get_hdr_static_size = s_callback_atom_get_static_hdr_size; // Get block hdr size
 
     a_chain->callback_atom_iter_create = s_callback_atom_iter_create;
-    a_chain->callback_atom_iter_create_from = s_callback_atom_iter_create_from;
     a_chain->callback_atom_iter_delete = s_callback_atom_iter_delete;
     // Linear pass through
     a_chain->callback_atom_iter_get_first = s_callback_atom_iter_get_first; // Get the fisrt element from chain
@@ -266,6 +269,7 @@ static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_c
     a_chain->callback_atom_get_timestamp = s_chain_callback_atom_get_timestamp;
 
     a_chain->callback_atom_find_by_hash = s_callback_atom_iter_find_by_hash;
+    a_chain->callback_atom_get_by_num = s_callback_atom_iter_get_by_num;
     a_chain->callback_datum_find_by_hash = s_callback_datum_find_by_hash;
 
     a_chain->callback_block_find_by_tx_hash = s_callback_block_find_by_tx_hash;
@@ -459,8 +463,9 @@ static void s_cli_meta_hex_print(  dap_string_t * a_str_tmp, const char * a_meta
 static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_reply_str, const char *a_table_name)
 {
     bool l_status = dap_chain_esbocs_get_autocollect_status(a_net->pub.id);
-    dap_string_append_printf(a_reply_str, "\nAutocollect status for network %s is %s\n", a_net->pub.name,
-                                        l_status ? "active" : "inactive, cause the network config or consensus starting problems");
+    dap_string_append_printf(a_reply_str, "\nAutocollect status for %s in network %s is %s\n",
+                                         dap_strdown(a_table_name, -1), a_net->pub.name,
+                                         l_status ? "active" : "inactive, cause the network config or consensus starting problems");
     if (!l_status)
         return;
     dap_string_append_printf(a_reply_str, "\nAutocollect tables content for:\n=== %s ===\n", a_table_name);
@@ -649,12 +654,13 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         } break;
 
         case SUBCMD_NEW_COMPLETE:{
-            dap_chain_net_sync_all(l_net);
+            // TODO
         } break;
 
         case SUBCMD_DROP:{
-            dap_chain_net_sync_all(l_net);
+            // TODO
         }break;
+
         case SUBCMD_DUMP:{
             dap_chain_hash_fast_t l_block_hash={0};
             if (!l_subcmd_str_arg) {
@@ -674,8 +680,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_string_append_printf(l_str_tmp, "\t\t\tversion: 0x%04X\n", l_block->hdr.version);
             dap_string_append_printf(l_str_tmp, "\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n", l_block->hdr.cell_id.uint64);
             dap_string_append_printf(l_str_tmp, "\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n", l_block->hdr.chain_id.uint64);
-            char buf[50];
-            dap_time_to_str_rfc822(buf, 50, l_block->hdr.ts_created);
+            char buf[DAP_TIME_STR_SIZE];
+            dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_block->hdr.ts_created);
             dap_string_append_printf(l_str_tmp, "\t\t\tts_created: %s\n", buf);
 
             // Dump Metadata
@@ -726,7 +732,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 const char * l_datum_type_str="UNKNOWN";
                 DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\ttype_id:=%s\n", l_datum_type_str);
-                dap_time_to_str_rfc822(buf, 50, l_datum->header.ts_create);
+                dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n", buf);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
                 dap_chain_datum_dump(l_str_tmp, l_datum, "hex", l_net->pub.id);
@@ -913,8 +919,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                             continue;
                     }
                 }
-                char l_buf[50];
-                dap_time_to_str_rfc822(l_buf, 50, l_ts);
+                char l_buf[DAP_TIME_STR_SIZE];
+                dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
                 dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
                 l_block_count++;
                 if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_block_cache->block_hash))
@@ -1048,7 +1054,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 return -21;
             }
             // NOTE: This call will modify source string
-            l_block_list = s_block_parse_str_list((char *)l_hash_str, &l_hashes_count, l_chain);
+            l_block_list = s_block_parse_str_list((char *)l_hash_str, &l_hashes_count, l_chain);            
             if (!l_block_list || !l_hashes_count) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Block fee collection requires at least one hash to create a transaction");
@@ -1071,15 +1077,126 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         }break;
 
         case SUBCMD_AUTOCOLLECT: {
-            if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "status") == -1) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect' requires subcommand 'status'");
-                return -14;
-            }
-            dap_string_t *l_reply_str = dap_string_new("");
-            s_print_autocollect_table(l_net, l_reply_str, "Fees");
-            s_print_autocollect_table(l_net, l_reply_str, "Rewards");
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_reply_str->str);
-            dap_string_free(l_reply_str, true);
+            const char * l_cert_name  = NULL, * l_addr_str = NULL;
+            dap_pkey_t * l_pub_key = NULL;
+            dap_hash_fast_t l_pkey_hash = {};
+            dap_chain_addr_t *l_addr = NULL;
+            size_t l_block_count = 0;
+            int fl_renew = dap_cli_server_cmd_check_option(a_argv, arg_index,a_argc, "renew");
+            if(fl_renew != -1)
+            {
+                dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
+                dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
+                l_addr = dap_chain_addr_from_str(l_addr_str);
+                if(!l_cert_name) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-cert'");
+                    return -20;
+                }
+                if (!l_addr_str) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-addr'");
+                    return -20;
+                }
+                dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
+                if (!l_cert) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find \"%s\" certificate", l_cert_name);
+                    return -20;
+                }
+                l_pub_key = dap_pkey_from_enc_key(l_cert->enc_key);
+                if (!l_pub_key) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply,
+                            "Corrupted certificate \"%s\" have no public key data", l_cert_name);
+                    return -20;
+                }
+                dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
+                        .collecting_level = l_chain->callback_get_collectiong_level(l_chain),
+                        .minimum_fee = l_chain->callback_get_minimum_fee(l_chain),
+                        .chain = l_chain,
+                        .blocks_sign_key = l_cert->enc_key,
+                        .block_sign_pkey = l_pub_key,
+                        .collecting_addr = l_addr
+                };
+                //Cleare gdb
+                size_t l_objs_fee_count = 0;
+                size_t l_objs_rew_count = 0;
+                char *l_group_fee = dap_chain_cs_blocks_get_fee_group(l_net->pub.name);
+                char *l_group_rew = dap_chain_cs_blocks_get_reward_group(l_net->pub.name);
+                dap_global_db_obj_t *l_objs_fee = dap_global_db_get_all_sync(l_group_fee, &l_objs_fee_count);
+                dap_global_db_obj_t *l_objs_rew = dap_global_db_get_all_sync(l_group_rew, &l_objs_rew_count);
+                if(l_objs_fee_count)dap_global_db_objs_delete(l_objs_fee,l_objs_fee_count);
+                if(l_objs_rew_count)dap_global_db_objs_delete(l_objs_rew,l_objs_rew_count);
+                DAP_DELETE(l_group_fee);
+                DAP_DELETE(l_group_rew);
+                dap_string_t *l_str_tmp = dap_string_new(NULL);
+
+                for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
+                    dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
+                    dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
+                    if (!l_pub_key) {
+                        dap_hash_fast_t l_sign_pkey_hash;
+                        dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
+                        if (!dap_hash_fast_compare(&l_pkey_hash, &l_sign_pkey_hash))
+                            continue;
+                    } else if (!dap_pkey_compare_with_sign(l_pub_key, l_sign))
+                        continue;
+                    for (size_t i = 0; i < l_block_cache->datum_count; i++) {
+                        if (l_block_cache->datum[i]->header.type_id != DAP_CHAIN_DATUM_TX)
+                            continue;
+                        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_block_cache->datum[i]->data;
+                        int l_out_idx_tmp = 0;
+                        if (NULL == dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, &l_out_idx_tmp))
+                            continue;
+                        if (!dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + i, l_out_idx_tmp, NULL)) {
+                            dap_chain_esbocs_add_block_collect(l_block_cache->block, l_block_cache->block_size, &l_block_collect_params,1);
+                            char l_buf[50];
+                            dap_time_to_str_rfc822(l_buf, 50, l_ts);
+                            dap_string_append_printf(l_str_tmp, "fee - \t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
+                            l_block_count++;
+                            break;
+                        }
+                    } 
+                    if (l_ts < DAP_REWARD_INIT_TIMESTAMP)
+                            continue;
+                    
+                    if (!l_pub_key) {
+                        bool l_found = false;
+                        for (size_t i = 0; i < l_block_cache->sign_count ; i++) {
+                            dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
+                            dap_hash_fast_t l_sign_pkey_hash;
+                            dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
+                            if (dap_hash_fast_compare(&l_pkey_hash, &l_sign_pkey_hash)) {
+                                l_found = true;
+                                break;
+                            }
+                        }
+                        if(!l_found)
+                            continue;
+                    } else if (!dap_chain_block_sign_match_pkey(l_block_cache->block, l_block_cache->block_size, l_pub_key))
+                        continue;
+                    if (dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash, &l_pkey_hash))
+                        continue;
+                    dap_chain_esbocs_add_block_collect(l_block_cache->block, l_block_cache->block_size, &l_block_collect_params,2);
+                    {   
+                        char l_buf[50];
+                        dap_time_to_str_rfc822(l_buf, 50, l_ts);
+                        dap_string_append_printf(l_str_tmp, "rewards - \t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
+                        l_block_count++; 
+                    }                   
+                }
+                dap_string_append_printf(l_str_tmp, "%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks\n",
+                                     l_net->pub.name, l_chain->name, l_block_count);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
+                dap_string_free(l_str_tmp, true);
+            }else{
+                if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "status") == -1) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect' requires subcommand 'status'");
+                    return -14;
+                }
+                dap_string_t *l_reply_str = dap_string_new("");
+                s_print_autocollect_table(l_net, l_reply_str, "Fees");
+                s_print_autocollect_table(l_net, l_reply_str, "Rewards");                
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_reply_str->str);
+                dap_string_free(l_reply_str, true);
+            }            
         } break;
 
         case SUBCMD_UNDEFINED:
@@ -1615,77 +1732,51 @@ static size_t s_callback_atom_get_static_hdr_size(void)
 }
 
 /**
- * @brief s_callback_atom_iter_create
- * @param a_chain
- * @return
- */
-static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool a_with_treshold)
-{
-    dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
-    if (!l_atom_iter) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return NULL;
-    }
-    l_atom_iter->chain = a_chain;
-    l_atom_iter->cell_id = a_cell_id;
-    l_atom_iter->with_treshold = a_with_treshold;
-#ifdef WIN32
-    log_it(L_DEBUG, "! %p create caller id %lu", l_atom_iter, GetThreadId(GetCurrentThread()));
-#endif
-    return l_atom_iter;
-}
-
-/**
- * @brief s_callback_atom_iter_create_from
- * @param a_chain
- * @param a_atom
- * @param a_atom_size
- * @return
- */
-static dap_chain_atom_iter_t* s_callback_atom_iter_create_from(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
-{
-    if (a_atom && a_atom_size){
-        dap_chain_hash_fast_t l_atom_hash;
-        dap_hash_fast(a_atom, a_atom_size, &l_atom_hash);
-        dap_chain_atom_iter_t * l_atom_iter = s_callback_atom_iter_create(a_chain, a_chain->cells->id, 0);
-        if (l_atom_iter){
-            dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-            l_atom_iter->cur_item = dap_chain_block_cache_get_by_hash(l_blocks, &l_atom_hash);
-            l_atom_iter->cur = a_atom;
-            l_atom_iter->cur_size = a_atom_size;
-            return l_atom_iter;
-        }else
-            return NULL;
-    }else
-        return NULL;
-}
-
-/**
  * @brief s_callback_atom_iter_find_by_hash
  * @param a_atom_iter
  * @param a_atom_hash
  * @param a_atom_size
  * @return
  */
-static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter, dap_chain_hash_fast_t * a_atom_hash,
+static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter, dap_chain_hash_fast_t *a_atom_hash,
                                                               size_t * a_atom_size)
 {
     assert(a_atom_iter);
-    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain));
-    dap_chain_block_cache_t * l_block_cache = NULL;
-    pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
-    HASH_FIND(hh, l_blocks_pvt->blocks, a_atom_hash, sizeof(*a_atom_hash), l_block_cache);
-    pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
+    dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, a_atom_hash);
     a_atom_iter->cur_item = l_block_cache;
     if (l_block_cache) {
-        a_atom_iter->cur = l_block_cache->block;
-        a_atom_iter->cur_size = l_block_cache->block_size;
-    } else {
-        a_atom_iter->cur = NULL;
-        a_atom_iter->cur_size = 0;
-    }
+        a_atom_iter->cur        = l_block_cache->block;
+        a_atom_iter->cur_size   = l_block_cache->block_size;
+        a_atom_iter->cur_hash   = &l_block_cache->block_hash;
+        a_atom_iter->cur_num    = l_block_cache->block_number;
+    } else
+        *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
+                                                 .cell_id = a_atom_iter->cell_id };
     if (a_atom_size)
         *a_atom_size = a_atom_iter->cur_size;
+    return a_atom_iter->cur;
+}
+
+static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num)
+{
+    assert(a_atom_iter);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
+    dap_chain_block_cache_t *l_block_cache = NULL;
+    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    for (l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next)
+        if (l_block_cache->block_number == a_atom_num)
+            break;
+    a_atom_iter->cur_item = l_block_cache;
+    if (l_block_cache) {
+        a_atom_iter->cur        = l_block_cache->block;
+        a_atom_iter->cur_size   = l_block_cache->block_size;
+        a_atom_iter->cur_hash   = &l_block_cache->block_hash;
+        a_atom_iter->cur_num    = l_block_cache->block_number;
+    } else
+        *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
+                                                 .cell_id = a_atom_iter->cell_id };
+    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     return a_atom_iter->cur;
 }
 
@@ -1746,32 +1837,64 @@ static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_ato
 }
 
 /**
- * @brief s_callback_atom_iter_get_first
+ * @brief s_callback_atom_iter_create
+ * @param a_chain
+ * @return
+ */
+static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from)
+{
+    dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
+    if (!l_atom_iter) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        return NULL;
+    }
+    l_atom_iter->chain = a_chain;
+    l_atom_iter->cell_id = a_cell_id;
+    if (a_hash_from)
+        s_callback_atom_iter_find_by_hash(l_atom_iter, a_hash_from, NULL);
+    return l_atom_iter;
+}
+
+/**
+ * @brief s_callback_atom_iter_get
  * @param a_atom_iter
+ * @param a_operation
  * @param a_atom_size
  * @return
  */
-static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size )
+static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size)
 {
-    if(!a_atom_iter) {
-        log_it(L_CRITICAL, "Invalid argument");
-        return NULL;
-    }
+    dap_return_val_if_fail(a_atom_iter, NULL);
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = l_blocks ? PVT(l_blocks) : NULL;
     assert(l_blocks_pvt);
-    //pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
-    a_atom_iter->cur_item       = l_blocks_pvt->blocks;
-    if (a_atom_iter->cur_item) {
-        a_atom_iter->cur        = l_blocks_pvt->blocks->block;
-        a_atom_iter->cur_size   = l_blocks_pvt->blocks->block_size;
-        a_atom_iter->cur_hash   = &l_blocks_pvt->blocks->block_hash;
-    } else {
-        a_atom_iter->cur        = NULL;
-        a_atom_iter->cur_size   = 0;
-        a_atom_iter->cur_hash   = NULL;
+    pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
+    switch (a_operation) {
+    case DAP_CHAIN_ITER_OP_FIRST:
+        a_atom_iter->cur_item = l_blocks_pvt->blocks;
+        break;
+    case DAP_CHAIN_ITER_OP_LAST:
+        HASH_LAST(l_blocks_pvt->blocks, a_atom_iter->cur_item);
+        break;
+    case DAP_CHAIN_ITER_OP_NEXT:
+        if (a_atom_iter->cur_item)
+            a_atom_iter->cur_item = ((dap_chain_block_cache_t *)a_atom_iter->cur_item)->hh.next;
+        break;
+    case DAP_CHAIN_ITER_OP_PREV:
+        if (a_atom_iter->cur_item)
+            a_atom_iter->cur_item = ((dap_chain_block_cache_t *)a_atom_iter->cur_item)->hh.prev;
+        break;
     }
-    //pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
+    if (a_atom_iter->cur_item) {
+        dap_chain_block_cache_t *l_item = a_atom_iter->cur_item;
+        a_atom_iter->cur        = l_item->block;
+        a_atom_iter->cur_size   = l_item->block_size;
+        a_atom_iter->cur_hash   = &l_item->block_hash;
+        a_atom_iter->cur_num    = l_item->block_number;
+    } else
+        *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
+                                                 .cell_id = a_atom_iter->cell_id };
+    pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
     if (a_atom_size)
         *a_atom_size = a_atom_iter->cur_size;
 
@@ -1815,29 +1938,10 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_last(dap_chain_atom_iter_t 
 /**
  * @brief s_callback_atom_iter_get_next
  * @param a_atom_iter
- * @param a_atom_size
- * @return
  */
-static dap_chain_atom_ptr_t s_callback_atom_iter_get_next(dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size )
+static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
 {
-    assert(a_atom_iter);
-    assert(a_atom_iter->cur_item);
-
-    dap_chain_block_cache_t *l_next_item = ((dap_chain_block_cache_t*)a_atom_iter->cur_item)->hh.next;
-    a_atom_iter->cur_item = l_next_item;
-    if (a_atom_iter->cur_item) {
-        a_atom_iter->cur        = l_next_item->block;
-        a_atom_iter->cur_size   = l_next_item->block_size;
-        a_atom_iter->cur_hash   = &l_next_item->block_hash;
-    } else {
-        a_atom_iter->cur        = NULL;
-        a_atom_iter->cur_size   = 0;
-        a_atom_iter->cur_hash   = NULL;
-    }
-    if(a_atom_size)
-        *a_atom_size = a_atom_iter->cur_size;
-
-    return a_atom_iter->cur;
+    DAP_DELETE(a_atom_iter);
 }
 
 /**
@@ -1898,70 +2002,6 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links(dap_chain_atom_iter_
         l_ret[i] = l_link->block;
     }
     return l_ret;
-}
-
-/**
- * @brief s_callback_atom_iter_get_lasts
- * @param a_atom_iter
- * @param a_links_size
- * @param a_lasts_size_ptr
- * @return
- */
-static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter_t *a_atom_iter, size_t *a_links_size, size_t **a_lasts_size_ptr)
-{
-    if(!a_atom_iter) {
-        log_it(L_CRITICAL, "Invalid argument");
-        return NULL;
-    }
-    dap_chain_block_cache_t *l_blocks = PVT(DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain))->blocks;
-    dap_chain_block_cache_t *l_block_cache_last = l_blocks ? l_blocks->hh.tbl->tail->prev : NULL;
-    l_block_cache_last = l_block_cache_last ? l_block_cache_last->hh.next : l_blocks;
-
-    if (l_block_cache_last) {
-        a_atom_iter->cur = l_block_cache_last->block;
-        a_atom_iter->cur_size = l_block_cache_last->block_size;
-        a_atom_iter->cur_hash = &l_block_cache_last->block_hash;
-        if (a_lasts_size_ptr) {
-            *a_lasts_size_ptr = DAP_NEW_Z(size_t);
-            if (!a_lasts_size_ptr) {
-                log_it(L_CRITICAL, "Memory allocation error");
-                return NULL;
-            }
-            (*a_lasts_size_ptr)[0] = l_block_cache_last->block_size;
-        }
-        if (a_links_size)
-            *a_links_size = 1;
-        dap_chain_atom_ptr_t *l_ret = DAP_NEW_Z(dap_chain_atom_ptr_t);
-        if (!l_ret) {
-            log_it(L_CRITICAL, "Memory allocation error");
-            if (a_lasts_size_ptr)
-                DAP_DEL_Z(*a_lasts_size_ptr);
-            return NULL;
-        }
-        l_ret[0] = l_block_cache_last->block;
-        return l_ret;
-    } else {
-        a_atom_iter->cur = NULL;
-        a_atom_iter->cur_size = 0;
-        a_atom_iter->cur_hash = NULL;
-        if (a_links_size)
-            *a_links_size = 0;
-        if (a_lasts_size_ptr)
-            *a_lasts_size_ptr = NULL;
-        return NULL;
-    }
-}
-
-/**
- * @brief s_callback_atom_iter_delete
- * @param a_atom_iter
- */
-static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
-{
-#ifdef WIN32
-    log_it(L_DEBUG, "! %p delete caller id %lu", a_atom_iter, GetThreadId(GetCurrentThread()));
-#endif
-    DAP_DELETE(a_atom_iter);
 }
 
 static dap_chain_datum_iter_t *s_chain_callback_datum_iter_create(dap_chain_t *a_chain)

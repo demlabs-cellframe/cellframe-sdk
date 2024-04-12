@@ -150,6 +150,32 @@ dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_create(void)
     return l_item;
 }
 
+const char *s_tx_voting_get_answer_text_by_idx(dap_chain_datum_tx_t *a_tx, uint64_t a_idx) {
+    dap_list_t *l_answers_list = NULL;
+    size_t l_anwers_count = 0;
+    dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_TSD, NULL);
+    dap_list_t* l_temp = l_tsd_list;
+    while (l_temp){
+        dap_tsd_t* l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)l_temp->data)->tsd;
+        if (l_tsd->type == VOTING_TSD_TYPE_ANSWER) {
+            char *l_buf_string = DAP_NEW_Z_SIZE(char, l_tsd->size + 1);
+            memcpy(l_buf_string, l_tsd->data, l_tsd->size);
+            l_buf_string[l_tsd->size] = '\0';
+            l_answers_list = dap_list_append(l_answers_list, l_buf_string);
+            l_anwers_count++;
+        }
+        l_temp = l_temp->next;
+    }
+    dap_list_free(l_tsd_list);
+    if (l_anwers_count < a_idx) {
+        dap_list_free_full(l_answers_list, NULL);
+        return NULL;
+    }
+    char *l_ret = dap_strdup(dap_list_nth_data(l_answers_list, a_idx));
+    dap_list_free_full(l_answers_list, NULL);
+    return l_ret;
+}
+
 json_object *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_tx)
 {
     if (!a_tx)
@@ -210,14 +236,31 @@ dap_chain_tx_vote_t *dap_chain_datum_tx_item_vote_create(dap_chain_hash_fast_t *
     return l_item;
 }
 
-json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote)
+const char *s_get_vote_answer_text(dap_hash_fast_t *a_vote, uint64_t a_idx, dap_ledger_t *a_ledger) {
+    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_ledger, a_vote);
+    if (!l_tx || !a_ledger) {
+        return NULL;
+    }
+    return s_tx_voting_get_answer_text_by_idx(l_tx, a_idx);
+}
+
+json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote, dap_ledger_t *a_ledger)
 {
     json_object *l_object = json_object_new_object();
     char *l_voting_hash_str = dap_hash_fast_to_str_new(&a_vote->voting_hash);
     json_object *l_voting_hash = json_object_new_string(l_voting_hash_str);
     DAP_DELETE(l_voting_hash_str);
     json_object *l_answer_idx = json_object_new_uint64(a_vote->answer_idx);
+    const char *l_answer_text_str = s_get_vote_answer_text(&a_vote->voting_hash, a_vote->answer_idx, a_ledger);
+    json_object *l_answer_text = NULL;
+    if (!l_answer_text_str) {
+        l_answer_text = json_object_new_string("{UNDEFINED}");
+    } else {
+        l_answer_text = json_object_new_string(l_answer_text_str);
+        DAP_DELETE(l_answer_text_str);
+    }
     json_object_object_add(l_object, "votingHash", l_voting_hash);
     json_object_object_add(l_object, "answer_idx", l_answer_idx);
+    json_object_object_add(l_object, "answer_text", l_answer_text);
     return l_object;
 }

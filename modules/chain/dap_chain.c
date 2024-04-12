@@ -680,15 +680,19 @@ void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_not
  * @param a_atom_hash
  * @return
  */
-bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_hash, dap_chain_cell_id_t a_cell_id)
+bool dap_chain_get_atom_last_hash_num(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash, uint64_t *a_atom_num)
 {
-    dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, a_cell_id, false);
-    dap_chain_atom_ptr_t *l_ptr_list = a_chain->callback_atom_iter_get_lasts(l_iter, NULL, NULL);
-    DAP_DEL_Z(l_ptr_list);
-    *a_atom_hash = l_iter->cur_hash ? *l_iter->cur_hash : (dap_hash_fast_t){0};
-    bool l_ret = l_iter->cur_hash;
+    dap_return_val_if_fail(a_atom_hash || a_atom_num, false);
+    dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, a_cell_id, NULL);
+    if (!l_iter)
+        return false;
+    a_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_LAST, NULL);
+    if (a_atom_hash)
+        *a_atom_hash = l_iter->cur_hash ? *l_iter->cur_hash : (dap_hash_fast_t){0};
+    if (a_atom_num)
+        *a_atom_num = l_iter->cur_num;
     a_chain->callback_atom_iter_delete(l_iter);
-    return l_ret;
+    return true;
 }
 
 struct chain_thread_notifier {
@@ -716,13 +720,13 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
     dap_chain_t *l_chain = a_chain_cell->chain;
 
     if (a_new_atom_hash) { // Atom is new and need to be distributed for the net
-        dap_cluster_t *l_net_cluster = dap_cluster_find(dap_cluster_guuid_compose(l_chain->net_id.uint64, 0));
+        dap_cluster_t *l_net_cluster = dap_cluster_find(dap_guuid_compose(l_chain->net_id.uint64, 0));
         if (l_net_cluster) {
             size_t l_pkt_size = a_atom_size + sizeof(dap_chain_ch_pkt_t);
             dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain->net_id.uint64, l_chain->id.uint64,
                                                              a_chain_cell->id.uint64, a_atom, a_atom_size);
             if (l_pkt) {
-                dap_gossip_msg_issue(l_net_cluster, DAP_STREAM_CH_CHAIN_ID, l_pkt, l_pkt_size, a_new_atom_hash);
+                dap_gossip_msg_issue(l_net_cluster, DAP_CHAIN_CH_ID, l_pkt, l_pkt_size, a_new_atom_hash);
                 DAP_DELETE(l_pkt);
             }
         }

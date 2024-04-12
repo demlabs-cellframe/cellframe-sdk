@@ -825,7 +825,7 @@ static void s_tx_header_print(json_object *a_json_out, dap_chain_datum_tx_t *a_t
     char l_time_str[DAP_TIME_STR_SIZE] = "unknown";
     if (a_tx->header.ts_created)
         dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, a_tx->header.ts_created);
-    char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
+    const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
             : dap_chain_hash_fast_to_str_static(a_tx_hash);
     json_object_object_add(a_json_out, "TX hash ", json_object_new_string(l_tx_hash_str));

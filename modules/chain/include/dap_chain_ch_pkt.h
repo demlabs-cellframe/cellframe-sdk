@@ -36,68 +36,91 @@
 
 #include "dap_stream_ch.h"
 
-#define DAP_STREAM_CH_CHAIN_PKT_VERSION                        0x02
+#define DAP_CHAIN_CH_PKT_VERSION                        0x02
 
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ         0x05
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_START       0x25
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS             0x35
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_END         0x45
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN               0x20
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN                     0x01
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS             0x03
+//Legacy
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_REQ         0x05
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_START       0x25
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS             0x35
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_END         0x45
+#define DAP_CHAIN_CH_PKT_TYPE_FIRST_CHAIN               0x20
+#define DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS             0x03
 
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ      0x06
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_START    0x26
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB          0x36
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END      0x46
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB           0x21
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB                 0x11
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB          0x13
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_REQ      0x06
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_START    0x26
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB          0x36
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_END      0x46
+#define DAP_CHAIN_CH_PKT_TYPE_FIRST_GLOBAL_DB           0x21
+#define DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB                 0x11
+#define DAP_CHAIN_CH_PKT_TYPE_SYNCED_GLOBAL_DB          0x13
 
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE                    0xda
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT                   0xfe
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR                     0xff
+#define DAP_CHAIN_CH_PKT_TYPE_DELETE                    0xda
+#define DAP_CHAIN_CH_PKT_TYPE_TIMEOUT                   0xfe
+#define DAP_CHAIN_CH_PKT_TYPE_ERROR                     0xff
+
+// Stable
+#define DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ                 0x80
+#define DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS                0x69
+#define DAP_CHAIN_CH_PKT_TYPE_CHAIN                     0x01
+#define DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY             0x81
+#define DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK                 0x82
+#define DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN              0x88
 
 // TSD sections
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_TSD         0x15
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD      0x16
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_TSD         0x15
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_TSD      0x16
 
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_PROTO        0x0001   // Protocol version
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_COUNT        0x0002   // Items count
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_HASH_LAST    0x0003   // Hash of last(s) item
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_HASH_FIRST   0x0004   // Hash of first(s) item
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_LAST_ID      0x0100   // Last ID of GDB synced group
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_TSD_PROTO        0x0001   // Protocol version
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_TSD_COUNT        0x0002   // Items count
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_TSD_HASH_LAST    0x0003   // Hash of last(s) item
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_TSD_HASH_FIRST   0x0004   // Hash of first(s) item
+#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_TSD_LAST_ID      0x0100   // Last ID of GDB synced group
 
-typedef enum dap_chain_ch_state{
-    CHAIN_STATE_IDLE=0,
-    CHAIN_STATE_WAITING,
-    CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE, // Downloadn GDB hashtable from remote
-    CHAIN_STATE_UPDATE_GLOBAL_DB, // Update GDB hashtable to remote
-    CHAIN_STATE_SYNC_GLOBAL_DB,
-    CHAIN_STATE_UPDATE_CHAINS_REMOTE, // Update chains hashtable from remote
-    CHAIN_STATE_UPDATE_CHAINS, // Update chains hashtable to remote
-    CHAIN_STATE_SYNC_CHAINS,
-    CHAIN_STATE_SYNC_ALL
-} dap_chain_ch_state_t;
-
+// *** Legacy *** //
 
 typedef struct dap_chain_ch_update_element{
     dap_hash_fast_t hash;
     uint32_t size;
 } DAP_ALIGN_PACKED dap_chain_ch_update_element_t;
 
-typedef struct dap_chain_ch_sync_request{
+typedef struct dap_chain_ch_sync_request_old {
     dap_chain_node_addr_t node_addr; // Requesting node's address
     dap_chain_hash_fast_t hash_from;
-    dap_chain_hash_fast_t hash_to;   // unused
-    uint64_t id_start;
-    uint64_t id_end;                 // unused
+    byte_t unused[96];
+} DAP_ALIGN_PACKED dap_chain_ch_sync_request_old_t;
+
+static const char* c_dap_chain_ch_pkt_type_str[]={
+    [DAP_CHAIN_CH_PKT_TYPE_CHAIN] = "DAP_CHAIN_CH_PKT_TYPE_CHAIN",
+    [DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB] = "DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB",
+    [DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS] = "DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS",
+    [DAP_CHAIN_CH_PKT_TYPE_SYNCED_GLOBAL_DB] = "DAP_CHAIN_CH_PKT_TYPE_SYNCED_GLOBAL_DB",
+    [DAP_CHAIN_CH_PKT_TYPE_ERROR] = "DAP_CHAIN_CH_PKT_TYPE_ERROR"
+
+};
+
+// *** Active *** //
+
+typedef struct dap_chain_ch_sync_request {
+    dap_chain_hash_fast_t hash_from;
+    uint64_t num_from;
 } DAP_ALIGN_PACKED dap_chain_ch_sync_request_t;
 
+typedef struct dap_chain_ch_summary {
+    uint64_t num_cur;
+    uint64_t num_last;
+    byte_t reserved[128];
+} DAP_ALIGN_PACKED dap_chain_ch_summary_t;
+
+typedef struct dap_chain_ch_miss_info {
+    dap_hash_fast_t missed_hash;
+    dap_hash_fast_t last_hash;
+    uint64_t last_num;
+} DAP_ALIGN_PACKED dap_chain_ch_miss_info_t;
 
 typedef struct dap_chain_ch_pkt_hdr {
     uint8_t version;
-    uint8_t padding[3];
+    uint8_t num_hi;
+    uint16_t num_lo;
     uint32_t data_size;
     dap_chain_net_id_t net_id;
     dap_chain_id_t chain_id;
@@ -109,14 +132,7 @@ typedef struct dap_chain_ch_pkt {
     uint8_t data[];
 } DAP_ALIGN_PACKED dap_chain_ch_pkt_t;
 
-static const char* c_dap_chain_ch_pkt_type_str[]={
-    [DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN",
-    [DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB",
-    [DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS",
-    [DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB",
-    [DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR"
-
-};
+DAP_STATIC_INLINE size_t dap_chain_ch_pkt_get_size(dap_chain_ch_pkt_t *a_pkt) { return sizeof(dap_chain_ch_pkt_hdr_t) + a_pkt->hdr.data_size; }
 
 dap_chain_ch_pkt_t *dap_chain_ch_pkt_new(uint64_t a_net_id, uint64_t a_chain_id, uint64_t a_cell_id,
                                          const void *a_data, size_t a_data_size);
@@ -160,7 +176,7 @@ inline static DAP_PRINTF_ATTR(5, 6) size_t dap_chain_ch_pkt_write_error_unsafe(d
         va_start(l_va, a_err_string_format);
         vsnprintf(l_str, l_size,a_err_string_format, l_va);
         va_end(l_va);
-        return dap_chain_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR,
+        return dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_ERROR,
                                                     a_net_id, a_chain_id, a_cell_id, l_str, l_size);
     }
     return 0;
@@ -190,7 +206,7 @@ static inline size_t dap_chain_ch_pkt_write_error_inter(dap_events_socket_t *a_e
         va_start(l_va, a_err_string_format);
         vsnprintf(l_str, l_size, a_err_string_format, l_va);
         va_end(l_va);
-        return dap_chain_ch_pkt_write_inter(a_es_input, a_ch_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR,
+        return dap_chain_ch_pkt_write_inter(a_es_input, a_ch_uuid, DAP_CHAIN_CH_PKT_TYPE_ERROR,
                                                     a_net_id, a_chain_id, a_cell_id, l_str, l_size);
     }
     return 0;

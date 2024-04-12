@@ -77,7 +77,7 @@ typedef struct client_statistic_value{
 
 static void s_stream_ch_new(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
-static void s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
+static bool s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
 static bool s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 
 static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item);
@@ -158,7 +158,7 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_
 int dap_stream_ch_chain_net_srv_init(dap_chain_net_srv_t *a_srv)
 {
     log_it(L_NOTICE,"Chain network services channel initialized");
-    dap_stream_ch_proc_add(DAP_STREAM_CH_NET_SRV_ID, s_stream_ch_new,s_stream_ch_delete,s_stream_ch_packet_in,s_stream_ch_packet_out);
+    dap_stream_ch_proc_add(DAP_STREAM_CH_NET_SRV_ID, s_stream_ch_new,s_stream_ch_delete, s_stream_ch_packet_in, s_stream_ch_packet_out);
     pthread_mutex_init(&a_srv->grace_mutex, NULL);
 
     return 0;
@@ -877,6 +877,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
             l_err.code = error ; \
             s_grace_error(l_grace, l_err); \
         } \
+        DAP_DELETE(l_grace); \
         DAP_DELETE(a_grace_item); \
         return false; \
     } \
@@ -1045,7 +1046,6 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                                                                             sizeof(dap_chain_datum_tx_receipt_t) + l_grace->usage->receipt->size + l_grace->usage->receipt->exts_size);
                     DAP_DELETE(l_success);
                 }
-                DAP_DELETE(l_grace);
                 DAP_DELETE(l_remain_service);
                 RET_WITH_DEL_A_GRACE(0);
             }
@@ -1160,11 +1160,11 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
  * @param ch
  * @param arg
  */
-void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
+static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
 {
     dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *)a_arg;
     if (!l_ch_pkt)
-        return;
+        return false;
     dap_chain_net_srv_stream_session_t *l_srv_session = NULL;
     if (a_ch) {
         l_srv_session = a_ch->stream && a_ch->stream->session ? a_ch->stream->session->_inheritor : NULL;
@@ -1172,13 +1172,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
     if (!l_srv_session) {
         log_it( L_ERROR, "Not defined service session, switching off packet input process");
         dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
-        return;
+        return false;
     }
 
     dap_stream_ch_chain_net_srv_t * l_ch_chain_net_srv = DAP_STREAM_CH_CHAIN_NET_SRV(a_ch);
     if (l_ch_chain_net_srv->notify_callback) {
         l_ch_chain_net_srv->notify_callback(l_ch_chain_net_srv, l_ch_pkt->hdr.type, l_ch_pkt, l_ch_chain_net_srv->notify_callback_arg);
-        return; // It's a client behind this
+        return false; // It's a client behind this
     }
     dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
     switch (l_ch_pkt->hdr.type) {
@@ -1190,7 +1190,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             log_it(L_WARNING, "Wrong request size %u, must be %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_ch_pkt->hdr.data_size, l_request_size, l_ch_pkt->hdr.seq_id);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_SIZE;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
-            break;
+            return false;
         }
         dap_chain_hash_fast_t l_data_hash;
         dap_hash_fast(l_request->data, l_request->data_size, &l_data_hash);
@@ -1198,13 +1198,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             log_it(L_WARNING, "Wrong hash [pkt seq %"DAP_UINT64_FORMAT_U"]", l_ch_pkt->hdr.seq_id);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
-            break;
+            return false;
         }
         if(l_request->data_size_recv > UINT_MAX) {
             log_it(L_WARNING, "Too large payload %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_request->data_size_recv, l_ch_pkt->hdr.seq_id);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_BIG_SIZE;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
-            break;
+            return false;
         }
         /* No need for bare copying, resend it back modified */
         if (l_request->data_size_recv) {
@@ -1236,7 +1236,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST: { //Service request
         if (l_ch_pkt->hdr.data_size < sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t) ){
             log_it( L_WARNING, "Wrong request size, less than minimum");
-            break;
+            return false;
         }
         dap_stream_ch_chain_net_srv_pkt_request_t *l_request = (dap_stream_ch_chain_net_srv_pkt_request_t*)l_ch_pkt->data;
         l_ch_chain_net_srv->srv_uid.uint64 = l_request->hdr.srv_uid.uint64;
@@ -1249,7 +1249,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         if (dap_chain_net_get_state(l_usage->net) == NET_STATE_OFFLINE) {
             log_it(L_ERROR, "Can't pay service because net %s is offline.", l_usage->net->pub.name);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
-            break;
+            return false;
         }
 
         if (l_ch_pkt->hdr.data_size < sizeof(dap_chain_receipt_info_t)) {
@@ -1339,7 +1339,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             l_usage->receipt = DAP_DUP_SIZE(l_receipt, l_receipt_size);
             if (!l_usage->receipt) {
                 log_it(L_CRITICAL, "Memory allocation error");
-                return;
+                break;
             }
             l_is_first_sign     = true;
             l_usage->is_active  = true;
@@ -1348,7 +1348,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             l_usage->receipt_next = DAP_DUP_SIZE(l_receipt, l_receipt_size);
             if (!l_usage->receipt_next) {
                 log_it(L_CRITICAL, "Memory allocation error");
-                return;
+                break;
             }
             l_usage->is_active = true;
         }
@@ -1381,7 +1381,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     if (!l_grace) {
                         log_it(L_CRITICAL, "Memory allocation error");
                         DAP_DELETE(l_tx_in_hash_str);
-                        return;
+                        break;
                     }
                     UNUSED(l_grace);
                     // Parse the request
@@ -1390,7 +1390,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         log_it(L_CRITICAL, "Memory allocation error");
                         DAP_DEL_Z(l_grace)
                         DAP_DELETE(l_tx_in_hash_str);
-                        return;
+                        break;
                     }
                     l_grace->request->hdr.net_id = l_usage->net->pub.id;
                     dap_stpcpy(l_grace->request->hdr.token, l_usage->token_ticker);
@@ -1411,7 +1411,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     if (!l_grace) {
                         log_it(L_CRITICAL, "Memory allocation error");
                         DAP_DELETE(l_tx_in_hash_str);
-                        return;
+                        return true;
                     }
                     // Parse the request
                     l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
@@ -1419,7 +1419,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         log_it(L_CRITICAL, "Memory allocation error");
                         DAP_DEL_Z(l_grace)
                         DAP_DELETE(l_tx_in_hash_str);
-                        return;
+                        return true;
                     }
                     l_grace->request->hdr.net_id = l_usage->net->pub.id;
                     dap_stpcpy(l_grace->request->hdr.token, l_usage->token_ticker);
@@ -1540,6 +1540,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         }else{
             log_it(L_ERROR, "Wrong error response size, %u when expected %zu", l_ch_pkt->hdr.data_size,
                    sizeof ( dap_stream_ch_chain_net_srv_pkt_error_t) );
+            return false;
         }
     } break;
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NEW_TX_COND_RESPONSE:{
@@ -1603,18 +1604,22 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                                                                               l_success_size);
         if(!l_success) {
             log_it(L_CRITICAL, "Memory allocation error");
-            return;
+            break;
         }
         l_success->hdr.usage_id = l_usage->id;
         l_success->hdr.net_id.uint64 = l_usage->net->pub.id.uint64;
         l_success->hdr.srv_uid.uint64 = l_usage->service->uid.uint64;
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
         DAP_DELETE(l_success);
-    }break;
-    default: log_it( L_WARNING, "Unknown packet type 0x%02X", l_ch_pkt->hdr.type);
+    } break;
+
+    default:
+        log_it( L_WARNING, "Unknown packet type 0x%02X", l_ch_pkt->hdr.type);
+        return false;
     }
     if(l_ch_chain_net_srv->notify_callback)
         l_ch_chain_net_srv->notify_callback(l_ch_chain_net_srv, l_ch_pkt->hdr.type, l_ch_pkt, l_ch_chain_net_srv->notify_callback_arg);
+    return true;
 }
 
 /**

@@ -83,7 +83,7 @@ void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
             dap_string_append_printf(a_str_out, "<CORRUPTED - can't calc hash>\n");
             continue;
         }
-        char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+        const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
                 : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
         dap_string_append_printf(a_str_out, "%d) %s, %s, %u bytes\n", i, l_hash_str,

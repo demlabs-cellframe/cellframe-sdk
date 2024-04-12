@@ -76,6 +76,7 @@ typedef struct dap_chain_cs_dag_poa_pvt {
     uint32_t confirmations_timeout; // wait signs over min value (auth_certs_count_verify)
     uint32_t wait_sync_before_complete;
     dap_chain_cs_dag_poa_presign_callback_t *callback_pre_sign;
+    dap_interval_timer_t mempool_timer;
 } dap_chain_cs_dag_poa_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_dag_poa_pvt_t *) a->_pvt )
@@ -694,6 +695,26 @@ static bool s_callback_sync_all_on_start(dap_global_db_instance_t *a_dbi, int a_
     return false;
 }
 
+static void s_round_changes_notify(dap_store_obj_t *a_obj, void *a_arg)
+{
+    dap_chain_cs_dag_t *l_dag = (dap_chain_cs_dag_t *)a_arg;
+    assert(l_dag);
+    dap_chain_net_t *l_net = dap_chain_net_by_id(l_dag->chain->net_id);
+    log_it(L_DEBUG, "%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%zu",
+        l_net->pub.name, l_dag->chain->name, a_obj->type, a_obj->group, a_obj->key, a_obj->value_len);
+    if (a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD) {
+        if (dap_strcmp(a_obj->key, DAG_ROUND_CURRENT_KEY))  // check key for round increment, if no than process event
+            s_callback_event_round_sync(l_dag, a_obj->type, a_obj->group, a_obj->key, a_obj->value, a_obj->value_len);
+        else
+            log_it(L_INFO, "Global round ID: %lu", *(uint64_t*)a_obj->value);
+    }
+}
+
+static void s_timer_process_callback(void *a_arg)
+{
+    dap_chain_node_mempool_process_all((dap_chain_t *)a_arg, false);
+}
+
 /**
  * @brief create callback load certificate for event signing for specific chain
  * path to certificate iw written to chain config file in dag_poa section
@@ -714,10 +735,25 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
             log_it(L_NOTICE,"Loaded \"%s\" certificate to sign poa event", l_events_sign_cert);
 
     }
-    dap_chain_net_t *l_cur_net = dap_chain_net_by_name(a_chain->net_name);
-    dap_chain_node_role_t l_role = dap_chain_net_get_role(l_cur_net);
+    dap_chain_net_t *l_net = dap_chain_net_by_name(a_chain->net_name);
+    assert(l_net);
+    dap_global_db_cluster_t *l_dag_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
+                                                                       dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_DAG),
+                                                                       l_dag->gdb_group_events_round_new, 900, true,
+                                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_ROLE_AUTONOMIC);
+    dap_global_db_cluster_add_notify_callback(l_dag_cluster, s_round_changes_notify, l_dag);
+    dap_chain_net_add_auth_nodes_to_cluster(l_net, l_dag_cluster);
+    dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_dag_cluster->links_cluster);
+
+    byte_t *l_current_round = dap_global_db_get_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
+    l_dag->round_current = l_current_round ? *(uint64_t*)l_current_round : 0;
+    DAP_DELETE(l_current_round);
+    log_it(L_INFO, "Current round id %"DAP_UINT64_FORMAT_U, l_dag->round_current);
+
+    PVT(l_poa)->mempool_timer = dap_interval_timer_create(15000, s_timer_process_callback, a_chain);
+
+    dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
     if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
-        l_dag->callback_cs_event_round_sync = s_callback_event_round_sync;
         l_dag->round_completed = l_dag->round_current++;
         log_it(L_MSG, "Round complete ID %"DAP_UINT64_FORMAT_U", current ID %"DAP_UINT64_FORMAT_U, l_dag->round_completed, l_dag->round_current);
         dap_global_db_get_all(l_dag->gdb_group_events_round_new, 0, s_callback_sync_all_on_start, l_dag);
@@ -737,6 +773,8 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 
     if ( l_poa->_pvt ) {
         dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( l_poa );
+
+        dap_interval_timer_delete(l_poa_pvt->mempool_timer);
 
         if ( l_poa_pvt->auth_certs )
             DAP_DELETE ( l_poa_pvt->auth_certs);
