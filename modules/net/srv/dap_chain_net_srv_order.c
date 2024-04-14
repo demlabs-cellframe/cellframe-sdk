@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
- DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+ DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -44,6 +44,7 @@ OC : Oceania			geonameId=6255151
 SA : South America		geonameId=6255150
 AN : Antarctica			geonameId=6255152
  */
+
 char *s_server_continents[]={
         "None",
         "Africa",
@@ -512,12 +513,14 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
                                         const dap_chain_net_srv_uid_t a_srv_uid,
                                         const dap_chain_net_srv_price_unit_uid_t a_price_unit,const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
                                         const uint256_t a_price_min, const uint256_t a_price_max,
-                                        dap_chain_net_srv_order_t ** a_output_orders, size_t * a_output_orders_count)
+                                        dap_list_t** a_output_orders, size_t * a_output_orders_count)
 {
     if (!a_net || !a_output_orders || !a_output_orders_count)
         return -1;
     size_t l_orders_size = 0, l_output_orders_count = 0;
     *a_output_orders = NULL;
+
+    dap_list_t* l_out_list = NULL;
 
     for (int i = 0; i < 2; i++) {
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
@@ -527,7 +530,6 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
         log_it( L_DEBUG, "Loaded %zu orders", l_orders_count);
         dap_chain_net_srv_order_t *l_order = NULL;
         for (size_t i = 0; i < l_orders_count; i++) {
-            DAP_DEL_Z(l_order);
             l_order = dap_chain_net_srv_order_read(l_orders[i].value, l_orders[i].value_len);
             if (!l_order) {
                 dap_global_db_del_sync(l_gdb_group_str, l_orders[i].key);
@@ -559,16 +561,16 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
             if (a_price_ticker && strcmp( l_order->price_ticker, a_price_ticker))
                 continue;
             size_t l_order_mem_size = dap_chain_net_srv_order_get_size(l_order);
-            *a_output_orders = DAP_REALLOC(*a_output_orders, l_orders_size + l_order_mem_size);
-            memcpy((byte_t *)*a_output_orders + l_orders_size, l_order, l_order_mem_size);
+            dap_chain_net_srv_order_t *l_output_order = DAP_DUP_SIZE(l_order, l_order_mem_size);
             DAP_DEL_Z(l_order);
-            l_orders_size += l_order_mem_size;
+            l_out_list = dap_list_append(l_out_list, l_output_order);
             l_output_orders_count++;
         }
         dap_global_db_objs_delete(l_orders, l_orders_count);
         DAP_DELETE(l_gdb_group_str);
     }
     *a_output_orders_count = l_output_orders_count;
+    *a_output_orders = l_out_list;
     return 0;
 }
 
@@ -580,16 +582,20 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
  */
 int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, const char *a_hash_str)
 {
+    bool l_is_search = false;
     int l_ret = -2;
     for (int i = 0; a_net && a_hash_str && i < 2; i++) {
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
                                   : dap_chain_net_srv_order_get_common_group(a_net);
-        l_ret = dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
+        if (dap_global_db_driver_is(l_gdb_group_str, a_hash_str)) {
+            l_is_search = true;
+            l_ret = dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
+        } else {
+            log_it(L_NOTICE, "In group %s not found record with %s key", l_gdb_group_str, a_hash_str);
+        }
         DAP_DELETE(l_gdb_group_str);
-        if (!l_ret)
-            break;
     }
-    return l_ret;
+    return l_is_search ? l_ret: -3;
 }
 
 /**

@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -56,18 +56,10 @@ int dap_chain_net_srv_datum_init()
         return -1;
     }
     s_srv_datum->uid.uint64 = DAP_CHAIN_NET_SRV_DATUM_ID;
-//    dap_chain_net_srv_price_apply_from_my_order(s_srv_datum, "srv_datum");
-    dap_chain_net_srv_price_t *l_price;
-    DL_FOREACH(s_srv_datum->pricelist, l_price) {
-        dap_chain_net_t *l_net = l_price->net;
-        if (!l_net)
-            continue;
-        dap_chain_net_srv_order_add_notify_callback(l_net, s_order_notficator, l_net);
-    }
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_DATUM_ID };
     dap_ledger_service_add(l_uid, "datum", s_tag_check_datum);
-
+    
     return 0;
 }
 
@@ -229,10 +221,7 @@ void s_order_notficator(dap_global_db_context_t *a_context, dap_store_obj_t *a_o
     if (!dap_chain_net_srv_uid_compare(l_order->srv_uid, s_srv_datum->uid))
         return; // order from another service
     dap_chain_net_srv_price_t *l_price = NULL;
-    DL_FOREACH(s_srv_datum->pricelist, l_price) {
-        if (l_price->net == l_net)
-            break;
-    }
+
     if (!l_price || l_price->net != l_net) {
         log_it(L_DEBUG, "Price for net %s is not set", l_net->pub.name);
         return; // price not set for this network

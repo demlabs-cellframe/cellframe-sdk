@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
- DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+ DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -821,7 +821,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 #endif
         if (l_data_obj_count) {
             debug_if(s_debug_more && l_data_obj_count < l_initial_count, L_INFO, "Only %zu / %zu of records will be applied", l_data_obj_count, l_initial_count);
-            dap_global_db_remote_apply_obj(l_store_obj, l_data_obj_count, s_gdb_in_pkt_proc_set_raw_callback, l_sync_request);
+            //dap_global_db_remote_apply_obj(l_store_obj, l_data_obj_count, s_gdb_in_pkt_proc_set_raw_callback, l_sync_request);
+            dap_global_db_remote_apply_obj_unsafe(dap_global_db_context_get_default(), l_store_obj, l_data_obj_count, s_gdb_in_pkt_proc_set_raw_callback, l_sync_request);
         } else {
             debug_if(s_debug_more, L_INFO, "No objects will be applied, all %zu are filtered out", l_initial_count);
             DAP_DELETE(l_sync_request);

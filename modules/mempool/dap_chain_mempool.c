@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
- DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+ DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -384,7 +384,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
 
     // Check and apply sovereign tax for this key
     uint256_t l_value_tax = {};
-    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_sign_pkey_hash);
+    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_blocks->chain->net_id, &l_sign_pkey_hash);
     if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
                 !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
         MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
@@ -513,7 +513,7 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
     }
     // Check and apply sovereign tax for this key
     uint256_t l_value_tax = {};
-    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_sign_pkey_hash);
+    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_blocks->chain->net_id, &l_sign_pkey_hash);
     if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
                 !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
         MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);

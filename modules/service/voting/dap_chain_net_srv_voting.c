@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
- DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+ DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -326,8 +326,9 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
             dap_sign_get_pkey_hash((dap_sign_t*)l_vote_sig->sig, &pkey_hash);
             if (l_voting->voting_params.delegate_key_required_offset &&
                 *(bool*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.delegate_key_required_offset)){
-                if (!dap_chain_net_srv_stake_check_pkey_hash(&pkey_hash)){
+                if (!dap_chain_net_srv_stake_check_pkey_hash(a_ledger->net->pub.id, &pkey_hash)){
                     log_it(L_ERROR, "The voting required a delegated key.");
+                    dap_list_free(l_signs_list);
                     return false;
                 }
             }
@@ -368,6 +369,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
                 }
                 l_temp = l_temp->next;
             }
+            dap_list_free(l_signs_list);
         }
 
         uint256_t l_weight = {};
@@ -454,6 +456,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
             dap_chain_net_vote_t *l_vote_item = DAP_NEW_Z(dap_chain_net_vote_t);
             if (!l_vote_item){
                 log_it(L_CRITICAL, "Memory allocate_error!");
+                dap_list_free(l_signs_list);
                 return false;
             }
             l_vote_item->vote_hash = l_hash;
@@ -470,15 +473,18 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
                         l_voting->votes = dap_list_append(l_voting->votes, l_vote_item);
 
                         log_it(L_ERROR, "Vote is changed.");
+                        dap_list_free(l_signs_list);
                         return true;
                     } else {
                         log_it(L_ERROR, "The voting don't allow change your vote.");
+                        dap_list_free(l_signs_list);
                         DAP_DELETE(l_vote_item);
                         return false;
                     }
                 }
                 l_temp = l_temp->next;
             }
+            dap_list_free(l_signs_list);
             log_it(L_INFO, "Vote is accepted.");
             l_voting->votes = dap_list_append(l_voting->votes, l_vote_item);
         }
@@ -1374,7 +1380,7 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
             dap_hash_fast_t l_pkey_hash = {0};
 
             dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
-            if (!dap_chain_net_srv_stake_check_pkey_hash(&l_pkey_hash)) {
+            if ( !dap_chain_net_srv_stake_check_pkey_hash(a_net->pub.id, &l_pkey_hash) ) {
                 return DAP_CHAIN_NET_VOTE_VOTING_KEY_IS_NOT_DELEGATED;
             }
             dap_list_t *l_temp = l_voting->votes;

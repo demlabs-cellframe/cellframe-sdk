@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -1358,8 +1358,6 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     }
     if (ret) {
         log_it(L_ERROR, "Can't process balancer link %s request", PVT(a_net)->balancer_http ? "HTTP" : "DNS");
-        DAP_DEL_Z(l_balancer_request->link_info);
-        DAP_DEL_Z(l_balancer_request);
         return false;
     }
     if (!a_link_replace_tries)
@@ -1395,6 +1393,32 @@ struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
             ? snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(a_net)->node_addr))
             : 0;
     json_object_object_add(l_json, "nodeAddress"     , json_object_new_string(l_tmp ? l_node_addr_str : "0000::0000::0000::0000"));
+    if (PVT(a_net)->state == NET_STATE_SYNC_CHAINS) {
+        json_object *l_jobj_processed_sync = json_object_new_object();
+        dap_chain_t *l_chain = NULL;
+        size_t l_count_el = 0, l_count_el_all = 0;
+        size_t l_node_link_nodes = 0;
+        dap_global_db_obj_t *l_nodes = dap_global_db_get_all_sync(a_net->pub.gdb_nodes - 6, &l_node_link_nodes);
+        for (size_t i =0; i< l_node_link_nodes; i++) {
+            dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_nodes[i].value;
+            if (l_count_el_all < l_node_info->hdr.blocks_events)
+                l_count_el_all = l_node_info->hdr.blocks_events;
+        }
+        dap_global_db_objs_delete(l_nodes, l_node_link_nodes);
+        DL_FOREACH(a_net->pub.chains, l_chain){
+            l_count_el += l_chain->callback_count_atom(l_chain);
+        }
+        double l_percent = l_count_el_all ? (double)(l_count_el * 100) / l_count_el_all : 0;
+        char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
+        json_object *l_jobj_percent = json_object_new_string(l_percent_str);
+        DAP_DELETE(l_percent_str);
+        json_object *l_jobj_total = json_object_new_uint64(l_count_el_all);
+        json_object *l_jobj_current  = json_object_new_uint64(l_count_el);
+        json_object_object_add(l_jobj_processed_sync, "sync_datums", l_jobj_current);
+        json_object_object_add(l_jobj_processed_sync, "total_datums", l_jobj_total);
+        json_object_object_add(l_jobj_processed_sync, "percent", l_jobj_percent);
+        json_object_object_add(l_json, "sync_status", l_jobj_processed_sync);
+    }
     return l_json;
 }
 
@@ -1771,6 +1795,33 @@ json_object* s_set_reply_text_node_status_json(dap_chain_net_t *a_net) {
         json_object_object_add(l_jobj_links, "total", l_jobj_total_links);
         json_object_object_add(l_jobj_ret, "links", l_jobj_links);
     }
+    json_object *l_jobj_processed_sync = json_object_new_object();
+    dap_chain_t *l_chain = NULL;
+    size_t l_count_el = 0, l_count_el_all = 0;
+    char *l_gdb_nodes = a_net->pub.gdb_nodes - 6;
+    size_t l_node_link_nodes = 0;
+    dap_global_db_obj_t *l_nodes = dap_global_db_get_all_sync(l_gdb_nodes, &l_node_link_nodes);
+    for (size_t i =0; i< l_node_link_nodes; i++) {
+        dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_nodes[i].value;
+            if (l_count_el_all < l_node_info->hdr.blocks_events)
+                l_count_el_all = l_node_info->hdr.blocks_events;
+    }
+    dap_global_db_objs_delete(l_nodes, l_node_link_nodes);
+
+    DL_FOREACH(a_net->pub.chains, l_chain){
+        l_count_el += l_chain->callback_count_atom(l_chain);
+    }
+    double l_percent = l_count_el_all ? (double)(l_count_el * 100) / l_count_el_all : 0;
+    char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
+    json_object *l_jobj_percent = json_object_new_string(l_percent_str);
+    DAP_DELETE(l_percent_str);
+    json_object *l_jobj_total = json_object_new_uint64(l_count_el_all);
+    json_object *l_jobj_current  = json_object_new_uint64(l_count_el);
+    
+    json_object_object_add(l_jobj_processed_sync, "sync_datums", l_jobj_current);
+    json_object_object_add(l_jobj_processed_sync, "total_datums", l_jobj_total);
+    json_object_object_add(l_jobj_processed_sync, "percent", l_jobj_percent);
+    json_object_object_add(l_jobj_ret, "sync_status", l_jobj_processed_sync);
     json_object *l_jobj_states = json_object_new_object();
     json_object *l_jobj_current_states = json_object_new_string(c_net_states[PVT(a_net)->state]);
     json_object *l_jobj_target_states = json_object_new_string(c_net_states[PVT(a_net)->state_target]);
@@ -2489,7 +2540,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 } else{
                     size_t node_info_size = 0;
                     dap_chain_node_info_t *l_node_inf_check;
-                    l_node_inf_check = (dap_chain_node_info_t *) dap_global_db_get_sync(l_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
+                    l_node_inf_check = (dap_chain_node_info_t *) dap_global_db_get_sync(l_net->pub.gdb_nodes - 6, l_key, &node_info_size, NULL, NULL);
                     if(!l_node_inf_check){
                         for(int i=0;i<PVT(l_net)->seed_aliases_count;i++)
                         {
@@ -2991,7 +3042,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     dap_global_db_add_sync_group(l_net->pub.name, "global", s_gbd_history_callback_notify, l_net);
     dap_global_db_add_sync_group(l_net->pub.name, l_net->pub.gdb_groups_prefix, s_gbd_history_callback_notify, l_net);
 
-    l_net->pub.gdb_nodes = dap_strdup_printf("%s."NODELIST_GROUP_NAME, l_net->pub.gdb_groups_prefix);
+    l_net->pub.gdb_nodes = dap_strdup_printf("local.%s."NODELIST_GROUP_NAME, l_net->pub.gdb_groups_prefix) + 6;
     l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
 
     // Bridged netwoks allowed to send transactions to
@@ -3497,6 +3548,7 @@ int s_net_load(dap_chain_net_t *a_net)
         log_it(L_WARNING,"Start one time ledger cache reloading");
         dap_ledger_purge(l_net->pub.ledger, false);
         dap_chain_net_srv_stake_purge(l_net);
+        dap_chain_net_srv_stake_add_net(l_net->pub.id);
     } else
         dap_chain_net_srv_stake_load_cache(l_net);
 
@@ -3949,7 +4001,7 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
     dap_global_db_obj_t *l_objs = NULL;
     size_t l_nodes_count = 0;
     // read all node
-    l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
+    l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes - 6, &l_nodes_count);
     if(!l_nodes_count || !l_objs)
         return l_node_list;
     for(size_t i = 0; i < l_nodes_count; i++) {
@@ -4398,4 +4450,14 @@ char *dap_chain_net_links_dump(dap_chain_net_t *a_net) {
     dap_string_free(l_str_uplinks, true);
     dap_string_free(l_str_downlinks, true);
     return l_res_str;
+}
+
+bool dap_chain_net_find_link(dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info) {
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
+    uint64_t l_addr = a_node_info->hdr.ext_addr_v4.s_addr;
+    struct net_link *l_link = NULL;
+    HASH_FIND(hh, l_net_pvt->net_links, &l_addr, sizeof(l_addr), l_link);
+    pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
+    return !!l_link;
 }
