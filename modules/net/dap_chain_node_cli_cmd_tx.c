@@ -332,17 +332,8 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     uint256_t l_corr_value = {}, l_unstake_value = {};
     json_object *l_corr_object = NULL;
 
-    size_t l_arr_start = 0;
-    if (a_offset)
-        l_arr_start = a_offset * a_limit;
-    size_t l_arr_end = a_chain->callback_count_atom(a_chain);
-    if (a_limit) {
-        l_arr_end = l_arr_start + a_limit;
-        size_t l_length = a_chain->callback_count_atom(a_chain);
-        if (l_arr_end > l_length)
-            l_arr_end = l_length;
-    }
-    size_t i_tmp = 1;
+    size_t l_arr_start = a_offset;
+    size_t l_count = 0;
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
 
@@ -354,11 +345,13 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             // go to next datum
             continue;
         // it's a transaction
-        if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
-            i_tmp++;
+        if (l_count < l_arr_start) {
+            l_count++;
             continue;
         }
-        i_tmp++;
+        if (a_limit && l_count >= a_limit + a_offset)
+            break;
+        l_count++;
         bool l_is_unstake = false;
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
         dap_list_t *l_list_in_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_ALL, NULL);
