@@ -175,6 +175,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                             ? dap_enc_base58_encode_hash_to_str(l_atom_hash)
                             : dap_chain_hash_fast_to_str_new(l_atom_hash);
         json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
+        DAP_DEL_Z(l_atom_hash_str);
     }
 
     char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")

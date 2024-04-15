@@ -3051,6 +3051,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     json_object *l_jobj_main_ticker = json_object_new_string(l_main_ticker ? l_main_ticker : "UNKNOWN");
                     json_object *l_jobj_ledger_rc = json_object_new_string(l_ledger_rc_str);
                     
+                    
                     if (!l_jobj_main_ticker || !l_jobj_ledger_rc) {
                             json_object_put(l_jobj_datum);
                             json_object_put(l_jobj_datums);
@@ -3107,7 +3108,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             if (!l_jobj_block_hash) {
                                 DAP_DELETE(l_block_hash);
                                 json_object_put(l_obj_in_reward_arary);
-                                dap_list_free(l_list_in_reward);
+                                if (l_list_in_reward) dap_list_free(l_list_in_reward);
                                 json_object_put(l_jobj_datum);
                                 json_object_put(l_jobj_datums);
                                 json_object_put(l_obj_chain);
@@ -3118,6 +3119,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             json_object_array_add(l_obj_in_reward_arary, l_jobj_block_hash);
                             DAP_DELETE(l_block_hash);
                         }
+                        if (l_list_in_reward) dap_list_free(l_list_in_reward);
                     } else {
                         json_object *l_jobj_addr_from = json_object_new_string(l_addr_from_str);
                         if (!l_jobj_addr_from) {
@@ -3215,6 +3217,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             default:
                                 break;
                         }
+                        
                         json_object *l_jobj_money = json_object_new_object();
                         if (!l_jobj_money) {
                             json_object_put(l_jobj_to_list);

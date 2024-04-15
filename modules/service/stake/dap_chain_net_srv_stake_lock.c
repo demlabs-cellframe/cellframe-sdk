@@ -204,14 +204,20 @@ static bool s_tag_check_staking(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
     //m-token burn: have TSD-items with "STAKING type UNSTAKE subtype"
     
     if (a_items_grp->items_tsd) {
+        
         bool src_staking = false;
         bool subtype_unstake = false;
         for (dap_list_t *it = a_items_grp->items_tsd; it; it = it->next) {
             dap_chain_tx_tsd_t *l_tx_tsd = it->data;
-            if (l_tx_tsd->header.type == DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE && s_tsd_str_cmp(l_tx_tsd->tsd, l_tx_tsd->header.size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_STAKING) == 0)
+            int l_type;
+            size_t l_size;
+            byte_t *l_data = dap_chain_datum_tx_item_get_data(l_tx_tsd, &l_type, &l_size);
+            
+            
+            if (l_type == DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE && s_tsd_str_cmp(l_data, l_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_STAKING) == 0)
                 src_staking = true;
             
-            if (l_tx_tsd->header.type == DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE_SUBTYPE && s_tsd_str_cmp(l_tx_tsd->tsd, l_tx_tsd->header.size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_UNSTAKE_FINALIZATION) == 0)
+            if (l_type == DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE_SUBTYPE && s_tsd_str_cmp(l_data, l_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_UNSTAKE_FINALIZATION) == 0)
                 subtype_unstake = true;
         }
         if (subtype_unstake && src_staking)

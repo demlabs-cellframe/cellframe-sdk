@@ -460,6 +460,7 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
     //have no other ins except regular in
     //have no OUT_COND except fee
     //have no vote
+    //no TSD!
 
 
     //have any of those -> not regular transfer
@@ -480,9 +481,10 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
     }
     
     //not voting or vote...
-    if (a_items_grp->items_vote || a_items_grp->items_voting )
+    if (a_items_grp->items_vote || a_items_grp->items_voting || a_items_grp->items_tsd)
         return false;
 
+    //not tsd sects (staking!)
     if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
     return true;
 }
@@ -1978,6 +1980,9 @@ static int s_tsd_sign_apply(dap_ledger_t *a_ledger, dap_ledger_token_item_t *a_t
         uint16_t l_tmp = 0;
         a_token_item->auth_signs_valid = _dap_tsd_get_scalar(l_new_signs_valid, &l_tmp);
     }
+
+    if (l_added_pkeys) dap_list_free(l_added_pkeys);
+    if (l_remove_pkeys) dap_list_free(l_remove_pkeys);
     return 0;
 }
 
@@ -4785,6 +4790,10 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             debug_if(s_debug_more, L_WARNING, "dap_ledger_tx_add() tx %s not passed the check: %s ", l_tx_hash_str,
                         dap_ledger_tx_check_err_str(l_ret_check));
         }
+        
+        if ( l_list_bound_items )
+            dap_list_free_full(l_list_bound_items, NULL);
+        
         return l_ret_check;
     }
     debug_if(s_debug_more, L_DEBUG, "dap_ledger_tx_add() check passed for tx %s", l_tx_hash_str);
@@ -6238,6 +6247,8 @@ char * dap_ledger_tx_get_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_
     {
         l_main_ticker = (char*)dap_ledger_tx_get_token_ticker_by_hash(a_ledger, l_tx_hash);
     }
+
+    DAP_DEL_Z(l_tx_hash);
 
     if (a_ledger_rc)
         *a_ledger_rc = l_rc;
