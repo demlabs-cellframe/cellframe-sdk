@@ -479,8 +479,8 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
                             pthread_create(&l_thr, &s_attr_detached, s_node_handshake_and_add, targ);
                         }
                     }
-                } else if (l_rec)
-                    DAP_DELETE(l_rec);
+                }
+                DAP_DELETE(l_rec);
             }
         } else if (a_obj->type == DAP_DB$K_OPTYPE_DEL)
             dap_global_db_del_sync(l_net->pub.gdb_nodes - 6, a_obj->key);
