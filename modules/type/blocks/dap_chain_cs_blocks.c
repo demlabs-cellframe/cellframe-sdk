@@ -432,14 +432,14 @@ static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, cha
  * @param a_meta_title
  * @param a_meta
  */
-static void s_cli_meta_hash_print(dap_string_t *a_str_tmp, const char *a_meta_title, dap_chain_block_meta_t *a_meta)
+static void s_cli_meta_hash_print(json_object* json_obj_a, const char *a_meta_title, dap_chain_block_meta_t *a_meta)
 {
     if (a_meta->hdr.data_size == sizeof (dap_chain_hash_fast_t)) {
         char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str((dap_chain_hash_fast_t *)a_meta->data, l_hash_str, sizeof(l_hash_str));
-        dap_string_append_printf(a_str_tmp, "\t\t%s: %s\n", a_meta_title, l_hash_str);
+        json_object_object_add(json_obj_a, a_meta_title, json_object_new_string(l_hash_str));
     } else
-        dap_string_append_printf(a_str_tmp,"\t\t\%s: Error, hash size is incorrect\n", a_meta_title);
+        json_object_object_add(json_obj_a, a_meta_title, json_object_new_string("Error, hash size is incorrect"));
 }
 
 /**
@@ -519,6 +519,7 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
  */
 static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
 {
+    json_object ** json_arr_reply = (json_object **) reply;
     char ** a_str_reply = (char **) reply;
     enum {
         SUBCMD_UNDEFINED =0,
@@ -571,10 +572,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
     const char *l_chain_type = dap_chain_net_get_type(l_chain);
 
     if (!strstr(l_chain_type, "block_") && strcmp(l_chain_type, "esbocs")){
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "Type of chain %s is not block. This chain with type %s is not supported by this command",
-                        l_chain->name, l_chain_type);
-            return -42;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Type of chain %s is not block. This chain with type %s is not supported by this command",
+                        l_chain->name, l_chain_type); 
+        return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
     }
 
     l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
@@ -616,9 +616,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 s_cli_parse_cmd_hash(a_argv,arg_index,a_argc,a_str_reply,"-datum", &l_datum_hash );
                 l_blocks->block_new_size=dap_chain_block_datum_del_by_hash( &l_blocks->block_new, l_blocks->block_new_size, &l_datum_hash );
             }else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                          "Error! Can't delete datum from hash because no forming new block! Check pls you role, it must be MASTER NODE or greater");
-                ret = -12;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Error! Can't delete datum from hash because no forming new block! Check pls you role, it must be MASTER NODE or greater");
+                ret = DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
             }
             pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
         }break;
@@ -628,9 +627,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,
                                                            sizeof(dap_chain_datum_t*)*l_datums_count);
             if (!l_datums) {
-        log_it(L_CRITICAL, "Memory allocation error");
-                dap_cli_server_cmd_set_reply_text(a_str_reply,"Out of memory in s_cli_blocks");
-                return -1;
+                log_it(L_CRITICAL, "Memory allocation error");
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Out of memory in s_cli_blocks");                
+                return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
             }
             size_t l_datum_size = 0;
 
@@ -640,16 +639,16 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             for (size_t i = 0; i < l_datums_count; i++) {
                 bool l_err = dap_chain_node_mempool_process(l_chain, l_datums[i], l_subcmd_str_arg);
                 if (l_err) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Datum %s doesn't pass verifications, examine node log files",
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Error! Datum %s doesn't pass verifications, examine node log files",
                                                       l_subcmd_str_arg);
-                    ret = -9;
+                    ret = DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
                 } else
                    log_it(L_INFO, "Pass datum %s from mempool to block in the new forming round ",
                                                      l_subcmd_str_arg);
                 if (l_err)
                     break;
             }
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "All datums processed");
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "All datums processed");
             DAP_DELETE(l_gdb_group_mempool);
         } break;
 
@@ -663,49 +662,72 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
         case SUBCMD_DUMP:{
             dap_chain_hash_fast_t l_block_hash={0};
             if (!l_subcmd_str_arg) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Enter block hash ");
-                return -13;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Enter block hash "); 
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Enter block hash");               
+                return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;                
             }
             dap_chain_hash_fast_from_str(l_subcmd_str_arg, &l_block_hash); // Convert argument to hash
             dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_block_hash);
             if (!l_block_cache) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find block %s ", l_subcmd_str_arg);
-                return 10;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Can't find block %s ", l_subcmd_str_arg);                
+                return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;                
             }
             dap_chain_block_t *l_block = l_block_cache->block;
             dap_string_t *l_str_tmp = dap_string_new(NULL);
+            char l_tmp_buff[70]={0};
             // Header
-            dap_string_append_printf(l_str_tmp, "Block number %"DAP_UINT64_FORMAT_U" hash %s:\n", l_block_cache->block_number, l_subcmd_str_arg);
-            dap_string_append_printf(l_str_tmp, "\t\t\tversion: 0x%04X\n", l_block->hdr.version);
-            dap_string_append_printf(l_str_tmp, "\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n", l_block->hdr.cell_id.uint64);
-            dap_string_append_printf(l_str_tmp, "\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n", l_block->hdr.chain_id.uint64);
-            char buf[50];
-            dap_time_to_str_rfc822(buf, 50, l_block->hdr.ts_created);
-            dap_string_append_printf(l_str_tmp, "\t\t\tts_created: %s\n", buf);
-
+            if(fl_json){
+                json_object_object_add(json_obj_out, "Block number", json_object_new_uint64(l_block_cache->block_number));
+                json_object_object_add(json_obj_out, "hash", json_object_new_string(l_subcmd_str_arg));
+                sprintf(l_tmp_buff,"0x%04X",l_block->hdr.version);
+                json_object_object_add(json_obj_out, "version", json_object_new_string(l_tmp_buff));
+                sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_X"",l_block->hdr.cell_id.uint64);
+                json_object_object_add(json_obj_out, "cell_id", json_object_new_string(l_tmp_buff));
+                sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_X"",l_block->hdr.chain_id.uint64);
+                json_object_object_add(json_obj_out, "chain_id", json_object_new_string(l_tmp_buff));
+                json_object_object_add(json_obj_out, "ts_created", json_object_new_string(dap_ctime_r(&l_block->hdr.ts_created, l_tmp_buff)));
+            }
+            else
+            {
+                dap_string_append_printf(l_str_tmp, "Block number %"DAP_UINT64_FORMAT_U" hash %s:\n", l_block_cache->block_number, l_subcmd_str_arg);
+                dap_string_append_printf(l_str_tmp, "\t\t\tversion: 0x%04X\n", l_block->hdr.version);
+                dap_string_append_printf(l_str_tmp, "\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n", l_block->hdr.cell_id.uint64);
+                dap_string_append_printf(l_str_tmp, "\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n", l_block->hdr.chain_id.uint64);                
+                dap_time_to_str_rfc822(l_tmp_buff, 50, l_block->hdr.ts_created);
+                dap_string_append_printf(l_str_tmp, "\t\t\tts_created: %s\n", l_tmp_buff);
+            }
+            
             // Dump Metadata
             size_t l_offset = 0;
-            dap_string_append_printf(l_str_tmp,"\tMetadata. Count: %us\n",l_block->hdr.meta_count );
+            json_object* json_arr_out = NULL;
+            if(fl_json){
+                json_object_object_add(json_obj_out, "Metadata: count", json_object_new_int(l_block->hdr.meta_count));
+                json_arr_out = json_object_new_array();
+            }
+            else
+                dap_string_append_printf(l_str_tmp,"\tMetadata. Count: %us\n",l_block->hdr.meta_count );
+
             for (uint32_t i=0; i < l_block->hdr.meta_count; i++) {
+                json_object* json_obj_meta = json_object_new_object();
                 dap_chain_block_meta_t *l_meta = (dap_chain_block_meta_t *)(l_block->meta_n_datum_n_sign + l_offset);
                 switch (l_meta->hdr.type) {
                 case DAP_CHAIN_BLOCK_META_GENESIS:
-                    dap_string_append_printf(l_str_tmp, "\t\tGENESIS\n");
+                    json_object_object_add(json_obj_meta, "GENESIS", json_object_new_string("GENESIS"));
                     break;
                 case DAP_CHAIN_BLOCK_META_PREV:
-                    s_cli_meta_hash_print(l_str_tmp, "PREV", l_meta);
+                    s_cli_meta_hash_print(json_obj_meta,"PREV", l_meta);
                     break;
                 case DAP_CHAIN_BLOCK_META_ANCHOR:
-                    s_cli_meta_hash_print(l_str_tmp, "ANCHOR", l_meta);
+                    s_cli_meta_hash_print(json_obj_meta,"ANCHOR", l_meta);
                     break;
                 case DAP_CHAIN_BLOCK_META_LINK:
-                    s_cli_meta_hash_print(l_str_tmp, "LINK", l_meta);
+                    s_cli_meta_hash_print(json_obj_meta,"LINK", l_meta);
                     break;
                 case DAP_CHAIN_BLOCK_META_NONCE:
-                    s_cli_meta_hex_print(l_str_tmp, "NONCE", l_meta);
+                    s_cli_meta_hash_print(json_obj_meta,"NONCE", l_meta);
                     break;
                 case DAP_CHAIN_BLOCK_META_NONCE2:
-                    s_cli_meta_hex_print(l_str_tmp, "NONCE2", l_meta);
+                    s_cli_meta_hash_print(json_obj_meta,"NONCE2", l_meta);
                     break;
                 default: {
                         char * l_data_hex = DAP_NEW_Z_SIZE(char,l_meta->hdr.data_size*2+3);

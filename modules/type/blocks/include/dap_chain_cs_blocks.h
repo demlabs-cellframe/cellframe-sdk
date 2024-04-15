@@ -62,6 +62,25 @@ typedef struct dap_chain_cs_blocks
    void * _inheritor;
 } dap_chain_cs_blocks_t;
 
+typedef enum s_com_blocks_err{
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_NET_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_INCOMPATIBLE_PARAMS_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_WALLET_ADDR_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_TRESHOLD_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_LACK_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_NET_FIND_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_ID_NET_ADDR_DIF_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_GET_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_TX_HASH_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_UNKNOWN /* MAX */
+} s_com_blocks_err_t;
+
 #define DAP_CHAIN_CS_BLOCKS(a) ((dap_chain_cs_blocks_t *)(a)->_inheritor)
 typedef int (*dap_chain_blocks_block_callback_ptr_t)(dap_chain_cs_blocks_t *, dap_chain_block_t *);
 
