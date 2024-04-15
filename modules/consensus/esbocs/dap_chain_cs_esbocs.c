@@ -1722,8 +1722,13 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
 
 void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_message_t *a_message, size_t a_message_size)
 {
-    if (!a_message) {
+    if (!a_seesion || !a_message || !a_message_size) {
         log_it(L_ERROR, "Invalid arguments in s_session_sync_queue_add");
+        return;
+    }
+    void *l_message_copy = DAP_DUP_SIZE(a_message, a_message_size);
+    if (!l_message_copy) {
+        log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
     dap_chain_esbocs_sync_item_t *l_sync_item;
@@ -1732,12 +1737,19 @@ void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_e
         l_sync_item = DAP_NEW_Z(dap_chain_esbocs_sync_item_t);
         if (!l_sync_item) {
             log_it(L_CRITICAL, "Memory allocation error");
+            DAP_DELETE(l_message_copy);
             return;
         }
         l_sync_item->last_block_hash = a_message->hdr.candidate_hash;
         HASH_ADD(hh, a_session->sync_items, last_block_hash, sizeof(dap_hash_fast_t), l_sync_item);
     }
-    l_sync_item->messages = dap_list_append(l_sync_item->messages, DAP_DUP_SIZE(a_message, a_message_size));
+    void *l_tail = dap_list_last(l_sync_item->messages);
+    l_sync_item->messages = dap_list_append(l_sync_item->messages, l_message_copy);
+    if (dap_list_last(l_sync_item->messages) == l_tail) {
+        // Unsuccessfull list adding
+        DAP_DELETE(l_message_copy);
+        return;
+    }
 }
 
 void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_chain_addr_t *a_signing_addr)
@@ -1976,7 +1988,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     uint16_t l_cs_level = PVT(l_session->esbocs)->min_validators_count;
 
     if (a_data_size < sizeof(dap_chain_esbocs_message_hdr_t)) {
-        log_it(L_WARNING, "Too smalll message size %zu, less than header size %zu", a_data_size, sizeof(dap_chain_esbocs_message_hdr_t));
+        log_it(L_WARNING, "Too small message size %zu, less than header size %zu", a_data_size, sizeof(dap_chain_esbocs_message_hdr_t));
         return;
     }
 
@@ -2193,6 +2205,11 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                 " SYNC message is rejected - too much sync attempt difference %"DAP_UINT64_FORMAT_U,
                                                    l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                        l_attempts_miss);
+                    break;
+                } else if (l_session->round_fast_forward) {
+                    debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
+                                                " SYNC message is rejected - round already in fast-forward state",
+                                                   l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id);
                     break;
                 } else {
                     debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
