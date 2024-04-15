@@ -1522,6 +1522,7 @@ int cmd_decree(int a_argc, char **a_argv, void ** reply)
                     l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
                     l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
+                    DAP_DELETE(l_str_to_reply);
                     return -103;
                 } else if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE)){ // check chain to support decree
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Chain %s don't support decree", l_chain->name);
@@ -1552,6 +1553,7 @@ int cmd_decree(int a_argc, char **a_argv, void ** reply)
                             l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
                     }
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
+                    DAP_DELETE(l_str_to_reply);
                     return -103;
                 }
             }else {
@@ -1756,6 +1758,7 @@ int cmd_decree(int a_argc, char **a_argv, void ** reply)
                     l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
                     l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
+                    DAP_DELETE(l_str_to_reply);
                     return -103;
                 } else if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE)){ // check chain to support decree
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Chain %s don't support decree", l_chain->name);
@@ -1856,6 +1859,7 @@ int cmd_decree(int a_argc, char **a_argv, void ** reply)
                 l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
                 l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
+                DAP_DELETE(l_str_to_reply);
                 return -103;
             } else if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_ANCHOR)){ // check chain to support decree
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Chain %s don't support decree", l_chain->name);
