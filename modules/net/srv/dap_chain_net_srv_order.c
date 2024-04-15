@@ -619,7 +619,7 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
         byte_t *l_gdb_order = dap_global_db_get_sync(l_gdb_group_str, a_hash_str, &l_order_size, NULL, NULL);
         if (!l_gdb_order){
             DAP_DELETE(l_gdb_group_str);
-            log_it(L_NOTICE, "In group %s not found record with %s key", l_gdb_group_str, a_hash_str);
+            log_it(L_NOTICE, "Record with key %s not found in group %s  ", l_gdb_group_str, a_hash_str);
             continue;
         }
         l_is_found = true;    
