@@ -209,7 +209,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     if (!l_esbocs_pvt) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         l_ret = - 5;
         goto lb_err;
     }
@@ -261,7 +261,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 
         dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
         if (!l_validator) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             l_ret = - 5;
             goto lb_err;
         }
@@ -1681,8 +1681,11 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
 
 void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_message_t *a_message, size_t a_message_size)
 {
-    if (!a_message) {
-        log_it(L_ERROR, "Invalid arguments in s_session_sync_queue_add");
+    dap_return_if_fail(a_session && a_message && a_message_size);
+
+    void *l_message_copy = DAP_DUP_SIZE(a_message, a_message_size);
+    if (!l_message_copy) {
+        log_it(L_CRITICAL, g_error_memory_alloc);
         return;
     }
     dap_chain_esbocs_sync_item_t *l_sync_item;
@@ -1692,7 +1695,13 @@ void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_e
         l_sync_item->last_block_hash = a_message->hdr.candidate_hash;
         HASH_ADD(hh, a_session->sync_items, last_block_hash, sizeof(dap_hash_fast_t), l_sync_item);
     }
-    l_sync_item->messages = dap_list_append(l_sync_item->messages, DAP_DUP_SIZE(a_message, a_message_size));
+    void *l_tail = dap_list_last(l_sync_item->messages);
+    l_sync_item->messages = dap_list_append(l_sync_item->messages, l_message_copy);
+    if (dap_list_last(l_sync_item->messages) == l_tail) {
+        // Unsuccessfull list adding
+        DAP_DELETE(l_message_copy);
+        return;
+    }
 }
 
 void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_chain_addr_t *a_signing_addr)
@@ -2144,6 +2153,11 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                                    l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                        l_attempts_miss);
                     break;
+                } else if (l_session->round_fast_forward) {
+                    debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
+                                                " SYNC message is rejected - round already in fast-forward state",
+                                                   l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id);
+                    break;
                 } else {
                     debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
                                                 " SYNC message sync attempt %"DAP_UINT64_FORMAT_U" is greater than"
@@ -2221,7 +2235,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         // store for new candidate
         l_store = DAP_NEW_Z(dap_chain_esbocs_store_t);
         if (!l_store) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             goto session_unlock;
         }
         l_store->candidate_size = l_candidate_size;
@@ -2478,7 +2492,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             l_message->hdr.sign_size = l_sign_size;
             l_message = DAP_REALLOC(l_message, l_message_size + l_sign_size);
             if (!l_message) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 return;
             }
             memcpy(l_message->msg_n_sign + a_data_size, l_sign, l_sign_size);
@@ -2681,7 +2695,7 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
         size_t l_sign_size = dap_sign_get_size(l_sign);
         l_decree = DAP_REALLOC(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
         if (!l_decree) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             DAP_DELETE(l_sign);
             return NULL;
         }

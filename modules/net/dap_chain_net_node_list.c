@@ -105,7 +105,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         *l_return_code = Http_Status_MethodNotAllowed;
         return;
     }
-    char *l_key = dap_chain_node_addr_to_str_static( &(dap_chain_node_addr_t){.uint64 = addr} );
+    char *l_key = dap_stream_node_addr_to_str_static( (dap_chain_node_addr_t){.uint64 = addr} );
     if (!l_key) {
         log_it(L_ERROR, "Bad node address %zu", addr);
         *l_return_code = Http_Status_BadRequest;
@@ -257,7 +257,7 @@ int dap_chain_net_node_list_request(dap_chain_net_t *a_net, uint16_t a_port, boo
     
     struct node_link_request *l_link_node_request = s_node_list_request_init();
     if (!l_link_node_request) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return -4;
     };
 
@@ -331,7 +331,7 @@ int dap_chain_net_node_list_init()
         return l_res;
     }
     dap_chain_node_addr_t l_addr = l_addr_by_alias ? *l_addr_by_alias : a_node_info->address;
-    char *a_key = dap_chain_node_addr_to_str_static(&l_addr);
+    char *a_key = dap_stream_node_addr_to_str_static(l_addr);
     if ( !(l_res = dap_global_db_del_sync(a_net->pub.gdb_nodes, a_key)) ) {
         dap_list_t *list_aliases = get_aliases_by_name(a_net, &l_addr), *l_el = list_aliases;
         while (l_el) {

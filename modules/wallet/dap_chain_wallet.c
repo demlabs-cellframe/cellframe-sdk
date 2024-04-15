@@ -134,7 +134,7 @@ char *c_wallets_path;
     {
         l_prec  = DAP_NEW_Z(dap_chain_wallet_n_pass_t);                 /* Get memory for new record */
         if (!l_prec) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return -EINVAL;
         }
         *l_prec = l_rec;                                                /* Fill it by data */
@@ -829,7 +829,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     l_wallet = DAP_NEW_Z(dap_chain_wallet_t);
     assert(l_wallet);
     if (!l_wallet) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         dap_fileclose(l_fh);
         return NULL;
     }
@@ -837,7 +837,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
     assert(l_wallet_internal);
     if (!l_wallet_internal) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         DAP_DEL_Z(l_wallet);
         dap_fileclose(l_fh);
         return NULL;
@@ -858,7 +858,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *, l_wallet_internal->certs_count * sizeof(dap_cert_t *));
     assert(l_wallet_internal->certs);
     if (!l_wallet_internal->certs) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         DAP_DEL_Z(l_wallet);
         dap_fileclose(l_fh);
         return NULL;

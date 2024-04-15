@@ -38,8 +38,7 @@
 static bool s_verify_pubkeys(dap_sign_t *a_sign, dap_sign_t **a_decree_signs, size_t a_num_of_decree_sign);
 static inline dap_sign_t *s_concate_all_signs_in_array(dap_sign_t *a_in_signs, size_t a_signs_size, size_t *a_sings_count, size_t *a_signs_arr_size);
 
-// Public functions
-int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t *a_anchor, size_t a_data_size)
+static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_anchor, size_t a_data_size, bool a_load_mode)
 {
     if (a_data_size < sizeof(dap_chain_datum_anchor_t)) {
         log_it(L_WARNING, "Anchor size is too small");
@@ -55,112 +54,78 @@ int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t *a_anchor, size_t a_dat
     //multiple signs reading from datum
     dap_sign_t *l_signs_block = (dap_sign_t *)((byte_t*)l_anchor->data_n_sign + l_anchor->header.data_size);
 
-    if (!l_signs_size || !l_signs_block)
-    {
-        log_it(L_WARNING,"Anchor data sign not found");
+    if (!l_signs_size || !l_signs_block) {
+        log_it(L_WARNING, "Anchor data sign not found");
         return -100;
     }
-    dap_sign_t *l_signs_arr = NULL;
+
     size_t l_signs_count = 0;
     size_t l_signs_arr_size = 0;
-    l_signs_arr = s_concate_all_signs_in_array(l_signs_block, l_signs_size, &l_signs_count, &l_signs_arr_size);
+    dap_sign_t *l_signs_arr = s_concate_all_signs_in_array(l_signs_block, l_signs_size, &l_signs_count, &l_signs_arr_size);
 
     // Find unique pkeys in pkeys set from previous step and check that number of signs > min
     size_t l_num_of_unique_signs = 0;
     dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_arr, l_signs_arr_size, &l_num_of_unique_signs);
 
-    if (l_num_of_unique_signs != l_signs_count)
-    {
-        log_it(L_WARNING,"Signatures contain duplicate signs.");
-        return -105;
-    }
-
-    uint256_t l_num_of_valid_signs256 = GET_256_FROM_64((uint64_t)l_num_of_unique_signs);
-    if (compare256(l_num_of_valid_signs256, GET_256_FROM_64((uint64_t)0)) == 0)
-    {
-        log_it(L_WARNING,"Not enough unique signatures");
+    if (!l_num_of_unique_signs) {
+        log_it(L_WARNING, "Not enough unique signatures");
         return -106;
+    }
+    bool l_sign_authorized = false;
+    size_t l_signs_size_original = l_anchor->header.signs_size;
+    l_anchor->header.signs_size = 0;
+    for (size_t i = 0; i < l_num_of_unique_signs; i++) {
+        for (dap_list_t *it = a_net->pub.decree->pkeys; it; it = it->next) {
+            if (dap_pkey_compare_with_sign(it->data, l_unique_signs[i])) {
+                // TODO make signs verification in s_concate_all_signs_in_array to correctly header.signs_size calculation
+                size_t l_verify_data_size = l_anchor->header.data_size + sizeof(dap_chain_datum_anchor_t);
+                if (dap_sign_verify_all(l_unique_signs[i], l_signs_size_original, l_anchor, l_verify_data_size))
+                    continue;
+                l_sign_authorized = true;
+                break;
+            }
+        }
+        l_anchor->header.signs_size += dap_sign_get_size(l_unique_signs[i]);
+        if (l_sign_authorized)
+            break;
+    }
+    DAP_DELETE(l_signs_arr);
+    DAP_DELETE(l_unique_signs);
+    l_anchor->header.signs_size = l_signs_size_original;
+
+    if (!l_sign_authorized) {
+        log_it(L_WARNING, "Anchor signs verify failed");
+        return -108;
     }
 
     dap_hash_fast_t l_decree_hash = {};
     dap_chain_datum_decree_t *l_decree = NULL;
-    if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash)) != 0)
-    {
-        DAP_DELETE(l_signs_arr);
-        DAP_DELETE(l_unique_signs);
-        log_it(L_WARNING,"Can't get hash from anchor data");
+    if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash)) != 0) {
+        log_it(L_WARNING, "Can't get hash from anchor data");
         return -106;
     }
 
+    if (a_load_mode)
+        return 0;
+
     bool l_is_applied = false;
     l_decree = dap_chain_net_decree_get_by_hash(&l_decree_hash, &l_is_applied);
-    if (!l_decree)
-    {
-        DAP_DELETE(l_signs_arr);
-        DAP_DELETE(l_unique_signs);
-        char *l_decree_hash_str = dap_hash_fast_to_str_new(&l_decree_hash);
-        log_it(L_WARNING,"Can't get decree by hash %s", l_decree_hash_str);
-        DAP_DELETE(l_decree_hash_str);
+    if (!l_decree) {
+        log_it(L_WARNING, "Can't get decree by hash %s", dap_hash_fast_to_str_static(&l_decree_hash));
         return DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE;
     }
-
-    if (l_is_applied)
-    {
-        DAP_DELETE(l_signs_arr);
-        DAP_DELETE(l_unique_signs);
-        log_it(L_WARNING,"The decree referred to by the anchor has already been applied");
+    if (l_is_applied) {
+        log_it(L_WARNING, "The decree referred to by the anchor has already been applied");
         return -109;
     }
 
-    size_t l_decree_signs_size = l_decree->header.signs_size;
-    //multiple signs reading from datum
-    dap_sign_t *l_decree_signs_block = (dap_sign_t *)((byte_t*)l_decree->data_n_signs + l_decree->header.data_size);
-
-    if (!l_decree_signs_size || !l_decree_signs_block)
-    {
-        log_it(L_WARNING,"Anchor data sign not found");
-        return -100;
-    }
-    dap_sign_t *l_decree_signs_arr = NULL;
-    size_t l_decree_signs_count = 0;
-    size_t l_decree_signs_arr_size = 0;
-    l_decree_signs_arr = s_concate_all_signs_in_array(l_decree_signs_block, l_decree_signs_size, &l_decree_signs_count, &l_decree_signs_arr_size);
-
-    // Find unique pkeys in pkeys set from previous step and check that number of signs > min
-    size_t l_num_of_unique_decree_signs = 0;
-    dap_sign_t **l_unique_decree_signs = dap_sign_get_unique_signs(l_decree_signs_arr, l_decree_signs_arr_size, &l_num_of_unique_decree_signs);
-
-    // Verify all keys and its signatures
-    uint16_t l_signs_size_for_current_sign = 0, l_signs_verify_counter = 0;
-    for(size_t i = 0; i < l_num_of_unique_signs; i++)
-    {
-        size_t l_sign_max_size = dap_sign_get_size(l_unique_signs[i]);
-        if (s_verify_pubkeys(l_unique_signs[i], l_unique_decree_signs, l_num_of_unique_decree_signs))
-        {
-            // 3. verify sign
-            size_t l_verify_data_size = l_anchor->header.data_size + sizeof(dap_chain_datum_anchor_t);
-            l_anchor->header.signs_size = l_signs_size_for_current_sign;
-            if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, l_anchor, l_verify_data_size))
-            {
-                l_signs_verify_counter++;
-            }
-        }
-            // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
-            l_signs_size_for_current_sign += l_sign_max_size;
-    }
-    DAP_DELETE(l_unique_decree_signs);
-    DAP_DELETE(l_decree_signs_arr);
-    l_anchor->header.signs_size = l_signs_size_for_current_sign;
-
-    if(!l_signs_verify_counter)
-    {
-        log_it(L_WARNING,"Anchor signs verify failed");
-        return -108;
-    }
-    DAP_DELETE(l_signs_arr);
-    DAP_DELETE(l_unique_signs);
-
     return 0;
+}
+
+// Public functions
+int dap_chain_net_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_anchor, size_t a_data_size)
+{
+   return s_anchor_verify(a_net, a_anchor, a_data_size, false);
 }
 
 int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain)
@@ -169,7 +134,7 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
 
     if (!a_anchor || !a_chain)
     {
-        log_it(L_WARNING,"Invalid arguments. a_decree and a_chain must be not NULL");
+        log_it(L_WARNING, "Invalid arguments. a_decree and a_chain must be not NULL");
         return -107;
     }
 
@@ -177,27 +142,25 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
 
     if (!l_net->pub.decree)
     {
-        log_it(L_WARNING,"Decree is not inited!");
+        log_it(L_WARNING, "Decree is not inited!");
         return -108;
     }
 
-    if ((ret_val = dap_chain_net_anchor_verify(a_anchor, dap_chain_datum_anchor_get_size(a_anchor))) != 0)
+    if ((ret_val = s_anchor_verify(l_net, a_anchor, dap_chain_datum_anchor_get_size(a_anchor), true)) != 0)
     {
-        log_it(L_WARNING,"Decree is not pass verification!");
+        log_it(L_WARNING, "Anchor is not pass verification!");
         return ret_val;
     }
 
     dap_chain_hash_fast_t l_hash = {0};
     if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(a_anchor, &l_hash)) != 0)
     {
-        log_it(L_WARNING,"Can not find datum hash in anchor data");
+        log_it(L_WARNING, "Can not find datum hash in anchor data");
         return -109;
     }
 
-    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain))!=0)
-    {
-        log_it(L_WARNING,"Decree applying failed");
-    }
+    if ((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain)) != 0)
+        log_it(L_WARNING, "Decree applying failed");
 
     return ret_val;
 }
