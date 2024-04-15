@@ -1722,7 +1722,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
 
 void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_message_t *a_message, size_t a_message_size)
 {
-    if (!a_seesion || !a_message || !a_message_size) {
+    if (!a_session || !a_message || !a_message_size) {
         log_it(L_ERROR, "Invalid arguments in s_session_sync_queue_add");
         return;
     }
