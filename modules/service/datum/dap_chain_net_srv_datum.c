@@ -38,7 +38,7 @@ static int s_srv_datum_cli(int argc, char ** argv, void **reply);
 
 void s_order_notficator(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
 
-static bool s_tag_check_datum(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_tag_action_type_t *a_action)
+static bool s_tag_check_datum(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
     //datum service do not produce transactions for now.
     return false;

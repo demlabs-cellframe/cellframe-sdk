@@ -96,10 +96,10 @@ bool s_get_ems_bridge_action(dap_chain_datum_token_emission_t *a_ems, dap_chain_
         if (dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_NET_ID, &src_tsd_size) &&
             dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_BLOCK_NUM, &src_tsd_size) &&
             dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_OUTER_TX_HASH, &src_tsd_size))
-         {
+        {
             *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
-           return true;
-         }
+            return true;
+        }
     }
 
     if (ems_subsrc && subsrc_tsd_size)
@@ -126,29 +126,23 @@ bool s_get_ems_bridge_action(dap_chain_datum_token_emission_t *a_ems, dap_chain_
 }
 
 
-static bool s_tag_check_bridge(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_tag_action_type_t *a_action)
+static bool s_tag_check_bridge(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
     //bridged native transfer: destination addr netid differs from net we get datum
     //such tx are marked by TRANSFER service as CROSSCHAIN_TRANSFER
     //bridge txs are only received one
     
-    
+
     //crosschain bridge AUTH emissions 
-    dap_list_t *l_items_ems=NULL;
-    l_items_ems = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_IN_EMS, NULL);
     
-    if (!l_items_ems)
+    if (!a_items_grp->items_in_ems)
         return false;
 
-    dap_chain_tx_in_ems_t *l_tx_in_ems = l_items_ems->data;
+    dap_chain_tx_in_ems_t *l_tx_in_ems = a_items_grp->items_in_ems->data;
     dap_hash_fast_t ems_hash = l_tx_in_ems->header.token_emission_hash;
     dap_chain_datum_token_emission_t *l_emission = dap_ledger_token_emission_find(a_ledger, &ems_hash);
     if(l_emission)
-    {   
-        bool success = s_get_ems_bridge_action(l_emission, a_action);
-        dap_list_free(l_items_ems);
-        return success;
-    }
+        return s_get_ems_bridge_action(l_emission, a_action);
 
     return false;
 }

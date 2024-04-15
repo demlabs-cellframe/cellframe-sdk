@@ -82,35 +82,57 @@ static dap_chain_net_srv_xchange_t *s_srv_xchange;
 static bool s_debug_more = true;
 
 
-static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_tag_action_type_t *a_action)
+static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
-
-    //xchange by xchange module
-    xchange_tx_type_t type = dap_chain_net_srv_xchange_tx_get_type(a_ledger, a_tx, NULL, NULL, NULL);
-    switch(type)
-    {
-        case TX_TYPE_ORDER:
-        { 
-            if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
-            return true;
-        }
-
-        case TX_TYPE_EXCHANGE:
-        { 
-            if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_USE;
-            return true;
-        }
-
-        case TX_TYPE_INVALIDATE:
-        { 
-            if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_CLOSE;
-            return true;
-        }
-
-        default:
-            return false;
-        
+    //check if we have in or out for xchange
+    
+    bool have_xchange_out = false;
+    bool have_xchange_in = false;
+    if (a_items_grp->items_out_cond_srv_xchange) {
+        dap_chain_tx_out_cond_t *l_cond_out = a_items_grp->items_out_cond_srv_xchange->data; 
+        if (l_cond_out->header.srv_uid.uint64 == DAP_CHAIN_NET_SRV_XCHANGE_ID)
+            have_xchange_out = true;
     }
+    
+    if (a_items_grp->items_in_cond) {
+       for (dap_list_t *it = a_items_grp->items_in_cond; it; it = it->next) {
+            dap_chain_tx_in_cond_t *l_tx_in = it->data;
+            dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(a_ledger, l_tx_in);
+
+            if (l_tx_out_cond && 
+                l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE &&
+                l_tx_out_cond->header.srv_uid.uint64 == DAP_CHAIN_NET_SRV_XCHANGE_ID) {
+                    have_xchange_in = true;
+            }
+        }
+    }
+
+    if (have_xchange_in || have_xchange_out) {
+        //xchange by xchange module
+        xchange_tx_type_t type = dap_chain_net_srv_xchange_tx_get_type(a_ledger, a_tx, NULL, NULL, NULL);
+        switch(type)
+        {
+            case TX_TYPE_ORDER:
+            { 
+                if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
+                return true;
+            }
+
+            case TX_TYPE_EXCHANGE:
+            { 
+                if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_USE;
+                return true;
+            }
+
+            case TX_TYPE_INVALIDATE:
+            { 
+                if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_CLOSE;
+                return true;
+            } 
+        }
+    }
+
+    return false;
     
 }
 

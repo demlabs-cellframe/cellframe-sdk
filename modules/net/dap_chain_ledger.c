@@ -372,110 +372,115 @@ static size_t s_threshold_free_timer_tick = 900000; // 900000 ms = 15 minutes.
 struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t* a_bal);
 
 //add a service declaration for tx tagging and more
-static bool s_tag_check_block_reward(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_tag_action_type_t *a_action)
+static bool s_tag_check_block_reward(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
     //reward tag
-    dap_list_t *l_reward_items=NULL;
-    if ((l_reward_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_IN_REWARD, NULL))) {
+    if (a_items_grp->items_in_reward)
+    {
         if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
-        dap_list_free(l_reward_items);
         return true;
     }
     return false;
 }
 
-static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_tag_action_type_t *a_action)
+dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond)
+{
+        dap_hash_fast_t *l_tx_prev_hash = &a_in_cond->header.tx_prev_hash;    
+        uint32_t l_tx_prev_out_idx = a_in_cond->header.tx_out_prev_idx;
+        dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash (a_ledger,l_tx_prev_hash);
+        
+        if (!l_tx_prev) return NULL;
+        byte_t* l_item_res = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_tx_prev_out_idx);
+        dap_chain_tx_item_type_t l_type = *(uint8_t *)l_item_res;
+        
+        if (l_type != TX_ITEM_TYPE_OUT_COND) return NULL;
+
+        
+        return (dap_chain_tx_out_cond_t*)l_item_res;
+}
+
+static dap_chain_addr_t s_get_out_addr(byte_t *out_item) {
+    dap_chain_tx_item_type_t l_type = *(uint8_t *)out_item;
+    
+    switch (l_type) {
+        case TX_ITEM_TYPE_OUT: { 
+            dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)out_item;
+            return l_tx_out->addr;
+        } break;
+        case TX_ITEM_TYPE_OUT_EXT: { // 256
+            dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)out_item;
+            return l_tx_out->addr;
+        } break;
+    }
+
+    dap_chain_addr_t l_tx_out_to={0};
+    return l_tx_out_to;
+}
+
+static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
     //crosschain transfer
     //regular transfer
     //comission transfer
     
     // fee transfer: in_cond item linked to out_cond_fee
-    dap_list_t *l_in_cond_items=NULL;
-    if ((l_in_cond_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_IN_COND, NULL))) {
-       for (dap_list_t *it = l_in_cond_items; it; it = it->next) {
+    if (a_items_grp->items_in_cond) 
+    {
+       for (dap_list_t *it = a_items_grp->items_in_cond; it; it = it->next) {
             dap_chain_tx_in_cond_t *l_tx_in = it->data;
-            dap_hash_fast_t *l_tx_prev_hash = &l_tx_in->header.tx_prev_hash;    
-            uint32_t l_tx_prev_out_idx = l_tx_in->header.tx_out_prev_idx;
-            dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash (a_ledger,l_tx_prev_hash);
-            int out_idx = -1;
-            dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, &out_idx);
-            if (l_tx_out_cond && (uint32_t)out_idx == l_tx_prev_out_idx) {
+            dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(a_ledger, l_tx_in);
+
+            if (l_tx_out_cond && l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
                 if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION;
-                dap_list_free(l_in_cond_items);
                 return true;
             }   
         }
     }
 
     //crosschain transfer: outs destination net-id differs from current net-id
-    dap_chain_addr_t addr_to = {0};
-    dap_list_t *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
+    // to differ with wrong stakes -> no ems in required
 
-    for (dap_list_t *it = l_list_out; it; it = it->next) {
-        dap_chain_tx_item_type_t l_type = *(uint8_t *)it->data;
-        dap_chain_addr_t l_tx_out_to={0};
-        switch (l_type) {
-            case TX_ITEM_TYPE_OUT_OLD: {
-                if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
-            } break;
-            case TX_ITEM_TYPE_OUT: { 
-                dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)it->data;
-                l_tx_out_to = l_tx_out->addr;
-            } break;
-            case TX_ITEM_TYPE_OUT_EXT: { // 256
-                dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)it->data;
-                l_tx_out_to = l_tx_out->addr;
-            } break;
-        }
+    if (!a_items_grp->items_in_ems)
+    {
+        dap_chain_addr_t addr_to = {0};
+        for (dap_list_t *it =  a_items_grp->items_out_all; it; it = it->next) {
+            
+            dap_chain_addr_t l_tx_out_to = s_get_out_addr(it->data);
         
-        //tag cross-chain _outputs_ transactions (recepient-tx is emission-based)
-        if (l_tx_out_to.net_id.uint64 != a_ledger->net->pub.id.uint64 && !dap_chain_addr_is_blank(&l_tx_out_to)) {
-            if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN;
-            dap_list_free(l_list_out);
-            return true;
-        }
+            //tag cross-chain _outputs_ transactions (recepient-tx is emission-based)
+            if (l_tx_out_to.net_id.uint64 != a_ledger->net->pub.id.uint64 && !dap_chain_addr_is_blank(&l_tx_out_to)) {
+                if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN;
+                return true;
+            }
+        }   
     }
 
-    if ( l_list_out )
-        dap_list_free(l_list_out);
-    
 
-    /*
     //regular transfers 
     //have no other ins except regular in
     //have no OUT_COND except fee
-    */
+    //have no vote
 
-    dap_list_t *l_items_in=NULL;
-    if ((l_items_in = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_IN_ALL, NULL))) {
-        for (dap_list_t *it = l_items_in; it; it = it->next) {
-            dap_chain_tx_in_t *l_tx_in = it->data;
-            if (l_tx_in->header.type != TX_ITEM_TYPE_IN)
-            {
-                dap_list_free(l_items_in);
-                return false;
-            }
-        }
-    }
-    if (l_items_in) dap_list_free(l_items_in);
 
-    dap_list_t *l_items_out=NULL;
-    if ((l_items_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT_COND, NULL))) {
-        for (dap_list_t *it = l_items_out; it; it = it->next) {
-            dap_chain_tx_out_cond_t *l_tx_out_cond = it->data;
-            if (l_tx_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
-            {
-                dap_list_free(l_items_out);
-                return false;
-            }
-        }
+    //have any of those -> not regular transfer
+    if (a_items_grp->items_in_cond ||
+        a_items_grp->items_in_ems ||
+        a_items_grp->items_in_reward ) {
+        return false;   
     }
-    if (l_items_out) dap_list_free(l_items_out);
+    
+    //have any of those -> not regular transfer
+    if ( 
+        a_items_grp->items_out_cond_srv_pay ||
+        a_items_grp->items_out_cond_srv_stake_lock ||
+        a_items_grp->items_out_cond_srv_stake_pos_delegate ||
+        a_items_grp->items_out_cond_srv_xchange) 
+    {
+        return false;
+    }
     
     //not voting or vote...
-    if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL) || 
-        dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL) )
+    if (a_items_grp->items_vote || a_items_grp->items_voting )
         return false;
 
     if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
@@ -3688,45 +3693,53 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
     return false;
 }
 
+
 bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_net_srv_uid_t *a_tag, dap_chain_tx_tag_action_type_t *a_action)
 {
     dap_ledger_service_info_t *l_sinfo_current, *l_sinfo_tmp;
-    
-    bool res = false;
-    int vcount_ok = 0;
 
     
+    dap_chain_datum_tx_item_groups_t l_items_groups = {0};
+    dap_chain_datum_tx_group_items(a_tx, &l_items_groups);
+
+    bool l_res = false;
+    int l_deductions_ok = 0;
+
     pthread_rwlock_rdlock(&s_services_rwlock);
     HASH_ITER(hh, s_services , l_sinfo_current, l_sinfo_tmp) {
         dap_chain_tx_tag_action_type_t action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
-        if (l_sinfo_current->callback && l_sinfo_current->callback(a_ledger, a_tx, &action)){
+        if (l_sinfo_current->callback && l_sinfo_current->callback(a_ledger, a_tx, &l_items_groups, &action)){
             if (a_tag) *a_tag =  l_sinfo_current->service_uid;
             if (a_action) *a_action =  action;
-            res = true;
-            vcount_ok ++;
+            l_res = true;
+            l_deductions_ok ++;
         }
     } 
     pthread_rwlock_unlock(&s_services_rwlock);
 
-    if (vcount_ok > 1)
+    if (l_deductions_ok > 1)
     {
         char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
         dap_chain_hash_fast_to_str(l_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
-    
-        log_it(L_WARNING, "Transaction %s identyfied by multiple services (%d):", l_tx_hash_str, vcount_ok);
+
+
+        log_it(L_WARNING, "Transaction %s identyfied by multiple services (%d):", l_tx_hash_str, l_deductions_ok);
     
         pthread_rwlock_rdlock(&s_services_rwlock);
         HASH_ITER(hh, s_services , l_sinfo_current, l_sinfo_tmp) {
-        dap_chain_tx_tag_action_type_t action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
-        if (l_sinfo_current->callback && l_sinfo_current->callback(a_ledger, a_tx, &action)){
-            log_it(L_WARNING, "%s %s", l_sinfo_current->tag_str, dap_ledger_tx_action_str(action));
-        }
+            dap_chain_tx_tag_action_type_t action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
+            if (l_sinfo_current->callback && l_sinfo_current->callback(a_ledger, a_tx, &l_items_groups,&action))  {
+                log_it(L_WARNING, "%s %s", l_sinfo_current->tag_str, dap_ledger_tx_action_str(action));
+            }
         } 
+
         pthread_rwlock_unlock(&s_services_rwlock);
     }
+    
+    dap_chain_datum_tx_group_items_free(&l_items_groups);
 
-    return res;
+    return l_res;
 }
 
 /**

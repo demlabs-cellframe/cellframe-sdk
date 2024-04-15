@@ -137,9 +137,19 @@ bool s_get_ems_staking_action(dap_chain_datum_token_emission_t *a_ems, dap_chain
             return false;
     }
 
+    //special processing for old stakes: they have only STAKING in tsd 9 and no subtype. it is opening stakes
+    if (ems_src && !ems_subsrc)
+    {
+        *a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
+        return true;
+    }
+
     if (ems_subsrc && subsrc_tsd_size)
     {
         if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_STAKE_CROSSCHAIN)==0)
+            *a_action =  DAP_CHAIN_TX_TAG_ACTION_OPEN;
+
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_STAKE_CROSSCHAINV2)==0)
             *a_action =  DAP_CHAIN_TX_TAG_ACTION_OPEN;
 
         if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_HARVEST)==0) 
@@ -147,60 +157,56 @@ bool s_get_ems_staking_action(dap_chain_datum_token_emission_t *a_ems, dap_chain
 
         if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_ADDLIQ)==0) 
             *a_action =  DAP_CHAIN_TX_TAG_ACTION_EXTEND;
+
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_EMSFIX)==0) 
+            *a_action =  DAP_CHAIN_TX_TAG_ACTION_CHANGE;
+    
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_BONUS)==0) 
+            *a_action =  DAP_CHAIN_TX_TAG_ACTION_CHANGE;
         
+
         if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_UNSTAKE_FINALIZATION)==0)
             *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD;
+    
+        if (*a_action == DAP_CHAIN_TX_TAG_ACTION_UNKNOWN)
+        {
+            log_it(L_WARNING, "Unknown action for staking: %s", ems_subsrc);
+        }     
+        return true;
     }
 
-    if (*a_action == DAP_CHAIN_TX_TAG_ACTION_UNKNOWN)
-    {
-        log_it(L_WARNING, "Emission source error: subtypesz==%d",subsrc_tsd_size);
-        
-        log_it(L_WARNING, "Emission source error: subtype==%s",ems_subsrc);
-    }
-    //special processing for old stakes: they have only STAKING in tsd 9 and no subtype
-    //we cant determine what type are those txs. mark them as unknown, but ok
-    return true;
+    return false;
 }
 
-static bool s_tag_check_staking(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_tag_action_type_t *a_action)
+static bool s_tag_check_staking(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
     //staking native open: have SRV_STAKE_LOCK out
-    dap_chain_tx_out_cond_t *l_cond_out=NULL; 
-    if (l_cond_out = dap_chain_datum_tx_out_cond_get((dap_chain_datum_tx_t*) a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, NULL)) {
+    
+    if (a_items_grp->items_out_cond_srv_stake_lock) {
         *a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
         return true;
     }
     
     //staking native close: have IN_COND linked with SRV_STAKE_LOCK out
-    dap_list_t *l_in_cond_items=NULL; 
-    if ((l_in_cond_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_IN_COND, NULL))) {
-       for (dap_list_t *it = l_in_cond_items; it; it = it->next) {
+    if (a_items_grp->items_in_cond) 
+    {
+       for (dap_list_t *it = a_items_grp->items_in_cond; it; it = it->next) {
             dap_chain_tx_in_cond_t *l_tx_in = it->data;
-            dap_hash_fast_t *l_tx_prev_hash = &l_tx_in->header.tx_prev_hash;    
-            uint32_t l_tx_prev_out_idx = l_tx_in->header.tx_out_prev_idx;
-            dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash (a_ledger,l_tx_prev_hash);
-            
-            //stake close: have IN_COND to a STAKE_LOCK out
-            //check if in-cond is linked to out-cond type srv_stake_lock
-            int out_idx = -1;
-            dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, &out_idx);
-            if (l_tx_out_cond && (uint32_t)out_idx == l_tx_prev_out_idx) {
-                    *a_action = DAP_CHAIN_TX_TAG_ACTION_CLOSE;
-                    dap_list_free(l_in_cond_items);
-                    return true;
-            }
+            dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(a_ledger, l_tx_in);
+
+            if (l_tx_out_cond && l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+                if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_CLOSE;
+                return true;
+            }   
         }
-        dap_list_free(l_in_cond_items);
     }
 
-
     //m-token burn: have TSD-items with "STAKING type UNSTAKE subtype"
-    dap_list_t *l_tsd_items=NULL; 
-    if ((l_tsd_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_TSD, NULL))) {
+    
+    if (a_items_grp->items_tsd) {
         bool src_staking = false;
         bool subtype_unstake = false;
-        for (dap_list_t *it = l_tsd_items; it; it = it->next) {
+        for (dap_list_t *it = a_items_grp->items_tsd; it; it = it->next) {
             dap_chain_tx_tsd_t *l_tx_tsd = it->data;
             if (l_tx_tsd->header.type == DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE && s_tsd_str_cmp(l_tx_tsd->tsd, l_tx_tsd->header.size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_STAKING) == 0)
                 src_staking = true;
@@ -211,24 +217,19 @@ static bool s_tag_check_staking(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
         if (subtype_unstake && src_staking)
         {
             if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_CLOSE;
-            dap_list_free(l_tsd_items);
             return true;
         }
     }
+
     //crosschain staking AUTH emissions 
-    dap_list_t *l_items_ems=NULL;
-    l_items_ems = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_IN_EMS, NULL);
-    
-    if (!l_items_ems)
+    if (!a_items_grp->items_in_ems)
         return false;
 
-    dap_chain_tx_in_ems_t *l_tx_in_ems = l_items_ems->data;
+    dap_chain_tx_in_ems_t *l_tx_in_ems = a_items_grp->items_in_ems->data;
     dap_hash_fast_t ems_hash = l_tx_in_ems->header.token_emission_hash;
     dap_chain_datum_token_emission_t *l_emission = dap_ledger_token_emission_find(a_ledger, &ems_hash);
-    if(l_emission)
-    {   
+    if(l_emission) {   
         bool success = s_get_ems_staking_action(l_emission, a_action);
-        dap_list_free(l_items_ems);
         return success;
     }
 
