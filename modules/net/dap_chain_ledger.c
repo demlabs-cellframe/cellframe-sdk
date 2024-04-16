@@ -395,13 +395,13 @@ static dap_ledger_t * dap_ledger_handle_new(void)
 {
     dap_ledger_t *l_ledger = DAP_NEW_Z(dap_ledger_t);
     if ( !l_ledger ) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return NULL;
     }
     dap_ledger_private_t * l_ledger_pvt;
     l_ledger->_internal = l_ledger_pvt = DAP_NEW_Z(dap_ledger_private_t);
     if ( !l_ledger_pvt ) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         DAP_DELETE(l_ledger);
         return NULL;
     }
@@ -453,7 +453,7 @@ struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_
         size_t l_addr_len = pos - a_bal->key;
         char *l_addr_str = DAP_NEW_STACK_SIZE(char, l_addr_len + 1);
         if ( !l_addr_str )
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         memcpy(l_addr_str, a_bal->key, pos - a_bal->key);
         *(l_addr_str + l_addr_len) = '\0';
         json_object_object_add(l_network, "address", json_object_new_string(l_addr_str));
@@ -655,7 +655,7 @@ static bool s_ledger_token_update_check(dap_ledger_token_item_t *a_cur_token_ite
     //Check added signs
     dap_chain_datum_token_t *l_token_tmp = DAP_DUP_SIZE(a_token_update, a_token_update_size);
     if (!l_token_tmp) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         dap_list_free(l_tsd_list_added_pkeys);
         dap_list_free(l_tsd_list_remote_pkeys);
         return false;
@@ -967,7 +967,7 @@ json_object *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_ad
 {
     json_object * json_arr_out = json_object_new_array();
     if (!json_arr_out) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return NULL;
     }
 
@@ -1006,7 +1006,7 @@ void s_ledger_token_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_item_t
     size_t l_cache_size = l_token_item->datum_token_size + sizeof(uint256_t);
     uint8_t *l_cache = DAP_NEW_STACK_SIZE(uint8_t, l_cache_size);
     if ( !l_cache ) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return;
     }
     memcpy(l_cache, &l_token_item->current_supply, sizeof(uint256_t));
@@ -1174,7 +1174,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
         l_token_item = DAP_NEW_Z(dap_ledger_token_item_t);
         if ( !l_token_item ) {
             DAP_DEL_Z(l_token);
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return -8;
         }
         *l_token_item = (dap_ledger_token_item_t) {
@@ -1195,7 +1195,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
             if (l_token)
                 DAP_DELETE(l_token);
             DAP_DELETE(l_token_item);
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return -6;
         };
         if ( !l_token_item->auth_pkeys ) {
@@ -1203,7 +1203,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
                 DAP_DELETE(l_token);
             DAP_DEL_Z(l_token_item->auth_pkeys);
             DAP_DELETE(l_token_item);
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return -6;
         }
         dap_stpcpy(l_token_item->ticker, l_token->ticker);
@@ -2296,12 +2296,12 @@ static bool s_load_cache_gdb_loaded_balances_callback(dap_global_db_instance_t *
     for (size_t i = 0; i < a_values_count; i++) {
         dap_ledger_wallet_balance_t *l_balance_item = DAP_NEW_Z(dap_ledger_wallet_balance_t);
         if (!l_balance_item) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return false;
         }
         l_balance_item->key = DAP_NEW_Z_SIZE(char, strlen(a_values[i].key) + 1);
         if (!l_balance_item->key) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             DAP_DEL_Z(l_balance_item);
             return false;
         }
@@ -2347,14 +2347,14 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
     for (size_t i = 0; i < a_values_count; i++) {
         dap_ledger_tx_item_t *l_tx_item = DAP_NEW_Z(dap_ledger_tx_item_t);
         if ( !l_tx_item ) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return false;
         }
         dap_chain_hash_fast_from_str(a_values[i].key, &l_tx_item->tx_hash_fast);
         l_tx_item->tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, a_values[i].value_len - sizeof(l_tx_item->cache_data));
         if ( !l_tx_item->tx ) {
             DAP_DELETE(l_tx_item);
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return false;
         }
         memcpy(&l_tx_item->cache_data, a_values[i].value, sizeof(l_tx_item->cache_data));
@@ -2427,7 +2427,7 @@ static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_instance_t 
         }
         dap_ledger_token_emission_item_t *l_emission_item = DAP_NEW_Z(dap_ledger_token_emission_item_t);
         if ( !l_emission_item ) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return false;
         }
         dap_chain_hash_fast_from_str(a_values[i].key, &l_emission_item->datum_token_emission_hash);
@@ -2533,7 +2533,7 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
 {
     dap_ledger_t *l_ledger = dap_ledger_handle_new();
     if (!l_ledger) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return NULL;
     }
     l_ledger->net = a_net;
@@ -2566,7 +2566,7 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
                 for (uint16_t i = 0; i < l_whitelist_size; ++i) {
                     dap_ledger_hal_item_t *l_hal_item = DAP_NEW_Z(dap_ledger_hal_item_t);
                     if (!l_hal_item) {
-                        log_it(L_CRITICAL, "Memory allocation error");
+                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                         DAP_DEL_Z(l_ledger_pvt);
                         DAP_DEL_Z(l_ledger);
                         dap_config_close(l_cfg);
@@ -2814,13 +2814,13 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
             if (HASH_COUNT(l_ledger_pvt->threshold_emissions) < s_threshold_emissions_max) {
                 l_token_emission_item = DAP_NEW_Z(dap_ledger_token_emission_item_t);
                 if ( !l_token_emission_item ) {
-                    log_it(L_CRITICAL, "Memory allocation error");
+                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                     return DAP_LEDGER_EMISSION_ADD_MEMORY_PROBLEM;
                 }
                 l_token_emission_item->datum_token_emission = DAP_DUP_SIZE(a_token_emission, a_token_emission_size);
                 if ( !l_token_emission_item->datum_token_emission ) {
                     DAP_DELETE(l_token_emission_item);
-                    log_it(L_CRITICAL, "Memory allocation error");
+                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                     return DAP_LEDGER_EMISSION_ADD_MEMORY_PROBLEM;
                 }
                 l_token_emission_item->datum_token_emission_size = a_token_emission_size;
@@ -2855,7 +2855,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
     if (!l_token_emission_item) {
         l_token_emission_item = DAP_NEW_Z(dap_ledger_token_emission_item_t);
         if ( !l_token_emission_item ) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return DAP_LEDGER_EMISSION_ADD_MEMORY_PROBLEM;
         }
         l_token_emission_item->datum_token_emission_size = a_token_emission_size;
@@ -3114,7 +3114,7 @@ void dap_ledger_addr_get_token_ticker_all_depricated(dap_ledger_t *a_ledger, dap
     if(l_tx_item) {
         l_tickers = DAP_NEW_Z_SIZE(char *, l_tickers_size * sizeof(char*));
         if ( !l_tickers ) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return;
         }
         while(l_tx_item) {
@@ -3132,7 +3132,7 @@ void dap_ledger_addr_get_token_ticker_all_depricated(dap_ledger_t *a_ledger, dap
                     l_tickers_size += (l_tickers_size / 2);
                     l_tickers = DAP_REALLOC(l_tickers, l_tickers_size);
                     if ( !l_tickers ) {
-                        log_it(L_CRITICAL, "Memory allocation error");
+                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                         return;
                     }
                 }
@@ -3146,7 +3146,7 @@ void dap_ledger_addr_get_token_ticker_all_depricated(dap_ledger_t *a_ledger, dap
         l_tickers_size = l_tickers_pos + 1;
         l_tickers = DAP_REALLOC(l_tickers, l_tickers_size * sizeof(char*));
         if ( !l_tickers ) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return;
         }
     }
@@ -3172,7 +3172,7 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
             dap_ledger_token_item_t * l_token_item, *l_tmp;
             char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
             if (!l_tickers) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
                 return;
             }
@@ -3192,7 +3192,7 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
         if(l_count && a_tickers){
             char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
             if (!l_tickers) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
                 return;
             }
@@ -3566,7 +3566,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
     for (dap_list_t *it = l_list_in; it; it = it->next) {
          dap_ledger_tx_bound_t *l_bound_item = DAP_NEW_Z(dap_ledger_tx_bound_t);
         if (!l_bound_item) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             l_err_num = DAP_LEDGER_TX_CHECK_MEMORY_PROBLEM;
             break;
         }
@@ -4070,7 +4070,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         if (!l_value_cur) {
             l_value_cur = DAP_NEW_Z(dap_ledger_tokenizer_t);
             if ( !l_value_cur ) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 l_err_num = DAP_LEDGER_TX_CHECK_MEMORY_PROBLEM;
                 break;
             }
@@ -4114,7 +4114,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
     } else {
         l_value_cur = DAP_NEW_Z(dap_ledger_tokenizer_t);
         if ( !l_value_cur ) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             l_err_num = DAP_LEDGER_TX_CHECK_MEMORY_PROBLEM;
             if ( l_list_bound_items )
                 dap_list_free_full(l_list_bound_items, NULL);
@@ -4208,7 +4208,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             if (!l_value_cur) {
                 l_value_cur = DAP_NEW_Z(dap_ledger_tokenizer_t);
                 if ( !l_value_cur ) {
-                    log_it(L_CRITICAL, "Memory allocation error");
+                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                     l_err_num = DAP_LEDGER_TX_CHECK_MEMORY_PROBLEM;
                     break;
                 }
@@ -4493,14 +4493,14 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                     } else {
                         l_item_tmp = DAP_NEW_Z(dap_ledger_tx_item_t);
                         if ( !l_item_tmp ) {
-                            log_it(L_CRITICAL, "Memory allocation error");
+                            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                             return -1;
                         }
                         l_item_tmp->tx_hash_fast = *a_tx_hash;
                         l_item_tmp->tx = DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
                         if ( !l_item_tmp->tx ) {
                             DAP_DELETE(l_item_tmp);
-                            log_it(L_CRITICAL, "Memory allocation error");
+                            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                             return -1;
                         }
                         l_item_tmp->ts_added = dap_nanotime_now();
@@ -4528,7 +4528,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     if (PVT(a_ledger)->cached) {
         dap_store_obj_t *l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * (l_outs_used + 1));
         if ( !l_cache_used_outs ) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             l_ret = -1;
             goto FIN;
         }
@@ -4575,7 +4575,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         case TX_ITEM_TYPE_IN_REWARD: {
             dap_ledger_reward_item_t *l_item = DAP_NEW_Z(dap_ledger_reward_item_t);
             if (!l_item) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 l_ret = -1;
                 goto FIN;
             }
@@ -4753,7 +4753,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     // add transaction to the cache list
     dap_ledger_tx_item_t *l_tx_item = DAP_NEW_Z(dap_ledger_tx_item_t);
     if ( !l_tx_item ) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         l_ret = -1;
         goto FIN;
     }
@@ -5938,7 +5938,7 @@ int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_le
     }
     l_new_verificator = DAP_NEW(dap_ledger_verificator_t);
     if (!l_new_verificator) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return -1;
     }
     l_new_verificator->subtype = (int)a_subtype;

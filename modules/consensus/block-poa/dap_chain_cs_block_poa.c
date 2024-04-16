@@ -184,7 +184,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS( a_chain );
     dap_chain_cs_block_poa_t * l_poa = DAP_NEW_Z ( dap_chain_cs_block_poa_t);
     if (!l_poa) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return -1;
     }
     l_blocks->_inheritor = l_poa;
@@ -193,7 +193,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_blocks->callback_block_sign = s_callback_block_sign;
     l_poa->_pvt = DAP_NEW_Z(dap_chain_cs_block_poa_pvt_t);
     if (!l_poa->_pvt) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return -1;
     }
     dap_chain_cs_block_poa_pvt_t *l_poa_pvt = PVT(l_poa);
@@ -206,7 +206,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             // Type sizeof's misunderstanding in malloc?
             l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t*));
             if (!l_poa_pvt->auth_certs) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 return -1;
             }
             char l_cert_name[512];
