@@ -52,6 +52,7 @@ typedef enum dap_chain_ch_error_type {
     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE,
     DAP_CHAIN_CH_ERROR_SYNC_TIMEOUT,
     DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE,
+    DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE,
     DAP_CHAIN_CH_ERROR_NET_INVALID_ID,
     DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND,
     DAP_CHAIN_CH_ERROR_ATOM_NOT_FOUND,
@@ -85,19 +86,6 @@ typedef struct dap_chain_ch {
 
     // Legacy section //
     int state;
-
-    uint64_t stats_request_atoms_processed;
-    uint64_t stats_request_gdb_processed;
-
-    dap_chain_ch_hash_item_t * remote_atoms; // Remote atoms
-    dap_chain_ch_hash_item_t * remote_gdbs; // Remote gdbs
-
-    // request section
-    dap_chain_atom_iter_t *request_atom_iter;
-    //dap_db_log_list_t *request_db_log; // list of global db records
-    dap_chain_ch_sync_request_old_t request;
-    dap_chain_ch_pkt_hdr_t request_hdr;
-    dap_list_t *request_db_iter;
 
     uint32_t timer_shots;
     dap_timerfd_t *activity_timer;
