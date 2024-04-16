@@ -7033,6 +7033,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
     const char *l_tx_hash_str = NULL;
     const char *l_limit_str = NULL;
     const char *l_offset_str = NULL;
+    const char *l_order = NULL;
 
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
@@ -7053,6 +7054,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx", &l_tx_hash_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-order", &l_order);
 
     bool l_is_tx_all = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
 
@@ -7145,6 +7147,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
     }
     // response
     json_object * json_obj_out = NULL;
+    bool l_reverse = l_order ? !strcmp(l_order, "desc") : false;
     if (l_tx_hash_str) {
          // history tx hash
         json_obj_out = dap_db_history_tx(&l_tx_hash, l_chain, l_hash_out_type, l_net);
@@ -7159,7 +7162,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
         size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
         size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
-        json_obj_out = dap_db_history_addr(l_addr, l_chain, l_hash_out_type, dap_chain_addr_to_str(l_addr), l_limit, l_offset);
+        json_obj_out = dap_db_history_addr(l_addr, l_chain, l_hash_out_type, dap_chain_addr_to_str(l_addr), l_limit, l_offset, l_reverse);
         if (!json_obj_out) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR,
                                     "something went wrong in tx_history");

@@ -295,7 +295,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
  * @return char*
  */
 json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, 
-                                 const char *a_hash_out_type, const char * l_addr_str, size_t a_limit, size_t a_offset)
+                                 const char *a_hash_out_type, const char * l_addr_str, size_t a_limit, size_t a_offset, bool a_reverse)
 {
     json_object* json_obj_datum = json_object_new_array();
     if (!json_obj_datum){
@@ -332,21 +332,21 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     uint256_t l_corr_value = {}, l_unstake_value = {};
     json_object *l_corr_object = NULL;
 
-    size_t l_arr_start = a_offset;
+    size_t l_count_tx = a_chain->callback_count_tx(a_chain);
+    size_t l_arr_start = !a_reverse ? a_offset :;
     size_t l_count = 0;
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
-
     for (dap_chain_datum_t *l_datum = a_chain->callback_datum_iter_get_first(l_datum_iter);
-                            l_datum;
+                            l_datum && l_count_tx;
                             l_datum = a_chain->callback_datum_iter_get_next(l_datum_iter))
     {
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
             // go to next datum
             continue;
         // it's a transaction
-        if (l_count < l_arr_start) {
-            l_count++;
+        if (l_arr_start) {
+            --l_arr_start;
             continue;
         }
         if (a_limit && l_count >= a_limit + a_offset)

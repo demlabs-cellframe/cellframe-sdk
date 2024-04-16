@@ -132,12 +132,14 @@ static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** 
 static void s_callback_cs_blocks_purge(dap_chain_t *a_chain);
 
 static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size);
-
 //Work with atoms
 static uint64_t s_callback_count_atom(dap_chain_t *a_chain);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config);
+
+// tx ops
+static uint64_t s_callback_count_tx(dap_chain_t *a_chain);
 
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
@@ -271,6 +273,8 @@ static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_c
 
     a_chain->callback_count_atom = s_callback_count_atom;
     a_chain->callback_get_atoms = s_callback_get_atoms;
+
+    a_chain->callback_count_tx = s_callback_count_tx;
 
     l_cs_blocks->callback_new_block_move = s_new_block_move;
 
@@ -1901,6 +1905,25 @@ static uint64_t s_callback_count_atom(dap_chain_t *a_chain)
     pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
     l_ret = PVT(l_blocks)->blocks_count;
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    return l_ret;
+}
+
+/**
+ * @brief s_callback_count_tx Gets the number of tx
+ * @param a_chain Chain object
+ * @return size_t
+ */
+static uint64_t s_callback_count_tx(dap_chain_t *a_chain)
+{
+    dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    uint64_t l_ret = 0;
+    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
+    dap_chain_block_datum_index_t *l_item, *l_temp;
+    HASH_ITER(hh, PVT(l_cs_blocks)->datum_index, l_item, l_temp) {
+        if (l_item->block_cache->datum[l_item->datum_index]->header.type_id == DAP_CHAIN_DATUM_TX)
+        ++l_ret;
+    }
+    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
     return l_ret;
 }
 
