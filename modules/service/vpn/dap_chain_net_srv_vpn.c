@@ -1194,7 +1194,7 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
             break;
     }
 
-    if(dap_global_db_set_sync(l_remain_limits_gdb_group, l_user_key, &l_remain_service, sizeof(l_remain_service), false))
+    if(dap_global_db_set_sync(l_remain_limits_gdb_group, l_user_key, &l_remain_service, sizeof(l_remain_service), true))
     {
         DAP_DELETE(l_remain_limits_gdb_group);
         DAP_DELETE(l_user_key);
