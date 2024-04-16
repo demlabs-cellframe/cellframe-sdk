@@ -676,26 +676,15 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             dap_string_t *l_str_tmp = dap_string_new(NULL);
             char l_tmp_buff[70]={0};
             // Header
-            if(fl_json){
-                json_object_object_add(json_obj_out, "Block number", json_object_new_uint64(l_block_cache->block_number));
-                json_object_object_add(json_obj_out, "hash", json_object_new_string(l_subcmd_str_arg));
-                sprintf(l_tmp_buff,"0x%04X",l_block->hdr.version);
-                json_object_object_add(json_obj_out, "version", json_object_new_string(l_tmp_buff));
-                sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_X"",l_block->hdr.cell_id.uint64);
-                json_object_object_add(json_obj_out, "cell_id", json_object_new_string(l_tmp_buff));
-                sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_X"",l_block->hdr.chain_id.uint64);
-                json_object_object_add(json_obj_out, "chain_id", json_object_new_string(l_tmp_buff));
-                json_object_object_add(json_obj_out, "ts_created", json_object_new_string(dap_ctime_r(&l_block->hdr.ts_created, l_tmp_buff)));
-            }
-            else
-            {
-                dap_string_append_printf(l_str_tmp, "Block number %"DAP_UINT64_FORMAT_U" hash %s:\n", l_block_cache->block_number, l_subcmd_str_arg);
-                dap_string_append_printf(l_str_tmp, "\t\t\tversion: 0x%04X\n", l_block->hdr.version);
-                dap_string_append_printf(l_str_tmp, "\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n", l_block->hdr.cell_id.uint64);
-                dap_string_append_printf(l_str_tmp, "\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n", l_block->hdr.chain_id.uint64);                
-                dap_time_to_str_rfc822(l_tmp_buff, 50, l_block->hdr.ts_created);
-                dap_string_append_printf(l_str_tmp, "\t\t\tts_created: %s\n", l_tmp_buff);
-            }
+            json_object_object_add(json_obj_out, "Block number", json_object_new_uint64(l_block_cache->block_number));
+            json_object_object_add(json_obj_out, "hash", json_object_new_string(l_subcmd_str_arg));
+            sprintf(l_tmp_buff,"0x%04X",l_block->hdr.version);
+            json_object_object_add(json_obj_out, "version", json_object_new_string(l_tmp_buff));
+            sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_X"",l_block->hdr.cell_id.uint64);
+            json_object_object_add(json_obj_out, "cell_id", json_object_new_string(l_tmp_buff));
+            sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_X"",l_block->hdr.chain_id.uint64);
+            json_object_object_add(json_obj_out, "chain_id", json_object_new_string(l_tmp_buff));
+            json_object_object_add(json_obj_out, "ts_created", json_object_new_string(dap_ctime_r(&l_block->hdr.ts_created, l_tmp_buff)));            
             
             // Dump Metadata
             size_t l_offset = 0;
