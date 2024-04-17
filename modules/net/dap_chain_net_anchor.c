@@ -262,7 +262,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
         return -108;
     }
 
-    if ((ret_val = dap_chain_net_anchor_verify(a_anchor, dap_chain_datum_anchor_get_size(a_anchor))) != 0)
+    if ((ret_val = dap_chain_net_anchor_verify(l_net, a_anchor, dap_chain_datum_anchor_get_size(a_anchor))) != 0)
     {
         log_it(L_WARNING,"Decree is not pass verification!");
         return ret_val;
