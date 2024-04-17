@@ -45,6 +45,20 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
 int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index,int a_argc, char **a_argv, char ** a_str_reply,
                              dap_chain_t ** a_chain, dap_chain_net_t ** a_net);
 
+int dap_chain_node_cli_cmd_values_parse_net_chain_json(int *a_arg_index, int a_argc, char **a_argv,
+        dap_chain_t **a_chain, dap_chain_net_t **a_net);
+
+typedef enum s_com_parse_net_chain_err{
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NET_STR_ERR = 100,
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NET_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NOT_FOUND_ERR,
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_CHAIN_PARAM_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_UNKNOWN /* MAX */
+} s_com_parse_net_chain_err_t;
+
 /**
  * global_db command
  */
