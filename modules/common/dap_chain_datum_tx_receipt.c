@@ -68,6 +68,10 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
         log_it(L_ERROR, "NULL receipt, can't add sign");
         return NULL;
     }
+
+    log_it(L_DEBUG, "Got receipt to add sign. Receipt size = %lld\nReceipt hex dump:", a_receipt->size);
+    dap_dump_hex(a_receipt, a_receipt->size + a_receipt->exts_size);
+
     dap_sign_t *l_sign = dap_sign_create(a_key, &a_receipt->receipt_info, sizeof(a_receipt->receipt_info), 0);
     size_t l_sign_size = l_sign ? dap_sign_get_size(l_sign) : 0;
     if (!l_sign || !l_sign_size) {
@@ -84,6 +88,10 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
     memcpy((byte_t *)l_receipt + l_receipt->size, l_sign, l_sign_size);
     l_receipt->size += l_sign_size;
     DAP_DELETE(l_sign);
+
+    log_it(L_DEBUG, "Sign with size %lld is added. Receipt size = %lld\nReceipt hex dump:", l_sign_size, a_receipt->size);
+    dap_dump_hex(a_receipt, a_receipt->size);
+
     return l_receipt;
 }
 
@@ -98,12 +106,17 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
     if (!l_receipt ||  l_receipt_size != l_receipt->size ||
             l_receipt->size == sizeof(dap_chain_datum_tx_receipt_t) + l_receipt->exts_size)
         return NULL;
+    
+    log_it(L_DEBUG, "Got receipt to get sign. l_receipt_size = %lld, a_sign_position = %d. Receipt size in header is %lld, ext size is %lld \nReceipt hex dump:", l_receipt_size, a_sign_position, l_receipt->size, l_receipt->exts_size);
+    dap_dump_hex(l_receipt, l_receipt_size);
+
     dap_sign_t *l_sign = (dap_sign_t *)l_receipt->exts_n_signs + l_receipt->exts_size;
     uint16_t l_sign_position;
     for (l_sign_position = a_sign_position;
              l_sign_position && l_receipt_size > (size_t)((byte_t *)l_sign - (byte_t *)l_receipt);
              l_sign_position--) {
         l_sign = (dap_sign_t *)((byte_t *)l_sign + dap_sign_get_size(l_sign));
+        log_it(L_DEBUG, "Sign #%d size=%lld.", dap_sign_get_size(l_sign));
     }
     // not enough signs in receipt
     if (l_sign_position > 0)
