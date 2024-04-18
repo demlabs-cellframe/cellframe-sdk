@@ -131,7 +131,7 @@ int dap_chain_net_srv_voting_init()
 
 void dap_chain_net_srv_voting_deinit()
 {
-    return 0;
+
 }
 
 uint64_t* dap_chain_net_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_voting_hash)
