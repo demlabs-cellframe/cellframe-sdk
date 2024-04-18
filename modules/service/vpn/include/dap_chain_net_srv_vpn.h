@@ -28,6 +28,7 @@
 #include "dap_config.h"
 #include "dap_chain_net_srv.h"
 #include "dap_events.h"
+#include "dap_chain_net_srv_vpn_common.h"
 
 #define DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX "srv.vpn"
 
@@ -35,8 +36,6 @@
 #define DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA      0x02
 
 #define DAP_STREAM_CH_ID_NET_SRV_VPN        'S'
-
-#define DAP_CHAIN_NET_SRV_VPN_ID            0x0000000000000001
 
 #define VPN_PACKET_OP_CODE_CONNECTED        0x000000a9
 #define VPN_PACKET_OP_CODE_CONNECT          0x000000aa
