@@ -46,6 +46,7 @@ json_object * dap_db_history_addr(dap_chain_addr_t * a_addr,
                                     dap_chain_t * a_chain, 
                                     const char *a_hash_out_type, 
                                     const char * l_addr_str, 
+                                    bool a_brief,
                                     const char *a_srv,
                                     dap_chain_tx_tag_action_type_t a_action);
 
