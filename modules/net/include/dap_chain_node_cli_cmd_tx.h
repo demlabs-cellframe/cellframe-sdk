@@ -49,9 +49,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                                         dap_chain_net_t * l_net,
                                         int l_ret_code,
                                         bool *accepted_tx,
-                                        bool out_brief,
-                                        uint64_t *a_count,
-                                        uint64_t a_limit);
+                                        bool out_brief);
 
 json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
                                    const char *l_hash_out_type, json_object *json_obj_summary,

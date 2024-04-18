@@ -16,17 +16,16 @@
 
 
 
-json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_chain_net_id_t *a_net_id, uint64_t *a_count, uint64_t a_limit){
+json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_chain_net_id_t *a_net_id){
     json_object *l_obj_items = json_object_new_array();
     if (!l_obj_items) {
         dap_json_rpc_allocation_error;
         return NULL;
     }
-    uint64_t l_tx_items_count = 0;
     uint32_t
         l_tx_items_size_total = 0,
         l_tx_items_size = a_tx->header.tx_items_size;
-    while(l_tx_items_size_total < l_tx_items_size && (a_limit ? l_tx_items_count < a_limit : true)) {
+    while(l_tx_items_size_total < l_tx_items_size) {
         uint8_t *item = a_tx->tx_items + l_tx_items_size_total;
         size_t l_tx_item_size = dap_chain_datum_item_tx_get_size(item);
         if (l_tx_item_size == 0) {
@@ -145,9 +144,6 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_chain_ne
             json_object_array_add(l_obj_items, l_obj_item);
         }
         l_tx_items_size_total += l_tx_item_size;
-        l_tx_items_count++;
     }
-    if (a_count)
-        *a_count = l_tx_items_count;
     return l_obj_items;
 }

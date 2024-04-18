@@ -111,7 +111,7 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
     json_object_object_add(json_obj_out, "Datum_tx_hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_out, "TS_Created", json_object_new_string(l_tmp_buf));
     json_object_object_add(json_obj_out, "Token_ticker", json_object_new_string(l_ticker));
-    json_object* datum_tx = dap_chain_datum_tx_to_json(a_datum,&a_ledger->net->pub.id, NULL, 0);
+    json_object* datum_tx = dap_chain_datum_tx_to_json(a_datum,&a_ledger->net->pub.id);
     json_object_object_add(json_obj_out, "Datum_tx", datum_tx);
     dap_list_t *l_out_items = dap_chain_datum_tx_items_get(a_datum, TX_ITEM_TYPE_OUT_ALL, NULL);
     int l_out_idx = 0;
@@ -153,9 +153,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                                         dap_chain_net_t * l_net,
                                         int l_ret_code,
                                         bool *accepted_tx,
-                                        bool brief_out,
-                                        uint64_t *a_count,
-                                        uint64_t a_limit)
+                                        bool brief_out)
 {
     const char *l_tx_token_ticker = NULL;
     json_object* json_obj_datum = json_object_new_object();
@@ -201,7 +199,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     
     if(!brief_out)
     {
-        json_object* datum_tx = dap_chain_datum_tx_to_json(l_tx,&a_chain->net_id, a_count, a_limit);
+        json_object* datum_tx = dap_chain_datum_tx_to_json(l_tx,&a_chain->net_id);
         json_object_object_add(json_obj_datum, "items", datum_tx);
     }
 
@@ -228,7 +226,7 @@ json_object * dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash,
                                  (dap_chain_datum_tx_t *)l_datum->data : NULL;
 
     if (l_tx) {
-        return dap_db_tx_history_to_json(a_tx_hash, &l_atom_hash,l_tx, a_chain, a_hash_out_type, l_net, l_ret_code, &accepted_tx, false, NULL, 0);
+        return dap_db_tx_history_to_json(a_tx_hash, &l_atom_hash,l_tx, a_chain, a_hash_out_type, l_net, l_ret_code, &accepted_tx, false);
     } else {
         const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
@@ -609,8 +607,6 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
         size_t
             l_tx_ledger_accepted = 0,
             l_tx_ledger_rejected = 0,
-            l_datum_ledger_accepted = 0,
-            l_datum_ledger_rejected = 0,
             l_count = 0,
             l_count_tx = 0;
 
@@ -627,31 +623,28 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
             while (l_ptr && l_atom_size && (a_limit ? l_count_tx < a_limit : true)) {
                 size_t l_datums_count = 0;
                 dap_chain_datum_t **l_datums = l_cell->chain->callback_atom_get_datums(l_ptr, l_atom_size, &l_datums_count);
-                for (size_t i = 0; i < l_datums_count; i++) {
+                for (size_t i = 0; i < l_datums_count && (a_limit ? l_count_tx < a_limit : true); i++) {
                     if (l_count++ < a_offset) {
                         continue;
                     }
                     if (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX) {
                         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datums[i]->data;
                         dap_hash_fast_t l_ttx_hash = {0};
-                        uint64_t l_count_tx_cur = 0;
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
                         bool accepted_tx;
-                        json_object* json_obj_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, l_chain, l_hash_out_type, l_net, 0, &accepted_tx, out_brief, &l_count_tx_cur, l_count_tx < a_limit ? a_limit - l_count_tx : a_limit);
+                        json_object* json_obj_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, l_chain, l_hash_out_type, l_net, 0, &accepted_tx, out_brief);
                         if (!json_obj_datum) {
                             log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                             return NULL;
                         }
                         if (accepted_tx) {
-                            l_tx_ledger_accepted += l_count_tx_cur;
-                            ++l_datum_ledger_accepted;
+                            ++l_tx_ledger_accepted;
                         } else {
-                            l_tx_ledger_rejected += l_count_tx_cur;
-                            ++l_datum_ledger_rejected;
+                            ++l_tx_ledger_rejected;
                         }
                         json_object_array_add(json_arr_out, json_obj_datum);
                         const char * debug_json_string = json_object_to_json_string(json_obj_datum);
-                        l_count_tx += l_count_tx_cur;
+                        ++l_count_tx;
                     }
                 }
                 DAP_DEL_Z(l_datums);
@@ -666,9 +659,6 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
         json_object_object_add(json_obj_summary, "tx_sum", json_object_new_int(l_count_tx));
         json_object_object_add(json_obj_summary, "accepted_tx", json_object_new_int(l_tx_ledger_accepted));
         json_object_object_add(json_obj_summary, "rejected_tx", json_object_new_int(l_tx_ledger_rejected));
-        json_object_object_add(json_obj_summary, "datum_sum", json_object_new_int(l_datum_ledger_accepted + l_datum_ledger_rejected));
-        json_object_object_add(json_obj_summary, "accepted_datum", json_object_new_int(l_datum_ledger_accepted));
-        json_object_object_add(json_obj_summary, "rejected_datum", json_object_new_int(l_datum_ledger_rejected));
         return json_arr_out;
 }
 
