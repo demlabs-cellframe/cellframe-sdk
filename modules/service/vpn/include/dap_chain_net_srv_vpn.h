@@ -172,6 +172,7 @@ typedef struct dap_chain_net_srv_vpn
 
 int dap_chain_net_srv_client_vpn_init(dap_config_t * g_config);
 
+int dap_chain_net_srv_vpn_pre_init();
 int dap_chain_net_srv_vpn_init(dap_config_t * g_config);
 void dap_chain_net_srv_vpn_deinit(void);
 
