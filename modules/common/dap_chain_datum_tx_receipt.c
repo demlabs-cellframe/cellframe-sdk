@@ -59,6 +59,9 @@ dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create( dap_chain_net_
         l_ret->exts_size = a_ext_size;
         memcpy(l_ret->exts_n_signs, a_ext, a_ext_size);
     }
+
+     log_it(L_DEBUG, "Receipt is created. Receipt size = %lld. Ext size - %lld\nReceipt hex dump:", l_ret->size, l_ret->exts_size);
+    dap_dump_hex(l_ret, l_ret->size);
     return  l_ret;
 }
 
@@ -70,7 +73,7 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
     }
 
     log_it(L_DEBUG, "Got receipt to add sign. Receipt size = %lld\nReceipt hex dump:", a_receipt->size);
-    dap_dump_hex(a_receipt, a_receipt->size + a_receipt->exts_size);
+    dap_dump_hex(a_receipt, a_receipt->size);
 
     dap_sign_t *l_sign = dap_sign_create(a_key, &a_receipt->receipt_info, sizeof(a_receipt->receipt_info), 0);
     size_t l_sign_size = l_sign ? dap_sign_get_size(l_sign) : 0;
@@ -89,7 +92,7 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
     l_receipt->size += l_sign_size;
     DAP_DELETE(l_sign);
 
-    log_it(L_DEBUG, "Sign with size %lld is added. Receipt size = %lld\nReceipt hex dump:", l_sign_size, a_receipt->size);
+    log_it(L_DEBUG, "Sign with size %lld is added. New receipt size = %lld\nReceipt hex dump:", l_sign_size, a_receipt->size);
     dap_dump_hex(a_receipt, a_receipt->size);
 
     return l_receipt;
