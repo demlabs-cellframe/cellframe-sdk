@@ -60,8 +60,8 @@ dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create( dap_chain_net_
         memcpy(l_ret->exts_n_signs, a_ext, a_ext_size);
     }
 
-     log_it(L_DEBUG, "Receipt is created. Receipt size = %lld. Ext size - %lld\nReceipt hex dump:", l_ret->size, l_ret->exts_size);
-    dap_dump_hex(l_ret, l_ret->size);
+    log_it(L_DEBUG, "Receipt is created. Receipt size = %ld. Ext size - %ld\nReceipt hex dump:", l_ret->size, l_ret->exts_size);
+    log_it(L_DEBUG, "%s", dap_dump_hex((byte_t*)l_ret, l_ret->size));
     return  l_ret;
 }
 
@@ -72,8 +72,8 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
         return NULL;
     }
 
-    log_it(L_DEBUG, "Got receipt to add sign. Receipt size = %lld\nReceipt hex dump:", a_receipt->size);
-    dap_dump_hex(a_receipt, a_receipt->size);
+    log_it(L_DEBUG, "Got receipt to add sign. Receipt size = %ld\nReceipt hex dump:", a_receipt->size);
+    log_it(L_DEBUG, "%s", dap_dump_hex((byte_t*)a_receipt, a_receipt->size));
 
     dap_sign_t *l_sign = dap_sign_create(a_key, &a_receipt->receipt_info, sizeof(a_receipt->receipt_info), 0);
     size_t l_sign_size = l_sign ? dap_sign_get_size(l_sign) : 0;
@@ -92,8 +92,8 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
     l_receipt->size += l_sign_size;
     DAP_DELETE(l_sign);
 
-    log_it(L_DEBUG, "Sign with size %lld is added. New receipt size = %lld\nReceipt hex dump:", l_sign_size, a_receipt->size);
-    dap_dump_hex(a_receipt, a_receipt->size);
+    log_it(L_DEBUG, "Sign with size %ld is added. New receipt size = %ld\nReceipt hex dump:", l_sign_size, a_receipt->size);
+    log_it(L_DEBUG, "%s", dap_dump_hex((byte_t*)a_receipt, a_receipt->size));
 
     return l_receipt;
 }
@@ -110,8 +110,8 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
             l_receipt->size == sizeof(dap_chain_datum_tx_receipt_t) + l_receipt->exts_size)
         return NULL;
     
-    log_it(L_DEBUG, "Got receipt to get sign. l_receipt_size = %lld, a_sign_position = %d. Receipt size in header is %lld, ext size is %lld \nReceipt hex dump:", l_receipt_size, a_sign_position, l_receipt->size, l_receipt->exts_size);
-    dap_dump_hex(l_receipt, l_receipt_size);
+    log_it(L_DEBUG, "Got receipt to get sign. l_receipt_size = %ld, a_sign_position = %d. Receipt size in header is %ld, ext size is %ld \nReceipt hex dump:", l_receipt_size, a_sign_position, l_receipt->size, l_receipt->exts_size);
+    log_it(L_DEBUG, "%s", dap_dump_hex((byte_t*)l_receipt, l_receipt_size));
 
     dap_sign_t *l_sign = (dap_sign_t *)l_receipt->exts_n_signs + l_receipt->exts_size;
     uint16_t l_sign_position;
@@ -119,7 +119,7 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
              l_sign_position && l_receipt_size > (size_t)((byte_t *)l_sign - (byte_t *)l_receipt);
              l_sign_position--) {
         l_sign = (dap_sign_t *)((byte_t *)l_sign + dap_sign_get_size(l_sign));
-        log_it(L_DEBUG, "Sign #%d size=%lld.", dap_sign_get_size(l_sign));
+        log_it(L_DEBUG, "Sign #%d size=%ld.", l_sign_position, dap_sign_get_size(l_sign));
     }
     // not enough signs in receipt
     if (l_sign_position > 0)
