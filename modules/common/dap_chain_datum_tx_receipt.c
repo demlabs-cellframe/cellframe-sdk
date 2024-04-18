@@ -97,7 +97,7 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
     DAP_DELETE(l_sign);
 
     log_it(L_DEBUG, "Sign with size %ld is added. New receipt size = %ld\nReceipt hex dump:", l_sign_size, a_receipt->size);
-    char *hexdump = dap_dump_hex((byte_t*)l_receipt, l_receipt->size);
+    hexdump = dap_dump_hex((byte_t*)l_receipt, l_receipt->size);
     log_it(L_DEBUG, "%s", hexdump);
     DAP_DELETE(hexdump);
 
