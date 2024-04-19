@@ -567,15 +567,15 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
     dap_chain_net_t * l_net = NULL;
 
     // Parse default values
-    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
-        return -11;
+    if(dap_chain_node_cli_cmd_values_parse_net_chain_json(&arg_index, a_argc, a_argv, &l_chain, &l_net) < 0)
+        return -DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
 
     const char *l_chain_type = dap_chain_net_get_type(l_chain);
 
     if (!strstr(l_chain_type, "block_") && strcmp(l_chain_type, "esbocs")){
-        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Type of chain %s is not block. This chain with type %s is not supported by this command",
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_CHAIN_TYPE_ERR, "Type of chain %s is not block. This chain with type %s is not supported by this command",
                         l_chain->name, l_chain_type); 
-        return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+        return DAP_CHAIN_NODE_CLI_COM_BLOCK_CHAIN_TYPE_ERR;
     }
 
     l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
@@ -617,8 +617,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 s_cli_parse_cmd_hash(a_argv,arg_index,a_argc,a_str_reply,"-datum", &l_datum_hash );
                 l_blocks->block_new_size=dap_chain_block_datum_del_by_hash( &l_blocks->block_new, l_blocks->block_new_size, &l_datum_hash );
             }else {
-                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Error! Can't delete datum from hash because no forming new block! Check pls you role, it must be MASTER NODE or greater");
-                ret = DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_DATUM_DEL_ERR, "Error! Can't delete datum from hash because no forming new block! Check pls you role, it must be MASTER NODE or greater");
+                ret = DAP_CHAIN_NODE_CLI_COM_BLOCK_DATUM_DEL_ERR;
             }
             pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
         }break;
@@ -629,8 +629,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                                                            sizeof(dap_chain_datum_t*)*l_datums_count);
             if (!l_datums) {
                 log_it(L_CRITICAL, "Memory allocation error");
-                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Out of memory in s_cli_blocks");                
-                return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_MEMORY_ERR, "Out of memory in s_cli_blocks");
+                return DAP_CHAIN_NODE_CLI_COM_BLOCK_MEMORY_ERR;
             }
             size_t l_datum_size = 0;
 
@@ -640,16 +640,16 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             for (size_t i = 0; i < l_datums_count; i++) {
                 bool l_err = dap_chain_node_mempool_process(l_chain, l_datums[i], l_subcmd_str_arg);
                 if (l_err) {
-                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Error! Datum %s doesn't pass verifications, examine node log files",
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_VERIF_ERR, "Error! Datum %s doesn't pass verifications, examine node log files",
                                                       l_subcmd_str_arg);
-                    ret = DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+                    ret = DAP_CHAIN_NODE_CLI_COM_BLOCK_VERIF_ERR;
                 } else
                    log_it(L_INFO, "Pass datum %s from mempool to block in the new forming round ",
                                                      l_subcmd_str_arg);
                 if (l_err)
                     break;
             }
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "All datums processed");
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_OK, "All datums processed");
             DAP_DELETE(l_gdb_group_mempool);
         } break;
 
@@ -1084,8 +1084,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
 
         case SUBCMD_AUTOCOLLECT: {
             if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "status") == -1) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect' requires subcommand 'status'");
-                return -14;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Command 'block autocollect' requires subcommand 'status'");
+                return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
             }
             dap_string_t *l_reply_str = dap_string_new("");
             s_print_autocollect_table(l_net, l_reply_str, "Fees");
