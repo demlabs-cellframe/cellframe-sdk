@@ -33,6 +33,7 @@
 #include "dap_timerfd.h"
 #include "dap_cli_server.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_cs_esbocs.h"
@@ -767,7 +768,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 dap_time_to_str_rfc822(buf, 50, l_datum->header.ts_create);
                 json_object_object_add(json_obj_tx, "ts_create",json_object_new_string(buf));
                 json_object_object_add(json_obj_tx, "data_size",json_object_new_int(l_datum->header.data_size));
-                s_dap_chain_datum_tx_out_data(l_datum,l_net->pub.ledger,json_obj_tx,l_hash_out_type,l_block_hash);
+                s_dap_chain_datum_tx_out_data(l_datum,l_net->pub.ledger,json_obj_tx,l_hash_out_type,&l_block_hash);
                 json_object_array_add(json_arr_datum_out, json_obj_tx);
             }
             json_object_array_add(*json_arr_reply, json_arr_datum_out);

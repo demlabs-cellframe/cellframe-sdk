@@ -92,7 +92,7 @@ void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **l_
  * @param l_tx_num
  */
 
-static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
+bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                           dap_ledger_t *a_ledger,
                                           json_object * json_obj_out,
                                           const char *a_hash_out_type,

@@ -68,6 +68,12 @@ json_object* dap_db_history_tx_all(dap_chain_t *l_chain,
                                     const char *a_srv,
                                     dap_chain_tx_tag_action_type_t a_action);
 
+bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
+                                          dap_ledger_t *a_ledger,
+                                          json_object * json_obj_out,
+                                          const char *a_hash_out_type,
+                                          dap_chain_hash_fast_t *a_tx_hash);
+
 /**
  * ledger command
  *
