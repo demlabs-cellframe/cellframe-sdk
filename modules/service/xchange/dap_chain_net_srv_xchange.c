@@ -266,7 +266,7 @@ static bool s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_
     byte_t * l_tx_item;
 
     dap_chain_addr_t l_service_fee_addr, *l_seller_addr = &a_tx_out_cond->subtype.srv_xchange.seller_addr;
-    uint16_t l_service_fee_type;
+    uint16_t l_service_fee_type = 0;
     dap_chain_net_t *l_net = a_ledger->net;
     bool l_service_fee_used = dap_chain_net_srv_xchange_get_fee(l_net->pub.id, &l_service_fee_val, &l_service_fee_addr, &l_service_fee_type);
     const char *l_native_ticker = l_net->pub.native_ticker;
