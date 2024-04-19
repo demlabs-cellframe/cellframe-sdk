@@ -97,8 +97,34 @@ int dap_chain_net_srv_stake_add_net(dap_chain_net_id_t a_net_id) {
     return 0;
 }
 
+static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
+{
+    // keydelegation open: have STAK_POS_DELEGATE out
+    
+    if (a_items_grp->items_out_cond_srv_stake_pos_delegate) {
+        if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
+        return true;
+    }
+
+    //key delegation invalidation (close): have IN_COND linked with STAKE_POS_DELEGATE out
+    if (a_items_grp->items_in_cond) 
+    {
+       for (dap_list_t *it = a_items_grp->items_in_cond; it; it = it->next) {
+            dap_chain_tx_in_cond_t *l_tx_in = it->data;
+            dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(a_ledger, l_tx_in);
+
+            if (l_tx_out_cond && l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE) {
+                if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_CLOSE;
+                return true;
+            }   
+        }
+    }
+
+    return false;
+}
+
 /**
- * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
+ * @brief init stake delegate module
  * @return 0 if everything is okay, lesser then zero if errors
  */
 int dap_chain_net_srv_stake_pos_delegate_init()
@@ -146,6 +172,10 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     for (uint16_t i = 0; i < l_net_count; i++) {
         dap_chain_net_srv_stake_add_net(l_net_list[i]->pub.id);
     }
+
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
+    dap_ledger_service_add(l_uid, "pos_delegate", s_tag_check_key_delegation);
+
     return 0;
 }
 
