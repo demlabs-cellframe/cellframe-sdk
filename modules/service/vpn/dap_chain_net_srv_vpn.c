@@ -865,7 +865,6 @@ static int s_vpn_service_create(dap_config_t * g_config)
 {
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
     dap_chain_net_srv_callbacks_t l_srv_callbacks = {};
-    
     l_srv_callbacks.requested = s_callback_requested;
     l_srv_callbacks.response_success = s_callback_response_success;
     l_srv_callbacks.response_error = s_callback_response_error;
@@ -890,8 +889,6 @@ static int s_vpn_service_create(dap_config_t * g_config)
 
     // Read if we need to dump all pkt operations
     s_debug_more= dap_config_get_item_bool_default(g_config,"srv_vpn", "debug_more",false);
-    
-    
     return 0;
 
 }
@@ -904,8 +901,6 @@ static int s_vpn_service_create(dap_config_t * g_config)
  */
 int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
 
-    
-    
     s_vpn_tun_init();
 
     log_it(L_DEBUG,"Initializing TUN driver...");

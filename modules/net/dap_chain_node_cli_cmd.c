@@ -3051,7 +3051,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     json_object *l_jobj_main_ticker = json_object_new_string(l_main_ticker ? l_main_ticker : "UNKNOWN");
                     json_object *l_jobj_ledger_rc = json_object_new_string(l_ledger_rc_str);
                     
-                    
                     if (!l_jobj_main_ticker || !l_jobj_ledger_rc) {
                             json_object_put(l_jobj_datum);
                             json_object_put(l_jobj_datums);
@@ -3108,7 +3107,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             if (!l_jobj_block_hash) {
                                 DAP_DELETE(l_block_hash);
                                 json_object_put(l_obj_in_reward_arary);
-                                if (l_list_in_reward) dap_list_free(l_list_in_reward);
+                                dap_list_free(l_list_in_reward);
                                 json_object_put(l_jobj_datum);
                                 json_object_put(l_jobj_datums);
                                 json_object_put(l_obj_chain);
@@ -3119,7 +3118,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             json_object_array_add(l_obj_in_reward_arary, l_jobj_block_hash);
                             DAP_DELETE(l_block_hash);
                         }
-                        if (l_list_in_reward) dap_list_free(l_list_in_reward);
                     } else {
                         json_object *l_jobj_addr_from = json_object_new_string(l_addr_from_str);
                         if (!l_jobj_addr_from) {
@@ -3217,7 +3215,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             default:
                                 break;
                         }
-                        
                         json_object *l_jobj_money = json_object_new_object();
                         if (!l_jobj_money) {
                             json_object_put(l_jobj_to_list);
@@ -7296,9 +7293,6 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
     const char *l_net_str = NULL;
     const char *l_chain_str = NULL;
     const char *l_tx_hash_str = NULL;
-    const char *l_tx_srv_str = NULL;
-    const char *l_tx_act_str = NULL;
-    const char *l_tx_action_str = NULL;
 
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
@@ -7319,13 +7313,6 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx", &l_tx_hash_str);
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-srv", &l_tx_srv_str);
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-act", &l_tx_act_str);
-    
-    //default is ALL/ANY
-    dap_chain_tx_tag_action_type_t l_action = dap_ledger_tx_action_str_to_action_t(l_tx_act_str); 
-
-    bool l_brief = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-brief") != -1) ? true : false;
 
     bool l_is_tx_all = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
 
@@ -7422,8 +7409,6 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
                                 " You can set default datum type in chain configuration file", l_net_str);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_CHAIN_PARAM_ERR;
     }
-
-
     // response
     json_object * json_obj_out = NULL;
     if (l_tx_hash_str) {
@@ -7437,7 +7422,7 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
     } else if (l_addr) {
         // history addr and wallet
         char *l_addr_str = dap_chain_addr_to_str(l_addr);
-        json_obj_out = dap_db_history_addr(l_addr,  l_chain, l_hash_out_type, l_addr_str, l_brief, l_tx_srv_str, l_action);
+        json_obj_out = dap_db_history_addr(l_addr, l_chain, l_hash_out_type, l_addr_str);
         if (!json_obj_out) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR,
                                     "something went wrong in tx_history");
@@ -7450,7 +7435,7 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;
         }
 
-        json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_brief, l_hash_out_type, json_obj_summary, l_tx_srv_str, l_action);
+        json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_hash_out_type, json_obj_summary);
         if (!json_arr_history_all) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ALL_ERR,
                                     "something went wrong in tx_history");
