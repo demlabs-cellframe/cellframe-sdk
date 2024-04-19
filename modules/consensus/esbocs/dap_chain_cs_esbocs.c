@@ -1060,12 +1060,16 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
                  L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" already started. Process sync messages",
                             a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id);
         l_round_already_started = true;
+        uint64_t l_sync_attempt = a_session->cur_round.sync_attempt;
         for (dap_list_t *it = l_item->messages; it; it = it->next) {
             dap_hash_fast_t l_msg_hash;
             dap_chain_esbocs_message_t *l_msg = it->data;
             size_t l_msg_size = s_get_esbocs_message_size(l_msg);
             dap_hash_fast(l_msg, l_msg_size, &l_msg_hash);
             s_session_packet_in(a_session, NULL, NULL, &l_msg_hash, (uint8_t *)l_msg, l_msg_size);
+            if (l_sync_attempt != a_session->cur_round.sync_attempt)
+                return;
+                //break;
         }
     }
     HASH_ITER(hh, a_session->sync_items, l_item, l_tmp) {
