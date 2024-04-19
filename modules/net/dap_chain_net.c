@@ -2615,13 +2615,17 @@ void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_store_obj_c
 static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg)
 {
     dap_chain_net_t *l_net = a_arg;
-    dap_return_if_fail(dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_ADD && dap_strcmp(l_net->pub.gdb_nodes, a_obj->group));
+    dap_return_if_fail(a_obj->key && !dap_strcmp(l_net->pub.gdb_nodes, a_obj->group));
+    char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
+    dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
+    if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL) {
+        log_it(L_NOTICE, "Removed node %s from network %s at %s\n",
+                                 a_obj->key, l_net->pub.name, l_ts);
+        return;
+    }
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
     assert(dap_chain_node_info_get_size(l_node_info) == a_obj->value_len);
-    char l_ts[80] = { '\0' };
-    dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
-
-    log_it(L_NOTICE, "Add node "NODE_ADDR_FP_STR" [%s : %u] to network %s at %s\n",
+    log_it(L_NOTICE, "Added node "NODE_ADDR_FP_STR" [%s : %u] to network %s at %s\n",
                              NODE_ADDR_FP_ARGS_S(l_node_info->address),
                              l_node_info->ext_host, l_node_info->ext_port,
                              l_net->pub.name, l_ts);
