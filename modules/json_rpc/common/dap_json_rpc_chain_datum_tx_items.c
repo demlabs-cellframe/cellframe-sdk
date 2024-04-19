@@ -391,28 +391,20 @@ json_object* dap_chain_datum_tx_item_tsd_to_json(dap_chain_tx_tsd_t *a_tsd){
         dap_json_rpc_allocation_error;
         return NULL;
     }
-
-    int l_type;
-    size_t l_size;
-    byte_t *l_data = dap_chain_datum_tx_item_get_data(a_tsd, &l_type, &l_size);
-    
-    json_object *l_obj_tsd_type = json_object_new_int((int)l_type);
+    json_object *l_obj_tsd_type = json_object_new_int(a_tsd->header.type);
     if(!l_obj_tsd_type) {
         json_object_put(l_object);
         dap_json_rpc_allocation_error;
         return NULL;
     }
-    json_object *l_obj_tsd_size = json_object_new_uint64(l_size);
+    json_object *l_obj_tsd_size = json_object_new_uint64(a_tsd->header.size);
     if (!l_obj_tsd_size) {
         json_object_put(l_obj_tsd_type);
         json_object_put(l_object);
         dap_json_rpc_allocation_error;
         return NULL;
     }
-    
-    json_object *l_obj_data = json_object_new_string_len(l_data, l_size);
-    
-    
+    json_object *l_obj_data = json_object_new_string_len((char *)a_tsd->tsd, a_tsd->header.size);
     if (!l_obj_data) {
         json_object_put(l_obj_tsd_size);
         json_object_put(l_obj_tsd_type);
@@ -420,7 +412,6 @@ json_object* dap_chain_datum_tx_item_tsd_to_json(dap_chain_tx_tsd_t *a_tsd){
         dap_json_rpc_allocation_error;
         return NULL;
     }
-    
     json_object_object_add(l_object, "type", l_obj_tsd_type);
     json_object_object_add(l_object, "size", l_obj_tsd_size);
     json_object_object_add(l_object, "data", l_obj_data);
