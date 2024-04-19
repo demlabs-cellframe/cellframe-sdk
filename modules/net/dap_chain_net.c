@@ -2615,7 +2615,7 @@ void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_store_obj_c
 static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg)
 {
     dap_chain_net_t *l_net = a_arg;
-    dap_return_if_fail(a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD && !dap_strcmp(l_net->pub.gdb_nodes, a_obj->group));
+    dap_return_if_fail(dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_ADD && dap_strcmp(l_net->pub.gdb_nodes, a_obj->group));
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
     assert(dap_chain_node_info_get_size(l_node_info) == a_obj->value_len);
     char l_ts[80] = { '\0' };

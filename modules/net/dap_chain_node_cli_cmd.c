@@ -7403,7 +7403,6 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply)
             dap_enc_base64_encode(l_store_obj[i].value, l_store_obj[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
             dap_enc_base64_encode(l_sign, dap_sign_get_size(l_sign), l_sign_str, DAP_ENC_DATA_TYPE_B64);
             struct json_object *jobj = json_object_new_object();
-            //json_object_object_add(jobj, "id",      json_object_new_int64((int64_t)l_store_obj[i].id));
             json_object_object_add(jobj, "key",     json_object_new_string(l_store_obj[i].key));
             json_object_object_add(jobj, "value",   json_object_new_string(l_value_enc_str));
             json_object_object_add(jobj, "value_len", json_object_new_int64((int64_t)l_store_obj[i].value_len));
@@ -7494,19 +7493,27 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
         for (size_t j = 0; j < l_records_count; ++j) {
             struct json_object *l_record, *l_key, *l_value, *l_value_len, *l_ts;
             l_record = json_object_array_get_idx(l_json_records, j);
-            //l_id        = json_object_object_get(l_record, "id");
             l_key       = json_object_object_get(l_record, "key");
             l_value     = json_object_object_get(l_record, "value");
             size_t l_record_size = json_object_object_length(l_record);
             l_value_len = json_object_object_get(l_record, "value_len");
             l_ts        = json_object_object_get(l_record, "timestamp");
-            // l_group_store[j].id     = (uint64_t)json_object_get_int64(l_id);
             l_group_store[j].key    = dap_strdup(json_object_get_string(l_key));
+            if(!l_group_store[j].key) {
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                l_records_count = j;
+                break;
+            }
             l_group_store[j].group  = dap_strdup(l_group_name);
+            if(!l_group_store[j].group) {
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                l_records_count = j;
+                break;
+            }
             dap_nanotime_t l_temp = json_object_get_int64(l_ts);
-            l_group_store[j].timestamp = l_temp >> 32 ? l_temp : l_temp << 32; // possibly legacy record
+            l_group_store[j].timestamp = l_temp >> 32 ? l_temp : dap_nanotime_from_sec(l_temp);  // possibly legacy record
             l_group_store[j].value_len = (uint64_t)json_object_get_int64(l_value_len);
-            l_group_store[j].type   = 'a';
+
             const char *l_value_str = json_object_get_string(l_value);
             char *l_val = DAP_NEW_Z_SIZE(char, l_group_store[j].value_len);
             if(!l_val) {
@@ -7542,7 +7549,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
         } else {
             log_it(L_INFO, "Imported %zu records of group %s", l_records_count, l_group_name);
         }
-        //dap_store_obj_free(l_group_store, l_records_count);
+        dap_store_obj_free(l_group_store, l_records_count);
     }
     json_object_put(l_json);
     return 0;
