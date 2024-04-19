@@ -83,7 +83,7 @@ typedef struct dap_chain_cs_blocks_pvt
 #define PVT(a) ((dap_chain_cs_blocks_pvt_t *)(a)->_pvt )
 
 static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, char **a_str_reply,const char * a_param, dap_chain_hash_fast_t * a_datum_hash);
-static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_meta_title, dap_chain_block_meta_t * a_meta);
+static void s_cli_meta_hash_print(  json_object* json_obj_a, const char * a_meta_title, dap_chain_block_meta_t * a_meta);
 static int s_cli_blocks(int a_argc, char ** a_argv, void **reply);
 
 // Setup BFT consensus and select the longest chunk
@@ -461,28 +461,36 @@ static void s_cli_meta_hex_print(  dap_string_t * a_str_tmp, const char * a_meta
     DAP_DELETE(l_data_hex);
 }
 
-static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_reply_str, const char *a_table_name)
+static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object* json_obj_a, const char *a_table_name)
 {
     bool l_status = dap_chain_esbocs_get_autocollect_status(a_net->pub.id);
-    dap_string_append_printf(a_reply_str, "\nAutocollect status for %s in network %s is %s\n", a_table_name, a_net->pub.name,
+    char l_tmp_buff[70]={0};
+    sprintf(l_tmp_buff,"for %s in network %s is %s\n", a_table_name, a_net->pub.name,
                                         l_status ? "active" : "inactive, cause the network config or consensus starting problems");
+    json_object_object_add(json_obj_a, "Autocollect status", json_object_new_string(l_tmp_buff));                                   
     if (!l_status)
         return;
-    dap_string_append_printf(a_reply_str, "\nAutocollect tables content for:\n=== %s ===\n", a_table_name);
+    sprintf(l_tmp_buff,"\nAutocollect tables content for:\n=== %s ===\n", a_table_name);
+    json_object_object_add(json_obj_a, "Autocollect status", json_object_new_string(l_tmp_buff));
     size_t l_objs_count = 0;
     char *l_group = dap_strcmp(a_table_name, "Fees") ? dap_chain_cs_blocks_get_reward_group(a_net->pub.name)
                                                      : dap_chain_cs_blocks_get_fee_group(a_net->pub.name);
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_group, &l_objs_count);
     DAP_DELETE(l_group);
     uint256_t l_total_value = uint256_0;
+    json_object* json_arr_out = json_object_new_array();
     for (size_t i = 0; i < l_objs_count; i++) {
+        json_object* json_obj_t = json_object_new_object();
         dap_global_db_obj_t *l_obj_cur = l_objs + i;
         uint256_t l_cur_value = *(uint256_t *)l_obj_cur->value;
         char *l_value_str = dap_chain_balance_to_coins(l_cur_value);
-        dap_string_append_printf(a_reply_str, "%s\t%s\n", l_obj_cur->key, l_value_str);
+        json_object_object_add(json_obj_t, "obj_key",json_object_new_string(l_obj_cur->key));
+        json_object_object_add(json_obj_t, "obj_val",json_object_new_string(l_value_str));
+        json_object_array_add(json_arr_out, json_obj_t);
         DAP_DEL_Z(l_value_str);
         SUM_256_256(l_total_value, l_cur_value, &l_total_value);
     }
+    json_object_object_add(json_obj_a,"Autocollect tables",json_arr_out);
     if (l_objs_count) {
         dap_global_db_objs_delete(l_objs, l_objs_count);
         uint256_t l_collect_fee = dap_chain_esbocs_get_fee(a_net->pub.id);
@@ -504,14 +512,15 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
         char *l_profit_str = dap_chain_balance_to_coins(l_collect_value);
         char *l_tax_str = dap_chain_balance_to_coins(l_collect_tax);
         char *l_fee_str = dap_chain_balance_to_coins(l_collect_fee);
-        dap_string_append_printf(a_reply_str, "\nTotal prepared value: %s %s, where\n\tprofit is %s, tax is %s, fee is %s\n",
+        sprintf(l_tmp_buff,"\nTotal prepared value: %s %s, where\n\tprofit is %s, tax is %s, fee is %s\n",
                                  l_total_str, a_net->pub.native_ticker, l_profit_str, l_tax_str, l_fee_str);
+        json_object_object_add(json_obj_a, "status",json_object_new_string(l_tmp_buff));
         DAP_DEL_Z(l_total_str);
         DAP_DEL_Z(l_profit_str);
         DAP_DEL_Z(l_tax_str);
         DAP_DEL_Z(l_fee_str);
     } else
-        dap_string_append(a_reply_str, "Empty\n");
+        json_object_object_add(json_obj_a, "status",json_object_new_string("Empty\n"));
 }
 
 
@@ -667,8 +676,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             dap_chain_net_sync_all(l_net);
         }break;
         case SUBCMD_DUMP:{
-            dap_chain_hash_fast_t l_block_hash={0};
-            json_object* json_obj_out = json_object_new_object();
+            dap_chain_hash_fast_t l_block_hash={0};            
             if (!l_subcmd_str_arg) {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR, "Enter block hash "); 
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;                
@@ -680,9 +688,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_FIND_ERR;                
             }
             dap_chain_block_t *l_block = l_block_cache->block;
-            dap_string_t *l_str_tmp = dap_string_new(NULL);
+            //dap_string_t *l_str_tmp = dap_string_new(NULL);
             char l_tmp_buff[70]={0};
             // Header
+            json_object* json_obj_out = json_object_new_object();
             json_object_object_add(json_obj_out, "Block number", json_object_new_uint64(l_block_cache->block_number));
             json_object_object_add(json_obj_out, "hash", json_object_new_string(l_subcmd_str_arg));
             sprintf(l_tmp_buff,"0x%04X",l_block->hdr.version);
@@ -784,8 +793,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             //dap_string_free(l_str_tmp, true);
         } break;
 
-        case SUBCMD_LIST:{
-            json_object* json_obj_out = json_object_new_object();
+        case SUBCMD_LIST:{            
             const char *l_cert_name = NULL, *l_from_hash_str = NULL, *l_to_hash_str = NULL,
                         *l_from_date_str = NULL, *l_to_date_str = NULL, *l_pkey_hash_str = NULL;
             bool l_unspent_flag = false, l_first_signed_flag = false, l_signed_flag = false, l_hash_flag = false;
@@ -944,6 +952,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             json_object_array_add(*json_arr_reply, json_arr_bl_cache_out);
 
             char *l_filtered_criteria = "";
+            json_object* json_obj_out = json_object_new_object();
             if (l_cert_name || l_pkey_hash_str || l_from_hash_str || l_to_hash_str || l_from_date_str || l_to_date_str)
                 l_filtered_criteria = " filtered according to the specified criteria";
             sprintf(l_tmp_buff,"%s.%s with filter - %s",l_net->pub.name,l_chain->name,l_filtered_criteria);
@@ -967,8 +976,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             const char * l_cert_name = NULL;
             const char * l_addr_str = NULL;
             const char * l_hash_out_type = NULL;
-            const char * l_hash_str = NULL;
-            json_object* json_obj_out = json_object_new_object();
+            const char * l_hash_str = NULL;            
             char l_tmp_buff[70]={0};
 
             uint256_t               l_fee_value = {};
@@ -1017,8 +1025,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "show") >= 0) {
                     uint256_t l_cur_reward = dap_chain_net_get_reward(l_net, UINT64_MAX);
                     char *l_reward_str = dap_chain_balance_to_coins(l_cur_reward);
+                    json_object* json_obj_out = json_object_new_object();
                     sprintf(l_tmp_buff,"Current base block reward is %s\n", l_reward_str);
-                    json_object_object_add(json_obj_out, "status", json_object_new_string(l_tmp_buff));                    
+                    json_object_object_add(json_obj_out, "status", json_object_new_string(l_tmp_buff));
+                    json_object_array_add(*json_arr_reply, json_obj_out);                    
                     DAP_DEL_Z(l_reward_str);
                     break;
                 } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "collect") == -1) {
@@ -1058,28 +1068,27 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                         return DAP_CHAIN_NODE_CLI_COM_BLOCK_CERT_ERR;
             }
             if (!l_cert->enc_key || !l_cert->enc_key->priv_key_data || !l_cert->enc_key->priv_key_data_size) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "Certificate \"%s\" doesn't contains private key", l_cert_name);
-                return -19;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_CERT_ERR, 
+                                        "Certificate \"%s\" doesn't contains private key", l_cert_name);                
+                        return DAP_CHAIN_NODE_CLI_COM_BLOCK_CERT_ERR;
             }
 
             l_fee_value = dap_chain_balance_scan(l_fee_value_str);
-            if (!l_fee_value_str || IS_ZERO_256(l_fee_value)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Command 'block %s collect' requires parameter '-fee' to be valid uint256", l_subcmd_str);
-                return -20;
+            if (!l_fee_value_str || IS_ZERO_256(l_fee_value)) {                
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block %s collect' requires parameter '-fee' to be valid uint256", l_subcmd_str);                
+                        return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
 
             if (!l_hash_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee collect' requires parameter '-hashes'");
-                return -21;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block fee collect' requires parameter '-hashes'");                
+                        return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
             // NOTE: This call will modify source string
             l_block_list = s_block_parse_str_list((char *)l_hash_str, &l_hashes_count, l_chain);
             if (!l_block_list || !l_hashes_count) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "Block fee collection requires at least one hash to create a transaction");
-                return -22;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR, 
+                                            "Block fee collection requires at least one hash to create a transaction");                
+                        return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
             }
 
             char *l_hash_tx = NULL;
@@ -1088,11 +1097,15 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             else
                 l_hash_tx = dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
             if (l_hash_tx) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "TX for %s collection created succefully, hash = %s\n", l_subcmd_str, l_hash_tx);
+                json_object* json_obj_out = json_object_new_object();
+                sprintf(l_tmp_buff, "TX for %s collection created succefully, hash = %s\n", l_subcmd_str, l_hash_tx);
+                json_object_object_add(json_obj_out, "status", json_object_new_string(l_tmp_buff));
+                json_object_array_add(*json_arr_reply, json_obj_out);
                 DAP_DELETE(l_hash_tx);
             } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create %s collect TX\n", l_subcmd_str);
-                ret = -24;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR, 
+                                            "Can't create %s collect TX\n", l_subcmd_str);                
+                        return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
             }
             dap_list_free_full(l_block_list, NULL);
         }break;
@@ -1103,6 +1116,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             dap_hash_fast_t l_pkey_hash = {};
             dap_chain_addr_t *l_addr = NULL;
             size_t l_block_count = 0;
+            char l_tmp_buff[70]={0};            
             int fl_renew = dap_cli_server_cmd_check_option(a_argv, arg_index,a_argc, "renew");
             if(fl_renew != -1)
             {
@@ -1110,23 +1124,26 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
                 l_addr = dap_chain_addr_from_str(l_addr_str);
                 if(!l_cert_name) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-cert'", l_subcmd_str);
-                    return -20;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, 
+                                            "Command 'block autocollect renew' requires parameter '-cert'", l_subcmd_str);                
+                        return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
                 }
                 if (!l_addr_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-addr'", l_addr_str);
-                    return -20;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, 
+                                            "Command 'block autocollect renew' requires parameter '-addr'", l_subcmd_str);                
+                        return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
                 }
                 dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
                 if (!l_cert) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find \"%s\" certificate", l_cert_name);
-                    return -20;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_CERT_ERR, 
+                                            "Can't find \"%s\" certificate", l_cert_name);                
+                        return DAP_CHAIN_NODE_CLI_COM_BLOCK_CERT_ERR;
                 }
                 l_pub_key = dap_pkey_from_enc_key(l_cert->enc_key);
                 if (!l_pub_key) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,
-                            "Corrupted certificate \"%s\" have no public key data", l_cert_name);
-                    return -20;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PUB_KEY_ERR, 
+                                            "Corrupted certificate \"%s\" have no public key data", l_cert_name);                
+                        return DAP_CHAIN_NODE_CLI_COM_BLOCK_PUB_KEY_ERR;
                 }
                 dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
                         .collectiong_level = l_chain->callback_get_collectiong_level,
@@ -1147,9 +1164,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 if(l_objs_rew_count)dap_global_db_objs_delete(l_objs_rew,l_objs_rew_count);
                 DAP_DELETE(l_group_fee);
                 DAP_DELETE(l_group_rew);
-                dap_string_t *l_str_tmp = dap_string_new(NULL);
+                json_object* json_arr_bl_out = json_object_new_array();
 
-                for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
+                for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {                    
                     dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                     dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                     if (!l_pub_key) {
@@ -1169,8 +1186,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                         if (!dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + i, l_out_idx_tmp, NULL)) {
                             dap_chain_esbocs_add_block_collect(l_block_cache->block, l_block_cache->block_size, &l_block_collect_params,1);
                             char l_buf[50];
+                            json_object* json_obj_bl = json_object_new_object();
                             dap_time_to_str_rfc822(l_buf, 50, l_ts);
-                            dap_string_append_printf(l_str_tmp, "fee - \t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
+                            sprintf(l_tmp_buff, "fee - \t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
+                            json_object_object_add(json_obj_bl, "block", l_tmp_buff);
+                            json_object_array_add(json_arr_bl_out, json_obj_bl);
                             l_block_count++;
                             break;
                         }
@@ -1198,37 +1218,46 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                     dap_chain_esbocs_add_block_collect(l_block_cache->block, l_block_cache->block_size, &l_block_collect_params,2);
                     {   
                         char l_buf[50];
+                        json_object* json_obj_bl = json_object_new_object();
                         dap_time_to_str_rfc822(l_buf, 50, l_ts);
-                        dap_string_append_printf(l_str_tmp, "rewards - \t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
+                        sprintf(l_tmp_buff, "rewards - \t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
+                        json_object_object_add(json_obj_bl, "block", l_tmp_buff);
+                        json_object_array_add(json_arr_bl_out, json_obj_bl);
                         l_block_count++; 
                     }                   
                 }
-                dap_string_append_printf(l_str_tmp, "%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks\n",
+                json_object_array_add(*json_arr_reply, json_arr_bl_out);
+                json_object* json_obj_out = json_object_new_object();
+                sprintf(l_tmp_buff, "%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks\n",
                                      l_net->pub.name, l_chain->name, l_block_count);
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
-                dap_string_free(l_str_tmp, true);
+                json_object_object_add(json_obj_out, "status", json_object_new_string(l_tmp_buff));
+                json_object_array_add(*json_arr_reply, json_obj_out);
 
             }else{
                 if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "status") == -1) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect' requires subcommand 'status'");
-                    return -14;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, 
+                                            "Command 'block autocollect' requires subcommand 'status'");                
+                        return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
                 }
-                dap_string_t *l_reply_str = dap_string_new("");
-                s_print_autocollect_table(l_net, l_reply_str, "Fees");
-                s_print_autocollect_table(l_net, l_reply_str, "Rewards");
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_reply_str->str);
-                dap_string_free(l_reply_str, true);
+                json_object* json_obj_out = json_object_new_object();
+                s_print_autocollect_table(l_net, json_obj_out, "Fees");
+                s_print_autocollect_table(l_net, json_obj_out, "Rewards");
+                json_object_array_add(*json_arr_reply, json_obj_out);
             }   
         } break;
 
         case SUBCMD_UNDEFINED:
         default: {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                              "Undefined block subcommand \"%s\" ",
+            char l_tmp_buff[70]={0};
+            json_object* json_obj_out = json_object_new_object();            
+            sprintf(l_tmp_buff, "Undefined block subcommand \"%s\" ",
                                               l_subcmd_str);
-            ret=-11;
+            json_object_object_add(json_obj_out, "status", json_object_new_string(l_tmp_buff));
+            json_object_array_add(*json_arr_reply, json_obj_out);                          
+            ret=DAP_CHAIN_NODE_CLI_COM_BLOCK_UNKNOWN;
         } break;
     }
+
     return ret;
 }
 
