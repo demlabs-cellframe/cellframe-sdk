@@ -60,10 +60,6 @@ dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create( dap_chain_net_
         memcpy(l_ret->exts_n_signs, a_ext, a_ext_size);
     }
 
-    log_it(L_DEBUG, "Receipt is created. Receipt size = %ld. Ext size - %ld\nReceipt hex dump:", l_ret->size, l_ret->exts_size);
-    char *hexdump = dap_dump_hex((byte_t*)l_ret, l_ret->size);
-    log_it(L_DEBUG, "%s", hexdump);
-    DAP_DELETE(hexdump);
     return  l_ret;
 }
 
@@ -73,11 +69,6 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
         log_it(L_ERROR, "NULL receipt, can't add sign");
         return NULL;
     }
-
-    log_it(L_DEBUG, "Got receipt to add sign. Receipt size = %ld\nReceipt hex dump:", a_receipt->size);
-    char *hexdump = dap_dump_hex((byte_t*)a_receipt, a_receipt->size);
-    log_it(L_DEBUG, "%s", hexdump);
-    DAP_DELETE(hexdump);
 
     dap_sign_t *l_sign = dap_sign_create(a_key, &a_receipt->receipt_info, sizeof(a_receipt->receipt_info), 0);
     size_t l_sign_size = l_sign ? dap_sign_get_size(l_sign) : 0;
@@ -96,11 +87,6 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
     l_receipt->size += l_sign_size;
     DAP_DELETE(l_sign);
 
-    log_it(L_DEBUG, "Sign with size %ld is added. New receipt size = %ld\nReceipt hex dump:", l_sign_size, l_receipt->size);
-    hexdump = dap_dump_hex((byte_t*)l_receipt, l_receipt->size);
-    log_it(L_DEBUG, "%s", hexdump);
-    DAP_DELETE(hexdump);
-
     return l_receipt;
 }
 
@@ -116,10 +102,6 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
             l_receipt->size == sizeof(dap_chain_datum_tx_receipt_t) + l_receipt->exts_size)
         return NULL;
     
-    log_it(L_DEBUG, "Got receipt to get sign. l_receipt_size = %ld, a_sign_position = %d. Receipt size in header is %ld, ext size is %ld \nReceipt hex dump:", l_receipt_size, a_sign_position, l_receipt->size, l_receipt->exts_size);
-    char *hexdump = dap_dump_hex((byte_t*)l_receipt, l_receipt_size);
-    log_it(L_DEBUG, "%s", hexdump);
-    DAP_DELETE(hexdump);
     dap_sign_t *l_sign = (dap_sign_t *)l_receipt->exts_n_signs + l_receipt->exts_size;
     uint16_t l_sign_position = a_sign_position;
     while (l_sign_position && (l_receipt_size > (byte_t *)l_sign - (byte_t*)l_receipt + dap_sign_get_size(l_sign))){
