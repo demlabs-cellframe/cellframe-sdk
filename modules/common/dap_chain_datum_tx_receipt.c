@@ -121,11 +121,10 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
     log_it(L_DEBUG, "%s", hexdump);
     DAP_DELETE(hexdump);
     dap_sign_t *l_sign = (dap_sign_t *)l_receipt->exts_n_signs + l_receipt->exts_size;
-    uint16_t l_sign_position;
-    for (l_sign_position = a_sign_position;
-             l_sign_position && l_receipt_size > (size_t)((byte_t *)l_sign - (byte_t *)l_receipt);
-             l_sign_position--) {
-        l_sign = (dap_sign_t *)((byte_t *)l_sign + dap_sign_get_size(l_sign));
+    uint16_t l_sign_position = a_sign_position;
+    while (l_sign_position && (l_receipt_size > (byte_t *)l_sign - (byte_t*)l_receipt + dap_sign_get_size(l_sign))){
+        l_sign = (dap_sign_t *)((byte_t *)l_sign + dap_sign_get_size(l_sign));  
+        l_sign_position--;
     }
     // not enough signs in receipt
     if (l_sign_position > 0)
