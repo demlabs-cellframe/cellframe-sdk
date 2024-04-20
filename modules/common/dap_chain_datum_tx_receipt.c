@@ -130,7 +130,7 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
     if (l_sign_position > 0)
         return NULL;
     // too big sign size
-    if ((size_t)(l_sign->header.sign_size + ((byte_t *)l_sign - l_receipt->exts_n_signs)) >= l_receipt->size)
+    if ((size_t)(l_sign->header.sign_size + ((byte_t *)l_sign - l_receipt->exts_n_signs)) > l_receipt->size)
         return NULL;
     return l_sign;
 }
