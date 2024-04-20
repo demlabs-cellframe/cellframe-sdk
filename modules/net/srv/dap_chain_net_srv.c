@@ -1258,7 +1258,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
 }
 
 /**
- * @brief dap_chain_net_srv_issue_receipt
+ * @brief s_str_to_price_unit
  * @param a_str_price_unit
  * @param a_price_unit
  * @return 0 if OK, other if error

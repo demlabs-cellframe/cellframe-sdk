@@ -1249,6 +1249,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;
 
         if (dap_chain_net_get_state(l_usage->net) == NET_STATE_OFFLINE) {
+            if ( l_usage->receipt_next){ // If we have receipt next
+                DAP_DEL_Z(l_usage->receipt_next);
+            }
             log_it(L_ERROR, "Can't pay service because net %s is offline.", l_usage->net->pub.name);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
             break;

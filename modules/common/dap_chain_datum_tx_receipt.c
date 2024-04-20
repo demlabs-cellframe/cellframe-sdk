@@ -126,7 +126,6 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
              l_sign_position && l_receipt_size > (size_t)((byte_t *)l_sign - (byte_t *)l_receipt);
              l_sign_position--) {
         l_sign = (dap_sign_t *)((byte_t *)l_sign + dap_sign_get_size(l_sign));
-        log_it(L_DEBUG, "Sign #%d size=%ld.", l_sign_position, dap_sign_get_size(l_sign));
     }
     // not enough signs in receipt
     if (l_sign_position > 0)
