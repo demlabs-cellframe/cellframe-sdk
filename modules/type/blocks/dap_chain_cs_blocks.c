@@ -766,7 +766,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
-            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
 
             if (l_signed_flag && l_first_signed_flag) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Choose only one option from 'singed' and 'first_signed'");
@@ -835,7 +835,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_string_t *l_str_tmp = dap_string_new(NULL);
             size_t l_start_arr = 0;
             if(l_offset > 1) {
-                l_start_arr = l_offset * l_limit;
+                l_start_arr = l_offset;
             }
             size_t l_arr_end = PVT(l_blocks)->blocks_count;
             if (l_limit) {

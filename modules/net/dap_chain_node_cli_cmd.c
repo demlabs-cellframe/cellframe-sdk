@@ -2668,7 +2668,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
     size_t l_objs_count = 0;
     dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
     json_object  *l_jobj_datums;
-    size_t l_offset = a_limit * a_offset;
+    size_t l_offset = a_offset;
     if (l_objs_count == 0 || l_objs_count < l_offset) {
         l_jobj_datums = json_object_new_null();
     } else {
@@ -3816,7 +3816,7 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply)
             const char *l_limit_str = NULL, *l_offset_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
-            l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+            l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
             l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
             if(l_chain) {
                 s_com_mempool_list_print_for_chain(l_net, l_chain, l_wallet_addr, l_jobj_chains, l_hash_out_type, l_fast, l_limit, l_offset);

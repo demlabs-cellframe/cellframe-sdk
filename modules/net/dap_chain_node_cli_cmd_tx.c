@@ -334,7 +334,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
 
     size_t l_arr_start = 0;
     if (a_offset)
-        l_arr_start = a_offset * a_limit;
+        l_arr_start = a_offset;
     size_t l_arr_end = a_chain->callback_count_atom(a_chain);
     if (a_limit) {
         l_arr_end = l_arr_start + a_limit;

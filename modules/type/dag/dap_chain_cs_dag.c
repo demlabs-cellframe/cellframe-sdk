@@ -1760,11 +1760,11 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         size_t l_objs_count = 0;
                         l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
                         char *ptr;
-                        size_t l_limit = l_limit_str ? strtoull(l_limit_str, &ptr, 10) : 0;
+                        size_t l_limit = l_limit_str ? strtoull(l_limit_str, &ptr, 10) : 1000;
                         size_t l_offset = l_offset_str ? strtoull(l_offset_str, &ptr, 10) : 0;
                         size_t l_arr_start = 0;
                         if (l_offset) {
-                            l_arr_start = l_offset * l_limit;
+                            l_arr_start = l_offset;
                             dap_string_append_printf(l_str_tmp, "limit: %lu", l_arr_start);
                         }
                         size_t l_arr_end = l_objs_count;

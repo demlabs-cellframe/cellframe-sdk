@@ -1804,7 +1804,7 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     size_t l_arr_start = 0;
     if (a_offset > 1) {
-        l_arr_start = a_limit * a_offset;
+        l_arr_start = a_offset;
     }
     size_t l_arr_end = HASH_COUNT(l_ledger_pvt->threshold_txs);
     if (a_limit) {
@@ -1876,7 +1876,7 @@ json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_ha
     }
     size_t l_arr_start = 0;
     if (a_offset > 1) {
-        l_arr_start = a_limit * a_offset;
+        l_arr_start = a_offset;
     }
     size_t l_arr_end = HASH_COUNT(l_ledger_pvt->threshold_txs);
     if (a_limit) {
@@ -1936,7 +1936,7 @@ json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, siz
     dap_ledger_wallet_balance_t *l_balance_item, *l_balance_tmp;
     size_t l_arr_start = 0;
     if (a_offset > 1) {
-        l_arr_start = a_limit * a_offset;
+        l_arr_start = a_offset;
     }
     size_t l_arr_end = HASH_COUNT(l_ledger_pvt->balance_accounts);
     if (a_limit) {
@@ -2049,7 +2049,7 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
     size_t l_arr_start = 0;
     if (a_offset > 1) {
-        l_arr_start = a_limit * a_offset;
+        l_arr_start = a_offset;
     }
     size_t l_arr_end = HASH_COUNT(PVT(a_ledger)->tokens);
     if (a_limit) {
