@@ -451,15 +451,15 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
     char *l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
     size_t l_objs_count = 0;
     
-    dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(l_gdb_group, &l_objs_count);
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_count);
 
-    if (!l_objs_count || !l_store_obj) {
-        log_it(L_ATT, "Stake cache data not found");
+    if (!l_objs_count || !l_objs) {
+        log_it(L_DEBUG, "Stake cache data not found");
         return -2;
     }
     for (size_t i = 0; i < l_objs_count; i++){
         dap_chain_net_srv_stake_cache_data_t *l_cache_data =
-                (dap_chain_net_srv_stake_cache_data_t *)l_store_obj[i].value;
+                (dap_chain_net_srv_stake_cache_data_t *)l_objs[i].value;
         dap_chain_net_srv_stake_cache_item_t *l_cache = DAP_NEW_Z(dap_chain_net_srv_stake_cache_item_t);
         if (!l_cache) {
             log_it(L_CRITICAL, "%s", g_error_memory_alloc);
@@ -469,7 +469,7 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
         l_cache->tx_hash        = l_cache_data->tx_hash;
         HASH_ADD(hh, s_srv_stake->cache, tx_hash, sizeof(dap_hash_fast_t), l_cache);
     }
-    dap_store_obj_free(l_store_obj, l_objs_count);
+    dap_global_db_objs_delete(l_objs, l_objs_count);
     dap_ledger_set_cache_tx_check_callback(l_ledger, s_stake_cache_check_tx);
     return 0;
 }
