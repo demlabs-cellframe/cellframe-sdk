@@ -1923,7 +1923,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         }
     }
     uint16_t l_permalink_hosts_count = 0;
-    char **l_permanent_links_hosts = dap_config_get_array_str(l_cfg, "general", "seed_nodes_hosts", &l_permalink_hosts_count);
+    char **l_permanent_links_hosts = dap_config_get_array_str(l_cfg, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
     for (uint16_t i = 0; i < dap_min(l_permalink_hosts_count, l_net_pvt->permanent_links_count); ++i) {
         uint16_t l_port = 0;
         char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
@@ -2262,15 +2262,13 @@ int s_net_load(dap_chain_net_t *a_net)
         l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
         l_gdb_groups_mask, 0, true,
         DAP_GDB_MEMBER_ROLE_USER,
-        DAP_CLUSTER_ROLE_VIRTUAL);
+        DAP_CLUSTER_ROLE_EMBEDDED);
     DAP_DELETE(l_gdb_groups_mask);
     // Nodes and its aliases cluster
     l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes.list",l_net->pub.gdb_groups_prefix);
-    l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
-    l_gdb_groups_mask = dap_strdup_printf("%s.nodes*", l_net->pub.gdb_groups_prefix);
     l_net_pvt->nodes_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
-                                                         l_gdb_groups_mask, 0, true,
+                                                         l_net->pub.gdb_nodes, 0, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
                                                          DAP_CLUSTER_ROLE_EMBEDDED);
     if (!l_net_pvt->nodes_cluster) {
