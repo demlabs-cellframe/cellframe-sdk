@@ -904,18 +904,19 @@ static void s_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net
 
 static bool s_chain_timer_callback(void *a_arg)
 {
+    dap_events_socket_uuid_t l_arg = DAP_POINTER_TO_SIZE(a_arg);
     dap_worker_t *l_worker = dap_worker_get_current();
-    dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_worker), *(dap_stream_ch_uuid_t*)a_arg);
+    dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_worker), l_arg);
     if (!l_ch) {
-        dap_chain_net_del_downlink((dap_stream_ch_uuid_t*)a_arg);
-        DAP_DELETE(a_arg);
+        dap_chain_net_del_downlink(&l_arg);
+        //DAP_DELETE(a_arg);
         return false;
     }
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     if (!l_ch_chain) {
         log_it(L_CRITICAL, "Channel without chain, dump it");
-        dap_chain_net_del_downlink((dap_stream_ch_uuid_t*)a_arg);
-        DAP_DELETE(a_arg);
+        dap_chain_net_del_downlink(&l_arg);
+        //DAP_DELETE(a_arg);
         return false;
     }
     if (l_ch_chain->timer_shots++ >= DAP_SYNC_TICKS_PER_SECOND * DAP_CHAIN_NODE_SYNC_TIMEOUT) {
@@ -925,12 +926,12 @@ static bool s_chain_timer_callback(void *a_arg)
                 l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT, NULL, 0,
                                                       l_ch_chain->callback_notify_arg);
         }
-        DAP_DELETE(a_arg);
+        //DAP_DELETE(a_arg);
         l_ch_chain->activity_timer = NULL;
         return false;
     }
     if (l_ch_chain->state != CHAIN_STATE_WAITING && l_ch_chain->sent_breaks) {
-        s_stream_ch_packet_out(l_ch, a_arg);
+        s_stream_ch_packet_out(l_ch, &l_arg);
         if (l_ch_chain->activity_timer == NULL)
             return false;
     }
@@ -965,10 +966,9 @@ static void s_chain_timer_reset(dap_stream_ch_chain_t *a_ch_chain)
 
 void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain)
 {
-    dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&DAP_STREAM_CH(a_ch_chain)->uuid);
     a_ch_chain->activity_timer = dap_timerfd_start_on_worker(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker,
                                                              1000 / DAP_SYNC_TICKS_PER_SECOND,
-                                                             s_chain_timer_callback, (void *)l_uuid);
+                                                             s_chain_timer_callback, DAP_SIZE_TO_POINTER(DAP_STREAM_CH(a_ch_chain)->uuid) );
     a_ch_chain->sent_breaks = 0;
 }
 
@@ -1492,7 +1492,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             }
             s_ch_chain_get_idle(l_ch_chain);
             if (l_ch_chain->activity_timer) {
-                DAP_DELETE(l_ch_chain->activity_timer->callback_arg);
+                //DAP_DELETE(l_ch_chain->activity_timer->callback_arg);
                 dap_timerfd_delete_unsafe(l_ch_chain->activity_timer);
                 l_ch_chain->activity_timer = NULL;
             }
@@ -2022,7 +2022,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
         s_ch_chain_go_idle(l_ch_chain);
         if (l_ch_chain->activity_timer) {
             if (!a_arg) {
-                DAP_DELETE(l_ch_chain->activity_timer->callback_arg);
+                //DAP_DELETE(l_ch_chain->activity_timer->callback_arg);
                 dap_timerfd_delete_unsafe(l_ch_chain->activity_timer);
             }
             l_ch_chain->activity_timer = NULL;
