@@ -780,15 +780,17 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
 void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
 {
     char l_node_addr_str[INET_ADDRSTRLEN] = {};
-    if (a_node_client->callbacks.disconnected) {
-        a_node_client->callbacks.disconnected(a_node_client, a_node_client->callbacks_arg);
-    }
+    //if (a_node_client->callbacks.disconnected) {
+    //    a_node_client->callbacks.disconnected(a_node_client, a_node_client->callbacks_arg);
+    //}
     inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     log_it(L_INFO, "Closing node client to uplink %s:%d ["NODE_ADDR_FP_STR"]",
                     l_node_addr_str, a_node_client->info->hdr.ext_port, NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
 
-    if (a_node_client->sync_timer)
+    if (a_node_client->sync_timer) {
         dap_timerfd_delete_unsafe(a_node_client->sync_timer);
+        a_node_client->sync_timer = NULL;
+    }
     if (a_node_client->reconnect_timer)
         dap_timerfd_delete_mt(a_node_client->reconnect_timer->worker, a_node_client->reconnect_timer->esocket_uuid);
     if (a_node_client->callbacks.delete)
