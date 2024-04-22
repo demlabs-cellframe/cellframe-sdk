@@ -2701,6 +2701,7 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
                     dap_chain_hash_fast_from_str(l_whitelist[i], &l_hal_item->hash);
                     HASH_ADD(hh, s_hal_items, hash, sizeof(l_hal_item->hash), l_hal_item);
                 }
+                DAP_DELETE(l_chains_path);
                 dap_config_close(l_cfg);
                 log_it(L_DEBUG, "HAL items count for chain %s : %d", l_entry_name, l_whitelist_size);
             }
