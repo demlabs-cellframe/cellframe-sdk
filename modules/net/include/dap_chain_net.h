@@ -66,7 +66,6 @@ typedef struct dap_chain_net{
         dap_chain_net_id_t id;
         char * name;
         char * gdb_groups_prefix;
-        char * gdb_nodes_aliases;
         char * gdb_nodes;
 
         dap_list_t *keys;               // List of PoA certs for net
