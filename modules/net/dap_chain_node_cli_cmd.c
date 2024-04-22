@@ -120,39 +120,6 @@ static void s_dap_chain_net_purge(dap_chain_net_t *a_net);
 int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply);
 
 /**
- * @brief dap_list_t* get_aliases_by_name Get the aliases by name object
- * Find in base alias by addr
- *
- * return list of addr, NULL if not found
- * @param l_net
- * @param a_addr
- * @return dap_list_t*
- */
-static dap_list_t* get_aliases_by_name(dap_chain_net_t * l_net, dap_chain_node_addr_t *a_addr)
-{
-    if(!a_addr)
-        return NULL;
-    dap_list_t *list_aliases = NULL;
-    size_t data_size = 0;
-    // read all aliases
-    dap_global_db_obj_t *objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes_aliases, &data_size);
-    if(!objs || !data_size)
-        return NULL;
-    for(size_t i = 0; i < data_size; i++) {
-        //dap_chain_node_addr_t addr_i;
-        dap_global_db_obj_t *obj = objs + i;
-        if(!obj)
-            break;
-        dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t*) (void*) obj->value;
-        if(l_addr && obj->value_len == sizeof(dap_chain_node_addr_t) && a_addr->uint64 == l_addr->uint64) {
-            list_aliases = dap_list_prepend(list_aliases, strdup(obj->key));
-        }
-    }
-    dap_global_db_objs_delete(objs, data_size);
-    return list_aliases;
-}
-
-/**
  * @brief node_info_read_and_reply
  * Read node from base
  * @param a_net
@@ -341,26 +308,15 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
         } else {
             dap_string_append_printf(l_string_reply, "Got %zu nodes:\n", l_nodes_count);
             dap_string_append_printf(l_string_reply, "%-26s%-20s%-8s%s", "Address", "IPv4", "Port", "Timestamp\n");
-            size_t l_data_size = 0;
 
-            dap_global_db_obj_t *l_aliases_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes_aliases, &l_data_size);
             for (size_t i = 0; i < l_nodes_count; i++) {
                 dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
                 if (dap_chain_node_addr_is_blank(&l_node_info->address)){
                     log_it(L_ERROR, "Node address is empty");
                     continue;
                 }
-/*
-                dap_chain_node_info_t *l_node_info_read = node_info_read_and_reply(a_net, &l_node_info->hdr.address, NULL);
-                if (!l_node_info_read) {
-                    log_it(L_ERROR, "Invalid node info object, remove it");
-                    if (dap_global_db_del_sync(a_net->pub.gdb_nodes, l_objs[i].key) !=0 )
-                        log_it(L_CRITICAL, "Can't remove node info object");
-                    continue;
-                } else
-                    DAP_DELETE(l_node_info_read);
-*/
-                char l_ts[80] = { '\0' };
+
+                char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
                 dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
 
                 dap_string_append_printf(l_string_reply, NODE_ADDR_FP_STR"    %-20s%-8d%-32s\n",
@@ -368,7 +324,7 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
                                          l_node_info->ext_host, l_node_info->ext_port,
                                          l_ts);
 
-                // get aliases in form of string
+                // TODO make correct work with aliases
                 /*dap_string_t *aliases_string = dap_string_new(NULL);
 
                 for (size_t i = 0; i < l_data_size; i++) {
@@ -418,7 +374,6 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
                 dap_string_free(aliases_string, true);
                 dap_string_free(links_string, true);*/
             }
-            dap_global_db_objs_delete(l_aliases_objs, l_data_size);
         }
         dap_global_db_objs_delete(l_objs, l_nodes_count);
     }
@@ -7565,13 +7520,11 @@ dap_list_t *s_go_all_nets_offline()
     return l_net_returns;
 }
 
-typedef struct _pvt_net_aliases_list{
+typedef struct _pvt_net_nodes_list {
     dap_chain_net_t *net;
-    dap_global_db_obj_t *group_aliases;
-    size_t count_aliases;
     dap_global_db_obj_t *group_nodes;
     size_t count_nodes;
-}_pvt_net_aliases_list_t;
+} _pvt_net_nodes_list_t;
 
 int cmd_remove(int a_argc, char **a_argv, void **a_str_reply)
 {
@@ -7615,19 +7568,17 @@ int cmd_remove(int a_argc, char **a_argv, void **a_str_reply)
     //perform deletion according to the specified parameters, if the path is specified
     if (l_gdb_path) {
         l_net_returns = s_go_all_nets_offline();
-        dap_list_t *l_gdb_aliases_list = NULL;
+        dap_list_t *l_gdb_nodes_list = NULL;
         for (dap_chain_net_t *it = dap_chain_net_iter_start(); it; it = dap_chain_net_iter_next(it)) {
-            size_t l_aliases_count = 0;
-            _pvt_net_aliases_list_t *l_gdb_groups = DAP_NEW(_pvt_net_aliases_list_t);
+            _pvt_net_nodes_list_t *l_gdb_groups = DAP_NEW(_pvt_net_nodes_list_t);
             if (!l_gdb_groups) {
                 log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 dap_list_free(l_net_returns);
                 return -1;
             }
             l_gdb_groups->net = it;
-            l_gdb_groups->group_aliases = dap_global_db_get_all_sync(l_gdb_groups->net->pub.gdb_nodes_aliases, &l_gdb_groups->count_aliases);
             l_gdb_groups->group_nodes = dap_global_db_get_all_sync(l_gdb_groups->net->pub.gdb_nodes, &l_gdb_groups->count_nodes);
-            l_gdb_aliases_list = dap_list_append(l_gdb_aliases_list, l_gdb_groups);
+            l_gdb_nodes_list = dap_list_append(l_gdb_nodes_list, l_gdb_groups);
         }
 
         dap_global_db_deinit();
@@ -7635,21 +7586,16 @@ int cmd_remove(int a_argc, char **a_argv, void **a_str_reply)
         char *l_gdb_rm_path = dap_strdup_printf("%s/gdb-%s", l_gdb_path, l_gdb_driver);
         dap_rm_rf(l_gdb_rm_path);
         DAP_DELETE(l_gdb_rm_path);
-        dap_global_db_init(l_gdb_path, l_gdb_driver);
-        for (dap_list_t *ptr = l_gdb_aliases_list; ptr; ptr = dap_list_next(ptr)) {
-            _pvt_net_aliases_list_t *l_tmp = (_pvt_net_aliases_list_t*)ptr->data;
-            for (size_t i = 0; i < l_tmp->count_aliases; i++) {
-                dap_global_db_obj_t l_obj = l_tmp->group_aliases[i];
-                dap_global_db_set_sync(l_tmp->net->pub.gdb_nodes_aliases, l_obj.key, l_obj.value, l_obj.value_len, false);
-            }
-            dap_global_db_objs_delete(l_tmp->group_aliases, l_tmp->count_aliases);
+        dap_global_db_init();
+        for (dap_list_t *ptr = l_gdb_nodes_list; ptr; ptr = dap_list_next(ptr)) {
+            _pvt_net_nodes_list_t *l_tmp = (_pvt_net_nodes_list_t*)ptr->data;
             for (size_t i = 0; i < l_tmp->count_nodes; i++) {
                 dap_global_db_obj_t l_obj = l_tmp->group_nodes[i];
                 dap_global_db_set_sync(l_tmp->net->pub.gdb_nodes, l_obj.key, l_obj.value, l_obj.value_len, false);
             }
             dap_global_db_objs_delete(l_tmp->group_nodes, l_tmp->count_nodes);
         }
-        dap_list_free_full(l_gdb_aliases_list, NULL);
+        dap_list_free_full(l_gdb_nodes_list, NULL);
         if (!error)
             successful |= REMOVED_GDB;
     }

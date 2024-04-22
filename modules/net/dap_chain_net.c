@@ -2277,7 +2277,6 @@ int s_net_load(dap_chain_net_t *a_net)
     }
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->nodes_cluster);
     dap_chain_net_add_nodelist_notify_callback(l_net, s_nodelist_change_notify, l_net);
-    DAP_DELETE(l_gdb_groups_mask);
 
     if (dap_link_manager_add_net(l_net->pub.id.uint64, l_net_pvt->nodes_cluster->links_cluster,
                                 dap_config_get_item_uint16_default(l_cfg, "general", "links_required", 3))) {
