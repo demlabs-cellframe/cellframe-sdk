@@ -7,6 +7,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv_vpn.h"
+#include "dap_chain_net_srv_stake_lock.h"
 
 static const uint64_t s_fee = 2;
 static const uint64_t s_total_supply = 500;
@@ -188,10 +189,40 @@ dap_chain_datum_tx_t *dap_ledger_test_create_return_from_tx_cond(dap_chain_hash_
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
      // get previous cond out
     int l_out_idx = 1;
+    dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT, NULL);
+
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    dap_chain_tx_in_cond_t *l_in_cond = dap_chain_datum_tx_item_in_cond_create(a_hash_prev, 1, 0);
+
+    // add all items to tx
+    dap_chain_addr_t l_addr_to = {0};
+    dap_chain_addr_fill_from_key(&l_addr_to, a_key_to, a_ledger->net->pub.id);
+    dap_chain_tx_out_t *l_out_change = dap_chain_datum_tx_item_out_create(&l_addr_to, l_tx_prev_out->header.value);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_cond);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
+    dap_chain_datum_tx_add_sign_item(&l_tx, a_key_to);
+    DAP_DEL_Z(l_in_cond);
+    DAP_DEL_Z(l_out_change);
+    return l_tx;
+}
+
+dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev,
+                                                      dap_enc_key_t *a_key_to, uint256_t a_value, dap_ledger_t *a_ledger) {
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
+    // get previous transaction
+    dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
+     // get previous cond out
+    int l_out_idx = 1;
     dap_chain_tx_out_cond_t *l_tx_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT_COND, NULL);
 
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_cond_t *l_in_cond = dap_chain_datum_tx_item_in_cond_create(a_hash_prev, 1, 0);
+
+
+    uint64_t a_time_staking = 1;
+    dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
+                                                        l_uid, a_value, a_time_staking, uint256_0);
+        
 
     // add all items to tx
     dap_chain_addr_t l_addr_to = {0};
@@ -263,8 +294,10 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     // try to spend cond tx 
     {
     dap_chain_datum_tx_t *l_cond_tx = dap_ledger_test_create_tx_cond(a_from_key, a_prev_hash,&l_addr_first, dap_chain_uint256_from(2U),a_ledger);
+    dap_assert_PIF(l_cond_tx, "Test of creating conditional transaction:"); 
     dap_hash_fast_t l_cond_tx_hash = {};
     dap_hash_fast(l_cond_tx, dap_chain_datum_tx_get_size(l_cond_tx), &l_cond_tx_hash);
+    dap_assert(!dap_ledger_tx_add(a_ledger, l_cond_tx, &l_cond_tx_hash, false), "Test of conditional transaction adding to ledger:");
     dap_ledger_test_print_balance(a_ledger, &l_addr);
 
     dap_cert_t *l_cond_spender_cert = dap_cert_generate_mem_with_seed("newCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, "FMknbirh8*^#$RYU*q", 18);
@@ -314,6 +347,7 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     }
 
     // check stake and unstake removing
+     
 
     // Check vote removing 
 
