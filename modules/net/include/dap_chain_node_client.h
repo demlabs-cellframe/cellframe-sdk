@@ -90,16 +90,9 @@ typedef struct dap_chain_node_client {
 
     dap_events_socket_uuid_t esocket_uuid;
 
-    #ifndef _WIN32
     pthread_cond_t wait_cond;
-    #else
-    HANDLE wait_cond;
-    #endif
     pthread_mutex_t wait_mutex;
 
-    // For hash indexing
-    UT_hash_handle hh;
-    dap_chain_node_addr_t cur_node_addr;
     dap_chain_node_addr_t remote_node_addr;
 
     bool is_connected;
