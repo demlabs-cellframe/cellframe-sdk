@@ -583,7 +583,7 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
 static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_db_instance_t *a_dbi,
                                                                     int a_rc, const char *a_group,
                                                                     const size_t a_values_total, const size_t a_values_count,
-                                                                    dap_store_obj_t *a_values, void *a_arg)
+                                                                    dap_global_db_obj_t *a_values, void *a_arg)
 {
     if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS) 
         return false;
@@ -651,7 +651,7 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
 static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_arg)
 {
     dap_chain_cs_dag_t *l_dag = a_callback_arg->dag;
-    dap_global_db_get_all_raw(l_dag->gdb_group_events_round_new, 0, 0, s_callback_round_event_to_chain_callback_get_round_item, a_callback_arg);
+    dap_global_db_get_all(l_dag->gdb_group_events_round_new, 0, s_callback_round_event_to_chain_callback_get_round_item, a_callback_arg);
     return false;
 }
 
@@ -701,10 +701,10 @@ static void s_round_changes_notify(dap_store_obj_t *a_obj, void *a_arg)
     assert(l_dag);
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_dag->chain->net_id);
     log_it(L_DEBUG, "%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%zu",
-        l_net->pub.name, l_dag->chain->name, a_obj->type, a_obj->group, a_obj->key, a_obj->value_len);
-    if (a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD) {
+        l_net->pub.name, l_dag->chain->name, dap_store_obj_get_type(a_obj), a_obj->group, a_obj->key, a_obj->value_len);
+    if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_ADD) {
         if (dap_strcmp(a_obj->key, DAG_ROUND_CURRENT_KEY))  // check key for round increment, if no than process event
-            s_callback_event_round_sync(l_dag, a_obj->type, a_obj->group, a_obj->key, a_obj->value, a_obj->value_len);
+            s_callback_event_round_sync(l_dag, dap_store_obj_get_type(a_obj), a_obj->group, a_obj->key, a_obj->value, a_obj->value_len);
         else
             log_it(L_INFO, "Global round ID: %lu", *(uint64_t*)a_obj->value);
     }
