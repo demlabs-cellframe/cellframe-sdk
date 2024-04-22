@@ -7165,6 +7165,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
                                     "something went wrong in tx_history");
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR;
         }
+        
     } else if (l_is_tx_all) {
         // history all
         const char * l_brief_type = NULL;
