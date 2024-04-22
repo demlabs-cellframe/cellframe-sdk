@@ -465,7 +465,7 @@ static void s_cli_meta_hex_print(  dap_string_t * a_str_tmp, const char * a_meta
 static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object* json_obj_a, const char *a_table_name)
 {
     bool l_status = dap_chain_esbocs_get_autocollect_status(a_net->pub.id);
-    char l_tmp_buff[70]={0};
+    char l_tmp_buff[150]={0};
     sprintf(l_tmp_buff,"for %s in network %s is %s\n", a_table_name, a_net->pub.name,
                                         l_status ? "active" : "inactive, cause the network config or consensus starting problems");
     json_object_object_add(json_obj_a, "Autocollect status", json_object_new_string(l_tmp_buff));                                   
@@ -692,23 +692,22 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             //dap_string_t *l_str_tmp = dap_string_new(NULL);
             char l_tmp_buff[70]={0};
             // Header
-            json_object* json_obj_out = json_object_new_object();
-            json_object_object_add(json_obj_out, "Block number", json_object_new_uint64(l_block_cache->block_number));
-            json_object_object_add(json_obj_out, "hash", json_object_new_string(l_subcmd_str_arg));
+            json_object* json_obj_inf = json_object_new_object();
+            json_object_object_add(json_obj_inf, "Block number", json_object_new_uint64(l_block_cache->block_number));
+            json_object_object_add(json_obj_inf, "hash", json_object_new_string(l_subcmd_str_arg));
             sprintf(l_tmp_buff,"0x%04X",l_block->hdr.version);
-            json_object_object_add(json_obj_out, "version", json_object_new_string(l_tmp_buff));
+            json_object_object_add(json_obj_inf, "version", json_object_new_string(l_tmp_buff));
             sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_X"",l_block->hdr.cell_id.uint64);
-            json_object_object_add(json_obj_out, "cell_id", json_object_new_string(l_tmp_buff));
+            json_object_object_add(json_obj_inf, "cell_id", json_object_new_string(l_tmp_buff));
             sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_X"",l_block->hdr.chain_id.uint64);
-            json_object_object_add(json_obj_out, "chain_id", json_object_new_string(l_tmp_buff));
-            json_object_object_add(json_obj_out, "ts_created", json_object_new_string(dap_ctime_r(&l_block->hdr.ts_created, l_tmp_buff)));            
+            json_object_object_add(json_obj_inf, "chain_id", json_object_new_string(l_tmp_buff));
+            json_object_object_add(json_obj_inf, "ts_created", json_object_new_string(dap_ctime_r(&l_block->hdr.ts_created, l_tmp_buff)));            
             
             // Dump Metadata
-            size_t l_offset = 0;
-                            
-            json_object_object_add(json_obj_out, "Metadata: count", json_object_new_int(l_block->hdr.meta_count));
+            size_t l_offset = 0;                            
+            json_object_object_add(json_obj_inf, "Metadata: count", json_object_new_int(l_block->hdr.meta_count));
             json_object* json_arr_meta_out = json_object_new_array();            
-            json_object_array_add(*json_arr_reply, json_obj_out);
+            json_object_array_add(*json_arr_reply, json_obj_inf);
             for (uint32_t i=0; i < l_block->hdr.meta_count; i++) {
                 json_object* json_obj_meta = json_object_new_object();
                 dap_chain_block_meta_t *l_meta = (dap_chain_block_meta_t *)(l_block->meta_n_datum_n_sign + l_offset);
@@ -745,8 +744,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 l_offset += sizeof(l_meta->hdr) + l_meta->hdr.data_size;
             }
             json_object_array_add(*json_arr_reply, json_arr_meta_out);
-            
-            json_object_object_add(json_obj_out, "Datums: count", json_object_new_uint64(l_block_cache->datum_count));
+            json_object* json_obj_datum = json_object_new_object();
+            json_object_object_add(json_obj_datum, "Datums: count", json_object_new_uint64(l_block_cache->datum_count));
+            json_object_array_add(*json_arr_reply, json_obj_datum);
             json_object* json_arr_datum_out = json_object_new_array();
             for (uint32_t i=0; i < l_block_cache->datum_count ; i++){
                 char buf[70];
@@ -772,9 +772,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 json_object_array_add(json_arr_datum_out, json_obj_tx);
             }
             json_object_array_add(*json_arr_reply, json_arr_datum_out);
-            // Signatures            
-            json_object_object_add(json_obj_out, "signatures count", json_object_new_uint64(l_block_cache->sign_count));
-            json_object_array_add(*json_arr_reply, json_obj_out);
+            // Signatures 
+            json_object* json_obj_sig = json_object_new_object();           
+            json_object_object_add(json_obj_sig, "signatures count", json_object_new_uint64(l_block_cache->sign_count));
+            json_object_array_add(*json_arr_reply, json_obj_sig);
             json_object* json_arr_sign_out = json_object_new_array();
             for (uint32_t i=0; i < l_block_cache->sign_count ; i++) {
                 json_object* json_obj_sign = json_object_new_object();
@@ -952,11 +953,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
             json_object_array_add(*json_arr_reply, json_arr_bl_cache_out);
 
-            char *l_filtered_criteria = "";
+            char *l_filtered_criteria = "none";
             json_object* json_obj_out = json_object_new_object();
             if (l_cert_name || l_pkey_hash_str || l_from_hash_str || l_to_hash_str || l_from_date_str || l_to_date_str)
                 l_filtered_criteria = " filtered according to the specified criteria";
-            sprintf(l_tmp_buff,"%s.%s with filter - %s",l_net->pub.name,l_chain->name,l_filtered_criteria);
+            sprintf(l_tmp_buff,"%s.%s with filter - %s, have blocks -",l_net->pub.name,l_chain->name,l_filtered_criteria);
             json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(l_block_count));
             json_object_array_add(*json_arr_reply, json_obj_out);
 
