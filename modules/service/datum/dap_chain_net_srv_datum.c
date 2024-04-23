@@ -192,7 +192,7 @@ static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply)
  */
 void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
 {
-    if (a_obj->type == DAP_GLOBAL_DB_OPTYPE_DEL)
+    if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read((byte_t *)a_obj->value, a_obj->value_len);    // Old format comliance
