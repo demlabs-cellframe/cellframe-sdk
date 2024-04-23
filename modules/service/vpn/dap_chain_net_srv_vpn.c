@@ -1114,7 +1114,7 @@ static bool s_save_limits(void* arg)
     remain_limits_save_arg_t *l_args = (remain_limits_save_arg_t *)arg;
 
     s_callback_save_remain_service(l_args->srv,  l_args->usage_id, l_args->srv_client);
-    DAP_DELETE(l_args);
+
     return true;
 }
 
