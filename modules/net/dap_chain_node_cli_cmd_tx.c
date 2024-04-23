@@ -505,8 +505,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             if (l_dst_addr && l_net_fee_used && dap_chain_addr_compare(&l_net_fee_addr, l_dst_addr))
                 SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
             if (l_dst_addr && dap_chain_addr_compare(l_dst_addr, a_addr)) {
-                if (l_count++ < a_offset)
-                    break;
                 if (!l_header_printed) {
                     s_tx_header_print(j_obj_tx, &l_tx_data_ht, l_tx, l_datum_iter->cur_atom_hash,
                                       a_hash_out_type, l_ledger, &l_tx_hash, l_datum_iter->ret_code);
@@ -547,9 +545,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 if (!l_dst_addr && ((dap_chain_tx_out_cond_t *)it->data)->header.subtype == l_src_subtype && l_src_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                     continue;
                 if (!l_src_addr && l_dst_addr && !dap_chain_addr_compare(l_dst_addr, &l_net_fee_addr))
-                    continue;
-                if (l_count++ < a_offset)
-                    break;
+                    continue;                
                 if (!l_header_printed) {
                     s_tx_header_print(j_obj_tx, &l_tx_data_ht, l_tx, l_datum_iter->cur_atom_hash,
                                       a_hash_out_type, l_ledger, &l_tx_hash, l_datum_iter->ret_code);
@@ -592,7 +588,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             json_object_array_add(j_arr_data, l_corr_object);
             l_is_need_correction = false;
         }
-        l_count_tx += l_count_bool;
     }
     a_chain->callback_datum_iter_delete(l_datum_iter);
     // delete hashes
