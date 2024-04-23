@@ -189,7 +189,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_return_from_tx_cond(dap_chain_hash_
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
      // get previous cond out
     int l_out_idx = 1;
-    dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT, NULL);
+    dap_chain_tx_out_cond_t *l_tx_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT_COND, NULL);
 
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_cond_t *l_in_cond = dap_chain_datum_tx_item_in_cond_create(a_hash_prev, 1, 0);
@@ -206,33 +206,36 @@ dap_chain_datum_tx_t *dap_ledger_test_create_return_from_tx_cond(dap_chain_hash_
     return l_tx;
 }
 
-dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev,
-                                                      dap_enc_key_t *a_key_to, uint256_t a_value, dap_ledger_t *a_ledger) {
+dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev, uint256_t a_value, dap_ledger_t *a_ledger) {
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     // get previous transaction
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
      // get previous cond out
-    int l_out_idx = 1;
-    dap_chain_tx_out_cond_t *l_tx_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT_COND, NULL);
+    int l_out_idx = 0;
+    dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT, NULL);
 
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-    dap_chain_tx_in_cond_t *l_in_cond = dap_chain_datum_tx_item_in_cond_create(a_hash_prev, 1, 0);
+    dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_hash_prev, 0);
 
 
-    uint64_t a_time_staking = 1;
+    uint64_t a_time_staking = dap_time_now();
     dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
-                                                        l_uid, a_value, a_time_staking, uint256_0);
+                                                                            l_uid, a_value, a_time_staking, uint256_0);
         
 
     // add all items to tx
     dap_chain_addr_t l_addr_to = {0};
-    dap_chain_addr_fill_from_key(&l_addr_to, a_key_to, a_ledger->net->pub.id);
-    dap_chain_tx_out_t *l_out_change = dap_chain_datum_tx_item_out_create(&l_addr_to, l_tx_prev_out->header.value);
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_cond);
+    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);
+    uint256_t value_change = {};
+    SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &value_change);
+    dap_chain_tx_out_t *l_out_change = dap_chain_datum_tx_item_out_create(&l_addr_to, value_change);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_out_cond);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
-    dap_chain_datum_tx_add_sign_item(&l_tx, a_key_to);
-    DAP_DEL_Z(l_in_cond);
+    dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from);
+    DAP_DEL_Z(l_in);
     DAP_DEL_Z(l_out_change);
+    DAP_DEL_Z(l_tx_out_cond);
     return l_tx;
 }
 
@@ -333,9 +336,11 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     dap_chain_datum_tx_t *l_cond_returning_tx = dap_ledger_test_create_return_from_tx_cond(&l_cond_tx_hash, a_from_key ,a_ledger);
     dap_chain_hash_fast_t l_cond_returning_tx_hash = {0};
     dap_hash_fast(l_cond_returning_tx, dap_chain_datum_tx_get_size(l_cond_returning_tx), &l_cond_returning_tx_hash);
-    dap_assert(!dap_ledger_tx_add(a_ledger, l_cond_returning_tx, &l_cond_returning_tx_hash, false), "Spending of cond transaction to ledger is");
+    int err_code = dap_ledger_tx_add(a_ledger, l_cond_returning_tx, &l_cond_returning_tx_hash, false);
+    printf("err_code = %s\n", dap_ledger_tx_check_err_str(err_code));
+    dap_assert(!err_code, "Returning of funds from cond transaction is");
     uint256_t l_cond_spending_balance_after = dap_ledger_test_print_balance(a_ledger, &l_cond_spending_addr);
-    dap_assert(compare256(l_cond_spending_balance_after, dap_chain_uint256_from(1U)), "Spending of conditional tx from ledger testing");
+    dap_assert(compare256(l_cond_spending_balance_after, dap_chain_uint256_from(2U)), "Returning of funds from conditional tx from ledger testing");
 
     dap_assert(!dap_ledger_tx_remove(a_ledger, l_cond_returning_tx, &l_cond_returning_tx_hash), "Tx cond removing from ledger is ");
     l_cond_spending_balance_after = dap_ledger_test_print_balance(a_ledger, &l_cond_spending_addr);
@@ -346,8 +351,18 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     dap_assert(!compare256(l_balance_before, l_cond_spending_balance_after), "Removing conditional tx from ledger testing");
     }
 
-    // check stake and unstake removing
-     
+    // check stake and unstake adding and removing
+    {
+        dap_chain_datum_tx_t *l_cond_tx = dap_ledger_test_create_stake_tx_cond(a_from_key, a_prev_hash, dap_chain_uint256_from(2U), a_ledger);
+        dap_hash_fast_t l_cond_tx_hash = {};
+        dap_hash_fast(l_cond_tx, dap_chain_datum_tx_get_size(l_cond_tx), &l_cond_tx_hash);
+        dap_assert(!dap_ledger_tx_add(a_ledger, l_cond_tx, &l_cond_tx_hash, false), "Adding of stake cond transaction to ledger is");
+
+        dap_assert(!dap_ledger_tx_remove(a_ledger, l_cond_tx, &l_cond_tx_hash), "Test of stake conditional transaction removing from ledger:");
+        l_balance_after = dap_ledger_test_print_balance(a_ledger, &l_addr);
+        dap_assert(!compare256(l_balance_before, l_balance_after), "Compare balance before creating stake transactions and after removing them. Must be equal:");
+
+    }
 
     // Check vote removing 
 
