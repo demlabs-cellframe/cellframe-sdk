@@ -7157,7 +7157,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         // history addr and wallet
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
-        size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+        size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
         size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
         json_obj_out = dap_db_history_addr(l_addr, l_chain, l_hash_out_type, dap_chain_addr_to_str(l_addr), l_limit, l_offset);
         if (!json_obj_out) {
@@ -7179,7 +7179,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         }
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
-        size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+        size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
         size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
         json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_hash_out_type, json_obj_summary,
                                                                   l_limit, l_offset, l_brief_out);
