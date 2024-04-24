@@ -12,7 +12,8 @@
 static const uint64_t s_fee = 2;
 static const uint64_t s_total_supply = 500;
 static const uint64_t s_standard_value_tx = 500;
-static const char* s_token_ticker = "TestCoins";
+static const char* s_token_ticker = "TestCoin";
+static const char* s_delegated_token_ticker = "mTestCoin";
 
 dap_chain_datum_token_t  *dap_ledger_test_create_datum_decl(dap_cert_t *a_cert, size_t *a_token_size,
                                                                   const char *a_token_ticker, uint256_t a_total_supply,
@@ -217,6 +218,12 @@ dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_hash_prev, 0);
 
+    dap_chain_tx_in_ems_t *l_in_ems = DAP_NEW_Z(dap_chain_tx_in_ems_t);
+    l_in_ems->header.type = TX_ITEM_TYPE_IN_EMS;
+    l_in_ems->header.token_emission_chain_id.uint64 = 0;
+    memset(&l_in_ems->header.token_emission_hash, 0, sizeof(l_in_ems->header.token_emission_hash));
+    strcpy(l_in_ems->header.ticker, s_delegated_token_ticker);
+
 
     uint64_t a_time_staking = dap_time_now();
     dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
@@ -229,6 +236,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_
     uint256_t value_change = {};
     SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &value_change);
     dap_chain_tx_out_t *l_out_change = dap_chain_datum_tx_item_out_create(&l_addr_to, value_change);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_ems);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_out_cond);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
@@ -242,11 +250,21 @@ dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_
 uint256_t dap_ledger_test_print_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr)
 {
     uint256_t l_balance_after = dap_ledger_calc_balance(a_ledger, a_addr, s_token_ticker);
-    // char *l_balanse_str = dap_chain_balance_print(l_balance_after);
-    // dap_test_msg("Balance = %s", l_balanse_str);
-    // DAP_DELETE(l_balanse_str);
+    char *l_balanse_str = dap_chain_balance_print(l_balance_after);
+    dap_test_msg("Balance = %s %s", l_balanse_str, s_token_ticker);
+    DAP_DELETE(l_balanse_str);
     return l_balance_after;
 }
+
+uint256_t dap_ledger_test_print_delegate_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr)
+{
+    uint256_t l_balance_after = dap_ledger_calc_balance(a_ledger, a_addr, s_delegated_token_ticker);
+    char *l_balanse_str = dap_chain_balance_print(l_balance_after);
+    dap_test_msg("Balance = %s %s", l_balanse_str, s_delegated_token_ticker);
+    DAP_DELETE(l_balanse_str);
+    return l_balance_after;
+}
+
 
 void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_prev_hash, dap_enc_key_t  *a_from_key, dap_chain_net_id_t a_net_id) 
 {
@@ -356,11 +374,15 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         dap_chain_datum_tx_t *l_cond_tx = dap_ledger_test_create_stake_tx_cond(a_from_key, a_prev_hash, dap_chain_uint256_from(2U), a_ledger);
         dap_hash_fast_t l_cond_tx_hash = {};
         dap_hash_fast(l_cond_tx, dap_chain_datum_tx_get_size(l_cond_tx), &l_cond_tx_hash);
-        dap_assert(!dap_ledger_tx_add(a_ledger, l_cond_tx, &l_cond_tx_hash, false), "Adding of stake cond transaction to ledger is");
+        int err_code = dap_ledger_tx_add(a_ledger, l_cond_tx, &l_cond_tx_hash, false);
+        printf("err_code = %s\n", dap_ledger_tx_check_err_str(err_code));
+        dap_assert(!err_code, "Adding of stake cond transaction to ledger is");
 
         dap_assert(!dap_ledger_tx_remove(a_ledger, l_cond_tx, &l_cond_tx_hash), "Test of stake conditional transaction removing from ledger:");
         l_balance_after = dap_ledger_test_print_balance(a_ledger, &l_addr);
         dap_assert(!compare256(l_balance_before, l_balance_after), "Compare balance before creating stake transactions and after removing them. Must be equal:");
+
+
 
     }
 
@@ -683,6 +705,23 @@ void dap_ledger_test_run(void){
     int l_emi_check = dap_ledger_token_emission_add_check(l_ledger, (byte_t*)l_emi_sign, l_emi_size, &l_emi_hash);
     dap_assert_PIF(l_emi_check == 0, "check emission for add in ledger");
     dap_assert_PIF(!dap_ledger_token_emission_add(l_ledger, (byte_t*)l_emi_sign, l_emi_size, &l_emi_hash, false), "Added emission in ledger");
+
+    // Declarate delegated token
+    dap_chain_datum_token_t *l_delegated_token_from;
+    l_delegated_token_from = dap_ledger_token_ticker_check(l_ledger, s_delegated_token_ticker); 
+    dap_assert_PIF(l_delegated_token_from == NULL, "Generate delegated token declaration.");
+    dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
+    strcpy((char *)l_tsd_section.ticker_token_from, s_delegated_token_ticker);
+    l_tsd_section.emission_rate = dap_chain_coins_to_balance("0.1");//	TODO: 'm' 1:1000 tokens
+    dap_tsd_t * l_tsd = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK, l_tsd_section);
+    l_token_decl = dap_ledger_test_create_datum_decl(l_cert, &l_token_decl_size, s_delegated_token_ticker,
+                                                     uint256_0, l_tsd, dap_tsd_size(l_tsd), DAP_CHAIN_DATUM_TOKEN_FLAG_NONE);
+    dap_assert_PIF(l_token_decl || l_token_decl_size == 0, "Generate delegated token declaration.");
+    l_check_added_decl_token = 0;
+    l_check_added_decl_token = dap_ledger_token_decl_add_check(l_ledger, l_token_decl, l_token_decl_size);
+    dap_assert_PIF(l_check_added_decl_token == 0, "Checking whether it is possible to add a token declaration to ledger.");
+    dap_assert_PIF(!dap_ledger_token_add(l_ledger, l_token_decl, l_token_decl_size), "Adding token declaration to ledger.");
+
     //first base tx
     dap_chain_datum_tx_t *l_base_tx = dap_ledger_test_create_datum_base_tx(l_emi_sign, &l_emi_hash, l_addr, l_cert);
     size_t l_base_tx_size = dap_chain_datum_tx_get_size(l_base_tx);
