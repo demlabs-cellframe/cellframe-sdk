@@ -7138,6 +7138,7 @@ int com_tx_create(int a_argc, char **a_argv, void ** reply)
 
     if(!l_wallet) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_from_wallet_name);
+        DAP_DELETE(l_addr_to);
         return -9;
     } else
         dap_string_append(l_string_ret, dap_chain_wallet_check_sign(l_wallet));
