@@ -6828,13 +6828,17 @@ int com_tx_create(int a_argc, char **a_argv, void **reply)
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
     if(!addr_from) {
+        DAP_DELETE(l_addr_to);
         dap_chain_wallet_close(l_wallet);
+        dap_enc_key_delete(l_priv_key);
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID, "source address is invalid");
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID;
     }
 
     if (addr_from && dap_chain_addr_compare(l_addr_to, addr_from)) {
+        DAP_DELETE(l_addr_to);
         dap_chain_wallet_close(l_wallet);
+        dap_enc_key_delete(l_priv_key);
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS, "The transaction cannot be directed to the same address as the source.");
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS;
     }
