@@ -3701,7 +3701,7 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply)
         } else if (!dap_strcmp(a_argv[1], "check")) {
             l_cmd = SUBCMD_CHECK;
         } else {
-            char *l_str_err = dap_strdup_printf("Invalid sub command specified. Ыub command %s "
+            char *l_str_err = dap_strdup_printf("Invalid sub command specified. Sub command %s "
                                                            "is not supported.", a_argv[1]);
             if (!l_str_err) {
                 dap_json_rpc_allocation_error;
