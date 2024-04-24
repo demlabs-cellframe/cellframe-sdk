@@ -7149,7 +7149,7 @@ int com_tx_create(int a_argc, char **a_argv, void ** reply)
         return -10;
     }
 
-    if (addr_from && dap_strcmp(l_addr_to, addr_from)) {
+    if (addr_from && dap_chain_addr_compare(l_addr_to, addr_from)) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "The transaction cannot be directed to the same address as the source.");
         return -16;
     }
