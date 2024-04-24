@@ -85,16 +85,15 @@ typedef struct dap_chain_ch {
     void *sync_context;
 
     // Legacy section //
-    int state;
-
-    uint32_t timer_shots;
     dap_timerfd_t *activity_timer;
+    uint32_t timer_shots;
     int sent_breaks;
+    void *legacy_sync_context;
 } dap_chain_ch_t;
 
 #define DAP_CHAIN_CH(a) ((dap_chain_ch_t *) ((a)->internal) )
 #define DAP_STREAM_CH(a) ((dap_stream_ch_t *)((a)->_inheritor))
-#define DAP_CHAIN_PKT_EXPECT_SIZE 7168
+#define DAP_CHAIN_PKT_EXPECT_SIZE DAP_STREAM_PKT_FRAGMENT_SIZE
 #define DAP_CHAIN_CH_ID 'C'
 
 int dap_chain_ch_init(void);

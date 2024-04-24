@@ -708,10 +708,6 @@ static dap_chain_net_t *s_net_new(dap_chain_net_id_t *a_id, const char *a_name,
     DAP_NEW_Z_SIZE_RET_VAL(PVT(l_ret)->node_info, dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1, NULL, l_ret);
 // func work
     l_ret->pub.id.uint64 = a_id->uint64;
-    pthread_mutexattr_t l_mutex_attr;
-    pthread_mutexattr_init(&l_mutex_attr);
-    pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutexattr_destroy(&l_mutex_attr);
 
     if (strcmp (a_node_role, "root_master")==0){
         PVT(l_ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
