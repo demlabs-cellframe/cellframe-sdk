@@ -1785,7 +1785,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                                             ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
                             char buf[DAP_TIME_STR_SIZE];
                             dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
-                            dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s\n", l_objs[i].key, buf);
+                            dap_string_append_printf(l_str_tmp, "\t%d) - %s: ts_create=%s\n",i, l_objs[i].key, buf);
 
                         }
                         if (l_objs && l_objs_count )
