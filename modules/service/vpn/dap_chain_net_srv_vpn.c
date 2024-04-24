@@ -1377,7 +1377,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
         a_srv_session->last_update_ts = time(NULL);
 
 
-        if( a_srv_session->limits_ts <= 0 && !a_usage->is_grace){
+        if( a_srv_session->limits_ts <= 0 && !a_usage->is_grace && !a_usage->is_waiting_next_receipt_sign){
             log_it(L_INFO, "Limits by timestamp are over. Switch to the next receipt");
             if (a_usage->receipt_next){
                 dap_sign_t * l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( a_usage->receipt_next, a_usage->receipt_next->size, 1);
@@ -1428,7 +1428,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
             l_issue_new_receipt = true;
         }
 
-        if (a_srv_session->limits_bytes <= 0  && !a_usage->is_grace){
+        if (a_srv_session->limits_bytes <= 0  && !a_usage->is_grace && !a_usage->is_waiting_next_receipt_sign){
             log_it(L_INFO, "Limits by traffic is over. Switch to the next receipt");
             if (a_usage->receipt_next){
                 dap_sign_t * l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( a_usage->receipt_next, a_usage->receipt_next->size, 1);
@@ -1470,6 +1470,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
         if ( a_usage->receipt){
             log_it( L_NOTICE, "Send next receipt to sign");
             a_usage->receipt_next = dap_chain_net_srv_issue_receipt(a_usage->service, a_usage->price, NULL, 0);
+            a_usage->is_waiting_next_receipt_sign = true;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                            a_usage->receipt_next, a_usage->receipt_next->size);
         }

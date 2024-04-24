@@ -776,10 +776,12 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         if (a_grace->usage->receipt_next && !a_grace->usage->is_waiting_first_receipt_sign){
             DAP_DEL_Z(a_grace->usage->receipt_next);
             a_grace->usage->receipt_next = dap_chain_net_srv_issue_receipt(a_grace->usage->service, a_grace->usage->price, NULL, 0);
+            a_grace->usage->is_waiting_next_receipt_sign = true;
         }else{
             a_grace->usage->receipt = dap_chain_net_srv_issue_receipt(a_grace->usage->service, a_grace->usage->price, NULL, 0);
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                        a_grace->usage->receipt, a_grace->usage->receipt->size);
+            a_grace->usage->is_waiting_first_receipt_sign = true;
         }
         DAP_DELETE(a_grace->request);
         DAP_DELETE(a_grace);
@@ -1038,7 +1040,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                     // create and fill limits and first receipt
                     l_grace->usage->receipt = dap_chain_datum_tx_receipt_create(
                                 l_grace->usage->service->uid, l_price->units_uid, l_price->units, l_price->value_datoshi, NULL, 0);
-                    l_grace->usage->is_waiting_first_receipt_sign = true;
+                    // l_grace->usage->is_waiting_first_receipt_sign = true;
                     if (l_grace->usage->service->callbacks.response_success)
                         l_grace->usage->service->callbacks.response_success(l_grace->usage->service, l_grace->usage->id,
                                                                             l_grace->usage->client, l_grace->usage->receipt,
@@ -1257,7 +1259,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         if (l_ch_pkt->hdr.data_size < sizeof(dap_chain_receipt_info_t)) {
             log_it(L_ERROR, "Wrong sign response size, %u when expected at least %zu with smth", l_ch_pkt->hdr.data_size,
                    sizeof(dap_chain_receipt_info_t));
-            if ( l_usage->receipt_next && !l_usage->is_waiting_first_receipt_sign){ // If we have receipt next
+            if ( l_usage->receipt_next && !l_usage->is_waiting_first_receipt_sign && l_usage->is_waiting_next_receipt_sign){ // If we have receipt next
                 DAP_DEL_Z(l_usage->receipt_next);
             }else if (l_usage->receipt ){ // If we sign first receipt
                 DAP_DEL_Z(l_usage->receipt);
@@ -1267,21 +1269,24 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         dap_chain_datum_tx_receipt_t * l_receipt = (dap_chain_datum_tx_receipt_t *) l_ch_pkt->data;
         size_t l_receipt_size = l_ch_pkt->hdr.data_size;
 
-        if (l_usage->is_grace && l_usage->is_waiting_first_receipt_sign){
-            l_usage->is_waiting_first_receipt_sign = false;
-            l_usage->is_grace = false;
-        }
-            
-
         bool l_is_found = false;
-        if ( l_usage->receipt_next && l_usage->is_waiting_first_receipt_sign){ // If we have receipt next
+        if ( l_usage->receipt_next && !l_usage->is_waiting_first_receipt_sign && l_usage->is_waiting_next_receipt_sign){ // If we have receipt next
             if ( memcmp(&l_usage->receipt_next->receipt_info, &l_receipt->receipt_info,sizeof (l_receipt->receipt_info) )==0 ){
                 l_is_found = true;
             }
-        }else if (l_usage->receipt ){ // If we sign first receipt
+        }else if (l_usage->receipt){ // If we sign first receipt
             if ( memcmp(&l_usage->receipt->receipt_info, &l_receipt->receipt_info,sizeof (l_receipt->receipt_info) )==0 ){
                 l_is_found = true;
             }
+        }
+
+         if (!l_usage->is_waiting_first_receipt_sign && l_usage->is_waiting_next_receipt_sign){
+            l_usage->is_waiting_next_receipt_sign = false;
+        }
+
+        if (l_usage->is_grace && l_usage->is_waiting_first_receipt_sign){
+            l_usage->is_waiting_first_receipt_sign = false;
+            l_usage->is_grace = false;
         }
 
         if ( !l_is_found || ! l_usage ){
