@@ -1279,16 +1279,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 l_is_found = true;
             }
         }
-
-         if (!l_usage->is_waiting_first_receipt_sign && l_usage->is_waiting_next_receipt_sign){
-            l_usage->is_waiting_next_receipt_sign = false;
-        }
-
-        if (l_usage->is_grace && l_usage->is_waiting_first_receipt_sign){
-            l_usage->is_waiting_first_receipt_sign = false;
-            l_usage->is_grace = false;
-        }
-
         if ( !l_is_found || ! l_usage ){
             log_it(L_WARNING, "Can't find receipt in usages thats equal to response receipt");
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND;
@@ -1341,7 +1331,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
         // Update actual receipt
         bool l_is_first_sign = false;
-        if (!l_usage->receipt_next && l_usage->receipt) {
+        if (l_usage->receipt && (!l_usage->receipt_next || l_usage->is_waiting_first_receipt_sign)) {
             DAP_DELETE(l_usage->receipt);
             l_usage->receipt = DAP_DUP_SIZE(l_receipt, l_receipt_size);
             if (!l_usage->receipt) {
@@ -1349,7 +1339,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 return;
             }
             l_is_first_sign     = true;
-            l_usage->is_active  = true;
+            // l_usage->is_active  = true;
         } else if (l_usage->receipt_next) {
             DAP_DELETE(l_usage->receipt_next);
             l_usage->receipt_next = DAP_DUP_SIZE(l_receipt, l_receipt_size);
@@ -1357,7 +1347,16 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 log_it(L_CRITICAL, "Memory allocation error");
                 return;
             }
-            l_usage->is_active = true;
+            // l_usage->is_active = true;
+        }
+
+        if (!l_usage->is_waiting_first_receipt_sign && l_usage->is_waiting_next_receipt_sign){
+            l_usage->is_waiting_next_receipt_sign = false;
+        }
+
+        if (l_usage->is_grace && l_usage->is_waiting_first_receipt_sign){
+            l_usage->is_waiting_first_receipt_sign = false;
+            l_usage->is_grace = false;
         }
 
         // Store receipt if any problems with transactions
