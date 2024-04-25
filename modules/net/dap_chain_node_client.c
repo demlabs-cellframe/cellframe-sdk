@@ -349,7 +349,7 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
     DAP_DELETE(a_node_client);
 }
 
-void s_close_on_worker_callback(dap_worker_t UNUSED_ARG *a_worker, void *a_arg)
+void s_close_on_worker_callback(void *a_arg)
 {
     assert(a_arg);
     dap_chain_node_client_close_unsafe(a_arg);
