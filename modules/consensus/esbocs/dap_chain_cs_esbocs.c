@@ -2128,8 +2128,9 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                     " Receive START_SYNC: from validator:%s, sync attempt %"DAP_UINT64_FORMAT_U,
                                         l_session->chain->net_name, l_session->chain->name, l_message->hdr.round_id,
                                             l_validator_addr_str, l_sync_attempt);
+        dap_global_db_driver_hash_t l_msg_hash = ((struct sync_params *)l_message_data)->db_hash, l_session_hash = l_session->db_hash;
         if (!PVT(l_session->esbocs)->emergency_mode &&
-                dap_global_db_driver_hash_compare(((struct sync_params *)l_message_data)->db_hash, l_session->db_hash)) {
+                dap_global_db_driver_hash_compare(&l_msg_hash, &l_session_hash)) {
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", sync_attempt %"DAP_UINT64_FORMAT_U
                                         " SYNC message is rejected cause DB hash mismatch",
                                            l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
