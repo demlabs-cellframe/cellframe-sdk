@@ -33,7 +33,7 @@
 #include "uthash.h"
 #include "dap_global_db_cluster.h"
 
-#define DAP_SYNC_TICKS_PER_SECOND           10
+#define DAP_CHAIN_CH_ID 'C'
 
 typedef enum dap_chain_ch_state {
     DAP_CHAIN_CH_STATE_IDLE = 0,
@@ -65,39 +65,6 @@ typedef enum dap_chain_ch_error_type {
     DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED,
     DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE
 } dap_chain_ch_error_type_t;
-
-typedef struct dap_chain_ch dap_chain_ch_t;
-typedef void (*dap_chain_ch_callback_packet_t)(dap_chain_ch_t*, uint8_t a_pkt_type,
-                                                      dap_chain_ch_pkt_t *a_pkt, size_t a_pkt_data_size,
-                                                      void * a_arg);
-typedef struct dap_chain_pkt_item {
-    uint64_t pkt_data_size;
-    byte_t *pkt_data;
-} dap_chain_pkt_item_t;
-
-typedef struct dap_chain_ch_hash_item {
-    dap_hash_fast_t hash;
-    uint32_t size;
-    UT_hash_handle hh;
-} dap_chain_ch_hash_item_t;
-
-
-typedef struct dap_chain_ch {
-    void *_inheritor;
-    dap_timerfd_t *sync_timer;
-    void *sync_context;
-
-    // Legacy section //
-    dap_timerfd_t *activity_timer;
-    uint32_t timer_shots;
-    int sent_breaks;
-    void *legacy_sync_context;
-} dap_chain_ch_t;
-
-#define DAP_CHAIN_CH(a) ((dap_chain_ch_t *) ((a)->internal) )
-#define DAP_STREAM_CH(a) ((dap_stream_ch_t *)((a)->_inheritor))
-#define DAP_CHAIN_PKT_EXPECT_SIZE DAP_STREAM_PKT_FRAGMENT_SIZE
-#define DAP_CHAIN_CH_ID 'C'
 
 int dap_chain_ch_init(void);
 void dap_chain_ch_deinit(void);

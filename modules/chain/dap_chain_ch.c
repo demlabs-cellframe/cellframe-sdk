@@ -57,6 +57,7 @@
 #include "dap_chain_cell.h"
 
 #include "dap_global_db_legacy.h"
+#include "dap_global_db_pkt.h"
 
 #include "dap_stream.h"
 #include "dap_stream_pkt.h"
@@ -69,6 +70,9 @@
 #include "dap_stream_ch_gossip.h"
 
 #define LOG_TAG "dap_chain_ch"
+
+#define DAP_CHAIN_PKT_EXPECT_SIZE   DAP_STREAM_PKT_FRAGMENT_SIZE
+#define DAP_SYNC_TICKS_PER_SECOND   10
 
 enum sync_context_state {
     SYNC_STATE_IDLE,
@@ -88,6 +92,12 @@ struct sync_context {
     uint64_t num_last;
     dap_time_t last_activity;
 };
+
+typedef struct dap_chain_ch_hash_item {
+    dap_hash_fast_t hash;
+    uint32_t size;
+    UT_hash_handle hh;
+} dap_chain_ch_hash_item_t;
 
 struct legacy_sync_context {
     dap_worker_t *worker;
@@ -111,6 +121,21 @@ struct legacy_sync_context {
         };
     };
 };
+
+typedef struct dap_chain_ch {
+    void *_inheritor;
+    dap_timerfd_t *sync_timer;
+    struct sync_context *sync_context;
+
+    // Legacy section //
+    dap_timerfd_t *activity_timer;
+    uint32_t timer_shots;
+    int sent_breaks;
+    struct legacy_sync_context *legacy_sync_context;
+} dap_chain_ch_t;
+
+#define DAP_CHAIN_CH(a) ((dap_chain_ch_t *) ((a)->internal) )
+#define DAP_STREAM_CH(a) ((dap_stream_ch_t *)((a)->_inheritor))
 
 static void s_ch_chain_go_idle(dap_chain_ch_t *a_ch_chain);
 static inline bool s_ch_chain_get_idle(dap_chain_ch_t *a_ch_chain) { return a_ch_chain->state == DAP_CHAIN_CH_STATE_IDLE; }
@@ -457,7 +482,27 @@ err_ret:
     return false;
 }
 
+static bool s_gdb_in_pkt_proc_callback(void *a_arg)
+{
+    dap_global_db_pkt_old_t *l_pkt = a_arg;
+    size_t l_objs_count = 0;
+    dap_store_obj_t *l_objs = dap_global_db_pkt_deserialize_old(l_pkt, &l_objs_count);
+    DAP_DELETE(l_pkt);
+    if (!l_objs || !l_objs_count) {
+        log_it(L_WARNING, "Deserialization of legacy global DB packet failed");
+        return false;
+    }
 
+    bool l_success = false;
+    dap_stream_node_addr_t l_blank_addr = { .uint64 = 0 };
+    for (uint32_t i = 0; i < l_objs_count; i++)
+        if (!(l_success = dap_global_db_ch_check_store_obj(l_objs + i, &l_blank_addr)))
+            break;
+    if (l_success)
+        dap_global_db_set_raw_sync(l_objs, l_objs_count);
+    dap_store_obj_free(l_objs, l_objs_count);
+    return false;
+}
 
 /**
  * @brief s_gdb_in_pkt_error_worker_callback
@@ -1083,6 +1128,9 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_hash_item = DAP_NEW_Z(dap_chain_ch_hash_item_t);
                 if (!l_hash_item) {
                     log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                            l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
+                            DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
                     break;
                 }
                 l_hash_item->hash = l_element->hash;
@@ -1117,49 +1165,53 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_sync_out_gdb_proc_callback, l_context);
     } break;
 
-        // first packet of data with source node address
-        case DAP_CHAIN_CH_PKT_TYPE_FIRST_GLOBAL_DB: {
-            if(l_chain_pkt_data_size == (size_t)sizeof(dap_chain_node_addr_t)){
-               l_ch_chain->request.node_addr = *(dap_chain_node_addr_t*)l_chain_pkt->data;
-               l_ch_chain->stats_request_gdb_processed = 0;
-               log_it(L_INFO, "In: FIRST_GLOBAL_DB data_size=%zu net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x
-                              " from address "NODE_ADDR_FP_STR, l_chain_pkt_data_size,   l_chain_pkt->hdr.net_id.uint64 ,
-                              l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64, NODE_ADDR_FP_ARGS_S(l_ch_chain->request.node_addr) );
-            }else {
-               log_it(L_WARNING,"Incorrect data size %zu in packet DAP_CHAIN_CH_PKT_TYPE_FIRST_GLOBAL_DB", l_chain_pkt_data_size);
-               dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
-                       l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
-                       DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE);
-            }
-        } break;
+    // first packet of data with source node address
+    case DAP_CHAIN_CH_PKT_TYPE_FIRST_GLOBAL_DB: {
+        if (l_chain_pkt_data_size != sizeof(dap_chain_node_addr_t)) {
+            log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
+                                                    dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                    l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
+                    DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE);
+            return false;
+        }
+        debug_if(s_debug_legacy, L_INFO, "In: FIRST_GLOBAL_DB data_size=%zu net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x
+                        " from address "NODE_ADDR_FP_STR, l_chain_pkt_data_size, l_chain_pkt->hdr.net_id.uint64,
+                        l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64, NODE_ADDR_FP_ARGS_S(l_ch_chain->request.node_addr));
+    } break;
 
-        case DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB: {
-            if(s_debug_legacy)
-                log_it(L_INFO, "In: GLOBAL_DB data_size=%zu", l_chain_pkt_data_size);
-            // get transaction and save it to global_db
-            if(l_chain_pkt_data_size > 0) {
-                struct legacy_sync_context *l_legacy_sync_context = dap_chain_ch_create_sync_request(l_chain_pkt, a_ch);
-                dap_chain_pkt_item_t *l_pkt_item = &l_legacy_sync_context->pkt;
-                l_pkt_item->pkt_data = DAP_DUP_SIZE(l_chain_pkt->data, l_chain_pkt_data_size);
-                l_pkt_item->pkt_data_size = l_chain_pkt_data_size;
-                dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_gdb_in_pkt_proc_callback, l_legacy_sync_context);
-            } else {
-                log_it(L_WARNING, "Packet with GLOBAL_DB atom has zero body size");
-                dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
-                        l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
-                        DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE);
-            }
-        }  break;
+    case DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB: {
+        dap_global_db_pkt_old_t *l_pkt = l_chain_pkt->data;
+        if (l_chain_pkt_data_size < sizeof(dap_global_db_pkt_old_t) ||
+                l_chain_pkt_data_size != sizeof(*l_pkt) + l_pkt->data_size) {
+            log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
+                                                    dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                    l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
+                    DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE);
+            return false;
+        }
+        debug_if(s_debug_legacy, L_INFO, "In: GLOBAL_DB data_size=%zu", l_chain_pkt_data_size);
+        // get records and save it to global_db
+        dap_global_db_pkt_old_t *l_pkt_copy = DAP_DUP_SIZE(l_pkt, l_chain_pkt_data_size);
+        if (!l_pkt_copy) {
+            log_it(L_CRITICAL, g_error_memory_alloc);
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                    l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
+                    DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
+        }
+        dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_gdb_in_pkt_proc_callback, l_pkt_copy);
+    } break;
 
-        case DAP_CHAIN_CH_PKT_TYPE_SYNCED_GLOBAL_DB: {
-                log_it(L_INFO, "In:  SYNCED_GLOBAL_DB: net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x,
-                                l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
-                // we haven't node client waitng, so reply to other side
-                dap_chain_ch_sync_request_old_t l_sync_gdb = {};
-                l_sync_gdb.node_addr.uint64 = g_node_addr.uint64;
-                dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_REQ, l_chain_pkt->hdr.net_id.uint64,
-                                              l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64, &l_sync_gdb, sizeof(l_sync_gdb));
-        } break;
+    case DAP_CHAIN_CH_PKT_TYPE_SYNCED_GLOBAL_DB: {
+        debug_if(s_debug_legacy, L_INFO, "In:  SYNCED_GLOBAL_DB: net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x,
+                        l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
+        // we haven't node client waitng, so reply to other side
+        dap_chain_ch_sync_request_old_t l_sync_gdb = {};
+        l_sync_gdb.node_addr.uint64 = g_node_addr.uint64;
+        dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_REQ, l_chain_pkt->hdr.net_id.uint64,
+                                      l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64, &l_sync_gdb, sizeof(l_sync_gdb));
+    } break;
 
         /// --- Chains update ---
         // Request for atoms list update
