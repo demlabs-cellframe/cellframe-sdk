@@ -162,7 +162,8 @@ int dap_chain_node_init()
  */
 bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, dap_chain_node_addr_t *a_addr)
 {
-    return dap_global_db_set_sync(a_net->pub.gdb_nodes_aliases, a_alias, a_addr, sizeof(dap_chain_node_addr_t), false) == 0;
+    // TODO
+    return false;
 }
 
 /**
@@ -173,21 +174,17 @@ bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, 
 dap_chain_node_addr_t *dap_chain_node_alias_find(dap_chain_net_t *a_net, const char *a_alias)
 {
     dap_return_val_if_fail(a_alias && a_net, NULL);
-    size_t l_size = 0;
-    dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes_aliases,
-                                                                                   a_alias, &l_size, NULL, NULL);
-    return l_addr && l_size != sizeof(dap_chain_node_addr_t)
-        ? log_it(L_WARNING, "Node record is corrupted for alias %s: %zu != %zu",
-                 a_alias, l_size, sizeof(dap_chain_node_addr_t)), DAP_DELETE(l_addr), NULL
-        : l_addr;
+    // TODO
+    return NULL;
 }
 
 /**
  * Delete alias from base
  */
-bool dap_chain_node_alias_delete(dap_chain_net_t * a_net,const char *a_alias)
+bool dap_chain_node_alias_delete(dap_chain_net_t *a_net, const char *a_alias)
 {
-    return dap_global_db_del_sync(a_net->pub.gdb_nodes_aliases, a_alias) == 0;
+    // TODO
+    return false;
 }
 
 /**

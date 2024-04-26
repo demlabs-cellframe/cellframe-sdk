@@ -241,37 +241,35 @@ static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)
  */
 char *dap_stream_ch_chain_net_srv_create_statistic_report()
 {
-    size_t l_store_obj_count = 0;
+    size_t l_objs_count = 0;
     dap_string_t *l_ret = dap_string_new("Service report:\n");
-    dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(SRV_STATISTIC_GDB_GROUP, &l_store_obj_count);
-    for (size_t i = 0; i < l_store_obj_count; ++i) {
-        if(l_store_obj[i].value_len != sizeof(client_statistic_value_t)) {
-            log_it(L_ERROR, "Error size check statistic in %zu raw of %zu, expected value len %zu received %zu", i + 1, l_store_obj_count, sizeof(client_statistic_value_t), l_store_obj[i].value_len);
-            DAP_DEL_Z(l_store_obj[i].group);
-            DAP_DEL_Z(l_store_obj[i].key);
-            DAP_DEL_Z(l_store_obj[i].value);
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(SRV_STATISTIC_GDB_GROUP, &l_objs_count);
+    for (size_t i = 0; i < l_objs_count; ++i) {
+        if(l_objs[i].value_len != sizeof(client_statistic_value_t)) {
+            log_it(L_ERROR, "Error size check statistic in %zu raw of %zu, expected value len %zu received %zu",
+                                                    i + 1, l_objs_count, sizeof(client_statistic_value_t), l_objs[i].value_len);
             continue;
         }
-        client_statistic_value_t *l_value = (client_statistic_value_t *)l_store_obj[i].value;
+        client_statistic_value_t *l_value = (client_statistic_value_t *)l_objs[i].value;
         char *l_payed_datoshi = dap_chain_balance_print(l_value->payed.datoshi_value);
         char *l_grace_datoshi = dap_chain_balance_print(l_value->grace.datoshi_value);
         dap_string_append_printf(
-            l_ret, "SRV UID: %.18s\nClient pkey hash: %s\n " \
-            "\tpayed:\n\t\tusing time:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes sent:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes received:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tunits used:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tdatoshi value:\t\t%s\n" \
-            "\tgrace:\n\t\tusing time:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes sent:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes received:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tunits used:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tdatoshi value:\t\t%s\n" \
-            "\tfree:\n\t\tusing time:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes sent:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes received:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tunits used:\t\t%"DAP_UINT64_FORMAT_U"\n",
-            l_store_obj[i].key, l_store_obj[i].key + 18,
+            l_ret, "SRV UID: %.18s\nClient pkey hash: %s\n "
+            "\tpayed:\n\t\tusing time:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes sent:\t\t%"DAP_UINT64_FORMAT_U
+                   "\n\t\tbytes received:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tunits used:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tdatoshi value:\t\t%s\n"
+            "\tgrace:\n\t\tusing time:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes sent:\t\t%"DAP_UINT64_FORMAT_U
+                   "\n\t\tbytes received:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tunits used:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tdatoshi value:\t\t%s\n"
+            "\tfree:\n\t\tusing time:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes sent:\t\t%"DAP_UINT64_FORMAT_U
+                   "\n\t\tbytes received:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tunits used:\t\t%"DAP_UINT64_FORMAT_U"\n",
+            l_objs[i].key, l_objs[i].key + 18,
             l_value->payed.using_time, l_value->payed.bytes_sent, l_value->payed.bytes_received, l_value->payed.units, l_payed_datoshi,
             l_value->grace.using_time, l_value->grace.bytes_sent, l_value->grace.bytes_received, l_value->grace.units, l_grace_datoshi,
             l_value->free.using_time, l_value->free.bytes_sent, l_value->free.bytes_received, l_value->free.units
         );
-        DAP_DEL_Z(l_store_obj[i].group);
-        DAP_DEL_Z(l_store_obj[i].key);
-        DAP_DEL_Z(l_store_obj[i].value);
         DAP_DEL_Z(l_payed_datoshi);
         DAP_DEL_Z(l_grace_datoshi);
     }
-    DAP_DEL_Z(l_store_obj);
+    dap_global_db_objs_delete(l_objs, l_objs_count);
     return dap_string_free(l_ret, false);
 }
 

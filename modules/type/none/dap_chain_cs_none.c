@@ -119,15 +119,15 @@ static void s_nonconsensus_callback_purge(dap_chain_t *a_chain)
 
 static void s_nonconsensus_callback_mempool_notify(dap_store_obj_t *a_obj, void *a_arg)
 {
-    if (a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD)
+    if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_ADD)
         dap_chain_node_mempool_process_all(a_arg, false);
 }
 
 static void s_changes_callback_notify(dap_store_obj_t *a_obj, void *a_arg)
 {
-    dap_return_if_fail(a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD && a_obj->value_len && a_obj->value);
+    dap_return_if_fail(dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_ADD && a_obj->value_len && a_obj->value);
     dap_chain_t *l_chain = a_arg;
-    if (a_obj->type == DAP_GLOBAL_DB_OPTYPE_DEL)
+    if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL)
         return;
     dap_hash_fast_t l_hash = {};
     dap_hash_fast(a_obj->value, a_obj->value_len, &l_hash);

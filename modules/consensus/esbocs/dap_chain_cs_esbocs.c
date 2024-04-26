@@ -1294,11 +1294,14 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         dap_hash_fast(l_store->candidate, l_store->candidate_size, &l_store->precommit_candidate_hash);
         // Process received earlier PreCommit messages
         dap_chain_esbocs_message_item_t *l_chain_message, *l_chain_message_tmp;
+        uint64_t l_cur_round_id = a_session->cur_round.id;
         HASH_ITER(hh, a_session->cur_round.message_items, l_chain_message, l_chain_message_tmp) {
             if (l_chain_message->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_PRE_COMMIT &&
-                    dap_hash_fast_compare(&l_chain_message->message->hdr.candidate_hash,
-                                          &a_session->cur_round.attempt_candidate_hash)) {
+                dap_hash_fast_compare(&l_chain_message->message->hdr.candidate_hash, &a_session->cur_round.attempt_candidate_hash))
+            {
                 s_session_candidate_precommit(a_session, l_chain_message->message);
+                if (a_session->cur_round.id != l_cur_round_id)
+                    break;
             }
         }
         // Send own PreCommit
@@ -1849,7 +1852,8 @@ static void s_db_change_notifier(dap_store_obj_t *a_obj, void *a_arg)
                                                     l_validator_addr->net_id.uint64, l_session->chain->net_id.uint64);
         return;
     }
-    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_GLOBAL_DB_OPTYPE_ADD)) {
+    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr,
+                                                      dap_store_obj_get_type(a_obj) != DAP_GLOBAL_DB_OPTYPE_ADD)) {
         log_it(L_ERROR, "Validator with signing address %s not found in network %s",
                                                     a_obj->key, l_session->chain->net_name);
         return;
