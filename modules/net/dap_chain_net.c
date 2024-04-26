@@ -2369,11 +2369,11 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
             log_it(L_WARNING, "Get irrelevant chain sync MISSED packet with missed hash %s, but requested hash is %s",
                                                                         l_missed_hash_str,
                                                                         dap_hash_fast_to_str_static(&l_net_pvt->sync_context.requested_atom_hash));
-            dap_stream_ch_write_error_unsafe(a_ch, l_net->pub.id.uint64,
-                                             l_net_pvt->sync_context.cur_chain->id.uint64,
+            dap_stream_ch_write_error_unsafe(a_ch, l_net->pub.id,
+                                             l_net_pvt->sync_context.cur_chain->id,
                                              l_net_pvt->sync_context.cur_cell
-                                             ? l_net_pvt->sync_context.cur_cell->id.uint64
-                                             : 0,
+                                             ? l_net_pvt->sync_context.cur_cell->id
+                                             : c_dap_chain_cell_id_null,
                                              DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             return;
         }
@@ -2385,11 +2385,11 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                                                             NULL);
         if (!l_iter) {
             log_it(L_CRITICAL, g_error_memory_alloc);
-            dap_stream_ch_write_error_unsafe(a_ch, l_net->pub.id.uint64,
-                                             l_net_pvt->sync_context.cur_chain->id.uint64,
+            dap_stream_ch_write_error_unsafe(a_ch, l_net->pub.id,
+                                             l_net_pvt->sync_context.cur_chain->id,
                                              l_net_pvt->sync_context.cur_cell
-                                             ? l_net_pvt->sync_context.cur_cell->id.uint64
-                                             : 0,
+                                             ? l_net_pvt->sync_context.cur_cell->id
+                                             : c_dap_chain_cell_id_null,
                                              DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
             return;
         }
@@ -2415,11 +2415,11 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                                         dap_hash_fast_to_str_static(&l_request.hash_from), l_request.num_from);
         dap_chain_ch_pkt_write_unsafe(a_ch,
                                       DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ,
-                                      l_net->pub.id.uint64,
-                                      l_net_pvt->sync_context.cur_chain->id.uint64,
+                                      l_net->pub.id,
+                                      l_net_pvt->sync_context.cur_chain->id,
                                       l_net_pvt->sync_context.cur_cell
-                                      ? l_net_pvt->sync_context.cur_cell->id.uint64
-                                      : 0,
+                                      ? l_net_pvt->sync_context.cur_cell->id
+                                      : c_dap_chain_cell_id_null,
                                       &l_request,
                                       sizeof(l_request));
         l_net_pvt->sync_context.requested_atom_hash = l_request.hash_from;
@@ -2507,8 +2507,8 @@ static void s_sync_timer_callback(void *a_arg)
             return;
         }
         l_request.num_from = l_last_num;
-        dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(l_net->pub.id.uint64, l_net_pvt->sync_context.cur_chain->id.uint64,
-                                                               l_net_pvt->sync_context.cur_cell ? l_net_pvt->sync_context.cur_cell->id.uint64 : 0,
+        dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(l_net->pub.id, l_net_pvt->sync_context.cur_chain->id,
+                                                               l_net_pvt->sync_context.cur_cell ? l_net_pvt->sync_context.cur_cell->id : c_dap_chain_cell_id_null,
                                                                &l_request, sizeof(l_request));
         if (!l_chain_pkt) {
             log_it(L_CRITICAL, g_error_memory_alloc);

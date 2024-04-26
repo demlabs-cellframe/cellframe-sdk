@@ -69,6 +69,4 @@ typedef enum dap_chain_ch_error_type {
 int dap_chain_ch_init(void);
 void dap_chain_ch_deinit(void);
 
-void dap_chain_ch_timer_start(dap_chain_ch_t *a_ch_chain);
-
-void dap_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net_id, uint64_t a_chain_id, uint64_t a_cell_id, dap_chain_ch_error_type_t a_error);
+void dap_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_ch_error_type_t a_error);
