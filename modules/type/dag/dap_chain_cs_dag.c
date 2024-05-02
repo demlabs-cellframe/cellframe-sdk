@@ -83,7 +83,7 @@ typedef struct dap_chain_cs_dag_pvt {
     dap_chain_cs_dag_event_item_t * events_lasts_unlinked;
     dap_chain_cs_dag_blocked_t *removed_events_from_treshold;
     dap_interval_timer_t treshold_fee_timer;
-    size_t tx_count;
+    uint64_t tx_count;
 } dap_chain_cs_dag_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
@@ -129,10 +129,10 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_i
 static int s_cli_dag(int argc, char ** argv, void **a_str_reply);
 void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
 
-static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
+static uint64_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
 static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
-static size_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
+static uint64_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static bool s_seed_mode = false, s_debug_more = false, s_threshold_enabled = false;
@@ -1970,7 +1970,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
     return ret;
 }
 
-static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain)
+static uint64_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain)
 {
     return PVT(DAP_CHAIN_CS_DAG(a_chain))->tx_count;
 }
@@ -2000,10 +2000,11 @@ static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_c
     return l_list;
 }
 
-static size_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain){
+static uint64_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain)
+{
     dap_chain_cs_dag_t  *l_dag = DAP_CHAIN_CS_DAG(a_chain);
     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-    size_t l_count = HASH_COUNT(PVT(l_dag)->events);
+    uint64_t l_count = HASH_COUNT(PVT(l_dag)->events);
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     return l_count;
 }
