@@ -39,13 +39,13 @@ typedef enum dap_chain_ch_state {
     DAP_CHAIN_CH_STATE_IDLE = 0,
     DAP_CHAIN_CH_STATE_WAITING,
     DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB_REMOTE, // Download GDB hashtable from remote
-    DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB, // Update GDB hashtable to remote
-    DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB_REMOTE,
-    DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB,
-    DAP_CHAIN_CH_STATE_UPDATE_CHAINS_REMOTE, // Update chains hashtable from remote
-    DAP_CHAIN_CH_STATE_UPDATE_CHAINS, // Update chains hashtable to remote
-    DAP_CHAIN_CH_STATE_SYNC_CHAINS_REMOTE,
-    DAP_CHAIN_CH_STATE_SYNC_CHAINS,
+    DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB,        // Upload GDB hashtable to remote
+    DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB_REMOTE,   // Download GDB records from remote
+    DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB,          // Upload GDB records to remote
+    DAP_CHAIN_CH_STATE_UPDATE_CHAINS_REMOTE,    // Download chains hashtable from remote
+    DAP_CHAIN_CH_STATE_UPDATE_CHAINS,           // Upload chains hashtable to remote
+    DAP_CHAIN_CH_STATE_SYNC_CHAINS_REMOTE,      // Download chains atoms from remote
+    DAP_CHAIN_CH_STATE_SYNC_CHAINS,             // Upload chains atoms from remote
     DAP_CHAIN_CH_STATE_ERROR
 } dap_chain_ch_state_t;
 

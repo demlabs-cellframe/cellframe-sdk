@@ -52,29 +52,21 @@
 #define DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS             0x35
 #define DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_END         0x45
 #define DAP_CHAIN_CH_PKT_TYPE_FIRST_CHAIN               0x20
+#define DAP_CHAIN_CH_PKT_TYPE_CHAIN_OLD                 0x01
 #define DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS             0x03
 
-#define DAP_CHAIN_CH_PKT_TYPE_DELETE                    0xda
-#define DAP_CHAIN_CH_PKT_TYPE_TIMEOUT                   0xfe
-#define DAP_CHAIN_CH_PKT_TYPE_ERROR                     0xff
+// Freeze detectors
+#define DAP_CHAIN_CH_PKT_TYPE_CHAINS_NO_FREEZE          0x15
+#define DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB_NO_FREEZE       0x16
 
 // Stable
 #define DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ                 0x80
 #define DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS                0x69
-#define DAP_CHAIN_CH_PKT_TYPE_CHAIN                     0x01
+#define DAP_CHAIN_CH_PKT_TYPE_CHAIN                     0x84
 #define DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY             0x81
 #define DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK                 0x82
 #define DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN              0x88
-
-// TSD sections
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_TSD         0x15
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_TSD      0x16
-
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_TSD_PROTO        0x0001   // Protocol version
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_TSD_COUNT        0x0002   // Items count
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_TSD_HASH_LAST    0x0003   // Hash of last(s) item
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_TSD_HASH_FIRST   0x0004   // Hash of first(s) item
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_TSD_LAST_ID      0x0100   // Last ID of GDB synced group
+#define DAP_CHAIN_CH_PKT_TYPE_ERROR                     0xff
 
 // *** Legacy *** //
 
@@ -105,6 +97,7 @@ DAP_STATIC_INLINE const char *dap_chain_ch_pkt_type_to_str(uint8_t a_pkt_type)
     case DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS: return "DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS";
     case DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_END: return "DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_END";
     case DAP_CHAIN_CH_PKT_TYPE_FIRST_CHAIN: return "DAP_CHAIN_CH_PKT_TYPE_FIRST_CHAIN";
+    case DAP_CHAIN_CH_PKT_TYPE_CHAIN_OLD: return "DAP_CHAIN_CH_PKT_TYPE_CHAIN_OLD";
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS: return "DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS";
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ: return "DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ";
@@ -169,33 +162,3 @@ size_t dap_chain_ch_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_uu
 size_t dap_chain_ch_pkt_write_inter(dap_events_socket_t *a_es_input, dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type,
                                     dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
                                     const void *a_data, size_t a_data_size);
-
-/**
- * @brief dap_chain_ch_pkt_write_error_unsafe
- * @param a_ch
- * @param a_net_id
- * @param a_chain_id
- * @param a_cell_id
- * @param a_err_string_format
- * @return
- */
-inline static DAP_PRINTF_ATTR(5, 6) size_t dap_chain_ch_pkt_write_error_unsafe(dap_stream_ch_t *a_ch,
-                                                                               dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
-                                                                               const char *a_err_string_format, ...)
-{
-    va_list l_va;
-    char *l_str;
-    va_start(l_va, a_err_string_format);
-    int l_size = vsnprintf(NULL,0,a_err_string_format,l_va);
-    va_end(l_va);
-    if (l_size > 0) {
-        l_size++;
-        l_str = DAP_NEW_STACK_SIZE(char, l_size);
-        va_start(l_va, a_err_string_format);
-        vsnprintf(l_str, l_size,a_err_string_format, l_va);
-        va_end(l_va);
-        return dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_ERROR,
-                                                    a_net_id, a_chain_id, a_cell_id, l_str, l_size);
-    }
-    return 0;
-}
