@@ -7138,6 +7138,7 @@ int com_tx_create(int a_argc, char **a_argv, void ** reply)
 
     if(!l_wallet) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_from_wallet_name);
+        DAP_DELETE(l_addr_to);
         return -9;
     } else
         dap_string_append(l_string_ret, dap_chain_wallet_check_sign(l_wallet));
@@ -7145,8 +7146,17 @@ int com_tx_create(int a_argc, char **a_argv, void ** reply)
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
     if(!addr_from) {
+        dap_chain_wallet_close(l_wallet);
+        DAP_DELETE(l_addr_to);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "source address is invalid");
         return -10;
+    }
+
+    if (addr_from && dap_chain_addr_compare(l_addr_to, addr_from)) {
+        dap_chain_wallet_close(l_wallet);
+        DAP_DELETE(l_addr_to);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "The transaction cannot be directed to the same address as the source.");
+        return -16;
     }
 
     if (l_addr_to->net_id.uint64 != l_net->pub.id.uint64 && !dap_chain_addr_is_blank(l_addr_to)) {
