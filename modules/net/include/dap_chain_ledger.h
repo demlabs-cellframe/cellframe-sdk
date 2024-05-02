@@ -301,6 +301,10 @@ dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(char *str);
 bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, 
                                 dap_chain_net_srv_uid_t *a_uid, char **a_service_name,  dap_chain_tx_tag_action_type_t *a_action);
 
+
+int dap_ledger_service_add(dap_chain_net_srv_uid_t a_uid, char *tag_str, dap_ledger_tag_check_callback_t a_callback);
+
+
 // Checking a new transaction before adding to the cache
 int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, 
                                         dap_chain_datum_tx_t *a_tx, 
