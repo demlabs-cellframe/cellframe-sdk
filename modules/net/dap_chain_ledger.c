@@ -1803,11 +1803,17 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
     uint32_t l_counter = 0;
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     size_t l_arr_start = 0;
-    if (a_offset > 1) {
+    if (a_offset > 0) {
         l_arr_start = a_offset;
+        json_object* json_obj_tx = json_object_new_object();
+        json_object_object_add(json_obj_tx, "offset", json_object_new_int(l_arr_start));
+        json_object_array_add(json_arr_out, json_obj_tx);
     }
     size_t l_arr_end = HASH_COUNT(l_ledger_pvt->threshold_txs);
     if (a_limit) {
+        json_object* json_obj_tx = json_object_new_object();
+        json_object_object_add(json_obj_tx, "limit", json_object_new_int(a_limit));
+        json_object_array_add(json_arr_out, json_obj_tx);
         l_arr_end = l_arr_start + a_limit;
         if (l_arr_end > HASH_COUNT(l_ledger_pvt->threshold_txs)) {
             l_arr_end = HASH_COUNT(l_ledger_pvt->threshold_txs);
@@ -1815,7 +1821,7 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
     }
     size_t i_tmp = 0;
     HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp){
-        if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+        if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
             i_tmp++;
             continue;
         }
@@ -1875,11 +1881,17 @@ json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_ha
         return NULL;
     }
     size_t l_arr_start = 0;
-    if (a_offset > 1) {
+    if (a_offset > 0) {
         l_arr_start = a_offset;
+        json_object* json_obj_tx = json_object_new_object();
+        json_object_object_add(json_obj_tx, "offset", json_object_new_int(l_arr_start));
+        json_object_array_add(json_arr_out, json_obj_tx);        
     }
     size_t l_arr_end = HASH_COUNT(l_ledger_pvt->threshold_txs);
     if (a_limit) {
+        json_object* json_obj_tx = json_object_new_object();
+        json_object_object_add(json_obj_tx, "limit", json_object_new_int(l_arr_start));
+        json_object_array_add(json_arr_out, json_obj_tx);
         l_arr_end = l_arr_start + a_limit;
         if (l_arr_end > HASH_COUNT(l_ledger_pvt->threshold_txs)) {
             l_arr_end = HASH_COUNT(l_ledger_pvt->threshold_txs);
@@ -1889,7 +1901,7 @@ json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_ha
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp){
         if (!memcmp(l_threshold_hash, &l_tx_item->tx_hash_fast, sizeof(dap_chain_hash_fast_t))){
-            if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+            if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
                 i_tmp++;
                 continue;
             }
@@ -1908,7 +1920,7 @@ json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_ha
     dap_ledger_token_emission_item_t *l_emission_item, *l_emission_tmp;
     HASH_ITER(hh, l_ledger_pvt->threshold_emissions, l_emission_item, l_emission_tmp){
         if (!memcmp(&l_emission_item->datum_token_emission_hash,l_threshold_hash, sizeof(dap_chain_hash_fast_t))){
-            if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+            if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
                 i_tmp++;
                 continue;
             }
@@ -1937,9 +1949,15 @@ json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, siz
     size_t l_arr_start = 0;
     if (a_offset > 1) {
         l_arr_start = a_offset;
+        json_object* json_obj_tx = json_object_new_object();
+        json_object_object_add(json_obj_tx, "offset", json_object_new_int(l_arr_start));
+        json_object_array_add(json_arr_out, json_obj_tx);        
     }
     size_t l_arr_end = HASH_COUNT(l_ledger_pvt->balance_accounts);
     if (a_limit) {
+        json_object* json_obj_tx = json_object_new_object();
+        json_object_object_add(json_obj_tx, "limit", json_object_new_int(l_arr_start));
+        json_object_array_add(json_arr_out, json_obj_tx);
         l_arr_end = l_arr_start + a_limit;
         if (l_arr_end > HASH_COUNT(l_ledger_pvt->balance_accounts)) {
             l_arr_end = HASH_COUNT(l_ledger_pvt->balance_accounts);
@@ -1947,7 +1965,7 @@ json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, siz
     }
     size_t i_tmp = 0;
     HASH_ITER(hh, l_ledger_pvt->balance_accounts, l_balance_item, l_balance_tmp) {
-        if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+        if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
             i_tmp++;
             continue;
         }
@@ -2048,11 +2066,17 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
     dap_ledger_token_item_t *l_token_item, *l_tmp_item;
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
     size_t l_arr_start = 0;
-    if (a_offset > 1) {
+    if (a_offset > 0) {
         l_arr_start = a_offset;
+        json_object* json_obj_tx = json_object_new_object();
+        json_object_object_add(json_obj_tx, "offset", json_object_new_int(l_arr_start));
+        json_object_array_add(json_arr_out, json_obj_tx);        
     }
     size_t l_arr_end = HASH_COUNT(PVT(a_ledger)->tokens);
     if (a_limit) {
+        json_object* json_obj_tx = json_object_new_object();
+        json_object_object_add(json_obj_tx, "limit", json_object_new_int(a_limit));
+        json_object_array_add(json_arr_out, json_obj_tx);
         l_arr_end = l_arr_start + a_limit;
         if (l_arr_end > HASH_COUNT(PVT(a_ledger)->tokens)) {
             l_arr_end = HASH_COUNT(PVT(a_ledger)->tokens);
@@ -2060,7 +2084,7 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
     }
     size_t i_tmp = 0;
     HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
-        if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+        if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
             i_tmp++;
             continue;
         }
