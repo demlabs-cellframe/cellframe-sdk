@@ -122,6 +122,7 @@ struct legacy_sync_context {
     };
 
     dap_time_t last_activity;
+    dap_chain_ch_state_t prev_state;
 };
 
 typedef struct dap_chain_ch {
@@ -254,7 +255,6 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
     };
     dap_chain_ch_t *l_ch_chain = DAP_CHAIN_CH(a_ch);
     l_ch_chain->_inheritor = a_ch;
-    a_ch->stream->esocket->callbacks.write_finished_callback = s_stream_ch_io_complete;
 
 #ifdef  DAP_SYS_DEBUG
     atomic_fetch_add(&s_memstat[MEMSTAT$K_STM_CH_CHAIN].alloc_nr, 1);
@@ -310,6 +310,8 @@ struct legacy_sync_context *s_legacy_sync_context_create(dap_chain_ch_pkt_t *a_c
         return NULL;
     }
     l_ch_chain->sync_timer = dap_timerfd_start_on_worker(a_ch->stream_worker->worker, 1000, s_sync_timer_callback, l_uuid);
+    a_ch->stream->esocket->callbacks.write_finished_callback = s_stream_ch_io_complete;
+    a_ch->stream->esocket->callbacks.arg = l_context;
     return l_context;
 }
 
@@ -345,8 +347,11 @@ static void s_legacy_sync_context_delete(void *a_arg)
         l_context->atom_iter->chain->callback_atom_iter_delete(l_context->atom_iter);
 
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_context->worker, l_context->ch_uuid);
-    if (l_ch)
+    if (l_ch) {
         DAP_CHAIN_CH(l_ch)->legacy_sync_context = NULL;
+        l_ch->stream->esocket->callbacks.write_finished_callback = NULL;
+        l_ch->stream->esocket->callbacks.arg = NULL;
+    }
 
     DAP_DELETE(l_context);
 }
@@ -355,6 +360,8 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
 {
     struct legacy_sync_context *l_context = a_arg;
     dap_chain_ch_state_t l_cur_state = l_context->state;
+    if (l_cur_state == DAP_CHAIN_CH_STATE_WAITING)
+        return false;
     if (l_cur_state != DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB && l_cur_state != DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB)
         // Illegal context
         goto context_delete;
@@ -368,16 +375,18 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
                                   l_context->request_hdr.net_id, l_context->request_hdr.chain_id, l_context->request_hdr.cell_id,
                                   &l_payload, sizeof(l_payload));
         if (l_cur_state == DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB) {
-            atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_IDLE);
-            goto context_delete;
+            if (atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_IDLE) ||
+                    l_cur_state == DAP_CHAIN_CH_STATE_ERROR)
+                goto context_delete;
+            return false;
         }
         log_it(L_INFO, "Synchronized database: items synchronized %" DAP_UINT64_FORMAT_U " from %zu",
                                          l_context->stats_request_gdbs_processed, l_context->db_list->items_number);
         dap_global_db_legacy_list_rewind(l_context->db_list);
-        if (atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB_REMOTE))
+        if (atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB_REMOTE) ||
+                l_cur_state == DAP_CHAIN_CH_STATE_WAITING)
             return false;
-        else
-            goto context_delete;
+        goto context_delete;
     }
 
     void *l_data = NULL;
@@ -497,6 +506,8 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
 {
     struct legacy_sync_context *l_context = a_arg;
     dap_chain_ch_state_t l_cur_state = l_context->state;
+    if (l_cur_state == DAP_CHAIN_CH_STATE_WAITING)
+        return false;
     if (l_cur_state != DAP_CHAIN_CH_STATE_UPDATE_CHAINS && l_cur_state != DAP_CHAIN_CH_STATE_SYNC_CHAINS)
         // Illegal context
         goto context_delete;
@@ -565,14 +576,16 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
         debug_if(l_cur_state == DAP_CHAIN_CH_STATE_UPDATE_CHAINS, L_INFO,
                     "Synchronized chain: items synchronized %" DAP_UINT64_FORMAT_U, l_context->stats_request_atoms_processed);
         if (l_cur_state == DAP_CHAIN_CH_STATE_SYNC_CHAINS) {
-            atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_IDLE);
-            goto context_delete;
+            if (atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_IDLE) ||
+                    l_cur_state == DAP_CHAIN_CH_STATE_ERROR)
+                goto context_delete;
+            return false;
         }
         l_context->atom_iter->chain->callback_atom_iter_get(l_context->atom_iter, DAP_CHAIN_ITER_OP_FIRST, NULL);
-        if (atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_SYNC_CHAINS_REMOTE))
+        if (atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_SYNC_CHAINS_REMOTE) ||
+                l_cur_state == DAP_CHAIN_CH_STATE_WAITING)
             return false;
-        else
-            goto context_delete;
+        goto context_delete;
     }
 
     return true;
@@ -678,7 +691,7 @@ static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, da
     dap_proc_thread_callback_add(NULL, s_sync_in_chains_callback, l_args);
 }
 
-void s_write_error_unsafe(dap_stream_ch_t *a_ch, dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_ch_error_type_t a_error)
+void dap_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_ch_error_type_t a_error)
 {
     dap_chain_ch_t *l_ch_chain = DAP_CHAIN_CH(a_ch);
     dap_return_if_fail(l_ch_chain);
@@ -741,7 +754,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (!l_chain_pkt_data_size) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE);
             return false;
@@ -749,7 +762,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_cluster_t *l_cluster = dap_cluster_find(dap_guuid_compose(l_chain_pkt->hdr.net_id.uint64, 0));
         if (!l_cluster) {
             log_it(L_WARNING, "Can't find cluster with ID 0x%" DAP_UINT64_FORMAT_X, l_chain_pkt->hdr.net_id.uint64);
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE);
             return false;
@@ -780,7 +793,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_chain_pkt_data_size != sizeof(dap_chain_ch_sync_request_t)) {
             log_it(L_WARNING, "DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ: Wrong chain packet size %zd when expected %zd",
                                                                             l_chain_pkt_data_size, sizeof(dap_chain_ch_sync_request_t));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE);
             return false;
@@ -793,7 +806,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             dap_hash_fast_to_str_static(&l_request->hash_from), l_request->num_from);
         if (l_ch_chain->sync_context || l_ch_chain->legacy_sync_context) {
             log_it(L_WARNING, "Can't process CHAIN_REQ request cause already busy with synchronization");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS);
             return false;
@@ -802,14 +815,14 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (!l_chain) {
             log_it(L_WARNING, "Not found chain id 0x%016" DAP_UINT64_FORMAT_x " with net id 0x%016" DAP_UINT64_FORMAT_x,
                                                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.net_id.uint64);
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND);
             return false;
         }
         if (!dap_link_manager_get_net_condition(l_chain_pkt->hdr.net_id.uint64)) {
             log_it(L_WARNING, "Net id 0x%016" DAP_UINT64_FORMAT_x " is offline", l_chain_pkt->hdr.net_id.uint64);
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_NET_IS_OFFLINE);
             return false;
@@ -818,7 +831,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_chain_atom_iter_t *l_iter = l_chain->callback_atom_iter_create(l_chain, l_chain_pkt->hdr.cell_id, l_sync_from_begin
                                                                            ? NULL : &l_request->hash_from);
         if (!l_iter) {
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
             break;
@@ -902,7 +915,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_chain_pkt_data_size != sizeof(dap_chain_ch_summary_t)) {
             log_it(L_WARNING, "DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY: Wrong chain packet size %zd when expected %zd",
                                                                             l_chain_pkt_data_size, sizeof(dap_chain_ch_summary_t));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE);
             return false;
@@ -921,7 +934,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_chain_pkt_data_size != sizeof(uint64_t)) {
             log_it(L_WARNING, "DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK: Wrong chain packet size %zd when expected %zd",
                                                                             l_chain_pkt_data_size, sizeof(uint64_t));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE);
             return false;
@@ -936,7 +949,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct sync_context *l_context = l_ch_chain->sync_context;
         if (!l_context) {
             log_it(L_WARNING, "CHAIN_ACK: No active sync context");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -970,7 +983,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_chain_pkt_data_size != sizeof(dap_chain_ch_miss_info_t)) {
             log_it(L_WARNING, "DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS: Wrong chain packet size %zd when expected %zd",
                                                                             l_chain_pkt_data_size, sizeof(dap_chain_ch_miss_info_t));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE);
             return false;
@@ -993,7 +1006,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     } break;
 
     default:
-        s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+        dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                                             DAP_CHAIN_CH_ERROR_UNKNOWN_CHAIN_PKT_TYPE);
         return false;
@@ -1009,14 +1022,14 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_chain_pkt_data_size != sizeof(dap_chain_ch_sync_request_old_t)) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE);
             return false;
         }
         if (l_ch_chain->sync_context || l_ch_chain->legacy_sync_context) {
             log_it(L_WARNING, "Can't process UPDATE_GLOBAL_DB request because its already busy with syncronization");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS);
             break;
@@ -1024,7 +1037,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
         if (!l_chain) {
             log_it(L_WARNING, "Requested chain not found");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                                                 DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND);
             break;
         }
@@ -1032,7 +1045,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (!l_db_list) {
             log_it(L_ERROR, "Can't create legacy DB list");
             dap_global_db_legacy_list_delete(l_db_list);
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
             break;
@@ -1041,7 +1054,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (!l_context) {
             log_it(L_ERROR, "Can't create sychronization context");
             dap_global_db_legacy_list_delete(l_db_list);
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
             break;
@@ -1067,7 +1080,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB_REMOTE) {
             log_it(L_WARNING, "Can't process UPDATE_GLOBAL_DB_START packet cause synchronization sequence violation");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1081,7 +1094,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_chain_pkt_data_size > sizeof(dap_chain_ch_update_element_t) * s_update_pack_size) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE);
             return false;
@@ -1090,7 +1103,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB_REMOTE) {
             log_it(L_WARNING, "Can't process UPDATE_GLOBAL_DB packet cause synchronization sequence violation");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1109,7 +1122,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_hash_item = DAP_NEW_Z(dap_chain_ch_hash_item_t);
                 if (!l_hash_item) {
                     log_it(L_CRITICAL, "%s", g_error_memory_alloc);
-                    s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+                    dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
                     break;
@@ -1128,7 +1141,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_chain_pkt_data_size != sizeof(dap_chain_ch_sync_request_old_t)) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE);
             return false;
@@ -1136,7 +1149,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB_REMOTE) {
             log_it(L_WARNING, "Can't process UPDATE_GLOBAL_DB_END packet cause synchronization sequence violation");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1155,7 +1168,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_chain_pkt_data_size != sizeof(dap_chain_node_addr_t)) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE);
             return false;
@@ -1163,7 +1176,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB_REMOTE) {
             log_it(L_WARNING, "Can't process FIRST_GLOBAL_DB packet cause synchronization sequence violation");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1178,7 +1191,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB_REMOTE) {
             log_it(L_WARNING, "Can't process GLOBAL_DB_NO_FREEZE packet cause synchronization sequence violation");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1193,7 +1206,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_chain_pkt_data_size != sizeof(*l_pkt) + l_pkt->data_size) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE);
             return false;
@@ -1201,7 +1214,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (l_context && l_context->state != DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB_REMOTE) {
             log_it(L_WARNING, "Can't process GLOBAL_DB packet cause synchronization sequence violation");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1215,7 +1228,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         l_args->pkt = DAP_DUP_SIZE(l_pkt, l_chain_pkt_data_size);
         if (!l_args->pkt) {
             log_it(L_CRITICAL, g_error_memory_alloc);
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
             break;
@@ -1230,7 +1243,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB_REMOTE) {
             log_it(L_WARNING, "Can't process SYNCED_GLOBAL_DB packet cause synchronization sequence violation");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1251,14 +1264,14 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_chain_pkt_data_size != sizeof(dap_chain_ch_sync_request_old_t)) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE);
             return false;
         }
         if (l_ch_chain->sync_context || l_ch_chain->legacy_sync_context) {
             log_it(L_WARNING, "Can't process UPDATE_CHAINS request because its already busy with syncronization");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS);
             break;
@@ -1266,14 +1279,14 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_chain_t * l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
         if (!l_chain) {
             log_it(L_WARNING, "Requested chain not found");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                                                 DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND);
             break;
         }
         dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create(l_chain, l_chain_pkt->hdr.cell_id, NULL);
         if (!l_atom_iter) {
             log_it(L_ERROR, "Can't create legacy atom iterator");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
             break;
@@ -1282,7 +1295,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (!l_context) {
             log_it(L_ERROR, "Can't create sychronization context");
             l_chain->callback_atom_iter_delete(l_atom_iter);
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
             break;
@@ -1310,7 +1323,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_UPDATE_CHAINS_REMOTE) {
             log_it(L_WARNING, "Can't process UPDATE_CHAINS_START packet cause synchronization sequence violation");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1324,7 +1337,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_chain_pkt_data_size > sizeof(dap_chain_ch_update_element_t) * s_update_pack_size) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE);
             return false;
@@ -1333,7 +1346,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_UPDATE_CHAINS_REMOTE) {
             log_it(L_WARNING, "Can't process UPDATE_CHAINS packet cause synchronization sequence violation");
-            s_write_error_unsafe(a_ch, l_context->request_hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_context->request_hdr.net_id,
                     l_context->request_hdr.chain_id, l_context->request_hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1354,7 +1367,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_hash_item = DAP_NEW_Z(dap_chain_ch_hash_item_t);
                 if (!l_hash_item) {
                     log_it(L_CRITICAL, "%s", g_error_memory_alloc);
-                    s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+                    dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
                     break;
@@ -1376,7 +1389,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_chain_pkt_data_size != sizeof(dap_chain_ch_sync_request_old_t)) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE);
             return false;
@@ -1384,7 +1397,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_UPDATE_CHAINS_REMOTE) {
             log_it(L_WARNING, "Can't process UPDATE_CHAINS_END packet cause synchronization sequence violation");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1403,7 +1416,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_chain_pkt_data_size != sizeof(dap_chain_node_addr_t)) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE);
             return false;
@@ -1411,7 +1424,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_SYNC_CHAINS_REMOTE) {
             log_it(L_WARNING, "Can't process FIRST_CHAIN packet cause synchronization sequence violation");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1426,7 +1439,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB_REMOTE) {
             log_it(L_WARNING, "Can't process CHAINS_NO_FREEZE packet cause synchronization sequence violation");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1439,7 +1452,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (!l_chain_pkt_data_size) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE);
             return false;
@@ -1447,7 +1460,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_SYNC_CHAINS_REMOTE) {
             log_it(L_WARNING, "Can't process FIRST_CHAIN packet cause synchronization sequence violation");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1456,7 +1469,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct atom_processing_args *l_args = DAP_NEW_Z_SIZE(struct atom_processing_args, l_ch_pkt->hdr.data_size + sizeof(struct atom_processing_args));
         if (!l_args) {
             log_it(L_CRITICAL, g_error_memory_alloc);
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
             break;
@@ -1475,7 +1488,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_SYNC_CHAINS_REMOTE) {
             log_it(L_WARNING, "Can't process SYNCED_GLOBAL_DB packet cause synchronization sequence violation");
-            s_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1628,10 +1641,10 @@ static void s_ch_chain_go_idle(dap_chain_ch_t *a_ch_chain)
     // Legacy
     if (a_ch_chain->legacy_sync_context) {
         dap_chain_ch_state_t l_current_state = atomic_exchange(
-                    &((struct sync_context *)a_ch_chain->legacy_sync_context)->state, DAP_CHAIN_CH_STATE_IDLE);
-        if (l_current_state != DAP_CHAIN_CH_STATE_SYNC_CHAINS_REMOTE &&
+                    &((struct legacy_sync_context *)a_ch_chain->legacy_sync_context)->state, DAP_CHAIN_CH_STATE_IDLE);
+        if (l_current_state != DAP_CHAIN_CH_STATE_UPDATE_CHAINS &&
                 l_current_state != DAP_CHAIN_CH_STATE_SYNC_CHAINS &&
-                l_current_state != DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB_REMOTE &&
+                l_current_state != DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB &&
                 l_current_state != DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB)
             // Context will not be removed from proc thread
             s_legacy_sync_context_delete(a_ch_chain->legacy_sync_context);
@@ -1639,73 +1652,26 @@ static void s_ch_chain_go_idle(dap_chain_ch_t *a_ch_chain)
     }
 }
 
-struct chain_io_complete {
-    dap_stream_ch_uuid_t ch_uuid;
-    dap_chain_ch_state_t state;
-    uint8_t type;
-    uint64_t net_id;
-    uint64_t chain_id;
-    uint64_t cell_id;
-    size_t data_size;
-    byte_t data[];
-};
-
 static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg)
 {
-    dap_stream_t *l_stream = NULL;
-    if (!a_es->server) {
-        dap_client_t *l_client = DAP_ESOCKET_CLIENT(a_es);
-        assert(l_client);
-        dap_client_pvt_t *l_client_pvt = DAP_CLIENT_PVT(l_client);
-        l_stream = l_client_pvt->stream;
-    } else {
-        dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_es);
-        if (l_http_client)
-            l_stream = DAP_STREAM(l_http_client);
-    }
-    if (!l_stream)
+    dap_return_if_fail(!a_arg);
+    dap_stream_t *l_stream = dap_stream_get_from_es(a_es);
+    assert(l_stream);
+    dap_stream_ch_t *l_ch = dap_stream_ch_by_id_unsafe(l_stream, DAP_CHAIN_CH_ID);
+    assert(l_ch);
+    struct legacy_sync_context *l_context = DAP_CHAIN_CH(l_ch)->legacy_sync_context;
+    if (!l_context)
         return;
-    dap_stream_ch_t *l_ch = NULL;
-    for (size_t i = 0; i < l_stream->channel_count; i++)
-        if (l_stream->channel[i]->proc->id == DAP_CHAIN_CH_ID)
-            l_ch = l_stream->channel[i];
-    if (!l_ch || !DAP_CHAIN_CH(l_ch))
-        return;
-    if (a_arg) {
-        struct chain_io_complete *l_arg = (struct chain_io_complete *)a_arg;
-        if (DAP_CHAIN_CH(l_ch)->state == DAP_CHAIN_CH_STATE_WAITING)
-            DAP_CHAIN_CH(l_ch)->state = l_arg->state;
-        dap_chain_ch_pkt_write_unsafe(l_ch, l_arg->type, l_arg->net_id, l_arg->chain_id,
-                                             l_arg->cell_id, l_arg->data, l_arg->data_size);
-        a_es->callbacks.arg = NULL;
-        DAP_DELETE(a_arg);
-        return;
-    }
-    s_stream_ch_packet_out(l_ch, NULL);
-}
-
-static void s_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,
-                                        uint64_t a_chain_id, uint64_t a_cell_id,
-                                        const void * a_data, size_t a_data_size)
-{
-    size_t l_free_buf_size = dap_events_socket_get_free_buf_size(a_ch->stream->esocket) -
-                                sizeof(dap_chain_ch_pkt_t) - sizeof(dap_stream_ch_pkt_t) -
-                                sizeof(dap_stream_pkt_t) - DAP_STREAM_PKT_ENCRYPTION_OVERHEAD;
-    if (l_free_buf_size < a_data_size) {
-        struct chain_io_complete *l_arg = DAP_NEW_Z_SIZE(struct chain_io_complete, sizeof(struct chain_io_complete) + a_data_size);
-        l_arg->ch_uuid = a_ch->uuid;
-        l_arg->state = DAP_CHAIN_CH(a_ch)->state;
-        DAP_CHAIN_CH(a_ch)->state = DAP_CHAIN_CH_STATE_WAITING;
-        l_arg->type = a_type;
-        l_arg->net_id = a_net_id;
-        l_arg->chain_id = a_chain_id;
-        l_arg->cell_id = a_cell_id;
-        l_arg->data_size = a_data_size;
-        memcpy(l_arg->data, a_data, a_data_size);
-        a_ch->stream->esocket->callbacks.arg = l_arg;
-    }
-    else
-       dap_chain_ch_pkt_write_unsafe(a_ch, a_type, a_net_id, a_chain_id, a_cell_id, a_data, a_data_size);
+    if (l_context->prev_state == DAP_CHAIN_CH_STATE_UPDATE_CHAINS ||
+            l_context->prev_state == DAP_CHAIN_CH_STATE_SYNC_CHAINS) {
+        l_context->state = l_context->prev_state;
+        dap_proc_thread_callback_add(l_ch->stream_worker->worker->proc_queue_input, s_sync_out_chains_proc_callback, l_context);
+    } else if (l_context->prev_state == DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB ||
+                l_context->prev_state == DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB) {
+        l_context->state = l_context->prev_state;
+        dap_proc_thread_callback_add(l_ch->stream_worker->worker->proc_queue_input, s_sync_out_gdb_proc_callback, l_context);
+    } else
+        log_it(L_ERROR, "Unexpected legacy sync context state %d", l_context->state);
 }
 
 /**
@@ -1715,19 +1681,21 @@ static void s_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, u
  */
 static bool s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
 {
-    if (l_was_sent_smth) {
-        s_chain_timer_reset(l_ch_chain);
-        l_ch_chain->sent_breaks = 0;
-    } else
-        l_ch_chain->sent_breaks++;
-    if (l_go_idle) {
-        s_ch_chain_go_idle(l_ch_chain);
-        if (l_ch_chain->activity_timer) {
-            if (!a_arg)
-                dap_timerfd_delete_unsafe(l_ch_chain->activity_timer);
-            l_ch_chain->activity_timer = NULL;
-        }
+    if (!a_arg)
         return false;
+
+    if (a_ch->stream->esocket->buf_out_size > DAP_EVENTS_SOCKET_BUF_SIZE) {
+        struct legacy_sync_context *l_context = DAP_CHAIN_CH(a_ch)->legacy_sync_context;
+        if (l_context) {
+            dap_chain_ch_state_t l_current_state = l_context->state;
+            if (l_current_state == DAP_CHAIN_CH_STATE_UPDATE_CHAINS ||
+                    l_current_state == DAP_CHAIN_CH_STATE_SYNC_CHAINS ||
+                    l_current_state == DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB ||
+                    l_current_state == DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB)
+                // We can pause these states only
+                if (atomic_compare_exchange_strong(&l_context->state, &l_current_state, DAP_CHAIN_CH_STATE_WAITING))
+                    l_context->prev_state = l_current_state;
+        }
     }
-    return true;
+    return false;
 }

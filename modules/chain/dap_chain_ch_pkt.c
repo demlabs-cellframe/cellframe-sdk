@@ -49,9 +49,9 @@ dap_chain_ch_pkt_t *dap_chain_ch_pkt_new(dap_chain_net_id_t a_net_id, dap_chain_
         *l_chain_pkt = (dap_chain_ch_pkt_t) {
                 .hdr = { .version = DAP_CHAIN_CH_PKT_VERSION,
                          .data_size = a_data_size,
-                         .net_id.uint64 = a_net_id,
-                         .cell_id.uint64 = a_cell_id,
-                         .chain_id.uint64 = a_chain_id }
+                         .net_id = a_net_id,
+                         .cell_id = a_cell_id,
+                         .chain_id = a_chain_id }
         };
         if (a_data_size && a_data)
             memcpy(l_chain_pkt->data, a_data, a_data_size);
@@ -112,7 +112,7 @@ size_t dap_chain_ch_pkt_write_inter(dap_events_socket_t *a_es_input, dap_stream_
     size_t l_chain_pkt_size = sizeof(dap_chain_ch_pkt_hdr_t) + a_data_size;
     dap_chain_ch_pkt_t *l_chain_pkt = DAP_NEW_Z_SIZE(dap_chain_ch_pkt_t, l_chain_pkt_size );
     *l_chain_pkt = (dap_chain_ch_pkt_t){
-            .hdr = { .version = DAP_CHAIN_CH_PKT_VERSION, .net_id.uint64 = a_net_id, .cell_id.uint64 = a_cell_id, .chain_id.uint64 = a_chain_id }
+            .hdr = { .version = DAP_CHAIN_CH_PKT_VERSION, .net_id = a_net_id, .cell_id = a_cell_id, .chain_id = a_chain_id }
     };
 
     if (a_data_size && a_data)
