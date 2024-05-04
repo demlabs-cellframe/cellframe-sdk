@@ -22,6 +22,7 @@ You should have received a copy of the GNU General Public License
 along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "dap_common.h"
+#include "dap_context.h"
 #include "utlist.h"
 #include "dap_timerfd.h"
 #include "rand/dap_rand.h"
@@ -54,7 +55,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
 static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg);
 static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain_node_addr_t *a_sender_node_addr, uint8_t *a_data, size_t a_data_size);
 static void s_session_round_clear(dap_chain_esbocs_session_t *a_session);
-static void s_session_round_new(dap_chain_esbocs_session_t *a_session);
+static bool s_session_round_new(void *a_session);
 static bool s_session_candidate_to_chain(
             dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_candidate_hash,
                             dap_chain_block_t *a_candidate, size_t a_candidate_size);
@@ -960,8 +961,9 @@ static void s_session_round_clear(dap_chain_esbocs_session_t *a_session)
     };
 }
 
-static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
+static bool s_session_round_new(void *a_arg)
 {
+    dap_chain_esbocs_session_t *a_session = (dap_chain_esbocs_session_t*)a_arg;
     if (!a_session->round_fast_forward)
         s_session_update_penalty(a_session);
     s_session_round_clear(a_session);
@@ -1035,6 +1037,7 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
     a_session->round_fast_forward = false;
     a_session->sync_failed = false;
     a_session->listen_ensure = 0;
+    return false;
 }
 
 static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
@@ -1314,7 +1317,8 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             s_session_state_change(a_session, a_session->old_state, a_time);
         else {
             log_it(L_ERROR, "No previous state registered, can't roll back");
-            s_session_round_new(a_session);
+            dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
+            dap_proc_thread_callback_add(l_thread, s_session_round_new, a_session);
         }
     }
     default:
@@ -1341,7 +1345,8 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
                                                                 " Round finished by reason: attempts is out",
                                                                     a_session->chain->net_name, a_session->chain->name,
                                                                         a_session->cur_round.id);
-                s_session_round_new(a_session);
+                dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
+                dap_proc_thread_callback_add(l_thread, s_session_round_new, a_session);
                 break;
             }
             uint16_t l_min_validators_synced = PVT(a_session->esbocs)->emergency_mode ?
@@ -1360,7 +1365,8 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
                                                     a_session->cur_round.id, a_session->cur_round.attempt_num,
                                                         l_round_skip ? "skipped" : "can't synchronize minimum number of validators");
                 a_session->sync_failed = true;
-                s_session_round_new(a_session);
+                dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
+                dap_proc_thread_callback_add(l_thread, s_session_round_new, a_session);
             }
         }
     } break;
@@ -2174,7 +2180,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                     l_session->round_fast_forward = true;
                     l_session->cur_round.id = l_message->hdr.round_id - 1;
                     l_session->cur_round.sync_attempt = l_sync_attempt - 1;
-                    s_session_round_new(l_session);
+                    dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
+                    dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
                 }
             }
         } else // Send it immediatly, if was not sent yet
