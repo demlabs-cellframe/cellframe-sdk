@@ -993,7 +993,7 @@ static bool s_session_round_new(void *a_arg)
             log_it(L_WARNING, "Minimum active validators not found");
             a_session->ts_round_sync_start = dap_time_now();
             a_session->sync_failed = true;
-            return;
+            return false;
         }
     }
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false);
