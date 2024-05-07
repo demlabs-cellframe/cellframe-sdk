@@ -133,7 +133,7 @@ int tun_device_create(char *dev)
         strcpy(dev, ifr.ifr_name);
     log_it(L_INFO, "Created %s network interface", ifr.ifr_name);
     return fd;
-#elif defined (DAP_OS_DARWIN) && !defined (DAP_OS_IOS)
+#elif defined (DAP_OS_DARWIN)// && !defined (DAP_OS_IOS)
     // Prepare structs
     struct ctl_info l_ctl_info = {0};
     int l_errno = 0;
