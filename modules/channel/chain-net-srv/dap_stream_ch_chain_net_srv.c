@@ -332,6 +332,16 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
         return false;
     }
 
+    if (dap_hash_fast_is_blank(&a_request->hdr.tx_cond)){
+        log_it( L_ERROR, "No transaction hash in request.");
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND;
+        if(a_ch)
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        if (l_srv && l_srv->callbacks.response_error)
+            l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
+        return false;
+    }
+
     char l_order_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
     dap_chain_hash_fast_to_str(&a_request->hdr.order_hash, l_order_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
     log_it(L_MSG, "Got order with hash %s.", l_order_hash_str);
