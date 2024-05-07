@@ -360,7 +360,7 @@ static int s_sort_ledger_tx_item(dap_ledger_tx_item_t* a, dap_ledger_tx_item_t* 
 
 static size_t s_threshold_emissions_max = 1000;
 static size_t s_threshold_txs_max = 10000;
-static bool s_debug_more = false;
+static bool s_debug_more = true;
 static size_t s_threshold_free_timer_tick = 900000; // 900000 ms = 15 minutes.
 
 struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t* a_bal);
@@ -4977,8 +4977,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
                     .key        = l_tx_i_hash,
                     .value      = l_tx_cache,
                     .value_len  = l_tx_cache_sz,
-                    .group      = l_ledger_cache_group,
-                    .type       = DAP_GLOBAL_DB_OPTYPE_ADD
+                    .group      = l_ledger_cache_group
             };
             l_cache_used_outs[l_spent_idx].timestamp = 0;
         }
