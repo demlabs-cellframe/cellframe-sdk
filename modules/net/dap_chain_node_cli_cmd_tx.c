@@ -432,6 +432,8 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         json_object * j_obj_tx = json_object_new_object();
         if (!j_obj_tx || !j_arr_data) {
             dap_json_rpc_allocation_error;
+            json_object_put(j_obj_tx);
+            json_object_put(j_arr_data);
             return NULL;
         }
         if (!l_src_addr) {
@@ -516,6 +518,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 json_object *j_obj_data = json_object_new_object();
                 if (!j_obj_data) {
                     dap_json_rpc_allocation_error;
+                    json_object_put(j_arr_data);
                     json_object_put(j_obj_tx);
                     return NULL;
                 }
@@ -550,6 +553,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 json_object * j_obj_data = json_object_new_object();
                 if (!j_obj_data) {
                     dap_json_rpc_allocation_error;
+                    json_object_put(j_arr_data);
                     json_object_put(j_obj_tx);
                     return NULL;
                 }
