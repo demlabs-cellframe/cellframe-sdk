@@ -55,7 +55,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
 static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg);
 static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain_node_addr_t *a_sender_node_addr, uint8_t *a_data, size_t a_data_size);
 static void s_session_round_clear(dap_chain_esbocs_session_t *a_session);
-static bool s_session_round_new(void *a_session);
+static void s_session_round_new(dap_worker_t* a_w, void *a_session);
 static bool s_session_candidate_to_chain(
             dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_candidate_hash,
                             dap_chain_block_t *a_candidate, size_t a_candidate_size);
@@ -421,7 +421,7 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
     dap_chain_hash_fast_t l_last_block_hash;
     dap_chain_get_atom_last_hash(l_session->chain, a_id, &l_last_block_hash);
     if (!dap_hash_fast_compare(&l_last_block_hash, &l_session->cur_round.last_block_hash))
-        s_session_round_new(l_session);
+        s_session_round_new(NULL, l_session);
     pthread_mutex_unlock(&l_session->mutex);
     if (!PVT(l_session->esbocs)->collecting_addr)
         return;
@@ -574,7 +574,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     pthread_mutex_init(&l_session->mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
     dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session);
-    s_session_round_new(l_session);
+    s_session_round_new(NULL, l_session);
 
     l_session->cs_timer = dap_timerfd_start(1000, s_session_timer, l_session);
     debug_if(l_esbocs_pvt->debug, L_MSG, "Consensus main timer is started");
@@ -961,7 +961,7 @@ static void s_session_round_clear(dap_chain_esbocs_session_t *a_session)
     };
 }
 
-static bool s_session_round_new(void *a_arg)
+static void s_session_round_new(UNUSED_ARG dap_worker_t* a_w, void *a_arg)
 {
     dap_chain_esbocs_session_t *a_session = (dap_chain_esbocs_session_t*)a_arg;
     if (!a_session->round_fast_forward)
@@ -993,7 +993,7 @@ static bool s_session_round_new(void *a_arg)
             log_it(L_WARNING, "Minimum active validators not found");
             a_session->ts_round_sync_start = dap_time_now();
             a_session->sync_failed = true;
-            return false;
+            return;
         }
     }
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false);
@@ -1037,7 +1037,7 @@ static bool s_session_round_new(void *a_arg)
     a_session->round_fast_forward = false;
     a_session->sync_failed = false;
     a_session->listen_ensure = 0;
-    return false;
+    return;
 }
 
 static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
@@ -1317,8 +1317,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             s_session_state_change(a_session, a_session->old_state, a_time);
         else {
             log_it(L_ERROR, "No previous state registered, can't roll back");
-            dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-            dap_proc_thread_callback_add(l_thread, s_session_round_new, a_session);
+            dap_worker_exec_callback_on(a_session->cs_timer->worker, s_session_round_new, a_session);
         }
     }
     default:
@@ -1345,8 +1344,7 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
                                                                 " Round finished by reason: attempts is out",
                                                                     a_session->chain->net_name, a_session->chain->name,
                                                                         a_session->cur_round.id);
-                dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-                dap_proc_thread_callback_add(l_thread, s_session_round_new, a_session);
+                dap_worker_exec_callback_on(a_session->cs_timer->worker, s_session_round_new, a_session);
                 break;
             }
             uint16_t l_min_validators_synced = PVT(a_session->esbocs)->emergency_mode ?
@@ -1365,8 +1363,7 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
                                                     a_session->cur_round.id, a_session->cur_round.attempt_num,
                                                         l_round_skip ? "skipped" : "can't synchronize minimum number of validators");
                 a_session->sync_failed = true;
-                dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-                dap_proc_thread_callback_add(l_thread, s_session_round_new, a_session);
+                dap_worker_exec_callback_on(a_session->cs_timer->worker, s_session_round_new, a_session);
             }
         }
     } break;
@@ -2180,8 +2177,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                     l_session->round_fast_forward = true;
                     l_session->cur_round.id = l_message->hdr.round_id - 1;
                     l_session->cur_round.sync_attempt = l_sync_attempt - 1;
-                    dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-                    dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                    dap_worker_exec_callback_on(a_session->cs_timer->worker, s_session_round_new, a_session);
                 }
             }
         } else // Send it immediatly, if was not sent yet
