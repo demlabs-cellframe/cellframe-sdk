@@ -2374,7 +2374,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply)
                             int l_cond_idx = 0;
                             dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
 
-                            if (dap_chain_net_srv_xchange_tx_get_type(l_net, l_tx, &l_out_cond_item, &l_cond_idx, NULL) != TX_TYPE_ORDER){
+                            if (dap_chain_net_srv_xchange_tx_get_type(l_net->pub.ledger, l_tx, &l_out_cond_item, &l_cond_idx, NULL) != TX_TYPE_ORDER){
                                 l_cur = dap_list_next(l_cur);
                                 continue;
                             }
