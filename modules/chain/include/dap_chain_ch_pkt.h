@@ -36,7 +36,7 @@
 
 #include "dap_stream_ch.h"
 
-#define DAP_CHAIN_CH_PKT_VERSION                        0x02
+#define DAP_CHAIN_CH_PKT_VERSION_CURRENT                0x02
 
 //Legacy
 #define DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_REQ      0x06
@@ -78,7 +78,7 @@ typedef struct dap_chain_ch_update_element {
 typedef struct dap_chain_ch_sync_request_old {
     dap_chain_node_addr_t node_addr; // Requesting node's address
     dap_chain_hash_fast_t hash_from;
-    byte_t unused[96];
+    byte_t unused[48];
 } DAP_ALIGN_PACKED dap_chain_ch_sync_request_old_t;
 
 DAP_STATIC_INLINE const char *dap_chain_ch_pkt_type_to_str(uint8_t a_pkt_type)
@@ -111,6 +111,8 @@ DAP_STATIC_INLINE const char *dap_chain_ch_pkt_type_to_str(uint8_t a_pkt_type)
     default: return "DAP_CHAIN_CH_PKT_TYPE_UNKNOWN";
     }
 }
+
+void dap_chain_ch_pkt_set_version(uint8_t a_version);
 
 // *** Active *** //
 

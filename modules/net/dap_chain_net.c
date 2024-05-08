@@ -2352,6 +2352,18 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                                            a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
     dap_chain_net_t *l_net = a_arg;
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+
+    switch (a_type) {
+    case DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY:
+    case DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS:
+    case DAP_CHAIN_CH_PKT_TYPE_CHAIN:
+    case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN:
+        // TODO sync state & address checking
+        break;
+    default:
+        break;
+    }
+
     switch (a_type) {
     case DAP_CHAIN_CH_PKT_TYPE_ERROR:
         l_net_pvt->sync_context.state = SYNC_STATE_ERROR;
