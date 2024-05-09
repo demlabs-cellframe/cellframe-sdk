@@ -1958,27 +1958,25 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             const char *l_offset_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
-            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
-            size_t l_arr_start = 0;
-            if (l_limit > 1) {
-                l_arr_start = l_limit * l_offset;
-            }
+            size_t l_arr_start = 0;            
             size_t l_arr_end = dap_list_length(l_tx_list);
-            if (l_offset) {
+            if (l_offset > 0) {
+                l_arr_start = l_offset;
+                dap_string_append_printf(l_reply_str, "offset: %lu\n", l_arr_start);                
+            }
+            if (l_limit) {
+                dap_string_append_printf(l_reply_str, "limit: %lu\n", l_limit);
                 l_arr_end = l_arr_start + l_limit;
                 if (l_arr_end > dap_list_length(l_tx_list)) {
                     l_arr_end = dap_list_length(l_tx_list);
                 }
-            }
+            }            
             size_t i_tmp = 0;
             // Print all txs
             for (dap_list_t *it = l_tx_list; it; it = it->next) {
-                if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
-                    i_tmp++;
-                    continue;
-                }
-                i_tmp++;
+                
                 dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)it->data;
                 dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
                 if (!l_out_cond || l_out_cond->header.srv_uid.uint64 != DAP_CHAIN_NET_SRV_XCHANGE_ID)
@@ -2023,6 +2021,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     l_status_order = "OPENED";
                 }
 
+                if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
+                    i_tmp++;
+                    continue;
+                }
+                i_tmp++;
                 dap_hash_fast_t l_tx_hash = {};
                 dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
                 const char *l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
@@ -2352,7 +2355,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     const char *l_limit_str = NULL, *l_offset_str = NULL;
                     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
                     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
-                    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+                    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
                     size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
 
                     dap_string_t *l_reply_str = dap_string_new("");
@@ -2370,22 +2373,19 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     }
                     size_t l_arr_start = 0;
                     size_t l_arr_end  = l_datum_num;
-                    if (l_offset > 1) {
-                        l_arr_start = l_limit * l_offset;
+                    if (l_offset > 0) {
+                        l_arr_start = l_offset;
+                        dap_string_append_printf(l_reply_str, "offset: %lu\n", l_arr_start);
                     }
                     if (l_limit) {
                         l_arr_end = l_arr_start + l_limit;
+                        dap_string_append_printf(l_reply_str, "limit: %lu\n", l_limit);
                     }
                     size_t i_tmp = 0;
 
                     dap_list_t * l_cur = l_datum_list0;
                     while(l_cur){
-                        if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
-                            i_tmp++;
-                            l_cur = dap_list_next(l_cur);
-                            continue;
-                        }
-                        i_tmp++;
+                        
                         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) ((dap_chain_datum_t*) l_cur->data)->data;
                         if(l_tx){
                             dap_hash_fast_t l_tx_hash = {};
@@ -2417,6 +2417,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                                 l_cur = dap_list_next(l_cur);
                                 continue;
                             }
+                            if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
+                                i_tmp++;
+                                l_cur = dap_list_next(l_cur);
+                                continue;
+                            }
+                            i_tmp++;
 
                             s_string_append_tx_cond_info(l_reply_str, l_net, l_tx, TX_STATUS_ALL, false, false, true);
                         }
