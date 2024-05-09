@@ -913,7 +913,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 }
                 char l_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
-                dap_string_append_printf(l_str_tmp, "\t%d\t - %s: ts_create=%s\n",i_tmp-1, l_block_cache->block_hash_str, l_buf);
+                dap_string_append_printf(l_str_tmp, "\t%zu\t - %s: ts_create=%s\n",i_tmp-1, l_block_cache->block_hash_str, l_buf);
                 if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_block_cache->block_hash))
                     break;
             }
