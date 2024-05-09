@@ -1412,7 +1412,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
             // dap_chain_net_sync_all(l_net);
         }
         if (strcmp(l_round_cmd_str, "find") == 0) {
-            dap_cli_server_cmd_find_option_val(argv, arg_index, arg_index + 2, "-datum", &l_datum_hash_str);
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
             char *l_datum_in_hash = NULL;
             if (l_datum_hash_str) {
                 if(!dap_strncmp(l_datum_hash_str, "0x", 2) || !dap_strncmp(l_datum_hash_str, "0X", 2)) {
