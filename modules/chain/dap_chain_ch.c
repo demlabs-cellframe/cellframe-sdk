@@ -424,7 +424,7 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
                 dap_global_db_pkt_old_t *l_pkt_pack = l_data;
                 size_t l_cur_size = l_pkt_pack ? l_pkt_pack->data_size : 0;
                 if (l_cur_size + sizeof(dap_global_db_pkt_old_t) + l_pkt->data_size >= DAP_CHAIN_PKT_EXPECT_SIZE) {
-                    l_context->enqueued_data_size += l_context->atom_iter->cur_size;
+                    l_context->enqueued_data_size += l_data_size;
                     if (!l_go_wait && l_context->enqueued_data_size > DAP_EVENTS_SOCKET_BUF_SIZE / 2) {
                         atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_WAITING);
                         l_context->prev_state = l_cur_state;
@@ -1570,7 +1570,7 @@ static bool s_sync_timer_callback(void *a_arg)
                                             NODE_ADDR_FP_ARGS_S(l_context->addr), l_context->net_id.uint64,
                                             l_context->chain_id.uint64, l_context->cell_id.uint64);
             dap_chain_ch_pkt_write_unsafe(l_ch, DAP_CHAIN_CH_PKT_TYPE_ERROR, l_context->net_id,
-                                          l_context->chain_id, l_context->cell_id, l_err_str, strlen(l_err_str));
+                                          l_context->chain_id, l_context->cell_id, l_err_str, strlen(l_err_str) + 1);
             l_timer_break = true;
         }
     } else if (l_ch_chain->legacy_sync_context) {
@@ -1581,7 +1581,7 @@ static bool s_sync_timer_callback(void *a_arg)
                                             NODE_ADDR_FP_ARGS_S(l_context->remote_addr), l_context->request_hdr.net_id.uint64,
                                             l_context->request_hdr.chain_id.uint64, l_context->request_hdr.cell_id.uint64);
             dap_chain_ch_pkt_write_unsafe(l_ch, DAP_CHAIN_CH_PKT_TYPE_ERROR, l_context->request_hdr.net_id,
-                                          l_context->request_hdr.chain_id, l_context->request_hdr.cell_id, l_err_str, strlen(l_err_str));
+                                          l_context->request_hdr.chain_id, l_context->request_hdr.cell_id, l_err_str, strlen(l_err_str) + 1);
             l_timer_break = true;
         }
     } else
