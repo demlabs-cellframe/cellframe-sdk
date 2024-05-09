@@ -182,7 +182,7 @@ typedef struct dap_chain_esbocs_penalty_item {
 
 typedef struct dap_chain_esbocs_session {
     pthread_mutex_t mutex;
-    dap_timerfd_t *cs_timer;
+    bool cs_timer;
     dap_chain_block_t *processing_candidate;
 
     dap_chain_t *chain;
