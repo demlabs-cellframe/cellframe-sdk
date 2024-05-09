@@ -1786,14 +1786,14 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                                             ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
                             char buf[DAP_TIME_STR_SIZE];
                             dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
-                            dap_string_append_printf(l_str_tmp, "\t%d\t - %s: ts_create=%s\n",i-1, l_objs[i].key, buf);
+                            dap_string_append_printf(l_str_tmp, "\t%zu\t - %s: ts_create=%s\n", i - 1, l_objs[i].key, buf);
 
                         }
                         if (l_objs && l_objs_count )
                             dap_global_db_objs_delete(l_objs, l_objs_count);
                         ret = 0;
                     } else {
-                        dap_string_append_printf(l_str_tmp,"%s.%s: Error! No GlobalDB group!\n",l_net->pub.name,l_chain->name);
+                        dap_string_append_printf(l_str_tmp, "%s.%s: Error! No GlobalDB group!\n", l_net->pub.name, l_chain->name);
                         ret = -2;
 
                     }
@@ -1825,7 +1825,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                             i_tmp++;
                             char buf[DAP_TIME_STR_SIZE];
                             dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
-                            dap_string_append_printf(l_str_tmp, "\t%d\t- %s: ts_create=%s\n",i_tmp-1,
+                            dap_string_append_printf(l_str_tmp, "\t%zu\t- %s: ts_create=%s\n", i_tmp - 1,
                                                      dap_chain_hash_fast_to_str_static(&l_event_item->hash),
                                                      buf);
                         }
@@ -1864,7 +1864,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         i_tmp++;
                         char buf[DAP_TIME_STR_SIZE];
                         dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
-                        dap_string_append_printf(l_str_tmp,"\t%d\t- %s: ts_create=%s\n",i_tmp-1,
+                        dap_string_append_printf(l_str_tmp, "\t%zu\t- %s: ts_create=%s\n", i_tmp - 1,
                                                  dap_chain_hash_fast_to_str_static( &l_event_item->hash),
                                                  buf);
                     }

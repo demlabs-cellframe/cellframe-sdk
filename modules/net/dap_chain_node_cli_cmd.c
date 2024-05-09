@@ -813,7 +813,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         size_t l_count = 0;
         for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list), ++l_count) {
             dap_string_append_printf(l_ret_str, "\t%-40s : %zu records\n", (char*)l_list->data,
-                                     dap_global_db_driver_count((char*)l_list->data, c_dap_global_db_driver_hash_blank, true));
+                                     dap_global_db_driver_count((char*)l_list->data, c_dap_global_db_driver_hash_blank, false));
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Group list:\n%sTotal count: %zu\n", l_ret_str->str, l_count);
         dap_string_free(l_ret_str, true);
