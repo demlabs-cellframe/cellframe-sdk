@@ -1760,15 +1760,16 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         size_t l_objs_count = 0;
                         l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
                         char *ptr;
-                        size_t l_limit = l_limit_str ? strtoull(l_limit_str, &ptr, 10) : 0;
+                        size_t l_limit = l_limit_str ? strtoull(l_limit_str, &ptr, 10) : 1000;
                         size_t l_offset = l_offset_str ? strtoull(l_offset_str, &ptr, 10) : 0;
                         size_t l_arr_start = 0;
                         if (l_offset) {
-                            l_arr_start = l_offset * l_limit;
-                            dap_string_append_printf(l_str_tmp, "limit: %lu", l_arr_start);
+                            l_arr_start = l_offset;
+                            dap_string_append_printf(l_str_tmp, "offset: %lu\n", l_arr_start);
                         }
                         size_t l_arr_end = l_objs_count;
                         if (l_limit) {
+                            dap_string_append_printf(l_str_tmp, "limit: %lu\n", l_limit);
                             l_arr_end = l_arr_start + l_limit;
                             if (l_arr_end > l_objs_count)
                                 l_arr_end = l_objs_count;
@@ -1785,7 +1786,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                                             ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
                             char buf[DAP_TIME_STR_SIZE];
                             dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
-                            dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s\n", l_objs[i].key, buf);
+                            dap_string_append_printf(l_str_tmp, "\t%d\t - %s: ts_create=%s\n",i-1, l_objs[i].key, buf);
 
                         }
                         if (l_objs && l_objs_count )
@@ -1801,15 +1802,16 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 } else if (!l_from_events_str || (strcmp(l_from_events_str,"events") == 0)) {
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-                    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+                    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
                     size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
                     size_t l_arr_start = 0;
-                    if (l_offset > 1) {
-                        l_arr_start = l_offset * l_limit;
-                        dap_string_append_printf(l_str_tmp, "limit: %lu\n", l_arr_start);
+                    if (l_offset > 0) {
+                        l_arr_start = l_offset;
+                        dap_string_append_printf(l_str_tmp, "offset: %lu\n", l_arr_start);                        
                     }
                     size_t l_arr_end = HASH_COUNT(PVT(l_dag)->events);
                     if (l_limit) {
+                        dap_string_append_printf(l_str_tmp, "limit: %lu\n", l_limit);
                         l_arr_end = l_arr_start + l_limit;
                         if (l_arr_end > HASH_COUNT(PVT(l_dag)->events))
                             l_arr_end = HASH_COUNT(PVT(l_dag)->events);
@@ -1823,7 +1825,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                             i_tmp++;
                             char buf[DAP_TIME_STR_SIZE];
                             dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
-                            dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s\n",
+                            dap_string_append_printf(l_str_tmp, "\t%d\t- %s: ts_create=%s\n",i_tmp-1,
                                                      dap_chain_hash_fast_to_str_static(&l_event_item->hash),
                                                      buf);
                         }
@@ -1842,11 +1844,12 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
                     size_t l_arr_start = 0;
                     if (l_offset) {
-                        l_arr_start = l_offset * l_limit;
-                        dap_string_append_printf(l_str_tmp, "limit: %lu", l_arr_start);
+                        l_arr_start = l_offset;
+                        dap_string_append_printf(l_str_tmp, "offset: %lu\n", l_arr_start);
                     }
                     size_t l_arr_end = HASH_COUNT(PVT(l_dag)->events_treshold);
                     if (l_limit) {
+                        dap_string_append_printf(l_str_tmp, "limit: %lu\n", l_limit);
                         l_arr_end = l_arr_start + l_limit;
                         if (l_arr_end > HASH_COUNT(PVT(l_dag)->events_treshold))
                             l_arr_end = HASH_COUNT(PVT(l_dag)->events_treshold);
@@ -1861,7 +1864,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         i_tmp++;
                         char buf[DAP_TIME_STR_SIZE];
                         dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
-                        dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s\n",
+                        dap_string_append_printf(l_str_tmp,"\t%d\t- %s: ts_create=%s\n",i_tmp-1,
                                                  dap_chain_hash_fast_to_str_static( &l_event_item->hash),
                                                  buf);
                     }
@@ -1890,7 +1893,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 }
                 size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
                 size_t l_event_treshold_count = HASH_COUNT(PVT(l_dag)->events_treshold);
-                dap_string_append_printf(l_ret_str, "%zu atoms(s) in events\n%zu atom(s) in threshold", l_event_count, l_event_treshold_count);
+                dap_string_append_printf(l_ret_str, "%zu atom(s) in events\n%zu atom(s) in threshold", l_event_count, l_event_treshold_count);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_ret_str->str);
                 dap_string_free(l_ret_str, true);
             } break;
