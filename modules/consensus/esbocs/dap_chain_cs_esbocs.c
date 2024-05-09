@@ -568,11 +568,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         log_it(L_ERROR, "No valid order found was signed by this validator deledgated key. Switch off validator mode.");
         return -4;
     }
-    pthread_mutexattr_t l_mutex_attr;
-    pthread_mutexattr_init(&l_mutex_attr);
-    pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&l_session->mutex, &l_mutex_attr);
-    pthread_mutexattr_destroy(&l_mutex_attr);
+    pthread_mutex_init(&l_session->mutex, NULL);
     dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session);
     s_session_round_new(l_session);
 

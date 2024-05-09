@@ -480,7 +480,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 continue;
             }                
         }
-        bool l_count_bool = false;
+
         for (dap_list_t *it = l_list_out_items; it; it = it->next) {
             dap_chain_addr_t *l_dst_addr = NULL;
             uint8_t l_type = *(uint8_t *)it->data;
@@ -535,8 +535,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     l_corr_value = l_value;
                 }
                 char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
-<<<<<<< HEAD
-                
                 if (i_tmp > l_arr_start && i_tmp <= l_arr_end) {
                     json_object *j_obj_data = json_object_new_object();
                     if (!j_obj_data) {
@@ -555,18 +553,8 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                         l_corr_object = j_obj_data;
                     else
                         json_object_array_add(j_arr_data, j_obj_data);
-=======
-                json_object *j_obj_data = json_object_new_object();
-                if (!j_obj_data) {
-                    dap_json_rpc_allocation_error;
-                    json_object_put(j_arr_data);
-                    json_object_put(j_obj_tx);
-                    return NULL;
->>>>>>> 4bc94e41a9f8e1be09e5b38f293b5aca9107193c
                 }
                 i_tmp++;
-
-                l_count_bool = true;
             } else if (!l_src_addr || dap_chain_addr_compare(l_src_addr, a_addr)) {
                 if (!l_dst_addr && ((dap_chain_tx_out_cond_t *)it->data)->header.subtype == l_src_subtype && l_src_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                     continue;
@@ -582,7 +570,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                                                         : dap_chain_tx_out_cond_subtype_to_str(
                                                               ((dap_chain_tx_out_cond_t *)it->data)->header.subtype);
                 char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
-<<<<<<< HEAD
                 if (i_tmp > l_arr_start && i_tmp <= l_arr_end) {
                     json_object * j_obj_data = json_object_new_object();
                     if (!j_obj_data) {
@@ -598,17 +585,8 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                                                                             : json_object_new_string("UNKNOWN"));
                     json_object_object_add(j_obj_data, "destination_address", json_object_new_string(l_dst_addr_str));
                     json_object_array_add(j_arr_data, j_obj_data);
-=======
-                json_object * j_obj_data = json_object_new_object();
-                if (!j_obj_data) {
-                    dap_json_rpc_allocation_error;
-                    json_object_put(j_arr_data);
-                    json_object_put(j_obj_tx);
-                    return NULL;
->>>>>>> 4bc94e41a9f8e1be09e5b38f293b5aca9107193c
                 }
                 i_tmp++;
-                l_count_bool = true;
             }
         }
         if (json_object_array_length(j_arr_data) > 0) {
