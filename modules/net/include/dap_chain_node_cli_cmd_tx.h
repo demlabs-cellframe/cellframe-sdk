@@ -54,6 +54,13 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
 json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
                                    const char *l_hash_out_type, json_object *json_obj_summary,
                                    size_t a_limit, size_t a_offset, bool out_brief);
+
+bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
+                                          dap_ledger_t *a_ledger,
+                                          json_object * json_obj_out,
+                                          const char *a_hash_out_type,
+                                          dap_chain_hash_fast_t *a_tx_hash);
+
 /**
  * ledger command
  *
