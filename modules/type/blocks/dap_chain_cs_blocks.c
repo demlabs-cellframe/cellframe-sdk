@@ -786,7 +786,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             const char *l_cert_name = NULL, *l_from_hash_str = NULL, *l_to_hash_str = NULL,
                         *l_from_date_str = NULL, *l_to_date_str = NULL, *l_pkey_hash_str = NULL, *l_limit_str = NULL, *l_offset_str = NULL;
             bool l_unspent_flag = false, l_first_signed_flag = false, l_signed_flag = false, l_hash_flag = false;
-            size_t l_block_count = 0;
             dap_pkey_t * l_pub_key = NULL;
             dap_hash_fast_t l_from_hash = {}, l_to_hash = {}, l_pkey_hash = {};
             dap_time_t l_from_time = 0, l_to_time = 0;
@@ -804,7 +803,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
-            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
 
             if (l_signed_flag && l_first_signed_flag) {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Choose only one option from 'singed' and 'first_signed'");
@@ -870,16 +869,20 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
 
             pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
             json_object* json_arr_bl_cache_out = json_object_new_array();
+            json_object* json_obj_lim = json_object_new_object();
             size_t l_start_arr = 0;
-            if(l_offset > 1) {
-                l_start_arr = l_offset * l_limit;
+            if(l_offset > 0) {
+                l_start_arr = l_offset;
+                json_object_object_add(json_obj_lim, "offset",json_object_new_uint64(l_start_arr));
             }
             size_t l_arr_end = PVT(l_blocks)->blocks_count;
             if (l_limit) {
+                json_object_object_add(json_obj_lim, "limit",json_object_new_uint64(l_limit));
                 l_arr_end = l_start_arr + l_limit;
                 if (l_arr_end > PVT(l_blocks)->blocks_count)
                     l_arr_end = PVT(l_blocks)->blocks_count;
             }
+            json_object_array_add(json_arr_bl_cache_out, json_obj_lim);
             size_t i_tmp = 0;
             for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
                 json_object* json_obj_bl_cache = json_object_new_object();
@@ -950,10 +953,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 }
                 char l_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
+                json_object_object_add(json_obj_bl_cache, "pos",json_object_new_uint64(i_tmp-1));
                 json_object_object_add(json_obj_bl_cache, "hash",json_object_new_string(l_block_cache->block_hash_str));
                 json_object_object_add(json_obj_bl_cache, "ts_create",json_object_new_string(l_buf));
                 json_object_array_add(json_arr_bl_cache_out, json_obj_bl_cache);
-                l_block_count++;
                 if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_block_cache->block_hash))
                     break;
             }
@@ -965,7 +968,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             if (l_cert_name || l_pkey_hash_str || l_from_hash_str || l_to_hash_str || l_from_date_str || l_to_date_str)
                 l_filtered_criteria = " filtered according to the specified criteria";
             sprintf(l_tmp_buff,"%s.%s with filter - %s, have blocks -",l_net->pub.name,l_chain->name,l_filtered_criteria);
-            json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(l_block_count));
+            json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(i_tmp));
             json_object_array_add(*json_arr_reply, json_obj_out);
         } break;
 

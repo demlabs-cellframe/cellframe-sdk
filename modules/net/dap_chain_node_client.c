@@ -75,12 +75,6 @@
 static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg);
 static bool s_timer_update_states_callback(void *a_arg);
 static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_ch_id);
-static void s_ch_chain_callback_notify_packet_out(dap_chain_ch_t*, uint8_t a_pkt_type,
-        dap_chain_ch_pkt_t *a_pkt, size_t a_pkt_data_size,
-        void * a_arg);
-static void s_ch_chain_callback_notify_packet_in(dap_chain_ch_t* a_ch_chain, uint8_t a_pkt_type,
-        dap_chain_ch_pkt_t *a_pkt, size_t a_pkt_data_size,
-        void * a_arg);
 
 /**
  * @brief dap_chain_node_client_init
@@ -349,7 +343,7 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
     DAP_DELETE(a_node_client);
 }
 
-void s_close_on_worker_callback(dap_worker_t UNUSED_ARG *a_worker, void *a_arg)
+void s_close_on_worker_callback(void *a_arg)
 {
     assert(a_arg);
     dap_chain_node_client_close_unsafe(a_arg);
