@@ -1846,7 +1846,7 @@ static int s_cli_dag(int argc, char ** argv, void **reply)
                     dap_string_append_printf(l_str_tmp,"\t\t\tround ID: %"DAP_UINT64_FORMAT_U"\n",l_event->header.round_id);
                     dap_string_append_printf(l_str_tmp,"\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_x"\n",l_event->header.cell_id.uint64);
                     dap_string_append_printf(l_str_tmp,"\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_event->header.chain_id.uint64);
-                    dap_time_to_str_rfc822(buf, 50, l_event->header.ts_created);
+                    dap_gbd_time_to_str_rfc822(buf, 50, l_event->header.ts_created);
                     dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", buf );
 
                     // Hash links
@@ -1923,7 +1923,7 @@ static int s_cli_dag(int argc, char ** argv, void **reply)
                             dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
                                             ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
                             char buf[50];
-                            dap_time_to_str_rfc822(buf, 50, l_event->header.ts_created);
+                            dap_gbd_time_to_str_rfc822(buf, 50, l_event->header.ts_created);
                             dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s\n",
                                                      l_objs[i].key, buf);
 
