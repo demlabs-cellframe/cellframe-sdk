@@ -523,7 +523,7 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object* json_
  */
 static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
 {
-    json_object ** json_arr_reply = (json_object **) a_str_reply;
+    json_object **json_arr_reply = (json_object **)a_str_reply;
     //char ** a_str_reply = (char **) reply;
     const char *l_hash_out_type = NULL;
     enum {
@@ -679,6 +679,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             }
             dap_chain_block_t *l_block = l_block_cache->block;
             char l_tmp_buff[70]={0};
+
+            char l_time_buf[DAP_TIME_STR_SIZE];    
+            dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_block->hdr.ts_created);
             // Header
             json_object* json_obj_inf = json_object_new_object();
             json_object_object_add(json_obj_inf, "Block number", json_object_new_uint64(l_block_cache->block_number));
@@ -689,7 +692,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             json_object_object_add(json_obj_inf, "cell_id", json_object_new_string(l_tmp_buff));
             sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_X"",l_block->hdr.chain_id.uint64);
             json_object_object_add(json_obj_inf, "chain_id", json_object_new_string(l_tmp_buff));
-            json_object_object_add(json_obj_inf, "ts_created", json_object_new_string(dap_ctime_r(&l_block->hdr.ts_created, l_tmp_buff)));
+            json_object_object_add(json_obj_inf, "ts_created", json_object_new_string(l_time_buf));
 
             // Dump Metadata
             size_t l_offset = 0;
@@ -789,7 +792,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_pkey_t * l_pub_key = NULL;
             dap_hash_fast_t l_from_hash = {}, l_to_hash = {}, l_pkey_hash = {};
             dap_time_t l_from_time = 0, l_to_time = 0;
-            char l_tmp_buff[70]={0};
+            char l_tmp_buff[150]={0};
 
             l_signed_flag = dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "signed") > 0;
             l_first_signed_flag = dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "first_signed") > 0;
@@ -967,9 +970,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             json_object* json_obj_out = json_object_new_object();
             if (l_cert_name || l_pkey_hash_str || l_from_hash_str || l_to_hash_str || l_from_date_str || l_to_date_str)
                 l_filtered_criteria = " filtered according to the specified criteria";
-            sprintf(l_tmp_buff,"%s.%s with filter - %s, have blocks -",l_net->pub.name,l_chain->name,l_filtered_criteria);
+            sprintf(l_tmp_buff,"%s.%s with filter - %s, have blocks",l_net->pub.name,l_chain->name,l_filtered_criteria);
             json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(i_tmp));
-            json_object_array_add(*json_arr_reply, json_obj_out);
+            json_object_array_add(*json_arr_reply,json_obj_out);
         } break;
 
         case SUBCMD_COUNT: {
