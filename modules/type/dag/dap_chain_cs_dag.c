@@ -1944,7 +1944,7 @@ static int s_cli_dag(int argc, char ** argv, void **reply)
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
                     HASH_ITER(hh,PVT(l_dag)->events,l_event_item, l_event_item_tmp ) {
                         char buf[50];
-                        dap_time_to_str_rfc822(buf, 50, l_event_item->event->header.ts_created);
+                        dap_gbd_time_to_str_rfc822(buf, 50, l_event_item->event->header.ts_created);
                         char * l_event_item_hash_str = dap_chain_hash_fast_to_str_new( &l_event_item->hash);
                         dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s\n",
                                                  l_event_item_hash_str, buf);
