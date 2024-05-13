@@ -4721,8 +4721,8 @@ int com_token_decl(int a_argc, char ** a_argv, void ** reply)
                     DAP_DEL_Z(l_params);
 					return -91;
 				}
-                if (dap_strcmp(l_ticker, l_params->ext.delegated_token_from)) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Delegated token ticker cannot match the original ticker.");
+                if (!dap_strcmp(l_ticker, l_params->ext.delegated_token_from)) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Delegated token ticker cannot match the original ticker");
                     DAP_DEL_Z(l_params);
                     return -92;
                 }
