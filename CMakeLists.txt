@@ -182,6 +182,19 @@ if (CELLFRAME_MODULES MATCHES "srv-stake")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake)
 endif()
 
+
+# Enable service bridge
+if (CELLFRAME_MODULES MATCHES "srv-bridge")
+    message("[+] Module 'srv-bridge'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_bridge)
+endif()
+
+# Enable service voting
+if (CELLFRAME_MODULES MATCHES "srv-voting")
+    message("[+] Module 'srv-voting'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_voting)
+endif()
+
 # Enable service for dynamic modules
 if (CELLFRAME_MODULES MATCHES "modules-dynamic")
     message("[+] Module 'dap_modules_dynamic_cdb'")
