@@ -30,7 +30,7 @@
 #include <errno.h>
 #include <pthread.h>
 
-#include "dap_chain_net_voting.h"
+#include "dap_chain_net_srv_voting.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_mempool.h"
@@ -96,7 +96,24 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
 static bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, bool a_apply);
 static int s_cli_voting(int argc, char **argv, void **a_str_reply);
 
-int dap_chain_net_voting_init()
+static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
+{
+    //voting open 
+    if (a_items_grp->items_voting) {
+        *a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
+        return true;
+    }
+
+    //voting use
+    if (a_items_grp->items_vote) {
+        *a_action = DAP_CHAIN_TX_TAG_ACTION_USE;
+        return true;
+    }
+
+    return false;
+}
+
+int dap_chain_net_srv_voting_init()
 {
     pthread_rwlock_init(&s_votings_rwlock, NULL);
     dap_chain_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback);
@@ -105,7 +122,17 @@ int dap_chain_net_voting_init()
                             "voting vote -net <net_name> -hash <voting_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value_datoshi> -w <fee_wallet_name>\n"
                             "voting list -net <net_name>\n"
                             "voting dump -net <net_name> -hash <voting_hash>\n");
+
+    
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
+    dap_ledger_service_add(l_uid, "voting", s_tag_check_voting);
+
     return 0;
+}
+
+void dap_chain_net_srv_voting_deinit()
+{
+
 }
 
 uint64_t* dap_chain_net_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_voting_hash)

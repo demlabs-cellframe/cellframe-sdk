@@ -484,6 +484,7 @@ struct record_processing_args {
     dap_stream_ch_uuid_t uuid;
     dap_chain_ch_pkt_hdr_t hdr;
     dap_global_db_pkt_old_t *pkt;
+    bool new;
 };
 
 static bool s_gdb_in_pkt_proc_callback(void *a_arg)
@@ -497,12 +498,13 @@ static bool s_gdb_in_pkt_proc_callback(void *a_arg)
         DAP_DELETE(l_args);
         return false;
     }
-
     bool l_success = false;
     dap_stream_node_addr_t l_blank_addr = { .uint64 = 0 };
     for (uint32_t i = 0; i < l_objs_count; i++)
         if (!(l_success = dap_global_db_ch_check_store_obj(l_objs + i, &l_blank_addr)))
             break;
+    if (l_args->new && l_objs_count == 1)
+        l_objs[0].flags |= DAP_GLOBAL_DB_RECORD_NEW;
     if (l_success && dap_global_db_set_raw_sync(l_objs, l_objs_count)) {
         const char *l_err_str = s_error_type_to_string(DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED);
         dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(l_args->hdr.net_id, l_args->hdr.chain_id, l_args->hdr.cell_id, l_err_str, strlen(l_err_str));
@@ -1243,9 +1245,6 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (l_context && l_context->state != DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB_REMOTE) {
             log_it(L_WARNING, "Can't process GLOBAL_DB packet cause synchronization sequence violation");
-            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
-                    l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
-                    DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
         }
         if (l_context)
@@ -1265,6 +1264,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         l_args->worker = a_ch->stream_worker;
         l_args->uuid = a_ch->uuid;
         l_args->hdr = l_chain_pkt->hdr;
+        l_args->new = !l_context && l_pkt->obj_count == 1;
         dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_gdb_in_pkt_proc_callback, l_args);
     } break;
 

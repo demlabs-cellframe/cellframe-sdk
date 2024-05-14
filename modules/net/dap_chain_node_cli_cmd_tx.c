@@ -189,6 +189,21 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(l_ret_code));
     json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_tx_check_err_str(l_ret_code)));
 
+    dap_chain_net_srv_uid_t uid;
+    char *service_name;
+    dap_chain_tx_tag_action_type_t action;
+
+    if (dap_ledger_tx_service_info(l_ledger, a_tx_hash, &uid, &service_name, &action))
+    {
+        json_object_object_add(json_obj_datum, "service", json_object_new_string(service_name));
+        json_object_object_add(json_obj_datum, "action", json_object_new_string(dap_ledger_tx_action_str(action)));
+    }
+    else
+    {   
+        json_object_object_add(json_obj_datum, "service", json_object_new_string("UNKNOWN"));
+        json_object_object_add(json_obj_datum, "action", json_object_new_string("UNKNOWN"));
+    }
+
     char l_time_str[DAP_TIME_STR_SIZE];
     if (l_tx->header.ts_created) {
         dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, l_tx->header.ts_created);/* Convert ts to  "Sat May 17 01:17:08 2014\n" */
@@ -277,6 +292,23 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
     json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(a_ret_code));
     json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_tx_check_err_str(a_ret_code)));
+
+
+    dap_chain_net_srv_uid_t uid;
+    char *service_name;
+    dap_chain_tx_tag_action_type_t action;
+    
+    if (dap_ledger_tx_service_info(a_ledger, a_tx_hash, &uid, &service_name, &action))
+    {
+        json_object_object_add(json_obj_datum, "service", json_object_new_string(service_name));
+        json_object_object_add(json_obj_datum, "action", json_object_new_string(dap_ledger_tx_action_str(action)));
+    }
+    else
+    {
+        json_object_object_add(json_obj_datum, "service", json_object_new_string("UNKNOWN"));
+        json_object_object_add(json_obj_datum, "action", json_object_new_string("UNKNOWN"));
+    }
+
     json_object_object_add(json_obj_datum, "tx_created", json_object_new_string(l_time_str));
 
     DAP_DELETE(l_tx_hash_str);
@@ -296,7 +328,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
  */
 json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, 
                                  const char *a_hash_out_type, const char * l_addr_str, json_object *json_obj_summary,
-                                 size_t a_limit, size_t a_offset)
+                                 size_t a_limit, size_t a_offset, bool a_brief, const char *a_srv, dap_chain_tx_tag_action_type_t a_action)
 {
     json_object* json_obj_datum = json_object_new_array();
     if (!json_obj_datum){
@@ -331,6 +363,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     bool l_net_fee_used = dap_chain_net_tx_get_fee(l_net->pub.id, NULL, &l_net_fee_addr);
     bool l_is_need_correction = false;
     uint256_t l_corr_value = {}, l_unstake_value = {};    
+    bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
 
     size_t l_arr_start = 0;
     if (a_offset){
@@ -515,6 +548,29 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
 
             if (l_dst_addr && l_net_fee_used && dap_chain_addr_compare(&l_net_fee_addr, l_dst_addr))
                 SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
+            
+            //tag
+            char *service_name = NULL;
+            dap_chain_tx_tag_action_type_t l_action;
+            bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_tx_hash, NULL, &service_name, &l_action);
+            if (!(l_action & a_action))
+                continue;
+
+            if (a_srv)
+            {
+              
+                //skip if looking for UNKNOWN + it is known
+                if (look_for_unknown_service && srv_found) {
+                    continue;
+                }
+                            
+                //skip if search condition provided, it not UNKNOWN and found name not match
+                if (!look_for_unknown_service && (!srv_found || strcmp(service_name, a_srv) != 0))
+                {
+                    continue;
+                }
+            }
+
             if (l_dst_addr && dap_chain_addr_compare(l_dst_addr, a_addr)) {
                 if (!l_header_printed) {
                     s_tx_header_print(j_obj_tx, &l_tx_data_ht, l_tx, l_datum_iter->cur_atom_hash,
@@ -629,7 +685,9 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
 
 json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
                                    const char *l_hash_out_type, json_object *json_obj_summary,
-                                   size_t a_limit, size_t a_offset, bool out_brief)
+                                   size_t a_limit, size_t a_offset, bool out_brief,
+					const char *a_srv, 
+                                    dap_chain_tx_tag_action_type_t a_action)
 {
         log_it(L_DEBUG, "Start getting tx from chain");
         size_t
@@ -659,6 +717,10 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
                 l_arr_end = l_chain->callback_count_atom(l_chain);
             }
         }
+
+        bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
+
+
         size_t i_tmp = 1;
         HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
             if (a_limit && l_count_tx >= a_limit)
@@ -679,6 +741,31 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
                         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datums[i]->data;
                         dap_hash_fast_t l_ttx_hash = {0};
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
+
+                        char *service_name = NULL;
+                        dap_chain_tx_tag_action_type_t l_action;
+                        dap_ledger_t *l_ledger = l_net->pub.ledger;
+                        bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_ttx_hash, NULL, &service_name, &l_action);
+                        
+                        if (!(l_action & a_action))
+                            continue;
+
+                        if (a_srv)
+                        {
+                            char *service_name = NULL;
+                            bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_ttx_hash, NULL, &service_name, NULL);
+                            //skip if looking for UNKNOWN + it is known
+                            if (look_for_unknown_service && srv_found) {
+                                continue;
+                            }
+                            
+                            //skip if search condition provided, it not UNKNOWN and found name not match
+                            if (!look_for_unknown_service && (!srv_found || strcmp(service_name, a_srv) != 0))
+                            {
+                                continue;
+                            }
+                        }        
+                        
                         bool accepted_tx;
                         json_object* json_obj_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, l_chain, l_hash_out_type, l_net, 0, &accepted_tx, out_brief);
                         if (!json_obj_datum) {
