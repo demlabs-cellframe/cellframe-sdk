@@ -746,12 +746,13 @@ static dap_chain_net_t *s_net_new(dap_chain_net_id_t *a_id, const char *a_name,
  */
 void dap_chain_net_load_all()
 {
+    pthread_mutex_lock(&s_net_cond_lock);
     s_net_loading_count = HASH_COUNT(s_net_items);
     if (!s_net_loading_count) {
         log_it(L_ERROR, "Can't find any nets");
+        pthread_mutex_unlock(&s_net_cond_lock);
         return;
     }
-    pthread_mutex_lock(&s_net_cond_lock);
     dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
     HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp)
         dap_proc_thread_callback_add(NULL, s_net_load, l_net_items_current->chain_net);
