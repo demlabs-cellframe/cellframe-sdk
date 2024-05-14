@@ -116,7 +116,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_srv_xchange.h"
 #include "dap_chain_cs_esbocs.h"
-#include "dap_chain_net_voting.h"
+#include "dap_chain_net_srv_voting.h"
 #include "dap_global_db_cluster.h"
 #include "dap_link_manager.h"
 #include "dap_stream_cluster.h"
@@ -268,7 +268,7 @@ int dap_chain_net_init()
     dap_chain_ch_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
-    dap_chain_net_voting_init();
+    dap_chain_net_srv_voting_init();
     dap_http_ban_list_client_init();
     dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
