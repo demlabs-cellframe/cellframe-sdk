@@ -1677,7 +1677,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         dap_string_append_printf(l_str_tmp,
                             "\tRound info:\n\t\tsigns reject: %d\n",
                             l_round_item->round_info.reject_count);
-                        dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_round_item->round_info.ts_update);
+                        dap_nanotime_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_round_item->round_info.ts_update);
                         dap_string_append_printf(l_str_tmp, "\t\tdatum_hash: %s\n\t\tts_update: %s\n",
                             dap_chain_hash_fast_to_str_static(&l_round_item->round_info.datum_hash), buf);
                     }
@@ -1688,7 +1688,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"\t\t\tround ID: %"DAP_UINT64_FORMAT_U"\n",l_event->header.round_id);
                     dap_string_append_printf(l_str_tmp,"\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_x"\n",l_event->header.cell_id.uint64);
                     dap_string_append_printf(l_str_tmp,"\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_event->header.chain_id.uint64);
-                    dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
+                    dap_nanotime_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
                     dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", buf );
 
                     // Hash links
@@ -1785,7 +1785,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                             dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
                                             ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
                             char buf[DAP_TIME_STR_SIZE];
-                            dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
+                            dap_nanotime_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
                             dap_string_append_printf(l_str_tmp, "\t%zu\t - %s: ts_create=%s\n", i - 1, l_objs[i].key, buf);
 
                         }
@@ -1824,7 +1824,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         } else {
                             i_tmp++;
                             char buf[DAP_TIME_STR_SIZE];
-                            dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
+                            dap_nanotime_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
                             dap_string_append_printf(l_str_tmp, "\t%zu\t- %s: ts_create=%s\n", i_tmp - 1,
                                                      dap_chain_hash_fast_to_str_static(&l_event_item->hash),
                                                      buf);
@@ -1863,7 +1863,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         }
                         i_tmp++;
                         char buf[DAP_TIME_STR_SIZE];
-                        dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
+                        dap_nanotime_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
                         dap_string_append_printf(l_str_tmp, "\t%zu\t- %s: ts_create=%s\n", i_tmp - 1,
                                                  dap_chain_hash_fast_to_str_static( &l_event_item->hash),
                                                  buf);
