@@ -835,8 +835,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             break;
         }
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
-        if (!l_chain) {
-            log_it(L_WARNING, "Not found chain id 0x%016" DAP_UINT64_FORMAT_x " with net id 0x%016" DAP_UINT64_FORMAT_x,
+        if (!l_chain || l_chain->callback_load_from_gdb) {
+            log_it(L_WARNING, "Not found valid chain with id 0x%016" DAP_UINT64_FORMAT_x " and net id 0x%016" DAP_UINT64_FORMAT_x,
                                                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.net_id.uint64);
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,

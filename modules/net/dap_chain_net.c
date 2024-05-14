@@ -2519,6 +2519,12 @@ static void s_sync_timer_callback(void *a_arg)
         }
         // TODO make correct working with cells
         assert(l_net_pvt->sync_context.cur_chain);
+        if (l_net_pvt->sync_context.cur_chain->callback_load_from_gdb) {
+            // This type of chain is GDB based and not synced by chains protocol
+            l_net_pvt->sync_context.cur_chain = l_net_pvt->sync_context.cur_chain->next;
+            l_net_pvt->sync_context.last_state = SYNC_STATE_SYNCED;
+            return;
+        }
         l_net_pvt->sync_context.cur_cell = l_net_pvt->sync_context.cur_chain->cells;
         l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_WAITING;
         dap_chain_ch_sync_request_t l_request = {};
