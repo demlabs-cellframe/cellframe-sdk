@@ -3755,6 +3755,7 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
         } 
     }
 
+    if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
     return false;
 }
 
@@ -4939,7 +4940,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                 if(s_debug_more)
                     log_it(L_ERROR,"!!! Attempt to SPEND from some non-existent balance !!!: %s %s", l_addr_str, l_cur_token_ticker);
             }
-            DAP_DELETE(l_addr_str);
+            
             DAP_DELETE(l_wallet_balance_key);
         } break;
 
@@ -5072,7 +5073,6 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             // Add it to cache
             s_balance_cache_update(a_ledger, wallet_balance);
         }
-        DAP_DELETE (l_addr_str);
     }
     dap_list_t *l_items_voting;
     if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL)) && s_voting_callback) {
