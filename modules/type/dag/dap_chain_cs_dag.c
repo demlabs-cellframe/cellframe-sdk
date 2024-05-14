@@ -1929,7 +1929,8 @@ static int s_cli_dag(int argc, char ** argv, void **reply)
                                                          l_objs[i].key, buf);
                             } else {
                                 uint64_t l_number_current_round = *(uint64_t*)l_objs[i].value;
-                                dap_string_append_printf(l_str_tmp, "%s: %lu \n", l_objs[i].key, l_number_current_round);
+                                dap_string_append_printf(l_str_tmp, "\t%s: " DAP_UINT64_FORMAT_U "\n", l_objs[i].key,
+                                                         l_number_current_round);
                             }
                         }
                         if (l_objs && l_objs_count )
