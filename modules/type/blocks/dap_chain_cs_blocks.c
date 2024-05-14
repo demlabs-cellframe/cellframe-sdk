@@ -449,7 +449,7 @@ static void s_cli_meta_hex_print(json_object* json_obj_a, const char * a_meta_ti
     char *l_data_hex = DAP_NEW_Z_SIZE(char, a_meta->hdr.data_size * 2 + 3);
     dap_bin2hex(l_data_hex, a_meta->data, a_meta->hdr.data_size);
     char l_tmp_buff[70]={0};
-    sprintf(l_tmp_buff,"\t\t\%s: 0x%s\n", a_meta_title, l_data_hex);
+    sprintf(l_tmp_buff,"0x%s\n", l_data_hex);
     json_object_object_add(json_obj_a, a_meta_title, json_object_new_string(l_tmp_buff));
     DAP_DELETE(l_data_hex);
 }
@@ -956,7 +956,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 }
                 char l_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
-                json_object_object_add(json_obj_bl_cache, "pos",json_object_new_uint64(i_tmp-1));
+                json_object_object_add(json_obj_bl_cache, "block",json_object_new_uint64(i_tmp));
                 json_object_object_add(json_obj_bl_cache, "hash",json_object_new_string(l_block_cache->block_hash_str));
                 json_object_object_add(json_obj_bl_cache, "ts_create",json_object_new_string(l_buf));
                 json_object_array_add(json_arr_bl_cache_out, json_obj_bl_cache);
