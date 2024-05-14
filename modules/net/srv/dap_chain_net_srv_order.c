@@ -603,13 +603,10 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
  * @param a_hash_str
  * @return
  */
-int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, const char *a_hash_str, dap_enc_key_t *a_key)
+int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, const char *a_hash_str)
 {
     int l_ret = -2;
     bool l_is_found = false;
-    if(!a_key){
-        return l_ret;
-    }
     for (int i = 0; a_net && a_hash_str && i < 2; i++) {
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
                                   : dap_chain_net_srv_order_get_common_group(a_net);
@@ -632,7 +629,7 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
         }
 
         char *l_removed_orders_group_str = dap_chain_net_srv_order_removed_get_gdb_group(a_net);
-        l_ret = dap_global_db_set_sync(l_gdb_group_str, a_hash_str, NULL, 0, true);
+        l_ret = dap_global_db_set_sync(l_removed_orders_group_str, a_hash_str, NULL, 0, true);
 
         dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
 

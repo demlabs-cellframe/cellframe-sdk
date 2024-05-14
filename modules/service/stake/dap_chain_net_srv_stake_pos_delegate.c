@@ -1517,19 +1517,8 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             DAP_DELETE(l_order_hash_hex_str);
             return -6;
         }
-        char *l_cert_str = NULL;
-        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
-        if (!l_cert_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Fee order creation requires parameter -cert");
-            return -7;
-        }
-        dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
-        if (!l_cert) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert %s", l_cert_str);
-            return -8;
-        }
         if (l_cmd_num == CMD_REMOVE) {
-            if (dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str, l_cert->enc_key)) {
+            if (dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't remove order %s\n", l_order_hash_str);
                 return -14;
             }
