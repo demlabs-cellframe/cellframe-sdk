@@ -3257,8 +3257,10 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
             log_it(L_ERROR,"Wrong address format, must be 0123::4567::89AB::CDEF");
             continue;
         }
-        if (l_seed_nodes_ipv4_len)
+        if (l_seed_nodes_ipv4_len) {
             inet_pton(AF_INET, l_seed_nodes_ipv4[i], &l_node_info.hdr.ext_addr_v4);
+            l_net_pvt->seed_nodes_addrs_v4[i].s_addr = l_node_info.hdr.ext_addr_v4.s_addr;
+        }
         if (l_seed_nodes_ipv6_len)
             inet_pton(AF_INET6, l_seed_nodes_ipv6[i], &l_node_info.hdr.ext_addr_v6);
         l_node_info.hdr.ext_port = l_seed_nodes_port_len && l_seed_nodes_port_len >= i ?
