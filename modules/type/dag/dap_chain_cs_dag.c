@@ -1836,7 +1836,7 @@ static int s_cli_dag(int argc, char ** argv, void **reply)
                         char * l_hash_str = dap_chain_hash_fast_to_str_new(&l_round_item->round_info.datum_hash);
                         dap_string_append_printf(l_str_tmp, "\t\tdatum_hash: %s\n", l_hash_str);
                         DAP_DELETE(l_hash_str);
-                        dap_time_to_str_rfc822(buf, 50, l_round_item->round_info.ts_update);
+                        dap_gbd_time_to_str_rfc822(buf, 50, l_round_item->round_info.ts_update);
                         dap_string_append_printf(l_str_tmp,"\t\tts_update: %s\n", buf);
                     }
 
