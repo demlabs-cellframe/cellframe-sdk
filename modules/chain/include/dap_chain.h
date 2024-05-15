@@ -84,7 +84,7 @@ typedef enum dap_chain_iter_op {
 typedef dap_chain_t* (*dap_chain_callback_new_t)(void);
 
 typedef void (*dap_chain_callback_t)(dap_chain_t *);
-typedef int (*dap_chain_callback_new_cfg_t)(dap_chain_t*, dap_config_t *);
+typedef int (*dap_chain_callback_new_cfg_t)(dap_chain_t *, dap_config_t *);
 typedef void (*dap_chain_callback_ptr_t)(dap_chain_t *, void * );
 
 typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_t)(dap_chain_t *, dap_chain_atom_ptr_t, size_t );

@@ -746,12 +746,13 @@ static dap_chain_net_t *s_net_new(dap_chain_net_id_t *a_id, const char *a_name,
  */
 void dap_chain_net_load_all()
 {
+    pthread_mutex_lock(&s_net_cond_lock);
     s_net_loading_count = HASH_COUNT(s_net_items);
     if (!s_net_loading_count) {
         log_it(L_ERROR, "Can't find any nets");
+        pthread_mutex_unlock(&s_net_cond_lock);
         return;
     }
-    pthread_mutex_lock(&s_net_cond_lock);
     dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
     HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp)
         dap_proc_thread_callback_add(NULL, s_net_load, l_net_items_current->chain_net);
@@ -2233,7 +2234,7 @@ bool s_net_load(void *a_arg)
                                                     l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                     l_gdb_groups_mask, DAP_CHAIN_NET_MEMPOOL_TTL, true,
                                                     DAP_GDB_MEMBER_ROLE_USER,
-                                                    DAP_CLUSTER_ROLE_EMBEDDED);
+                                                    DAP_CLUSTER_TYPE_EMBEDDED);
         if (!l_cluster) {
             log_it(L_ERROR, "Can't initialize mempool cluster for network %s", l_net->pub.name);
             l_err_code = -2;
@@ -2250,7 +2251,7 @@ bool s_net_load(void *a_arg)
                                                           l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                           l_gdb_groups_mask, 0, true,
                                                           DAP_GDB_MEMBER_ROLE_GUEST,
-                                                          DAP_CLUSTER_ROLE_EMBEDDED);
+                                                          DAP_CLUSTER_TYPE_EMBEDDED);
     if (!l_net_pvt->orders_cluster) {
         log_it(L_ERROR, "Can't initialize orders cluster for network %s", l_net->pub.name);
         goto ret;
@@ -2264,7 +2265,7 @@ bool s_net_load(void *a_arg)
         l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
         l_gdb_groups_mask, 0, true,
         DAP_GDB_MEMBER_ROLE_USER,
-        DAP_CLUSTER_ROLE_EMBEDDED);
+        DAP_CLUSTER_TYPE_EMBEDDED);
     DAP_DELETE(l_gdb_groups_mask);
     // Nodes and its aliases cluster
     l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes.list",l_net->pub.gdb_groups_prefix);
@@ -2272,7 +2273,7 @@ bool s_net_load(void *a_arg)
                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                          l_net->pub.gdb_nodes, 0, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
-                                                         DAP_CLUSTER_ROLE_EMBEDDED);
+                                                         DAP_CLUSTER_TYPE_EMBEDDED);
     if (!l_net_pvt->nodes_cluster) {
         log_it(L_ERROR, "Can't initialize nodes cluster for network %s", l_net->pub.name);
         l_err_code = -3;
@@ -2518,6 +2519,12 @@ static void s_sync_timer_callback(void *a_arg)
         }
         // TODO make correct working with cells
         assert(l_net_pvt->sync_context.cur_chain);
+        if (l_net_pvt->sync_context.cur_chain->callback_load_from_gdb) {
+            // This type of chain is GDB based and not synced by chains protocol
+            l_net_pvt->sync_context.cur_chain = l_net_pvt->sync_context.cur_chain->next;
+            l_net_pvt->sync_context.last_state = SYNC_STATE_SYNCED;
+            return;
+        }
         l_net_pvt->sync_context.cur_cell = l_net_pvt->sync_context.cur_chain->cells;
         l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_WAITING;
         dap_chain_ch_sync_request_t l_request = {};

@@ -54,8 +54,6 @@ typedef struct dap_nonconsensus_private {
     bool is_load_mode; // If load mode - not save when new atom adds
     char *group_datums;
     dap_chain_t *chain;
-    pthread_cond_t load_cond;
-    pthread_mutex_t load_mutex;
     dap_nonconsensus_datum_hash_item_t * hash_items;
 } dap_nonconsensus_private_t;
 
@@ -132,6 +130,12 @@ static void s_changes_callback_notify(dap_store_obj_t *a_obj, void *a_arg)
     s_nonconsensus_callback_atom_add(l_chain, (dap_chain_datum_t *)a_obj->value, a_obj->value_len);
 }
 
+int s_nonconsensus_callback_created(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_chain_cfg)
+{
+    dap_chain_add_mempool_notify_callback(a_chain, s_nonconsensus_callback_mempool_notify, a_chain);
+    return 0;
+}
+
 /**
  * @brief configure chain gdb
  * Set atom element callbacks
@@ -165,16 +169,12 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
             dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                       l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                       l_nochain_priv->group_datums, 0,
-                                      true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_ROLE_EMBEDDED);
+                                      true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_TYPE_EMBEDDED);
     if (!l_nonconsensus_cluster) {
         log_it(L_ERROR, "Can't create global DB cluster for synchronization");
         return -3;
     }
     dap_global_db_cluster_add_notify_callback(l_nonconsensus_cluster, s_changes_callback_notify, a_chain);
-    dap_chain_add_mempool_notify_callback(a_chain, s_nonconsensus_callback_mempool_notify, a_chain);
-
-    pthread_cond_init(&l_nochain_priv->load_cond, NULL);
-    pthread_mutex_init(&l_nochain_priv->load_mutex, NULL);
 
     a_chain->callback_delete = s_nonconsensus_delete;
     a_chain->callback_purge = s_nonconsensus_callback_purge;
@@ -205,6 +205,7 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
     a_chain->callback_add_datums = s_nonconsensus_callback_datums_pool_proc;
 
     a_chain->callback_load_from_gdb = s_nonconsensus_ledger_load;
+    a_chain->callback_created = s_nonconsensus_callback_created;
 
     return 0;
 }
@@ -243,44 +244,6 @@ const char* dap_nonconsensus_get_group(dap_chain_t * a_chain)
 
 
 /**
- * @brief s_ledger_load_callback
- * @param a_global_db_context
- * @param a_rc
- * @param a_group
- * @param a_key
- * @param a_values_total
- * @param a_values_shift
- * @param a_values_count
- * @param a_values
- * @param a_arg
- */
-static bool s_ledger_load_callback(UNUSED_ARG dap_global_db_instance_t *a_dbi,
-                                   UNUSED_ARG int a_rc, UNUSED_ARG const char *a_group,
-                                   UNUSED_ARG const size_t a_values_total, const size_t a_values_count,
-                                   dap_global_db_obj_t *a_values, void *a_arg)
-{
-    assert(a_arg);
-    dap_chain_t * l_chain = (dap_chain_t *) a_arg;
-    assert(l_chain);
-    dap_nonconsensus_t * l_nochain = DAP_NONCONSENSUS(l_chain);
-    assert(l_nochain);
-    dap_nonconsensus_private_t * l_nochain_pvt = PVT(l_nochain);
-    assert(l_nochain_pvt);
-    // make list of datums
-    for(size_t i = 0; i < a_values_count; i++) {
-        dap_global_db_obj_t *it = a_values + i;
-        s_nonconsensus_callback_atom_add(l_chain, it->value, it->value_len);
-        log_it(L_DEBUG,"Load mode, doesn't save item %s:%s", it->key, l_nochain_pvt->group_datums);
-    }
-
-    pthread_mutex_lock(&l_nochain_pvt->load_mutex);
-    l_nochain_pvt->is_load_mode = false;
-    pthread_cond_broadcast(&l_nochain_pvt->load_cond);
-    pthread_mutex_unlock(&l_nochain_pvt->load_mutex);
-    return true;
-}
-
-/**
  * @brief Load ledger from mempool
  *
  * @param a_gdb_group a_gdb_group char gdb group name
@@ -289,16 +252,20 @@ static bool s_ledger_load_callback(UNUSED_ARG dap_global_db_instance_t *a_dbi,
  */
 static void s_nonconsensus_ledger_load(dap_chain_t *a_chain)
 {
-    dap_nonconsensus_t * l_nochain = DAP_NONCONSENSUS(a_chain);
-    dap_nonconsensus_private_t * l_nochain_pvt = PVT(l_nochain);
-    // load ledger
-    l_nochain_pvt->is_load_mode = true;
+    dap_nonconsensus_t *l_nochain = DAP_NONCONSENSUS(a_chain);
+    dap_nonconsensus_private_t *l_nochain_pvt = PVT(l_nochain);
+    size_t l_values_count = 0;
     //  Read the entire database into an array of size bytes
-    pthread_mutex_lock(&l_nochain_pvt->load_mutex);
-    dap_global_db_get_all(l_nochain_pvt->group_datums, 0, s_ledger_load_callback, a_chain);
-    while (l_nochain_pvt->is_load_mode)
-        pthread_cond_wait(&l_nochain_pvt->load_cond, &l_nochain_pvt->load_mutex);
-    pthread_mutex_unlock(&l_nochain_pvt->load_mutex);
+    dap_global_db_obj_t *l_values = dap_global_db_get_all_sync(l_nochain_pvt->group_datums, &l_values_count);
+    // make list of datums
+    for (size_t i = 0; l_values && i < l_values_count; i++) {
+        dap_global_db_obj_t *it = l_values + i;
+        // load ledger
+        s_nonconsensus_callback_atom_add(a_chain, it->value, it->value_len);
+        log_it(L_DEBUG,"Load mode, doesn't save item %s:%s", it->key, l_nochain_pvt->group_datums);
+    }
+    dap_global_db_objs_delete(l_values, l_values_count);
+    l_nochain_pvt->is_load_mode = false;
 }
 
 /**
@@ -450,7 +417,8 @@ static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_find_by_hash(dap_c
     dap_nonconsensus_t *l_nochain = DAP_NONCONSENSUS(a_atom_iter->chain);
     if (l_nochain) {
         l_ret = dap_global_db_get_sync(PVT(l_nochain)->group_datums, l_key, &l_ret_size, NULL, NULL);
-        *a_atom_size = l_ret_size;
+        if (a_atom_size)
+            *a_atom_size = l_ret_size;
     }
     //TODO set a_atom_iter item field
     return l_ret;

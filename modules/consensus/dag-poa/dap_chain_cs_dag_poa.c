@@ -740,7 +740,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     dap_global_db_cluster_t *l_dag_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
                                                                        dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_DAG),
                                                                        l_dag->gdb_group_events_round_new, 900, true,
-                                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_ROLE_AUTONOMIC);
+                                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
     dap_global_db_cluster_add_notify_callback(l_dag_cluster, s_round_changes_notify, l_dag);
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_dag_cluster);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_dag_cluster->links_cluster);
