@@ -2234,7 +2234,7 @@ bool s_net_load(void *a_arg)
                                                     l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                     l_gdb_groups_mask, DAP_CHAIN_NET_MEMPOOL_TTL, true,
                                                     DAP_GDB_MEMBER_ROLE_USER,
-                                                    DAP_CLUSTER_ROLE_EMBEDDED);
+                                                    DAP_CLUSTER_TYPE_EMBEDDED);
         if (!l_cluster) {
             log_it(L_ERROR, "Can't initialize mempool cluster for network %s", l_net->pub.name);
             l_err_code = -2;
@@ -2251,7 +2251,7 @@ bool s_net_load(void *a_arg)
                                                           l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                           l_gdb_groups_mask, 0, true,
                                                           DAP_GDB_MEMBER_ROLE_GUEST,
-                                                          DAP_CLUSTER_ROLE_EMBEDDED);
+                                                          DAP_CLUSTER_TYPE_EMBEDDED);
     if (!l_net_pvt->orders_cluster) {
         log_it(L_ERROR, "Can't initialize orders cluster for network %s", l_net->pub.name);
         goto ret;
@@ -2265,7 +2265,7 @@ bool s_net_load(void *a_arg)
         l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
         l_gdb_groups_mask, 0, true,
         DAP_GDB_MEMBER_ROLE_USER,
-        DAP_CLUSTER_ROLE_EMBEDDED);
+        DAP_CLUSTER_TYPE_EMBEDDED);
     DAP_DELETE(l_gdb_groups_mask);
     // Nodes and its aliases cluster
     l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes.list",l_net->pub.gdb_groups_prefix);
@@ -2273,7 +2273,7 @@ bool s_net_load(void *a_arg)
                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                          l_net->pub.gdb_nodes, 0, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
-                                                         DAP_CLUSTER_ROLE_EMBEDDED);
+                                                         DAP_CLUSTER_TYPE_EMBEDDED);
     if (!l_net_pvt->nodes_cluster) {
         log_it(L_ERROR, "Can't initialize nodes cluster for network %s", l_net->pub.name);
         l_err_code = -3;
