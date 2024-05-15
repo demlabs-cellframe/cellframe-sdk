@@ -247,7 +247,7 @@ void dap_chain_ch_deinit()
  * @param a_ch
  * @param arg
  */
-void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
+void s_stream_ch_new(dap_stream_ch_t *a_ch, void *a_arg)
 {
     UNUSED(a_arg);
     if (!(a_ch->internal = DAP_NEW_Z(dap_chain_ch_t))) {
@@ -288,7 +288,7 @@ static void s_stream_ch_delete(dap_stream_ch_t *a_ch, void *a_arg)
  * @param a_ch_chain
  * @param a_net
  */
-struct legacy_sync_context *s_legacy_sync_context_create(dap_chain_ch_pkt_t *a_chain_pkt, dap_stream_ch_t* a_ch)
+struct legacy_sync_context *s_legacy_sync_context_create(dap_chain_ch_pkt_t *a_chain_pkt, dap_stream_ch_t *a_ch)
 {
     dap_chain_ch_t * l_ch_chain = DAP_CHAIN_CH(a_ch);
     dap_return_val_if_fail(l_ch_chain, NULL);
@@ -313,6 +313,8 @@ struct legacy_sync_context *s_legacy_sync_context_create(dap_chain_ch_pkt_t *a_c
     l_ch_chain->sync_timer = dap_timerfd_start_on_worker(a_ch->stream_worker->worker, 1000, s_sync_timer_callback, l_uuid);
     a_ch->stream->esocket->callbacks.write_finished_callback = s_stream_ch_io_complete;
     a_ch->stream->esocket->callbacks.arg = l_context;
+    if (l_context->worker->worker->_inheritor != a_ch->stream_worker)
+        log_it(L_CRITICAL, "Corrupted stream worker %p", a_ch->stream_worker);
     return l_context;
 }
 
