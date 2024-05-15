@@ -708,6 +708,16 @@ json_object* dap_db_history_tx_all(dap_chain_t *l_chain,
         dap_chain_atom_iter_t *l_iter = NULL;
         json_object * json_arr_out = json_object_new_array();
         dap_ledger_t *l_ledger = dap_chain_net_by_id(l_chain->net_id)->pub.ledger;
+        size_t l_start_arr = 0;
+        size_t l_arr_end = 0;
+        json_object* json_obj_lim = json_object_new_object();
+        if(a_offset > 0) {
+            l_start_arr = a_offset; 
+            json_object_object_add(json_obj_lim, "offset",json_object_new_uint64(l_start_arr));                           
+        }
+        l_arr_end = a_limit ? l_start_arr + a_limit : l_start_arr + 1000;
+        json_object_object_add(json_obj_lim, "limit",json_object_new_uint64(l_arr_end - l_start_arr));       
+        json_object_array_add(json_arr_out, json_obj_lim);
 
         bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
 
@@ -760,8 +770,8 @@ json_object* dap_db_history_tx_all(dap_chain_t *l_chain,
                         if (accepted_tx)
                             l_tx_ledger_accepted++;
                         else
-                            l_tx_ledger_rejected++;
-                        if (a_limit && l_count_tx >= a_limit){
+                            l_tx_ledger_rejected++;                        
+                        if (a_limit && (l_count_tx < l_start_arr || l_count_tx >= l_arr_end)){
                             //l_ptr = l_chain->callback_atom_iter_get_next(l_iter, &l_atom_size);
                             l_count_tx++;
                             json_object_put(json_obj_datum);                
