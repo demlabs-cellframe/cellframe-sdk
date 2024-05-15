@@ -1677,7 +1677,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         dap_string_append_printf(l_str_tmp,
                             "\tRound info:\n\t\tsigns reject: %d\n",
                             l_round_item->round_info.reject_count);
-                        dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_round_item->round_info.ts_update);
+                        dap_nanotime_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_round_item->round_info.ts_update);
                         dap_string_append_printf(l_str_tmp, "\t\tdatum_hash: %s\n\t\tts_update: %s\n",
                             dap_chain_hash_fast_to_str_static(&l_round_item->round_info.datum_hash), buf);
                     }

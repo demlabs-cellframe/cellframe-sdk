@@ -525,7 +525,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
                                                       dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_ESBOCS),
                                                       l_sync_group, 72 * 3600, true,
-                                                      DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_ROLE_AUTONOMIC);
+                                                      DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
     DAP_DELETE(l_sync_group);
     dap_global_db_cluster_add_notify_callback(l_session->db_cluster, s_db_change_notifier, l_session);
 #endif

@@ -4173,7 +4173,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger,
                 l_tx_prev_hash = &l_tx_in->header.tx_prev_hash;
                 if (dap_hash_fast_is_blank(l_tx_prev_hash)) {
                     DAP_DELETE(l_bound_item);
-                    l_list_bound_items = dap_list_remove_link(l_list_bound_items, dap_list_last(l_list_bound_items));
+                    l_list_bound_items = dap_list_delete_link(l_list_bound_items, dap_list_last(l_list_bound_items));
                     continue; // old base tx compliance
                 }
                 l_tx_prev_out_idx = l_tx_in->header.tx_out_prev_idx;
