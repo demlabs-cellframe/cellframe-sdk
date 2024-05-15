@@ -762,7 +762,7 @@ json_object* dap_db_history_tx_all(dap_chain_t *l_chain,
                         else
                             l_tx_ledger_rejected++;
                         if (a_limit && l_count_tx >= a_limit){
-                            l_ptr = l_chain->callback_atom_iter_get_next(l_iter, &l_atom_size);
+                            //l_ptr = l_chain->callback_atom_iter_get_next(l_iter, &l_atom_size);
                             l_count_tx++;
                             json_object_put(json_obj_datum);                
                             continue;
