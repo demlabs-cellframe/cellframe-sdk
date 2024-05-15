@@ -700,44 +700,38 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
                             *l_cell_tmp = NULL;
         dap_chain_atom_iter_t *l_iter = NULL;
         json_object * json_arr_out = json_object_new_array();
+        json_object* json_obj_lim = json_object_new_object();
         size_t l_arr_start = 0;
         if (a_offset) {
             l_arr_start = a_offset;
-            json_object* json_obj_off = json_object_new_object();
-            json_object_object_add(json_obj_off, "offset", json_object_new_int(l_arr_start));
-            json_object_array_add(json_arr_out, json_obj_off);
+            json_object_object_add(json_obj_lim, "offset", json_object_new_int(l_arr_start));
+            json_object_array_add(json_arr_out, json_obj_lim);
         }
         size_t l_arr_end =  l_chain->callback_count_atom(l_chain);
-        if (a_limit) {
-            l_arr_end = l_arr_start + a_limit;
-            json_object* json_obj_lim = json_object_new_object();
-            json_object_object_add(json_obj_lim, "limit", json_object_new_int(a_limit));
-            json_object_array_add(json_arr_out, json_obj_lim);
-            if (l_arr_end > l_chain->callback_count_atom(l_chain)) {
-                l_arr_end = l_chain->callback_count_atom(l_chain);
-            }
+        l_arr_end = a_limit ? l_arr_start + a_limit : l_arr_start + 1000;
+        json_object_object_add(json_obj_lim, "limit", json_object_new_int(l_arr_end - l_arr_start));
+        json_object_array_add(json_arr_out, json_obj_lim);
+        if (l_arr_end > l_chain->callback_count_atom(l_chain)) {
+            l_arr_end = l_chain->callback_count_atom(l_chain);
         }
 
         bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
 
-
-        size_t i_tmp = 1;
         HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
-            if (a_limit && l_count_tx >= a_limit)
+            if (l_count_tx >= l_arr_end)
                 break;
             l_iter = l_chain->callback_atom_iter_create(l_chain, l_cell->id, NULL);
             size_t l_atom_size = 0;
             dap_chain_atom_ptr_t l_ptr = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
-            while (l_ptr && l_atom_size && (a_limit ? l_count_tx < a_limit : true)) {
+            while (l_ptr && l_atom_size && (l_count_tx < l_arr_end)) {
                 size_t l_datums_count = 0;
                 dap_chain_datum_t **l_datums = l_cell->chain->callback_atom_get_datums(l_ptr, l_atom_size, &l_datums_count);
-                for (size_t i = 0; i < l_datums_count && (a_limit ? l_count_tx < a_limit : true); i++) {
+                for (size_t i = 0; i < l_datums_count && (l_count_tx < l_arr_end); i++) {
                     if (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX) {
-                        if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
-                            i_tmp++;
+                        if (l_count_tx < l_arr_start) {
+                            l_count_tx++;
                             continue;
                         }
-                        i_tmp++;
                         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datums[i]->data;
                         dap_hash_fast_t l_ttx_hash = {0};
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
