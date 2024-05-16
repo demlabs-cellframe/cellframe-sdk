@@ -525,8 +525,6 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
                                   : dap_chain_net_srv_order_get_common_group(a_net);
         l_ret = dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
         DAP_DELETE(l_gdb_group_str);
-        if (!l_ret)
-            break;
     }
     return l_ret;
 }
