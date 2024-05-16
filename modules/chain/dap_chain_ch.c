@@ -125,8 +125,6 @@ struct legacy_sync_context {
     dap_time_t last_activity;
     dap_chain_ch_state_t prev_state;
     size_t enqueued_data_size;
-
-    bool is_deleted;
 };
 
 typedef struct dap_chain_ch {
@@ -329,11 +327,6 @@ static void s_legacy_sync_context_delete(void *a_arg)
     struct legacy_sync_context *l_context = a_arg;
     dap_return_if_fail(l_context);
 
-    if (l_context->is_deleted) {
-        log_it(L_CRITICAL, "Trying to double-free legacy context %p");
-        return;
-    }
-
     dap_chain_ch_hash_item_t *l_hash_item, *l_tmp;
 
     if (l_context->is_type_of_gdb) {
@@ -365,8 +358,7 @@ static void s_legacy_sync_context_delete(void *a_arg)
         l_ch->stream->esocket->callbacks.arg = NULL;
     }
 
-    l_context->is_deleted = true;
-    //DAP_DELETE(l_context);
+    DAP_DELETE(l_context);
 }
 
 static bool s_sync_out_gdb_proc_callback(void *a_arg)
