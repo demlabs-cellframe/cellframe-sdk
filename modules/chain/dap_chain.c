@@ -724,7 +724,8 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
         if (l_net_cluster) {
             size_t l_pkt_size = a_atom_size + sizeof(dap_chain_ch_pkt_t);
             dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain->net_id, l_chain->id,
-                                                             a_chain_cell->id, a_atom, a_atom_size);
+                                                             a_chain_cell->id, a_atom, a_atom_size,
+                                                             DAP_CHAIN_CH_PKT_VERSION_CURRENT);
             if (l_pkt) {
                 dap_gossip_msg_issue(l_net_cluster, DAP_CHAIN_CH_ID, l_pkt, l_pkt_size, a_new_atom_hash);
                 DAP_DELETE(l_pkt);
