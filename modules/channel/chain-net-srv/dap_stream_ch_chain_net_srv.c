@@ -412,20 +412,6 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
         return false;
     }
 
-    bool l_specific_order_free = false;
-    l_price = dap_chain_net_srv_get_price_from_order(l_srv, "srv_vpn", &a_request->hdr.order_hash);
-    if (!l_price){
-        log_it(L_ERROR, "Can't get price from order!");
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND;
-            if(a_ch)
-                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-            if (l_srv && l_srv->callbacks.response_error)
-                l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-            DAP_DEL_Z(l_usage->client);
-            DAP_DEL_Z(l_usage);
-            return false;
-    }
-
     if (IS_ZERO_256(l_price->value_datoshi)){
         l_specific_order_free = true;
     }
