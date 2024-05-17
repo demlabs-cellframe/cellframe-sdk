@@ -773,6 +773,7 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
             json_object_object_add(json_obj_item,"Address", json_object_new_string(l_addr_str));            
         } break;
         case TX_ITEM_TYPE_IN_EMS: {
+            char l_tmp_buff[70]={0};
             l_hash_tmp = &((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash;
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                     ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
@@ -780,14 +781,8 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
             json_object_object_add(json_obj_item,"item type", json_object_new_string("IN_EMS"));
             json_object_object_add(json_obj_item,"ticker", json_object_new_string(((dap_chain_tx_in_ems_t*)item)->header.ticker));
             json_object_object_add(json_obj_item,"token_emission_hash", json_object_new_string(l_hash_str));
-            json_object_object_add(json_obj_item,"token_emission_chain_id", json_object_new_string(l_hash_str));
-            dap_string_append_printf(a_str_out, "\t IN_EMS:\n"
-                                                "\t\t ticker: %s \n"
-                                                "\t\t token_emission_hash: %s\n"
-                                                "\t\t token_emission_chain_id: 0x%016"DAP_UINT64_FORMAT_x"\n",
-                                                ((dap_chain_tx_in_ems_t*)item)->header.ticker,
-                                                l_hash_str,
-                                                ((dap_chain_tx_in_ems_t*)item)->header.token_emission_chain_id.uint64);
+            sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_x"",((dap_chain_tx_in_ems_t*)item)->header.token_emission_chain_id.uint64);
+            json_object_object_add(json_obj_item,"token_emission_chain_id", json_object_new_string(l_tmp_buff));
         } break;
             /*
         case TX_ITEM_TYPE_IN_EMS_EXT: {
@@ -816,9 +811,8 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                     ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
                     : dap_chain_hash_fast_to_str_static(l_hash_tmp);
-            dap_string_append_printf(a_str_out, "\t IN_REWARD:\n"
-                                                "\t\t block_hash: %s\n",
-                                                l_hash_str);
+            json_object_object_add(json_obj_item,"item type", json_object_new_string("IN_REWARD"));
+            json_object_object_add(json_obj_item,"block_hash", json_object_new_string(l_hash_str));
         } break;
 
         case TX_ITEM_TYPE_SIG: {
