@@ -2411,7 +2411,7 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                                                             : c_dap_chain_cell_id_null,
                                                                             NULL);
         if (!l_iter) {
-            log_it(L_CRITICAL, g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             dap_stream_ch_write_error_unsafe(a_ch, l_net->pub.id,
                                              l_net_pvt->sync_context.cur_chain->id,
                                              l_net_pvt->sync_context.cur_cell
@@ -2545,7 +2545,7 @@ static void s_sync_timer_callback(void *a_arg)
                                                                l_net_pvt->sync_context.cur_cell ? l_net_pvt->sync_context.cur_cell->id : c_dap_chain_cell_id_null,
                                                                &l_request, sizeof(l_request), DAP_CHAIN_CH_PKT_VERSION_CURRENT);
         if (!l_chain_pkt) {
-            log_it(L_CRITICAL, g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             return;
         }
         log_it(L_INFO, "Start synchronization process with " NODE_ADDR_FP_STR

@@ -1684,7 +1684,7 @@ void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_e
 
     void *l_message_copy = DAP_DUP_SIZE(a_message, a_message_size);
     if (!l_message_copy) {
-        log_it(L_CRITICAL, g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return;
     }
     dap_chain_esbocs_sync_item_t *l_sync_item;
@@ -1971,7 +1971,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                                         NODE_ADDR_FP_ARGS_S(a_ch->stream->node), NODE_ADDR_FP_ARGS_S(l_session->my_addr));
     struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args, sizeof(struct esbocs_msg_args) + l_message_size);
     if (!l_args) {
-        log_it(L_CRITICAL, g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return false;
     }
     l_args->addr_from = a_ch->stream->node;
@@ -2508,7 +2508,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args,
                                                           sizeof(struct esbocs_msg_args) + l_message_size + l_sign_size);
             if (!l_args) {
-                log_it(L_CRITICAL, g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 return;
             }
             l_args->addr_from = a_session->my_addr;

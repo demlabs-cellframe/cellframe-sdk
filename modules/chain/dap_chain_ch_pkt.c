@@ -57,7 +57,7 @@ size_t dap_chain_ch_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type,
             : DAP_NEW_STACK_SIZE(dap_chain_ch_pkt_t, l_chain_pkt_size);
 
     if (!l_chain_pkt) {
-        log_it(L_CRITICAL, g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return 0;
     }
     s_chain_pkt_fill(l_chain_pkt, a_net_id, a_chain_id, a_cell_id, a_data, a_data_size, a_version);
@@ -76,7 +76,7 @@ dap_chain_ch_pkt_t *dap_chain_ch_pkt_new(dap_chain_net_id_t a_net_id, dap_chain_
     if (l_chain_pkt)
         s_chain_pkt_fill(l_chain_pkt, a_net_id, a_chain_id, a_cell_id, a_data, a_data_size, a_version);
     else
-        log_it(L_CRITICAL, g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
     return l_chain_pkt;
 }
 /**
@@ -101,7 +101,7 @@ size_t dap_chain_ch_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_uu
             : DAP_NEW_STACK_SIZE(dap_chain_ch_pkt_t, l_chain_pkt_size);
 
     if (!l_chain_pkt) {
-        log_it(L_CRITICAL, g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return 0;
     }
     s_chain_pkt_fill(l_chain_pkt, a_net_id, a_chain_id, a_cell_id, a_data, a_data_size, a_version);
