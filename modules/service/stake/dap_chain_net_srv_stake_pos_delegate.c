@@ -1938,6 +1938,10 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate not found");
                 return -18;
             }
+            if (!l_cert->enc_key->priv_key_data || l_cert->enc_key->priv_key_data_size == 0) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "It is not possible to invalidate a stake using a public key.");
+                return -31;
+            }
             if (dap_chain_addr_fill_from_key(&l_signing_addr, l_cert->enc_key, l_net->pub.id)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate is wrong");
                 return -22;

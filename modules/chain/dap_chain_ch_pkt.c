@@ -23,17 +23,13 @@
 
 #define LOG_TAG "dap_chain_ch_pkt"
 
-static uint8_t s_pkt_version = DAP_CHAIN_CH_PKT_VERSION_CURRENT;
-
-void dap_chain_ch_pkt_set_version(uint8_t a_version) { s_pkt_version = a_version; }
-
 static void s_chain_pkt_fill(dap_chain_ch_pkt_t *a_pkt, dap_chain_net_id_t a_net_id,
                              dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
-                             const void *a_data, size_t a_data_size)
+                             const void *a_data, size_t a_data_size, uint8_t a_version)
 {
     *a_pkt = (dap_chain_ch_pkt_t) {
-            .hdr = { .version = s_pkt_version,
-                     .data_size = s_pkt_version == 1
+            .hdr = { .version = a_version,
+                     .data_size = a_version == DAP_CHAIN_CH_PKT_VERSION_LEGACY
                                         ? 0
                                         : a_data_size,
                      .net_id = a_net_id,
@@ -53,7 +49,7 @@ static void s_chain_pkt_fill(dap_chain_ch_pkt_t *a_pkt, dap_chain_net_id_t a_net
  */
 size_t dap_chain_ch_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type,
                                      dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
-                                     const void *a_data, size_t a_data_size)
+                                     const void *a_data, size_t a_data_size, uint8_t a_version)
 {
     size_t l_chain_pkt_size = sizeof(dap_chain_ch_pkt_hdr_t) + a_data_size;
     dap_chain_ch_pkt_t *l_chain_pkt = l_chain_pkt_size > 0x3FFF
@@ -64,7 +60,7 @@ size_t dap_chain_ch_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type,
         log_it(L_CRITICAL, g_error_memory_alloc);
         return 0;
     }
-    s_chain_pkt_fill(l_chain_pkt, a_net_id, a_chain_id, a_cell_id, a_data, a_data_size);
+    s_chain_pkt_fill(l_chain_pkt, a_net_id, a_chain_id, a_cell_id, a_data, a_data_size, a_version);
 
     size_t l_ret = dap_stream_ch_pkt_write_unsafe(a_ch, a_type, l_chain_pkt, l_chain_pkt_size);
     if (l_chain_pkt_size > 0x3FFF)
@@ -73,12 +69,12 @@ size_t dap_chain_ch_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type,
 }
 
 dap_chain_ch_pkt_t *dap_chain_ch_pkt_new(dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
-                                         const void *a_data, size_t a_data_size)
+                                         const void *a_data, size_t a_data_size, uint8_t a_version)
 {
     size_t l_chain_pkt_size = sizeof(dap_chain_ch_pkt_hdr_t) + a_data_size;
     dap_chain_ch_pkt_t *l_chain_pkt = DAP_NEW_Z_SIZE(dap_chain_ch_pkt_t, l_chain_pkt_size);
     if (l_chain_pkt)
-        s_chain_pkt_fill(l_chain_pkt, a_net_id, a_chain_id, a_cell_id, a_data, a_data_size);
+        s_chain_pkt_fill(l_chain_pkt, a_net_id, a_chain_id, a_cell_id, a_data, a_data_size, a_version);
     else
         log_it(L_CRITICAL, g_error_memory_alloc);
     return l_chain_pkt;
@@ -97,7 +93,7 @@ dap_chain_ch_pkt_t *dap_chain_ch_pkt_new(dap_chain_net_id_t a_net_id, dap_chain_
  */
 size_t dap_chain_ch_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type,
                                  dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
-                                 const void *a_data, size_t a_data_size)
+                                 const void *a_data, size_t a_data_size, uint8_t a_version)
 {
     size_t l_chain_pkt_size = sizeof(dap_chain_ch_pkt_hdr_t) + a_data_size;
     dap_chain_ch_pkt_t *l_chain_pkt = l_chain_pkt_size > 0x3FFF
@@ -108,7 +104,7 @@ size_t dap_chain_ch_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_uu
         log_it(L_CRITICAL, g_error_memory_alloc);
         return 0;
     }
-    s_chain_pkt_fill(l_chain_pkt, a_net_id, a_chain_id, a_cell_id, a_data, a_data_size);
+    s_chain_pkt_fill(l_chain_pkt, a_net_id, a_chain_id, a_cell_id, a_data, a_data_size, a_version);
 
     size_t l_ret = dap_stream_ch_pkt_write_mt(a_worker, a_ch_uuid, a_type, l_chain_pkt, l_chain_pkt_size);
     if (l_chain_pkt_size > 0x3FFF)
@@ -131,9 +127,9 @@ size_t dap_chain_ch_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_uu
  */
 size_t dap_chain_ch_pkt_write_inter(dap_events_socket_t *a_es_input, dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type,
                                     dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
-                                    const void * a_data, size_t a_data_size)
+                                    const void * a_data, size_t a_data_size, uint8_t a_version)
 {
-    dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(a_net_id, a_chain_id, a_cell_id, a_data, a_data_size);
+    dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(a_net_id, a_chain_id, a_cell_id, a_data, a_data_size, a_version);
 
     size_t l_ret = dap_stream_ch_pkt_write_inter(a_es_input, a_ch_uuid, a_type, l_chain_pkt, dap_chain_ch_pkt_get_size(l_chain_pkt));
     DAP_DELETE(l_chain_pkt);
