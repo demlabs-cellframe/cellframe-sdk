@@ -365,23 +365,21 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     uint256_t l_corr_value = {}, l_unstake_value = {};    
     bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
 
+    json_object* json_obj_lim = json_object_new_object();
     size_t l_arr_start = 0;
     if (a_offset){
         l_arr_start = a_offset;
-        json_object* json_obj_off = json_object_new_object();
-        json_object_object_add(json_obj_off, "offset", json_object_new_int(l_arr_start));
-        json_object_array_add(json_obj_datum, json_obj_off);
+        json_object_object_add(json_obj_lim, "offset", json_object_new_int(l_arr_start));
     }        
     size_t l_arr_end = a_chain->callback_count_atom(a_chain);
     if (a_limit) {
-        json_object* json_obj_lim = json_object_new_object();
-        json_object_object_add(json_obj_lim, "limit", json_object_new_int(a_limit));
-        json_object_array_add(json_obj_datum, json_obj_lim);        
+        json_object_object_add(json_obj_lim, "limit", json_object_new_int(a_limit));        
         l_arr_end = l_arr_start + a_limit;
         size_t l_length = a_chain->callback_count_atom(a_chain);
         if (l_arr_end > l_length)
             l_arr_end = l_length;
     }
+    json_object_array_add(json_obj_datum, json_obj_lim);
     size_t i_tmp = 0;
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
@@ -704,8 +702,7 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
         size_t l_arr_start = 0;
         if (a_offset) {
             l_arr_start = a_offset;
-            json_object_object_add(json_obj_lim, "offset", json_object_new_int(l_arr_start));
-            json_object_array_add(json_arr_out, json_obj_lim);
+            json_object_object_add(json_obj_lim, "offset", json_object_new_int(l_arr_start));            
         }
         size_t l_arr_end =  l_chain->callback_count_atom(l_chain);
         l_arr_end = a_limit ? l_arr_start + a_limit : l_arr_start + 1000;
@@ -772,7 +769,7 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
                             ++l_tx_ledger_rejected;
                         }
                         json_object_array_add(json_arr_out, json_obj_datum);
-                        const char * debug_json_string = json_object_to_json_string(json_obj_datum);
+                        //const char * debug_json_string = json_object_to_json_string(json_obj_datum);
                         ++l_count_tx;
                     }
                 }

@@ -261,6 +261,15 @@ int dap_chain_datum_decree_get_stake_min_signers_count(dap_chain_datum_decree_t 
 void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type);
 
 /**
+ * @breif dap_chain_datum_decree_dump Dump information about decree
+ * @param a_obj_out pointer to output json object
+ * @param a_decree pointer to decree
+ * @param a_decree_size size data
+ * @param a_hash_out_type
+ */
+void dap_chain_datum_decree_dump_json(json_object  *a_obj_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type);
+
+/**
  * @brief dap_chain_datum_decree_certs_dump compose decree signatures output string
  * @param a_str_out pointer to output text buffer
  * @param a_data_n_tsd pointer to signs decree section

@@ -728,11 +728,11 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
     json_object* json_arr_items = json_object_new_array();
     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_datum->header.ts_created);
     l_is_first ? 
-    json_object_object_add(json_obj_tx, "first transaction", json_object_new_string("emit")):
-    json_object_object_add(json_obj_tx, "first transaction", json_object_new_string(""));
-    json_object_object_add(json_obj_tx, "hash", json_object_new_string(l_hash_str));
-    json_object_object_add(json_obj_tx, "TS Created", json_object_new_string(l_tmp_buf));
-    json_object_object_add(json_obj_tx, "Token ticker", a_ticker ? json_object_new_string(a_ticker) : json_object_new_string(""));
+    json_object_object_add(json_obj_out, "first transaction", json_object_new_string("emit")):
+    json_object_object_add(json_obj_out, "first transaction", json_object_new_string(""));
+    json_object_object_add(json_obj_out, "hash", json_object_new_string(l_hash_str));
+    json_object_object_add(json_obj_out, "TS Created", json_object_new_string(l_tmp_buf));
+    json_object_object_add(json_obj_out, "Token ticker", a_ticker ? json_object_new_string(a_ticker) : json_object_new_string(""));
     //json_object_array_add(json_arr_items, json_obj_tx);
     
     uint32_t l_tx_items_count = 0;
@@ -1003,6 +1003,7 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
             json_object_object_add(json_obj_item,"item type", json_object_new_string("This transaction have unknown item type"));
             break;
         }
+        json_object_array_add(json_arr_items, json_obj_item);
         l_tx_items_count += l_item_tx_size;
         // Freeze protection
         if(!l_item_tx_size)
@@ -1011,6 +1012,7 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
         }
 
     }
+    json_object_object_add(json_obj_out, "ITEMS", json_arr_items);
     return true;
 }
 
@@ -1396,7 +1398,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
             size_t l_decree_size = dap_chain_datum_decree_get_size(l_decree);
             json_object_object_add(json_obj_datum,"=== Datum decree ===",json_object_new_string("empty"));
             json_object_object_add(json_obj_datum,"hash",json_object_new_string(l_hash_str));
-            json_object_object_add(json_obj_datum,"size",json_object_new_string(l_decree_size));
+            json_object_object_add(json_obj_datum,"size",json_object_new_uint64(l_decree_size));
             dap_chain_datum_decree_dump_json(json_obj_datum, l_decree, l_decree_size, a_hash_out_type);
         } break;
         case DAP_CHAIN_DATUM_ANCHOR:{
@@ -1404,7 +1406,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
             size_t l_anchor_size = sizeof(dap_chain_datum_anchor_t) + l_anchor->header.data_size + l_anchor->header.signs_size;
             json_object_object_add(json_obj_datum,"=== Datum anchor ===",json_object_new_string("empty"));
             json_object_object_add(json_obj_datum,"hash",json_object_new_string(l_hash_str));
-            json_object_object_add(json_obj_datum,"size",json_object_new_string(l_anchor_size));
+            json_object_object_add(json_obj_datum,"size",json_object_new_uint64(l_anchor_size));
             dap_hash_fast_t l_decree_hash = { };
             dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash);
             l_hash_str = dap_chain_hash_fast_to_str_static(&l_decree_hash);

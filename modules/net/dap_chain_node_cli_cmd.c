@@ -1845,7 +1845,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             char *l_addr_str = dap_chain_addr_to_str(l_addr);
                             json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
                             if(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)
-                                json_object_object_add(json_obj_wall, "status", json_object_new_string("Active"));
+                                json_object_object_add(json_obj_wall, "status", json_object_new_string("active"));
                             else
                                 json_object_object_add(json_obj_wall, "status", json_object_new_string("not active"));
                             json_object_object_add(json_obj_wall, "sign_status", json_object_new_string(
@@ -7322,7 +7322,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         }
 
         json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_hash_out_type, json_obj_summary,
-                                                                  l_limit, l_offset, l_brief,  l_tx_srv_str, l_action);
+                                                                l_limit, l_offset, l_brief,  l_tx_srv_str, l_action);
         if (!json_arr_history_all) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ALL_ERR,
                                     "something went wrong in tx_history");

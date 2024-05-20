@@ -498,7 +498,7 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
                 break;
         }
     }
-    dap_chain_datum_decree_certs_dump(a_json_out, a_decree->data_n_signs + a_decree->header.data_size,
+    dap_chain_datum_decree_certs_dump_json(a_json_out, a_decree->data_n_signs + a_decree->header.data_size,
                                       a_decree->header.signs_size, a_hash_out_type);
 }
 
@@ -537,7 +537,7 @@ void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a
         json_object_object_add(json_obj_sign, "sign size", json_object_new_uint64(l_sign->header.sign_size));
         json_object_array_add(json_arr_certs_out, json_obj_sign);        
     }
-    json_object_array_add(a_json_out, json_arr_certs_out);
+    json_object_object_add(a_json_out,"SIGNS", json_arr_certs_out);
 }
 
 dap_chain_datum_decree_t* dap_chain_datum_decree_sign_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_decree_t *a_datum_decree,

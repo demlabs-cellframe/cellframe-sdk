@@ -525,7 +525,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
 {
     json_object **json_arr_reply = (json_object **)a_str_reply;
     //char ** a_str_reply = (char **) reply;
-    const char *l_hash_out_type = NULL;
+    const char *l_hash_out_type = "hex";
     enum {
         SUBCMD_UNDEFINED =0,
         SUBCMD_NEW_FLUSH,
@@ -759,7 +759,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
                 json_object_object_add(json_obj_tx, "ts_create",json_object_new_string(buf));
                 json_object_object_add(json_obj_tx, "data_size",json_object_new_int(l_datum->header.data_size));
-                s_dap_chain_datum_tx_out_data(l_datum,l_net->pub.ledger,json_obj_tx,l_hash_out_type,&l_block_hash);
+                dap_chain_datum_dump_json(json_obj_tx,l_datum,l_hash_out_type,l_net->pub.id);
                 json_object_array_add(json_arr_datum_out, json_obj_tx);
             }
             // Signatures
