@@ -723,8 +723,9 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
         dap_cluster_t *l_net_cluster = dap_cluster_find(dap_guuid_compose(l_chain->net_id.uint64, 0));
         if (l_net_cluster) {
             size_t l_pkt_size = a_atom_size + sizeof(dap_chain_ch_pkt_t);
-            dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain->net_id.uint64, l_chain->id.uint64,
-                                                             a_chain_cell->id.uint64, a_atom, a_atom_size);
+            dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain->net_id, l_chain->id,
+                                                             a_chain_cell->id, a_atom, a_atom_size,
+                                                             DAP_CHAIN_CH_PKT_VERSION_CURRENT);
             if (l_pkt) {
                 dap_gossip_msg_issue(l_net_cluster, DAP_CHAIN_CH_ID, l_pkt, l_pkt_size, a_new_atom_hash);
                 DAP_DELETE(l_pkt);
@@ -738,7 +739,7 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
             dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
             struct chain_thread_notifier *l_arg = DAP_NEW_Z(struct chain_thread_notifier);
             if (!l_arg) {
-                log_it(L_CRITICAL, g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 continue;
             }
             *l_arg = (struct chain_thread_notifier) { .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
@@ -746,7 +747,7 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
             l_arg->atom = DAP_DUP_SIZE(a_atom, a_atom_size);
             if (!l_arg->atom) {
                 DAP_DELETE(l_arg);
-                log_it(L_CRITICAL, g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 continue;
             }
             dap_proc_thread_callback_add_pri(NULL, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
