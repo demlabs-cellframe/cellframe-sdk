@@ -36,7 +36,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
-#include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "dap_chain_cs_esbocs"
@@ -140,6 +139,7 @@ typedef struct dap_chain_esbocs_pvt {
     bool debug;
     // Emergancy mode with signing by current online validators only
     bool emergency_mode;
+    dap_list_t *emergency_validator_pkeys;
     // Round params
     uint16_t new_round_delay;
     uint16_t round_start_sync_timeout;
@@ -519,8 +519,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     l_session->my_signing_addr = l_my_signing_addr;
-// TODO make correct link management w/o global DB cluster
-#ifdef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
+
     char *l_sync_group = s_get_penalty_group(l_net->pub.id);
     l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
                                                       dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_ESBOCS),
@@ -528,12 +527,16 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
     DAP_DELETE(l_sync_group);
     dap_global_db_cluster_add_notify_callback(l_session->db_cluster, s_db_change_notifier, l_session);
-#endif
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_session->db_cluster->links_cluster);
 
+#ifdef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
+    dap_global_db_role_t l_directives_cluster_role_default = DAP_GDB_MEMBER_ROLE_ROOT;
+#else
+    dap_global_db_role_t l_directives_cluster_role_default = DAP_GDB_MEMBER_ROLE_GUEST;
+#endif
     for (dap_list_t *it = l_validators; it; it = it->next) {
         dap_stream_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
-        dap_global_db_cluster_member_add(l_session->db_cluster, l_addr, DAP_GDB_MEMBER_ROLE_ROOT);
+        dap_global_db_cluster_member_add(l_session->db_cluster, l_addr, l_directives_cluster_role_default);
     }
     dap_list_free_full(l_validators, NULL);
 
@@ -1906,6 +1909,21 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
     return 0;
 }
 
+DAP_STATIC_INLINE bool s_block_is_emergency(dap_chain_block_t *a_block, size_t a_block_size)
+{
+    return dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_EMERGENCY);
+}
+
+static bool s_check_emergency_rights(dap_chain_esbocs_pvt_t *a_esbocs_pvt, dap_sign_t *a_sign)
+{
+    for (dap_list_t *it = a_esbocs_pvt->emergency_validator_pkeys; it; it = it->next) {
+        dap_pkey_t *l_authorized_pkey = it->data;
+        if (dap_pkey_compare_with_sign(l_authorized_pkey, a_sign))
+            return true;
+    }
+    return false;
+}
+
 struct esbocs_msg_args {
     dap_stream_node_addr_t addr_from;
     dap_chain_esbocs_session_t *session;
@@ -2111,7 +2129,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
     }
     if (l_not_in_list) {
         debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                    " Message rejected: validator addr:%s not in the current validators list or not synced yet",
+                                    " Message rejected: validator key:%s not in the current validators list or not synced yet",
                                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                             l_message->hdr.attempt_num, l_validator_addr_str);
         goto session_unlock;
@@ -2198,13 +2216,25 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
     case DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT: {
         uint8_t *l_candidate = l_message_data;
         size_t l_candidate_size = l_message_data_size;
+        // check submission rights
+        if (s_block_is_emergency((dap_chain_block_t *)l_candidate, l_candidate_size)) {
+            if (!s_check_emergency_rights(PVT(l_session->esbocs), l_sign)) {
+                debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                                            " Decline emergency SUBMIT candidate from not authorized validator %s",
+                                                l_session->chain->net_name, l_session->chain->name,
+                                                    l_session->cur_round.id, l_message->hdr.attempt_num,
+                                                        l_validator_addr_str);
+                break;
+            }
+            l_session->cur_round.attempt_submit_validator = l_signing_addr;
+        }
+        // check for NULL candidate
         if (!l_candidate_size || dap_hash_fast_is_blank(&l_message->hdr.candidate_hash)) {
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Receive SUBMIT candidate NULL",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_message->hdr.attempt_num);
-            if (dap_chain_addr_compare(&l_session->cur_round.attempt_submit_validator, &l_signing_addr))
-                s_session_attempt_new(l_session);
+            s_session_attempt_new(l_session);
             break;
         }
         // check candidate hash
@@ -2212,12 +2242,11 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         dap_hash_fast(l_candidate, l_candidate_size, &l_check_hash);
         if (!dap_hash_fast_compare(&l_check_hash, l_candidate_hash)) {
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                        " Receive SUBMIT candidate hash broken",
+                                        " Decline SUBMIT candidate with broken hash",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_message->hdr.attempt_num);
             break;
         }
-
         if (l_cs_debug) {
             const char *l_candidate_hash_str = dap_chain_hash_fast_to_str_static(l_candidate_hash);
             log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
@@ -2329,13 +2358,21 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         if (!l_store) {
             l_candidate_hash_str = dap_chain_hash_fast_to_str_static(l_candidate_hash);
             log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                " Receive COMMIT_SIGN message for unknown candidate %s",
+                                " Decline COMMIT_SIGN message for unknown candidate %s",
                                     l_session->chain->net_name, l_session->chain->name,
                                         l_session->cur_round.id, l_message->hdr.attempt_num,
                                             l_candidate_hash_str);
             break;
         }
-
+        dap_list_t *l_list = s_validator_check(&l_signing_addr, l_session->cur_round.validators_list);
+        if (!l_list) {
+            log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                                " Decline COMMIT_SIGN message for validator %s not present in current validator's list",
+                                    l_session->chain->net_name, l_session->chain->name,
+                                        l_session->cur_round.id, l_message->hdr.attempt_num,
+                                            l_validator_addr_str);
+            break;
+        }
         if (l_cs_debug) {
             l_candidate_hash_str = dap_chain_hash_fast_to_str_static(l_candidate_hash);
             log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
@@ -2343,26 +2380,25 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                 l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                     l_message->hdr.attempt_num, l_candidate_hash_str);
         }
-
+        // check candidate's sign
         size_t l_offset = dap_chain_block_get_sign_offset(l_store->candidate, l_store->candidate_size);
         int l_sign_verified = dap_sign_verify(l_candidate_sign, l_store->candidate,
                                                 l_offset + sizeof(l_store->candidate->hdr));
-        // check candidate's sign
-        if (!l_sign_verified) {
-            l_store->candidate_signs = dap_list_append(l_store->candidate_signs,
-                                                       DAP_DUP_SIZE(l_candidate_sign, l_candidate_sign_size));
-            if (dap_list_length(l_store->candidate_signs) == l_round->validators_synced_count) {
-                if (PVT(l_session->esbocs)->debug)
-                    log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                  " Candidate %s collected signs of all synced validators",
-                                        l_session->chain->net_name, l_session->chain->name, l_round->id,
-                                            l_message->hdr.attempt_num, l_candidate_hash_str);
-                s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_FINISH, dap_time_now());
-            }
-        } else {
+        if (l_sign_verified != 0) {
             if (!l_candidate_hash_str)
                 l_candidate_hash_str = dap_chain_hash_fast_to_str_static(l_candidate_hash);
             log_it(L_WARNING, "Candidate: %s sign is incorrect: code %d", l_candidate_hash_str, l_sign_verified);
+            break;
+        }
+        l_store->candidate_signs = dap_list_append(l_store->candidate_signs,
+                                                   DAP_DUP_SIZE(l_candidate_sign, l_candidate_sign_size));
+        if (dap_list_length(l_store->candidate_signs) == l_round->validators_synced_count) {
+            if (PVT(l_session->esbocs)->debug)
+                log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                              " Candidate %s collected signs of all synced validators",
+                                    l_session->chain->net_name, l_session->chain->name, l_round->id,
+                                        l_message->hdr.attempt_num, l_candidate_hash_str);
+            s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_FINISH, dap_time_now());
         }
     } break;
 
@@ -2548,10 +2584,11 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         return  -7;
     }
 
-    /*if (a_block->hdr.meta_n_datum_n_signs_size != a_block_size - sizeof(a_block->hdr)) {
+    if (a_block->hdr.meta_n_datum_n_signs_size &&
+            a_block->hdr.meta_n_datum_n_signs_size != a_block_size - sizeof(a_block->hdr)) {
         log_it(L_WARNING, "Incorrect size with block %p on chain %s", a_block, a_blocks->chain->name);
         return -8;
-    }*/ // TODO Retun it after hard-fork with correct block sizes
+    }
 
     if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block)
         // It's a block candidate, don't check signs
@@ -2581,17 +2618,17 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     int l_ret = 0;
     uint16_t l_signs_verified_count = 0;
     size_t l_block_excl_sign_size = dap_chain_block_get_sign_offset(a_block, a_block_size) + sizeof(a_block->hdr);
+    bool l_block_is_emergency = s_block_is_emergency(a_block, a_block_size);
     // Get the header on signing operation time
     size_t l_block_original = a_block->hdr.meta_n_datum_n_signs_size;
     a_block->hdr.meta_n_datum_n_signs_size = l_block_excl_sign_size - sizeof(a_block->hdr);
-    for (size_t i=0; i< l_signs_count; i++) {
-        dap_sign_t *l_sign = (dap_sign_t *)l_signs[i];
+    for (size_t i = 0; i < l_signs_count; i++) {
+        dap_sign_t *l_sign = l_signs[i];
         if (!dap_sign_verify_size(l_sign, a_block_size - l_block_excl_sign_size + sizeof(a_block->hdr))) {
             log_it(L_ERROR, "Corrupted block: sign size is bigger than block size");
             l_ret = -3;
             break;
         }
-
         dap_chain_addr_t l_signing_addr;
         dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, a_blocks->chain->net_id);
         if (!l_esbocs_pvt->poa_mode) {
@@ -2607,6 +2644,32 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                 log_it(L_ATT, "Unknown PoA signer %s",
                     dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
                 continue;
+            }
+        }
+        if (i == 0) {
+            if (l_block_is_emergency && !s_check_emergency_rights(l_esbocs_pvt, l_sign)) {
+                log_it(L_ATT, "Restricted emergency block submitter %s",
+                                dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
+                l_ret = -5;
+                break;
+            } else if (!s_check_submitting_rights(a_block, a_block_size, l_sign)) {
+                log_it(L_ATT, "Restricted block submitter %s",
+                                dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
+                l_ret = -5;
+                break;
+            }
+        } else {
+            if (l_block_is_emergency && s_check_emergency_rights(l_esbocs_pvt, l_sign) &&
+                    !s_check_signing_rights(a_block, a_block_size, l_sign)) {
+                log_it(L_ATT, "Restricted emergency block signer %s",
+                                dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
+                l_ret = -5;
+                break;
+            } else if (!s_check_signing_rights(a_block, a_block_size, l_sign)) {
+                log_it(L_ATT, "Restricted block signer %s",
+                                dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
+                l_ret = -5;
+                break;
             }
         }
         if (!dap_sign_verify(l_sign, a_block, l_block_excl_sign_size))

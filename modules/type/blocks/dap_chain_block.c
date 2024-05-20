@@ -21,13 +21,11 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include <stddef.h>
-#include "string.h"
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_hash.h"
 #include "dap_uuid.h"
 #include "dap_chain_block.h"
-#include "dap_chain_block_cache.h"
 
 #define LOG_TAG "dap_chain_block"
 
@@ -484,48 +482,50 @@ size_t dap_chain_block_meta_add(dap_chain_block_t ** a_block_ptr, size_t a_block
     return a_block_size + l_add_size;
 }
 
+static const char *s_meta_type_to_string(uint8_t a_meta_type)
+{
+    switch (a_meta_type) {
+    case DAP_CHAIN_BLOCK_META_GENESIS: return "GENESIS";
+    case DAP_CHAIN_BLOCK_META_PREV: return "PREV";
+    case DAP_CHAIN_BLOCK_META_ANCHOR: return "ANCHOR";
+    case DAP_CHAIN_BLOCK_META_LINK: return "LINK";
+    case DAP_CHAIN_BLOCK_META_NONCE: return "NONCE";
+    case DAP_CHAIN_BLOCK_META_NONCE2: return "NONCE2";
+    case DAP_CHAIN_BLOCK_META_MERKLE: return "MERKLE_ROOT";
+    case DAP_CHAIN_BLOCK_META_EMERGENCY: return "EMERGENCY";
+    case DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT: return "SYNC_ATTEMPT";
+    case DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT: return "ROUND_ATTEMPT";
+    default: return "UNNOWN";
+    }
+}
+
 static uint8_t *s_meta_extract(dap_chain_block_meta_t *a_meta)
 {
     switch (a_meta->hdr.type) {
     case DAP_CHAIN_BLOCK_META_GENESIS:
+    case DAP_CHAIN_BLOCK_META_EMERGENCY:
         if (a_meta->hdr.data_size == 0)
             return DAP_INT_TO_POINTER(1);
+        log_it(L_WARNING, "Meta %s has wrong size %hu when expecting %zu",
+               s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size, 0);
     break;
     case DAP_CHAIN_BLOCK_META_PREV:
-        if (a_meta->hdr.data_size == sizeof(dap_hash_t))
-            return a_meta->data;
-        else
-            log_it(L_WARNING, "Meta PREV has wrong size %hu when expecting %zu", a_meta->hdr.data_size, sizeof(dap_hash_t));
-    break;
     case DAP_CHAIN_BLOCK_META_ANCHOR:
-        if (a_meta->hdr.data_size == sizeof(dap_hash_t))
-            return a_meta->data;
-        else
-            log_it(L_WARNING, "Anchor meta has wrong size %hu when expecting %zu", a_meta->hdr.data_size, sizeof(dap_hash_t));
-    break;
     case DAP_CHAIN_BLOCK_META_LINK:
-        if (a_meta->hdr.data_size == sizeof(dap_hash_t))
-            return a_meta->data;
-        else
-            log_it(L_WARNING, "Link meta has wrong size %hu when expecting %zu", a_meta->hdr.data_size, sizeof(dap_hash_t));
-    break;
-    case DAP_CHAIN_BLOCK_META_NONCE:
-        if (a_meta->hdr.data_size == sizeof(uint64_t))
-            return a_meta->data;
-        else
-            log_it(L_WARNING, "NONCE meta has wrong size %hu when expecting %zu", a_meta->hdr.data_size, sizeof(uint64_t));
-    break;
-    case DAP_CHAIN_BLOCK_META_NONCE2:
-        if (a_meta->hdr.data_size == sizeof(uint64_t))
-            return a_meta->data;
-        else
-            log_it(L_WARNING, "NONCE2 meta has wrong size %hu when expecting %zu", a_meta->hdr.data_size, sizeof(uint64_t));
-    break;
     case DAP_CHAIN_BLOCK_META_MERKLE:
         if (a_meta->hdr.data_size == sizeof(dap_hash_t))
             return a_meta->data;
-        else
-            log_it(L_WARNING, "Merkle root meta has wrong size %hu when expecting %zu", a_meta->hdr.data_size, sizeof (dap_hash_t));
+        log_it(L_WARNING, "Meta %s has wrong size %hu when expecting %zu",
+               s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size, sizeof(dap_hash_t));
+    break;
+    case DAP_CHAIN_BLOCK_META_NONCE:
+    case DAP_CHAIN_BLOCK_META_NONCE2:
+    case DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT:
+    case DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT:
+        if (a_meta->hdr.data_size == sizeof(uint64_t))
+            return a_meta->data;
+        log_it(L_WARNING, "Meta %s has wrong size %hu when expecting %zu",
+               s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size, sizeof(uint64_t));
     break;
     default:
         log_it(L_WARNING, "Unknown meta type 0x%02x (size %u), possible corrupted block or you need to upgrade your software",
@@ -574,10 +574,10 @@ uint8_t *dap_chain_block_meta_get(const dap_chain_block_t *a_block, size_t a_blo
  * @param a_reward
  */
 int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size,
-                                    dap_chain_hash_fast_t * a_block_prev_hash,
-                                    dap_chain_hash_fast_t * a_block_anchor_hash,
+                                    dap_chain_hash_fast_t *a_block_prev_hash,
+                                    dap_chain_hash_fast_t *a_block_anchor_hash,
                                     dap_chain_hash_fast_t *a_merkle,
-                                    dap_chain_hash_fast_t ** a_block_links,
+                                    dap_chain_hash_fast_t **a_block_links,
                                     size_t *a_block_links_count,
                                     bool *a_is_genesis,
                                     uint64_t *a_nonce,

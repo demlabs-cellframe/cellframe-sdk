@@ -27,7 +27,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain.h"
 #include "dap_chain_block.h"
 #include "dap_chain_cs_blocks.h"
-#include "dap_cert.h"
 #include "dap_global_db_driver.h"
 
 #define DAP_STREAM_CH_ESBOCS_ID                     'E'
@@ -225,10 +224,11 @@ typedef struct dap_chain_esbocs_block_collect{
 
 int dap_chain_cs_esbocs_init();
 void dap_chain_cs_esbocs_deinit(void);
-bool dap_chain_esbocs_started();
 
+bool dap_chain_esbocs_started(dap_chain_net_id_t a_net_id);
 void dap_chain_esbocs_stop_timer(dap_chain_net_id_t a_net_id);
 void dap_chain_esbocs_start_timer(dap_chain_net_id_t a_net_id);
+
 dap_pkey_t *dap_chain_esbocs_get_sign_pkey(dap_chain_net_id_t a_net_id);
 uint256_t dap_chain_esbocs_get_fee(dap_chain_net_id_t a_net_id);
 bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id);
