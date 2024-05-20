@@ -724,7 +724,6 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
     const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
             : dap_chain_hash_fast_to_str_static(a_tx_hash);
-    json_object* json_obj_tx = json_object_new_object();
     json_object* json_arr_items = json_object_new_array();
     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_datum->header.ts_created);
     l_is_first ? 

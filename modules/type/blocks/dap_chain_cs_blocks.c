@@ -887,8 +887,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             }
             json_object_array_add(json_arr_bl_cache_out, json_obj_lim);
             size_t i_tmp = 0;
-            for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
-                json_object* json_obj_bl_cache = json_object_new_object();
+            for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {                
                 if (i_tmp < l_start_arr || i_tmp >= l_arr_end) {
                     i_tmp++;
                     continue;
@@ -955,6 +954,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     }
                 }
                 char l_buf[DAP_TIME_STR_SIZE];
+                json_object* json_obj_bl_cache = json_object_new_object();
                 dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
                 json_object_object_add(json_obj_bl_cache, "block",json_object_new_uint64(i_tmp));
                 json_object_object_add(json_obj_bl_cache, "hash",json_object_new_string(l_block_cache->block_hash_str));

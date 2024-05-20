@@ -277,6 +277,8 @@ void dap_chain_datum_decree_dump_json(json_object  *a_obj_out, dap_chain_datum_d
  */
 void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type);
 
+void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type);
+
 /**
  * @brief dap_chain_datum_decree_sign_in_cycle
  * sign data (datum_decree) by certificates (1 or more)
