@@ -1389,7 +1389,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
         } break;
         case DAP_CHAIN_DATUM_TX: {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)a_datum->data;
-            dap_chain_datum_dump_tx(l_tx, NULL, a_str_out, a_hash_out_type, &l_datum_hash, a_net_id);
+            dap_chain_datum_dump_tx_json(l_tx, NULL, json_obj_datum, a_hash_out_type, &l_datum_hash, a_net_id);
         } break;
         case DAP_CHAIN_DATUM_DECREE:{
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
@@ -1397,7 +1397,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
             json_object_object_add(json_obj_datum,"=== Datum decree ===",json_object_new_string("empty"));
             json_object_object_add(json_obj_datum,"hash",json_object_new_string(l_hash_str));
             json_object_object_add(json_obj_datum,"size",json_object_new_string(l_decree_size));
-            dap_chain_datum_decree_dump(a_str_out, l_decree, l_decree_size, a_hash_out_type);
+            dap_chain_datum_decree_dump_json(json_obj_datum, l_decree, l_decree_size, a_hash_out_type);
         } break;
         case DAP_CHAIN_DATUM_ANCHOR:{
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
@@ -1409,7 +1409,8 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
             dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash);
             l_hash_str = dap_chain_hash_fast_to_str_static(&l_decree_hash);
             json_object_object_add(json_obj_datum,"decree hash",json_object_new_string(l_hash_str));
-            dap_chain_datum_anchor_certs_dump(a_str_out, l_anchor->data_n_sign + l_anchor->header.data_size, l_anchor->header.signs_size, a_hash_out_type);
+            dap_chain_datum_anchor_certs_dump_json(json_obj_datum,l_anchor->data_n_sign + l_anchor->header.data_size, l_anchor->header.signs_size, a_hash_out_type);
         } break;
-    }    
+    }  
+    json_object_object_add(a_obj_out,"Datum",json_obj_datum);  
 }
