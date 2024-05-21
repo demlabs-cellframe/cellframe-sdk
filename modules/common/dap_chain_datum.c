@@ -34,6 +34,7 @@
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_chain_datum_hashtree_roots.h"
 #include "dap_enc_base58.h"
+#include "dap_sign.h"
 
 #define LOG_TAG "dap_chain_datum"
 
