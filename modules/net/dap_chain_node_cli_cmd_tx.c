@@ -616,7 +616,7 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
         HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
             if (a_limit && l_count_tx >= a_limit)
                 break;
-            l_iter = l_chain->callback_atom_iter_create(l_chain, l_cell->id, NULL);
+            l_iter = l_chain->callback_atom_iter_create(l_chain, l_cell->id, NULL, false);
             size_t l_atom_size = 0;
             dap_chain_atom_ptr_t l_ptr = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
             while (l_ptr && l_atom_size && (a_limit ? l_count_tx < a_limit : true)) {
@@ -684,7 +684,7 @@ static char* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *
     size_t l_atom_size = 0;
     dap_chain_cell_t *l_cell = a_chain->cells;
     do {
-        dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, NULL);
+        dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, NULL, false);
         if(!a_chain->callback_atom_get_datums) {
             log_it(L_DEBUG, "Not defined callback_atom_get_datums for chain \"%s\"", a_chain->name);
             return NULL ;
@@ -774,7 +774,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
     do {
         // load transactions
         size_t l_atom_size = 0;
-        dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, NULL);
+        dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, NULL, false);
         size_t l_datum_num = 0, l_token_num = 0, l_emission_num = 0, l_tx_num = 0;
         size_t l_datum_num_global = a_total_datums ? *a_total_datums : 0;
         for (dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);

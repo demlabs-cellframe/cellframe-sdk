@@ -185,7 +185,7 @@ dap_chain_datum_anchor_t * s_find_previous_anchor(dap_chain_datum_anchor_t * a_a
 
     dap_chain_cell_t *l_cell = a_chain->cells;
     size_t l_atom_size = 0;
-    dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, 0);
+    dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, 0, false);
     dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_LAST, &l_atom_size);
     while(l_atom && l_atom_size){
         size_t l_datums_count = 0;

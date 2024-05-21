@@ -192,7 +192,7 @@ dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain
     dap_chain_atom_ptr_t l_ret = NULL;
     dap_chain_cell_t *l_cell, *l_iter_tmp;
     HASH_ITER(hh, a_chain->cells, l_cell, l_iter_tmp) {
-        dap_chain_atom_iter_t * l_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, 0);
+        dap_chain_atom_iter_t * l_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, 0, false);
         l_ret = a_chain->callback_atom_find_by_hash(l_iter, a_atom_hash, a_atom_size);
         a_chain->callback_atom_iter_delete(l_iter);
         if (l_ret)
@@ -683,7 +683,7 @@ void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_not
 bool dap_chain_get_atom_last_hash_num(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash, uint64_t *a_atom_num)
 {
     dap_return_val_if_fail(a_atom_hash || a_atom_num, false);
-    dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, a_cell_id, NULL);
+    dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, a_cell_id, NULL, false);
     if (!l_iter)
         return false;
     a_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_LAST, NULL);
