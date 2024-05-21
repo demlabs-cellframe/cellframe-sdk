@@ -595,6 +595,22 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 json_object_object_add(l_jobj_tsd, "tx_receiver_blocked_remove", l_jobj_tx_receiver_blocked_remove);
                 json_object_array_add(l_tsd_array, l_jobj_tsd);
             } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION");
+                json_object *l_jobj_tsd_description = json_object_new_string(dap_tsd_get_string_const(l_tsd));
+                if (!l_jobj_tsd || !l_jobj_tsd_type || !l_jobj_tsd_description) {
+                    json_object_put(l_jobj_tsd_description);
+                    json_object_put(l_jobj_tsd_type);
+                    json_object_put(l_jobj_tsd);
+                    json_object_put(l_tsd_array);
+                    dap_json_rpc_allocation_error;
+                    return NULL;
+                }
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object_object_add(l_jobj_tsd, "description", l_jobj_tsd_description);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
             default: {
                 char *l_wgn_text = dap_strdup_printf("<0x%04hX>: <size %u>\n", l_tsd->type, l_tsd->size);
                 if (!l_wgn_text){
