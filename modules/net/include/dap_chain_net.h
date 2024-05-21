@@ -27,10 +27,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include <stdint.h>
 #include <string.h>
-#include "dap_net.h"
-#include "dap_time.h"
 #include "dap_math_ops.h"
-#include "dap_stream_ch.h"
 #include "dap_strfuncs.h"
 #include "dap_string.h"
 #include "dap_list.h"
@@ -38,12 +35,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain.h"
 #include "dap_chain_node.h"
 #include "dap_chain_net_decree.h"
-#include "dap_chain_net_tx.h"
-#include "dap_chain_datum_decree.h"
-#include "dap_chain_datum_anchor.h"
-#include "dap_chain_datum_tx.h"
-#include "uthash.h"
-#include "dap_json_rpc.h"
+#include "dap_global_db_cluster.h"
+#include "dap_json_rpc_errors.h"
 
 #define DAP_CHAIN_NET_NAME_MAX 32
 #define DAP_CHAIN_NET_MEMPOOL_TTL 48 // Hours

@@ -1,11 +1,9 @@
 #include "dap_common.h"
-#include "dap_enc_key.h"
 #include "dap_sign.h"
 #include "dap_chain_datum_tx_receipt.h"
 
 #include "dap_json_rpc_sign.h"
 #include "dap_json_rpc_chain_datum_tx_receipt.h"
-#include "json.h"
 
 #define LOG_TAG "dap_json_rpc_chain_datum_tx_receipt"
 
@@ -23,7 +21,7 @@ json_object* dap_chain_receipt_info_to_json(dap_chain_receipt_info_t *a_info){
     json_object_object_add(l_obj, "units", json_object_new_uint64(a_info->units));
     json_object_object_add(l_obj, "units_type", json_object_new_string(dap_chain_srv_unit_enum_to_str(a_info->units_type.enm)));
 
-    char *l_value, *l_datoshi_value = dap_uint256_to_char(a_info->value_datoshi, &l_value);
+    const char *l_value, *l_datoshi_value = dap_uint256_to_char(a_info->value_datoshi, &l_value);
     json_object_object_add(l_obj, "value", json_object_new_string(l_value));
     json_object_object_add(l_obj, "value_datoshi", json_object_new_string(l_datoshi_value));
     return l_obj;

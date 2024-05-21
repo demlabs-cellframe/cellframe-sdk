@@ -95,7 +95,7 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_chain_ne
                 }
                 json_object_object_add(l_obj_item_data, "ts_expires", json_object_new_string(l_time_str));
                 json_object_object_add(l_obj_item_data, "subtype", json_object_new_string(dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype)));
-                char *l_val_str, *l_val_datoshi_str = dap_uint256_to_char(((dap_chain_tx_out_cond_t*)item)->header.value, &l_val_str);
+                const char *l_val_str, *l_val_datoshi_str = dap_uint256_to_char(((dap_chain_tx_out_cond_t*)item)->header.value, &l_val_str);
                 json_object_object_add(l_obj_item_data, "value", json_object_new_string(l_val_str));
                 json_object_object_add(l_obj_item_data, "value_datoshi", json_object_new_string(l_val_datoshi_str));
                 char uid_str[32];

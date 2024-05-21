@@ -193,7 +193,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 uint256_t l_value = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_value);
-                char *l_value_str = dap_uint256_to_char(l_value, NULL);
+                const char *l_value_str = dap_uint256_to_char(l_value, NULL);
                 dap_string_append_printf(a_str_out, "\tValue: %s\n", l_value_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN:
@@ -205,7 +205,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 uint256_t l_fee_value = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_fee_value);
-                char *l_fee_value_str = dap_uint256_to_char(l_fee_value, NULL);
+                const char *l_fee_value_str = dap_uint256_to_char(l_fee_value, NULL);
                 dap_string_append_printf(a_str_out, "\tFee: %s\n", l_fee_value_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER:
@@ -226,7 +226,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 uint256_t l_owner_min = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_owner_min);
-                char *l_owner_min_str = dap_uint256_to_char(l_owner_min, NULL);
+                const char *l_owner_min_str = dap_uint256_to_char(l_owner_min, NULL);
                 dap_string_append_printf(a_str_out, "\tOwner min: %s\n", l_owner_min_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET:
@@ -257,7 +257,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 uint256_t l_stake_value = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_stake_value);
-                char *l_stake_value_str = dap_uint256_to_char(l_stake_value, NULL);
+                const char *l_stake_value_str = dap_uint256_to_char(l_stake_value, NULL);
                 dap_string_append_printf(a_str_out, "\tStake value: %s\n", l_stake_value_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR:
@@ -290,7 +290,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 uint256_t l_min_value = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_min_value);
-                char *l_min_value_str = dap_uint256_to_char(l_min_value, NULL);
+                const char *l_min_value_str = dap_uint256_to_char(l_min_value, NULL);
                 dap_string_append_printf(a_str_out, "\tMin value: %s\n", l_min_value_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT:
@@ -300,7 +300,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 uint256_t l_min_signers_count = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_min_signers_count);
-                char *l_min_signers_count_str = dap_uint256_to_char(l_min_signers_count, NULL);
+                const char *l_min_signers_count_str = dap_uint256_to_char(l_min_signers_count, NULL);
                 dap_string_append_printf(a_str_out, "\tMin signers count: %s\n", l_min_signers_count_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST:

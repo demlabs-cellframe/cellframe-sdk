@@ -71,14 +71,7 @@
 #include "dap_config.h"
 #include "dap_hash.h"
 #include "dap_cert.h"
-#include "dap_cert_file.h"
 #include "dap_chain_datum_tx.h"
-#include "dap_chain_datum_tx_in_cond.h"
-#include "dap_chain_datum_tx_items.h"
-#include "dap_chain_datum_tx_out.h"
-#include "dap_chain_datum_tx_out_cond.h"
-#include "dap_timerfd.h"
-#include "dap_stream_worker.h"
 #include "dap_worker.h"
 #include "dap_proc_thread.h"
 #include "dap_enc_http.h"
@@ -86,21 +79,16 @@
 #include "dap_chain_cell.h"
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
-#include "dap_chain_tx.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_node_list.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_anchor.h"
 #include "dap_chain_net_decree.h"
-#include "dap_chain_net_srv.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_chain_node_client.h"
-#include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_ledger.h"
-#include "dap_chain_cs_none.h"
-#include "dap_client_http.h"
 #include "dap_global_db.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net.h"
@@ -108,10 +96,7 @@
 #include "dap_stream_ch.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
-#include "dap_chain_node_dns_client.h"
-#include "dap_module.h"
 #include "rand/dap_rand.h"
-#include "json.h"
 #include "json_object.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_srv_xchange.h"
@@ -121,6 +106,7 @@
 #include "dap_link_manager.h"
 #include "dap_stream_cluster.h"
 #include "dap_http_ban_list_client.h"
+#include "dap_net.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -1380,7 +1366,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 uint256_t l_network_fee = {};
                 dap_chain_addr_t l_network_fee_addr = {};
                 dap_chain_net_tx_get_fee(l_net->pub.id, &l_network_fee, &l_network_fee_addr);
-                char *l_network_fee_coins_str, *l_network_fee_balance_str =
+                const char *l_network_fee_coins_str, *l_network_fee_balance_str =
                     dap_uint256_to_char(l_network_fee, &l_network_fee_coins_str);
                 json_object *l_jobj_network =  json_object_new_object();
                 json_object *l_jobj_fee_coins = json_object_new_string(l_network_fee_coins_str);

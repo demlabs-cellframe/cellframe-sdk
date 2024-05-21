@@ -2,11 +2,9 @@
 #include <string.h>
 
 #include "dap_common.h"
-#include "dap_enc_key.h"
 #include "dap_chain_common.h"
 #include "dap_sign.h"
 #include "dap_hash.h"
-#include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in.h"
 #include "dap_chain_datum_tx_out.h"
 #include "dap_chain_datum_tx_in_cond.h"
@@ -17,12 +15,11 @@
 #include "dap_json_rpc_chain_datum_tx_items.h"
 #include "dap_json_rpc_chain_common.h"
 #include "dap_json_rpc_sign.h"
-#include "json.h"
 
 #define LOG_TAG "dap_json_rpc_chain_datum_tx_items"
 
 json_object *dap_chain_datum_tx_item_out_cond_srv_pay_to_json(dap_chain_tx_out_cond_t *item) {
-        char *l_coins_str,
+        const char *l_coins_str,
              *l_value_str = dap_uint256_to_char(((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi, &l_coins_str);
         char *l_hash_str = dap_enc_base58_encode_hash_to_str_static(&((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash);
         json_object *l_obj = json_object_new_object();
@@ -40,7 +37,7 @@ json_object* dap_chain_datum_tx_item_out_cond_srv_xchange_to_json(dap_chain_tx_o
         json_object *l_object = json_object_new_object();
         json_object_object_add(l_object, "value", json_object_new_string(dap_uint256_to_char(a_srv_xchange->header.value, NULL)));
         json_object_object_add(l_object, "rate", ( { 
-            char *l_rate; dap_uint256_to_char(a_srv_xchange->subtype.srv_xchange.rate, &l_rate);
+            const char *l_rate; dap_uint256_to_char(a_srv_xchange->subtype.srv_xchange.rate, &l_rate);
             json_object_new_string(l_rate); } ));
         json_object_object_add(l_object, "srv_uid", json_object_new_uint64(a_srv_xchange->header.srv_uid.uint64));
         json_object_object_add(l_object, "buy_net_id", dap_chain_net_id_to_json(a_srv_xchange->subtype.srv_xchange.buy_net_id));
@@ -92,7 +89,7 @@ json_object *dap_chain_net_srv_stake_lock_cond_out_to_json(dap_chain_tx_out_cond
 
 json_object* dap_chain_datum_tx_item_out_to_json(const dap_chain_tx_out_t *a_out) {
     json_object *l_object = json_object_new_object();
-    char *l_val_coins, *l_val_datoshi = dap_uint256_to_char(a_out->header.value, &l_val_coins);
+    const char *l_val_coins, *l_val_datoshi = dap_uint256_to_char(a_out->header.value, &l_val_coins);
     json_object_object_add(l_object, "value", json_object_new_string(l_val_coins));
     json_object_object_add(l_object, "value_datoshi", json_object_new_string(l_val_datoshi));
     json_object_object_add(l_object, "address", dap_chain_addr_to_json(&a_out->addr));

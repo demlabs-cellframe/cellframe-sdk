@@ -76,17 +76,13 @@
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_cli_cmd_tx.h"
-#include "dap_chain_node_ping.h"
+#include "dap_net.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_balancer.h"
-#include "dap_chain_block.h"
-#include "dap_chain_cs_blocks.h"
-
 #include "dap_chain_cell.h"
-
 #include "dap_enc_base64.h"
-#include "json.h"
+
 #ifdef DAP_OS_UNIX
 #include <dirent.h>
 #endif
@@ -98,12 +94,8 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_mempool.h"
 #include "dap_global_db.h"
-#include "dap_global_db_cluster.h"
 #include "dap_global_db_pkt.h"
-
-#include "dap_stream_ch_chain_net.h"
 #include "dap_chain_ch.h"
-#include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_node_list.h"
@@ -1842,7 +1834,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                         if (l_wallet) {
                             l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
-                            char *l_addr_str = dap_chain_addr_to_str(l_addr);
+                            const char *l_addr_str = dap_chain_addr_to_str(l_addr);
                             json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
                             if(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)
                                 json_object_object_add(json_obj_wall, "status", json_object_new_string("Active"));
@@ -1914,7 +1906,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 }
             }
             json_object * json_obj_wall = json_object_new_object();
-            char *l_l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
+            const char *l_l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
             if(l_wallet)
             {
                 json_object_object_add(json_obj_wall, "sign", json_object_new_string(
@@ -1935,7 +1927,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 if(l_l_addr_tokens[i]) {
                     json_object * j_balance_data = json_object_new_object();
                     uint256_t l_balance = dap_ledger_calc_balance(l_ledger, l_addr, l_l_addr_tokens[i]);
-                    char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_balance, &l_balance_coins);
+                    const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_balance, &l_balance_coins);
                     json_object_object_add(j_balance_data, "balance", json_object_new_string(""));
                     json_object_object_add(j_balance_data, "coins", json_object_new_string(l_balance_coins));
                     json_object_object_add(j_balance_data, "datoshi", json_object_new_string(l_balance_datoshi));
@@ -2160,7 +2152,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                     l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
 
-                    char *l_addr_str = dap_chain_addr_to_str(l_addr);
+                    const char *l_addr_str = dap_chain_addr_to_str(l_addr);
                     json_object * json_obj_wall = json_object_new_object();
                     json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet->name));
                     json_object_object_add(json_obj_wall, "Sign type", json_object_new_string(l_sign_type_str));
@@ -2928,7 +2920,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                 dap_json_rpc_allocation_error;
                                 return;
                             }
-                            char *l_value_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_value_coins_str);
+                            const char *l_value_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_value_coins_str);
                             json_object_object_add(l_jobj_money, "value", json_object_new_string(l_value_str));
                             json_object_object_add(l_jobj_money, "coins", json_object_new_string(l_value_coins_str));
                             if (l_dist_token) {

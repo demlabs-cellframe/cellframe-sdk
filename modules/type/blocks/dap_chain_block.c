@@ -506,8 +506,8 @@ static uint8_t *s_meta_extract(dap_chain_block_meta_t *a_meta)
     case DAP_CHAIN_BLOCK_META_EMERGENCY:
         if (a_meta->hdr.data_size == 0)
             return DAP_INT_TO_POINTER(1);
-        log_it(L_WARNING, "Meta %s has wrong size %hu when expecting %zu",
-               s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size, 0);
+        log_it(L_WARNING, "Meta %s has wrong size %hu when expecting zero size",
+               s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size);
     break;
     case DAP_CHAIN_BLOCK_META_PREV:
     case DAP_CHAIN_BLOCK_META_ANCHOR:
@@ -521,11 +521,16 @@ static uint8_t *s_meta_extract(dap_chain_block_meta_t *a_meta)
     case DAP_CHAIN_BLOCK_META_NONCE:
     case DAP_CHAIN_BLOCK_META_NONCE2:
     case DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT:
-    case DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT:
         if (a_meta->hdr.data_size == sizeof(uint64_t))
             return a_meta->data;
         log_it(L_WARNING, "Meta %s has wrong size %hu when expecting %zu",
                s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size, sizeof(uint64_t));
+    break;
+    case DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT:
+        if (a_meta->hdr.data_size == sizeof(uint8_t))
+            return a_meta->data;
+        log_it(L_WARNING, "Meta %s has wrong size %hu when expecting %zu",
+               s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size, sizeof(uint8_t));
     break;
     default:
         log_it(L_WARNING, "Unknown meta type 0x%02x (size %u), possible corrupted block or you need to upgrade your software",

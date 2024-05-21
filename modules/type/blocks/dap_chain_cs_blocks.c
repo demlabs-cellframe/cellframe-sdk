@@ -469,7 +469,7 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_global_db_obj_t *l_obj_cur = l_objs + i;
         uint256_t l_cur_value = *(uint256_t*)l_obj_cur->value;
-        char *l_value_str; dap_uint256_to_char(l_cur_value, &l_value_str);
+        const char *l_value_str; dap_uint256_to_char(l_cur_value, &l_value_str);
         dap_string_append_printf(a_reply_str, "%s\t%s\n", l_obj_cur->key, l_value_str);
         SUM_256_256(l_total_value, l_cur_value, &l_total_value);
     }
@@ -988,7 +988,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     break;
                 } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "show") >= 0) {
                     uint256_t l_cur_reward = dap_chain_net_get_reward(l_net, UINT64_MAX);
-                    char *l_reward_str; dap_uint256_to_char(l_cur_reward, &l_reward_str);
+                    const char *l_reward_str; dap_uint256_to_char(l_cur_reward, &l_reward_str);
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Current base block reward is %s\n", l_reward_str);
                     break;
                 } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "collect") == -1) {

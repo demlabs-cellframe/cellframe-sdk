@@ -25,12 +25,12 @@
 #include <assert.h>
 #include "dap_common.h"
 #include "dap_sign.h"
-#include "dap_cert.h"
 #include "dap_pkey.h"
 #include "dap_chain_common.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net.h"
 #include "dap_chain_datum_decree.h"
+#include "dap_chain_datum_anchor.h"
 
 #define LOG_TAG "chain_net_anchor"
 

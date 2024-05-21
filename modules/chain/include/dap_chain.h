@@ -29,9 +29,6 @@
 #include "dap_config.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
-#include "dap_chain_datum_tx.h"
-#include "dap_cert.h"
-#include "dap_global_db_cluster.h"
 
 typedef struct dap_chain dap_chain_t;
 
