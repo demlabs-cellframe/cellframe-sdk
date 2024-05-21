@@ -32,19 +32,19 @@ void dap_chain_blocks_test()
     dap_list_t *l_second_branch_atoms_list = NULL;
 
     l_block = dap_chain_block_new(NULL, &l_block_size);
-    dap_assert(l_block != NULL, "Creating of genesis block:");
+    dap_assert_PIF(l_block != NULL, "Creating of genesis block:");
     dap_hash_fast(l_block, l_block_size, &l_block_hash);
-    dap_test_msg("Created block %s", dap_chain_hash_fast_to_str_static(&l_block_hash));
-    dap_assert(l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash) == ATOM_ACCEPT, "Adding of genesis block: ");
+    // dap_test_msg("Created genesis block %s", dap_chain_hash_fast_to_str_static(&l_block_hash));
+    dap_assert_PIF(l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash) == ATOM_ACCEPT, "Adding of genesis block: ");
     dap_hash_fast_t *l_block_hash_copy = DAP_DUP_SIZE(&l_block_hash, sizeof(dap_hash_fast_t));
     l_first_branch_atoms_list = dap_list_append(l_first_branch_atoms_list, l_block_hash_copy);
     l_second_branch_atoms_list = dap_list_append(l_second_branch_atoms_list, l_block_hash_copy);
 
     l_block = dap_chain_block_new(&l_block_hash, &l_block_size);
-    dap_assert(l_block != NULL, "Creating of second block:");
+    dap_assert_PIF(l_block != NULL, "Creating of second block:");
     dap_hash_fast(l_block, l_block_size, &l_block_hash);
-    dap_test_msg("Created block %s", dap_chain_hash_fast_to_str_static(&l_block_hash));
-    dap_assert(l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash) == ATOM_ACCEPT, "Adding of second block: ");
+    // dap_test_msg("Created second block %s", dap_chain_hash_fast_to_str_static(&l_block_hash));
+    dap_assert_PIF(l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash) == ATOM_ACCEPT, "Adding of second block: ");
     l_block_hash_copy = DAP_DUP_SIZE(&l_block_hash, sizeof(dap_hash_fast_t));
     l_first_branch_atoms_list = dap_list_append(l_first_branch_atoms_list, l_block_hash_copy);
     l_second_branch_atoms_list = dap_list_append(l_second_branch_atoms_list, l_block_hash_copy);
@@ -52,10 +52,10 @@ void dap_chain_blocks_test()
 
     for (int i = 0; i < 2; i++){
         l_block = dap_chain_block_new(&l_block_hash, &l_block_size);
-        dap_assert(l_block != NULL, "Creating of block:");
+        // dap_assert_PIF(l_block != NULL, "Creating of block:");
         dap_hash_fast(l_block, l_block_size, &l_block_hash);
-        dap_test_msg("Created block %s", dap_chain_hash_fast_to_str_static(&l_block_hash));
-        dap_assert(l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash) == ATOM_ACCEPT, "Adding of block: ");
+        // dap_test_msg("Created block %s", dap_chain_hash_fast_to_str_static(&l_block_hash));
+        dap_assert_PIF(l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash) == ATOM_ACCEPT, "Adding of block: ");
         dap_hash_fast_t *l_block_hash_copy = DAP_DUP_SIZE(&l_block_hash, sizeof(dap_hash_fast_t));
         l_first_branch_atoms_list = dap_list_append(l_first_branch_atoms_list, l_block_hash_copy);
     }
@@ -64,67 +64,105 @@ void dap_chain_blocks_test()
     dap_test_msg("Add forked block from %s", dap_chain_hash_fast_to_str_static(&l_forked_block_hash)); 
     l_block_size = 0;
     l_block = dap_chain_block_new(&l_forked_block_hash, &l_block_size);
-    dap_assert(l_block != NULL, "Creating of forked block:");
+    // dap_assert_PIF(l_block != NULL, "Creating of forked block:");
     dap_hash_fast(l_block, l_block_size, &l_block_hash);
-    dap_test_msg("Created block %s", dap_chain_hash_fast_to_str_static(&l_block_hash));
-    dap_assert(l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash) == ATOM_ACCEPT, "Adding of forked block: ");
+    // dap_test_msg("Created block %s", dap_chain_hash_fast_to_str_static(&l_block_hash));
+    dap_assert_PIF(l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash) == ATOM_ACCEPT, "Adding of forked block: ");
     l_block_hash_copy = DAP_DUP_SIZE(&l_block_hash, sizeof(dap_hash_fast_t));
     l_second_branch_atoms_list = dap_list_append(l_second_branch_atoms_list, l_block_hash_copy);
 
     dap_chain_cell_id_t l_cell_id = {.uint64 = 1};
     size_t l_atom_size_from_iter = 0;
     dap_chain_atom_iter_t *l_iter = l_chain->callback_atom_iter_create(l_chain, l_cell_id, NULL);
-    l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size_from_iter);
-    dap_list_t *l_branch_temp = l_first_branch_atoms_list;
-    dap_assert_PIF(dap_hash_fast_compare(l_iter->cur_hash, (dap_hash_fast_t*)l_branch_temp->data), "Check adding block into forked branch: ");
-    l_branch_temp = l_branch_temp->next;
-    while (l_branch_temp && l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size_from_iter)){
-        dap_test_msg("Check block %s", dap_chain_hash_fast_to_str_static(l_iter->cur_hash));
+    dap_list_t *l_branch_temp = NULL;
+    dap_chain_atom_ptr_t l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size_from_iter);
+    for (dap_list_t *l_branch_temp = l_first_branch_atoms_list; l_branch_temp && l_atom; 
+        l_branch_temp = l_branch_temp->next, l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size_from_iter)){
+        dap_test_msg("Check block %s and %s", dap_chain_hash_fast_to_str_static(l_iter->cur_hash), 
+                                            dap_chain_hash_fast_to_str_static((dap_hash_fast_t*)l_branch_temp->data));
         dap_assert_PIF(dap_hash_fast_compare(l_iter->cur_hash, (dap_hash_fast_t*)l_branch_temp->data), "Check adding block into forked branch: ");
-        l_branch_temp = l_branch_temp->next;
     }
 
 
     dap_test_msg("Add block to forked branch"); 
     l_block_size = 0;
     l_block = dap_chain_block_new(&l_block_hash, &l_block_size);
-    dap_assert(l_block != NULL, "Creating of forked block:");
+    // dap_assert_PIF(l_block != NULL, "Creating of forked block:");
     dap_hash_fast(l_block, l_block_size, &l_block_hash);
-    dap_test_msg("Created block %s", dap_chain_hash_fast_to_str_static(&l_block_hash));
-    dap_assert(l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash) == ATOM_ACCEPT, "Adding of forked block: ");
+    // dap_test_msg("Created block %s", dap_chain_hash_fast_to_str_static(&l_block_hash));
+    dap_assert_PIF(l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash) == ATOM_ACCEPT, "Adding of forked block: ");
     l_block_hash_copy = DAP_DUP_SIZE(&l_block_hash, sizeof(dap_hash_fast_t));
     l_second_branch_atoms_list = dap_list_append(l_second_branch_atoms_list, l_block_hash_copy);
 
-    l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size_from_iter);
-    l_branch_temp = l_first_branch_atoms_list;
-    dap_assert_PIF(dap_hash_fast_compare(l_iter->cur_hash, (dap_hash_fast_t*)l_branch_temp->data), "Check adding block into forked branch: ");
-    l_branch_temp = l_branch_temp->next;
-    while (l_branch_temp && l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size_from_iter)){
-        dap_test_msg("Check block %s", dap_chain_hash_fast_to_str_static(l_iter->cur_hash));
+    l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size_from_iter);
+    for (dap_list_t *l_branch_temp = l_first_branch_atoms_list; l_branch_temp && l_atom; 
+        l_branch_temp = l_branch_temp->next, l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size_from_iter)){
+        dap_test_msg("Check block %s and %s", dap_chain_hash_fast_to_str_static(l_iter->cur_hash), 
+                                            dap_chain_hash_fast_to_str_static((dap_hash_fast_t*)l_branch_temp->data));
         dap_assert_PIF(dap_hash_fast_compare(l_iter->cur_hash, (dap_hash_fast_t*)l_branch_temp->data), "Check adding block into forked branch: ");
-        l_branch_temp = l_branch_temp->next;
     }
 
+    dap_test_msg("Add block to forked branch");
     l_block_size = 0;
     l_block = dap_chain_block_new(&l_block_hash, &l_block_size);
-    dap_assert(l_block != NULL, "Creating of forked block:");
+    // dap_assert_PIF(l_block != NULL, "Creating of forked block:");
     dap_hash_fast(l_block, l_block_size, &l_block_hash);
-    dap_test_msg("Created block %s", dap_chain_hash_fast_to_str_static(&l_block_hash));
-    dap_assert(l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash) == ATOM_ACCEPT, "Adding of forked block: ");
+    // dap_test_msg("Created block %s", dap_chain_hash_fast_to_str_static(&l_block_hash));
+    dap_assert_PIF(l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash) == ATOM_ACCEPT, "Adding of forked block: ");
     l_block_hash_copy = DAP_DUP_SIZE(&l_block_hash, sizeof(dap_hash_fast_t));
     l_second_branch_atoms_list = dap_list_append(l_second_branch_atoms_list, l_block_hash_copy);
 
-    l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size_from_iter);
-    l_branch_temp = l_second_branch_atoms_list;
-    dap_assert_PIF(dap_hash_fast_compare(l_iter->cur_hash, (dap_hash_fast_t*)l_branch_temp->data), "Check adding block into forked branch: ");
-    l_branch_temp = l_branch_temp->next;
-    while (l_branch_temp && l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size_from_iter)){
-        dap_test_msg("Check block %s", dap_chain_hash_fast_to_str_static(l_iter->cur_hash));
+    l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size_from_iter);
+    for (dap_list_t *l_branch_temp = l_second_branch_atoms_list; l_branch_temp && l_atom; 
+        l_branch_temp = l_branch_temp->next, l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size_from_iter)){
+        dap_test_msg("Check block %s and %s", dap_chain_hash_fast_to_str_static(l_iter->cur_hash), 
+                                            dap_chain_hash_fast_to_str_static((dap_hash_fast_t*)l_branch_temp->data));
         dap_assert_PIF(dap_hash_fast_compare(l_iter->cur_hash, (dap_hash_fast_t*)l_branch_temp->data), "Check adding block into forked branch: ");
-        l_branch_temp = l_branch_temp->next;
     }
 
+    dap_test_msg("Add block to former main branch");
+    l_block_size = 0;
+    l_block = dap_chain_block_new((dap_hash_fast_t*)dap_list_last(l_first_branch_atoms_list)->data, &l_block_size);
+    // dap_assert_PIF(l_block != NULL, "Creating of forked block:");
+    dap_hash_fast(l_block, l_block_size, &l_block_hash);
+    // dap_test_msg("Created block %s", dap_chain_hash_fast_to_str_static(&l_block_hash));
+    dap_assert_PIF(l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash) == ATOM_ACCEPT, "Adding of forked block: ");
+    l_block_hash_copy = DAP_DUP_SIZE(&l_block_hash, sizeof(dap_hash_fast_t));
+    l_first_branch_atoms_list = dap_list_append(l_first_branch_atoms_list, l_block_hash_copy);
+
+    l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size_from_iter);
+    for (dap_list_t *l_branch_temp = l_second_branch_atoms_list; l_branch_temp && l_atom; 
+        l_branch_temp = l_branch_temp->next, l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size_from_iter)){
+        dap_test_msg("Check block %s and %s", dap_chain_hash_fast_to_str_static(l_iter->cur_hash), 
+                                            dap_chain_hash_fast_to_str_static((dap_hash_fast_t*)l_branch_temp->data));
+        dap_assert_PIF(dap_hash_fast_compare(l_iter->cur_hash, (dap_hash_fast_t*)l_branch_temp->data), "Check adding block into forked branch: ");
+    }
+
+    dap_test_msg("Add block to former main branch");
+    l_block_size = 0;
+    l_block = dap_chain_block_new((dap_hash_fast_t*)dap_list_last(l_first_branch_atoms_list)->data, &l_block_size);
+    // dap_assert_PIF(l_block != NULL, "Creating of forked block:");
+    dap_hash_fast(l_block, l_block_size, &l_block_hash);
+    // dap_test_msg("Created block %s", dap_chain_hash_fast_to_str_static(&l_block_hash));
+    dap_assert_PIF(l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash) == ATOM_ACCEPT, "Adding of forked block: ");
+    l_block_hash_copy = DAP_DUP_SIZE(&l_block_hash, sizeof(dap_hash_fast_t));
+    l_first_branch_atoms_list = dap_list_append(l_first_branch_atoms_list, l_block_hash_copy);
+
+    l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size_from_iter);
+    for (dap_list_t *l_branch_temp = l_first_branch_atoms_list; l_branch_temp && l_atom; 
+        l_branch_temp = l_branch_temp->next, l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size_from_iter)){
+        dap_test_msg("Check block %s and %s", dap_chain_hash_fast_to_str_static(l_iter->cur_hash), 
+                                            dap_chain_hash_fast_to_str_static((dap_hash_fast_t*)l_branch_temp->data));
+        dap_assert_PIF(dap_hash_fast_compare(l_iter->cur_hash, (dap_hash_fast_t*)l_branch_temp->data), "Check adding block into forked branch: ");
+    }
+
+    dap_pass_msg("Test of one forked branch ")
+
     l_chain->callback_atom_iter_delete(l_iter);
+
+    
+
+    
 
 
 }

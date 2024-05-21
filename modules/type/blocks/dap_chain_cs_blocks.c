@@ -1471,28 +1471,32 @@ static void s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
     // Find longest forked branch 
     dap_list_t *l_branch = a_bcache->forked_branches;
     dap_list_t *l_longest_branch_ptr = l_branch ? (dap_list_t *)l_branch->data : NULL;
-    uint64_t l_longest_branch_length = (HASH_CNT(hh, a_bcache) - current_block_idx + 1);
+    uint64_t l_longest_branch_length = current_block_idx;
     while (l_branch){
-        if (dap_list_length((dap_list_t *)l_branch->data) > l_longest_branch_length){
-            l_longest_branch_length = dap_list_length((dap_list_t *)l_branch->data);
+        uint64_t l_branch_length = dap_list_length((dap_list_t *)l_branch->data);
+        if (l_branch_length > l_longest_branch_length){
+            l_longest_branch_length = l_branch_length;
             l_longest_branch_ptr = (dap_list_t *)l_branch->data;
         }
         l_branch = l_branch->next;
     }
 
-    // pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);
-    if ((HASH_CNT(hh, a_bcache) - current_block_idx + 1) < l_longest_branch_length){
+    if (current_block_idx < l_longest_branch_length){
         // Switch branches
         dap_list_t *l_new_forked_branch = NULL;
         // First we must to remove all blocks from main branch to forked 
         // branch and delete all datums in this atoms from storages
-        dap_chain_block_cache_t *l_atom, *l_tmp;
-        HASH_ITER(hh, (dap_chain_block_cache_t *)a_bcache->hh.next, l_atom, l_tmp){
-            l_new_forked_branch = dap_list_append(l_new_forked_branch, l_atom);
-            HASH_DEL(a_bcache, l_atom);
-            --PVT(l_blocks)->blocks_count;
-            s_delete_atom_datums(l_blocks, l_atom);
-        }
+        dap_chain_block_cache_t *l_atom = (dap_chain_block_cache_t *)a_bcache->hh.tbl->tail->prev, 
+                                *l_tmp = (dap_chain_block_cache_t *)a_bcache;
+        unsigned l_curr_index;
+        for (l_atom = l_atom->hh.next, l_curr_index = 0; 
+            current_block_idx > l_curr_index; l_atom = l_atom->hh.prev, l_curr_index++){
+                l_new_forked_branch = dap_list_prepend(l_new_forked_branch, l_atom);
+                HASH_DEL(a_bcache, l_atom);
+                --PVT(l_blocks)->blocks_count;
+                s_delete_atom_datums(l_blocks, l_atom);
+            }
+
         a_bcache->forked_branches = dap_list_append(a_bcache->forked_branches, l_new_forked_branch);
         // Next we add all atoms into HT and their datums into storages
         dap_list_t * new_main_branch = l_longest_branch_ptr;
@@ -1505,8 +1509,9 @@ static void s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
             new_main_branch = new_main_branch->next;
         }
         dap_list_free(l_longest_branch_ptr);
+        a_bcache->forked_branches = dap_list_remove(a_bcache->forked_branches, l_longest_branch_ptr);
+        
     }
-    // pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
 }
 
 /**
@@ -1545,7 +1550,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);
         l_prev_bcache = l_block_pvt->blocks ? l_block_pvt->blocks->hh.tbl->tail->prev : NULL;
         if (l_prev_bcache){
-            for (l_prev_bcache = l_prev_bcache ? l_prev_bcache->hh.next : PVT(l_blocks)->blocks; l_prev_bcache && l_current_item_index < DAP_FORK_MAX_DEPTH; l_current_item_index++, l_prev_bcache = l_prev_bcache->hh.prev){
+            for (l_prev_bcache = l_prev_bcache->hh.next; 
+                l_prev_bcache && l_current_item_index < DAP_FORK_MAX_DEPTH; 
+                l_current_item_index++, l_prev_bcache = l_prev_bcache->hh.prev){
                 if (l_prev_bcache && dap_hash_fast_compare(&l_prev_bcache->block_hash, &l_block_prev_hash)){
                     ++PVT(l_blocks)->blocks_count;
                     HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
@@ -1570,7 +1577,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                         l_forked_branches = l_forked_branches->next;
                     }
                 }
-                l_current_item_index++;
             }
         } else {
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
