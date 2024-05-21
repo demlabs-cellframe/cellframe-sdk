@@ -4515,8 +4515,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
         DAP_DEL_Z(l_new_certs);
     }
     if (l_description_token) {
-        dap_tsd_t *l_desc_token = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description_token,
-                                                 dap_strlen(l_description_token));//dap_tsd_create_string(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description_token);
+        dap_tsd_t *l_desc_token = dap_tsd_create_string(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description_token);//dap_tsd_create_string(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description_token);
         l_tsd_list = dap_list_append(l_tsd_list, l_desc_token);
         l_tsd_total_size += dap_tsd_size(l_desc_token);
         a_params->ext.parsed_tsd_size += dap_tsd_size(l_desc_token);
