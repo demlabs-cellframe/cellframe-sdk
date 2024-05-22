@@ -1435,42 +1435,50 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     dap_chain_hash_fast_t l_block_hash;
     dap_hash_fast(l_block, l_block_size, &l_block_hash);
 
-    dap_chain_block_cache_t * l_block_cache = NULL;
+    dap_chain_block_cache_t *l_block_cache = NULL;
     pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);
     HASH_FIND(hh, PVT(l_blocks)->blocks, &l_block_hash, sizeof(l_block_hash), l_block_cache);
     if (l_block_cache) {
         debug_if(s_debug_more, L_DEBUG, "... %s is already present", l_block_cache->block_hash_str);
         pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
         return ATOM_PASS;
-    } else {
-        l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, l_block_size, PVT(l_blocks)->blocks_count + 1);
-        if (!l_block_cache) {
-            log_it(L_DEBUG, "... corrupted block");
-            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-            return ATOM_REJECT;
-        }
-        debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
     }
 
     dap_chain_atom_verify_res_t ret = s_callback_atom_verify(a_chain, a_atom, a_atom_size);
     switch (ret) {
     case ATOM_ACCEPT:
+        if ( dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
+            if ( ret = dap_chain_atom_save(a_chain, a_atom, a_atom_size, l_block->hdr.cell_id) < 0 ) {
+                log_it(L_ERROR, "Can't save atom to file, code %d", ret);
+                pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+                return ATOM_REJECT;
+            }
+            if (a_chain->is_mapped) {
+                dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
+                l_block = (dap_chain_block_t*)l_cell->map_pos;  // Switching to mapped area
+                l_cell->map_pos += sizeof(uint64_t) + a_atom_size;
+            }
+        }         
+        if ( !(l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, l_block_size, PVT(l_blocks)->blocks_count + 1)) ) {
+            log_it(L_DEBUG, "... corrupted block");
+            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+            return ATOM_REJECT;
+        }
+        debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
         HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
         ++PVT(l_blocks)->blocks_count;
         pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
         s_add_atom_datums(l_blocks, l_block_cache);
-        return ret;
+        return ATOM_ACCEPT;
     case ATOM_MOVE_TO_THRESHOLD:
         // TODO: reimplement and enable threshold for blocks
-/*      {
+        /*{
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: THRESHOLDED", a_atom);
             break;
-        }
-*/
+        }*/
         ret = ATOM_REJECT;
     case ATOM_REJECT:
-        dap_chain_block_cache_delete(l_block_cache);
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: REJECTED", a_atom);
         break;
     default:

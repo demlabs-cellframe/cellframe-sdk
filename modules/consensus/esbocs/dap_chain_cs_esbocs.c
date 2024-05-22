@@ -1687,29 +1687,23 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
     switch (l_res) {
     case ATOM_ACCEPT:
         // block save to chain
-        if (dap_chain_atom_save(a_session->chain, (uint8_t *)l_candidate, a_candidate_size, a_session->chain->cells->id) < 0)
-            log_it(L_ERROR, "Can't save atom %s to the file", l_candidate_hash_str);
-        else
-        {
-            log_it(L_INFO, "block %s added in chain successfully", l_candidate_hash_str);
-            res = true;
-        }
+        log_it(L_INFO, "block %s added in chain successfully", l_candidate_hash_str);
+        res = true;
         break;
     case ATOM_MOVE_TO_THRESHOLD:
         log_it(L_INFO, "Thresholded atom with hash %s", l_candidate_hash_str);
         break;
     case ATOM_PASS:
         log_it(L_WARNING, "Atom with hash %s not accepted (code ATOM_PASS, already present)", l_candidate_hash_str);
-        DAP_DELETE(l_candidate);
         break;
     case ATOM_REJECT:
         log_it(L_WARNING,"Atom with hash %s rejected", l_candidate_hash_str);
-        DAP_DELETE(l_candidate);
         break;
     default:
          log_it(L_CRITICAL, "Wtf is this ret code ? Atom hash %s code %d", l_candidate_hash_str, l_res);
-         DAP_DELETE(l_candidate);
     }
+    if (l_res != ATOM_ACCEPT || a_session->chain->is_mapped)
+        DAP_DELETE(l_candidate);
     DAP_DELETE(l_candidate_hash_str);
     return res;
 }
@@ -2722,7 +2716,6 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     DAP_DELETE(l_signs);
     // Restore the original header
     a_block->hdr.meta_n_datum_n_signs_size = l_block_original;
-
     if (l_signs_verified_count < l_esbocs_pvt->min_validators_count) {
         dap_hash_fast_t l_block_hash;
         dap_hash_fast(a_block, a_block_size, &l_block_hash);
