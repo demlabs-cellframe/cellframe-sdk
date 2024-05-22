@@ -103,18 +103,19 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
     snprintf(file_storage_path, MAX_PATH, "%s/%0"DAP_UINT64_FORMAT_x".dchaincell",
              DAP_CHAIN_PVT(a_chain)->file_storage_dir, a_cell_id.uint64);
     
-    char *l_map, *l_pos = NULL;
+    char *l_map = NULL;
     size_t l_size = 0;
     FILE *l_file = fopen(file_storage_path, "r+b");
     if ( l_file ) {
         if ( a_chain->is_mapped ) {
             fseek(l_file, 0, SEEK_END);
-            size_t l_size = ftell(l_file);
+            l_size = ftell(l_file);
             log_it(L_MSG, "[!] Initial size of %s is %lu", file_storage_path, l_size);
             fseek(l_file, 0, SEEK_SET);
-            if ( l_size && MAP_FAILED == (l_map = l_pos = mmap(NULL, l_size, PROT_READ|PROT_WRITE, MAP_PRIVATE, fileno(l_file), 0)) ) {
+            if ( l_size && MAP_FAILED == (l_map = mmap(NULL, l_size, PROT_READ|PROT_WRITE, MAP_PRIVATE, fileno(l_file), 0)) ) {
                 log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be mapped, errno %d", file_storage_path, a_cell_id.uint64, errno);
                 fclose(l_file);
+                pthread_rwlock_unlock(&a_chain->cell_rwlock);
                 return NULL;
             }
         }
@@ -123,12 +124,14 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
         if ( !(l_file = fopen(file_storage_path, "w+b")) ) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be opened, error %d",
                             file_storage_path, a_cell_id.uint64, errno);
+            pthread_rwlock_unlock(&a_chain->cell_rwlock);
             return NULL;
         }
-        if ( MAP_FAILED == (l_map = mmap(NULL, dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT), PROT_READ|PROT_WRITE, MAP_PRIVATE, fileno(l_file), 0)) ) {
+        if ( MAP_FAILED == (l_map = mmap(NULL, l_size = dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT), PROT_READ|PROT_WRITE, MAP_PRIVATE, fileno(l_file), 0)) ) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be mapped, error %d",
                             file_storage_path, a_cell_id.uint64, errno);
             fclose(l_file);
+            pthread_rwlock_unlock(&a_chain->cell_rwlock);
             return NULL;
         }
     }
@@ -137,7 +140,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
     *l_cell = (dap_chain_cell_t) {
         .id             = a_cell_id.uint64,
         .map            = l_map,
-        .map_pos        = l_pos,
+        .map_pos        = l_map,
         .map_end        = l_map ? l_map + l_size : NULL,
         .file_storage   = l_file,
         .chain          = a_chain,
@@ -148,6 +151,8 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
         l_cell->map_range_bounds = dap_list_append(l_cell->map_range_bounds, l_map);
         l_cell->map_range_bounds = dap_list_append(l_cell->map_range_bounds, l_cell->map_end);  
     }
+    if (l_cell->map)
+        log_it(L_DEBUG, "[!] Mapped region is %lu", (size_t)(l_cell->map_end - l_cell->map));
     HASH_ADD(hh, a_chain->cells, id, sizeof(dap_chain_cell_id_t), l_cell);
     pthread_rwlock_unlock(&a_chain->cell_rwlock);
     return l_cell;
@@ -369,8 +374,8 @@ static int s_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_atom
     }
     if (a_cell->chain->is_mapped) {
         size_t l_pos = ftell(a_cell->file_storage);
-        log_it(L_MSG, "[!] Before filling volume for atom size %lu, stream pos of %s is %lu, map pos is %lu",
-                      a_atom_size, a_cell->file_storage_path, l_pos, (size_t)(a_cell->map_pos - a_cell->map));
+        log_it(L_MSG, "[!] Before filling volume for atom size %lu, stream pos of %s is %lu, map pos is %lu, space left in map %lu",
+                      a_atom_size, a_cell->file_storage_path, l_pos, (size_t)(a_cell->map_pos - a_cell->map), (size_t)(a_cell->map_end - a_cell->map_pos));
         if ( a_atom_size > (size_t)(a_cell->map_end - a_cell->map_pos) ) {
             size_t  l_map_size      = dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT),
                     l_volume_start  = dap_page_rounddown(l_pos),
@@ -383,16 +388,16 @@ static int s_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_atom
                 log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be mapped, errno %d",
                                 a_cell->file_storage_path, a_cell->id.uint64, errno);
                 fclose(a_cell->file_storage);
-                return NULL;
+                return -2;
             }
             a_cell->map_pos = a_cell->map + l_offset;
             a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map);
-            a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map_end = a_cell->map + l_offset);
+            a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map_end = a_cell->map + l_map_size);
         }
     }
     
-    log_it(L_MSG, "[!] Before writing an atom of size %lu, stream pos of %s is %lu and pos is %lu", 
-               a_atom_size, a_cell->file_storage_path, ftell(a_cell->file_storage), (size_t)(a_cell->map_pos - a_cell->map));
+    log_it(L_MSG, "[!] Before writing an atom of size %lu, stream pos of %s is %lu and pos is %lu, space left in map %lu", 
+               a_atom_size, a_cell->file_storage_path, ftell(a_cell->file_storage), (size_t)(a_cell->map_pos - a_cell->map), (size_t)(a_cell->map_end - a_cell->map_pos));
     
     if (fwrite(&a_atom_size, sizeof(a_atom_size), 1, a_cell->file_storage) != 1) {
         log_it (L_ERROR, "Can't write atom data size from cell 0x%016"DAP_UINT64_FORMAT_X" in \"%s\"",
@@ -436,15 +441,17 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
     bool l_err = false;
     pthread_rwlock_wrlock(&a_cell->storage_rwlock);
     if (!a_atom || !a_atom_size) {
-        fseek(a_cell->file_storage, 0, SEEK_SET);
+        a_cell->file_storage = freopen(a_cell->file_storage_path, "w+b", a_cell->file_storage);
         log_it(L_MSG, "[!] Rewinding file %s", a_cell->file_storage_path);
-        a_cell->map_pos = a_cell->map;
+        a_cell->map = a_cell->map_pos = a_cell->map_range_bounds->data;
+        a_cell->map_end = a_cell->map_range_bounds->next->data;
         if ( s_file_write_header(a_cell) ) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": can't fill header",
                             a_cell->file_storage_path, a_cell->id.uint64);
             pthread_rwlock_unlock(&a_cell->storage_rwlock);
             return -5;
         }
+        l_total_res += sizeof(dap_chain_cell_file_header_t);
         dap_chain_atom_iter_t *l_atom_iter = a_cell->chain->callback_atom_iter_create(a_cell->chain, a_cell->id, 0);
         dap_chain_atom_ptr_t l_atom;
         uint64_t l_atom_size = 0;
@@ -463,14 +470,14 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
         a_cell->chain->callback_atom_iter_delete(l_atom_iter);
         log_it(L_MSG, "[!] After rewriting file %s, stream pos is %lu and map pos is %lu",
             a_cell->file_storage_path, ftell(a_cell->file_storage), (size_t)(a_cell->map_end - a_cell->map_pos));
-        char *l_offset = strstr(a_cell->file_storage_path, ".sorted");
+        /*char *l_offset = strstr(a_cell->file_storage_path, ".sorted");
         if ( l_offset ) {
             char *l_tmp = dap_strdup(a_cell->file_storage_path);
             *l_offset = '\0';
             log_it(L_MSG, "Change filename back to %s", a_cell->file_storage_path);
             rename(l_tmp, a_cell->file_storage_path);
             DAP_DELETE(l_tmp);
-        }
+        }*/
     } else {
         log_it(L_MSG, "[!] Before appending an atom of size %lu, stream pos of %s is %lu, map pos is %lu",
                 a_atom_size, a_cell->file_storage_path, ftell(a_cell->file_storage), (size_t)(a_cell->map_end - a_cell->map_pos));

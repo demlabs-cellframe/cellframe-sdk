@@ -564,6 +564,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         return true;
     }
     dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)l_pkt_item->pkt_data;
+    l_pkt_item->pkt_data = NULL;
     uint64_t l_atom_size = l_pkt_item->pkt_data_size;
     dap_hash_fast(l_atom, l_atom_size, &l_atom_hash);
     dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size);
@@ -571,22 +572,19 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str));
     switch (l_atom_add_res) {
     case ATOM_PASS:
-        if (s_debug_more){
-            log_it(L_WARNING, "Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",  l_atom_hash_str, l_chain->net_name, l_chain->name);
-        }
+        debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",  l_atom_hash_str, l_chain->net_name, l_chain->name);
         dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
         break;
     case ATOM_MOVE_TO_THRESHOLD:
-        if (s_debug_more) {
-            log_it(L_INFO, "Thresholded atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
-        }
+        debug_if(s_debug_more, L_INFO, "Thresholded atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
         dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+        l_atom = NULL; // Prevent from deleting, ownership moved
         break;
     case ATOM_ACCEPT:
-        if (s_debug_more) {
-            log_it(L_INFO,"Accepted atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
-        }
+        debug_if(s_debug_more, L_INFO,"Accepted atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
         dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+        if ( !l_chain->is_mapped )
+            l_atom = NULL; // Prevent from deleting, ownership moved
         break;
     case ATOM_REJECT: {
         if (s_debug_more) {
@@ -600,9 +598,8 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         log_it(L_CRITICAL, "Wtf is this ret code? %d", l_atom_add_res);
         break;
     }
-    if (l_atom_add_res != ATOM_ACCEPT || l_chain->is_mapped)
-        DAP_DELETE(l_atom);
-    DAP_DEL_Z(l_sync_request);
+    DAP_DELETE(l_atom);
+    DAP_DELETE(l_sync_request);
     return true;
 }
 

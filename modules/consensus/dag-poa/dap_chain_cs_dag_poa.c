@@ -627,7 +627,7 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
                 if ( !l_dag->chain->is_mapped )
                     l_new_atom = NULL;
             }
-            log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" %s",
+            log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" verification res: %s",
                    l_event_hash_hex_str, l_round_id, dap_chain_atom_verify_res_str[l_res]);
         } else {
             char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];

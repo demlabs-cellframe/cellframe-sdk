@@ -1688,10 +1688,13 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
     case ATOM_ACCEPT:
         // block save to chain
         log_it(L_INFO, "block %s added in chain successfully", l_candidate_hash_str);
+        if ( !a_session->chain->is_mapped )
+            l_candidate = NULL;
         res = true;
         break;
     case ATOM_MOVE_TO_THRESHOLD:
         log_it(L_INFO, "Thresholded atom with hash %s", l_candidate_hash_str);
+        l_candidate = NULL;
         break;
     case ATOM_PASS:
         log_it(L_WARNING, "Atom with hash %s not accepted (code ATOM_PASS, already present)", l_candidate_hash_str);
@@ -1702,8 +1705,7 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
     default:
          log_it(L_CRITICAL, "Wtf is this ret code ? Atom hash %s code %d", l_candidate_hash_str, l_res);
     }
-    if (l_res != ATOM_ACCEPT || a_session->chain->is_mapped)
-        DAP_DELETE(l_candidate);
+    DAP_DELETE(l_candidate);
     DAP_DELETE(l_candidate_hash_str);
     return res;
 }

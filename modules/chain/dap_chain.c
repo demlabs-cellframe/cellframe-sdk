@@ -385,6 +385,9 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
                 if ( dap_config_get_item_str_default(l_cfg, "files","storage_dir", NULL) )
 				{
                     DAP_CHAIN_PVT(l_chain)->file_storage_dir = (char*)dap_config_get_item_path( l_cfg , "files","storage_dir" );
+                    if (!dap_dir_test(DAP_CHAIN_PVT(l_chain)->file_storage_dir)) {
+                        dap_mkdir_with_parents(DAP_CHAIN_PVT(l_chain)->file_storage_dir);
+                    }
                 } else
                     log_it (L_INFO, "Not set file storage path, will not stored in files");
 
@@ -569,9 +572,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
     char *l_storage_dir = DAP_CHAIN_PVT(a_chain)->file_storage_dir;
     if (!l_storage_dir)
         return 0;
-    if (!dap_dir_test(l_storage_dir)) {
-        dap_mkdir_with_parents(l_storage_dir);
-    }
+    
     DIR *l_dir = opendir(l_storage_dir);
     if (!l_dir) {
         log_it(L_ERROR, "Cannot open directory %s", DAP_CHAIN_PVT(a_chain)->file_storage_dir);
@@ -592,9 +593,9 @@ int dap_chain_load_all(dap_chain_t *a_chain)
                 if (rename(l_cell->file_storage_path, l_filename_backup)) {
                     log_it(L_ERROR, "Couldn't rename %s to %s", l_cell->file_storage_path, l_filename_backup);
                 }
-                fclose(l_cell->file_storage);
+                /*fclose(l_cell->file_storage);
                 strcat(l_cell->file_storage_path, ".sorted");
-                l_cell->file_storage = fopen(l_cell->file_storage_path, "w+b");
+                l_cell->file_storage = fopen(l_cell->file_storage_path, "w+b");*/
                 DAP_DELETE(l_filename_backup);
             }
         }

@@ -538,7 +538,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     *l_event_item = (dap_chain_cs_dag_event_item_t) {
         .hash       = l_event_hash,
         .ts_added   = dap_time_now(),
-        //.event      = l_event,
+        .event      = l_event,
         .event_size = a_atom_size
     };
     switch (ret) {
@@ -546,8 +546,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         dap_chain_cs_dag_blocked_t *el = NULL;
         HASH_FIND(hh, PVT(l_dag)->removed_events_from_treshold, &l_event_hash, sizeof(dap_chain_hash_fast_t), el);
         if (!el) {
-            l_event_item->event = dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id))
-                ? ( l_event_item->mapped_region = l_event ) : DAP_DUP_SIZE(l_event, a_atom_size);
+            if ( a_chain->is_mapped && dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id)) )
+                l_event_item->mapped_region = (char*)l_event;
             HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_hash), l_event_item);
             debug_if(s_debug_more, L_DEBUG, "... added to threshold");
         } else {
@@ -562,10 +562,11 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
                 log_it(L_ERROR, "Can't save atom to file");
                 ret = ATOM_REJECT;
                 break;
+            } else if (a_chain->is_mapped) {
+                dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_event->header.cell_id);
+                l_event_item->event = (dap_chain_cs_dag_event_t*)( l_cell->map_pos += sizeof(uint64_t) );
+                l_cell->map_pos += a_atom_size;
             }
-            dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_event->header.cell_id);
-            l_event_item->event = (dap_chain_cs_dag_event_t*)l_cell->map_pos;
-            l_cell->map_pos += sizeof(uint64_t) + a_atom_size;
         }
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, l_event_item);
         switch (l_consensus_check) {
@@ -741,14 +742,17 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         dap_chain_atom_verify_res_t l_verify_res;
         switch (l_verify_res = s_chain_callback_atom_add(a_chain, l_event, l_event_size)) {
         case ATOM_ACCEPT:
+            if ( !a_chain->is_mapped )
+                l_event = NULL;
             break;
         case ATOM_MOVE_TO_THRESHOLD:
-            log_it(L_ERROR, "Event thresholded", l_verify_res);
+            l_event = NULL;
+            log_it(L_ERROR, "Event thresholded");
+            break;
         default:
             log_it(L_ERROR, "Can't add new event to the file, atom verification result %d", l_verify_res);
         }
-        if (l_verify_res != ATOM_ACCEPT || a_chain->is_mapped)
-            DAP_DELETE(l_event);
+        DAP_DELETE(l_event);
         return l_verify_res == ATOM_ACCEPT;
     }
 
@@ -1019,14 +1023,15 @@ dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
                 DAP_DELETE(l_event_hash_str);
             }
             if ( !l_event_item->mapped_region ) {
-                if ( dap_chain_atom_save(a_dag->chain, l_event_item->event, l_event_item->event_size, l_event_item->event->header.cell_id) < 0 ) {
+                if ( dap_chain_atom_save(a_dag->chain, (const byte_t*)l_event_item->event, l_event_item->event_size, l_event_item->event->header.cell_id) < 0 ) {
                     log_it(L_CRITICAL, "Can't move atom from threshold to file");
                     res = false;
                     break;
+                } else if (a_dag->chain->is_mapped) {
+                    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_dag->chain, l_event_item->event->header.cell_id);
+                    l_event_item->event = (dap_chain_cs_dag_event_t*)( l_cell->map_pos += sizeof(uint64_t) );
+                    l_cell->map_pos += l_event_item->event_size;
                 }
-                dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_dag->chain, l_event_item->event->header.cell_id);
-                l_event_item->event = (dap_chain_cs_dag_event_t*)l_cell->map_pos;
-                l_cell->map_pos += sizeof(uint64_t) + l_event_item->event_size;
             }
             int l_add_res = s_dap_chain_add_atom_to_events_table(a_dag, l_event_item);
             HASH_DEL(PVT(a_dag)->events_treshold, l_event_item);
