@@ -492,6 +492,11 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_find_by_hash_str(dap_chain_ne
             return NULL;
         }
         l_order = dap_chain_net_srv_order_read(l_gdb_order, l_order_size);
+        if (!l_order || (l_order->ts_expires &&  l_order->ts_expires < dap_time_now())){
+            DAP_DEL_Z(l_order);
+            DAP_DELETE(l_gdb_order);
+            continue;
+        }
         DAP_DELETE(l_gdb_order);
     }
     return l_order;
@@ -535,31 +540,49 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
                 dap_global_db_del_sync(l_gdb_group_str, l_orders[i].key);
                 continue; // order is corrupted
             }
+            if (l_order->ts_expires && l_order->ts_expires < dap_time_now()){
+                DAP_DEL_Z(l_order);
+                continue;
+            }
+
             dap_chain_hash_fast_t l_hash, l_hash_gdb;
             dap_hash_fast(l_orders[i].value, l_orders[i].value_len, &l_hash);
             dap_chain_hash_fast_from_str(l_orders[i].key, &l_hash_gdb);
             if (memcmp(&l_hash, &l_hash_gdb, sizeof(dap_chain_hash_fast_t))) {
                 dap_global_db_del_sync(l_gdb_group_str, l_orders[i].key);
+                DAP_DEL_Z(l_order);
                 continue; // order is corrupted
             }
             // Check direction
-            if (a_direction != SERV_DIR_UNDEFINED && l_order->direction != a_direction)
+            if (a_direction != SERV_DIR_UNDEFINED && l_order->direction != a_direction){
+                DAP_DEL_Z(l_order);
                 continue;
+            }
             // Check srv uid
-            if (a_srv_uid.uint64 && l_order->srv_uid.uint64 != a_srv_uid.uint64)
+            if (a_srv_uid.uint64 && l_order->srv_uid.uint64 != a_srv_uid.uint64){
+                DAP_DEL_Z(l_order);
                 continue;
+            }
             // check price unit
-            if (a_price_unit.uint32 && a_price_unit.uint32 != l_order->price_unit.uint32)
+            if (a_price_unit.uint32 && a_price_unit.uint32 != l_order->price_unit.uint32){
+                DAP_DEL_Z(l_order);
                 continue;
+            }
             // Check price minimum
-            if (!IS_ZERO_256(a_price_min) && compare256(l_order->price, a_price_min) == -1)
+            if (!IS_ZERO_256(a_price_min) && compare256(l_order->price, a_price_min) == -1){
+                DAP_DEL_Z(l_order);
                 continue;
+            }
             // Check price maximum
-            if (!IS_ZERO_256(a_price_max) && compare256(l_order->price, a_price_max) == 1)
+            if (!IS_ZERO_256(a_price_max) && compare256(l_order->price, a_price_max) == 1){
+                DAP_DEL_Z(l_order);
                 continue;
+            }
             // Check ticker
-            if (a_price_ticker && strcmp( l_order->price_ticker, a_price_ticker))
+            if (a_price_ticker && strcmp( l_order->price_ticker, a_price_ticker)){
+                DAP_DEL_Z(l_order);
                 continue;
+            }
             size_t l_order_mem_size = dap_chain_net_srv_order_get_size(l_order);
             dap_chain_net_srv_order_t *l_output_order = DAP_DUP_SIZE(l_order, l_order_mem_size);
             DAP_DEL_Z(l_order);
@@ -582,20 +605,39 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
  */
 int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, const char *a_hash_str)
 {
-    bool l_is_search = false;
     int l_ret = -2;
+    bool l_is_found = false;
     for (int i = 0; a_net && a_hash_str && i < 2; i++) {
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
                                   : dap_chain_net_srv_order_get_common_group(a_net);
-        if (dap_global_db_driver_is(l_gdb_group_str, a_hash_str)) {
-            l_is_search = true;
-            l_ret = dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
-        } else {
-            log_it(L_NOTICE, "In group %s not found record with %s key", l_gdb_group_str, a_hash_str);
+
+        size_t l_order_size = 0;
+        byte_t *l_gdb_order = dap_global_db_get_sync(l_gdb_group_str, a_hash_str, &l_order_size, NULL, NULL);
+        if (!l_gdb_order){
+            log_it(L_NOTICE, "Record with key %s not found in group %s  ", a_hash_str, l_gdb_group_str);
+            DAP_DELETE(l_gdb_group_str);
+            continue;
         }
+        l_is_found = true;    
+        // check order size
+        size_t l_expected_size = dap_chain_net_srv_order_get_size((dap_chain_net_srv_order_t *)l_gdb_order);
+        if (l_order_size != l_expected_size) {
+            log_it(L_ERROR, "Found wrong size order %zu, expected %zu", l_order_size, l_expected_size);
+            DAP_DELETE(l_gdb_order);
+            DAP_DELETE(l_gdb_group_str);
+            return -1;
+        }
+
+        char *l_removed_orders_group_str = dap_chain_net_srv_order_removed_get_gdb_group(a_net);
+        l_ret = dap_global_db_set_sync(l_removed_orders_group_str, a_hash_str, NULL, 0, true);
+
+        dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
+
         DAP_DELETE(l_gdb_group_str);
+        DAP_DELETE(l_removed_orders_group_str);
     }
-    return l_is_search ? l_ret: -3;
+
+    return l_is_found ? l_ret: -3;
 }
 
 /**
@@ -697,6 +739,14 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
     char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
 
     if (!dap_strcmp(a_obj->group, l_gdb_group_str)) {
+        char *l_gdb_removed_orders_group_str = dap_chain_net_srv_order_removed_get_gdb_group(l_net);
+        dap_store_obj_t *l_gdb_order = dap_global_db_get_raw_sync(l_gdb_removed_orders_group_str, a_obj->key);
+        if (l_gdb_order){
+            dap_global_db_driver_delete(a_obj, 1);
+            return;
+        }
+
+
         for (dap_list_t *it = s_order_notify_callbacks; it; it = it->next) {
             struct dap_order_notify *l_notifier = (struct dap_order_notify *)it->data;
             if ((l_notifier->net == NULL || l_notifier->net == l_net) &&
@@ -731,6 +781,7 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
             }
         }
     }
+
     DAP_DELETE(l_gdb_group_str);
 }
 
