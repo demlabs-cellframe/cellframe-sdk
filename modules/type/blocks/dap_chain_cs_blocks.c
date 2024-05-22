@@ -61,6 +61,8 @@ typedef struct dap_chain_cs_blocks_pvt
     // All the blocks are here. In feature should be limited with 1000 when the rest would be loaded from file when needs them
     dap_chain_block_cache_t * blocks;
 
+    dap_list_t **forked_branches;
+
     // Chunks treshold
     dap_chain_block_chunks_t * chunks;
     dap_chain_block_datum_index_t *datum_index; // To find datum in blocks
@@ -1882,6 +1884,7 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_at
     dap_return_val_if_fail(a_atom_iter, NULL);
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = l_blocks ? PVT(l_blocks) : NULL;
+    dap_chain_atom_ptr_t l_ret = NULL;
     assert(l_blocks_pvt);
     pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
     switch (a_operation) {
@@ -1907,10 +1910,11 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_at
         a_atom_iter->cur_hash   = &l_item->block_hash;
         a_atom_iter->cur_num    = l_item->block_number;
         if (a_atom_iter->show_forked_branches && 
-            l_item->forked_branches){
-                a_atom_iter->forked_branches
+            l_item->forked_branches && !a_atom_iter->on_forked_atoms){
+                for (dap_list_t *l_temp = l_item->forked_branches; l_temp; l_temp = l_temp->next){
+                    a_atom_iter->forked_atoms = dap_list_concat(a_atom_iter->forked_atoms, (dap_list_t *)l_temp->data);
+                }
             }
-
     } else 
         *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
                                                  .cell_id = a_atom_iter->cell_id };

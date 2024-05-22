@@ -53,8 +53,9 @@ typedef struct dap_chain_atom_iter {
     uint64_t cur_num;
 
     bool show_forked_branches;
-    dap_list_t *forked_branches;
-    dap_list_t *current_forked_atom;
+    dap_list_t *forked_atoms;
+    dap_list_t *cur_forked_atom;
+    bool on_forked_atoms;
 } dap_chain_atom_iter_t;
 
 typedef struct dap_chain_datum_iter {

@@ -62,7 +62,7 @@ typedef struct dap_chain_block_cache {
     // Pointer to block itself
     dap_chain_block_t * block;
 
-    // List for keeping forked branches
+    // List for keeping pointers to forked branches
     dap_list_t * forked_branches;
 
     // Links to prev and next block
@@ -84,6 +84,6 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
 void dap_chain_block_cache_delete(dap_chain_block_cache_t *a_block_cache);
 
 // Get the list of 'out_cond' items from previous transactions with summary out value. Put this summary value to a_value_out
-dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger,dap_chain_block_cache_t * a_block_cache,uint256_t *a_value_out);
+dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, dap_chain_block_cache_t * a_block_cache, uint256_t *a_value_out);
 
 
