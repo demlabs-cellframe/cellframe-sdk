@@ -842,22 +842,6 @@ void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
     DAP_DELETE(l_sync_current_link_text_block);
     DAP_DELETE(l_node_address_text_block);
 }
-
-/**
- * @brief get type of chain
- *
- * @param l_chain
- * @return char*
- */
-const char* dap_chain_net_get_type(dap_chain_t *l_chain)
-{
-    if (!l_chain){
-        log_it(L_DEBUG, "dap_get_chain_type. Chain object is 0");
-        return NULL;
-    }
-    return (const char*)DAP_CHAIN_PVT(l_chain)->cs_name;
-}
-
 /**
  * @brief reload ledger
  * command cellframe-node-cli net -net <network_name> ledger reload
@@ -865,7 +849,7 @@ const char* dap_chain_net_get_type(dap_chain_t *l_chain)
  * @return true
  * @return false
  */
-static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
+void dap_chain_net_purge(dap_chain_net_t *l_net)
 {
     dap_ledger_purge(l_net->pub.ledger, false);
     dap_chain_net_srv_stake_purge(l_net);
@@ -874,8 +858,8 @@ static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_purge)
             l_chain->callback_purge(l_chain);
-        if (l_chain->callback_set_min_validators_count)
-            l_chain->callback_set_min_validators_count(l_chain, 0);
+        if (!dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs"))
+            dap_chain_esbocs_set_min_validators_count(l_chain, 0);
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
         dap_chain_load_all(l_chain);
@@ -1663,7 +1647,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
         } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) {
             int l_return_state = dap_chain_net_stop(l_net);
             sleep(1);   // wait to net going offline
-            s_chain_net_ledger_cache_reload(l_net);
+            dap_chain_net_purge(l_net);
             if (l_return_state)
                 dap_chain_net_start(l_net);
         } else if (l_list_str && !strcmp(l_list_str, "list")) {

@@ -30,6 +30,7 @@
 #include "dap_enc_base58.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_net_decree.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"

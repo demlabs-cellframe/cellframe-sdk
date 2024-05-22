@@ -24,11 +24,7 @@
 #include <limits.h>
 #include "dap_common.h"
 #include "dap_list.h"
-#include "dap_worker.h"
-#include "dap_events_socket.h"
-#include "dap_stream.h"
 #include "dap_chain_common.h"
-#include "dap_global_db.h"
 #include "dap_chain.h"
 #include "dap_client.h"
 

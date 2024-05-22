@@ -78,12 +78,8 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks);
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg);
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size);
-static uint256_t s_callback_get_minimum_fee(dap_chain_t *a_chain);
-static uint256_t s_callback_get_collectiong_level(dap_chain_t *a_chain);
-static dap_enc_key_t *s_callback_get_sign_key(dap_chain_t *a_chain);
-static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
 static void s_db_change_notifier(dap_store_obj_t *a_obj, void * a_arg);
-static bool s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_addr_t *a_signing_addr);
+static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_addr_t *a_signing_addr);
 static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply);
 
 DAP_STATIC_INLINE const char *s_voting_msg_type_to_str(uint8_t a_type)
@@ -217,11 +213,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_blocks->callback_block_sign = s_callback_block_sign;
 
     l_esbocs->chain = a_chain;
-    a_chain->callback_set_min_validators_count = s_callback_set_min_validators_count;
-    a_chain->callback_get_minimum_fee = s_callback_get_minimum_fee;
-    a_chain->callback_get_collectiong_level = s_callback_get_collectiong_level;
-    a_chain->callback_get_signing_certificate = s_callback_get_sign_key;
-
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     if (!l_esbocs_pvt) {
@@ -246,15 +237,15 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     const char *l_auth_certs_prefix = dap_config_get_item_str(a_chain_cfg, "esbocs", "auth_certs_prefix");
     uint16_t l_node_addrs_count;
     char **l_addrs = dap_config_get_array_str(a_chain_cfg, "esbocs", "validators_addrs", &l_node_addrs_count);
-    uint16_t l_auth_certs_count = l_node_addrs_count;
-    if (l_auth_certs_count < l_esbocs_pvt->min_validators_count) {
+    if (l_node_addrs_count < l_esbocs_pvt->min_validators_count) {
         l_ret = -2;
         goto lb_err;
     }
-    char l_cert_name[512];
-    dap_cert_t *l_cert_cur;
+    uint16_t l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "auth_certs_count", l_node_addrs_count);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     for (size_t i = 0; i < l_auth_certs_count; i++) {
+        char l_cert_name[512];
+        dap_cert_t *l_cert_cur;
         snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu", l_auth_certs_prefix, i);
         if ((l_cert_cur = dap_cert_find_by_name(l_cert_name)) == NULL) {
             snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu.pub", l_auth_certs_prefix, i);
@@ -267,13 +258,18 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         dap_chain_addr_t l_signing_addr;
         log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
         dap_chain_addr_fill_from_key(&l_signing_addr, l_cert_cur->enc_key, a_chain->net_id);
+
+        l_esbocs_pvt->emergency_validator_addrs = dap_list_append(l_esbocs_pvt->emergency_validator_addrs,
+                                                                  DAP_DUP(&l_signing_addr));
+        if (i >= l_node_addrs_count)
+            continue;
+
         dap_chain_node_addr_t l_signer_node_addr;
         if (dap_chain_node_addr_from_str(&l_signer_node_addr, l_addrs[i])) {
             log_it(L_ERROR, "Wrong address format, should be like 0123::4567::89AB::CDEF");
             l_ret = -4;
             goto lb_err;
         }
-
         dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
         if (!l_validator) {
         log_it(L_CRITICAL, "%s", g_error_memory_alloc);
@@ -685,17 +681,9 @@ bool dap_chain_esbocs_remove_validator_from_clusters(dap_chain_net_id_t a_net_id
     return NULL;
 }
 
-static uint256_t s_callback_get_minimum_fee(dap_chain_t *a_chain)
+uint256_t dap_chain_esbocs_get_collecting_level(dap_chain_t *a_chain)
 {
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
-    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-
-    return l_esbocs_pvt->minimum_fee;
-}
-
-static uint256_t s_callback_get_collectiong_level(dap_chain_t *a_chain)
-{
+    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), "esbocs"), uint256_0);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
@@ -703,13 +691,76 @@ static uint256_t s_callback_get_collectiong_level(dap_chain_t *a_chain)
     return l_esbocs_pvt->collecting_level;
 }
 
-static dap_enc_key_t *s_callback_get_sign_key(dap_chain_t *a_chain)
+dap_enc_key_t *dap_chain_esbocs_get_sign_key(dap_chain_t *a_chain)
 {
+    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), "esbocs"), NULL);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
     return l_esbocs_pvt->blocks_sign_key;
+}
+
+int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value)
+{
+    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), "esbocs"), -1);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    if (a_new_value)
+        l_esbocs_pvt->min_validators_count = a_new_value;
+    else {
+        dap_hash_fast_t l_stake_tx_hash = {};
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value();
+        for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
+            dap_chain_esbocs_validator_t *l_validator = it->data;
+            dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
+                                                 l_weight, &l_validator->node_addr);
+        }
+        l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
+    }
+    return 0;
+}
+
+int dap_chain_esbocs_set_max_validator_weight(dap_chain_t *a_chain, uint256_t a_value_percent)
+{
+    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), "esbocs"), -1);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    l_esbocs_pvt->weight_limit_percent = a_value_percent;
+    return 0;
+}
+
+int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash)
+{
+    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), "esbocs"), -1);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    dap_chain_addr_t l_signing_addr;
+    dap_sign_type_t l_type = { .type = a_sign_type };
+    dap_chain_addr_fill(&l_signing_addr, l_type , a_validator_hash, a_chain->net_id);
+    if (a_add) {
+        if (s_check_emergency_rights(l_esbocs, &l_signing_addr))
+            return -2;
+        dap_chain_addr_t *l_addr_new = DAP_DUP(&l_signing_addr);
+        if (!l_addr_new) {
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            return -4;
+        }
+        l_esbocs_pvt->emergency_validator_addrs = dap_list_append(
+                                    l_esbocs_pvt->emergency_validator_addrs, l_addr_new);
+    } else {
+        dap_list_t *l_to_remove = s_check_emergency_rights(l_esbocs, &l_signing_addr);
+        if (!l_to_remove)
+            return -3;
+        DAP_DELETE(l_to_remove->data);
+        l_esbocs_pvt->emergency_validator_addrs = dap_list_delete_link(
+                                    l_esbocs_pvt->emergency_validator_addrs, l_to_remove);
+    }
+    return 0;
 }
 
 static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
@@ -758,26 +809,6 @@ static void *s_callback_list_form(const void *a_srv_validator, UNUSED_ARG void *
     l_validator->signing_addr = ((dap_chain_net_srv_stake_item_t *)a_srv_validator)->signing_addr;
     l_validator->weight = ((dap_chain_net_srv_stake_item_t *)a_srv_validator)->value;
     return l_validator;
-}
-
-static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value)
-{
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
-    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    if (a_new_value)
-        l_esbocs_pvt->min_validators_count = a_new_value;
-    else {
-        dap_hash_fast_t l_stake_tx_hash = {};
-        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value();
-        for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
-            dap_chain_esbocs_validator_t *l_validator = it->data;
-            dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
-                                                 l_weight, &l_validator->node_addr);
-        }
-        l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
-    }
 }
 
 static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_fast_t *a_last_hash, uint64_t a_skip_count)
@@ -1948,14 +1979,14 @@ DAP_STATIC_INLINE bool s_block_is_emergency(dap_chain_block_t *a_block, size_t a
     return dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_EMERGENCY);
 }
 
-static bool s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_addr_t *a_signing_addr)
+static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_addr_t *a_signing_addr)
 {
     for (dap_list_t *it = PVT(a_esbocs)->emergency_validator_addrs; it; it = it->next) {
         dap_chain_addr_t *l_authorized_pkey = it->data;
         if (dap_chain_addr_compare(l_authorized_pkey, a_signing_addr))
-            return true;
+            return it;
     }
-    return false;
+    return NULL;
 }
 
 static bool s_check_signing_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_block_t *a_block, size_t a_block_size,
@@ -2790,91 +2821,58 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
                                                                           uint256_t a_value, dap_cert_t *a_cert)
 {
     size_t l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
-    dap_chain_datum_decree_t *l_decree = NULL;
-    dap_list_t *l_tsd_list = NULL;
-    dap_tsd_t *l_tsd = NULL;
-// memory alloc
-    DAP_NEW_Z_SIZE_RET_VAL(l_tsd, dap_tsd_t, l_total_tsd_size, NULL, NULL);
-    DAP_NEW_Z_SIZE_RET_VAL(l_decree, dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size, NULL, l_tsd);
-
-    l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT;
-    l_tsd->size = sizeof(uint256_t);
-    *(uint256_t*)(l_tsd->data) = a_value;
-    l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-
-    l_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
-    l_decree->header.ts_created = dap_time_now();
-    l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
-    l_decree->header.common_decree_params.net_id = a_net->pub.id;
-    dap_chain_t *l_chain = a_chain;
-    if (!a_chain)
-        l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
-    if(!l_chain){
-        log_it(L_ERROR, "Can't find chain with anchor support.");
-        dap_list_free_full(l_tsd_list, NULL);
-        DAP_DELETE(l_decree);
+    dap_chain_datum_decree_t *l_decree = dap_chain_datum_decree_new(a_net->pub.id, a_chain->id,
+                                                                    *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
+    if (!l_decree)
         return NULL;
-    }
-    l_decree->header.common_decree_params.chain_id = l_chain->id;
-    l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(a_net);
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT;
-    l_decree->header.data_size = l_total_tsd_size;
-    l_decree->header.signs_size = 0;
-
-    size_t l_data_tsd_offset = 0;
-    for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
-        dap_tsd_t * l_b_tsd = (dap_tsd_t *) l_iter->data;
-        size_t l_tsd_size = dap_tsd_size(l_b_tsd);
-        memcpy((byte_t*)l_decree->data_n_signs + l_data_tsd_offset, l_b_tsd, l_tsd_size);
-        l_data_tsd_offset += l_tsd_size;
-    }
-    dap_list_free_full(l_tsd_list, NULL);
-
-    size_t l_cur_sign_offset = l_decree->header.data_size + l_decree->header.signs_size;
-    size_t l_total_signs_size = l_decree->header.signs_size;
-
-    dap_sign_t * l_sign = dap_cert_sign(a_cert,  l_decree,
-       sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size, 0);
-
-    if (l_sign) {
-        size_t l_sign_size = dap_sign_get_size(l_sign);
-        l_decree = DAP_REALLOC(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
-        if (!l_decree) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
-            DAP_DELETE(l_sign);
-            return NULL;
-        }
-        memcpy((byte_t*)l_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
-        l_total_signs_size += l_sign_size;
-        l_cur_sign_offset += l_sign_size;
-        l_decree->header.signs_size = l_total_signs_size;
-        DAP_DELETE(l_sign);
-        log_it(L_DEBUG,"<-- Signed with '%s'", a_cert->name);
-    }else{
-        log_it(L_ERROR, "Decree signing failed");
-        DAP_DELETE(l_decree);
-        return NULL;
-    }
-
-    return l_decree;
+    dap_tsd_write(l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT, &a_value, sizeof(uint256_t));
+    return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
 }
 
 static dap_chain_datum_decree_t *s_esbocs_decree_set_max_weight(dap_chain_net_t *a_net, dap_chain_t *a_chain,
                                                                 uint256_t a_value, dap_cert_t *a_cert)
 {
-    return NULL;
+    size_t l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
+    dap_chain_datum_decree_t *l_decree = dap_chain_datum_decree_new(a_net->pub.id, a_chain->id,
+                                                                    *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
+    if (!l_decree)
+        return NULL;
+    l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT;
+    dap_tsd_write(l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE, &a_value, sizeof(uint256_t));
+    return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
 }
 
 static dap_chain_datum_decree_t *s_esbocs_decree_set_signs_check(dap_chain_net_t *a_net, dap_chain_t *a_chain,
                                                                  bool a_enable, dap_cert_t *a_cert)
 {
-    return NULL;
+    size_t l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint8_t);
+    dap_chain_datum_decree_t *l_decree = dap_chain_datum_decree_new(a_net->pub.id, a_chain->id,
+                                                                    *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
+    if (!l_decree)
+        return NULL;
+    l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE;
+    uint8_t l_data = a_enable ? 1 : 0;
+    dap_tsd_write(l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION, &l_data, sizeof(uint8_t));
+    return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
 }
 
 static dap_chain_datum_decree_t *s_esbocs_decree_set_emergency_validator(dap_chain_net_t *a_net, dap_chain_t *a_chain,
-                                                                         dap_hash_fast_t *a_pkey_hash, bool a_add, dap_cert_t *a_cert)
+                                                                         dap_hash_fast_t *a_pkey_hash, dap_sign_type_t a_sign_type,
+                                                                         bool a_add, dap_cert_t *a_cert)
 {
-    return NULL;
+    size_t l_total_tsd_size = sizeof(dap_tsd_t) * 3 + sizeof(uint8_t) + sizeof(uint32_t) + sizeof(dap_hash_fast_t);
+    dap_chain_datum_decree_t *l_decree = dap_chain_datum_decree_new(a_net->pub.id, a_chain->id,
+                                                                    *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
+    if (!l_decree)
+        return NULL;
+    l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS;
+    uint8_t l_data = a_add ? 1 : 0;
+    byte_t *l_ptr = dap_tsd_write(l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION, &l_data, sizeof(uint8_t));
+    uint32_t l_type_numeric = a_sign_type.type;
+    l_ptr = dap_tsd_write(l_ptr, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE, &l_type_numeric, sizeof(uint32_t));
+    dap_tsd_write(l_ptr, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, a_pkey_hash, sizeof(dap_hash_fast_t));
+    return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
 }
 
 static void s_print_emergency_validators(char **a_str_reply, dap_list_t *a_validator_addrs)
@@ -2903,9 +2901,10 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
     dap_chain_net_t *l_chain_net = NULL;
     dap_chain_t *l_chain = NULL;
 
+    // TODO make parse_net_chain working with default chain by dap_chain_net_get_default_chain_by_chain_type(l_chain_net, CHAIN_TYPE_ANCHOR)
     if (dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_chain_net))
         return -3;
-    const char *l_chain_type = dap_chain_net_get_type(l_chain);
+    const char *l_chain_type = dap_chain_get_cs_type(l_chain);
     if (strcmp(l_chain_type, "esbocs")) {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Type of chain \"%s\" is not block. Chain with current consensus \"%s\" is not supported by this command",
@@ -3057,7 +3056,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
 
     case SUBCMD_EMERGENCY_VALIDATOR: {
         if (!l_subcommand_show) {
-            const char *l_hash_str = NULL;
+            const char *l_hash_str = NULL, *l_type_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-pkey_hash", &l_hash_str);
             if (!l_hash_str) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command '%s' requires parameter -pkey_hash", l_subcmd_strs[l_subcmd]);
@@ -3068,7 +3067,11 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid hash format in 'pkey_hash' param");
                 return -10;
             }
-            dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_emergency_validator(l_chain_net, l_chain, &l_pkey_hash, l_subcommand_add, l_poa_cert);
+            dap_sign_type_t l_sig_type = { .type = SIG_TYPE_DILITHIUM };
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-sig_type", &l_type_str);
+            if (l_type_str)
+                l_sig_type = dap_sign_type_from_str(l_type_str);
+            dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_emergency_validator(l_chain_net, l_chain, &l_pkey_hash, l_sig_type, l_subcommand_add, l_poa_cert);
             char *l_decree_hash_str = NULL;
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Emergency validator %s has been %s. Decree hash %s",

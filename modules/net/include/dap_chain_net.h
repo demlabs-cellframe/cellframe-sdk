@@ -34,18 +34,17 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_common.h"
 #include "dap_chain.h"
 #include "dap_chain_node.h"
-#include "dap_chain_net_decree.h"
 #include "dap_global_db_cluster.h"
 #include "dap_json_rpc_errors.h"
 
 #define DAP_CHAIN_NET_NAME_MAX 32
 #define DAP_CHAIN_NET_MEMPOOL_TTL 48 // Hours
 
-struct dap_chain_node_info;
 typedef struct dap_chain_node_client dap_chain_node_client_t;
 typedef struct dap_ledger dap_ledger_t;
+typedef struct dap_chain_net_decree dap_chain_net_decree_t;
 
-typedef enum dap_chain_net_state{
+typedef enum dap_chain_net_state {
     NET_STATE_OFFLINE = 0,
     NET_STATE_LINKS_PREPARE,
     NET_STATE_LINKS_CONNECTING,
@@ -133,7 +132,6 @@ dap_chain_t *dap_chain_net_get_chain_by_id(dap_chain_net_t *l_net, dap_chain_id_
 
 uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net);
 dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net);
-const char* dap_chain_net_get_type(dap_chain_t *l_chain);
 
 // Get inintial authorized nodes pointed by config
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
@@ -149,6 +147,8 @@ dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain)
 int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_t a_block_num);
 uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num);
 int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr, const char *a_host, uint16_t a_port);
+
+void dap_chain_net_purge(dap_chain_net_t *l_net);
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool

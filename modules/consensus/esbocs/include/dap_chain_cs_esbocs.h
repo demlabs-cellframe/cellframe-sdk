@@ -236,3 +236,9 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_t *a_block_ptr, size_t a
                                         dap_chain_esbocs_block_collect_t *a_block_collect_params,int a_type);
 bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr);
 bool dap_chain_esbocs_remove_validator_from_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr);
+
+uint256_t dap_chain_esbocs_get_collecting_level(dap_chain_t *a_chain);
+dap_enc_key_t *dap_chain_esbocs_get_sign_key(dap_chain_t *a_chain);
+int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
+int dap_chain_esbocs_set_max_validator_weight(dap_chain_t *a_chain, uint256_t a_value_percent);
+int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash);

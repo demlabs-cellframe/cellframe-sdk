@@ -29,6 +29,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net.h"
+#include "dap_chain_net_decree.h"
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
 

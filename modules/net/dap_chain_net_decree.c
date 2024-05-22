@@ -25,12 +25,11 @@
 #include <assert.h>
 #include "dap_common.h"
 #include "dap_sign.h"
-#include "dap_cert.h"
 #include "dap_pkey.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_decree.h"
-#include "dap_chain_net_srv.h"
+#include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_http_ban_list_client.h"
@@ -462,13 +461,13 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING, "Specified chain not found");
                 return -106;
             }
-            if (!l_chain->callback_set_min_validators_count) {
+            if (dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
                 log_it(L_WARNING, "Can't apply this decree to specified chain");
                 return -115;
             }
             if (!a_apply)
                 break;
-            l_chain->callback_set_min_validators_count(l_chain, (uint16_t)dap_chain_uint256_to(l_uint256_buffer));
+            dap_chain_esbocs_set_min_validators_count(l_chain, (uint16_t)dap_chain_uint256_to(l_uint256_buffer));
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN: {
             if (!a_apply)
@@ -527,6 +526,51 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
         } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD: {
+            if (dap_chain_datum_decree_get_value(a_decree, &l_uint256_buffer)) {
+                log_it(L_WARNING,"Can't get value from decree.");
+                return -103;
+            }
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            if (!l_chain) {
+                log_it(L_WARNING, "Specified chain not found");
+                return -106;
+            }
+            if (!a_apply)
+                break;
+            uint64_t l_cur_block_num = l_chain->callback_count_atom(l_chain);
+            dap_chain_net_add_reward(a_net, l_uint256_buffer, l_cur_block_num);
+        } break;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT: {
+            if (dap_chain_datum_decree_get_value(a_decree, &l_uint256_buffer)) {
+                log_it(L_WARNING,"Can't get value from decree.");
+                return -103;
+            }
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            if (!l_chain) {
+                log_it(L_WARNING, "Specified chain not found");
+                return -106;
+            }
+            if (!a_apply)
+                break;
+            uint64_t l_cur_block_num = l_chain->callback_count_atom(l_chain);
+            dap_chain_net_add_reward(a_net, l_uint256_buffer, l_cur_block_num);
+        } break;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE: {
+            if (dap_chain_datum_decree_get_value(a_decree, &l_uint256_buffer)) {
+                log_it(L_WARNING,"Can't get value from decree.");
+                return -103;
+            }
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            if (!l_chain) {
+                log_it(L_WARNING, "Specified chain not found");
+                return -106;
+            }
+            if (!a_apply)
+                break;
+            uint64_t l_cur_block_num = l_chain->callback_count_atom(l_chain);
+            dap_chain_net_add_reward(a_net, l_uint256_buffer, l_cur_block_num);
+        } break;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS: {
             if (dap_chain_datum_decree_get_value(a_decree, &l_uint256_buffer)) {
                 log_it(L_WARNING,"Can't get value from decree.");
                 return -103;

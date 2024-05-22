@@ -22,7 +22,6 @@
 */
 #include <pthread.h>
 #include "dap_common.h"
-#include "dap_enc_base58.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
@@ -227,7 +226,7 @@ void dap_chain_cs_blocks_deinit()
     dap_chain_block_cache_deinit();
 }
 
-static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config)
+static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_config)
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_NEW_Z(dap_chain_cs_blocks_t);
     if (!l_cs_blocks) {
@@ -559,7 +558,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
     if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
         return -11;
 
-    const char *l_chain_type = dap_chain_net_get_type(l_chain);
+    const char *l_chain_type = dap_chain_get_cs_type(l_chain);
 
     if (!strstr(l_chain_type, "block_") && strcmp(l_chain_type, "esbocs")){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -1099,8 +1098,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     return -20;
                 }
                 dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
-                        .collecting_level = l_chain->callback_get_collectiong_level(l_chain),
-                        .minimum_fee = l_chain->callback_get_minimum_fee(l_chain),
+                        .collecting_level = dap_chain_esbocs_get_collecting_level(l_chain),
+                        .minimum_fee = dap_chain_esbocs_get_fee(l_chain->net_id),
                         .chain = l_chain,
                         .blocks_sign_key = l_cert->enc_key,
                         .block_sign_pkey = l_pub_key,

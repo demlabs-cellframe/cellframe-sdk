@@ -39,13 +39,11 @@
 #include <netinet/in.h>
 #endif
 
-#include "utlist.h"
 #include "dap_hash.h"
-#include "rand/dap_rand.h"
 #include "dap_chain_net.h"
 #include "dap_global_db.h"
 #include "dap_chain_node.h"
-#include "dap_chain_cell.h"
+#include "dap_chain_cs_esbocs.h"
 #include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_node"
@@ -302,7 +300,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
             if (dap_chain_node_mempool_need_process(a_chain, l_datum)) {
 
                 if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX &&
-                        a_chain->callback_get_minimum_fee){
+                        !dap_strcmp(dap_chain_get_cs_type(a_chain), "esbocs")) {
                     uint256_t l_tx_fee = {};
                     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
                     if (dap_chain_datum_tx_get_fee_value (l_tx, &l_tx_fee) ||
@@ -313,7 +311,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                         } else
                             log_it(L_DEBUG, "Process service tx without fee");
                     } else {
-                        uint256_t l_min_fee = a_chain->callback_get_minimum_fee(a_chain);
+                        uint256_t l_min_fee = dap_chain_esbocs_get_fee(a_chain->net_id);
                         if (compare256(l_tx_fee, l_min_fee) < 0) {
                             char *l_tx_fee_str = dap_chain_balance_to_coins(l_tx_fee);
                             char *l_min_fee_str = dap_chain_balance_to_coins(l_min_fee);

@@ -43,6 +43,7 @@
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_net_tx.h"
+#include "dap_chain_net_decree.h"
 #include "dap_chain_mempool.h"
 #include "dap_math_convert.h"
 

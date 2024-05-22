@@ -1332,7 +1332,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
     }
     l_dag = DAP_CHAIN_CS_DAG(l_chain);
 
-    const char *l_chain_type = dap_chain_net_get_type(l_chain);
+    const char *l_chain_type = dap_chain_get_cs_type(l_chain);
 
     if (!strstr(l_chain_type, "dag_")){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
