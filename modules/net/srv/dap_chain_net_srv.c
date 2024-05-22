@@ -97,9 +97,9 @@ int dap_chain_net_srv_init()
         "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
         " [-price_token <token_ticker>] [-price_min <price_minimum>] [-price_max <price_maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
-        "net_srv -net <net_name> order delete -hash <ip_addr>\n"
+        "net_srv -net <net_name> order delete -hash <order_hash>\n"
         "\tOrder delete\n"
-        "net_srv -net <net_name> order dump -hash <ip_addr>\n"
+        "net_srv -net <net_name> order dump -hash <order_hash>\n"
         "\tOrder dump info\n"
         "net_srv -net <net_name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>\n"
         " -price_unit <Price Unit> -price_token <token_ticker> -units <units> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
@@ -314,6 +314,17 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             l_order->continent = l_continent_num;*/
                         char *l_new_order_hash_str = dap_chain_net_srv_order_save(l_net, l_order, false);
                         if (l_new_order_hash_str) {
+                            const char *l_cert_str = NULL;
+                            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_cert_str);
+                            if (!l_cert_str) {
+                                dap_cli_server_cmd_set_reply_text(a_str_reply, "Fee order creation requires parameter -cert");
+                                return -7;
+                            }
+                            dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
+                            if (!l_cert) {
+                                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert %s", l_cert_str);
+                                return -8;
+                            }
                             // delete prev order
                             if(dap_strcmp(l_new_order_hash_str, l_order_hash_hex_str))
                                 dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
@@ -562,10 +573,8 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                     }
                 // create order
                     char * l_order_new_hash_str = dap_chain_net_srv_order_create(
-                                l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, &l_price, l_price_unit,
-                                l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_units, l_region_str, l_continent_num, l_key);
-                    if(l_cert)
-                        dap_cert_delete(l_cert);
+                        l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, &l_price, l_price_unit,
+                        l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_units, l_region_str, l_continent_num, l_key);
                     if (l_order_new_hash_str)
                         dap_string_append_printf( l_string_ret, "Created order %s\n", l_order_new_hash_str);
                     else {
@@ -855,7 +864,7 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
 
     dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash(l_net, a_order_hash);
     if (!l_order){
-        log_it(L_ERROR, "Memory allocation error");
+        log_it(L_ERROR, "Can't find order!");
         return NULL;
     }
 
@@ -1216,7 +1225,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
 }
 
 /**
- * @brief dap_chain_net_srv_issue_receipt
+ * @brief s_str_to_price_unit
  * @param a_str_price_unit
  * @param a_price_unit
  * @return 0 if OK, other if error
