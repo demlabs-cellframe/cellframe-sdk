@@ -125,7 +125,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     }
 
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    int l_res = dap_global_db_set(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), false, NULL, NULL);
+    int l_res = dap_global_db_set_sync(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), false);//, NULL, NULL);
     if (l_res == DAP_GLOBAL_DB_RC_SUCCESS)
         log_it(L_NOTICE, "Datum %s with hash %s was placed in mempool group %s", l_type_str, l_key_str, l_gdb_group);
     else
