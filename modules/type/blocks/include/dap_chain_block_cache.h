@@ -62,8 +62,8 @@ typedef struct dap_chain_block_cache {
     // Pointer to block itself
     dap_chain_block_t * block;
 
-    // List for keeping pointers to forked branches
-    dap_list_t * forked_branches;
+    // List for keeping pointers to list of atoms in side branches
+    dap_list_t *forked_branches;
 
     // Links to prev and next block
     struct dap_chain_block_cache * prev;

@@ -61,7 +61,8 @@ typedef struct dap_chain_cs_blocks_pvt
     // All the blocks are here. In feature should be limited with 1000 when the rest would be loaded from file when needs them
     dap_chain_block_cache_t * blocks;
 
-    dap_list_t **forked_branches;
+    size_t forked_br_cnt;
+    dap_list_t **forked_branches; // list of lists with atoms in side branches
 
     // Chunks treshold
     dap_chain_block_chunks_t * chunks;
@@ -1472,13 +1473,14 @@ static void s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
 
     // Find longest forked branch 
     dap_list_t *l_branch = a_bcache->forked_branches;
-    dap_list_t *l_longest_branch_ptr = l_branch ? (dap_list_t *)l_branch->data : NULL;
+    dap_list_t **l_longest_branch_ptr = l_branch ? (dap_list_t **)l_branch->data : NULL;
     uint64_t l_longest_branch_length = current_block_idx;
     while (l_branch){
-        uint64_t l_branch_length = dap_list_length((dap_list_t *)l_branch->data);
+        dap_list_t **l_current_branch_ptr = (dap_list_t **)l_branch->data;
+        uint64_t l_branch_length = dap_list_length(*l_current_branch_ptr);
         if (l_branch_length > l_longest_branch_length){
             l_longest_branch_length = l_branch_length;
-            l_longest_branch_ptr = (dap_list_t *)l_branch->data;
+            l_longest_branch_ptr = (dap_list_t **)l_branch->data;
         }
         l_branch = l_branch->next;
     }
@@ -1499,9 +1501,8 @@ static void s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
                 s_delete_atom_datums(l_blocks, l_atom);
             }
 
-        a_bcache->forked_branches = dap_list_append(a_bcache->forked_branches, l_new_forked_branch);
         // Next we add all atoms into HT and their datums into storages
-        dap_list_t * new_main_branch = l_longest_branch_ptr;
+        dap_list_t * new_main_branch = *l_longest_branch_ptr;
         while(new_main_branch){
             dap_chain_block_cache_t *l_curr_atom = (dap_chain_block_cache_t *)(new_main_branch->data);
             ++PVT(l_blocks)->blocks_count;
@@ -1510,8 +1511,10 @@ static void s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
             s_add_atom_datums(l_blocks, l_curr_atom);
             new_main_branch = new_main_branch->next;
         }
-        dap_list_free(l_longest_branch_ptr);
-        a_bcache->forked_branches = dap_list_remove(a_bcache->forked_branches, l_longest_branch_ptr);
+        dap_list_free(*l_longest_branch_ptr);
+        *l_longest_branch_ptr = l_new_forked_branch;
+
+        // a_bcache->forked_branches = dap_list_remove(a_bcache->forked_branches, l_longest_branch_ptr);
         
     }
 }
@@ -1568,10 +1571,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     // Check forked branches
                     dap_list_t * l_forked_branches = l_prev_bcache->forked_branches;
                     while(l_forked_branches){
-                        dap_list_t *l_current_branch = (dap_list_t*)l_forked_branches->data;
-                        dap_chain_block_cache_t * l_branch_last_bcache = (dap_chain_block_cache_t *)(dap_list_last(l_current_branch))->data;
+                        dap_list_t **l_current_branch = (dap_list_t**)l_forked_branches->data;
+                        dap_chain_block_cache_t * l_branch_last_bcache = (dap_chain_block_cache_t *)(dap_list_last(*l_current_branch))->data;
                         if(dap_hash_fast_compare(&l_branch_last_bcache->block_hash, &l_block_prev_hash)){
-                            l_forked_branches->data = dap_list_append((dap_list_t*)l_forked_branches->data, l_block_cache);
+                            *l_current_branch = dap_list_append(*l_current_branch, l_block_cache);
                             s_select_longest_branch(l_blocks, l_prev_bcache, l_current_item_index);
                             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
                             return ATOM_ACCEPT;
@@ -1611,7 +1614,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             // make forked branch list
             dap_list_t *forked_branch = NULL;
             forked_branch = dap_list_append(forked_branch, l_block_cache);
-            l_prev_bcache->forked_branches = dap_list_append(l_prev_bcache->forked_branches, forked_branch);
+            PVT(l_blocks)->forked_br_cnt++;
+            PVT(l_blocks)->forked_branches = DAP_REALLOC_COUNT(PVT(l_blocks)->forked_branches, PVT(l_blocks)->forked_br_cnt);
+            PVT(l_blocks)->forked_branches[PVT(l_blocks)->forked_br_cnt-1] = forked_branch;
+            l_prev_bcache->forked_branches = dap_list_append(l_prev_bcache->forked_branches, &PVT(l_blocks)->forked_branches[PVT(l_blocks)->forked_br_cnt-1]);
             pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
             debug_if(s_debug_more, L_DEBUG, "Fork is made successfuly.");
             return ATOM_ACCEPT;
@@ -1721,8 +1727,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                 // Check forked branches
                 dap_list_t * l_forked_branches = l_prev_bcache->forked_branches;
                 while(l_forked_branches){
-                    dap_list_t * forked_branch = (dap_list_t *)l_forked_branches->data;                    
-                    dap_chain_block_cache_t *l_forked_branch_last_block = (dap_chain_block_cache_t *)(dap_list_last(forked_branch)->data);
+                    dap_list_t ** forked_branch = (dap_list_t **)l_forked_branches->data;                    
+                    dap_chain_block_cache_t *l_forked_branch_last_block = (dap_chain_block_cache_t *)(dap_list_last(*forked_branch)->data);
                     if(l_forked_branch_last_block && dap_hash_fast_compare(&l_forked_branch_last_block->block_hash, &l_block_prev_hash)){
                         pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
                         return ATOM_ACCEPT;
