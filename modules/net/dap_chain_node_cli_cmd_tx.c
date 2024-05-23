@@ -771,6 +771,7 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
                         json_object_array_add(json_arr_out, json_obj_datum);
                         //const char * debug_json_string = json_object_to_json_string(json_obj_datum);
                         ++l_count_tx;
+                        l_count++;
                     }
                 }
                 DAP_DEL_Z(l_datums);
@@ -782,7 +783,7 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
 
         json_object_object_add(json_obj_summary, "network", json_object_new_string(l_net->pub.name));
         json_object_object_add(json_obj_summary, "chain", json_object_new_string(l_chain->name));
-        json_object_object_add(json_obj_summary, "tx_sum", json_object_new_int(l_count_tx));
+        json_object_object_add(json_obj_summary, "tx_sum", json_object_new_int(l_count));
         json_object_object_add(json_obj_summary, "accepted_tx", json_object_new_int(l_tx_ledger_accepted));
         json_object_object_add(json_obj_summary, "rejected_tx", json_object_new_int(l_tx_ledger_rejected));
         return json_arr_out;
