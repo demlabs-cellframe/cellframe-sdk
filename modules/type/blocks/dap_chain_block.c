@@ -495,6 +495,7 @@ static const char *s_meta_type_to_string(uint8_t a_meta_type)
     case DAP_CHAIN_BLOCK_META_EMERGENCY: return "EMERGENCY";
     case DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT: return "SYNC_ATTEMPT";
     case DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT: return "ROUND_ATTEMPT";
+    case DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS: return "EXCLUDED_KEYS";
     default: return "UNNOWN";
     }
 }
@@ -532,6 +533,14 @@ static uint8_t *s_meta_extract(dap_chain_block_meta_t *a_meta)
         log_it(L_WARNING, "Meta %s has wrong size %hu when expecting %zu",
                s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size, sizeof(uint8_t));
     break;
+    case DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS:
+        if (a_meta->hdr.data_size > sizeof(uint16_t)) {
+            uint16_t l_expected_size = *(uint16_t *)a_meta->data + sizeof(uint16_t);
+            if (!(l_expected_size % sizeof(uint16_t)) &&
+                    l_expected_size == a_meta->hdr.data_size)
+                return a_meta->data;
+        }
+        log_it(L_WARNING, "Meta %s has wrong size %hu", s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size);
     default:
         log_it(L_WARNING, "Unknown meta type 0x%02x (size %u), possible corrupted block or you need to upgrade your software",
                           a_meta->hdr.type, a_meta->hdr.type);

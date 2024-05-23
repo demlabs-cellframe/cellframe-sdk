@@ -26,7 +26,6 @@
 #include "dap_math_ops.h"
 #include "dap_time.h"
 #include "dap_list.h"
-#include "dap_tsd.h"
 #include "dap_cert.h"
 #include <stdint.h>
 
@@ -217,7 +216,7 @@ int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, ui
  * @param a_tx_hash pointer to tx hash buffer
  * @return result code. 0 - success
  */
-int dap_chain_datum_decree_get_stake_tx_hash(dap_chain_datum_decree_t *a_decree, dap_hash_fast_t *a_tx_hash);
+int dap_chain_datum_decree_get_hash(dap_chain_datum_decree_t *a_decree, dap_hash_fast_t *a_tx_hash);
 
 /**
  * @brief dap_chain_datum_decree_get_stake_value get stake value
@@ -267,6 +266,9 @@ int dap_chain_datum_decree_get_stake_min_value(dap_chain_datum_decree_t *a_decre
  * @return result code. 0 - success
  */
 int dap_chain_datum_decree_get_stake_min_signers_count(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_signers_count);
+int dap_chain_datum_decree_get_action(dap_chain_datum_decree_t *a_decree, uint8_t *a_action);
+int dap_chain_datum_decree_get_signature_type(dap_chain_datum_decree_t *a_decree, uint32_t *a_signature_type);
+int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, const char **a_addr);
 
 /**
  * @breif dap_chain_datum_decree_dump Dump information about decree

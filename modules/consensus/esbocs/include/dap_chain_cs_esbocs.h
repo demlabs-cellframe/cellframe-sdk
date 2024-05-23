@@ -155,6 +155,7 @@ typedef struct dap_chain_esbocs_round {
     // Validators section
     dap_list_t *validators_list;
     uint16_t validators_synced_count;
+    uint16_t *excluded_list;
     // Synchronization params
     uint64_t sync_attempt;
     bool sync_sent;
@@ -242,3 +243,4 @@ dap_enc_key_t *dap_chain_esbocs_get_sign_key(dap_chain_t *a_chain);
 int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
 int dap_chain_esbocs_set_max_validator_weight(dap_chain_t *a_chain, uint256_t a_value_percent);
 int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash);
+int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable);

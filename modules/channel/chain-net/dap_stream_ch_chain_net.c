@@ -44,6 +44,7 @@
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_cs_esbocs.h"
+#include "dap_chain_net_srv_order.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_proc.h"

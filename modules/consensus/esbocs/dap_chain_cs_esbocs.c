@@ -28,6 +28,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "rand/dap_rand.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_chain_net.h"
+#include "dap_chain_net_srv_order.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_cell.h"
@@ -471,7 +472,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_esbocs_pvt->collecting_addr = dap_chain_addr_from_str(dap_config_get_item_str(a_chain_net_cfg, "esbocs", "fee_addr"));
     l_esbocs_pvt->collecting_level = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "set_collect_fee", "10.0"));
 
-    dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false);
+    dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
     for (dap_list_t *it = l_validators; it; it = it->next) {
         dap_stream_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
         dap_chain_net_add_validator_to_clusters(a_chain, l_addr);
@@ -733,6 +734,16 @@ int dap_chain_esbocs_set_max_validator_weight(dap_chain_t *a_chain, uint256_t a_
     return 0;
 }
 
+int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
+{
+    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), "esbocs"), -1);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    l_esbocs_pvt->check_signs_structure = a_enable;
+    return 0;
+}
+
 int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash)
 {
     dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), "esbocs"), -1);
@@ -811,13 +822,30 @@ static void *s_callback_list_form(const void *a_srv_validator, UNUSED_ARG void *
     return l_validator;
 }
 
-static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_fast_t *a_last_hash, uint64_t a_skip_count)
+static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_fast_t *a_last_hash, uint64_t a_skip_count,
+                                         uint16_t *a_excluded_list, uint16_t a_excluded_list_size)
 {
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(a_esbocs);
     dap_list_t *l_ret = NULL;
-
+    dap_list_t *l_validators = NULL;
     if (!l_esbocs_pvt->poa_mode) {
-        dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_esbocs->chain->net_id, true);
+        if (a_excluded_list_size) {
+            l_validators =  dap_chain_net_srv_stake_get_validators(a_esbocs->chain->net_id, false, NULL);
+            uint16_t l_excluded_num = *a_excluded_list;
+            uint16_t l_excluded_list_idx = 0, l_validator_idx = 0;
+            dap_list_t *it, *tmp;
+            DL_FOREACH_SAFE(l_validators, it, tmp) {
+                if (l_validator_idx++ == l_excluded_num) {
+                    DAP_DELETE(it->data);
+                    l_validators = dap_list_delete_link(l_validators, it);
+                    if (l_excluded_list_idx == a_excluded_list_size - 1)
+                        break;
+                    l_excluded_num = a_excluded_list[++l_excluded_list_idx];
+                }
+            }
+        } else
+            l_validators = dap_chain_net_srv_stake_get_validators(a_esbocs->chain->net_id, true,
+                                                                  &a_esbocs->session->cur_round.excluded_list);
         uint16_t l_total_validators_count = dap_list_length(l_validators);
         if (l_total_validators_count < l_esbocs_pvt->min_validators_count) {
             log_it(L_MSG, "Can't start new round. Totally active validators count %hu is below minimum count %hu",
@@ -1039,7 +1067,8 @@ static bool s_session_round_new(void *a_arg)
     if (!PVT(a_session->esbocs)->emergency_mode) {
         a_session->cur_round.validators_list = s_get_validators_list(a_session->esbocs,
                                                                      &a_session->cur_round.last_block_hash,
-                                                                     a_session->cur_round.sync_attempt - 1);
+                                                                     a_session->cur_round.sync_attempt - 1,
+                                                                     NULL, 0);
         if (!a_session->cur_round.validators_list) {
             log_it(L_WARNING, "Minimum active validators not found");
             a_session->ts_round_sync_start = dap_time_now();
@@ -1047,7 +1076,7 @@ static bool s_session_round_new(void *a_arg)
             return false;
         }
     }
-    dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false);
+    dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false, NULL);
     a_session->cur_round.all_validators = dap_list_copy_deep(l_validators, s_callback_list_form, NULL);
     dap_list_free_full(l_validators, NULL);
     bool l_round_already_started = a_session->round_fast_forward;
@@ -1529,6 +1558,9 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
             if (l_candidate_size)
                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT,
                                                             &a_session->cur_round.attempt_num, sizeof(uint8_t));
+            if (l_candidate_size)
+                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
+                                                            a_session->cur_round.excluded_list, *a_session->cur_round.excluded_list * sizeof(uint16_t));
         }
         if (l_candidate_size) {
             dap_hash_fast(l_candidate, l_candidate_size, &l_candidate_hash);
@@ -2012,7 +2044,13 @@ static bool s_check_signing_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_block
         log_it(L_ERROR, "Can't get block metadata for PREV_HASH");
         return false;
     }
-    dap_list_t *l_allowed_validators_list = s_get_validators_list(a_esbocs, l_prev_hash_ptr, l_sync_attempt - 1);
+    uint16_t *l_excluded_list = (uint16_t *)dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS);
+    if (!l_excluded_list) {
+        log_it(L_ERROR, "Can't get block metadata for EXCLUDED_KEYS");
+        return false;
+    }
+    dap_list_t *l_allowed_validators_list = s_get_validators_list(a_esbocs, l_prev_hash_ptr, l_sync_attempt - 1,
+                                                                  l_excluded_list + 1, *l_excluded_list);
     if (!l_allowed_validators_list) {
         log_it(L_ERROR, "Can't get block allowed validators list");
         return false;

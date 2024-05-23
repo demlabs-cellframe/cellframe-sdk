@@ -124,6 +124,13 @@ int dap_chain_datum_decree_get_stake_min_value(dap_chain_datum_decree_t *a_decre
     return l_tsd && l_tsd->size == sizeof(uint256_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_min_value); 0; }) : 1;
 }
 
+int dap_chain_datum_decree_get_stake_min_signers_count(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_signers_count)
+{
+    dap_return_val_if_fail(a_decree && a_min_signers_count, -1);
+    dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT);
+    return l_tsd && l_tsd->size == sizeof(uint256_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_min_signers_count); 0; }) : 1;
+}
+
 int dap_chain_datum_decree_get_action(dap_chain_datum_decree_t *a_decree, uint8_t *a_action)
 {
     dap_return_val_if_fail(a_decree && a_action, -1);
@@ -136,6 +143,15 @@ int dap_chain_datum_decree_get_signature_type(dap_chain_datum_decree_t *a_decree
     dap_return_val_if_fail(a_decree && a_signature_type, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE);
     return l_tsd && l_tsd->size == sizeof(uint32_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_signature_type); 0; }) : 1;
+}
+
+int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, const char **a_addr)
+{
+    dap_return_val_if_fail(a_decree && a_addr, -1);
+    dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST);
+    if (!l_tsd)
+        l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR);
+    return l_tsd ? ({ *a_addr = dap_tsd_get_string_const(l_tsd); !dap_strcmp(*a_addr, DAP_TSD_CORRUPTED_STRING); }) : 1;
 }
 
 void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type)

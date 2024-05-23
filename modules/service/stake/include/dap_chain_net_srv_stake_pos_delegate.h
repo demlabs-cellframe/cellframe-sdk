@@ -25,10 +25,9 @@
 #pragma once
 
 #include "dap_chain_ledger.h"
-#include "dap_chain_net_srv.h"
-#include "dap_chain_net_srv_order.h"
 #include "dap_math_ops.h"
 #include "dap_stream_ch_chain_net.h"
+#include "dap_chain_datum_decree.h"
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID 0x13
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS 0x14
@@ -75,7 +74,7 @@ uint256_t dap_chain_net_srv_stake_get_allowed_min_value();
 
 int dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr);
 int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t* a_signing_addr, dap_chain_node_addr_t* a_node_addr);
-dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, bool a_only_active);
+dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, bool a_only_active, uint16_t **a_excluded_list);
 
 bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
                                                 uint256_t *a_max_fee, uint256_t *a_average_fee, uint256_t *a_min_fee, uint256_t *a_median_fee);

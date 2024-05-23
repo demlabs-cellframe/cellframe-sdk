@@ -40,6 +40,7 @@
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "json_object.h"
 #include "dap_cli_server.h"
+#include "dap_chain_net_srv_order.h"
 
 #define LOG_TAG "dap_chain_net_srv_stake_pos_delegate"
 
@@ -362,16 +363,47 @@ int dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_signing_addr)
     return 0;
 }
 
-dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, bool a_only_active)
+dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, bool a_only_active, uint16_t **a_excluded_list)
 {
     dap_list_t *l_ret = NULL;
     if (!s_srv_stake || !s_srv_stake->itemlist)
         return l_ret;
+    const uint16_t l_arr_resize_step = 64;
+    size_t l_arr_size = l_arr_resize_step, l_arr_idx = 1, l_list_idx = 0;
+    if (a_excluded_list)
+        DAP_NEW_Z_COUNT_RET_VAL(*a_excluded_list, uint16_t, l_arr_size, NULL, NULL);
     for (dap_chain_net_srv_stake_item_t *l_stake = s_srv_stake->itemlist; l_stake; l_stake = l_stake->hh.next)
-        if (a_net_id.uint64 == l_stake->signing_addr.net_id.uint64 &&
-                a_only_active ? l_stake->is_active : true)
-            l_ret = dap_list_append(l_ret, DAP_DUP(l_stake));
+        if (a_net_id.uint64 == l_stake->signing_addr.net_id.uint64) {
+            if (l_stake->is_active || !a_only_active) {
+                void *l_data = DAP_DUP(l_stake);
+                if (!l_data)
+                    goto fail_ret;
+                dap_list_t *l_append = dap_list_append(l_ret, l_data);
+                if (l_ret == l_append)
+                    goto fail_ret;
+                else
+                    l_ret = l_append;
+            }
+            if (!l_stake->is_active && a_excluded_list) {
+                *a_excluded_list[l_arr_idx++] = l_list_idx;
+                if (l_arr_idx == l_arr_size) {
+                    l_arr_size += l_arr_resize_step;
+                    void *l_new_arr = DAP_REALLOC(*a_excluded_list, l_arr_size * sizeof(uint16_t));
+                    if (l_new_arr)
+                        goto fail_ret;
+                    else
+                        *a_excluded_list = l_new_arr;
+                }
+            }
+            l_list_idx++;
+        }
     return l_ret;
+fail_ret:
+    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+    dap_list_free_full(l_ret, NULL);
+    if (a_excluded_list)
+        DAP_DELETE(*a_excluded_list);
+    return NULL;
 }
 
 int dap_chain_net_srv_stake_mark_validator_active(dap_chain_addr_t *a_signing_addr, bool a_on_off)
@@ -689,7 +721,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
         log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return NULL;
     }
-    l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_TX_HASH;
+    l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH;
     l_tsd->size = sizeof(dap_hash_fast_t);
     *(dap_hash_fast_t*)(l_tsd->data) = *a_stake_tx_hash;
     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);

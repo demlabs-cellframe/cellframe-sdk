@@ -1,8 +1,7 @@
 
 #include "dap_json_rpc_chain_datum_decree.h"
 #include "dap_json_rpc_chain_common.h"
-#include "json.h"
-
+#include "dap_tsd.h"
 
 #define LOG_TAG "dap_json_rpc_chain_datum_decree"
 
@@ -320,7 +319,7 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                 }
                 json_object_object_add(l_jobj_tsd, "addr", l_jobj_addr_fee_wallet);
             } break;
-            case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_TX_HASH: {
+            case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH: {
                 json_object *l_obj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_TX_HASH");
                 json_object_object_add(l_jobj_tsd, "type", l_obj_tsd_type);
                 if (l_tsd->size > sizeof(dap_hash_fast_t)) {

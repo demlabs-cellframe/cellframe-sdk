@@ -62,16 +62,17 @@ typedef struct dap_chain_block_meta{
 
 // Block metadata types
 
-#define DAP_CHAIN_BLOCK_META_GENESIS           0x01
-#define DAP_CHAIN_BLOCK_META_PREV              0x10
-#define DAP_CHAIN_BLOCK_META_ANCHOR            0x11
-#define DAP_CHAIN_BLOCK_META_LINK              0x12
-#define DAP_CHAIN_BLOCK_META_NONCE             0x20
-#define DAP_CHAIN_BLOCK_META_NONCE2            0x21
-#define DAP_CHAIN_BLOCK_META_MERKLE            0x30
-#define DAP_CHAIN_BLOCK_META_EMERGENCY         0x80
-#define DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT      0x81
-#define DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT     0x82
+#define DAP_CHAIN_BLOCK_META_GENESIS            0x01
+#define DAP_CHAIN_BLOCK_META_PREV               0x10
+#define DAP_CHAIN_BLOCK_META_ANCHOR             0x11
+#define DAP_CHAIN_BLOCK_META_LINK               0x12
+#define DAP_CHAIN_BLOCK_META_NONCE              0x20
+#define DAP_CHAIN_BLOCK_META_NONCE2             0x21
+#define DAP_CHAIN_BLOCK_META_MERKLE             0x30
+#define DAP_CHAIN_BLOCK_META_EMERGENCY          0x80
+#define DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT       0x81
+#define DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT      0x82
+#define DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS      0x83
 
 /**
  * @struct dap_chain_block

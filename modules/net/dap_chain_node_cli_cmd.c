@@ -68,6 +68,7 @@
 #include "dap_cert_file.h"
 #include "dap_file_utils.h"
 #include "dap_enc_base58.h"
+#include "dap_enc_ks.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
 #include "dap_chain_node.h"
