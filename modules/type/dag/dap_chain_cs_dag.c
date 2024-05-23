@@ -598,7 +598,21 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
         else
             HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
+
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
+        if (a_chain->atom_notifiers) {
+            dap_list_t *l_iter;
+            DL_FOREACH(a_chain->atom_notifiers, l_iter) {
+                dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
+                l_notifier->callback(l_notifier->arg, a_chain, l_event->header.cell_id, l_event, a_atom_size);
+            }
+        }
+        if (a_chain->callback_atom_add_from_treshold) {
+            size_t l_atom_treshold_size = 0;
+            while ( a_chain->callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size) ) {
+                log_it(L_DEBUG, "Added atom with size %lu from threshold", l_atom_treshold_size);
+            }
+        }
     } break;
     default:
         DAP_DELETE(l_event_item); // Neither added, nor freed
@@ -1047,6 +1061,14 @@ dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
                     DAP_DELETE(l_event_item->event);
                 DAP_DELETE(l_event_item);
             }
+            if (a_dag->chain->atom_notifiers) {
+                dap_list_t *l_iter;
+                DL_FOREACH(a_dag->chain->atom_notifiers, l_iter) {
+                    dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
+                    l_notifier->callback(l_notifier->arg, a_dag->chain, l_event_item->event->header.cell_id,
+                                         l_event_item->event, l_event_item->event_size);
+                }
+        }
             break;
         } else if (ret == DAP_THRESHOLD_CONFLICTING) {
             HASH_DEL(PVT(a_dag)->events_treshold, l_event_item);

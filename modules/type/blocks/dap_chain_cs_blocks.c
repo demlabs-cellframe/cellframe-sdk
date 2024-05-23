@@ -1469,6 +1469,20 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
         s_add_atom_datums(l_blocks, l_block_cache);
+
+        if (a_chain->atom_notifiers) {
+            dap_list_t *l_iter;
+            DL_FOREACH(a_chain->atom_notifiers, l_iter) {
+                dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
+                l_notifier->callback(l_notifier->arg, a_chain, l_block->hdr.cell_id, l_block, l_block_size);
+            }
+        }
+        if (a_chain->callback_atom_add_from_treshold) {
+            size_t l_atom_treshold_size = 0;
+            while ( a_chain->callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size) ) {
+                log_it(L_DEBUG, "Added atom with size %lu from threshold", l_atom_treshold_size);
+            }
+        }
         return ATOM_ACCEPT;
     case ATOM_MOVE_TO_THRESHOLD:
         // TODO: reimplement and enable threshold for blocks

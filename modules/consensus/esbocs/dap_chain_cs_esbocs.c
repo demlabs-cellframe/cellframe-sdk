@@ -337,14 +337,6 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_t *a_block_ptr, size_t a
     dap_chain_t *l_chain = a_block_collect_params->chain;
     dap_sign_t *l_sign = dap_chain_block_sign_get(a_block_ptr, a_block_size, 0);
     if (dap_pkey_match_sign(a_block_collect_params->block_sign_pkey, l_sign)&&(!a_type||a_type==1)) {
-        dap_chain_esbocs_block_collect_t *l_block_collect_params = DAP_NEW_Z(dap_chain_esbocs_block_collect_t);
-        l_block_collect_params->collectiong_level = a_block_collect_params->collectiong_level;
-        l_block_collect_params->minimum_fee = a_block_collect_params->minimum_fee;
-        l_block_collect_params->chain = a_block_collect_params->chain;
-        l_block_collect_params->blocks_sign_key = a_block_collect_params->blocks_sign_key;
-        l_block_collect_params->block_sign_pkey = a_block_collect_params->block_sign_pkey;
-        l_block_collect_params->collecting_addr = a_block_collect_params->collecting_addr;
-
         dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
         dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_last_block_hash);
         assert(l_block_cache);
@@ -356,33 +348,24 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_t *a_block_ptr, size_t a
         if (!IS_ZERO_256(l_value_fee)) {
             char *l_fee_group = dap_chain_cs_blocks_get_fee_group(l_chain->net_name);
             dap_global_db_set(l_fee_group, l_block_cache->block_hash_str, &l_value_fee, sizeof(l_value_fee),
-                              false, s_check_db_collect_callback, l_block_collect_params);
+                              false, s_check_db_collect_callback, DAP_DUP(a_block_collect_params));
             DAP_DELETE(l_fee_group);
         }
         dap_list_free_full(l_list_used_out, NULL);
     }
     if (dap_chain_block_sign_match_pkey(a_block_ptr, a_block_size, a_block_collect_params->block_sign_pkey)&&(!a_type||a_type==2)) {
-        dap_chain_esbocs_block_collect_t *l_block_collect_params = DAP_NEW_Z(dap_chain_esbocs_block_collect_t);
-        l_block_collect_params->collectiong_level = a_block_collect_params->collectiong_level;
-        l_block_collect_params->minimum_fee = a_block_collect_params->minimum_fee;
-        l_block_collect_params->chain = a_block_collect_params->chain;
-        l_block_collect_params->blocks_sign_key = a_block_collect_params->blocks_sign_key;
-        l_block_collect_params->block_sign_pkey = a_block_collect_params->block_sign_pkey;
-        l_block_collect_params->collecting_addr = a_block_collect_params->collecting_addr;
-
-        dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
-        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_last_block_hash);
-        assert(l_block_cache);
         dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
         assert(l_net);
-        if (!dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash,
-                                       &l_block_collect_params->collecting_addr->data.hash_fast)) {
-            uint256_t l_value_reward = l_chain->callback_calc_reward(l_chain, &l_block_cache->block_hash,
-                                                                     l_block_collect_params->block_sign_pkey);
+        if (!dap_ledger_is_used_reward(l_net->pub.ledger, &l_last_block_hash,
+                                       &a_block_collect_params->collecting_addr->data.hash_fast)) {
+            uint256_t l_value_reward = l_chain->callback_calc_reward(l_chain, &l_last_block_hash,
+                                                                     a_block_collect_params->block_sign_pkey);
             if (!IS_ZERO_256(l_value_reward)) {
                 char *l_reward_group = dap_chain_cs_blocks_get_reward_group(l_chain->net_name);
-                dap_global_db_set(l_reward_group, l_block_cache->block_hash_str, &l_value_reward, sizeof(l_value_reward),
-                                  false, s_check_db_collect_callback, l_block_collect_params);
+                char hash_str[DAP_HASH_FAST_STR_SIZE];
+                dap_hash_fast_to_str(&l_last_block_hash, hash_str, sizeof(hash_str));
+                dap_global_db_set(l_reward_group, hash_str, &l_value_reward, sizeof(l_value_reward),
+                                  false, s_check_db_collect_callback, DAP_DUP(a_block_collect_params));
                 DAP_DELETE(l_reward_group);
             }
         }
