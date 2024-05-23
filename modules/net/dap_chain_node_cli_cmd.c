@@ -112,6 +112,7 @@
 #include "dap_json_rpc_chain_datum.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_enc_ks.h"
 
 
 #define LOG_TAG "chain_node_cli_cmd"
