@@ -407,8 +407,8 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
         if (l_srv && l_srv->callbacks.response_error)
             l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-        DAP_DEL_Z(l_usage->client);
-        DAP_DEL_Z(l_usage);
+        // DAP_DEL_Z(l_usage->client);
+        // DAP_DEL_Z(l_usage);
         return false;
     }
 
@@ -443,8 +443,8 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
                 dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
             if (l_srv && l_srv->callbacks.response_error)
                 l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-            DAP_DEL_Z(l_usage->client);
-            DAP_DEL_Z(l_usage);
+            // DAP_DEL_Z(l_usage->client);
+            // DAP_DEL_Z(l_usage);
             return false;
         }
         l_grace->request = DAP_DUP_SIZE(a_request, a_request_size);
@@ -455,8 +455,8 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
                 dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
             if (l_srv && l_srv->callbacks.response_error)
                 l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-            DAP_DEL_Z(l_usage->client);
-            DAP_DEL_Z(l_usage);
+            // DAP_DEL_Z(l_usage->client);
+            // DAP_DEL_Z(l_usage);
             DAP_DEL_Z(l_grace);
             return false;
         }
@@ -480,8 +480,8 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
                 dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
             if (l_srv && l_srv->callbacks.response_error)
                 l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-            DAP_DEL_Z(l_usage->client);
-            DAP_DEL_Z(l_usage);
+            // DAP_DEL_Z(l_usage->client);
+            // DAP_DEL_Z(l_usage);
             return false;
         }
         l_success->hdr.usage_id = l_usage->id;
