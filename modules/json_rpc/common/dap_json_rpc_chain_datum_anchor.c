@@ -4,7 +4,7 @@
 #define LOG_TAG "dap_json_rpc_chain_datum_anchor"
 
 
-json_object *s_dap_chain_datum_anchor_sign_to_json(byte_t * a_signs, size_t a_certs_size) {
+json_object *s_dap_chain_datum_anchor_sign_to_json(byte_t * a_signs, size_t a_certs_size) {// --перевел
     json_object *l_jobs_signs = json_object_new_array();
     size_t l_offset = 0;
     for (int i = 1; l_offset < (a_certs_size); i++) {

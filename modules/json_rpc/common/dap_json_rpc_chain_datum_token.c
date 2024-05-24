@@ -7,7 +7,7 @@
 
 #define LOG_TAG "dap_json_rpc_chain_datum_token"
 
-json_object *dap_chain_datum_token_flags_to_json(uint16_t a_flags){
+json_object *dap_chain_datum_token_flags_to_json(uint16_t a_flags){ // -- перевел 
     if (!a_flags) {
         return json_object_new_null();
     }
@@ -22,7 +22,7 @@ json_object *dap_chain_datum_token_flags_to_json(uint16_t a_flags){
 }
 
 
-json_object *dap_chain_datum_token_to_json(dap_chain_datum_token_t * a_token, size_t a_token_size){
+json_object *dap_chain_datum_token_to_json(dap_chain_datum_token_t * a_token, size_t a_token_size){ // -- перевел
     json_object *l_jobj_token = json_object_new_object();
     if (!l_jobj_token){
         dap_json_rpc_allocation_error;
@@ -247,7 +247,7 @@ json_object *dap_chain_datum_token_to_json(dap_chain_datum_token_t * a_token, si
 }
 
 
-json_object *dap_chain_datum_emission_to_json(dap_chain_datum_token_emission_t *a_emission, size_t a_emission_size){
+json_object *dap_chain_datum_emission_to_json(dap_chain_datum_token_emission_t *a_emission, size_t a_emission_size){// -- перевел
     json_object *l_emi_obj = json_object_new_object();
     json_object *l_emi_version = json_object_new_uint64(a_emission->hdr.version);
     json_object *l_emi_type = json_object_new_string(c_dap_chain_datum_token_emission_type_str[a_emission->hdr.type]);

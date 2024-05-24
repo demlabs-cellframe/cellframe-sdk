@@ -3431,7 +3431,9 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             json_object_object_add(l_obj_atom, "ledger_response_code", l_jobj_atom_err);
             json_object_object_add(l_jobj_datum, "atom", l_obj_atom);
         }
-        json_object *l_datum_obj_inf = dap_chain_datum_to_json(l_datum);
+
+        json_object *l_datum_obj_inf = json_object_new_object();
+        dap_chain_datum_dump_json(l_datum_obj_inf,l_datum,NULL,a_net->pub.id);        
         if (!l_datum_obj_inf) {
             if (!l_found_in_chains)
                 DAP_DELETE(l_datum);
@@ -3736,7 +3738,9 @@ int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_grou
         json_object *l_jobj_message = json_object_new_string(l_msg_str);
         return COM_DUMP_ERROR_CAN_NOT_FIND_DATUM;
     }
-    json_object *l_jobj_datum = dap_chain_datum_to_json(l_datum);
+
+    json_object *l_jobj_datum = json_object_new_object();
+    dap_chain_datum_dump_json(l_jobj_datum,l_datum,NULL,a_net_id);
     json_object_array_add(*a_json_reply, l_jobj_datum);
     return 0;
 }

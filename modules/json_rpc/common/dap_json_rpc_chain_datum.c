@@ -19,7 +19,7 @@
 
 #define LOG_TAG "dap_json_rpc_chain_datum"
 
-json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_token, size_t a_token_size) {
+json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_token, size_t a_token_size) {// -- перенес
     dap_tsd_t *l_tsd = dap_chain_datum_token_tsd_get(a_token, a_token_size);
     if (l_tsd == NULL) {
         json_object *l_tsd_wgn = json_object_new_object();
@@ -602,7 +602,7 @@ typedef enum dap_chain_datum_to_json_err_list {
     CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_DECREE_TO_JSON
 }dap_chain_datum_to_json_err_list_t;
 
-json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
+json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){ // -- перевел
     json_object *l_object = json_object_new_object();
     if (!l_object){
         dap_json_rpc_allocation_error;
@@ -662,7 +662,7 @@ json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
     return l_object;
 }
 
-json_object * dap_chain_datum_data_to_json(dap_chain_datum_t *a_datum) {
+json_object * dap_chain_datum_data_to_json(dap_chain_datum_t *a_datum) {// -- перевел
     if (!a_datum)
         return json_object_new_null();
     json_object *l_obj_data;

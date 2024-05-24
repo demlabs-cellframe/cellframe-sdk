@@ -106,6 +106,7 @@ void dap_chain_mempool_rpc_handler_list(dap_json_rpc_params_t *a_params,
                                         dap_json_rpc_response_t *a_response, const char *a_method) {
     char *l_net_str = NULL;
     char *l_chain_str = NULL;
+    const char *l_hash_out_type = NULL;
     for (uint32_t i = 0; i < a_params->length; i++) {
         dap_json_rpc_param_t *l_prm = a_params->params[i];
         if (i == 0)
@@ -136,7 +137,8 @@ void dap_chain_mempool_rpc_handler_list(dap_json_rpc_params_t *a_params,
             continue;
         }
 
-        json_object *l_obj_datum = dap_chain_datum_to_json(l_datum);
+        json_object *l_obj_datum = json_object_new_object();
+        dap_chain_datum_dump_json(l_obj_datum,l_datum,l_hash_out_type,l_net->pub.id);
         json_object_array_add(l_object_array, l_obj_datum);
     }
     json_object_object_add(l_object, "datums", l_object_array);

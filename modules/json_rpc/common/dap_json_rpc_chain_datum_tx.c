@@ -16,7 +16,7 @@
 
 
 
-json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_chain_net_id_t *a_net_id){
+json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_chain_net_id_t *a_net_id){// -- перевел
     json_object *l_obj_items = json_object_new_array();
     if (!l_obj_items) {
         dap_json_rpc_allocation_error;

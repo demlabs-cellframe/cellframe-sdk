@@ -6,7 +6,7 @@
 
 #define LOG_TAG "dap_json_rpc_chain_datum_decree"
 
-json_object *s_dap_chain_datum_decree_certs_dump_json(byte_t * a_signs, size_t a_certs_size){
+json_object *s_dap_chain_datum_decree_certs_dump_json(byte_t * a_signs, size_t a_certs_size){//--перевел
     json_object *l_jobj_signatures = json_object_new_array();
     if (!l_jobj_signatures) {
         dap_json_rpc_allocation_error;
