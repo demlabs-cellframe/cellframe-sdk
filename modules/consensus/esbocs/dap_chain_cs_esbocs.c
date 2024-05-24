@@ -151,7 +151,6 @@ typedef struct dap_chain_esbocs_pvt {
     // Decree controoled params
     uint16_t min_validators_count;
     bool check_signs_structure;
-    uint256_t weight_limit_percent;
 } dap_chain_esbocs_pvt_t;
 
 #define PVT(a) ((dap_chain_esbocs_pvt_t *)a->_pvt)
@@ -179,10 +178,6 @@ int dap_chain_cs_esbocs_init()
             "\tSets minimum validators count for ESBOCS consensus\n"
         "esbocs min_validators_count show -net <net_name> -chain <chain_name>\n"
             "\tShow minimum validators count for ESBOCS consensus\n"
-        "esbocs maximum_weight set -net <net_name> -chain <chain_name> -cert <poa_cert_name> -percent <value>\n"
-            "\tSets maximum validator related weight (in percent) for ESBOCS consensus\n"
-        "esbocs maximum_weight show -net <net_name> -chain <chain_name>\n"
-            "\tShows maximum validator related weight (in percent) for ESBOCS consensus\n"
         "esbocs check_signs_structure {enable|disable} -net <net_name> -chain <chain_name> -cert <poa_cert_name>\n"
             "\tEnables or disables checks for blocks signs structure validity\n"
         "esbocs check_signs_structure show -net <net_name> -chain <chain_name>\n"
@@ -242,6 +237,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         l_ret = -2;
         goto lb_err;
     }
+    dap_chain_net_srv_stake_net_add(a_chain->net_id);
     uint16_t l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "auth_certs_count", l_node_addrs_count);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     for (size_t i = 0; i < l_auth_certs_count; i++) {
@@ -286,7 +282,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 
         if (!l_esbocs_pvt->poa_mode) { // auth certs in PoA mode will be first PoS validators keys
             dap_hash_fast_t l_stake_tx_hash = {};
-            uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value();
+            uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
             dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, &l_stake_tx_hash,
                                                  l_weight, &l_signer_node_addr);
         }
@@ -713,7 +709,7 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
     else {
         dap_hash_fast_t l_stake_tx_hash = {};
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value();
+        uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
         for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
             dap_chain_esbocs_validator_t *l_validator = it->data;
             dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
@@ -721,16 +717,6 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
         }
         l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
     }
-    return 0;
-}
-
-int dap_chain_esbocs_set_max_validator_weight(dap_chain_t *a_chain, uint256_t a_value_percent)
-{
-    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), "esbocs"), -1);
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
-    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    l_esbocs_pvt->weight_limit_percent = a_value_percent;
     return 0;
 }
 
@@ -2868,19 +2854,6 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
     return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
 }
 
-static dap_chain_datum_decree_t *s_esbocs_decree_set_max_weight(dap_chain_net_t *a_net, dap_chain_t *a_chain,
-                                                                uint256_t a_value, dap_cert_t *a_cert)
-{
-    size_t l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
-    dap_chain_datum_decree_t *l_decree = dap_chain_datum_decree_new(a_net->pub.id, a_chain->id,
-                                                                    *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
-    if (!l_decree)
-        return NULL;
-    l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT;
-    dap_tsd_write(l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE, &a_value, sizeof(uint256_t));
-    return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
-}
-
 static dap_chain_datum_decree_t *s_esbocs_decree_set_signs_check(dap_chain_net_t *a_net, dap_chain_t *a_chain,
                                                                  bool a_enable, dap_cert_t *a_cert)
 {
@@ -2957,15 +2930,13 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         SUBCMD_UNDEFINED = 0,
         SUBCMD_MIN_VALIDATORS_COUNT,
         SUBCMD_CHECK_SIGNS_STRUCTURE,
-        SUBCMD_EMERGENCY_VALIDATOR,
-        SUBCMD_MAXIMUM_WEIGHT
+        SUBCMD_EMERGENCY_VALIDATOR
     } l_subcmd = SUBCMD_UNDEFINED;
     const char *l_subcmd_strs[] = {
         [SUBCMD_UNDEFINED] = NULL,
         [SUBCMD_MIN_VALIDATORS_COUNT] = "min_validators_count",
         [SUBCMD_CHECK_SIGNS_STRUCTURE] = "check_signs_structure",
         [SUBCMD_EMERGENCY_VALIDATOR] = "emergency_validator",
-        [SUBCMD_MAXIMUM_WEIGHT] = "maximum_weight"
     };
 
     const size_t l_subcmd_str_count = sizeof(l_subcmd_strs) / sizeof(char *);
@@ -2981,8 +2952,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
     l_arg_index++;
     bool l_subcommand_show = false, l_subcommand_add = false;
     if (l_subcmd) {
-        if ((dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "set") > 0 &&
-                            (l_subcmd == SUBCMD_MIN_VALIDATORS_COUNT || l_subcmd == SUBCMD_MAXIMUM_WEIGHT)) ||
+        if ((dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "set") > 0 && l_subcmd == SUBCMD_MIN_VALIDATORS_COUNT) ||
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "enable") > 0 && l_subcmd == SUBCMD_CHECK_SIGNS_STRUCTURE) ||
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "disable") > 0 && l_subcmd == SUBCMD_CHECK_SIGNS_STRUCTURE) ||
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "add") > 0 && l_subcmd == SUBCMD_EMERGENCY_VALIDATOR) ||
@@ -3043,35 +3013,6 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             }
         } else
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count is %d", l_esbocs_pvt->min_validators_count);
-    } break;
-
-    case SUBCMD_MAXIMUM_WEIGHT: {
-        if (!l_subcommand_show) {
-            const char *l_value_str = NULL;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-percent", &l_value_str);
-            if (!l_value_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command '%s' requires parameter -percent", l_subcmd_strs[l_subcmd]);
-                return -9;
-            }
-            uint256_t l_value = dap_chain_balance_scan(l_value_str);
-            if (IS_ZERO_256(l_value)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized number in '-percent' param");
-                return -10;
-            }
-            dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_max_weight(l_chain_net, l_chain, l_value, l_poa_cert);
-            char *l_decree_hash_str = NULL;
-            if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Maximum weight has been set."
-                                                               " Decree hash %s", l_decree_hash_str);
-                DAP_DEL_MULTY(l_decree, l_decree_hash_str);
-            } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Maximum weight setting failed");
-                DAP_DEL_Z(l_decree);
-                return -21;
-            }
-        } else
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Maximum validator weight is %s%%",
-                                                        dap_chain_balance_to_coins(l_esbocs_pvt->weight_limit_percent));
     } break;
 
     case SUBCMD_CHECK_SIGNS_STRUCTURE: {

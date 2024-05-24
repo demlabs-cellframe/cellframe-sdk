@@ -452,7 +452,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
-            dap_chain_net_srv_stake_set_allowed_min_value(l_value);
+            dap_chain_net_srv_stake_set_allowed_min_value(a_net->pub.id, l_value);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:
             if (dap_chain_datum_decree_get_stake_min_signers_count(a_decree, &l_value)){
@@ -535,7 +535,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
-            dap_chain_esbocs_set_max_validator_weight(l_chain, l_value);
+            dap_chain_net_srv_stake_set_percent_max(a_net->pub.id, l_value);
         } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE: {
             if (dap_chain_datum_decree_get_action(a_decree, &l_action)) {

@@ -35,6 +35,7 @@
 typedef struct dap_chain_net_srv_stake_item {
     bool is_active;
     dap_chain_net_t *net;
+    uint256_t locked_value;
     uint256_t value;
     dap_chain_addr_t signing_addr;
     dap_chain_hash_fast_t tx_hash;
@@ -57,7 +58,9 @@ typedef struct dap_chain_net_srv_stake_cache_item {
 } dap_chain_net_srv_stake_cache_item_t;
 
 typedef struct dap_chain_net_srv_stake {
+    dap_chain_net_id_t net_id;
     uint256_t delegate_allowed_min;
+    uint256_t delegate_percent_max;
     dap_chain_net_srv_stake_item_t *itemlist;
     dap_chain_net_srv_stake_item_t *tx_itemlist;
     dap_chain_net_srv_stake_cache_item_t *cache;
@@ -66,11 +69,14 @@ typedef struct dap_chain_net_srv_stake {
 int dap_chain_net_srv_stake_pos_delegate_init();
 void dap_chain_net_srv_stake_pos_delegate_deinit();
 
+int dap_chain_net_srv_stake_net_add(dap_chain_net_id_t a_net_id);
 void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_hash_fast_t *a_stake_tx_hash,
                                           uint256_t a_value, dap_chain_node_addr_t *a_node_addr);
 void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr);
-void dap_chain_net_srv_stake_set_allowed_min_value(uint256_t a_value);
-uint256_t dap_chain_net_srv_stake_get_allowed_min_value();
+void dap_chain_net_srv_stake_set_allowed_min_value(dap_chain_net_id_t a_net_id, uint256_t a_value);
+uint256_t dap_chain_net_srv_stake_get_allowed_min_value(dap_chain_net_id_t a_net_id);
+void dap_chain_net_srv_stake_set_percent_max(dap_chain_net_id_t a_net_id, uint256_t a_value);
+uint256_t dap_chain_net_srv_stake_get_percent_max(dap_chain_net_id_t a_net_id);
 
 int dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr);
 int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t* a_signing_addr, dap_chain_node_addr_t* a_node_addr);
@@ -92,5 +98,5 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
                                                                  dap_hash_fast_t *a_stake_tx_hash, dap_cert_t *a_cert);
 int dap_chain_net_srv_stake_mark_validator_active(dap_chain_addr_t *a_signing_addr, bool a_on_off);
 
-dap_chain_net_srv_stake_item_t *dap_chain_net_srv_stake_check_pkey_hash(dap_hash_fast_t *a_pkey_hash);
+dap_chain_net_srv_stake_item_t *dap_chain_net_srv_stake_check_pkey_hash(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_pkey_hash);
 uint256_t dap_chain_net_srv_stake_get_total_weight(dap_chain_net_id_t a_net_id);

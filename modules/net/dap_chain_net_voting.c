@@ -295,7 +295,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
             dap_sign_get_pkey_hash((dap_sign_t*)l_vote_sig->sig, &pkey_hash);
             if (l_voting->voting_params.delegate_key_required_offset &&
                 *(bool*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.delegate_key_required_offset)){
-                if (!dap_chain_net_srv_stake_check_pkey_hash(&pkey_hash)){
+                if (!dap_chain_net_srv_stake_check_pkey_hash(a_ledger->net->pub.id, &pkey_hash)){
                     log_it(L_ERROR, "The voting required a delegated key.");
                     dap_list_free(l_signs_list);
                     return false;
@@ -1350,7 +1350,7 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
             dap_hash_fast_t l_pkey_hash = {0};
 
             dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
-            if (!dap_chain_net_srv_stake_check_pkey_hash(&l_pkey_hash)) {
+            if (!dap_chain_net_srv_stake_check_pkey_hash(a_net->pub.id, &l_pkey_hash)) {
                 return DAP_CHAIN_NET_VOTE_VOTING_KEY_IS_NOT_DELEGATED;
             }
             dap_list_t *l_temp = l_voting->votes;
