@@ -515,6 +515,40 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                 }
                 json_object_object_add(l_jobj_tsd, "count", l_jobj_min_signers_count);
             } break;
+            case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR: {
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR");
+                json_object *l_jobj_node_addr = json_object_new_string(l_tsd->data);
+                if (!l_jobj_tsd_type && !l_jobj_node_addr) {
+                    json_object_put(l_jobj_tsd_type);
+                    json_object_put(l_jobj_node_addr);
+                    json_object_put(l_json_tsd_array);
+                    json_object_put(l_json_subtype);
+                    json_object_put(l_jobj_type);
+                    json_object_put(l_jobj_decree);
+                    json_object_put(l_jobj_tsd);
+                    dap_json_rpc_allocation_error;
+                    return NULL;
+                }
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object_object_add(l_jobj_tsd, "node_addr", l_jobj_node_addr);
+            } break;
+            case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST: {
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST");
+                json_object *l_jobj_host = json_object_new_string(l_tsd->data);
+                if (!l_jobj_tsd_type && !l_jobj_host) {
+                    json_object_put(l_jobj_tsd_type);
+                    json_object_put(l_jobj_host);
+                    json_object_put(l_json_tsd_array);
+                    json_object_put(l_json_subtype);
+                    json_object_put(l_jobj_type);
+                    json_object_put(l_jobj_decree);
+                    json_object_put(l_jobj_tsd);
+                    dap_json_rpc_allocation_error;
+                    return NULL;
+                }
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object_object_add(l_jobj_tsd, "host", l_jobj_host);
+            } break;
             default: {
                 json_object *l_obj_tsd_type = json_object_new_string(
                         "<UNKNOWN_TYPE_TSD_SECTION>");
