@@ -159,6 +159,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                                         bool *accepted_tx)
 {
     const char *l_tx_token_ticker = NULL;
+    const char *l_tx_token_description = NULL;
     json_object* json_obj_datum = json_object_new_object();
     if (!json_obj_datum) {
         return NULL;
@@ -169,6 +170,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     if (l_tx_token_ticker) {
         json_object_object_add(json_obj_datum, "status", json_object_new_string("ACCEPTED"));
         *accepted_tx = true;
+        l_tx_token_description = dap_ledger_get_description_by_ticker(l_ledger, l_tx_token_ticker);
     } else {
         json_object_object_add(json_obj_datum, "status", json_object_new_string("DECLINED"));
         *accepted_tx = false;
@@ -190,6 +192,8 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
 
     json_object_object_add(json_obj_datum, "token_ticker", l_tx_token_ticker ? json_object_new_string(l_tx_token_ticker) 
                                                                              : json_object_new_null());
+    json_object_object_add(json_obj_datum, "token_description", l_tx_token_description ? json_object_new_string(l_tx_token_description)
+                                                                                       : json_object_new_null());
 
     json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(l_ret_code));
     json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_tx_check_err_str(l_ret_code)));
