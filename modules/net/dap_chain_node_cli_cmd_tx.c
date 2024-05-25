@@ -106,14 +106,13 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             : NULL;
     if (!l_ticker)
         return false;
-    const char *l_description = a_ledger ? dap_ledger_get_description_by_ticker(a_ledger, l_ticker) : NULL;
-    if (!l_description)
-        return false;
+    const char *l_description = dap_ledger_get_description_by_ticker(a_ledger, l_ticker);
     dap_chain_hash_fast_to_str(a_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
     json_object_object_add(json_obj_out, "Datum_tx_hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_out, "TS_Created", json_object_new_string(dap_ctime_r(&l_ts_create, l_tmp_buf)));
     json_object_object_add(json_obj_out, "Token_ticker", json_object_new_string(l_ticker));
-    json_object_object_add(json_obj_out, "Token_description", json_object_new_string(l_description));
+    json_object_object_add(json_obj_out, "Token_description", l_description ? json_object_new_string(l_description)
+                                                                            : json_object_new_null());
     json_object* datum_tx = dap_chain_datum_tx_to_json(a_datum,&a_ledger->net->pub.id);
     json_object_object_add(json_obj_out, "Datum_tx", datum_tx);
     dap_list_t *l_out_items = dap_chain_datum_tx_items_get(a_datum, TX_ITEM_TYPE_OUT_ALL, NULL);
