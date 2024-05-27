@@ -109,7 +109,6 @@
 #include "dap_chain_net_node_list.h"
 
 #include "dap_json_rpc_errors.h"
-#include "dap_json_rpc_chain_datum.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_enc_ks.h"
@@ -3180,11 +3179,11 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         if (l_wallet_addr && l_emi && dap_chain_addr_compare(l_wallet_addr, &l_emi->hdr.address))
                             datum_is_accepted_addr = true;
                         DAP_DELETE(l_emi);
-                        json_object_object_add(l_jobj_datum, "data", dap_chain_datum_data_to_json(l_datum));
+                        dap_chain_datum_dump_json(l_jobj_datum,l_datum,a_hash_out_type,a_net->pub.id);
                     }
                         break;
                     default:
-                        json_object_object_add(l_jobj_datum, "data", dap_chain_datum_data_to_json(l_datum));
+                        dap_chain_datum_dump_json(l_jobj_datum,l_datum,a_hash_out_type,a_net->pub.id);
                 }
             }
             if (l_wallet_addr) {
@@ -3430,7 +3429,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             json_object_object_add(l_obj_atom, "hash", l_jobj_atom_hash);
             json_object_object_add(l_obj_atom, "ledger_response_code", l_jobj_atom_err);
             json_object_object_add(l_jobj_datum, "atom", l_obj_atom);
-        }
+        }        
 
         json_object *l_datum_obj_inf = json_object_new_object();
         dap_chain_datum_dump_json(l_datum_obj_inf,l_datum,NULL,a_net->pub.id);        
@@ -3442,6 +3441,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
                                     "Failed to serialize datum to JSON.");
             return DAP_JSON_RPC_ERR_CODE_SERIALIZATION_DATUM_TO_JSON;
         }
+        json_object_object_add(l_jobj_datum, "datum", l_datum_obj_inf);
         if (!l_found_in_chains)
             DAP_DELETE(l_datum);
         json_object_array_add(*a_json_reply, l_jobj_datum);
