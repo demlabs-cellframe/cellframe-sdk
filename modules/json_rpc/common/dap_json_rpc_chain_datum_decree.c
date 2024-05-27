@@ -516,7 +516,7 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
             } break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR: {
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR");
-                json_object *l_jobj_node_addr = json_object_new_string(l_tsd->data);
+                json_object *l_jobj_node_addr = json_object_new_string((char *)l_tsd->data);
                 if (!l_jobj_tsd_type && !l_jobj_node_addr) {
                     json_object_put(l_jobj_tsd_type);
                     json_object_put(l_jobj_node_addr);
@@ -533,7 +533,7 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
             } break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST: {
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST");
-                json_object *l_jobj_host = json_object_new_string(l_tsd->data);
+                json_object *l_jobj_host = json_object_new_string((char *)l_tsd->data);
                 if (!l_jobj_tsd_type && !l_jobj_host) {
                     json_object_put(l_jobj_tsd_type);
                     json_object_put(l_jobj_host);

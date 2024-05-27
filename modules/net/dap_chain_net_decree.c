@@ -405,7 +405,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
-            a_net->pub.decree->min_num_of_owners = dap_uint256_to_uint64(l_value);
+            a_net->pub.decree->min_num_of_owners = 0; // dap_uint256_to_uint64(l_value);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
             if (dap_chain_datum_decree_get_hash(a_decree, &l_hash)){

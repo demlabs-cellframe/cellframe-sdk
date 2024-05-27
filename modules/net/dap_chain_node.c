@@ -87,14 +87,14 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
             memcpy(l_info->links_addrs, l_linked_node_addrs, (l_info->uplinks_count + l_info->downlinks_count) * sizeof(dap_chain_node_addr_t));
             // DB write
             char *l_gdb_group = dap_strdup_printf("%s.nodes.states", l_net->pub.gdb_groups_prefix);
-            char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->address);
+            const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->address);
             dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_size, false);
             DAP_DEL_MULTY(l_linked_node_addrs, l_info, l_gdb_group);
         }
     }
 }
 
-static void s_states_info_to_str(dap_chain_net_t *a_net, char *a_node_addr_str, dap_string_t *l_info_str)
+static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr_str, dap_string_t *l_info_str)
 {
 // sanity check
     dap_return_if_pass(!a_net || !a_node_addr_str || !l_info_str);
@@ -135,7 +135,7 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, char *a_node_addr_str, 
 dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
 {
     dap_string_t *l_ret = dap_string_new("");
-    char *l_node_addr_str = dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr);
+    const char *l_node_addr_str = dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr);
     if(!a_net) {
         for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
             s_states_info_to_str(l_net, l_node_addr_str, l_ret);
@@ -225,7 +225,7 @@ int dap_chain_node_info_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_nod
  */
 dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
 {
-    char *l_key = dap_stream_node_addr_to_str_static(*a_address);
+    const char *l_key = dap_stream_node_addr_to_str_static(*a_address);
     size_t l_node_info_size = 0;
     dap_chain_node_info_t *l_node_info
         = (dap_chain_node_info_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
