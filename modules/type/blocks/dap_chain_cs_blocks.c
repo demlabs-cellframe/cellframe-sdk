@@ -571,7 +571,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
     dap_chain_net_t * l_net = NULL;
 
     // Parse default values
-    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
+    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net, CHAIN_TYPE_INVALID) < 0)
         return -11;
 
     const char *l_chain_type = dap_chain_net_get_type(l_chain);

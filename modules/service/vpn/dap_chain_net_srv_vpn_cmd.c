@@ -112,7 +112,7 @@ int com_vpn_client(int a_argc, char ** a_argv, void **reply)
 
     // find net
     dap_chain_net_t *l_net = NULL;
-    if(dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net) < 0)
+    if(dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net, CHAIN_TYPE_INVALID) < 0)
         return -2;
 
     int cmd_num = CMD_NONE;

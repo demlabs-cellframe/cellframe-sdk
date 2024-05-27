@@ -810,7 +810,7 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
         dap_chain_t * l_chain = NULL;
         dap_chain_net_t * l_net = NULL;
 
-        if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
+        if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net, CHAIN_TYPE_INVALID) < 0)
             return -11;
 
         const char *l_cell_str = NULL, *l_chain_str = NULL;
@@ -1231,7 +1231,7 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
     // find net
     dap_chain_net_t *l_net = NULL;
 
-    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net) < 0)
+    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net, CHAIN_TYPE_INVALID) < 0)
         return -11;
 
     // find addr, alias
@@ -2546,7 +2546,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
  * @return
  */
 int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, char **a_argv, char ** a_str_reply,
-        dap_chain_t **a_chain, dap_chain_net_t **a_net)
+        dap_chain_t **a_chain, dap_chain_net_t **a_net, dap_chain_type_t a_default_chain_type)
 {
     const char * l_chain_str = NULL;
     const char * l_net_str = NULL;
@@ -2584,6 +2584,11 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
         // Select chain
         if(l_chain_str) {
             if ((*a_chain = dap_chain_net_get_chain_by_name(*a_net, l_chain_str)) == NULL) { // Can't find such chain
+                if (a_default_chain_type != CHAIN_TYPE_INVALID) {
+                    if ((a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type)) == NULL) {
+                        return 0;
+                    }
+                }
                 char l_str_to_reply_chain[500] = {0};
                 char *l_str_to_reply = NULL;
                 sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
@@ -2600,16 +2605,6 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
                 DAP_DELETE(l_str_to_reply);
                 return -103;
-            }
-        }
-        else if (	!strcmp(a_argv[0], "token_decl")
-        ||			!strcmp(a_argv[0], "token_decl_sign")) {
-            if (	(*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, CHAIN_TYPE_TOKEN)) == NULL )
-            {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "%s requires parameter '-chain' or set default datum type in chain configuration file",
-                                                  a_argv[0]);
-                return -105;
             }
         } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-chain'", a_argv[0]);
@@ -2702,7 +2697,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void ** reply)
         dap_chain_t * l_chain = NULL;
         dap_chain_net_t * l_net = NULL;
 
-        dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
+        dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net, CHAIN_TYPE_TOKEN);
         if(!l_net)
             return -1;
         else {
@@ -4334,7 +4329,7 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_s
     }
 
     int l_arg_index = 0;
-    int l_res = dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &a_params->chain, &a_params->net);
+    int l_res = dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &a_params->chain, &a_params->net, CHAIN_TYPE_TOKEN);
 
     if(!a_params->net || !a_params->chain)
         return l_res;
@@ -5183,7 +5178,7 @@ int com_token_emit(int a_argc, char **a_argv, void ** reply)
         return -1;
     }
 
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc,a_argv,a_str_reply,NULL, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc,a_argv,a_str_reply,NULL, &l_net, CHAIN_TYPE_INVALID);
     if( ! l_net) { // Can't find such network
         return -43;
     }
@@ -6107,7 +6102,7 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, void ** reply)
     dap_chain_t * l_chain = NULL;
 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc, a_argv, a_str_reply, &l_chain, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc, a_argv, a_str_reply, &l_chain, &l_net, CHAIN_TYPE_INVALID);
 
     dap_cert_t * l_cert = dap_cert_find_by_name( l_ca_name );
     if( l_cert == NULL ){
@@ -7230,7 +7225,7 @@ int com_tx_verify(int a_argc, char **a_argv, void ** reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_verify requires parameter '-tx'");
         return -1;
     }
-    dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net, CHAIN_TYPE_INVALID);
     if (!l_net || !l_chain) {
         return -2;
     } else if (a_str_reply && *a_str_reply) {

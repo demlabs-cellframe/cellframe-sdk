@@ -110,7 +110,7 @@ static int s_srv_datum_cli(int argc, char ** argv, void **reply) {
     dap_chain_net_t * l_chain_net = NULL;
     dap_chain_t * l_chain = NULL;
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net)) {
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net, CHAIN_TYPE_INVALID)) {
         return -3;
     }
 
