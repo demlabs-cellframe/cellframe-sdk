@@ -197,7 +197,7 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
     DAP_DELETE(l_unique_signs);
 
     if (l_signs_verify_counter < l_min_signs) {
-        log_it(L_WARNING,"Not enough valid signatures, get %hu from %hu", l_signs_verify_counter, l_min_signs);
+        log_it(L_WARNING, "Not enough valid signatures, get %hu from %hu", l_signs_verify_counter, l_min_signs);
         return -107;
     }
 
@@ -399,13 +399,13 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             a_net->pub.decree->pkeys = l_owners_list;
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
-            if (dap_chain_datum_decree_get_min_owners(a_decree, &l_owners_num)){
+            if (dap_chain_datum_decree_get_min_owners(a_decree, &l_value)) {
                 log_it(L_WARNING,"Can't get min number of ownners from decree.");
                 return -105;
             }
             if (!a_apply)
                 break;
-            a_net->pub.decree->min_num_of_owners = l_owners_num;
+            a_net->pub.decree->min_num_of_owners = dap_uint256_to_uint64(l_value);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
             if (dap_chain_datum_decree_get_hash(a_decree, &l_hash)){

@@ -82,11 +82,11 @@ dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree
     return l_ret;
 }
 
-int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint16_t *a_min_owners_num)
+int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_owners_num)
 {
     dap_return_val_if_fail(a_decree && a_min_owners_num, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER);
-    return l_tsd && l_tsd->size == sizeof(uint16_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_min_owners_num); 0; }) : 1;
+    return l_tsd && l_tsd->size == sizeof(uint256_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_min_owners_num); 0; }) : 1;
 }
 
 int dap_chain_datum_decree_get_hash(dap_chain_datum_decree_t *a_decree, dap_hash_fast_t *a_tx_hash)
@@ -210,7 +210,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 dap_string_append_printf(a_str_out, "\tOwner fingerprint: %s\n", l_owner_pkey_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER:
-                if (l_tsd->size > sizeof(uint256_t)){
+                if (l_tsd->size != sizeof(uint32_t)){
                     dap_string_append_printf(a_str_out, "\tOwner min: <WRONG SIZE>\n");
                     break;
                 }

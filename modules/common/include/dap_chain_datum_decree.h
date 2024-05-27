@@ -208,7 +208,7 @@ dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree
  * @param a_owners_num pointer to minimum number of owners buffer
  * @return result code. 0 - success
  */
-int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint16_t *a_min_owners_num);
+int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_owners_num);
 
 /**
  * @brief dap_chain_datum_decree_get_tx_hash get stake tx hash

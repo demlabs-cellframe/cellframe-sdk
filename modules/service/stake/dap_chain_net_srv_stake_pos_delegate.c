@@ -120,6 +120,7 @@ int dap_chain_net_srv_stake_net_add(dap_chain_net_id_t a_net_id)
 {
     dap_chain_net_srv_stake_t *l_srv_stake;
     DAP_NEW_Z_RET_VAL(l_srv_stake, dap_chain_net_srv_stake_t, -1, NULL);
+    l_srv_stake->net_id = a_net_id;
     l_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
     dap_list_t *l_list_new = dap_list_append(s_srv_stake_list, l_srv_stake);
     if (dap_list_last(l_list_new) == dap_list_last(s_srv_stake_list)) {
@@ -127,6 +128,8 @@ int dap_chain_net_srv_stake_net_add(dap_chain_net_id_t a_net_id)
         DAP_DELETE(l_srv_stake);
         return -2;
     }
+    s_srv_stake_list = l_list_new;
+    log_it(L_NOTICE, "Successfully added net ID 0x%016" DAP_UINT64_FORMAT_x, a_net_id.uint64);
     return 0;
 }
 
@@ -273,35 +276,36 @@ static bool s_srv_stake_is_poa_cert(dap_chain_net_t *a_net, dap_enc_key_t *a_key
     return l_is_poa_cert;
 }
 
-#define LIMIT_DELTA UINT64_C(1000000000000000) // 0.001
-static size_t s_step_count = 0;
-static bool s_weights_reorder(const uint256_t *a_weights, uint256_t *l_result, size_t a_weights_size, const uint256_t a_limit)
+#define LIMIT_DELTA UINT64_C(1000000000000) // 1.0e-6
+static bool s_weights_truncate(dap_chain_net_srv_stake_t *l_srv_stake, const uint256_t a_limit)
 {
-    s_step_count++;
-    uint256_t l_corr_coef;
-    SUBTRACT_256_256(dap_uint256_scan_decimal("1.0"), a_limit, &l_corr_coef);
-    DIV_256_COIN(a_limit, l_corr_coef, &l_corr_coef);
     uint256_t l_sum = uint256_0;
-    for (size_t i = 0; i < a_weights_size; i++)
-        SUM_256_256(l_sum, a_weights[i], &l_sum);
-    bool l_was_reordered = false;
-    for (size_t i = 0; i < a_weights_size; i++) {
-        if (!l_was_reordered) {
-            uint256_t l_weight_with_delta;
-            SUBTRACT_256_256(a_weights[i], GET_256_FROM_64(LIMIT_DELTA), &l_weight_with_delta);
-            uint256_t l_rel_weight;
-            DIV_256_COIN(l_weight_with_delta, l_sum, &l_rel_weight);
-            if (compare256(l_rel_weight, a_limit) == 1) {
-                uint256_t l_sum_others;
-                SUBTRACT_256_256(l_sum, a_weights[i], &l_sum_others);
-                MULT_256_COIN(l_corr_coef, l_sum_others, &l_result[i]);
-                l_was_reordered = true;
-            } else
-                l_result[i] = a_weights[i];
-        } else
-            l_result[i] = a_weights[i];
+    for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next)
+        SUM_256_256(l_sum, it->value, &l_sum);
+    uint256_t l_weight_max;
+    MULT_256_COIN(l_sum, a_limit, &l_weight_max);
+    size_t l_exceeds_count = 0;
+    uint256_t l_sum_others = l_sum;
+    for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next) {
+        uint256_t l_weight_with_delta;
+        SUBTRACT_256_256(it->value, GET_256_FROM_64(LIMIT_DELTA), &l_weight_with_delta);
+        if (compare256(l_weight_with_delta, l_weight_max) == 1) {
+            SUBTRACT_256_256(l_sum_others, it->value, &l_sum_others);
+            it->value = uint256_0;
+            l_exceeds_count++;
+        }
     }
-    return l_was_reordered;
+    if (l_exceeds_count) {
+        uint256_t delta = dap_uint256_decimal_from_uint64(l_exceeds_count);
+        uint256_t kappa;
+        DIV_256_COIN(dap_uint256_decimal_from_uint64(1), a_limit, &kappa);
+        SUBTRACT_256_256(kappa, delta, &kappa);
+        DIV_256_COIN(l_sum_others, kappa, &kappa);
+        for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next)
+            if (IS_ZERO_256(it->value))
+                it->value = kappa;
+    }
+    return l_exceeds_count;
 }
 
 static void s_stake_recalculate_weights(dap_chain_net_id_t a_net_id)
@@ -310,17 +314,14 @@ static void s_stake_recalculate_weights(dap_chain_net_id_t a_net_id)
     dap_return_if_fail(l_srv_stake);
     if (IS_ZERO_256(l_srv_stake->delegate_percent_max))
         return;
-
+    size_t l_validators_count = HASH_COUNT(l_srv_stake->itemlist);
     uint256_t l_limit_min;
-    DIV_256(dap_uint256_scan_decimal("1.0"), GET_256_FROM_64(l_weights_size), &l_limit_min);
-    if (compare256(c_limit, l_limit_min) == 1)
-        l_limit_min = c_limit;
-    dap_uint256_to_char(l_limit_min, &l_frac);
-    log_it(L_ATT, "Time to start, limit = %s", l_frac);
-    uint256_t *l_weights_limited = DAP_NEW_Z_COUNT(uint256_t, l_weights_size);
-    bool l_was_reordered = s_weights_reorder(c_weights, l_weights_limited, l_weights_size, l_limit_min);
-    while ((l_was_reordered = s_weights_reorder(l_weights_limited, l_weights_limited, l_weights_size, l_limit_min)));
-    log_it(L_ATT, "Steps count: %zu", s_step_count)
+    DIV_256(dap_uint256_decimal_from_uint64(1), GET_256_FROM_64(l_validators_count), &l_limit_min);
+    if (compare256(l_srv_stake->delegate_percent_max, l_limit_min) == 1)
+        l_limit_min = l_srv_stake->delegate_percent_max;
+    for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next)
+        it->value = it->locked_value;       // restore original locked values
+    while (s_weights_truncate(l_srv_stake, l_limit_min));
 }
 
 void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_hash_fast_t *a_stake_tx_hash,
@@ -342,7 +343,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     l_stake->net = a_net;
     l_stake->node_addr = *a_node_addr;
     l_stake->signing_addr = *a_signing_addr;
-    l_stake->locked_value = a_value;
+    l_stake->value = l_stake->locked_value = a_value;
     l_stake->tx_hash = *a_stake_tx_hash;
     l_stake->is_active = true;
     if (!l_found)
@@ -367,7 +368,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     dap_chain_hash_fast_to_str(&a_signing_addr->data.hash_fast,
                                l_key_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
     const char *l_value_str; dap_uint256_to_char(a_value, &l_value_str);
-    log_it(L_NOTICE, "Added key with fingerprint %s and value %s for node "NODE_ADDR_FP_STR,
+    log_it(L_NOTICE, "Added key with fingerprint %s and locked value %s for node "NODE_ADDR_FP_STR,
                         l_key_hash_str, l_value_str, NODE_ADDR_FP_ARGS(a_node_addr));
     s_stake_recalculate_weights(a_signing_addr->net_id);
 }
@@ -387,8 +388,8 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
         char l_key_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(&a_signing_addr->data.hash_fast,
                                    l_key_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        const char *l_value_str; dap_uint256_to_char(l_stake->value, &l_value_str);
-        log_it(L_NOTICE, "Removed key with fingerprint %s and value %s for node "NODE_ADDR_FP_STR,
+        const char *l_value_str; dap_uint256_to_char(l_stake->locked_value, &l_value_str);
+        log_it(L_NOTICE, "Removed key with fingerprint %s and locked value %s for node "NODE_ADDR_FP_STR,
                             l_key_hash_str, l_value_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
         DAP_DELETE(l_stake);
     }
@@ -442,7 +443,9 @@ int dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_signing_addr)
 dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, bool a_only_active, uint16_t **a_excluded_list)
 {
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_net_id);
-    dap_return_val_if_fail(l_srv_stake && l_srv_stake->itemlist, NULL);
+    dap_return_val_if_fail(l_srv_stake, NULL);
+    if (!l_srv_stake->itemlist)
+        return NULL;
     dap_list_t *l_ret = NULL;
     const uint16_t l_arr_resize_step = 64;
     size_t l_arr_size = l_arr_resize_step, l_arr_idx = 1, l_list_idx = 0;
