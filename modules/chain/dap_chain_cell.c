@@ -116,7 +116,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
             l_size = ftell(l_file);
             log_it(L_MSG, "[!] Initial size of %s is %lu", file_storage_path, l_size);
             fseek(l_file, 0, SEEK_SET);
-            if ( l_size && MAP_FAILED == (l_map = mmap(NULL, l_size, PROT_READ/*|PROT_WRITE*/, MAP_PRIVATE, fileno(l_file), 0)) ) {
+            if ( l_size && MAP_FAILED == (l_map = mmap(NULL, l_size, PROT_READ|PROT_WRITE, MAP_PRIVATE, fileno(l_file), 0)) ) {
                 log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be mapped, errno %d", file_storage_path, a_cell_id.uint64, errno);
                 fclose(l_file);
                 pthread_rwlock_unlock(&a_chain->cell_rwlock);
@@ -131,7 +131,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
             pthread_rwlock_unlock(&a_chain->cell_rwlock);
             return NULL;
         }
-        if ( MAP_FAILED == (l_map = mmap(NULL, l_size = dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT), PROT_READ/*|PROT_WRITE*/, MAP_PRIVATE, fileno(l_file), 0)) ) {
+        if ( MAP_FAILED == (l_map = mmap(NULL, l_size = dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT), PROT_READ|PROT_WRITE, MAP_PRIVATE, fileno(l_file), 0)) ) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be mapped, error %d",
                             file_storage_path, a_cell_id.uint64, errno);
             fclose(l_file);
@@ -386,7 +386,7 @@ static int s_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_atom
                     l_offset        = l_pos - l_volume_start;
             log_it(L_MSG, "[!] Need to enlarge map of %s, current stream pos is %lu, map pos is %lu, offset of new map is %lu",
                 a_cell->file_storage_path, ftell(a_cell->file_storage), (size_t)(a_cell->map_end - a_cell->map_pos), l_offset);
-            if ( MAP_FAILED == (a_cell->map = mmap(NULL, l_map_size, PROT_READ /*|PROT_WRITE*/, 
+            if ( MAP_FAILED == (a_cell->map = mmap(NULL, l_map_size, PROT_READ|PROT_WRITE, 
                                                    MAP_PRIVATE, fileno(a_cell->file_storage), l_volume_start)) )
             {
                 log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be mapped, errno %d",
