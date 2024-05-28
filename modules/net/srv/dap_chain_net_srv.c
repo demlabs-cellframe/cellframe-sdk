@@ -136,7 +136,7 @@ void s_load_all()
                 continue;
             // don't search in directories
             char l_full_path[MAX_PATH + 1] = {0};
-            dap_snprintf(l_full_path, sizeof(l_full_path), "%s/%s", l_net_dir_str, l_dir_entry->d_name);
+            snprintf(l_full_path, sizeof(l_full_path), "%s/%s", l_net_dir_str, l_dir_entry->d_name);
             if(dap_dir_test(l_full_path)) {
                 continue;
             }

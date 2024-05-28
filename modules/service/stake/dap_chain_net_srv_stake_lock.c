@@ -109,6 +109,140 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
 // Callbacks
 static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_out_item);
 static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+
+static inline int s_tsd_str_cmp(const byte_t *a_tsdata, size_t a_tsdsize,  const char *str ) {
+    size_t l_strlen = (size_t)strlen(str);
+    if (l_strlen != a_tsdsize) return -1;
+    return memcmp(a_tsdata, str, l_strlen);
+}
+
+//emission tags
+//inherits from emission tsd section for engine-produced auth emissions
+bool s_get_ems_staking_action(dap_chain_datum_token_emission_t *a_ems, dap_chain_tx_tag_action_type_t *a_action)
+{
+    if (!a_ems || !a_action)
+        return false;
+
+    *a_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
+
+    
+    size_t src_tsd_size = 0;
+    size_t subsrc_tsd_size = 0;
+    
+    byte_t *ems_src = dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE, &src_tsd_size);
+    byte_t *ems_subsrc = dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE_SUBTYPE, &subsrc_tsd_size);
+
+    if (ems_src && src_tsd_size)
+    {
+        if (s_tsd_str_cmp(ems_src, src_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_STAKING) != 0)
+            return false;
+    }
+
+    //special processing for old stakes: they have only STAKING in tsd 9 and no subtype. it is opening stakes
+    if (ems_src && !ems_subsrc)
+    {
+        *a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
+        return true;
+    }
+
+    if (ems_subsrc && subsrc_tsd_size)
+    {
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_STAKE_CROSSCHAIN)==0)
+            *a_action =  DAP_CHAIN_TX_TAG_ACTION_OPEN;
+
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_STAKE_CROSSCHAINV2)==0)
+            *a_action =  DAP_CHAIN_TX_TAG_ACTION_OPEN;
+
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_HARVEST)==0) 
+            *a_action =  DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD;
+
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_ADDLIQ)==0) 
+            *a_action =  DAP_CHAIN_TX_TAG_ACTION_EXTEND;
+
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_EMSFIX)==0) 
+            *a_action =  DAP_CHAIN_TX_TAG_ACTION_CHANGE;
+    
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_BONUS)==0) 
+            *a_action =  DAP_CHAIN_TX_TAG_ACTION_CHANGE;
+        
+
+        if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_UNSTAKE_FINALIZATION)==0)
+            *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD;
+    
+        if (*a_action == DAP_CHAIN_TX_TAG_ACTION_UNKNOWN)
+        {
+            log_it(L_WARNING, "Unknown action for staking: %s", ems_subsrc);
+        }     
+        return true;
+    }
+
+    return false;
+}
+
+static bool s_tag_check_staking(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
+{
+    //staking native open: have SRV_STAKE_LOCK out
+    
+    if (a_items_grp->items_out_cond_srv_stake_lock) {
+        *a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
+        return true;
+    }
+    
+    //staking native close: have IN_COND linked with SRV_STAKE_LOCK out
+    if (a_items_grp->items_in_cond) 
+    {
+       for (dap_list_t *it = a_items_grp->items_in_cond; it; it = it->next) {
+            dap_chain_tx_in_cond_t *l_tx_in = it->data;
+            dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(a_ledger, l_tx_in);
+
+            if (l_tx_out_cond && l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+                if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_CLOSE;
+                return true;
+            }   
+        }
+    }
+
+    //m-token burn: have TSD-items with "STAKING type UNSTAKE subtype"
+    
+    if (a_items_grp->items_tsd) {
+        
+        bool src_staking = false;
+        bool subtype_unstake = false;
+        for (dap_list_t *it = a_items_grp->items_tsd; it; it = it->next) {
+            dap_chain_tx_tsd_t *l_tx_tsd = it->data;
+            int l_type;
+            size_t l_size;
+            byte_t *l_data = dap_chain_datum_tx_item_get_data(l_tx_tsd, &l_type, &l_size);
+            
+            
+            if (l_type == DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE && s_tsd_str_cmp(l_data, l_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_STAKING) == 0)
+                src_staking = true;
+            
+            if (l_type == DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE_SUBTYPE && s_tsd_str_cmp(l_data, l_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_UNSTAKE_FINALIZATION) == 0)
+                subtype_unstake = true;
+        }
+        if (subtype_unstake && src_staking)
+        {
+            if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_CLOSE;
+            return true;
+        }
+    }
+
+    //crosschain staking AUTH emissions 
+    if (!a_items_grp->items_in_ems)
+        return false;
+
+    dap_chain_tx_in_ems_t *l_tx_in_ems = a_items_grp->items_in_ems->data;
+    dap_hash_fast_t ems_hash = l_tx_in_ems->header.token_emission_hash;
+    dap_chain_datum_token_emission_t *l_emission = dap_ledger_token_emission_find(a_ledger, &ems_hash);
+    if(l_emission) {   
+        bool success = s_get_ems_staking_action(l_emission, a_action);
+        return success;
+    }
+
+    return false;
+}
+
 /**
  * @brief dap_chain_net_srv_external_stake_init
  * @return
@@ -132,6 +266,10 @@ int dap_chain_net_srv_stake_lock_init()
                 "-chain <chain>\n"
     );
     s_debug_more = dap_config_get_item_bool_default(g_config, "ledger", "debug_more", false);
+
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
+    dap_ledger_service_add(l_uid, "staking", s_tag_check_staking);
+
     return 0;
 }
 
