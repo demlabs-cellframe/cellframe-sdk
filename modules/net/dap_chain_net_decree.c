@@ -400,11 +400,11 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
             if (dap_chain_datum_decree_get_min_owners(a_decree, &l_value)) {
-                log_it(L_WARNING,"Can't get min number of ownners from decree.");
+                log_it(L_WARNING, "Can't get min number of ownners from decree.");
                 return -105;
             }
-            if (!IS_ZERO_256(l_value) || compare256(l_value, GET_256_FROM_64(UINT16_MAX)) == 1) {
-                log_it(L_WARNING,"Illegal min number of ownners %s", dap_uint256_to_char(l_value, NULL));
+            if (IS_ZERO_256(l_value) || compare256(l_value, GET_256_FROM_64(UINT16_MAX)) == 1) {
+                log_it(L_WARNING, "Illegal min number of owners %s", dap_uint256_to_char(l_value, NULL));
                 return -116;
             }
             if (!a_apply)
