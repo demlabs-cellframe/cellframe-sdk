@@ -86,11 +86,11 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH                                0x0107
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE                         0x0108
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR                  0x0109
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR              0x0110
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR                           0x0110
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE                     0x0111
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT             0x0112
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST                                0x0113
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR                           0x0115
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING                              0x0115
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION                              0x010A
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE                      0x010B
 
@@ -148,16 +148,16 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_tsd_type_to_str(uint16_t a_
         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE";
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR:
         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR";
-    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR:
-        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR";
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE:
         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE";
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT:
         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT";
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST:
         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST";
-    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
-        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING";
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION:
          return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION";
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE:
@@ -280,12 +280,23 @@ int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, cons
 void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type);
 
 /**
+ * @breif dap_chain_datum_decree_dump Dump information about decree
+ * @param a_obj_out pointer to output json object
+ * @param a_decree pointer to decree
+ * @param a_decree_size size data
+ * @param a_hash_out_type
+ */
+void dap_chain_datum_decree_dump_json(json_object  *a_obj_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type);
+
+/**
  * @brief dap_chain_datum_decree_certs_dump compose decree signatures output string
  * @param a_str_out pointer to output text buffer
  * @param a_data_n_tsd pointer to signs decree section
  * @param a_certs_size size of decree signatures
  */
 void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type);
+
+void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type);
 
 /**
  * @brief dap_chain_datum_decree_sign_in_cycle

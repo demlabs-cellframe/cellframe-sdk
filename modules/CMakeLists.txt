@@ -20,7 +20,6 @@ if (CELLFRAME_MODULES MATCHES "network")
     add_subdirectory(mempool)
     add_subdirectory(net)
     add_subdirectory(net/srv)
-    add_subdirectory(json_rpc)
     # Stream channels
     add_subdirectory(channel/chain-net)
 endif()
@@ -110,7 +109,12 @@ if (CELLFRAME_MODULES MATCHES "srv-stake")
     add_subdirectory(service/stake)
 endif()
 
-# Unit tests
-if( BUILD_TESTS)
-    add_subdirectory(test)
+# Service for polls and voting
+if (CELLFRAME_MODULES MATCHES "srv-voting")
+    add_subdirectory(service/voting)
+endif()
+
+# Service for bridge
+if (CELLFRAME_MODULES MATCHES "srv-bridge")
+    add_subdirectory(service/bridge)
 endif()

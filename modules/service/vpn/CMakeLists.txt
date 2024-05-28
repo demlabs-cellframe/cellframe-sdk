@@ -1,16 +1,20 @@
 cmake_minimum_required(VERSION 3.10)
 project (dap_chain_net_srv_vpn)
   
-file(GLOB DAP_CHAIN_NET_SRV_VPN_SRCS *.c)
-
-file(GLOB DAP_CHAIN_NET_SRV_VPN_HEADERS include/*.h)
 
 if(WIN32)
+  file(GLOB DAP_CHAIN_NET_SRV_VPN_SRCS *common.c)
+  file(GLOB DAP_CHAIN_NET_SRV_VPN_HEADERS include/*common.h)
+
   include_directories(../../../os/win32/)
   include_directories(../3rdparty/wepoll/include/)
   include_directories(../3rdparty/uthash/src/)
   include_directories(../../dap-sdk/3rdparty/json-c/)
   include_directories(../3rdparty/libmagic/src/)
+else()
+  file(GLOB DAP_CHAIN_NET_SRV_VPN_SRCS *.c)
+  file(GLOB DAP_CHAIN_NET_SRV_VPN_HEADERS include/*.h)
+
 endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_VPN_SRCS} ${DAP_CHAIN_NET_SRV_VPN_HEADERS})
