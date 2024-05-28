@@ -1095,12 +1095,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                     return -20;
                 }
                 dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
-                        .collectiong_level = l_chain->callback_get_collectiong_level,
-                        .minimum_fee = l_chain->callback_get_minimum_fee,
-                        .chain = l_chain,
-                        .blocks_sign_key = l_cert->enc_key,
-                        .block_sign_pkey = l_pub_key,
-                        .collecting_addr = l_addr
+                    .collectiong_level = l_chain->callback_get_collectiong_level(l_chain),
+                    .minimum_fee = l_chain->callback_get_minimum_fee(l_chain),
+                    .chain = l_chain,
+                    .blocks_sign_key = l_cert->enc_key,
+                    .block_sign_pkey = l_pub_key,
+                    .collecting_addr = l_addr
                 };
                 //Cleare gdb
                 size_t l_objs_fee_count = 0;
