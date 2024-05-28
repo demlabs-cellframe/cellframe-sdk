@@ -116,7 +116,7 @@ static int s_cli_block_poa(int argc, char ** argv, void **a_str_reply)
         return -3;
     }
 
-    const char *l_chain_type = dap_chain_net_get_type(l_chain);
+    const char *l_chain_type = dap_chain_get_cs_type(l_chain);
     if (strcmp(l_chain_type, "block_poa")){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Type of chain %s is not block_poa. This chain with type %s is not supported by this command",

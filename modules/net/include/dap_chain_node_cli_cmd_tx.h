@@ -26,7 +26,7 @@
 
 #include "dap_chain.h"
 #include "dap_chain_common.h"
-#include "json.h"
+#include "dap_chain_net.h"
 
 typedef struct dap_chain_tx_hash_processed_ht{
     dap_chain_hash_fast_t hash;

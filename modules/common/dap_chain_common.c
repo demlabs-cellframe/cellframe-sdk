@@ -71,7 +71,7 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
  * @param a_addr
  * @return
  */
-char *dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
+const char *dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
 {
     dap_return_val_if_pass(!a_addr, NULL);
     if (dap_chain_addr_is_blank(a_addr))

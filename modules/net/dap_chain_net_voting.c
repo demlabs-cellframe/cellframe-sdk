@@ -32,10 +32,11 @@
 
 #include "dap_chain_net_voting.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
-#include "dap_chain_node_cli.h"
+#include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
 #include "uthash.h"
 #include "utlist.h"
+#include "dap_cli_server.h"
 
 #define LOG_TAG "chain_net_voting"
 
@@ -294,7 +295,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
             dap_sign_get_pkey_hash((dap_sign_t*)l_vote_sig->sig, &pkey_hash);
             if (l_voting->voting_params.delegate_key_required_offset &&
                 *(bool*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.delegate_key_required_offset)){
-                if (!dap_chain_net_srv_stake_check_pkey_hash(&pkey_hash)){
+                if (!dap_chain_net_srv_stake_check_pkey_hash(a_ledger->net->pub.id, &pkey_hash)){
                     log_it(L_ERROR, "The voting required a delegated key.");
                     dap_list_free(l_signs_list);
                     return false;
@@ -927,14 +928,14 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 
             DIV_256_COIN(l_results[i].weights, l_total_weight, &l_weight_percentage);
             MULT_256_COIN(l_weight_percentage, dap_chain_coins_to_balance("100.0"), &l_weight_percentage);
-            char *l_weight_percentage_str = dap_uint256_decimal_to_round_char(l_weight_percentage, 2, true);
-            char *l_w_coins, *l_w_datoshi = dap_uint256_to_char(l_results[i].weights, &l_w_coins);
+            const char *l_weight_percentage_str = dap_uint256_decimal_to_round_char(l_weight_percentage, 2, true);
+            const char *l_w_coins, *l_w_datoshi = dap_uint256_to_char(l_results[i].weights, &l_w_coins);
             dap_string_append_printf(l_str_out, "\nVotes: %"DAP_UINT64_FORMAT_U" (%.2f%%)\nWeight: %s (%s) %s (%s%%)\n",
                                      l_results[i].num_of_votes, l_percentage, l_w_coins, l_w_datoshi, l_net->pub.native_ticker, l_weight_percentage_str);
         }
         DAP_DELETE(l_results);
         dap_string_append_printf(l_str_out, "\nTotal number of votes: %"DAP_UINT64_FORMAT_U, l_votes_count);
-        char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
+        const char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
         dap_string_append_printf(l_str_out, "\nTotal weight: %s (%s) %s\n\n", l_tw_coins, l_tw_datoshi, l_net->pub.native_ticker);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
         dap_string_free(l_str_out, true);
@@ -1349,7 +1350,7 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
             dap_hash_fast_t l_pkey_hash = {0};
 
             dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
-            if (!dap_chain_net_srv_stake_check_pkey_hash(&l_pkey_hash)) {
+            if (!dap_chain_net_srv_stake_check_pkey_hash(a_net->pub.id, &l_pkey_hash)) {
                 return DAP_CHAIN_NET_VOTE_VOTING_KEY_IS_NOT_DELEGATED;
             }
             dap_list_t *l_temp = l_voting->votes;
