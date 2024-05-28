@@ -27,7 +27,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain.h"
 #include "dap_chain_block.h"
 #include "dap_chain_cs_blocks.h"
-#include "dap_cert.h"
 #include "dap_global_db_driver.h"
 
 #define DAP_STREAM_CH_ESBOCS_ID                     'E'
@@ -156,6 +155,7 @@ typedef struct dap_chain_esbocs_round {
     // Validators section
     dap_list_t *validators_list;
     uint16_t validators_synced_count;
+    uint16_t *excluded_list;
     // Synchronization params
     uint64_t sync_attempt;
     bool sync_sent;
@@ -225,10 +225,11 @@ typedef struct dap_chain_esbocs_block_collect{
 
 int dap_chain_cs_esbocs_init();
 void dap_chain_cs_esbocs_deinit(void);
-bool dap_chain_esbocs_started();
 
+bool dap_chain_esbocs_started(dap_chain_net_id_t a_net_id);
 void dap_chain_esbocs_stop_timer(dap_chain_net_id_t a_net_id);
 void dap_chain_esbocs_start_timer(dap_chain_net_id_t a_net_id);
+
 dap_pkey_t *dap_chain_esbocs_get_sign_pkey(dap_chain_net_id_t a_net_id);
 uint256_t dap_chain_esbocs_get_fee(dap_chain_net_id_t a_net_id);
 bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id);
@@ -236,3 +237,9 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_t *a_block_ptr, size_t a
                                         dap_chain_esbocs_block_collect_t *a_block_collect_params,int a_type);
 bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr);
 bool dap_chain_esbocs_remove_validator_from_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr);
+
+uint256_t dap_chain_esbocs_get_collecting_level(dap_chain_t *a_chain);
+dap_enc_key_t *dap_chain_esbocs_get_sign_key(dap_chain_t *a_chain);
+int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
+int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash);
+int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable);

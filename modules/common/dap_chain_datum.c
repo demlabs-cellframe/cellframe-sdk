@@ -161,7 +161,7 @@ void dap_chain_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_tok
             continue;
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK: {
                 dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
-                char *l_balance, *l_tmp = dap_uint256_to_char(l_tsd_section->emission_rate, &l_balance);
+                const char *l_balance, *l_tmp = dap_uint256_to_char(l_tsd_section->emission_rate, &l_balance);
                 dap_string_append_printf(a_str_out, "ticker_token_from: %s\nemission_rate: %s\n",
                                          l_tsd_section->ticker_token_from, l_balance);
             }continue;
@@ -429,7 +429,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                         ((dap_chain_tx_in_t*)item)->header.tx_out_prev_idx);
             break;
         case TX_ITEM_TYPE_OUT_OLD: {
-            char *l_value_str = dap_uint256_to_char(
+            const char *l_value_str = dap_uint256_to_char(
                 dap_chain_uint256_from(((dap_chain_tx_out_old_t*)item)->header.value), NULL );
             dap_string_append_printf(a_str_out, "\t OUT OLD (64):\n"
                                                 "\t\t Value: %s (%"DAP_UINT64_FORMAT_U")\n"
@@ -439,7 +439,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                         dap_chain_addr_to_str(&((dap_chain_tx_out_old_t*)item)->addr));
         } break;
         case TX_ITEM_TYPE_OUT: { // 256
-            char    *l_coins_str,
+            const char *l_coins_str,
                     *l_value_str = dap_uint256_to_char(((dap_chain_tx_out_t*)item)->header.value, &l_coins_str),
                     *l_addr_str = dap_chain_addr_to_str(&((dap_chain_tx_out_t*)item)->addr);
             dap_string_append_printf(a_str_out, "\t OUT:\n"
@@ -502,7 +502,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             dap_string_append_printf(a_str_out, "\tSender addr: %s\n", dap_chain_addr_to_str(&l_sender_addr));
         } break;
         case TX_ITEM_TYPE_RECEIPT: {
-            char *l_coins_str, *l_value_str = dap_uint256_to_char(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi, &l_coins_str);
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi, &l_coins_str);
             dap_string_append_printf(a_str_out, "\t Receipt:\n"
                                                 "\t\t size: %"DAP_UINT64_FORMAT_U"\n"
                                                 "\t\t ext size: %"DAP_UINT64_FORMAT_U"\n"
@@ -575,7 +575,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      ((dap_chain_tx_in_cond_t*)item)->header.tx_out_prev_idx);
             break;
         case TX_ITEM_TYPE_OUT_COND: {
-            char *l_coins_str, *l_value_str = dap_uint256_to_char(((dap_chain_tx_out_cond_t*)item)->header.value, &l_coins_str);
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char(((dap_chain_tx_out_cond_t*)item)->header.value, &l_coins_str);
             dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->header.ts_expires;
             dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_exp);
             dap_string_append_printf(a_str_out, "\t OUT COND:\n"
@@ -589,7 +589,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64);
             switch (((dap_chain_tx_out_cond_t*)item)->header.subtype) {
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: {
-                    char *l_coins_str, *l_value_str =
+                    const char *l_coins_str, *l_value_str =
                         dap_uint256_to_char( ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi, &l_coins_str );
                     l_hash_tmp = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash;
                     l_hash_str = dap_strcmp(a_hash_out_type, "hex")
@@ -618,7 +618,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                                         NODE_ADDR_FP_ARGS(l_signer_node_addr));
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
-                    char *l_rate_str, *l_tmp_str =
+                    const char *l_rate_str, *l_tmp_str =
                         dap_uint256_to_char( (((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.rate), &l_rate_str );
                     dap_string_append_printf(a_str_out, "\t\t\t net id: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                         "\t\t\t buy_token: %s\n"
@@ -636,7 +636,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             }
         } break;
         case TX_ITEM_TYPE_OUT_EXT: {
-            char *l_coins_str, *l_value_str = dap_uint256_to_char( ((dap_chain_tx_out_ext_t*)item)->header.value, &l_coins_str );
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char( ((dap_chain_tx_out_ext_t*)item)->header.value, &l_coins_str);
             dap_string_append_printf(a_str_out, "\t OUT EXT:\n"
                                                 "\t\t Addr: %s\n"
                                                 "\t\t Token: %s\n"
@@ -819,7 +819,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             size_t l_emission_size = a_datum->header.data_size;
             dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_datum->data, &l_emission_size);
-            char *l_coins_str, *l_value_str = dap_uint256_to_char(l_emission->hdr.value, &l_coins_str);
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_emission->hdr.value, &l_coins_str);
             dap_string_append_printf(a_str_out, "emission: hash %s\n\t%s(%s) %s, type: %s, version: %d\n",
                                     l_hash_str,
                                     l_coins_str,

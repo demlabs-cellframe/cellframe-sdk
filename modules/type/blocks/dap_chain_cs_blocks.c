@@ -22,7 +22,6 @@
 */
 #include <pthread.h>
 #include "dap_common.h"
-#include "dap_enc_base58.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
@@ -227,7 +226,7 @@ void dap_chain_cs_blocks_deinit()
     dap_chain_block_cache_deinit();
 }
 
-static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config)
+static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_config)
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_NEW_Z(dap_chain_cs_blocks_t);
     if (!l_cs_blocks) {
@@ -469,7 +468,7 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_global_db_obj_t *l_obj_cur = l_objs + i;
         uint256_t l_cur_value = *(uint256_t*)l_obj_cur->value;
-        char *l_value_str; dap_uint256_to_char(l_cur_value, &l_value_str);
+        const char *l_value_str; dap_uint256_to_char(l_cur_value, &l_value_str);
         dap_string_append_printf(a_reply_str, "%s\t%s\n", l_obj_cur->key, l_value_str);
         SUM_256_256(l_total_value, l_cur_value, &l_total_value);
     }
@@ -483,7 +482,7 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
             dap_pkey_t *l_my_sign_pkey = dap_chain_esbocs_get_sign_pkey(a_net->pub.id);
             dap_hash_t l_my_sign_pkey_hash;
             dap_hash_fast(l_my_sign_pkey->pkey, l_my_sign_pkey->header.size, &l_my_sign_pkey_hash);
-            dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_my_sign_pkey_hash);
+            dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_net->pub.id, &l_my_sign_pkey_hash);
             if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
                     !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
                 MULT_256_COIN(l_collect_value, l_key_item->sovereign_tax, &l_collect_tax);
@@ -559,7 +558,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
     if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
         return -11;
 
-    const char *l_chain_type = dap_chain_net_get_type(l_chain);
+    const char *l_chain_type = dap_chain_get_cs_type(l_chain);
 
     if (!strstr(l_chain_type, "block_") && strcmp(l_chain_type, "esbocs")){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -988,7 +987,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     break;
                 } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "show") >= 0) {
                     uint256_t l_cur_reward = dap_chain_net_get_reward(l_net, UINT64_MAX);
-                    char *l_reward_str; dap_uint256_to_char(l_cur_reward, &l_reward_str);
+                    const char *l_reward_str; dap_uint256_to_char(l_cur_reward, &l_reward_str);
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Current base block reward is %s\n", l_reward_str);
                     break;
                 } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "collect") == -1) {
@@ -1099,8 +1098,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     return -20;
                 }
                 dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
-                        .collecting_level = l_chain->callback_get_collectiong_level(l_chain),
-                        .minimum_fee = l_chain->callback_get_minimum_fee(l_chain),
+                        .collecting_level = dap_chain_esbocs_get_collecting_level(l_chain),
+                        .minimum_fee = dap_chain_esbocs_get_fee(l_chain->net_id),
                         .chain = l_chain,
                         .blocks_sign_key = l_cert->enc_key,
                         .block_sign_pkey = l_pub_key,

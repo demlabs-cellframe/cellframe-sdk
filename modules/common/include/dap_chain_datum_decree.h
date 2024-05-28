@@ -26,7 +26,6 @@
 #include "dap_math_ops.h"
 #include "dap_time.h"
 #include "dap_list.h"
-#include "dap_tsd.h"
 #include "dap_cert.h"
 #include <stdint.h>
 
@@ -73,6 +72,9 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN                           0x0009
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN                         0x000A
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD                        0x000B
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT                    0x000C
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS          0x000D
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE         0x000E
 
 // DECREE TSD types
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE                               0x0100
@@ -81,7 +83,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER                               0x0103
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER                           0x0104
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET                          0x0106
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_TX_HASH                       0x0107
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH                                0x0107
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE                         0x0108
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR                  0x0109
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR              0x0110
@@ -89,6 +91,8 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT             0x0112
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST                                0x0113
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR                           0x0115
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION                              0x010A
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE                      0x010B
 
 DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_decree_subtype)
 {
@@ -113,6 +117,12 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_d
         return "DECREE_COMMON_SUBTYPE_UNBAN";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD:
         return "DECREE_COMMON_SUBTYPE_REWARD";
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT:
+        return "DECREE_COMMON_SUBTYPE_VALIDATOR_MAX_WEIGHT";
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS:
+        return "DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS";
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE:
+        return "DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE";
     default:
         return "DECREE_SUBTYPE_UNKNOWN";
     }
@@ -120,39 +130,45 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_d
 
 DAP_STATIC_INLINE const char *dap_chain_datum_decree_tsd_type_to_str(uint16_t a_decree_tsd_type) {
     switch (a_decree_tsd_type) {
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_TX_HASH:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_TX_HASH";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR";
-        default:
-            return "DECREE_TSD_TYPE_UNKNOWN";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION:
+         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE:
+         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE";
+    default:
+        return "DECREE_TSD_TYPE_UNKNOWN";
     }
 }
 
+dap_chain_datum_decree_t *dap_chain_datum_decree_new(dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id,
+                                                     dap_chain_cell_id_t a_cell_id, size_t a_total_tsd_size);
 /**
  * @brief dap_chain_datum_decree_get_signs
  * @param decree pointer to decree
@@ -192,7 +208,7 @@ dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree
  * @param a_owners_num pointer to minimum number of owners buffer
  * @return result code. 0 - success
  */
-int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint16_t *a_min_owners_num);
+int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_owners_num);
 
 /**
  * @brief dap_chain_datum_decree_get_tx_hash get stake tx hash
@@ -200,7 +216,7 @@ int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, ui
  * @param a_tx_hash pointer to tx hash buffer
  * @return result code. 0 - success
  */
-int dap_chain_datum_decree_get_stake_tx_hash(dap_chain_datum_decree_t *a_decree, dap_hash_fast_t *a_tx_hash);
+int dap_chain_datum_decree_get_hash(dap_chain_datum_decree_t *a_decree, dap_hash_fast_t *a_tx_hash);
 
 /**
  * @brief dap_chain_datum_decree_get_stake_value get stake value
@@ -250,6 +266,9 @@ int dap_chain_datum_decree_get_stake_min_value(dap_chain_datum_decree_t *a_decre
  * @return result code. 0 - success
  */
 int dap_chain_datum_decree_get_stake_min_signers_count(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_signers_count);
+int dap_chain_datum_decree_get_action(dap_chain_datum_decree_t *a_decree, uint8_t *a_action);
+int dap_chain_datum_decree_get_signature_type(dap_chain_datum_decree_t *a_decree, uint32_t *a_signature_type);
+int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, const char **a_addr);
 
 /**
  * @breif dap_chain_datum_decree_dump Dump information about decree

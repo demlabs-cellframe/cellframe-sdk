@@ -347,7 +347,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "ticker_token_from", l_jobj_ticker_token_from);
-                char *balance; dap_uint256_to_char(l_tsd_section->emission_rate, &balance);
+                const char *balance; dap_uint256_to_char(l_tsd_section->emission_rate, &balance);
                 json_object *l_jobj_emission_rate = json_object_new_string(balance);
                 if (!l_jobj_emission_rate) {
                     json_object_put(l_jobj_tsd);

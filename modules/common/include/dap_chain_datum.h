@@ -25,11 +25,9 @@
 #pragma once
 #include <stdint.h>
 #include "dap_common.h"
-#include "dap_math_ops.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_token.h"
-#include "json.h"
 
 #define DAP_CHAIN_DATUM_VERSION 0x00
 
