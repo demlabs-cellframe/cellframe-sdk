@@ -251,3 +251,4 @@ bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_
 ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t a_atom_size, dap_chain_cell_id_t a_cell_id);
 int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name);
 const char* dap_chain_get_path(dap_chain_t *a_chain);
+const char* dap_chain_type_to_str(dap_chain_type_t *a_chain_type);

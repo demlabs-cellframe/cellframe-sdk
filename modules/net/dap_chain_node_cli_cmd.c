@@ -2462,11 +2462,13 @@ typedef enum dap_chain_node_cli_cmd_values_parse_net_chain_err_to_json {
     DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_STR_IS_NULL = 105,
     DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CONFIG_DEFAULT_DATUM = 106,
     DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CONVERT_BASE58_TO_ADDR_WALLET = 107,
-    DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_FAST_AND_BASE58_ADDR
+    DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_FAST_AND_BASE58_ADDR,
+    DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE
 } dap_chain_node_cli_cmd_values_parse_net_chain_err_to_json;
 int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int a_argc,
                                                            char **a_argv,
-                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net) {
+                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net,
+                                                           dap_chain_type_t a_default_chain_type) {
     const char * l_chain_str = NULL;
     const char * l_net_str = NULL;
 
@@ -2505,6 +2507,10 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
         // Select chain
         if(l_chain_str) {
             if ((*a_chain = dap_chain_net_get_chain_by_name(*a_net, l_chain_str)) == NULL) { // Can't find such chain
+                if (a_default_chain_type != CHAIN_TYPE_INVALID) {
+                    if ((*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type)) != NULL)
+                        return 0;
+                }
                 char l_str_to_reply_chain[500] = {0};
                 char *l_str_to_reply = NULL;
                 sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
@@ -2522,13 +2528,12 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
                 DAP_DELETE(l_str_to_reply);
                 return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND;
             }
-        }
-        else if (!strcmp(a_argv[0], "token_decl")  || !strcmp(a_argv[0], "token_decl_sign")) {
-            if (	(*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, CHAIN_TYPE_TOKEN)) == NULL )
-            {
-                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CONFIG_DEFAULT_DATUM, "%s requires parameter '-chain' or set default datum "
-                                             "type in chain configuration file");
-                return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CONFIG_DEFAULT_DATUM;
+        } else if (a_default_chain_type != CHAIN_TYPE_INVALID) {
+            if ((*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type)) == NULL) {
+                dap_json_rpc_error_add(
+                    DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE, 
+                    "Unable to get the default chain of type %s for the network.", dap_chain_type_to_str(a_default_chain_type));
+                return DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE;
             }
         }
     }
@@ -2585,7 +2590,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
         if(l_chain_str) {
             if ((*a_chain = dap_chain_net_get_chain_by_name(*a_net, l_chain_str)) == NULL) { // Can't find such chain
                 if (a_default_chain_type != CHAIN_TYPE_INVALID) {
-                    if ((a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type)) == NULL) {
+                    if ((*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type)) != NULL) {
                         return 0;
                     }
                 }
@@ -2606,6 +2611,14 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                 DAP_DELETE(l_str_to_reply);
                 return -103;
             }
+        } else if (a_default_chain_type != CHAIN_TYPE_INVALID) {
+            if ((*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type)) == NULL) {
+                dap_json_rpc_error_add(
+                    DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE, 
+                    "Unable to get the default chain of type %s for the network.", dap_chain_type_to_str(a_default_chain_type));
+                return DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE;
+            }
+            return 0;
         } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-chain'", a_argv[0]);
             return -104;
@@ -4074,7 +4087,7 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
             return -2;
         }
     }
-    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_INVALID);
     if (!l_net) {
         return -3;
     }
