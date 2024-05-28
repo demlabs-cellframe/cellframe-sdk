@@ -1313,7 +1313,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+        dap_json_rpc_error_add(-2,"invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
     }
 
@@ -1329,14 +1329,15 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
     const char *l_chain_type = dap_chain_get_cs_type(l_chain);
 
     if (!strstr(l_chain_type, "dag_")){
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "Type of chain %s is not dag. This chain with type %s is not supported by this command",
-                        l_chain->name, l_chain_type);
+            dap_json_rpc_error_add(-2,"Type of chain %s is not dag. This chain with type %s is not supported by this command",
+                        l_chain->name, l_chain_type);            
             return -42;
     }
 
     int ret = 0;
     if ( l_round_cmd_str ) {
+        json_object * json_obj_round = json_object_new_object();
+        char l_buf[50] = {};
         if ( strcmp(l_round_cmd_str,"complete") == 0 ){
             const char * l_cmd_mode_str = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-mode", &l_cmd_mode_str);
@@ -1348,9 +1349,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
 
             size_t l_objs_size=0;
             dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_dag->gdb_group_events_round_new,&l_objs_size);
-
-            dap_string_t *l_str_ret_tmp= l_objs_size>0 ? dap_string_new("Completing round:\n") : dap_string_new("Completing round: no data");
-
+            dap_string_t *l_str_ret_tmp= l_objs_size>0 ? json_object_object_add(json_obj_round,"round status", json_object_new_string("Completing round")):
+                                                         json_object_object_add(json_obj_round,"round status", json_object_new_string("Completing round: no data"));
             // list for verifed and added events
             dap_list_t *l_list_to_del = NULL;
 
@@ -1362,13 +1362,13 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
                 size_t l_event_size = l_round_item->event_size;
                 int l_ret_event_verify;
-                if ( ( l_ret_event_verify = l_dag->callback_cs_verify (l_dag,l_event,l_event_size) ) !=0 ){// if consensus accept the event
-                    dap_string_append_printf( l_str_ret_tmp,
-                            "Error! Event %s is not passing consensus verification, ret code %d\n",
+                if ( ( l_ret_event_verify = l_dag->callback_cs_verify (l_dag,l_event,l_event_size) ) !=0 ){// if consensus accept the event                                        
+                    dap_json_rpc_error_add(-2,"Error! Event %s is not passing consensus verification, ret code %d\n",
                                               l_objs[i].key, l_ret_event_verify );
                     ret = -30;
                     break;
                 }else {
+                    snprintf(l_buf, 50, "0x%x", l_emission->data.type_presale.flags);
                     dap_string_append_printf( l_str_ret_tmp, "Event %s verification passed\n", l_objs[i].key);
                     // If not verify only mode we add
                     if ( ! l_verify_only ){
