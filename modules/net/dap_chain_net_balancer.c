@@ -281,8 +281,8 @@ static dap_chain_net_links_t *s_balancer_issue_link(const char *a_net_name, uint
     if (l_ignored_size) {
         DAP_NEW_Z_SIZE_RET_VAL(l_ignored_dec, dap_chain_net_links_t, l_ignored_size, NULL, NULL);
         dap_enc_base64_decode(a_ignored_enc, l_ignored_size, l_ignored_dec, DAP_ENC_DATA_TYPE_B64);
-        if (l_ignored_size < DAP_ENC_BASE64_ENCODE_SIZE(sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node)) {
-            log_it(L_ERROR, "Cant't decode ignored node list, %zu %zu", l_ignored_size, DAP_ENC_BASE64_ENCODE_SIZE(sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node));
+        if (l_ignored_size < DAP_ENC_BASE64_ENCODE_SIZE((sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node))) {
+            log_it(L_ERROR, "Can't decode ignored node list, received size %zu < expected size %zu", l_ignored_size, DAP_ENC_BASE64_ENCODE_SIZE((sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node)));
             DAP_DEL_Z(l_ignored_dec);
         }
     }

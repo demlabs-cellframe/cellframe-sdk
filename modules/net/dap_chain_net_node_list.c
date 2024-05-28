@@ -302,8 +302,7 @@ int dap_chain_net_node_list_request(dap_chain_net_t *a_net, uint16_t a_port, boo
             }
         }
     }
-    DAP_DELETE(l_request);
-    DAP_DELETE(l_seeds_addrs);
+    DAP_DEL_MULTY(l_request, l_seeds_addrs);
     s_node_list_request_deinit(l_link_node_request);
     return l_ret;
 }
