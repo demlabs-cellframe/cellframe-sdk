@@ -403,6 +403,10 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING,"Can't get min number of ownners from decree.");
                 return -105;
             }
+            if (!IS_ZERO_256(l_value) || compare256(l_value, GET_256_FROM_64(UINT16_MAX))) {
+                log_it(L_WARNING,"Illegal min number of ownners %s", dap_uint256_to_char(l_value, NULL));
+                return -116;
+            }
             if (!a_apply)
                 break;
             a_net->pub.decree->min_num_of_owners = dap_uint256_to_uint64(l_value);
