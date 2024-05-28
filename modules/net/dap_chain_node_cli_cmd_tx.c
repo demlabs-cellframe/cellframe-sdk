@@ -26,7 +26,7 @@
 #include <stddef.h>
 #include <pthread.h>
 
-#include "dap_chain_wallet.h"
+#include "dap_cli_server.h"
 #include "dap_common.h"
 #include "dap_enc_base58.h"
 #include "dap_strfuncs.h"
@@ -40,9 +40,10 @@
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_tx_items.h"
-#include "dap_chain_node_cli.h"
+#include "dap_chain_datum_anchor.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_net_tx.h"
+#include "dap_chain_net_decree.h"
 #include "dap_chain_mempool.h"
 #include "dap_math_convert.h"
 
@@ -585,20 +586,20 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                                       a_hash_out_type, l_ledger, &l_tx_hash, l_datum_iter->ret_code);
                     l_header_printed = true;
                 }
-                char *l_src_str = NULL;
+                const char *l_src_str = NULL;
                 if (l_base_tx)
                     l_src_str = l_reward_collect ? "reward collecting" : "emission";
                 else if (l_src_addr && dap_strcmp(l_dst_token, l_noaddr_token))
                     l_src_str = dap_chain_addr_to_str(l_src_addr);
                 else
-                    l_src_str = (char*)dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
+                    l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
                 if (l_is_unstake)
                     l_value = l_unstake_value;
                 else if (!dap_strcmp(l_native_ticker, l_noaddr_token)) {
                     l_is_need_correction = true;
                     l_corr_value = l_value;
                 }
-                char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
+                const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
                 
                 json_object *j_obj_data = json_object_new_object();
                 if (!j_obj_data) {
@@ -632,7 +633,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 const char *l_dst_addr_str = l_dst_addr ? dap_chain_addr_to_str(l_dst_addr)
                                                         : dap_chain_tx_out_cond_subtype_to_str(
                                                               ((dap_chain_tx_out_cond_t *)it->data)->header.subtype);
-                char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);                
+                const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
                 json_object * j_obj_data = json_object_new_object();
                 if (!j_obj_data) {
                     dap_json_rpc_allocation_error;
@@ -656,7 +657,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         dap_list_free(l_list_out_items);
         if (l_is_need_correction && l_corr_object) {
             SUM_256_256(l_corr_value, l_fee_sum, &l_corr_value);
-            char *l_coins_str, *l_value_str = dap_uint256_to_char(l_corr_value, &l_coins_str);
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_corr_value, &l_coins_str);
             json_object_object_add(l_corr_object, "recv_coins", json_object_new_string(l_coins_str));
             json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));
             if (!j_arr_data) {

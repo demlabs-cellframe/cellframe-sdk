@@ -151,7 +151,7 @@ typedef bool (*dap_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_ch
 typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
 typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg);
-typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_hash_fast_t *a_tx_hash);
+typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
 typedef struct dap_chain_net dap_chain_net_t;
 typedef bool (*dap_chain_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, bool a_apply);
 typedef bool (*dap_ledger_tag_check_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action);
@@ -298,8 +298,8 @@ bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
 //TX service-tags
 bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_net_srv_uid_t *uid, dap_chain_tx_tag_action_type_t *action);
-char * dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag);
-dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(char *str);
+const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag);
+dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *a_str);
 
 bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, 
                                 dap_chain_net_srv_uid_t *a_uid, char **a_service_name,  dap_chain_tx_tag_action_type_t *a_action);
@@ -319,7 +319,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger,
                                         dap_chain_net_srv_uid_t *a_tag,
                                         dap_chain_tx_tag_action_type_t *a_action);
 
-const char *dap_ledger_tx_get_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc);
+const char *dap_ledger_tx_calculate_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc);
 
 /**
  * Delete all transactions from the cache

@@ -22,7 +22,6 @@
 */
 #include <pthread.h>
 #include "dap_common.h"
-#include "dap_enc_base58.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
@@ -33,7 +32,6 @@
 #include "dap_timerfd.h"
 #include "dap_cli_server.h"
 #include "dap_chain_node_cli_cmd.h"
-#include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_cs_esbocs.h"
@@ -228,7 +226,7 @@ void dap_chain_cs_blocks_deinit()
     dap_chain_block_cache_deinit();
 }
 
-static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config)
+static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_config)
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_NEW_Z(dap_chain_cs_blocks_t);
     if (!l_cs_blocks) {
@@ -476,11 +474,10 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object* json_
         json_object* json_obj_t = json_object_new_object();
         dap_global_db_obj_t *l_obj_cur = l_objs + i;
         uint256_t l_cur_value = *(uint256_t*)l_obj_cur->value;
-        char *l_value_str = dap_chain_balance_to_coins(l_cur_value);
+        const char *l_value_str; dap_uint256_to_char(l_cur_value, &l_value_str);
         json_object_object_add(json_obj_t, "obj_key",json_object_new_string(l_obj_cur->key));
         json_object_object_add(json_obj_t, "obj_val",json_object_new_string(l_value_str));
         json_object_array_add(json_arr_out, json_obj_t);
-        DAP_DEL_Z(l_value_str);
         SUM_256_256(l_total_value, l_cur_value, &l_total_value);
     }
     json_object_object_add(json_obj_a,"Autocollect tables",json_arr_out);
@@ -494,7 +491,7 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object* json_
             dap_pkey_t *l_my_sign_pkey = dap_chain_esbocs_get_sign_pkey(a_net->pub.id);
             dap_hash_t l_my_sign_pkey_hash;
             dap_hash_fast(l_my_sign_pkey->pkey, l_my_sign_pkey->header.size, &l_my_sign_pkey_hash);
-            dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_my_sign_pkey_hash);
+            dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_net->pub.id, &l_my_sign_pkey_hash);
             if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
                     !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
                 MULT_256_COIN(l_collect_value, l_key_item->sovereign_tax, &l_collect_tax);
@@ -574,7 +571,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
     if(dap_chain_node_cli_cmd_values_parse_net_chain_json(&arg_index, a_argc, a_argv, &l_chain, &l_net) < 0)
         return -DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
 
-    const char *l_chain_type = dap_chain_net_get_type(l_chain);
+    const char *l_chain_type = dap_chain_get_cs_type(l_chain);
 
     if (!strstr(l_chain_type, "block_") && strcmp(l_chain_type, "esbocs")){
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_CHAIN_TYPE_ERR, "Type of chain %s is not block. This chain with type %s is not supported by this command",
@@ -725,9 +722,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                         char * l_data_hex = DAP_NEW_Z_SIZE(char,l_meta->hdr.data_size*2+3);
                         dap_bin2hex(l_data_hex, l_meta->data, l_meta->hdr.data_size);
                         sprintf(l_tmp_buff,"0x%0X",i);
-                        json_object_object_add(json_obj_meta, "# -", l_tmp_buff);
+                        json_object_object_add(json_obj_meta, "# -", json_object_new_string(l_tmp_buff));
                         sprintf(l_tmp_buff,"0x%s",l_data_hex);
-                        json_object_object_add(json_obj_meta, "Data hex - ", l_tmp_buff);
+                        json_object_object_add(json_obj_meta, "Data hex - ", json_object_new_string(l_tmp_buff));
                         DAP_DELETE(l_data_hex);
                     }
                 }
@@ -1039,12 +1036,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     break;
                 } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "show") >= 0) {
                     uint256_t l_cur_reward = dap_chain_net_get_reward(l_net, UINT64_MAX);
-                    char *l_reward_str = dap_chain_balance_to_coins(l_cur_reward);
+                    const char *l_reward_str; dap_uint256_to_char(l_cur_reward, &l_reward_str);
                     json_object* json_obj_out = json_object_new_object();
                     sprintf(l_tmp_buff,"Current base block reward is %s\n", l_reward_str);
                     json_object_object_add(json_obj_out, "status", json_object_new_string(l_tmp_buff));
                     json_object_array_add(*json_arr_reply, json_obj_out);
-                    DAP_DEL_Z(l_reward_str);
                     break;
                 } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "collect") == -1) {
                     dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block reward' requires subcommands 'set' or 'show' or 'collect'");
@@ -1131,7 +1127,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_hash_fast_t l_pkey_hash = {};
             dap_chain_addr_t *l_addr = NULL;
             size_t l_block_count = 0;
-            char l_tmp_buff[70]={0};
+            char l_tmp_buff[128]={0};
             int fl_renew = dap_cli_server_cmd_check_option(a_argv, arg_index,a_argc, "renew");
             if(fl_renew != -1)
             {
@@ -1161,8 +1157,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_PUB_KEY_ERR;
                 }
                 dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
-                        .collecting_level = l_chain->callback_get_collectiong_level(l_chain),
-                        .minimum_fee = l_chain->callback_get_minimum_fee(l_chain),
+                        .collecting_level = dap_chain_esbocs_get_collecting_level(l_chain),
+                        .minimum_fee = dap_chain_esbocs_get_fee(l_chain->net_id),
                         .chain = l_chain,
                         .blocks_sign_key = l_cert->enc_key,
                         .block_sign_pkey = l_pub_key,
@@ -1199,12 +1195,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                         if (NULL == dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, &l_out_idx_tmp))
                             continue;
                         if (!dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + i, l_out_idx_tmp, NULL)) {
-                            dap_chain_esbocs_add_block_collect(l_block_cache->block, l_block_cache->block_size, &l_block_collect_params,1);
-                            char l_buf[50];
+                            dap_chain_esbocs_add_block_collect(l_block_cache, &l_block_collect_params, DAP_CHAIN_BLOCK_COLLECT_FEES);
+                            char l_buf[DAP_TIME_STR_SIZE];
                             json_object* json_obj_bl = json_object_new_object();
-                            dap_time_to_str_rfc822(l_buf, 50, l_ts);
+                            dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
                             sprintf(l_tmp_buff, "fee - \t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
-                            json_object_object_add(json_obj_bl, "block", l_tmp_buff);
+                            json_object_object_add(json_obj_bl, "block", json_object_new_string(l_tmp_buff));
                             json_object_array_add(json_arr_bl_out, json_obj_bl);
                             l_block_count++;
                             break;
@@ -1230,16 +1226,14 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                         continue;
                     if (dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash, &l_pkey_hash))
                         continue;
-                    dap_chain_esbocs_add_block_collect(l_block_cache->block, l_block_cache->block_size, &l_block_collect_params,2);
-                    {   
-                        char l_buf[50];
-                        json_object* json_obj_bl = json_object_new_object();
-                        dap_time_to_str_rfc822(l_buf, 50, l_ts);
-                        sprintf(l_tmp_buff, "rewards - \t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
-                        json_object_object_add(json_obj_bl, "block", l_tmp_buff);
-                        json_object_array_add(json_arr_bl_out, json_obj_bl);
-                        l_block_count++; 
-                    }                   
+                    dap_chain_esbocs_add_block_collect(l_block_cache, &l_block_collect_params, DAP_CHAIN_BLOCK_COLLECT_REWARDS);
+                    char l_buf[DAP_TIME_STR_SIZE];
+                    json_object* json_obj_bl = json_object_new_object();
+                    dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
+                    sprintf(l_tmp_buff, "rewards - \t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
+                    json_object_object_add(json_obj_bl, "block", json_object_new_string(l_tmp_buff));
+                    json_object_array_add(json_arr_bl_out, json_obj_bl);
+                    l_block_count++;
                 }
                 json_object_array_add(*json_arr_reply, json_arr_bl_out);
                 json_object* json_obj_out = json_object_new_object();
@@ -1264,7 +1258,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         default: {
             char l_tmp_buff[70]={0};
             json_object* json_obj_out = json_object_new_object();
-            sprintf(l_tmp_buff, "Undefined block subcommand \"%s\" ",
+            snprintf(l_tmp_buff, sizeof(l_tmp_buff), "Undefined block subcommand \"%s\" ",
                                               l_subcmd_str);
             json_object_object_add(json_obj_out, "status", json_object_new_string(l_tmp_buff));
             json_object_array_add(*json_arr_reply, json_obj_out);

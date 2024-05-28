@@ -25,7 +25,8 @@
 #pragma once
 
 #include "dap_chain_net_srv.h"
-#include "dap_chain_net_srv_order.h"
+#include "dap_chain_wallet.h"
+#include "dap_chain_datum_tx_out_cond.h"
 
 #define DAP_CHAIN_NET_SRV_XCHANGE_ID 0x2
 #define GROUP_LOCAL_XCHANGE "local.xchange"

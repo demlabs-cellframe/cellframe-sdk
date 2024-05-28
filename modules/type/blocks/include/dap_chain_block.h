@@ -23,12 +23,9 @@
 #pragma once
 #include "dap_common.h"
 #include "dap_time.h"
-#include "dap_math_ops.h"
 #include "dap_hash.h"
-#include "dap_cert.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
-#include "dap_chain_datum_hashtree_roots.h"
 
 #define DAP_CHAIN_BLOCK_SIGNATURE 0xDA05BF8E
 #define DAP_CHAIN_BLOCK_ID_SIZE 4
@@ -65,13 +62,17 @@ typedef struct dap_chain_block_meta{
 
 // Block metadata types
 
-#define DAP_CHAIN_BLOCK_META_GENESIS           0x01
-#define DAP_CHAIN_BLOCK_META_PREV              0x10
-#define DAP_CHAIN_BLOCK_META_ANCHOR            0x11
-#define DAP_CHAIN_BLOCK_META_LINK              0x12
-#define DAP_CHAIN_BLOCK_META_NONCE             0x20
-#define DAP_CHAIN_BLOCK_META_NONCE2            0x21
-#define DAP_CHAIN_BLOCK_META_MERKLE            0x30
+#define DAP_CHAIN_BLOCK_META_GENESIS            0x01
+#define DAP_CHAIN_BLOCK_META_PREV               0x10
+#define DAP_CHAIN_BLOCK_META_ANCHOR             0x11
+#define DAP_CHAIN_BLOCK_META_LINK               0x12
+#define DAP_CHAIN_BLOCK_META_NONCE              0x20
+#define DAP_CHAIN_BLOCK_META_NONCE2             0x21
+#define DAP_CHAIN_BLOCK_META_MERKLE             0x30
+#define DAP_CHAIN_BLOCK_META_EMERGENCY          0x80
+#define DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT       0x81
+#define DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT      0x82
+#define DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS      0x83
 
 /**
  * @struct dap_chain_block

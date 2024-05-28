@@ -28,7 +28,6 @@
 #include "dap_common.h"
 #include "dap_time.h"
 #include "dap_chain_common.h"
-#include "dap_chain_datum_tx.h"
 
 enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED = 0x0,

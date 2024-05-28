@@ -68,6 +68,7 @@
 #include "dap_cert_file.h"
 #include "dap_file_utils.h"
 #include "dap_enc_base58.h"
+#include "dap_enc_ks.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
 #include "dap_chain_node.h"
@@ -76,17 +77,13 @@
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_cli_cmd_tx.h"
-#include "dap_chain_node_ping.h"
+#include "dap_net.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_balancer.h"
-#include "dap_chain_block.h"
-#include "dap_chain_cs_blocks.h"
-
 #include "dap_chain_cell.h"
-
 #include "dap_enc_base64.h"
-#include "json.h"
+
 #ifdef DAP_OS_UNIX
 #include <dirent.h>
 #endif
@@ -98,14 +95,9 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_mempool.h"
 #include "dap_global_db.h"
-#include "dap_global_db_cluster.h"
 #include "dap_global_db_pkt.h"
-
-#include "dap_stream_ch_chain_net.h"
 #include "dap_chain_ch.h"
-#include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_enc_base64.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_node_list.h"
 
 #include "dap_json_rpc_errors.h"
@@ -116,7 +108,6 @@
 
 #define LOG_TAG "chain_node_cli_cmd"
 
-static void s_dap_chain_net_purge(dap_chain_net_t *a_net);
 int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply);
 
 /**
@@ -380,31 +371,6 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
     dap_string_free(l_string_reply, true);
     return l_ret;
-}
-
-/**
- * @brief purge ledger, stake, decree, all chains and remove chain files
- * @param a_net
- */
-void s_dap_chain_net_purge(dap_chain_net_t * a_net)
-{
-    if (!a_net)
-        return;
-    dap_chain_t *l_chain = NULL;
-    dap_ledger_purge(a_net->pub.ledger, false);
-    dap_chain_net_srv_stake_purge(a_net);
-    dap_chain_net_decree_purge(a_net);
-    DL_FOREACH(a_net->pub.chains, l_chain) {
-        if (l_chain->callback_purge)
-            l_chain->callback_purge(l_chain);
-        if (l_chain->callback_set_min_validators_count)
-            l_chain->callback_set_min_validators_count(l_chain, 0);
-        const char *l_chains_rm_path = dap_chain_get_path(l_chain);
-        dap_rm_rf(l_chains_rm_path);
-        a_net->pub.fee_value = uint256_0;
-        a_net->pub.fee_addr = c_dap_chain_addr_blank;
-        dap_chain_load_all(l_chain);
-    }
 }
 
 /**
@@ -828,9 +794,13 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
 
 static dap_tsd_t* s_chain_node_cli_com_node_create_tsd_addr(char **a_argv, int a_arg_start, int a_arg_end, void **a_str_reply, const char *a_specified_decree) {
     const char *l_ban_addr_str = NULL;
-    if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-addr", &l_ban_addr_str))
-        return dap_tsd_create_string(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, l_ban_addr_str);
-    else if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-host", &l_ban_addr_str))
+    if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-addr", &l_ban_addr_str)) {
+        dap_chain_addr_t *l_format = dap_chain_addr_from_str(l_ban_addr_str);
+        if (!l_format)
+            return dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't convert the -addr option value to node address"), NULL;
+        DAP_DELETE(l_format);
+        return dap_tsd_create_string(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING, l_ban_addr_str);
+    } else if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-host", &l_ban_addr_str))
         return dap_tsd_create_string(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST, l_ban_addr_str);
     else
         return dap_cli_server_cmd_set_reply_text(a_str_reply, "The -host or -addr option was not "
@@ -1849,7 +1819,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                         if (l_wallet) {
                             l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
-                            char *l_addr_str = dap_chain_addr_to_str(l_addr);
+                            const char *l_addr_str = dap_chain_addr_to_str(l_addr);
                             json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
                             if(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)
                                 json_object_object_add(json_obj_wall, "status", json_object_new_string("active"));
@@ -1921,7 +1891,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 }
             }
             json_object * json_obj_wall = json_object_new_object();
-            char *l_l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
+            const char *l_l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
             if(l_wallet)
             {
                 json_object_object_add(json_obj_wall, "sign", json_object_new_string(
@@ -1942,7 +1912,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 if(l_l_addr_tokens[i]) {
                     json_object * j_balance_data = json_object_new_object();
                     uint256_t l_balance = dap_ledger_calc_balance(l_ledger, l_addr, l_l_addr_tokens[i]);
-                    char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_balance, &l_balance_coins);
+                    const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_balance, &l_balance_coins);
                     json_object_object_add(j_balance_data, "balance", json_object_new_string(""));
                     json_object_object_add(j_balance_data, "coins", json_object_new_string(l_balance_coins));
                     json_object_object_add(j_balance_data, "datoshi", json_object_new_string(l_balance_datoshi));
@@ -2167,7 +2137,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                     l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
 
-                    char *l_addr_str = dap_chain_addr_to_str(l_addr);
+                    const char *l_addr_str = dap_chain_addr_to_str(l_addr);
                     json_object * json_obj_wall = json_object_new_object();
                     json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet->name));
                     json_object_object_add(json_obj_wall, "Sign type", json_object_new_string(l_sign_type_str));
@@ -2577,7 +2547,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                 l_datum_token->signs_total = 0;
                 for (i = 1; i <= l_tmp_signs_total; i++){
                     dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->data_n_tsd + l_tsd_size + l_signs_size);
-                    if( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) + l_tsd_size) != 1) {
+                    if( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) + l_tsd_size) ) {
                         log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                 "Datum %s with datum token has wrong signature %zu, break process and exit",
@@ -2830,7 +2800,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *) l_datum->data;
 
                         int l_ledger_rc = DAP_LEDGER_TX_CHECK_NULL_TX;
-                        const char *l_main_ticker = dap_ledger_tx_get_main_ticker(a_net->pub.ledger, l_tx,
+                        const char *l_main_ticker = dap_ledger_tx_calculate_main_ticker(a_net->pub.ledger, l_tx,
                                                                                   &l_ledger_rc);
                         char *l_ledger_rc_str = dap_ledger_tx_check_err_str(l_ledger_rc);
 
@@ -3017,7 +2987,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                 dap_json_rpc_allocation_error;
                                 return;
                             }
-                            char *l_value_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_value_coins_str);
+                            const char *l_value_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_value_coins_str);
                             json_object_object_add(l_jobj_money, "value", json_object_new_string(l_value_str));
                             json_object_object_add(l_jobj_money, "coins", json_object_new_string(l_value_coins_str));
                             if (l_dist_token) {
@@ -6186,7 +6156,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply)
     }
     l_tx->header.ts_created = time(NULL);
     size_t l_items_ready = 0;
-    size_t l_receipt_count = 0;
     dap_list_t *l_sign_list = NULL;// list 'sing' items
     dap_list_t *l_in_list = NULL;// list 'in' items
     dap_list_t *l_tsd_list = NULL;// list tsd sections
@@ -6484,9 +6453,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply)
             size_t l_params_size = dap_strlen(l_params_str);
             dap_chain_datum_tx_receipt_t *l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_price_unit, l_units, l_value, l_params_str, l_params_size);
             l_item = (const uint8_t*) l_receipt;
-            if(l_item)
-                l_receipt_count++;
-            else {
+            if (!l_item) {
                 char *l_str_err = dap_strdup_printf("Unable to create receipt out for transaction "
                                                     "described by item %zu.", i);
                 json_object *l_jobj_err = json_object_new_string(l_str_err);
@@ -7804,7 +7771,7 @@ int cmd_remove(int a_argc, char **a_argv, void **a_str_reply)
             if (NULL == l_gdb_path)
                 l_net_returns = s_go_all_nets_offline();
             for (dap_chain_net_t *it = dap_chain_net_iter_start(); it; it = dap_chain_net_iter_next(it)) {
-                s_dap_chain_net_purge(it);
+                dap_chain_net_purge(it);
             }
             if (!error)
                 successful |= REMOVED_CHAINS;
@@ -7815,7 +7782,7 @@ int cmd_remove(int a_argc, char **a_argv, void **a_str_reply)
             } else {
                 error |= NET_NOT_VALID;
             }
-            s_dap_chain_net_purge(l_net);
+            dap_chain_net_purge(l_net);
             if (!error)
                 successful |= REMOVED_CHAINS;
 
@@ -8261,7 +8228,6 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
 {
     uint32_t l_shift = 1;
     int l_count_meta = 0;
-    int l_index_meta = 0;
     char *l_buffer = NULL;
 
     if (a_flags == SIGNER_ALL_FLAGS) {
@@ -8290,7 +8256,6 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
             dap_tsd_t *l_item = s_alloc_metadata(a_filename, l_shift & a_flags);
             if (l_item) {
                 l_std_list = dap_list_append(l_std_list, l_item);
-                l_index_meta++;
             }
         }
         l_shift <<= 1;
