@@ -3402,7 +3402,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         }        
 
         json_object *l_datum_obj_inf = json_object_new_object();
-        dap_chain_datum_dump_json(l_datum_obj_inf,l_datum,NULL,a_net->pub.id);        
+        dap_chain_datum_dump_json(l_datum_obj_inf, l_datum, a_hash_out_type, a_net->pub.id);
         if (!l_datum_obj_inf) {
             if (!l_found_in_chains)
                 DAP_DELETE(l_datum);
@@ -3700,17 +3700,12 @@ int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_grou
         return COM_DUMP_ERROR_LIST_CORRUPTED_SIZE;
     }
     if (!l_datum) {
-        char *l_msg_str = dap_strdup_printf("Error! Can't find datum %s in %s", a_datum_hash, a_group_gdb);
-        if (!l_msg_str) {
-            dap_json_rpc_allocation_error;
-            return -1;
-        }
-        json_object *l_jobj_message = json_object_new_string(l_msg_str);
+        dap_json_rpc_error_add(COM_DUMP_ERROR_LIST_CORRUPTED_SIZE, "Error! Can't find datum %s in %s", a_datum_hash, a_group_gdb);
         return COM_DUMP_ERROR_CAN_NOT_FIND_DATUM;
     }
 
     json_object *l_jobj_datum = json_object_new_object();
-    dap_chain_datum_dump_json(l_jobj_datum,l_datum,NULL,a_net_id);
+    dap_chain_datum_dump_json(l_jobj_datum, l_datum, a_hash_out_type, a_net_id);
     json_object_array_add(*a_json_reply, l_jobj_datum);
     return 0;
 }
