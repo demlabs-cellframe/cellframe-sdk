@@ -533,6 +533,10 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING, "Can't apply this decree to specified chain");
                 return -115;
             }
+            if (compare256(l_value, dap_chain_coins_to_balance("1.0")) >= 0) {
+                log_it(L_WARNING, "Percent must be lower than 100%%");
+                return -116;
+            }
             if (!a_apply)
                 break;
             dap_chain_net_srv_stake_set_percent_max(a_net->pub.id, l_value);

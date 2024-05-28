@@ -2727,9 +2727,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized number in '-percent' param");
                 return -10;
             }
-            if (compare256(l_value, dap_chain_coins_to_balance("100.0")) == 1 ||
-                    compare256(l_value, GET_256_FROM_64(100)) == -1) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Percent must be lower or equal than 100%% and higher or equal than 1.0e-16%%");
+            if (compare256(l_value, dap_chain_coins_to_balance("100.0")) >= 0) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Percent must be lower than 100%%");
                 return -29;
             }
             DIV_256(l_value, GET_256_FROM_64(100), &l_value);
