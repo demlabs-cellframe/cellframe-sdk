@@ -1310,12 +1310,13 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_json_rpc_error_add(-2,"invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR,"invalid parameter -H, valid values: -H <hex | base58>");
+        return -DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
     }
 
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net,
-                                                  CHAIN_TYPE_INVALID);
+    if(dap_chain_node_cli_cmd_values_parse_net_chain_json(&arg_index, argc, argv, &l_chain, &l_net) < 0)
+        return -DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
+
     if ((l_net == NULL) || (l_chain == NULL)){
         return -1;
     } else if (a_str_reply && *a_str_reply) {
@@ -1327,9 +1328,9 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
     const char *l_chain_type = dap_chain_get_cs_type(l_chain);
 
     if (!strstr(l_chain_type, "dag_")){
-            dap_json_rpc_error_add(-2,"Type of chain %s is not dag. This chain with type %s is not supported by this command",
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_CHAIN_TYPE_ERR,"Type of chain %s is not dag. This chain with type %s is not supported by this command",
                         l_chain->name, l_chain_type);            
-            return -42;
+            return -DAP_CHAIN_NODE_CLI_COM_DAG_CHAIN_TYPE_ERR;
     }
 
     int ret = 0;
@@ -1361,9 +1362,9 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 size_t l_event_size = l_round_item->event_size;
                 int l_ret_event_verify;
                 if ( ( l_ret_event_verify = l_dag->callback_cs_verify (l_dag,l_event,l_event_size) ) !=0 ){// if consensus accept the event                                        
-                    dap_json_rpc_error_add(-2,"Error! Event %s is not passing consensus verification, ret code %d\n",
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_EVENT_ERR,"Error! Event %s is not passing consensus verification, ret code %d\n",
                                               l_objs[i].key, l_ret_event_verify );
-                    ret = -30;
+                    ret = -DAP_CHAIN_NODE_CLI_COM_DAG_EVENT_ERR;
                     break;
                 }else {
                     snprintf(l_buf, 150, "Event %s verification passed", l_objs[i].key);
@@ -1414,14 +1415,14 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     l_datum_in_hash = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
                 }
             } else {
-                dap_json_rpc_error_add(-2,"The -datum option was not specified, so "
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR,"The -datum option was not specified, so "
                                           "no datum is known to look for in rounds.\n");
                 return 0;
             }
             dap_hash_fast_t l_datum_hash = {0};
             dap_chain_hash_fast_from_str(l_datum_in_hash, &l_datum_hash);
             if (dap_hash_fast_is_blank(&l_datum_hash)) {
-                dap_json_rpc_error_add(-2,"The -datum parameter is not a valid hash.\n");
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR,"The -datum parameter is not a valid hash.\n");
                 return 0;
             }
             size_t l_objs_size = 0;
@@ -1439,25 +1440,22 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_hash_fast(l_event, l_event_size, &ll_event_hash);
                     char *ll_event_hash_str = dap_hash_fast_to_str_new(&ll_event_hash);
                     l_search_events++;
-                    dap_string_append_printf(l_events_str,
-                                             "\t%zu) hash:%s cell_id:%zu\n", l_search_events, ll_event_hash_str,
-                                             l_event->header.cell_id.uint64);
+                    json_object_object_add(json_obj_round,"events count", json_object_new_uint64(l_search_events));
+                    json_object_object_add(json_obj_round,"event hash", json_object_new_string(ll_event_hash_str));
+                    json_object_object_add(json_obj_round,"cell_id", json_object_new_uint64(l_event->header.cell_id.uint64));
                     DAP_DELETE(ll_event_hash_str);
                 }
             }
             dap_global_db_objs_delete(l_objs, l_objs_size);
             DAP_DELETE(l_datum_in_hash);
-            if (l_search_events > 0) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Datum with hash %s found in %zu events:\n%s\n", l_datum_hash_str,
-                                                  l_search_events, l_events_str->str);
-            } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum hash %s not found in round event.\n", l_datum_hash_str);
-            }
-            dap_string_free(l_events_str, true);
+            if (!l_search_events) {                  
+                snprintf(l_buf, 150, "Datum hash %s not found in round event.\n", l_datum_hash_str);
+                json_object_object_add(json_obj_round,"find result", json_object_new_string(l_buf));
+            }            
             return 0;
         }
     }else if ( l_event_cmd_str  ) {
+        json_object * json_obj_event = json_object_new_object();
         char *l_datum_hash_hex_str = NULL;
         char *l_datum_hash_base58_str = NULL;
         if ( strcmp( l_event_cmd_str, "list" ) == 0 ) {
@@ -1496,6 +1494,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
         switch (l_event_subcmd) {        
 
         case SUBCMD_EVENT_DUMP: {
+            char l_buf[150] = {};
             dap_chain_cs_dag_event_round_item_t *l_round_item = NULL;
             dap_chain_cs_dag_event_t *l_event = NULL;
             size_t l_event_size = 0;
@@ -1516,9 +1515,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     if ( l_event_item )
                         l_event = l_event_item->event;
                     else {
-                        ret = -23;
-                        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                          "Can't find event %s in events_last table\n", l_event_hash_str);
+                        ret = -DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,"Can't find event %s in events_last table\n", l_event_hash_str);                        
                         break;
                     }
                 } else if (!l_from_events_str || strcmp(l_from_events_str,"events") == 0) {
@@ -1530,9 +1528,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         l_event = l_event_item->event;
                         l_event_size = l_event_item->event_size;
                     } else {
-                        ret = -24;
-                        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                          "Can't find event %s in events table\n", l_event_hash_str);
+                        ret = -DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,"Can't find event %s in events table\n", l_event_hash_str);                        
                         break;
                     }
                 } else if (l_from_events_str && strcmp(l_from_events_str,"threshold") == 0) {
@@ -1543,15 +1540,14 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     if (l_event_item)
                         l_event = l_event_item->event;
                     else {
-                        ret = -23;
-                        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                          "Can't find event %s in threshold table\n", l_event_hash_str);
+                        ret = -DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,"Can't find event %s in threshold table\n", l_event_hash_str);                        
                         break;
                     }
                 } else {
-                    ret = -22;
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "Wrong events_from option \"%s\", need one of variant: events, round.new, events_lasts, threshold", l_from_events_str);
+                    ret = -DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR,
+                            "Wrong events_from option \"%s\", need one of variant: events, round.new, events_lasts, threshold", l_from_events_str);                    
                     break;
 
                 }
