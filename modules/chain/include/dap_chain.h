@@ -146,7 +146,7 @@ typedef struct dap_chain {
     char *name;
     char *net_name;
     bool is_datum_pool_proc;
-
+    bool is_mapped;
     // Nested cells (hashtab by cell_id)
     dap_chain_cell_t *cells;
     dap_chain_cell_id_t active_cell_id;
@@ -261,6 +261,8 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 
 void dap_chain_delete(dap_chain_t * a_chain);
 void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_notify_t a_callback, void * a_arg);
+void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size);
+void dap_chain_atom_add_from_threshold(dap_chain_t *a_chain);
 dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 bool dap_chain_get_atom_last_hash_num(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash, uint64_t *a_atom_num);
 DAP_STATIC_INLINE bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash)

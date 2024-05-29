@@ -883,7 +883,6 @@ static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
     dap_ledger_purge(l_net->pub.ledger, false);
     dap_chain_net_srv_stake_purge(l_net);
-    dap_chain_net_decree_purge(l_net);
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_purge)
@@ -892,6 +891,7 @@ static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
             l_chain->callback_set_min_validators_count(l_chain, 0);
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
+        dap_chain_net_decree_purge(l_net);
         dap_chain_load_all(l_chain);
     }
     DL_FOREACH(l_net->pub.chains, l_chain) {

@@ -75,7 +75,7 @@ void dap_chain_block_cache_deinit();
 
 
 dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash, dap_chain_block_t *a_block,
-                                                   size_t a_block_size, uint64_t a_block_number);
+                                                   size_t a_block_size, uint64_t a_block_number, bool a_copy_block);
 dap_chain_block_cache_t *dap_chain_block_cache_dup(dap_chain_block_cache_t *a_block);
 int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_hash_fast_t *a_block_hash);
 void dap_chain_block_cache_delete(dap_chain_block_cache_t *a_block_cache);
