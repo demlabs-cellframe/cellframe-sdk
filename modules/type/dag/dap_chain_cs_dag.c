@@ -1280,6 +1280,7 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_i
  */
 static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
 {
+    json_object **json_arr_reply = (json_object **)a_str_reply;
     enum {
         SUBCMD_EVENT_LIST,
         SUBCMD_EVENT_DUMP,
@@ -1337,7 +1338,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
     int ret = 0;
     if ( l_round_cmd_str ) {
         json_object * json_obj_round = json_object_new_object();
-        char l_buf[50] = {};
+        char l_buf[150] = {};
         if ( strcmp(l_round_cmd_str,"complete") == 0 ){
             const char * l_cmd_mode_str = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-mode", &l_cmd_mode_str);
@@ -1368,19 +1369,20 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     ret = -30;
                     break;
                 }else {
-                    snprintf(l_buf, 50, "0x%x", l_emission->data.type_presale.flags);
-                    dap_string_append_printf( l_str_ret_tmp, "Event %s verification passed\n", l_objs[i].key);
+                    snprintf(l_buf, 150, "Event %s verification passed", l_objs[i].key);
+                    json_object_object_add(json_obj_round,"verification status", json_object_new_string(l_buf));
                     // If not verify only mode we add
                     if ( ! l_verify_only ){
                         if (s_chain_callback_atom_add(l_chain, l_event, l_event_size) != ATOM_ACCEPT) { // Add new atom in chain
-                            dap_string_append_printf(l_str_ret_tmp, "Event %s not added in chain\n", l_objs[i].key);
+                            snprintf(l_buf, 150, "Event %s not added in chain\n", l_objs[i].key);
+                            json_object_object_add(json_obj_round,"status add", json_object_new_string(l_buf));                            
                         } else {
                             // add event to delete
                             l_list_to_del = dap_list_prepend(l_list_to_del, (void *)l_objs[i].key);
-                            dap_string_append_printf(l_str_ret_tmp, "Event %s added in chain successfully\n",
+                            snprintf(l_buf, 150, "Event %s added in chain successfully\n",
                                     l_objs[i].key);
+                            json_object_object_add(json_obj_round,"status add", json_object_new_string(l_buf));
                         }
-
                     }
                 }
             }
@@ -1415,20 +1417,20 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     l_datum_in_hash = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
                 }
             } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "The -datum option was not specified, so "
-                                                               "no datum is known to look for in rounds.\n");
+                dap_json_rpc_error_add(-2,"The -datum option was not specified, so "
+                                          "no datum is known to look for in rounds.\n");
                 return 0;
             }
             dap_hash_fast_t l_datum_hash = {0};
             dap_chain_hash_fast_from_str(l_datum_in_hash, &l_datum_hash);
             if (dap_hash_fast_is_blank(&l_datum_hash)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "The -datum parameter is not a valid hash.\n");
+                dap_json_rpc_error_add(-2,"The -datum parameter is not a valid hash.\n");
                 return 0;
             }
             size_t l_objs_size = 0;
             dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_dag->gdb_group_events_round_new, &l_objs_size);
             size_t l_search_events = 0;
-            dap_string_t *l_events_str = dap_string_new("Events: \n");
+            json_object_object_add(json_obj_round,"Events", json_object_new_string("empty"));
             for (size_t i = 0; i < l_objs_size;i++) {
                 if (!strcmp(DAG_ROUND_CURRENT_KEY, l_objs[i].key))
                     continue;
