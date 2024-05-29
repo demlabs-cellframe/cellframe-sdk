@@ -38,6 +38,12 @@ static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply);
 
 void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg);
 
+static bool s_tag_check_datum(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
+{
+    //datum service do not produce transactions for now.
+    return false;
+}
+
 int dap_chain_net_srv_datum_init()
 {
     dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, "Service Datum commands", 
@@ -51,6 +57,10 @@ int dap_chain_net_srv_datum_init()
         return -1;
     }
     s_srv_datum->uid.uint64 = DAP_CHAIN_NET_SRV_DATUM_ID;
+
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_DATUM_ID };
+    dap_ledger_service_add(l_uid, "datum", s_tag_check_datum);
+    
     return 0;
 }
 

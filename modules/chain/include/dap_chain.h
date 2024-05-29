@@ -29,9 +29,6 @@
 #include "dap_config.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
-#include "dap_chain_datum_tx.h"
-#include "dap_cert.h"
-#include "dap_global_db_cluster.h"
 
 typedef struct dap_chain dap_chain_t;
 
@@ -118,10 +115,6 @@ typedef void (*dap_chain_callback_notify_t)(void *a_arg, dap_chain_t *a_chain, d
 typedef uint64_t (*dap_chain_callback_get_count)(dap_chain_t *a_chain);
 typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *count_verify);
-typedef void (*dap_chain_callback_set_min_validators_count)(dap_chain_t *a_chain,  uint16_t a_new_value);
-typedef uint256_t (*dap_chain_callback_get_minimum_fee)(dap_chain_t *a_chain);
-typedef uint256_t (*dap_chain_callback_get_collectiong_level)(dap_chain_t *a_chain);
-typedef dap_enc_key_t* (*dap_chain_callback_get_signing_certificate)(dap_chain_t *a_chain);
 typedef void (*dap_chain_callback_load_from_gdb)(dap_chain_t *a_chain);
 typedef uint256_t (*dap_chain_callback_calc_reward)(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
 
@@ -197,10 +190,6 @@ typedef struct dap_chain {
 
     // Consensus specific callbacks
     dap_chain_callback_get_poa_certs callback_get_poa_certs;
-    dap_chain_callback_set_min_validators_count callback_set_min_validators_count;
-    dap_chain_callback_get_minimum_fee callback_get_minimum_fee;
-    dap_chain_callback_get_collectiong_level callback_get_collectiong_level;
-    dap_chain_callback_get_signing_certificate callback_get_signing_certificate;
     dap_chain_callback_calc_reward callback_calc_reward;
     dap_chain_callback_load_from_gdb callback_load_from_gdb;
 
@@ -268,5 +257,7 @@ DAP_STATIC_INLINE bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_ch
 }
 ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size, dap_hash_fast_t *a_new_atom_hash);
 int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name);
-const char* dap_chain_get_path(dap_chain_t *a_chain);
-const char* dap_chain_type_to_str(dap_chain_type_t a_chain_type);
+
+const char *dap_chain_type_to_str(dap_chain_type_t a_chain_type);
+const char *dap_chain_get_path(dap_chain_t *a_chain);
+const char *dap_chain_get_cs_type(dap_chain_t *l_chain);

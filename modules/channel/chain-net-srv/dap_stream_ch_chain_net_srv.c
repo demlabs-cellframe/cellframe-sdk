@@ -823,7 +823,7 @@ void s_set_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
     client_statistic_value_t l_bin_value_new = {0};
     size_t l_value_size = 0;
     // forming key
-    dap_sprintf(l_bin_key.key, "0x%016"DAP_UINT64_FORMAT_X"", a_usage->service->uid.uint64);
+    sprintf(l_bin_key.key, "0x%016"DAP_UINT64_FORMAT_X"", a_usage->service->uid.uint64);
     dap_chain_hash_fast_to_str_do(&a_usage->client_pkey_hash, l_bin_key.key + 18);
     // check writed value
     client_statistic_value_t *l_bin_value = (client_statistic_value_t *)dap_global_db_get_sync(SRV_STATISTIC_GDB_GROUP, l_bin_key.key, &l_value_size, NULL, NULL);

@@ -106,7 +106,7 @@ int dap_chain_net_srv_order_find_all_by(
     dap_list_t** a_output_orders,
     size_t* a_output_orders_count);
 
-int dap_chain_net_srv_order_delete_by_hash_str_sync( dap_chain_net_t * a_net,const char * a_hash_str );
+int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, const char *a_hash_str);
 
 /**
  * @brief dap_chain_net_srv_order_delete_by_hash
