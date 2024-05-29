@@ -1788,7 +1788,7 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_at
         a_atom_iter->cur_item = l_blocks_pvt->blocks;
         break;
     case DAP_CHAIN_ITER_OP_LAST:
-        HASH_LAST(l_blocks_pvt->blocks, a_atom_iter->cur_item);
+        a_atom_iter->cur_item = HASH_LAST(l_blocks_pvt->blocks);
         break;
     case DAP_CHAIN_ITER_OP_NEXT:
         if (a_atom_iter->cur_item)

@@ -533,8 +533,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             debug_if(s_debug_more, L_WARNING, "... added with ledger code %d", l_consensus_check);
             break;
         }
-        dap_chain_cs_dag_event_item_t *l_tail;
-        HASH_LAST(PVT(l_dag)->events, l_tail);
+        dap_chain_cs_dag_event_item_t *l_tail = HASH_LAST(PVT(l_dag)->events);
         if (l_tail && l_tail->event->header.ts_created > l_event->header.ts_created) {
             DAP_CHAIN_PVT(a_chain)->need_reorder = true;
             HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
@@ -1132,7 +1131,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get(dap_chain_atom_iter_t
         a_atom_iter->cur_item = l_dag_pvt->events;
         break;
     case DAP_CHAIN_ITER_OP_LAST:
-        HASH_LAST(l_dag_pvt->events, a_atom_iter->cur_item);
+        a_atom_iter->cur_item = HASH_LAST(l_dag_pvt->events);
         break;
     case DAP_CHAIN_ITER_OP_NEXT:
         if (a_atom_iter->cur_item)
@@ -2057,8 +2056,7 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
 
-    dap_chain_cs_dag_event_item_t *l_ptr;
-    HASH_LAST(l_dag_pvt->events, l_ptr);
+    dap_chain_cs_dag_event_item_t *l_ptr = HASH_LAST(l_dag_pvt->events);
     for (dap_chain_cs_dag_event_item_t *ptr = l_ptr; ptr != NULL && l_counter < l_end; ptr = ptr->hh.prev){
         if (l_counter >= l_offset){
             dap_chain_cs_dag_event_t *l_event = ptr->event;

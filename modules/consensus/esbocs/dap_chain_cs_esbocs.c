@@ -408,7 +408,9 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
     dap_chain_esbocs_session_t *l_session = a_arg;
     assert(l_session->chain == a_chain);
     pthread_mutex_lock(&l_session->mutex);
-    if (!dap_hash_fast_compare(a_atom_hash, &l_session->cur_round.last_block_hash))
+    dap_chain_hash_fast_t l_last_block_hash;
+    dap_chain_get_atom_last_hash(l_session->chain, a_id, &l_last_block_hash);
+    if (!dap_hash_fast_compare(&l_last_block_hash, &l_session->cur_round.last_block_hash))
         s_session_round_new(l_session);
     pthread_mutex_unlock(&l_session->mutex);
     if (!PVT(l_session->esbocs)->collecting_addr)
