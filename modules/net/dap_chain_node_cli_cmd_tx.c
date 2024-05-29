@@ -1939,8 +1939,12 @@ int cmd_decree(int a_argc, char **a_argv, void ** reply)
         const char *l_hash_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
         if (!l_hash_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'decree find' requiers parameter '-hash'");
-            return -110;
+            dap_string_t *l_full_dump = dap_chain_net_decree_dump_all(l_net);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_full_dump->str);
+            dap_string_free(l_full_dump, false);
+            return 0;
+            //dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'decree find' requiers parameter '-hash'");
+            //return -110;
         }
         dap_hash_fast_t l_datum_hash;
         if (dap_chain_hash_fast_from_hex_str(l_hash_str, &l_datum_hash) &&
