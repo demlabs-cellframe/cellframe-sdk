@@ -399,6 +399,8 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
                 if (l_cur_size + sizeof(dap_global_db_pkt_old_t) + l_pkt->data_size >= DAP_CHAIN_PKT_EXPECT_SIZE) {
                     l_context->enqueued_data_size += l_data_size;
                     if (!l_go_wait && l_context->enqueued_data_size > DAP_EVENTS_SOCKET_BUF_SIZE / 2) {
+                        if (!atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_WAITING))
+                            goto context_delete;
                         l_context->prev_state = l_cur_state;
                         l_go_wait = true;
                     }
@@ -448,8 +450,6 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
     }
     if (!l_go_wait)
         return true;
-    if (atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_WAITING))
-        return false;
 context_delete:
     dap_worker_exec_callback_on(l_context->worker->worker, s_legacy_sync_context_delete, l_context);
     return false;
@@ -529,6 +529,8 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
             if (!l_hash_item) {
                 l_context->enqueued_data_size += l_context->atom_iter->cur_size;
                 if (l_context->enqueued_data_size > DAP_EVENTS_SOCKET_BUF_SIZE / 2) {
+                    if (!atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_WAITING))
+                        goto context_delete;
                     l_context->prev_state = l_cur_state;
                     l_go_wait = true;
                 }
@@ -584,8 +586,6 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
     }
     if (!l_go_wait)
         return true;
-    if (atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_WAITING))
-        return false;
 context_delete:
     dap_worker_exec_callback_on(l_context->worker->worker, s_legacy_sync_context_delete, l_context);
     return false;
