@@ -450,6 +450,7 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
     }
     if (!l_go_wait)
         return true;
+    return false;
 context_delete:
     dap_worker_exec_callback_on(l_context->worker->worker, s_legacy_sync_context_delete, l_context);
     return false;
@@ -481,13 +482,8 @@ static bool s_gdb_in_pkt_proc_callback(void *a_arg)
             break;
     if (l_args->new && l_objs_count == 1)
         l_objs[0].flags |= DAP_GLOBAL_DB_RECORD_NEW;
-    if (l_success && dap_global_db_set_raw_sync(l_objs, l_objs_count)) {
-        const char *l_err_str = s_error_type_to_string(DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED);
-        dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(l_args->hdr.net_id, l_args->hdr.chain_id, l_args->hdr.cell_id,
-                                                               l_err_str, strlen(l_err_str), DAP_CHAIN_CH_PKT_VERSION_LEGACY);
-        dap_stream_ch_pkt_write_mt(l_args->worker, l_args->uuid, DAP_CHAIN_CH_PKT_TYPE_ERROR, l_chain_pkt, dap_chain_ch_pkt_get_size(l_chain_pkt));
-        DAP_DELETE(l_chain_pkt);
-    }
+    if (l_success)
+        dap_global_db_set_raw_sync(l_objs, l_objs_count);
     dap_store_obj_free(l_objs, l_objs_count);
     DAP_DELETE(l_args);
     return false;
@@ -586,6 +582,7 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
     }
     if (!l_go_wait)
         return true;
+    return false;
 context_delete:
     dap_worker_exec_callback_on(l_context->worker->worker, s_legacy_sync_context_delete, l_context);
     return false;
