@@ -389,13 +389,16 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
     pthread_mutex_lock(&l_dag_pvt->events_mutex);
     HASH_CLEAR(hh_datums, l_dag_pvt->datums);
     dap_chain_cs_dag_event_item_t *l_event_current, *l_event_tmp;
-    // Clang bug at this, l_event_current should change at every loop cycle
     HASH_ITER(hh, l_dag_pvt->events, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events, l_event_current);
+        if (!l_event_current->mapped_region)
+            DAP_DELETE(l_event_current->event);
         DAP_DELETE(l_event_current);
     }
     HASH_ITER(hh, l_dag_pvt->events_lasts_unlinked, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events_lasts_unlinked, l_event_current);
+        if (!l_event_current->mapped_region)
+            DAP_DELETE(l_event_current->event);
         DAP_DELETE(l_event_current);
     }
     HASH_ITER(hh, l_dag_pvt->events_treshold, l_event_current, l_event_tmp) {

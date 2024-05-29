@@ -275,7 +275,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
             log_it(L_CRITICAL, "Memory allocation error");
             return -1;
         }
-        l_decree_hh->decree = a_decree;
+        l_decree_hh->decree = a_chain->is_mapped ? a_decree : DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
         l_decree_hh->key = *a_decree_hash;
         HASH_ADD(hh, s_decree_hh, key, sizeof(dap_hash_fast_t), l_decree_hh);
         if (a_decree->header.common_decree_params.chain_id.uint64 != a_chain->id.uint64)

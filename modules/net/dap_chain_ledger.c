@@ -1315,15 +1315,13 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
                 && l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE
                 && l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE) {
             log_it(L_ERROR, "Duplicate token declaration for ticker '%s'", l_token->ticker);
-            if ( !PVT(a_ledger)->mapped )
-                DAP_DELETE(l_token);
+            DAP_DELETE(l_token);
             return -3;
         }
         if (s_ledger_token_update_check(l_token_item, l_token, a_token_size)) {
             if (!s_ledger_update_token_add_in_hash_table(l_token_item, l_token, a_token_size)) {
                 log_it(L_ERROR, "Failed to update token with ticker '%s' in ledger", l_token->ticker);
-                if ( !PVT(a_ledger)->mapped )
-                    DAP_DELETE(l_token);
+                DAP_DELETE(l_token);
                 return -5;
             }
             if (!IS_ZERO_256(l_token->total_supply)) {
@@ -1336,14 +1334,12 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
             DAP_DELETE(l_token_item->datum_token);
         } else {
             log_it(L_ERROR, "Token with ticker '%s' update check failed", l_token->ticker);
-            if ( !PVT(a_ledger)->mapped )
-                DAP_DEL_Z(l_token);
+            DAP_DEL_Z(l_token);
             return -2;
         }
     } else if (l_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE) {
         log_it(L_WARNING, "Token with ticker '%s' does not yet exist, declare it first", l_token->ticker);
-        if ( !PVT(a_ledger)->mapped )
-            DAP_DELETE(l_token);
+        DAP_DELETE(l_token);
         return -6;
     }
 
@@ -1352,14 +1348,12 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
         dap_sign_t **l_signs = dap_chain_datum_token_signs_parse(l_token, a_token_size, &l_auth_signs_total, &l_auth_signs_valid);
         if (!l_signs || !l_auth_signs_total) {
             log_it(L_ERROR, "No auth signs in token '%s' datum!", l_token->ticker);
-            if ( !PVT(a_ledger)->mapped )
-                DAP_DELETE(l_token);
+            DAP_DELETE(l_token);
             return -7;
         }
         l_token_item = DAP_NEW_Z(dap_ledger_token_item_t);
         if ( !l_token_item ) {
-            if ( !PVT(a_ledger)->mapped )
-                DAP_DELETE(l_token);
+            DAP_DELETE(l_token);
             log_it(L_CRITICAL, "Memory allocation error");
             return -8;
         }
@@ -1378,15 +1372,13 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
                 .description_token_size = 0
         };
         if ( !l_token_item->auth_pkeys ) {
-            if ( !PVT(a_ledger)->mapped )
-                DAP_DELETE(l_token);
+            DAP_DELETE(l_token);
             DAP_DELETE(l_token_item);
             log_it(L_CRITICAL, "Memory allocation error");
             return -6;
         };
         if ( !l_token_item->auth_pkeys ) {
-            if ( !PVT(a_ledger)->mapped )
-                DAP_DELETE(l_token);
+            DAP_DELETE(l_token);
             DAP_DEL_Z(l_token_item->auth_pkeys);
             DAP_DELETE(l_token_item);
             log_it(L_CRITICAL, "Memory allocation error");
@@ -1421,8 +1413,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
     DAP_DELETE(l_token_item->auth_pkeys_hash); \
     DAP_DELETE(l_token_item); \
     DAP_DELETE(l_balance_dbg); \
-    if ( !PVT(a_ledger)->mapped )   \
-        DAP_DELETE(l_token);    \
+    DAP_DELETE(l_token);    \
     } while (0);
 
     switch (l_token->type) {
