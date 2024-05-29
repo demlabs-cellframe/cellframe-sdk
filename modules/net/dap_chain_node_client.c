@@ -896,7 +896,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
 #ifndef DAP_OS_WINDOWS
     // prepare for signal waiting
     struct timespec l_cond_timeout;
-    clock_gettime( CLOCK_MONOTONIC, &l_cond_timeout);
+    clock_gettime( CLOCK_REALTIME, &l_cond_timeout);
     l_cond_timeout.tv_sec += a_timeout_ms/1000;
     // signal waiting
     dap_chain_node_client_state_t l_clinet_state = a_client->state;
