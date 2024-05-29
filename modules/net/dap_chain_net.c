@@ -2294,7 +2294,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
 #else
                 dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS, "Subcommand 'stats' requires one of parameter: tx\n");
 #endif
-                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS;
+                return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS;
             }
         } else if ( l_go_str){
             json_object *l_jobj_net = json_object_new_string(l_net->pub.name);
@@ -2343,9 +2343,10 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else {
+                json_object_put(l_jobj_return);
                 dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO,
                                        "Subcommand 'go' requires one of parameters: online, offline, sync\n");
-                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO;
+                return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO;
             }
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
@@ -2603,6 +2604,8 @@ static int s_cli_net(int argc, char **argv, void **reply)
                         }
                         DAP_DELETE(l_node_inf_check);
                     }else{
+                        json_object_put(l_jobj_return);
+                        json_object_put(l_jobj_info);
                         dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CANT_FIND_ADDR_IN_GDB,
                                                "Can't find this address in global db");
                         return DAP_CHAIN_NET_JSON_RPC_CANT_FIND_ADDR_IN_GDB;
@@ -2656,7 +2659,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 json_object_put(l_jobj_current);
                 dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC,
                                        "Subcommand 'sync' requires one of parameters: all, gdb, chains");
-                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC;
+                return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC;
             }
             if (!l_jobj_requested) {
                 json_object_put(l_jobj_state_machine);
