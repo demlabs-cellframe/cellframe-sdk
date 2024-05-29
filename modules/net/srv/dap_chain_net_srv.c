@@ -210,7 +210,8 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
         return 0;
     }
 
-    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net );
+    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net,
+                                                               CHAIN_TYPE_INVALID);
     if ( l_net ) {
         //char * l_orders_group = dap_chain_net_srv_order_get_gdb_group( l_net );
 
