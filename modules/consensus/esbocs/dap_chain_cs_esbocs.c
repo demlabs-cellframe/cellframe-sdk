@@ -2945,7 +2945,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' requires parameter -cert");
                 return -3;
             }
-            dap_cert_t *l_poa_cert = dap_cert_find_by_name(l_cert_str);
+            l_poa_cert = dap_cert_find_by_name(l_cert_str);
             if (!l_poa_cert) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate not found");
                 return -25;
