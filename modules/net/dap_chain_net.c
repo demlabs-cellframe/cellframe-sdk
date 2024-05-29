@@ -101,7 +101,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_srv_xchange.h"
 #include "dap_chain_cs_esbocs.h"
-#include "dap_chain_net_voting.h"
+#include "dap_chain_net_srv_voting.h"
 #include "dap_global_db_cluster.h"
 #include "dap_link_manager.h"
 #include "dap_stream_cluster.h"
@@ -254,7 +254,7 @@ int dap_chain_net_init()
     dap_chain_ch_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
-    dap_chain_net_voting_init();
+    dap_chain_net_srv_voting_init();
     dap_http_ban_list_client_init();
     dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
@@ -296,7 +296,7 @@ int dap_chain_net_init()
                 continue;
             // don't search in directories
             char l_full_path[MAX_PATH + 1] = {0};
-            dap_snprintf(l_full_path, sizeof(l_full_path), "%s/%s", l_net_dir_str, l_dir_entry->d_name);
+            snprintf(l_full_path, sizeof(l_full_path), "%s/%s", l_net_dir_str, l_dir_entry->d_name);
             if(dap_dir_test(l_full_path)) {
                 continue;
             }
@@ -1110,7 +1110,8 @@ static int s_cli_net(int argc, char **argv, void **reply)
         return 0;
     }
 
-    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, argc, argv, NULL, &l_net);
+    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, argc, argv, NULL, &l_net,
+                                                                       CHAIN_TYPE_INVALID);
 
     if ( l_net ) {
         const char *l_sync_str = NULL;
@@ -2965,7 +2966,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
 {
     const char l_path[] = "network/";
     char l_cfg_path[strlen(a_net->pub.name) + strlen(l_path) + 1];
-    dap_snprintf(l_cfg_path, sizeof(l_cfg_path), "%s%s", l_path, a_net->pub.name);
+    snprintf(l_cfg_path, sizeof(l_cfg_path), "%s%s", l_path, a_net->pub.name);
     dap_config_t *l_cfg = dap_config_open(l_cfg_path);
     const char *l_auth_type = dap_config_get_item_str(l_cfg, "auth", "type");
     bool l_authorized = true;

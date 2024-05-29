@@ -223,6 +223,12 @@ typedef struct dap_chain_esbocs_block_collect{
 
 #define DAP_CHAIN_ESBOCS(a) ((dap_chain_esbocs_t *)(a)->_inheritor)
 
+typedef enum dap_chain_block_autocollect_type {
+    DAP_CHAIN_BLOCK_COLLECT_BOTH,
+    DAP_CHAIN_BLOCK_COLLECT_FEES,
+    DAP_CHAIN_BLOCK_COLLECT_REWARDS
+} dap_chain_block_autocollect_type_t;
+
 int dap_chain_cs_esbocs_init();
 void dap_chain_cs_esbocs_deinit(void);
 
@@ -233,8 +239,9 @@ void dap_chain_esbocs_start_timer(dap_chain_net_id_t a_net_id);
 dap_pkey_t *dap_chain_esbocs_get_sign_pkey(dap_chain_net_id_t a_net_id);
 uint256_t dap_chain_esbocs_get_fee(dap_chain_net_id_t a_net_id);
 bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id);
-void dap_chain_esbocs_add_block_collect(dap_chain_block_t *a_block_ptr, size_t a_block_size,
-                                        dap_chain_esbocs_block_collect_t *a_block_collect_params,int a_type);
+void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
+                                        dap_chain_esbocs_block_collect_t *a_block_collect_params,
+                                        dap_chain_block_autocollect_type_t a_type);
 bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr);
 bool dap_chain_esbocs_remove_validator_from_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr);
 

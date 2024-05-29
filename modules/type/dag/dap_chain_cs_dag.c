@@ -691,8 +691,6 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     return l_res;
 }
 
-
-
 /**
  * @brief dap_chain_cs_dag_find_event_by_hash
  * @param a_dag
@@ -732,8 +730,6 @@ static bool s_event_verify_size(dap_chain_cs_dag_event_t *a_event, size_t a_even
     }
     return l_sign_offset == a_event_size;
 }
-
-
 
 /**
  * @brief s_chain_callback_atom_verify Verify atomic element
@@ -1045,9 +1041,9 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links( dap_chain_ato
                     (*a_links_size_array)[i] = l_link_item->event_size;
                 }else {
                     char l_err_str[256];
-                    unsigned l_off = dap_snprintf(l_err_str, sizeof(l_err_str), "Can't find %s -> ",
+                    unsigned l_off = snprintf(l_err_str, sizeof(l_err_str), "Can't find %s -> ",
                         dap_chain_hash_fast_to_str_static(l_link_hash));
-                    dap_snprintf(l_err_str + l_off, sizeof(l_err_str) - l_off, "%s links",
+                    snprintf(l_err_str + l_off, sizeof(l_err_str) - l_off, "%s links",
                         l_event_item ? dap_chain_hash_fast_to_str_static(&l_event_item->hash) : "<null>");
                     log_it(L_ERROR, "%s", l_err_str);
                     (*a_links_size_array)--;
@@ -1318,7 +1314,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
         return -1;
     }
 
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net,
+                                                  CHAIN_TYPE_INVALID);
     if ((l_net == NULL) || (l_chain == NULL)){
         return -1;
     } else if (a_str_reply && *a_str_reply) {
@@ -1717,7 +1714,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                             i_tmp++;
                             char buf[DAP_TIME_STR_SIZE];
                             dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
-                            dap_string_append_printf(l_str_tmp, "\t%zu\t- %s: ts_create=%s\n", i_tmp - 1,
+                            dap_string_append_printf(l_str_tmp, "\t%zu\t- %s: ts_create=%s\n", i_tmp,
                                                      dap_chain_hash_fast_to_str_static(&l_event_item->hash),
                                                      buf);
                         }
@@ -1756,7 +1753,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         i_tmp++;
                         char buf[DAP_TIME_STR_SIZE];
                         dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
-                        dap_string_append_printf(l_str_tmp, "\t%zu\t- %s: ts_create=%s\n", i_tmp - 1,
+                        dap_string_append_printf(l_str_tmp, "\t%zu\t- %s: ts_create=%s\n", i_tmp,
                                                  dap_chain_hash_fast_to_str_static( &l_event_item->hash),
                                                  buf);
                     }

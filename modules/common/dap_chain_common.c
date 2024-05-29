@@ -52,14 +52,15 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
 {
     const size_t c_hash_str_size = sizeof(*a_hash) * 2 + 1 /*trailing zero*/+ 2 /* heading 0x */;
 
-    if(a_str_max < c_hash_str_size) {
+    if (a_str_max < c_hash_str_size) {
         log_it(L_ERROR, "String for hash too small, need %zu but have only %zu", c_hash_str_size, a_str_max);
+        return 0;
     }
     size_t i;
-    snprintf(a_str, 3, "0x");
+    sprintf(a_str, "0x");
 
-    for(i = 0; i < sizeof(a_hash->raw); ++i)
-        snprintf( a_str + i * 2 + 2, 3, "%02x", a_hash->raw[i] );
+    for (i = 0; i < sizeof(a_hash->raw); ++i)
+        sprintf( a_str + i * 2 + 2, "%02x", a_hash->raw[i] );
 
     a_str[c_hash_str_size] = '\0';
 

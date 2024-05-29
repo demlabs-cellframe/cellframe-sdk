@@ -627,7 +627,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         if (compare256(l_value_to_items, l_single_val) == -1) {
             char l_log_str[256] = { '\0' };
             l_balance = dap_uint256_to_char(l_value_to_items, NULL);
-            dap_snprintf(l_log_str, sizeof(l_log_str),
+            snprintf(l_log_str, sizeof(l_log_str),
                          "Not enough values on output to produce enough inputs: %s when need ", l_balance);
             strcat(l_log_str, dap_uint256_to_char(l_single_val, NULL));
             log_it(L_ERROR, "%s", l_log_str);
