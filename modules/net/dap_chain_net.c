@@ -1305,7 +1305,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS, "%s",
                  "Subcommand 'stats' requires one of parameter: tx");
 #endif
-                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS;
+                return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS;
             }
         } else if ( l_go_str){
             json_object *l_jobj_net = json_object_new_string(l_net->pub.name);
@@ -1353,9 +1353,10 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else {
+                json_object_put(l_jobj_return);
                 dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO, "%s",
                                        "Subcommand 'go' requires one of parameters: online, offline, sync\n");
-                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO;
+                return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO;
             }
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
@@ -1495,9 +1496,10 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 json_object_object_add(l_jobj_return, "message", l_jobj_ret);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             }else {
+                json_object_put(l_jobj_return);
                 dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_LINK, "%s",
                                        "Subcommand 'link' requires one of parameters: list, add, del, info, disconnect_all");
-                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_LINK;
+                return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_LINK;
             }
 
         } else if( l_sync_str) {
