@@ -1349,7 +1349,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
         return -1;
     }
 
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net,
+                                                  CHAIN_TYPE_INVALID);
     if ((l_net == NULL) || (l_chain == NULL)){
         return -1;
     } else if (a_str_reply && *a_str_reply) {

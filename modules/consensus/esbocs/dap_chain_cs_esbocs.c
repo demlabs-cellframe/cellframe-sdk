@@ -2890,8 +2890,8 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
     dap_chain_net_t *l_chain_net = NULL;
     dap_chain_t *l_chain = NULL;
 
-    // TODO make parse_net_chain working with default chain by dap_chain_net_get_default_chain_by_chain_type(l_chain_net, CHAIN_TYPE_ANCHOR)
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_chain_net))
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_chain_net,
+                                                      CHAIN_TYPE_ANCHOR))
         return -3;
     const char *l_chain_type = dap_chain_get_cs_type(l_chain);
     if (strcmp(l_chain_type, "esbocs")) {

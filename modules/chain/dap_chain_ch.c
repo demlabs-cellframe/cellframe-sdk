@@ -23,43 +23,17 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-
-#ifdef WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#include <pthread.h>
-#endif
-
 #include "dap_common.h"
-#include "dap_strfuncs.h"
 #include "dap_list.h"
 #include "dap_config.h"
 #include "dap_hash.h"
 #include "dap_time.h"
-#include "utlist.h"
-
 #include "dap_worker.h"
-#include "dap_events.h"
 #include "dap_proc_thread.h"
-#include "dap_client_pvt.h"
-
 #include "dap_chain.h"
-#include "dap_chain_datum.h"
-#include "dap_chain_cs.h"
 #include "dap_chain_cell.h"
-
 #include "dap_global_db_legacy.h"
-#include "dap_global_db_pkt.h"
 #include "dap_global_db_ch.h"
-
 #include "dap_stream.h"
 #include "dap_stream_pkt.h"
 #include "dap_stream_worker.h"
@@ -1120,7 +1094,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     // Response with gdb element hashes and sizes
     case DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB: {
-        if (l_chain_pkt_data_size > sizeof(dap_chain_ch_update_element_t) * s_update_pack_size) {
+        if (l_chain_pkt_data_size % sizeof(dap_chain_ch_update_element_t)) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
