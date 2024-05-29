@@ -25,7 +25,7 @@
 #include "dap_list.h"
 #include "dap_chain_net.h"
 
-typedef struct decree_params {
+typedef struct dap_chain_net_decree {
     dap_list_t *pkeys;
     uint16_t num_of_owners;
     uint16_t min_num_of_owners;

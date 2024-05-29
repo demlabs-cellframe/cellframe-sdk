@@ -547,6 +547,21 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain)
 
 
 /**
+ * @brief get type of chain
+ *
+ * @param l_chain
+ * @return char*
+ */
+const char *dap_chain_get_cs_type(dap_chain_t *l_chain)
+{
+    if (!l_chain){
+        log_it(L_DEBUG, "dap_get_chain_type. Chain object is 0");
+        return NULL;
+    }
+    return (const char *)DAP_CHAIN_PVT(l_chain)->cs_name;
+}
+
+/**
  * @brief dap_chain_save_all
  * @param l_chain
  * @return

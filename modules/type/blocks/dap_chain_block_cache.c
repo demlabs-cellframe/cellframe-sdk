@@ -26,7 +26,6 @@
 #include "dap_chain_block_cache.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in.h"
-#include "dap_chain_datum_tx_out.h"
 
 #define LOG_TAG "dap_chain_block_cache"
 

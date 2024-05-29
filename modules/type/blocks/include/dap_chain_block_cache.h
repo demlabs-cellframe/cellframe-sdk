@@ -22,8 +22,6 @@
 */
 #pragma once
 #include "dap_chain_block.h"
-#include "dap_chain_datum_tx.h"
-#include "dap_sign.h"
 #include "dap_hash.h"
 #include "uthash.h"
 #include "dap_chain_ledger.h"
