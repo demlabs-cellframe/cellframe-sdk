@@ -124,6 +124,14 @@ DAP_STATIC_INLINE size_t s_get_esbocs_message_size(dap_chain_esbocs_message_t *a
 
 static dap_chain_esbocs_session_t *s_session_items;
 
+struct precached_key {
+    uint64_t frequency;
+    dap_hash_fast_t pkey_hash;
+    size_t pkey_size;
+    struct precached_key *prev, *next;
+    byte_t sign_pkey[];
+};
+
 typedef struct dap_chain_esbocs_pvt {
     // Base params
     dap_enc_key_t *blocks_sign_key;
@@ -151,6 +159,8 @@ typedef struct dap_chain_esbocs_pvt {
     // Decree controoled params
     uint16_t min_validators_count;
     bool check_signs_structure;
+    // Internal cache
+    struct precached_key *precached_keys;
 } dap_chain_esbocs_pvt_t;
 
 #define PVT(a) ((dap_chain_esbocs_pvt_t *)a->_pvt)
@@ -907,7 +917,7 @@ static int s_callback_addr_compare(dap_list_t *a_list_elem, dap_list_t *a_addr_e
         log_it(L_CRITICAL, "Invalid argument");
         return -1;
     }
-    return memcmp(&l_validator->signing_addr, l_addr, sizeof(dap_chain_addr_t));
+    return memcmp(&l_validator->signing_addr.data.hash_fast, &l_addr->data.hash_fast, sizeof(dap_hash_fast_t));
 }
 
 static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_validators)
@@ -923,7 +933,9 @@ static int s_callback_addr_compare_synced(dap_list_t *a_list_elem, dap_list_t *a
         log_it(L_CRITICAL, "Invalid argument");
         return -1;
     }
-    return memcmp(&l_validator->signing_addr, l_addr, sizeof(dap_chain_addr_t)) || !l_validator->is_synced;
+    return memcmp(&l_validator->signing_addr.data.hash_fast,
+                  &l_addr->data.hash_fast, sizeof(dap_hash_fast_t)) ||
+            !l_validator->is_synced;
 }
 
 static dap_list_t *s_validator_check_synced(dap_chain_addr_t *a_addr, dap_list_t *a_validators)
@@ -1999,7 +2011,7 @@ static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_ch
 {
     for (dap_list_t *it = PVT(a_esbocs)->emergency_validator_addrs; it; it = it->next) {
         dap_chain_addr_t *l_authorized_pkey = it->data;
-        if (dap_chain_addr_compare(l_authorized_pkey, a_signing_addr))
+        if (dap_hash_fast_compare(&l_authorized_pkey->data.hash_fast, &a_signing_addr->data.hash_fast))
             return it;
     }
     return NULL;
@@ -2047,7 +2059,7 @@ static bool s_check_signing_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_block
             return false;
         }
         dap_chain_esbocs_validator_t *l_chosen_validator = dap_list_nth(l_allowed_validators_list, l_round_attempt)->data;
-        if (dap_chain_addr_compare(&l_chosen_validator->signing_addr, a_signing_addr))
+        if (dap_hash_fast_compare(&l_chosen_validator->signing_addr.data.hash_fast, &a_signing_addr->data.hash_fast))
             return true;
         return false;
     }
@@ -2704,6 +2716,49 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
     return dap_chain_block_sign_add(a_block_ptr, a_block_size, l_esbocs_pvt->blocks_sign_key);
 }
 
+static uint64_t s_get_precached_key_hash(struct precached_key **a_precached_keys_list, dap_sign_t *a_source_sign, dap_hash_fast_t *a_result)
+{
+    bool l_found = false;
+    struct precached_key *l_key = NULL;
+    DL_FOREACH(*a_precached_keys_list, l_key) {
+        if (l_key->pkey_size == a_source_sign->header.sign_pkey_size &&
+                !memcmp(l_key->sign_pkey, dap_sign_get_pkey(a_source_sign, NULL), l_key->pkey_size)) {
+            l_found = true;
+            l_key->frequency++;
+            break;
+        }
+    }
+    if (l_found) {
+        struct precached_key *l_key_swap = NULL;
+        DL_FOREACH(*a_precached_keys_list, l_key_swap) {
+            if (l_key_swap == l_key)
+                break;
+            if (l_key_swap->frequency < l_key->frequency) {
+                struct precached_key *l_swapper = l_key->next;
+                l_key->next = l_key_swap->next;
+                l_key_swap->next = l_swapper;
+                l_swapper = l_key->prev;
+                l_key->prev = l_key_swap->prev;
+                l_key_swap->prev = l_swapper;
+                break;
+            }
+        }
+        if (a_result)
+            *a_result = l_key->pkey_hash;
+        return l_key->frequency;
+    }
+    struct precached_key *l_key_new = DAP_NEW_SIZE(struct precached_key,
+                                                   sizeof(struct precached_key) + a_source_sign->header.sign_pkey_size);
+    l_key_new->pkey_size = a_source_sign->header.sign_pkey_size;
+    l_key_new->frequency = 0;
+    memcpy(l_key_new->sign_pkey, dap_sign_get_pkey(a_source_sign, NULL), l_key_new->pkey_size);
+    dap_sign_get_pkey_hash(a_source_sign, &l_key_new->pkey_hash);
+    DL_APPEND(*a_precached_keys_list, l_key_new);
+    if (a_result)
+        *a_result = l_key_new->pkey_hash;
+    return 0;
+}
+
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size)
 {
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
@@ -2759,8 +2814,8 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             l_ret = -3;
             break;
         }
-        dap_chain_addr_t l_signing_addr;
-        dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, a_blocks->chain->net_id);
+        dap_chain_addr_t l_signing_addr = { .net_id = a_blocks->chain->net_id };
+        s_get_precached_key_hash(&l_esbocs_pvt->precached_keys, l_sign, &l_signing_addr.data.hash_fast);
         if (!l_esbocs_pvt->poa_mode) {
              // Compare signature with delegated keys
             if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr)) {
