@@ -2224,6 +2224,9 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     uint256_t l_balance = dap_ledger_calc_balance(l_ledger, l_addr, l_l_addr_tokens[i]);
                     char *l_balance_coins = dap_chain_balance_to_coins(l_balance);
                     char *l_balance_datoshi = dap_chain_balance_print(l_balance);
+                    json_object *j_token = json_object_new_object();
+                    json_object_object_add(j_token, "ticker", json_object_new_string(l_l_addr_tokens[i]));
+                    json_object_object_add(j_token, "description", json_object_new_string(dap_ledger_get_description_by_ticker(l_ledger, l_l_addr_tokens[i])));
                     json_object_object_add(j_balance_data, "balance", json_object_new_string(""));
                     json_object_object_add(j_balance_data, "coins", json_object_new_string(l_balance_coins));
                     json_object_object_add(j_balance_data, "datoshi", json_object_new_string(l_balance_datoshi));
@@ -4721,6 +4724,11 @@ int com_token_decl(int a_argc, char ** a_argv, void ** reply)
                     DAP_DEL_Z(l_params);
 					return -91;
 				}
+                if (!dap_strcmp(l_ticker, l_params->ext.delegated_token_from)) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Delegated token ticker cannot match the original ticker");
+                    DAP_DEL_Z(l_params);
+                    return -92;
+                }
 				dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
                 strcpy((char *)l_tsd_section.ticker_token_from, l_params->ext.delegated_token_from);
 //				l_tsd_section.token_from = dap_hash_fast();
