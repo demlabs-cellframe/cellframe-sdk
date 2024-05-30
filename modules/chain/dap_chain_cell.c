@@ -116,7 +116,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
             l_size = ftell(l_file);
             log_it(L_MSG, "[!] Initial size of %s is %lu", file_storage_path, l_size);
             fseek(l_file, 0, SEEK_SET);
-            if ( l_size && MAP_FAILED == (l_map = mmap(NULL, l_size, PROT_READ|PROT_WRITE, MAP_PRIVATE, fileno(l_file), 0)) ) {
+            if ( MAP_FAILED == (l_map = mmap(NULL, l_size ? l_size : dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT), PROT_READ|PROT_WRITE, MAP_PRIVATE, fileno(l_file), 0)) ) {
                 log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be mapped, errno %d", file_storage_path, a_cell_id.uint64, errno);
                 fclose(l_file);
                 pthread_rwlock_unlock(&a_chain->cell_rwlock);
@@ -447,8 +447,10 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
     if (!a_atom || !a_atom_size) {
         a_cell->file_storage = freopen(a_cell->file_storage_path, "w+b", a_cell->file_storage);
         log_it(L_MSG, "[!] Rewinding file %s", a_cell->file_storage_path);
-        a_cell->map = a_cell->map_pos = a_cell->map_range_bounds->data;
-        a_cell->map_end = a_cell->map_range_bounds->next->data;
+        if (a_cell->chain->is_mapped && a_cell->map_range_bounds) {
+            a_cell->map = a_cell->map_pos = a_cell->map_range_bounds->data;
+            a_cell->map_end = a_cell->map_range_bounds->next->data;
+        }
         if ( s_file_write_header(a_cell) ) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": can't fill header",
                             a_cell->file_storage_path, a_cell->id.uint64);

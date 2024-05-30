@@ -104,7 +104,7 @@ int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
     struct decree_hh *l_decree_hh, *l_tmp;
     HASH_ITER(hh, s_decree_hh, l_decree_hh, l_tmp) {
         HASH_DEL(s_decree_hh, l_decree_hh);
-        if ( !dap_chain_find_by_id(a_net->pub.id, l_decree_hh->decree->header.common_decree_params.chain_id)->is_mapped )
+        if ( !dap_chain_find_by_id(l_decree_hh->decree->header.common_decree_params.net_id, l_decree_hh->decree->header.common_decree_params.chain_id)->is_mapped )
             DAP_DELETE(l_decree_hh->decree);
         DAP_DELETE(l_decree_hh);
     }
@@ -455,7 +455,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING,"Can't get min stake value from decree.");
                 return -105;
             }
-            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_decree->header.common_decree_params.net_id, a_decree->header.common_decree_params.chain_id);
             if (!l_chain) {
                 log_it(L_WARNING, "Specified chain not found");
                 return -106;
@@ -473,7 +473,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING,"Can't get value from decree.");
                 return -103;
             }
-            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_decree->header.common_decree_params.net_id, a_decree->header.common_decree_params.chain_id);
             if (!l_chain) {
                 log_it(L_WARNING, "Specified chain not found");
                 return -106;
