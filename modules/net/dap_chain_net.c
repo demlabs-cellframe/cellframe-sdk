@@ -71,14 +71,7 @@
 #include "dap_config.h"
 #include "dap_hash.h"
 #include "dap_cert.h"
-#include "dap_cert_file.h"
 #include "dap_chain_datum_tx.h"
-#include "dap_chain_datum_tx_in_cond.h"
-#include "dap_chain_datum_tx_items.h"
-#include "dap_chain_datum_tx_out.h"
-#include "dap_chain_datum_tx_out_cond.h"
-#include "dap_timerfd.h"
-#include "dap_stream_worker.h"
 #include "dap_worker.h"
 #include "dap_proc_thread.h"
 #include "dap_enc_http.h"
@@ -86,21 +79,16 @@
 #include "dap_chain_cell.h"
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
-#include "dap_chain_tx.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_node_list.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_anchor.h"
 #include "dap_chain_net_decree.h"
-#include "dap_chain_net_srv.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_chain_node_client.h"
-#include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_ledger.h"
-#include "dap_chain_cs_none.h"
-#include "dap_client_http.h"
 #include "dap_global_db.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net.h"
@@ -108,19 +96,17 @@
 #include "dap_stream_ch.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
-#include "dap_chain_node_dns_client.h"
-#include "dap_module.h"
 #include "rand/dap_rand.h"
-#include "json.h"
 #include "json_object.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_srv_xchange.h"
 #include "dap_chain_cs_esbocs.h"
-#include "dap_chain_net_voting.h"
+#include "dap_chain_net_srv_voting.h"
 #include "dap_global_db_cluster.h"
 #include "dap_link_manager.h"
 #include "dap_stream_cluster.h"
 #include "dap_http_ban_list_client.h"
+#include "dap_net.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -268,7 +254,7 @@ int dap_chain_net_init()
     dap_chain_ch_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
-    dap_chain_net_voting_init();
+    dap_chain_net_srv_voting_init();
     dap_http_ban_list_client_init();
     dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
@@ -310,7 +296,7 @@ int dap_chain_net_init()
                 continue;
             // don't search in directories
             char l_full_path[MAX_PATH + 1] = {0};
-            dap_snprintf(l_full_path, sizeof(l_full_path), "%s/%s", l_net_dir_str, l_dir_entry->d_name);
+            snprintf(l_full_path, sizeof(l_full_path), "%s/%s", l_net_dir_str, l_dir_entry->d_name);
             if(dap_dir_test(l_full_path)) {
                 continue;
             }
@@ -856,22 +842,6 @@ void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
     DAP_DELETE(l_sync_current_link_text_block);
     DAP_DELETE(l_node_address_text_block);
 }
-
-/**
- * @brief get type of chain
- *
- * @param l_chain
- * @return char*
- */
-const char* dap_chain_net_get_type(dap_chain_t *l_chain)
-{
-    if (!l_chain){
-        log_it(L_DEBUG, "dap_get_chain_type. Chain object is 0");
-        return NULL;
-    }
-    return (const char*)DAP_CHAIN_PVT(l_chain)->cs_name;
-}
-
 /**
  * @brief reload ledger
  * command cellframe-node-cli net -net <network_name> ledger reload
@@ -879,7 +849,7 @@ const char* dap_chain_net_get_type(dap_chain_t *l_chain)
  * @return true
  * @return false
  */
-static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
+void dap_chain_net_purge(dap_chain_net_t *l_net)
 {
     dap_ledger_purge(l_net->pub.ledger, false);
     dap_chain_net_srv_stake_purge(l_net);
@@ -888,8 +858,8 @@ static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_purge)
             l_chain->callback_purge(l_chain);
-        if (l_chain->callback_set_min_validators_count)
-            l_chain->callback_set_min_validators_count(l_chain, 0);
+        if (!dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs"))
+            dap_chain_esbocs_set_min_validators_count(l_chain, 0);
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
         dap_chain_load_all(l_chain);
@@ -1140,7 +1110,8 @@ static int s_cli_net(int argc, char **argv, void **reply)
         return 0;
     }
 
-    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, argc, argv, NULL, &l_net);
+    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, argc, argv, NULL, &l_net,
+                                                                       CHAIN_TYPE_INVALID);
 
     if ( l_net ) {
         const char *l_sync_str = NULL;
@@ -1381,7 +1352,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 uint256_t l_network_fee = {};
                 dap_chain_addr_t l_network_fee_addr = {};
                 dap_chain_net_tx_get_fee(l_net->pub.id, &l_network_fee, &l_network_fee_addr);
-                char *l_network_fee_coins_str, *l_network_fee_balance_str =
+                const char *l_network_fee_coins_str, *l_network_fee_balance_str =
                     dap_uint256_to_char(l_network_fee, &l_network_fee_coins_str);
                 json_object *l_jobj_network =  json_object_new_object();
                 json_object *l_jobj_fee_coins = json_object_new_string(l_network_fee_coins_str);
@@ -1679,7 +1650,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
         } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) {
             int l_return_state = dap_chain_net_stop(l_net);
             sleep(1);   // wait to net going offline
-            s_chain_net_ledger_cache_reload(l_net);
+            dap_chain_net_purge(l_net);
             if (l_return_state)
                 dap_chain_net_start(l_net);
         } else if (l_list_str && !strcmp(l_list_str, "list")) {
@@ -2995,7 +2966,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
 {
     const char l_path[] = "network/";
     char l_cfg_path[strlen(a_net->pub.name) + strlen(l_path) + 1];
-    dap_snprintf(l_cfg_path, sizeof(l_cfg_path), "%s%s", l_path, a_net->pub.name);
+    snprintf(l_cfg_path, sizeof(l_cfg_path), "%s%s", l_path, a_net->pub.name);
     dap_config_t *l_cfg = dap_config_open(l_cfg_path);
     const char *l_auth_type = dap_config_get_item_str(l_cfg, "auth", "type");
     bool l_authorized = true;

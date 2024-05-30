@@ -105,7 +105,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         *l_return_code = Http_Status_MethodNotAllowed;
         return;
     }
-    char *l_key = dap_stream_node_addr_to_str_static( (dap_chain_node_addr_t){.uint64 = addr} );
+    const char *l_key = dap_stream_node_addr_to_str_static( (dap_chain_node_addr_t){.uint64 = addr} );
     if (!l_key) {
         log_it(L_ERROR, "Bad node address %zu", addr);
         *l_return_code = Http_Status_BadRequest;

@@ -248,7 +248,7 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
         return CHAIN_TYPE_DECREE;
     if (!dap_strcmp(a_type_str, "anchor"))
         return CHAIN_TYPE_ANCHOR;
-    return CHAIN_TYPE_LAST;
+    return CHAIN_TYPE_INVALID;
 }
 
 /**
@@ -445,7 +445,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 					for (uint16_t i = 0; i < l_datum_types_count; i++)
 					{
 						dap_chain_type_t l_chain_type = s_chain_type_from_str(l_datum_types[i]);
-						if (l_chain_type != CHAIN_TYPE_LAST)
+						if (l_chain_type != CHAIN_TYPE_INVALID)
 						{
 							l_chain->datum_types[l_count_recognized] = l_chain_type;
 							l_count_recognized++;
@@ -470,7 +470,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 					for (uint16_t i = 0; i < l_default_datum_types_count; i++)
 					{
 						dap_chain_type_t l_chain_type = s_chain_type_from_str(l_default_datum_types[i]);
-						if (l_chain_type != CHAIN_TYPE_LAST
+						if (l_chain_type != CHAIN_TYPE_INVALID
 						&& s_chain_in_chain_types(l_chain_type, l_chain->datum_types, l_chain->datum_types_count))// <<--- check this chain_type in readed datum_types
 						{
 							l_chain->default_datum_types[l_count_recognized] = l_chain_type;
@@ -541,6 +541,21 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain)
     return  DAP_CHAIN_PVT(a_chain)->file_storage_dir != NULL;
 }
 
+
+/**
+ * @brief get type of chain
+ *
+ * @param l_chain
+ * @return char*
+ */
+const char *dap_chain_get_cs_type(dap_chain_t *l_chain)
+{
+    if (!l_chain){
+        log_it(L_DEBUG, "dap_get_chain_type. Chain object is 0");
+        return NULL;
+    }
+    return (const char *)DAP_CHAIN_PVT(l_chain)->cs_name;
+}
 
 /**
  * @brief dap_chain_save_all
@@ -809,3 +824,25 @@ const char* dap_chain_get_path(dap_chain_t *a_chain)
     return DAP_CHAIN_PVT(a_chain)->file_storage_dir;
 }
 
+const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type) {
+    switch (a_default_chain_type)
+    {
+        case CHAIN_TYPE_INVALID:
+            return "invalid";
+        case CHAIN_TYPE_TOKEN:
+            return "token";
+        case CHAIN_TYPE_EMISSION:
+            return "emission";
+        case CHAIN_TYPE_TX:
+            return "transaction";
+        case CHAIN_TYPE_CA:
+            return "ca";
+        case CHAIN_TYPE_SIGNER:
+            return "signer";
+        case CHAIN_TYPE_DECREE:
+            return "decree";
+        case CHAIN_TYPE_ANCHOR:
+            return "anchor";
+    }
+    return "invalid";
+}

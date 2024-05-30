@@ -642,7 +642,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         dap_string_append_printf(a_str_out, "  created:          %s\n", buf_time);
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016"DAP_UINT64_FORMAT_X"\n", a_order->srv_uid.uint64 );
         
-        char *l_balance_coins, *l_balance = dap_uint256_to_char(a_order->price, &l_balance_coins);
+        const char *l_balance_coins, *l_balance = dap_uint256_to_char(a_order->price, &l_balance_coins);
         dap_string_append_printf(a_str_out, "  price:            %s (%s)\n", l_balance_coins, l_balance);
         dap_string_append_printf(a_str_out, "  price_token:      %s\n",  (*a_order->price_ticker) ? a_order->price_ticker: a_native_ticker);
         dap_string_append_printf(a_str_out, "  units:            %zu\n", a_order->units);

@@ -190,11 +190,12 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
         return -1;
     }
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net)) {
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net,
+                                                      CHAIN_TYPE_INVALID)) {
         return -3;
     }
 
-    const char *l_chain_type = dap_chain_net_get_type(l_chain);
+    const char *l_chain_type = dap_chain_get_cs_type(l_chain);
 
     if (strcmp(l_chain_type, "dag_poa")){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -378,9 +379,9 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             }
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
-                snprintf(l_cert_name,sizeof(l_cert_name),"%s.%zu",l_poa_pvt->auth_certs_prefix, i);
+                snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu",l_poa_pvt->auth_certs_prefix, i);
                 if ((l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) == NULL) {
-                    snprintf(l_cert_name,sizeof(l_cert_name),"%s.%zu.pub",l_poa_pvt->auth_certs_prefix, i);
+                    snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu.pub",l_poa_pvt->auth_certs_prefix, i);
                     if ((l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) == NULL) {
                         log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
                         return -1;
