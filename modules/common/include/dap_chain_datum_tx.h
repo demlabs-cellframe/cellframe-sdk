@@ -27,7 +27,7 @@
 #include "dap_enc_key.h"
 #include "dap_chain_common.h"
 #include "dap_time.h"
-#include "json.h"
+#include "dap_pkey.h"
 
 /**
   * @struct dap_chain_datum_tx
@@ -153,6 +153,5 @@ dap_sign_t *dap_chain_datum_tx_get_sign(dap_chain_datum_tx_t *a_tx, int a_sign_n
  */
 int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx);
 
-//json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx);
 
 int dap_chain_datum_tx_get_fee_value (dap_chain_datum_tx_t *a_tx, uint256_t *a_value);

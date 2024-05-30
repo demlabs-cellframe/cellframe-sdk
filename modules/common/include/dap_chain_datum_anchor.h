@@ -51,3 +51,5 @@ DAP_STATIC_INLINE size_t dap_chain_datum_anchor_get_size(dap_chain_datum_anchor_
 int dap_chain_datum_anchor_get_hash_from_data(dap_chain_datum_anchor_t* a_anchor, dap_hash_fast_t * l_out_hash);
 void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_signs,
                                        size_t a_certs_size, const char *a_hash_out_type);
+
+void dap_chain_datum_anchor_certs_dump_json(json_object * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type);
