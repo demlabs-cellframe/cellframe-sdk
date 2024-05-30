@@ -27,9 +27,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_decree.h"
-#include "dap_chain_wallet.h"
+#include "dap_chain_datum_tx_receipt.h"
 #include "dap_common.h"
-#include "dap_config.h"
 #include "dap_stream_ch.h"
 #include "dap_time.h"
 
