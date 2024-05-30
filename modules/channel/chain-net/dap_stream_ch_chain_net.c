@@ -43,10 +43,8 @@
 
 #include "dap_common.h"
 #include "dap_strfuncs.h"
-#include "dap_cert.h"
-#include "uthash.h"
-#include "dap_http_client.h"
-#include "dap_global_db.h"
+#include "dap_chain_cs_esbocs.h"
+#include "dap_chain_net_srv_order.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_proc.h"
@@ -207,12 +205,12 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                 log_it(L_ERROR, "Invalid net id in packet");
             } else {
                 dap_list_t * l_orders = NULL;
-                dap_enc_key_t * enc_key_pvt = NULL;
+                dap_enc_key_t *l_enc_key_pvt = NULL;
                 dap_chain_t *l_chain = NULL;
                 DL_FOREACH(l_net->pub.chains, l_chain)
-                    if(l_chain->callback_get_signing_certificate != NULL){
-                        enc_key_pvt = l_chain->callback_get_signing_certificate(l_chain);
-                        if(enc_key_pvt)
+                    if (!dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
+                        l_enc_key_pvt = dap_chain_esbocs_get_sign_key(l_chain);
+                        if (l_enc_key_pvt)
                             break;
                     }
                 dap_sign_t *l_sign = NULL;
@@ -228,10 +226,9 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                     .uint64 = dap_chain_net_get_cur_addr_int(l_net)
                 };
 
-                if(enc_key_pvt)
-                {
+                if (l_enc_key_pvt) {
                     flags = flags | F_CERT;//faund sert
-                    l_sign = dap_sign_create(enc_key_pvt, (uint8_t*)l_ch_chain_net_pkt->data,
+                    l_sign = dap_sign_create(l_enc_key_pvt, (uint8_t*)l_ch_chain_net_pkt->data,
                                            l_ch_chain_net_pkt->hdr.data_size, 0);
                     if(l_sign)
                     {

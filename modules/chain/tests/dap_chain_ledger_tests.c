@@ -24,7 +24,7 @@ dap_chain_datum_token_t  *dap_ledger_test_create_datum_decl(dap_cert_t *a_cert, 
     l_token->version = 2;
     l_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
     l_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
-    dap_snprintf(l_token->ticker, sizeof(l_token->ticker), "%s", a_token_ticker);
+    snprintf(l_token->ticker, sizeof(l_token->ticker), "%s", a_token_ticker);
     l_token->signs_valid = 1;
     l_token->total_supply = a_total_supply;
     l_token->header_native_decl.decimals = 18;
@@ -798,7 +798,7 @@ void dap_ledger_test_run(void){
     dap_chain_net_srv_stake_pos_delegate_init();
     dap_assert_PIF(!dap_chain_net_srv_init(), "Srv initializstion");
     dap_chain_net_id_t l_iddn = {0};
-    dap_sscanf("0xFA0", "0x%16"DAP_UINT64_FORMAT_x, &l_iddn.uint64);
+    sscanf("0xFA0", "0x%16"DAP_UINT64_FORMAT_x, &l_iddn.uint64);
     dap_print_module_name("dap_ledger");
     uint16_t l_flags = 0;
     l_flags |= DAP_LEDGER_CHECK_TOKEN_EMISSION;

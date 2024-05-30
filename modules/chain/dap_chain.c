@@ -248,7 +248,7 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
         return CHAIN_TYPE_DECREE;
     if (!dap_strcmp(a_type_str, "anchor"))
         return CHAIN_TYPE_ANCHOR;
-    return CHAIN_TYPE_LAST;
+    return CHAIN_TYPE_INVALID;
 }
 
 /**
@@ -445,7 +445,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 					for (uint16_t i = 0; i < l_datum_types_count; i++)
 					{
 						dap_chain_type_t l_chain_type = s_chain_type_from_str(l_datum_types[i]);
-						if (l_chain_type != CHAIN_TYPE_LAST)
+						if (l_chain_type != CHAIN_TYPE_INVALID)
 						{
 							l_chain->datum_types[l_count_recognized] = l_chain_type;
 							l_count_recognized++;
@@ -470,7 +470,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 					for (uint16_t i = 0; i < l_default_datum_types_count; i++)
 					{
 						dap_chain_type_t l_chain_type = s_chain_type_from_str(l_default_datum_types[i]);
-						if (l_chain_type != CHAIN_TYPE_LAST
+						if (l_chain_type != CHAIN_TYPE_INVALID
 						&& s_chain_in_chain_types(l_chain_type, l_chain->datum_types, l_chain->datum_types_count))// <<--- check this chain_type in readed datum_types
 						{
 							l_chain->default_datum_types[l_count_recognized] = l_chain_type;
@@ -541,6 +541,21 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain)
     return  DAP_CHAIN_PVT(a_chain)->file_storage_dir != NULL;
 }
 
+
+/**
+ * @brief get type of chain
+ *
+ * @param l_chain
+ * @return char*
+ */
+const char *dap_chain_get_cs_type(dap_chain_t *l_chain)
+{
+    if (!l_chain){
+        log_it(L_DEBUG, "dap_get_chain_type. Chain object is 0");
+        return NULL;
+    }
+    return (const char *)DAP_CHAIN_PVT(l_chain)->cs_name;
+}
 
 /**
  * @brief dap_chain_save_all
@@ -723,8 +738,9 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
         dap_cluster_t *l_net_cluster = dap_cluster_find(dap_guuid_compose(l_chain->net_id.uint64, 0));
         if (l_net_cluster) {
             size_t l_pkt_size = a_atom_size + sizeof(dap_chain_ch_pkt_t);
-            dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain->net_id.uint64, l_chain->id.uint64,
-                                                             a_chain_cell->id.uint64, a_atom, a_atom_size);
+            dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain->net_id, l_chain->id,
+                                                             a_chain_cell->id, a_atom, a_atom_size,
+                                                             DAP_CHAIN_CH_PKT_VERSION_CURRENT);
             if (l_pkt) {
                 dap_gossip_msg_issue(l_net_cluster, DAP_CHAIN_CH_ID, l_pkt, l_pkt_size, a_new_atom_hash);
                 DAP_DELETE(l_pkt);
@@ -738,7 +754,7 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
             dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
             struct chain_thread_notifier *l_arg = DAP_NEW_Z(struct chain_thread_notifier);
             if (!l_arg) {
-                log_it(L_CRITICAL, g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 continue;
             }
             *l_arg = (struct chain_thread_notifier) { .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
@@ -746,7 +762,7 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
             l_arg->atom = DAP_DUP_SIZE(a_atom, a_atom_size);
             if (!l_arg->atom) {
                 DAP_DELETE(l_arg);
-                log_it(L_CRITICAL, g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                 continue;
             }
             dap_proc_thread_callback_add_pri(NULL, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
@@ -808,3 +824,25 @@ const char* dap_chain_get_path(dap_chain_t *a_chain)
     return DAP_CHAIN_PVT(a_chain)->file_storage_dir;
 }
 
+const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type) {
+    switch (a_default_chain_type)
+    {
+        case CHAIN_TYPE_INVALID:
+            return "invalid";
+        case CHAIN_TYPE_TOKEN:
+            return "token";
+        case CHAIN_TYPE_EMISSION:
+            return "emission";
+        case CHAIN_TYPE_TX:
+            return "transaction";
+        case CHAIN_TYPE_CA:
+            return "ca";
+        case CHAIN_TYPE_SIGNER:
+            return "signer";
+        case CHAIN_TYPE_DECREE:
+            return "decree";
+        case CHAIN_TYPE_ANCHOR:
+            return "anchor";
+    }
+    return "invalid";
+}

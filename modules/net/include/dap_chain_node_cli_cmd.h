@@ -33,11 +33,24 @@
 
 int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int a_argc,
                                                            char **a_argv,
-                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net);
+                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net,
+                                                           dap_chain_type_t a_default_chain_type);
 
 
 int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, char **a_argv, void **a_str_reply,
-                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net);
+                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net, dap_chain_type_t a_default_chain_type);
+
+typedef enum s_com_parse_net_chain_err{
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NET_STR_ERR = 100,
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NET_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NOT_FOUND_ERR,
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_CHAIN_PARAM_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_UNKNOWN /* MAX */
+} s_com_parse_net_chain_err_t;
+
 
 /**
  * global_db command
@@ -159,7 +172,8 @@ typedef enum s_com_tx_create_err{
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WALLET_DOES_NOT_EXIST,
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID,
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_NETWORK_IS_UNREACHEBLE,
-    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS
 }s_com_tx_create_err_t;
 int com_tx_create(int a_argc, char **a_argv, void **a_str_reply);
 typedef enum s_com_tx_create_json_err {

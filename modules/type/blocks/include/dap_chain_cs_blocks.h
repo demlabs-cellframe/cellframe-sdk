@@ -34,8 +34,7 @@
 
 #define DAP_FORK_MAX_DEPTH 100
 
-
-#define DAP_REWARD_INIT_TIMESTAMP 1700870400UL // 25 Nov 00:00:00 GMT
+#define DAP_REWARD_INIT_TIMESTAMP 1700870400UL // 25 Nov 2023 00:00:00 GMT
 
 typedef struct dap_chain_cs_blocks dap_chain_cs_blocks_t;
 
@@ -64,6 +63,27 @@ typedef struct dap_chain_cs_blocks
    void * _pvt;
    void * _inheritor;
 } dap_chain_cs_blocks_t;
+
+typedef enum s_com_blocks_err{
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_CHAIN_TYPE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_DATUM_DEL_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_MEMORY_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_VERIF_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_FIND_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_DATUM_SIZE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_CERT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_PUB_KEY_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_PVT_KEY_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_SIGN_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_UNKNOWN /* MAX */
+} s_com_blocks_err_t;
 
 #define DAP_CHAIN_CS_BLOCKS(a) ((dap_chain_cs_blocks_t *)(a)->_inheritor)
 typedef int (*dap_chain_blocks_block_callback_ptr_t)(dap_chain_cs_blocks_t *, dap_chain_block_t *);

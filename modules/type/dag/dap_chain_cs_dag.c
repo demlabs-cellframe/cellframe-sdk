@@ -83,7 +83,7 @@ typedef struct dap_chain_cs_dag_pvt {
     dap_chain_cs_dag_event_item_t * events_lasts_unlinked;
     dap_chain_cs_dag_blocked_t *removed_events_from_treshold;
     dap_interval_timer_t treshold_fee_timer;
-    size_t tx_count;
+    uint64_t tx_count;
 } dap_chain_cs_dag_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
@@ -129,10 +129,10 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_i
 static int s_cli_dag(int argc, char ** argv, void **a_str_reply);
 void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
 
-static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
+static uint64_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
 static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
-static size_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
+static uint64_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static bool s_seed_mode = false, s_debug_more = false, s_threshold_enabled = false;
@@ -705,8 +705,6 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     return l_res;
 }
 
-
-
 /**
  * @brief dap_chain_cs_dag_find_event_by_hash
  * @param a_dag
@@ -746,8 +744,6 @@ static bool s_event_verify_size(dap_chain_cs_dag_event_t *a_event, size_t a_even
     }
     return l_sign_offset == a_event_size;
 }
-
-
 
 /**
  * @brief s_chain_callback_atom_verify Verify atomic element
@@ -1055,9 +1051,9 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links( dap_chain_ato
                     (*a_links_size_array)[i] = l_link_item->event_size;
                 }else {
                     char l_err_str[256];
-                    unsigned l_off = dap_snprintf(l_err_str, sizeof(l_err_str), "Can't find %s -> ",
+                    unsigned l_off = snprintf(l_err_str, sizeof(l_err_str), "Can't find %s -> ",
                         dap_chain_hash_fast_to_str_static(l_link_hash));
-                    dap_snprintf(l_err_str + l_off, sizeof(l_err_str) - l_off, "%s links",
+                    snprintf(l_err_str + l_off, sizeof(l_err_str) - l_off, "%s links",
                         l_event_item ? dap_chain_hash_fast_to_str_static(&l_event_item->hash) : "<null>");
                     log_it(L_ERROR, "%s", l_err_str);
                     (*a_links_size_array)--;
@@ -1329,7 +1325,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
         return -1;
     }
 
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net,
+                                                  CHAIN_TYPE_INVALID);
     if ((l_net == NULL) || (l_chain == NULL)){
         return -1;
     } else if (a_str_reply && *a_str_reply) {
@@ -1338,7 +1335,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
     }
     l_dag = DAP_CHAIN_CS_DAG(l_chain);
 
-    const char *l_chain_type = dap_chain_net_get_type(l_chain);
+    const char *l_chain_type = dap_chain_get_cs_type(l_chain);
 
     if (!strstr(l_chain_type, "dag_")){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -1420,7 +1417,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
             // dap_chain_net_sync_all(l_net);
         }
         if (strcmp(l_round_cmd_str, "find") == 0) {
-            dap_cli_server_cmd_find_option_val(argv, arg_index, arg_index + 2, "-datum", &l_datum_hash_str);
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
             char *l_datum_in_hash = NULL;
             if (l_datum_hash_str) {
                 if(!dap_strncmp(l_datum_hash_str, "0x", 2) || !dap_strncmp(l_datum_hash_str, "0X", 2)) {
@@ -1685,7 +1682,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         dap_string_append_printf(l_str_tmp,
                             "\tRound info:\n\t\tsigns reject: %d\n",
                             l_round_item->round_info.reject_count);
-                        dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_round_item->round_info.ts_update);
+                        dap_nanotime_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_round_item->round_info.ts_update);
                         dap_string_append_printf(l_str_tmp, "\t\tdatum_hash: %s\n\t\tts_update: %s\n",
                             dap_chain_hash_fast_to_str_static(&l_round_item->round_info.datum_hash), buf);
                     }
@@ -1768,15 +1765,16 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         size_t l_objs_count = 0;
                         l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
                         char *ptr;
-                        size_t l_limit = l_limit_str ? strtoull(l_limit_str, &ptr, 10) : 0;
+                        size_t l_limit = l_limit_str ? strtoull(l_limit_str, &ptr, 10) : 1000;
                         size_t l_offset = l_offset_str ? strtoull(l_offset_str, &ptr, 10) : 0;
                         size_t l_arr_start = 0;
                         if (l_offset) {
-                            l_arr_start = l_offset * l_limit;
-                            dap_string_append_printf(l_str_tmp, "limit: %lu", l_arr_start);
+                            l_arr_start = l_offset;
+                            dap_string_append_printf(l_str_tmp, "offset: %lu\n", l_arr_start);
                         }
                         size_t l_arr_end = l_objs_count;
                         if (l_limit) {
+                            dap_string_append_printf(l_str_tmp, "limit: %lu\n", l_limit);
                             l_arr_end = l_arr_start + l_limit;
                             if (l_arr_end > l_objs_count)
                                 l_arr_end = l_objs_count;
@@ -1793,14 +1791,14 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                                             ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
                             char buf[DAP_TIME_STR_SIZE];
                             dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
-                            dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s\n", l_objs[i].key, buf);
+                            dap_string_append_printf(l_str_tmp, "\t%zu\t - %s: ts_create=%s\n", i - 1, l_objs[i].key, buf);
 
                         }
                         if (l_objs && l_objs_count )
                             dap_global_db_objs_delete(l_objs, l_objs_count);
                         ret = 0;
                     } else {
-                        dap_string_append_printf(l_str_tmp,"%s.%s: Error! No GlobalDB group!\n",l_net->pub.name,l_chain->name);
+                        dap_string_append_printf(l_str_tmp, "%s.%s: Error! No GlobalDB group!\n", l_net->pub.name, l_chain->name);
                         ret = -2;
 
                     }
@@ -1809,15 +1807,16 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 } else if (!l_from_events_str || (strcmp(l_from_events_str,"events") == 0)) {
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-                    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+                    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
                     size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
                     size_t l_arr_start = 0;
-                    if (l_offset > 1) {
-                        l_arr_start = l_offset * l_limit;
-                        dap_string_append_printf(l_str_tmp, "limit: %lu\n", l_arr_start);
+                    if (l_offset > 0) {
+                        l_arr_start = l_offset;
+                        dap_string_append_printf(l_str_tmp, "offset: %lu\n", l_arr_start);                        
                     }
                     size_t l_arr_end = HASH_COUNT(PVT(l_dag)->events);
                     if (l_limit) {
+                        dap_string_append_printf(l_str_tmp, "limit: %lu\n", l_limit);
                         l_arr_end = l_arr_start + l_limit;
                         if (l_arr_end > HASH_COUNT(PVT(l_dag)->events))
                             l_arr_end = HASH_COUNT(PVT(l_dag)->events);
@@ -1831,7 +1830,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                             i_tmp++;
                             char buf[DAP_TIME_STR_SIZE];
                             dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
-                            dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s\n",
+                            dap_string_append_printf(l_str_tmp, "\t%zu\t- %s: ts_create=%s\n", i_tmp,
                                                      dap_chain_hash_fast_to_str_static(&l_event_item->hash),
                                                      buf);
                         }
@@ -1850,11 +1849,12 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
                     size_t l_arr_start = 0;
                     if (l_offset) {
-                        l_arr_start = l_offset * l_limit;
-                        dap_string_append_printf(l_str_tmp, "limit: %lu", l_arr_start);
+                        l_arr_start = l_offset;
+                        dap_string_append_printf(l_str_tmp, "offset: %lu\n", l_arr_start);
                     }
                     size_t l_arr_end = HASH_COUNT(PVT(l_dag)->events_treshold);
                     if (l_limit) {
+                        dap_string_append_printf(l_str_tmp, "limit: %lu\n", l_limit);
                         l_arr_end = l_arr_start + l_limit;
                         if (l_arr_end > HASH_COUNT(PVT(l_dag)->events_treshold))
                             l_arr_end = HASH_COUNT(PVT(l_dag)->events_treshold);
@@ -1869,7 +1869,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         i_tmp++;
                         char buf[DAP_TIME_STR_SIZE];
                         dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
-                        dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s\n",
+                        dap_string_append_printf(l_str_tmp, "\t%zu\t- %s: ts_create=%s\n", i_tmp,
                                                  dap_chain_hash_fast_to_str_static( &l_event_item->hash),
                                                  buf);
                     }
@@ -1898,7 +1898,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 }
                 size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
                 size_t l_event_treshold_count = HASH_COUNT(PVT(l_dag)->events_treshold);
-                dap_string_append_printf(l_ret_str, "%zu atoms(s) in events\n%zu atom(s) in threshold", l_event_count, l_event_treshold_count);
+                dap_string_append_printf(l_ret_str, "%zu atom(s) in events\n%zu atom(s) in threshold", l_event_count, l_event_treshold_count);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_ret_str->str);
                 dap_string_free(l_ret_str, true);
             } break;
@@ -1975,7 +1975,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
     return ret;
 }
 
-static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain)
+static uint64_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain)
 {
     return PVT(DAP_CHAIN_CS_DAG(a_chain))->tx_count;
 }
@@ -2005,10 +2005,11 @@ static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_c
     return l_list;
 }
 
-static size_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain){
+static uint64_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain)
+{
     dap_chain_cs_dag_t  *l_dag = DAP_CHAIN_CS_DAG(a_chain);
     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-    size_t l_count = HASH_COUNT(PVT(l_dag)->events);
+    uint64_t l_count = HASH_COUNT(PVT(l_dag)->events);
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     return l_count;
 }
