@@ -540,76 +540,16 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
  * @param a_hash_str
  * @return
  */
-int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, const char *a_hash_str, dap_enc_key_t *a_key)
+int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, const char *a_hash_str)
 {
     int l_ret = -2;
-    if(a_key){
-        return l_ret;
-    }
 
     dap_chain_net_srv_order_t *l_order = NULL;
     for (int i = 0; a_net && a_hash_str && i < 2; i++) {
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
                                   : dap_chain_net_srv_order_get_common_group(a_net);
 
-        size_t l_order_size = 0;
-        byte_t *l_gdb_order = dap_global_db_get_sync(l_gdb_group_str, a_hash_str, &l_order_size, NULL, NULL);
-        if (!l_gdb_order){
-            DAP_DELETE(l_gdb_group_str);
-            continue;
-        }
-            
-        // check order size
-        size_t l_expected_size = dap_chain_net_srv_order_get_size((dap_chain_net_srv_order_t *)l_gdb_order);
-        if (l_order_size != l_expected_size) {
-            log_it(L_ERROR, "Found wrong size order %zu, expected %zu", l_order_size, l_expected_size);
-            DAP_DELETE(l_gdb_order);
-            DAP_DELETE(l_gdb_group_str);
-            return -1;
-        }
-        l_order = dap_chain_net_srv_order_read(l_gdb_order, l_order_size);
-        if (l_order->ts_expires && l_order->ts_expires < dap_time_now()){
-            DAP_DEL_Z(l_order);
-            DAP_DELETE(l_gdb_order);
-            DAP_DELETE(l_gdb_group_str);
-            continue;
-        }
-        DAP_DELETE(l_gdb_order);
-
-        
-        dap_pkey_t *l_pkey_new = dap_pkey_from_enc_key(a_key);
-        if(!l_pkey_new){
-            DAP_DEL_Z(l_order);
-            DAP_DELETE(l_gdb_order);
-            DAP_DELETE(l_gdb_group_str);
-            continue;
-        }
-
-
-        if (dap_pkey_compare_with_sign(l_pkey_new, (dap_sign_t*)(l_order->ext_n_sign + l_order->ext_size))){
-            log_it(L_ERROR, "Pkeys in cert and order sign doesn't match");
-            DAP_DEL_Z(l_order);
-            DAP_DELETE(l_gdb_order);
-            DAP_DELETE(l_gdb_group_str);
-            continue;
-        }
-
-        l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
-
-        l_order->ts_expires = dap_time_now();
-
-        dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
-        if (!l_sign) {
-            DAP_DEL_Z(l_order);
-            DAP_DELETE(l_gdb_order);
-            DAP_DELETE(l_gdb_group_str);
-            continue;
-        }
-        size_t l_sign_size = dap_sign_get_size(l_sign); // sign data
-        l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size + l_sign_size);
-        memcpy(l_order->ext_n_sign + l_order->ext_size, l_sign, l_sign_size);
-
-        int l_ret = dap_global_db_set_sync(l_gdb_group_str, a_hash_str, l_order, l_order_size, false);
+        int l_ret = dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
         DAP_DELETE(l_gdb_group_str);
     }
     return l_ret;
