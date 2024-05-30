@@ -305,7 +305,7 @@ static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag) {
             l_el->hash = l_current->hash;
             HASH_ADD(hh, l_pvt->removed_events_from_treshold, hash, sizeof(dap_chain_hash_fast_t), l_el);
             char *l_hash_dag = dap_hash_fast_to_str_new(&l_current->hash);
-            if (!l_current->mapped_region)
+            if (!a_dag->chain->is_mapped && !l_current->mapped_region)
                 DAP_DELETE(l_current->event);
             HASH_DEL(l_pvt->events_treshold, l_current);
             DAP_DELETE(l_current);
@@ -317,7 +317,7 @@ static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag) {
     HASH_ITER(hh, l_pvt->events_treshold_conflicted, l_current, l_tmp) {
         if (l_current->ts_added < l_time_cut_off) {
             char *l_hash_dag = dap_hash_fast_to_str_new(&l_current->hash);
-            if (!l_current->mapped_region)
+            if (!a_dag->chain->is_mapped && !l_current->mapped_region)
                 DAP_DELETE(l_current->event);
             HASH_DEL(l_pvt->events_treshold_conflicted, l_current);
             DAP_DELETE(l_current);
@@ -337,23 +337,27 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
     // Clang bug at this, l_event_current should change at every loop cycle
     HASH_ITER(hh, l_dag_pvt->events, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events, l_event_current);
-        if (!l_event_current->mapped_region)
-            DAP_DELETE(l_event_current);
+        if (!a_chain->is_mapped && !l_event_current->mapped_region)
+            DAP_DELETE(l_event_current->event);
+        DAP_DELETE(l_event_current);
     }
     HASH_ITER(hh, l_dag_pvt->events_lasts_unlinked, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events_lasts_unlinked, l_event_current);
-        if (!l_event_current->mapped_region)
-            DAP_DELETE(l_event_current);
+        if (!a_chain->is_mapped && !l_event_current->mapped_region)
+            DAP_DELETE(l_event_current->event);
+        DAP_DELETE(l_event_current);
     }
     HASH_ITER(hh, l_dag_pvt->events_treshold, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events_treshold, l_event_current);
-        if (!l_event_current->mapped_region)
-            DAP_DELETE(l_event_current);
+        if (!a_chain->is_mapped && !l_event_current->mapped_region)
+            DAP_DELETE(l_event_current->event);
+        DAP_DELETE(l_event_current);
     }
     HASH_ITER(hh, l_dag_pvt->events_treshold_conflicted, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events_treshold_conflicted, l_event_current);
-        if (!l_event_current->mapped_region)
-            DAP_DELETE(l_event_current);
+        if (!a_chain->is_mapped && !l_event_current->mapped_region)
+            DAP_DELETE(l_event_current->event);
+        DAP_DELETE(l_event_current);
     }
     pthread_mutex_unlock(&l_dag_pvt->events_mutex);
     dap_chain_cell_delete_all(a_chain);
