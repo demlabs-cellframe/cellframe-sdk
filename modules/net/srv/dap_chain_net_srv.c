@@ -320,9 +320,20 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             l_order->continent = l_continent_num;*/
                         char *l_new_order_hash_str = dap_chain_net_srv_order_save(l_net, l_order, false);
                         if (l_new_order_hash_str) {
+                            const char *l_cert_str = NULL;
+                            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_cert_str);
+                            if (!l_cert_str) {
+                                dap_cli_server_cmd_set_reply_text(a_str_reply, "Fee order creation requires parameter -cert");
+                                return -7;
+                            }
+                            dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
+                            if (!l_cert) {
+                                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert %s", l_cert_str);
+                                return -8;
+                            }
                             // delete prev order
                             if(dap_strcmp(l_new_order_hash_str, l_order_hash_hex_str))
-                                dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
+                                dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str, l_cert->enc_key);
                             DAP_DELETE(l_new_order_hash_str);
                             dap_string_append_printf(l_string_ret, "order updated\n");
                         } else
@@ -409,8 +420,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
             } else if(!dap_strcmp( l_order_str, "dump" )) {
                 // Select with specified service uid
                 if ( l_order_hash_str ){
-                    dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
-                    if (l_order) {
+                    dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );                    if (l_order) {
                         dap_chain_net_srv_order_dump_to_string(l_order,l_string_ret, l_hash_out_type, l_net->pub.native_ticker);
                         l_ret = 0;
                     }else{
@@ -445,7 +455,18 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                 }
             } else if (!dap_strcmp(l_order_str, "delete")) {
                 if (l_order_hash_str) {
-                    l_ret = dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
+                    const char *l_cert_str = NULL;
+                    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_cert_str);
+                    if (!l_cert_str) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Fee order creation requires parameter -cert");
+                        return -7;
+                    }
+                    dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
+                    if (!l_cert) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert %s", l_cert_str);
+                        return -8;
+                    }
+                    l_ret = dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str, l_cert->enc_key);
                     if (!l_ret)
                         dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_str);
                     else {
