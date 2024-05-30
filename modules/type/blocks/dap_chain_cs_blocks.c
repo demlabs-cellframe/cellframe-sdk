@@ -568,7 +568,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
     dap_chain_net_t * l_net = NULL;
 
     // Parse default values
-    if(dap_chain_node_cli_cmd_values_parse_net_chain_json(&arg_index, a_argc, a_argv, &l_chain, &l_net) < 0)
+    if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_TX))
         return -DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
 
     const char *l_chain_type = dap_chain_get_cs_type(l_chain);
