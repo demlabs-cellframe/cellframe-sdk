@@ -158,6 +158,7 @@ typedef struct dap_chain {
     dap_chain_type_t *default_datum_types;
     uint16_t autoproc_datum_types_count;
     uint16_t *autoproc_datum_types;
+    uint64_t atom_last_num;
 
     // To hold it in double-linked lists
     struct dap_chain * next;

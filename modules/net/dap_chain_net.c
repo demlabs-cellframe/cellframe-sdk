@@ -808,7 +808,7 @@ json_object* s_set_reply_text_node_status_json(dap_chain_net_t *a_net) {
     json_object_object_add(l_jobj_ret, "current_addr", l_jobj_cur_node_addr);
     if (PVT(a_net)->state != NET_STATE_OFFLINE) {
         json_object *l_jobj_links = json_object_new_object();
-        json_object *l_jobj_active_links = json_object_new_uint64(0 /*HASH_COUNT(PVT(a_net)->net_links)*/);  // need adopt to link manager
+        json_object *l_jobj_active_links = json_object_new_uint64(dap_link_manager_links_count(a_net->pub.id.uint64));  // need adopt to link manager
         json_object *l_jobj_total_links = json_object_new_uint64(0 /*HASH_COUNT(PVT(a_net)->net_links)*/);
         if (!l_jobj_links || !l_jobj_active_links || !l_jobj_total_links) {
             json_object_put(l_jobj_ret);
@@ -822,6 +822,28 @@ json_object* s_set_reply_text_node_status_json(dap_chain_net_t *a_net) {
         json_object_object_add(l_jobj_links, "total", l_jobj_total_links);
         json_object_object_add(l_jobj_ret, "links", l_jobj_links);
     }
+
+    json_object *l_jobj_processed_sync = json_object_new_object();
+    dap_chain_t *l_chain = NULL;
+    size_t l_count_el = 0, l_count_el_all = 0;
+    char *l_gdb_nodes = a_net->pub.gdb_nodes;
+    size_t l_node_link_nodes = 0;
+
+    DL_FOREACH(a_net->pub.chains, l_chain){
+        l_count_el += l_chain->callback_count_atom(l_chain);
+        l_count_el_all += l_chain->atom_last_num;
+    }
+    double l_percent = l_count_el_all ? (double)(l_count_el * 100) / l_count_el_all : 0;
+    char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
+    json_object *l_jobj_percent = json_object_new_string(l_percent_str);
+    DAP_DELETE(l_percent_str);
+    json_object *l_jobj_total = json_object_new_uint64(l_count_el_all);
+    json_object *l_jobj_current  = json_object_new_uint64(l_count_el);
+    json_object_object_add(l_jobj_processed_sync, "current", l_jobj_current);
+    json_object_object_add(l_jobj_processed_sync, "total", l_jobj_total);
+    json_object_object_add(l_jobj_processed_sync, "percent", l_jobj_percent);
+    json_object_object_add(l_jobj_ret, "processed", l_jobj_processed_sync);
+
     json_object *l_jobj_states = json_object_new_object();
     json_object *l_jobj_current_states = json_object_new_string(c_net_states[PVT(a_net)->state]);
     json_object *l_jobj_target_states = json_object_new_string(c_net_states[PVT(a_net)->state_target]);
@@ -2157,7 +2179,7 @@ int s_net_load(dap_chain_net_t *a_net)
             dap_chain_save_all( l_chain );
             log_it (L_NOTICE, "Initialized chain files");
         }
-
+        l_chain->atom_last_num = l_chain->callback_count_atom(l_chain);
         l_chain = l_chain->next;
     }
     // Process thresholds if any
