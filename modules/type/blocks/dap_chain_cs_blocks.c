@@ -1577,7 +1577,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                             *l_current_branch = dap_list_append(*l_current_branch, l_block_cache);
                             s_select_longest_branch(l_blocks, l_prev_bcache, l_current_item_index);
                             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-                            return ATOM_ACCEPT;
+                            return ATOM_FORK;
                         }
                         l_forked_branches = l_forked_branches->next;
                     }
