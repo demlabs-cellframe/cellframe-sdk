@@ -263,7 +263,9 @@ static void s_nonconsensus_ledger_load(dap_chain_t *a_chain)
     for (size_t i = 0; l_values && i < l_values_count; i++) {
         dap_global_db_obj_t *it = l_values + i;
         // load ledger
-        s_nonconsensus_callback_atom_add(a_chain, it->value, it->value_len);
+        dap_hash_fast_t l_hash = {};
+        dap_hash_fast(it->value, it->value_len, &l_hash);
+        s_nonconsensus_callback_atom_add(a_chain, it->value, it->value_len, &l_hash);
         log_it(L_DEBUG,"Load mode, doesn't save item %s:%s", it->key, l_nochain_pvt->group_datums);
     }
     dap_global_db_objs_delete(l_values, l_values_count);

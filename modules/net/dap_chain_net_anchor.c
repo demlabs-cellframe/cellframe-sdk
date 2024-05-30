@@ -33,6 +33,7 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net.h"
+#include "dap_chain_net_tx.h"
 #include "dap_chain_net_decree.h"
 #include "dap_chain_datum_anchor.h"
 
@@ -343,7 +344,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                     }
                 } else {
                     dap_chain_addr_t a_addr = {};
-                    dap_chain_net_srv_stake_set_allowed_min_value(dap_chain_coins_to_balance("1.0"));
+                    dap_chain_net_srv_stake_set_allowed_min_value(a_chain->net_id, dap_chain_coins_to_balance("1.0"));
                 }
             }
             break;
@@ -361,7 +362,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                         return ret_val;
                     }
                 } else {
-                    a_chain->callback_set_min_validators_count(a_chain, 0);                    
+                    dap_chain_esbocs_set_min_validators_count(a_chain, 0);                    
                 }
             }
             break;
