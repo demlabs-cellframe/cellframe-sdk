@@ -431,7 +431,7 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, const char *a_host_ad
     if (l_links) {
         s_balancer_link_prepare_success(a_net, l_links, NULL, 0);
         if (l_links->count_node >= l_required_links_count) {
-            DAP_DEL_MULTY(l_links, l_ignored_addrs);
+            DAP_DEL_MULTY(l_ignored_addrs, l_links);
             return 0;
         }
         l_required_links_count -= l_links->count_node;
@@ -461,7 +461,7 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, const char *a_host_ad
         if (l_ignored_addrs) {
             DAP_NEW_Z_SIZE_RET_VAL(
                 l_ignored_addrs_str, char, DAP_ENC_BASE64_ENCODE_SIZE(l_ignored_addrs_size) + 1,
-                -7, l_balancer_request);
+                -7, l_ignored_addrs, l_balancer_request);
             dap_enc_base64_encode(l_ignored_addrs, l_ignored_addrs_size, l_ignored_addrs_str, DAP_ENC_DATA_TYPE_B64);
             DAP_DELETE(l_ignored_addrs);
         }
