@@ -720,6 +720,7 @@ struct chain_thread_notifier {
     void *callback_arg;
     dap_chain_t *chain;
     dap_chain_cell_id_t cell_id;
+    dap_hash_fast_t hash;
     void *atom;
     size_t atom_size;
 };
@@ -728,7 +729,7 @@ static bool s_notify_atom_on_thread(void *a_arg)
 {
     struct chain_thread_notifier *l_arg = a_arg;
     assert(l_arg->atom && l_arg->callback);
-    l_arg->callback(l_arg->callback_arg, l_arg->chain, l_arg->cell_id, l_arg->atom, l_arg->atom_size);
+    l_arg->callback(l_arg->callback_arg, l_arg->chain, l_arg->cell_id, &l_arg->hash, l_arg->atom, l_arg->atom_size);
     if ( !l_arg->chain->is_mapped )
         DAP_DELETE(l_arg->atom);
     DAP_DELETE(l_arg);
@@ -796,7 +797,7 @@ const char* dap_chain_get_path(dap_chain_t *a_chain)
     return DAP_CHAIN_PVT(a_chain)->file_storage_dir;
 }
 
-void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size) {
+void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size) {
     if ( !a_chain_cell->chain->atom_notifiers )
         return;
     dap_list_t *l_iter;
@@ -810,6 +811,7 @@ void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom
         *l_arg = (struct chain_thread_notifier) {
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
             .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
+            .hash = *a_hash,
             .atom = a_chain_cell->chain->is_mapped ? a_atom : DAP_DUP_SIZE(a_atom, a_atom_size),
             .atom_size = a_atom_size };
         dap_proc_thread_callback_add_pri(NULL, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);

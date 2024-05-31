@@ -1547,7 +1547,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         ++PVT(l_blocks)->blocks_count;
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
         s_add_atom_datums(l_blocks, l_block_cache);
-        dap_chain_atom_notify(l_cell, l_block, a_atom_size);
+        dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, l_block, a_atom_size);
         dap_chain_atom_add_from_threshold(a_chain);
         break;
     }

@@ -413,7 +413,7 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
 }
 
 static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id,
-                                void *a_atom, dap_chain_hash_fast_t *a_atom_hash, size_t a_atom_size)
+                                dap_chain_hash_fast_t *a_atom_hash, void *a_atom, size_t a_atom_size)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
     assert(l_session->chain == a_chain);
