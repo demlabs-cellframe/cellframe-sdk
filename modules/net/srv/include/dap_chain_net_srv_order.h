@@ -114,7 +114,7 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
  * @param a_hash
  * @return
  */
-DAP_STATIC_INLINE int dap_chain_net_srv_order_delete_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_hash )
+DAP_STATIC_INLINE int dap_chain_net_srv_order_delete_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_hash)
 {
     char l_hash_str[DAP_CHAIN_HASH_FAST_SIZE * 2 + 4];
     dap_chain_hash_fast_to_str(a_hash,l_hash_str,sizeof(l_hash_str)-1);
