@@ -116,6 +116,16 @@ void dap_chain_net_decree_purge(dap_chain_net_t *a_net)
     dap_chain_net_decree_init(a_net);
 }
 
+dap_string_t *dap_chain_net_decree_dump_all(dap_chain_net_t *a_net) {
+    dap_string_t *l_ret = dap_string_new(" === List of decrees ===\n");
+    struct decree_hh *l_decree_hh, *l_tmp;
+    HASH_ITER(hh, s_decree_hh, l_decree_hh, l_tmp) {
+        dap_chain_datum_decree_dump(l_ret, l_decree_hh->decree, l_decree_hh->decree->header.data_size, "hex");
+        dap_string_append(l_ret, "\n");
+    }
+    return l_ret;
+}
+
 int s_decree_verify_tsd(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net)
 {
     int ret_val = 0;
