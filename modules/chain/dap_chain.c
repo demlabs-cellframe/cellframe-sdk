@@ -110,6 +110,11 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
             .net_id     = a_chain_net_id,
             .name       = dap_strdup(a_chain_name),
             .net_name   = dap_strdup(a_chain_net_name),
+#ifdef DAP_OS_WINDOWS // TODO
+            .is_mapped  = false,
+#else
+            .is_mapped  = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true),
+#endif
             .cell_rwlock    = PTHREAD_RWLOCK_INITIALIZER,
             .atom_notifiers = NULL
     };
@@ -392,7 +397,10 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 
                 if ( dap_config_get_item_str_default(l_cfg, "files","storage_dir", NULL) )
 				{
-                    DAP_CHAIN_PVT(l_chain)->file_storage_dir = (char*)dap_config_get_item_path( l_cfg , "files","storage_dir" );
+                    DAP_CHAIN_PVT(l_chain)->file_storage_dir = (char*)dap_config_get_item_path( l_cfg, "files", "storage_dir" );
+                    if (!dap_dir_test(DAP_CHAIN_PVT(l_chain)->file_storage_dir)) {
+                        dap_mkdir_with_parents(DAP_CHAIN_PVT(l_chain)->file_storage_dir);
+                    }
                 } else
                     log_it (L_INFO, "Not set file storage path, will not stored in files");
 
@@ -592,9 +600,6 @@ int dap_chain_load_all(dap_chain_t *a_chain)
     char *l_storage_dir = DAP_CHAIN_PVT(a_chain)->file_storage_dir;
     if (!l_storage_dir)
         return 0;
-    if (!dap_dir_test(l_storage_dir)) {
-        dap_mkdir_with_parents(l_storage_dir);
-    }
     DIR *l_dir = opendir(l_storage_dir);
     if (!l_dir) {
         log_it(L_ERROR, "Cannot open directory %s", DAP_CHAIN_PVT(a_chain)->file_storage_dir);
@@ -724,7 +729,8 @@ static bool s_notify_atom_on_thread(void *a_arg)
     struct chain_thread_notifier *l_arg = a_arg;
     assert(l_arg->atom && l_arg->callback);
     l_arg->callback(l_arg->callback_arg, l_arg->chain, l_arg->cell_id, l_arg->atom, l_arg->atom_size);
-    DAP_DELETE(l_arg->atom);
+    if ( !l_arg->chain->is_mapped )
+        DAP_DELETE(l_arg->atom);
     DAP_DELETE(l_arg);
     return false;
 }
@@ -747,41 +753,7 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
             }
         }
     }
-    ssize_t l_res = dap_chain_cell_file_append(a_chain_cell, a_atom, a_atom_size);
-    if (l_chain->atom_notifiers) {
-        dap_list_t *l_iter;
-        DL_FOREACH(l_chain->atom_notifiers, l_iter) {
-            dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
-            struct chain_thread_notifier *l_arg = DAP_NEW_Z(struct chain_thread_notifier);
-            if (!l_arg) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
-                continue;
-            }
-            *l_arg = (struct chain_thread_notifier) { .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
-                                                      .chain = l_chain, .cell_id = a_chain_cell->id, .atom_size = a_atom_size };
-            l_arg->atom = DAP_DUP_SIZE(a_atom, a_atom_size);
-            if (!l_arg->atom) {
-                DAP_DELETE(l_arg);
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
-                continue;
-            }
-            dap_proc_thread_callback_add_pri(NULL, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
-        }
-    }
-    if (l_chain->callback_atom_add_from_treshold) {
-        dap_chain_atom_ptr_t l_atom_treshold;
-        do {
-            size_t l_atom_treshold_size;
-            l_atom_treshold = l_chain->callback_atom_add_from_treshold(l_chain, &l_atom_treshold_size);
-            if (l_atom_treshold) {
-                if (dap_chain_cell_file_append(a_chain_cell, l_atom_treshold, l_atom_treshold_size) > 0)
-                    log_it(L_INFO, "Added atom from treshold");
-                else
-                    log_it(L_ERROR, "Can't add atom from treshold");
-            }
-        } while(l_atom_treshold);
-    }
-    return l_res;
+    return dap_chain_cell_file_append(a_chain_cell, a_atom, a_atom_size);
 }
 
 /**
@@ -822,6 +794,36 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
 const char* dap_chain_get_path(dap_chain_t *a_chain)
 {
     return DAP_CHAIN_PVT(a_chain)->file_storage_dir;
+}
+
+void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size) {
+    if ( !a_chain_cell->chain->atom_notifiers )
+        return;
+    dap_list_t *l_iter;
+    DL_FOREACH(a_chain_cell->chain->atom_notifiers, l_iter) {
+        dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
+        struct chain_thread_notifier *l_arg = DAP_NEW_Z(struct chain_thread_notifier);
+        if (!l_arg) {
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            continue;
+        }
+        *l_arg = (struct chain_thread_notifier) {
+            .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
+            .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
+            .atom = a_chain_cell->chain->is_mapped ? a_atom : DAP_DUP_SIZE(a_atom, a_atom_size),
+            .atom_size = a_atom_size };
+        dap_proc_thread_callback_add_pri(NULL, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
+    }
+}
+
+void dap_chain_atom_add_from_threshold(dap_chain_t *a_chain) {
+    if ( !a_chain->callback_atom_add_from_treshold )
+        return;
+    dap_chain_atom_ptr_t l_atom_treshold = NULL;
+    do {
+        size_t l_atom_treshold_size;
+        l_atom_treshold = a_chain->callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size);
+    } while(l_atom_treshold);
 }
 
 const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type) {

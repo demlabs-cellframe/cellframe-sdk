@@ -34,10 +34,11 @@ typedef struct dap_chain_cell {
     dap_chain_t * chain;
 
     char file_storage_path[MAX_PATH];
-    FILE * file_storage; /// @param file_cache @brief Cache for raw blocks
-    uint8_t file_storage_type; /// @param file_storage_type  @brief Is file_storage is raw, compressed or smth else
+    char *map, *map_pos, *map_end;
+    FILE *file_storage;
+    uint8_t file_storage_type;
+    dap_list_t *map_range_bounds;
     pthread_rwlock_t storage_rwlock;
-
     UT_hash_handle hh;
 } dap_chain_cell_t;
 
