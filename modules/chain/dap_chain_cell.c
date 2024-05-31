@@ -190,7 +190,7 @@ void dap_chain_cell_close(dap_chain_cell_t *a_cell)
     if (a_cell->chain->is_mapped) {
         for (dap_list_t *l_iter = a_cell->map_range_bounds; l_iter; l_iter = l_iter->next) {
             if (l_iter->next) {
-                debug_if(s_debug_more, "Unmap volume %p (%lu bytes)", l_iter->data, (size_t)(l_iter->next->data - l_iter->data));
+                debug_if(s_debug_more, L_DEBUG, "Unmap volume %p (%lu bytes)", l_iter->data, (size_t)(l_iter->next->data - l_iter->data));
                 munmap(l_iter->data, (size_t)(l_iter->next->data - l_iter->data));
                 l_iter = l_iter->next;
             }
@@ -367,13 +367,13 @@ static int s_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_atom
     }
     if (a_cell->chain->is_mapped) {
         size_t l_pos = ftell(a_cell->file_storage);
-        debug_if (s_debug_more, "Before filling volume for atom size %lu, stream pos of %s is %lu, map pos is %lu, space left in map %lu",
+        debug_if (s_debug_more, L_DEBUG, "Before filling volume for atom size %lu, stream pos of %s is %lu, map pos is %lu, space left in map %lu",
                       a_atom_size, a_cell->file_storage_path, l_pos, (size_t)(a_cell->map_pos - a_cell->map), (size_t)(a_cell->map_end - a_cell->map_pos));
         if ( a_atom_size > (size_t)(a_cell->map_end - a_cell->map_pos) ) {
             size_t  l_map_size      = dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT),
                     l_volume_start  = dap_page_rounddown(l_pos),
                     l_offset        = l_pos - l_volume_start;
-            debug_if (s_debug_more, "Need to enlarge map of %s, current stream pos is %lu, map pos is %lu, offset of new map is %lu",
+            debug_if (s_debug_more, L_DEBUG, "Need to enlarge map of %s, current stream pos is %lu, map pos is %lu, offset of new map is %lu",
                 a_cell->file_storage_path, ftell(a_cell->file_storage), (size_t)(a_cell->map_end - a_cell->map_pos), l_offset);
             if ( MAP_FAILED == (a_cell->map = mmap(NULL, l_map_size, PROT_READ|PROT_WRITE, 
                                                    MAP_PRIVATE, fileno(a_cell->file_storage), l_volume_start)) )
@@ -389,7 +389,7 @@ static int s_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_atom
         }
     }
     
-    debug_if (s_debug_more && a_cell->chain->is_mapped, "Before writing an atom of size %lu, stream pos of %s is %lu and pos is %lu, space left in map %lu", 
+    debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG, "Before writing an atom of size %lu, stream pos of %s is %lu and pos is %lu, space left in map %lu", 
                                             a_atom_size, a_cell->file_storage_path, ftell(a_cell->file_storage),
                                             (size_t)(a_cell->map_pos - a_cell->map), (size_t)(a_cell->map_end - a_cell->map_pos));
 
@@ -405,7 +405,7 @@ static int s_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_atom
                          a_cell->file_storage_path);
         return -3;
     }
-    debug_if (s_debug_more && a_cell->chain->is_mapped, "After writing an atom of size %lu, stream pos of %s is %lu and map shift is %lu", 
+    debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG, "After writing an atom of size %lu, stream pos of %s is %lu and map shift is %lu", 
                                             a_atom_size, a_cell->file_storage_path, ftell(a_cell->file_storage),
                                             (size_t)(a_cell->map_pos - a_cell->map));
     return 0;
@@ -437,7 +437,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
     pthread_rwlock_wrlock(&a_cell->storage_rwlock);
     if (!a_atom || !a_atom_size) {
         a_cell->file_storage = freopen(a_cell->file_storage_path, "w+b", a_cell->file_storage);
-        debug_if (s_debug_more, "Rewinding file %s", a_cell->file_storage_path);
+        debug_if (s_debug_more,L_DEBUG, "Rewinding file %s", a_cell->file_storage_path);
         if (a_cell->chain->is_mapped && a_cell->map_range_bounds) {
             a_cell->map = a_cell->map_pos = a_cell->map_range_bounds->data;
             a_cell->map_end = a_cell->map_range_bounds->next->data;
@@ -465,11 +465,11 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
             }
         }
         a_cell->chain->callback_atom_iter_delete(l_atom_iter);
-        debug_if (s_debug_more && a_cell->chain->is_mapped, "After rewriting file %s, stream pos is %lu and map pos is %lu",
+        debug_if (s_debug_more && a_cell->chain->is_mapped,L_DEBUG, "After rewriting file %s, stream pos is %lu and map pos is %lu",
                       a_cell->file_storage_path, ftell(a_cell->file_storage),
                       (size_t)(a_cell->map_pos - a_cell->map));
     } else {
-        debug_if (s_debug_more && a_cell->chain->is_mapped, "Before appending an atom of size %lu, stream pos of %s is %lu, map pos is %lu",
+        debug_if (s_debug_more && a_cell->chain->is_mapped,L_DEBUG, "Before appending an atom of size %lu, stream pos of %s is %lu, map pos is %lu",
                       a_atom_size, a_cell->file_storage_path, ftell(a_cell->file_storage),
                       (size_t)(a_cell->map_pos - a_cell->map));
         if ( !ftell(a_cell->file_storage) && s_file_write_header(a_cell) ) {
@@ -484,7 +484,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
             pthread_rwlock_unlock(&a_cell->storage_rwlock);
             return -4;
         }
-        debug_if (s_debug_more && a_cell->chain->is_mapped, "After appending an atom of size %lu, stream pos of %s is %lu, map pos is %lu",
+        debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG,"After appending an atom of size %lu, stream pos of %s is %lu, map pos is %lu",
                                                 a_atom_size, a_cell->file_storage_path, ftell(a_cell->file_storage),
                                                 (size_t)(a_cell->map_end - a_cell->map_pos));
         ++l_count;
