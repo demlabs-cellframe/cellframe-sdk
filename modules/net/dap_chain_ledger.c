@@ -370,7 +370,7 @@ static bool s_debug_more = false;
 static size_t s_threshold_free_timer_tick = 900000; // 900000 ms = 15 minutes.
 
 struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t* a_bal);
-
+static void s_notify_new_client_send_info(dap_events_socket_t *a_es, void *a_arg);
 //add a service declaration for tx tagging and more
 static bool s_tag_check_block_reward(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
@@ -540,6 +540,8 @@ int dap_ledger_init()
 
     dap_chain_net_srv_uid_t l_uid_breward = { .uint64 = DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID };
     dap_ledger_service_add(l_uid_breward, "block_reward", s_tag_check_block_reward);
+
+    dap_notify_srv_set_callback_new(s_notify_new_client_send_info);
     return 0;
 }
 
@@ -6298,4 +6300,21 @@ const char *dap_ledger_tx_calculate_main_ticker(dap_ledger_t *a_ledger, dap_chai
         *a_ledger_rc = l_rc;
     
     return l_main_ticker;
+}
+
+static void s_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void *a_arg) {
+    for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        struct json_object *l_json_net_states = dap_chain_net_states_json_collect(l_net);
+        dap_events_socket_write_unsafe(a_es, json_object_get_string(l_json_net_states), json_object_get_string_len(l_json_net_states));
+        json_object_put(l_json_net_states);
+        dap_ledger_private_t *l_ledger_pvt = PVT(l_net->pub.ledger);
+        pthread_rwlock_rdlock(&l_ledger_pvt->balance_accounts_rwlock);
+        dap_ledger_wallet_balance_t *wallet_balance = NULL, *tmp = NULL;
+        HASH_ITER(hh, l_ledger_pvt->balance_accounts, wallet_balance, tmp) {
+            struct json_object *l_json = wallet_info_json_collect(l_net->pub.ledger, wallet_balance);
+            dap_events_socket_write_unsafe(a_es, json_object_get_string(l_json), json_object_get_string_len(l_json));
+            json_object_put(l_json);
+        }
+        pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
+    }
 }
