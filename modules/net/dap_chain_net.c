@@ -1839,7 +1839,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         dap_config_close(l_cfg);
         return -1;
     }
-    
+
     l_net->pub.gdb_groups_prefix = dap_strdup(
                 dap_config_get_item_str_default(l_cfg, "general", "gdb_groups_prefix",
                                                 dap_config_get_item_str(l_cfg, "general", "name")));
@@ -2076,6 +2076,8 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
 
     // Decrees initializing
     dap_chain_net_decree_init(l_net);
+
+    l_net->pub.config = l_cfg;
 
     return 0;
 }
