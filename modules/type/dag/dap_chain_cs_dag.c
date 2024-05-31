@@ -555,7 +555,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     }
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     if (ret == ATOM_REJECT) { // Neither added, nor freed
-        DAP_DELETE(l_event_item->event);
+        if (!a_chain->is_mapped)
+            DAP_DELETE(l_event_item->event);
         DAP_DELETE(l_event_item);
     }
     return ret;
