@@ -547,7 +547,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         } else
             HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
-        dap_chain_atom_notify(l_cell, l_event_item->event, l_event_item->event_size);
+        dap_chain_atom_notify(l_cell, &l_event_item->hash, (const byte_t*)l_event_item->event, l_event_item->event_size);
         dap_chain_atom_add_from_threshold(a_chain);
     } break;
     default:
@@ -980,7 +980,7 @@ dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
                 HASH_ADD(hh, PVT(a_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
                 s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);
                 debug_if(s_debug_more, L_INFO, "... moved from threshold to chain");
-                dap_chain_atom_notify(l_cell, l_event_item->event, l_event_item->event_size);
+                dap_chain_atom_notify(l_cell, &l_event_item->hash, (byte_t*)l_event_item->event, l_event_item->event_size);
                 res = true;
             } else {
                 // TODO clear other threshold items linked with this one

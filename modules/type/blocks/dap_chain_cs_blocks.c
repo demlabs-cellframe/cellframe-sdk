@@ -1507,10 +1507,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 {
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_block_t * l_block = (dap_chain_block_t *) a_atom;
-    size_t l_block_size = a_atom_size;
 
     dap_chain_hash_fast_t l_block_hash;
-    dap_hash_fast(l_block, l_block_size, &l_block_hash);
+    dap_hash_fast(l_block, a_atom_size, &l_block_hash);
 
     dap_chain_block_cache_t * l_block_cache = NULL;
     pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);
@@ -1535,7 +1534,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             }
             ret = ATOM_PASS;
         }         
-        if ( !(l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, l_block_size,
+        if ( !(l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size,
                                                          PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped)) )
         {
             log_it(L_DEBUG, "... corrupted block");
@@ -1547,7 +1546,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         ++PVT(l_blocks)->blocks_count;
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
         s_add_atom_datums(l_blocks, l_block_cache);
-        dap_chain_atom_notify(l_cell, l_block, a_atom_size);
+        dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size);
         dap_chain_atom_add_from_threshold(a_chain);
         break;
     }
