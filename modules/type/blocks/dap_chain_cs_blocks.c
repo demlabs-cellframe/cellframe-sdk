@@ -1696,7 +1696,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             l_prev_bcache->forked_branches = dap_list_append(l_prev_bcache->forked_branches, &PVT(l_blocks)->forked_branches[PVT(l_blocks)->forked_br_cnt-1]);
             pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
             debug_if(s_debug_more, L_DEBUG, "Fork is made successfuly.");
-            return ATOM_ACCEPT;
+            return ATOM_FORK;
         }
         pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
         return ATOM_REJECT;
