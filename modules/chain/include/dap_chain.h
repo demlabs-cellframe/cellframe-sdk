@@ -121,15 +121,14 @@ typedef void (*dap_chain_callback_load_from_gdb)(dap_chain_t *a_chain);
 typedef uint256_t (*dap_chain_callback_calc_reward)(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
 
 typedef enum dap_chain_type {
-    CHAIN_TYPE_FIRST,
-    CHAIN_TYPE_TOKEN,
-    CHAIN_TYPE_EMISSION,
-    CHAIN_TYPE_TX,
-    CHAIN_TYPE_CA,
-    CHAIN_TYPE_SIGNER,
-    CHAIN_TYPE_LAST,
-    CHAIN_TYPE_DECREE,
-    CHAIN_TYPE_ANCHOR
+    CHAIN_TYPE_INVALID = -1,
+    CHAIN_TYPE_TOKEN = 1,
+    CHAIN_TYPE_EMISSION = 2,
+    CHAIN_TYPE_TX = 3,
+    CHAIN_TYPE_CA = 4,
+    CHAIN_TYPE_SIGNER = 5,
+    CHAIN_TYPE_DECREE = 7,
+    CHAIN_TYPE_ANCHOR = 8
 } dap_chain_type_t;
 
 typedef struct dap_chain {

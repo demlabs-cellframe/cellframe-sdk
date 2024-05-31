@@ -239,7 +239,7 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
         return CHAIN_TYPE_DECREE;
     if (!dap_strcmp(a_type_str, "anchor"))
         return CHAIN_TYPE_ANCHOR;
-    return CHAIN_TYPE_LAST;
+    return CHAIN_TYPE_INVALID;
 }
 
 /**
@@ -436,7 +436,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 					for (uint16_t i = 0; i < l_datum_types_count; i++)
 					{
 						dap_chain_type_t l_chain_type = s_chain_type_from_str(l_datum_types[i]);
-						if (l_chain_type != CHAIN_TYPE_LAST)
+						if (l_chain_type != CHAIN_TYPE_INVALID)
 						{
 							l_chain->datum_types[l_count_recognized] = l_chain_type;
 							l_count_recognized++;
@@ -461,7 +461,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 					for (uint16_t i = 0; i < l_default_datum_types_count; i++)
 					{
 						dap_chain_type_t l_chain_type = s_chain_type_from_str(l_default_datum_types[i]);
-						if (l_chain_type != CHAIN_TYPE_LAST
+						if (l_chain_type != CHAIN_TYPE_INVALID
 						&& s_chain_in_chain_types(l_chain_type, l_chain->datum_types, l_chain->datum_types_count))// <<--- check this chain_type in readed datum_types
 						{
 							l_chain->default_datum_types[l_count_recognized] = l_chain_type;
