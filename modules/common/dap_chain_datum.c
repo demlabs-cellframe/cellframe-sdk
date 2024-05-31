@@ -950,7 +950,6 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
             
         } break;
         case TX_ITEM_TYPE_VOTING:{
-            char l_tmp_buff[10]={0};
             int l_tsd_size = 0;
             dap_chain_tx_tsd_t *l_item = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_datum, 0, TX_ITEM_TYPE_TSD, &l_tsd_size);
             if (!l_item || !l_tsd_size)
@@ -963,8 +962,7 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
             dap_list_t *l_temp = l_voting_params->answers_list;
             uint8_t l_index = 0;
             while (l_temp) {
-                sprintf(l_tmp_buff, "%i", l_index);
-                json_object_object_add(json_obj_item, l_tmp_buff, json_object_new_string((char *)l_temp->data));
+                json_object_object_add(json_obj_item, dap_itoa(l_index), json_object_new_string((char *)l_temp->data));
                 l_index++;
                 l_temp = l_temp->next;
             }
@@ -973,8 +971,7 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
                 json_object_object_add(json_obj_item,"Voting expire", json_object_new_string(l_tmp_buf));                
             }
             if (l_voting_params->votes_max_count) {
-                sprintf(l_tmp_buff, "%"DAP_UINT64_FORMAT_U, l_voting_params->votes_max_count);
-                json_object_object_add(json_obj_item, "Votes max count", json_object_new_string(l_tmp_buff));
+                json_object_object_add(json_obj_item, "Votes max count", json_object_new_uint64(l_voting_params->votes_max_count));
             }
             json_object_object_add(json_obj_item,"Changing vote is", l_voting_params->vote_changing_allowed ? json_object_new_string("available") : 
                                     json_object_new_string("not available"));
@@ -987,13 +984,11 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
             DAP_DELETE(l_voting_params);
         } break;
         case TX_ITEM_TYPE_VOTE:{
-            char l_tmp_buff[10]={0};
             dap_chain_tx_vote_t *l_vote_item = (dap_chain_tx_vote_t *)item;
             const char *l_hash_str = dap_chain_hash_fast_to_str_static(&l_vote_item->voting_hash);
             json_object_object_add(json_obj_item,"item type", json_object_new_string("VOTE"));
             json_object_object_add(json_obj_item,"Voting hash", json_object_new_string(l_hash_str));
-            sprintf(l_tmp_buff,"%"DAP_UINT64_FORMAT_U"",l_vote_item->answer_idx);
-            json_object_object_add(json_obj_item,"Vote answer idx", json_object_new_string(l_tmp_buff));
+            json_object_object_add(json_obj_item,"Vote answer idx", json_object_new_uint64(l_vote_item->answer_idx));
 
         } break;
         default:
