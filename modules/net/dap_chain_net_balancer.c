@@ -46,6 +46,7 @@ typedef struct dap_balancer_link_request {
 
 static_assert(sizeof(dap_chain_net_links_t) + sizeof(dap_chain_node_info_old_t) < DAP_BALANCER_MAX_REPLY_SIZE, "DAP_BALANCER_MAX_REPLY_SIZE cannot accommodate information minimum about 1 link");
 static const size_t s_max_links_response_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_links_t)) / sizeof(dap_chain_node_info_old_t);
+static const dap_time_t s_request_period = 5; // sec
 
 /**
  * @brief forming json file with balancer info: class networkName nodeAddress hostAddress hostPort
@@ -78,19 +79,23 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
         l_size = 0,
         l_uplinks_count = 0,
         l_low_availability_count = 0;
-    dap_stream_node_addr_t *l_uplinks = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64, &l_uplinks_count, NULL, true);
-    dap_stream_node_addr_t *l_low_availability = dap_link_manager_get_ignored_addrs(&l_low_availability_count);
-    if(!l_uplinks && !l_low_availability) {
+    const dap_stream_node_addr_t
+        *l_curr_addr = &dap_chain_net_get_my_node_info(a_net)->address,
+        *l_uplinks = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64, &l_uplinks_count, NULL, true),
+        *l_low_availability = dap_link_manager_get_ignored_addrs(&l_low_availability_count);
+    if(!l_curr_addr->uint64 && !l_uplinks && !l_low_availability) {
+        log_it(L_WARNING, "Error forming ignore list, please check, should be minimum self addr");
         return NULL;
     }
-    l_size = sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * (l_uplinks_count + l_low_availability_count);
+    l_size = sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * (l_uplinks_count + l_low_availability_count + 1);
 // memory alloc
     dap_chain_net_links_t *l_ret = NULL;
-    DAP_NEW_Z_SIZE_RET_VAL(l_ret, dap_chain_net_links_t, l_size, NULL, NULL);
+    DAP_NEW_Z_SIZE_RET_VAL(l_ret, dap_chain_net_links_t, l_size, NULL, l_uplinks, l_low_availability);
 // func work
-    memcpy(l_ret->nodes_info, l_uplinks, l_uplinks_count * sizeof(dap_stream_node_addr_t));
-    memcpy(l_ret->nodes_info + l_uplinks_count, l_low_availability, l_low_availability_count * sizeof(dap_stream_node_addr_t));
-    l_ret->count_node = l_uplinks_count + l_low_availability_count;
+    memcpy(l_ret->nodes_info, l_curr_addr, sizeof(dap_stream_node_addr_t));
+    memcpy(l_ret->nodes_info + sizeof(dap_stream_node_addr_t), l_uplinks, l_uplinks_count * sizeof(dap_stream_node_addr_t));
+    memcpy(l_ret->nodes_info + (l_uplinks_count + 1) * sizeof(dap_stream_node_addr_t), l_low_availability, l_low_availability_count * sizeof(dap_stream_node_addr_t));
+    l_ret->count_node = l_uplinks_count + l_low_availability_count + 1;
     if (a_size)
         *a_size = l_size;
     DAP_DEL_MULTY(l_uplinks, l_low_availability);
@@ -283,14 +288,22 @@ static dap_chain_net_links_t *s_balancer_issue_link(const char *a_net_name, uint
     if (l_ignored_size) {
         DAP_NEW_Z_SIZE_RET_VAL(l_ignored_dec, dap_chain_net_links_t, l_ignored_size, NULL, NULL);
         dap_enc_base64_decode(a_ignored_enc, l_ignored_size, l_ignored_dec, DAP_ENC_DATA_TYPE_B64);
-        if (l_ignored_size < DAP_ENC_BASE64_ENCODE_SIZE(sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node)) {
-            log_it(L_ERROR, "Cant't decode ignored node list, %zu %zu", l_ignored_size, DAP_ENC_BASE64_ENCODE_SIZE(sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node));
+        if (l_ignored_size < DAP_ENC_BASE64_ENCODE_SIZE((sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node))) {
+            log_it(L_ERROR, "Can't decode ignored node list, received size %zu < expected size %zu", l_ignored_size, DAP_ENC_BASE64_ENCODE_SIZE((sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node)));
             DAP_DEL_Z(l_ignored_dec);
         }
     }
     dap_chain_net_links_t *l_ret = s_get_node_addrs(l_net, a_links_need, l_ignored_dec, true);
     DAP_DEL_Z(l_ignored_dec);
     return l_ret;
+}
+
+/**
+ * @brief balancer deinit
+ */
+void dap_chain_net_balancer_deinit()
+{
+
 }
 
 /**
@@ -402,23 +415,31 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, const char *a_host_ad
 // sanity check
     dap_return_val_if_pass(!a_net, -1);
 // func work
-    size_t l_ignored_addrs_size = 0; // prepare list of the ignored addrs
-    dap_chain_net_links_t *l_ignored_addrs = s_get_ignored_node_addrs(a_net, &l_ignored_addrs_size);
-    size_t l_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
-    // links from local GDB
-    dap_chain_net_links_t *l_links = s_get_node_addrs(a_net, l_required_links_count, l_ignored_addrs, false);
+    // request each 5 sec
+    static dap_time_t l_last_time = 0;
+    if (dap_time_now() - l_last_time < s_request_period) {
+        log_it(L_DEBUG, "Who understands life, he is in no hurry");
+        return 0;
+    }
+    l_last_time = dap_time_now();
+    size_t
+        l_ignored_addrs_size = 0,
+        l_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
+    dap_chain_net_links_t
+        *l_ignored_addrs = s_get_ignored_node_addrs(a_net, &l_ignored_addrs_size),
+        *l_links = s_get_node_addrs(a_net, l_required_links_count, l_ignored_addrs, false);     // links from local GDB
     if (l_links) {
         s_balancer_link_prepare_success(a_net, l_links, NULL, 0);
         if (l_links->count_node >= l_required_links_count) {
             DAP_DEL_MULTY(l_ignored_addrs, l_links);
             return 0;
         }
-        else
-            l_required_links_count -= l_links->count_node;
+        l_required_links_count -= l_links->count_node;
         DAP_DELETE(l_links);
     }
     if (!a_host_addr || !a_host_port) {
         log_it(L_INFO, "Can't read seed nodes addresses, work with local balancer only");
+        DAP_DEL_Z(l_ignored_addrs);
         return 0;
     }
     // dynamic links from http balancer request
