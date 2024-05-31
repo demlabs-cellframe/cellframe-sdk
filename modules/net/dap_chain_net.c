@@ -1839,7 +1839,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         dap_config_close(l_cfg);
         return -1;
     }
-    
+
     l_net->pub.gdb_groups_prefix = dap_strdup(
                 dap_config_get_item_str_default(l_cfg, "general", "gdb_groups_prefix",
                                                 dap_config_get_item_str(l_cfg, "general", "name")));
@@ -2077,6 +2077,8 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     // Decrees initializing
     dap_chain_net_decree_init(l_net);
 
+    l_net->pub.config = l_cfg;
+
     return 0;
 }
 
@@ -2265,7 +2267,7 @@ bool s_net_load(void *a_arg)
             l_chain->callback_created(l_chain, l_cfg);
 
      if ( dap_config_get_item_bool_default(g_config, "server", "enabled", false) ) {
-        if ( !l_net_pvt->node_info ) {
+        if ( !l_net_pvt->node_info->ext_port ) {
             char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
             uint16_t l_ext_port = 0;
             const char *l_ext_addr = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
