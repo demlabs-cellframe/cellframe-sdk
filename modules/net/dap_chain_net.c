@@ -1440,12 +1440,18 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 if (!l_jobj_net_name || !l_jobj_id) {
                     json_object_put(l_jobj_net_name);
                     json_object_put(l_jobj_id);
+                    json_object_put(l_jobj_return);
                     dap_json_rpc_allocation_error;
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 json_object_object_add(l_jobj_return, "network", l_jobj_net_name);
                 json_object_object_add(l_jobj_return, "id", l_jobj_id);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
+            } else {
+                json_object_put(l_jobj_return);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS,
+                                       "Unknown \"%s\" subcommand, net get commands.", l_get_str);
+                return DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS;
             }
         } else if ( l_links_str ){
             if ( strcmp(l_links_str,"list") == 0 ) {
