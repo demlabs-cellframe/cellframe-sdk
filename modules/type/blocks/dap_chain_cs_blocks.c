@@ -1533,6 +1533,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 l_block = (dap_chain_block_t*)( l_cell->map_pos += sizeof(uint64_t) );  // Switching to mapped area
                 l_cell->map_pos += a_atom_size;
             }
+            ret = ATOM_PASS;
         }         
         if ( !(l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, l_block_size,
                                                          PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped)) )
