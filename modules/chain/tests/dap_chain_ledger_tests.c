@@ -486,31 +486,32 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
 
     // check stake and unstake adding and removing
     {
-        // Create stake lock tx
-        dap_chain_datum_tx_t *l_stake_cond_tx = dap_ledger_test_create_stake_tx_cond(a_from_key, a_prev_hash, dap_chain_uint256_from(20U), a_ledger);
-        dap_hash_fast_t l_stake_cond_tx_hash = {};
-        dap_hash_fast(l_stake_cond_tx, dap_chain_datum_tx_get_size(l_stake_cond_tx), &l_stake_cond_tx_hash);
-        int err_code = dap_ledger_tx_add(a_ledger, l_stake_cond_tx, &l_stake_cond_tx_hash, false);
-        printf("err_code = %s\n", dap_ledger_tx_check_err_str(err_code));
-        dap_assert(!err_code, "Adding of stake cond transaction to ledger is");
-        sleep(3);
-        // Create stake unlock tx
-        uint256_t l_balance_before_unstaking = dap_ledger_test_print_balance(a_ledger, &l_addr);
-        dap_chain_datum_tx_t *l_unstake_cond_tx = dap_ledger_test_create_unstake_tx_cond(a_from_key, &l_stake_cond_tx_hash, dap_chain_uint256_from(20U), a_ledger);
-        dap_hash_fast_t l_unstake_cond_tx_hash = {};
-        dap_hash_fast(l_unstake_cond_tx, dap_chain_datum_tx_get_size(l_stake_cond_tx), &l_unstake_cond_tx_hash);
-        err_code = dap_ledger_tx_add(a_ledger, l_unstake_cond_tx, &l_unstake_cond_tx_hash, false);
-        printf("err_code = %s\n", dap_ledger_tx_check_err_str(err_code));
-        dap_assert(!err_code, "Adding of unstake cond transaction to ledger is");
-        
-        err_code = dap_ledger_tx_remove(a_ledger, l_unstake_cond_tx, &l_unstake_cond_tx_hash);
-        printf("err_code = %s\n", dap_ledger_tx_check_err_str(err_code));
-        dap_assert(!err_code, "Test of unstake conditional transaction removing from ledger:");
-        l_balance_after = dap_ledger_test_print_balance(a_ledger, &l_addr);
-        dap_assert(!compare256(l_balance_before_unstaking, l_balance_after), "Compare balance after creating unstake transactions and after removing them. Must be equal:")
+    // Create stake lock tx
+    dap_chain_datum_tx_t *l_stake_cond_tx = dap_ledger_test_create_stake_tx_cond(a_from_key, a_prev_hash, dap_chain_uint256_from(20U), a_ledger);
+    dap_hash_fast_t l_stake_cond_tx_hash = {};
+    dap_hash_fast(l_stake_cond_tx, dap_chain_datum_tx_get_size(l_stake_cond_tx), &l_stake_cond_tx_hash);
+    int err_code = dap_ledger_tx_add(a_ledger, l_stake_cond_tx, &l_stake_cond_tx_hash, false);
+    printf("err_code = %s\n", dap_ledger_tx_check_err_str(err_code));
+    dap_assert(!err_code, "Adding of stake cond transaction to ledger is");
+    sleep(3);
+    // Create stake unlock tx
+    uint256_t l_balance_before_unstaking = dap_ledger_test_print_balance(a_ledger, &l_addr);
+    dap_chain_datum_tx_t *l_unstake_cond_tx = dap_ledger_test_create_unstake_tx_cond(a_from_key, &l_stake_cond_tx_hash, dap_chain_uint256_from(20U), a_ledger);
+    dap_hash_fast_t l_unstake_cond_tx_hash = {};
+    dap_hash_fast(l_unstake_cond_tx, dap_chain_datum_tx_get_size(l_stake_cond_tx), &l_unstake_cond_tx_hash);
+    err_code = dap_ledger_tx_add(a_ledger, l_unstake_cond_tx, &l_unstake_cond_tx_hash, false);
+    printf("err_code = %s\n", dap_ledger_tx_check_err_str(err_code));
+    dap_assert(!err_code, "Adding of unstake cond transaction to ledger is");
+    
+    err_code = dap_ledger_tx_remove(a_ledger, l_unstake_cond_tx, &l_unstake_cond_tx_hash);
+    printf("err_code = %s\n", dap_ledger_tx_check_err_str(err_code));
+    dap_assert(!err_code, "Test of unstake conditional transaction removing from ledger:");
+    l_balance_after = dap_ledger_test_print_balance(a_ledger, &l_addr);
+    dap_assert(!compare256(l_balance_before_unstaking, l_balance_after), "Compare balance after creating unstake transactions and after removing them. Must be equal:")
     }
 
     // Check delegation
+    
 
     // CHeck rewards
 
@@ -800,8 +801,8 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
 
 void dap_ledger_test_run(void){
     dap_set_appname("cellframe-node");
-    dap_config_init("/opt/cellframe-node/etc");
-    dap_assert_PIF((g_config = dap_config_open(dap_get_appname())) != NULL, "Init: ");
+    // dap_config_init("/opt/cellframe-node/etc");
+    // dap_assert_PIF((g_config = dap_config_open(dap_get_appname())) != NULL, "Init: ");
     dap_chain_net_srv_stake_lock_init();
     dap_chain_net_srv_stake_pos_delegate_init();
     dap_assert_PIF(!dap_chain_net_srv_init(), "Srv initializstion");
