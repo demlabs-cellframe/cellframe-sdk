@@ -1548,16 +1548,15 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
     if (l_candidate && l_candidate_size) {
         if (PVT(a_session->esbocs)->emergency_mode)
             l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EMERGENCY, NULL, 0);
-        if (PVT(a_session->esbocs)->check_signs_structure && l_candidate_size) {
+        if (l_candidate_size)
             l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT,
                                                         &a_session->cur_round.sync_attempt, sizeof(uint64_t));
-            if (l_candidate_size)
-                l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT,
-                                                            &a_session->cur_round.attempt_num, sizeof(uint8_t));
-            if (l_candidate_size)
-                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
-                                                            a_session->cur_round.excluded_list, *a_session->cur_round.excluded_list * sizeof(uint16_t));
-        }
+        if (l_candidate_size)
+            l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT,
+                                                        &a_session->cur_round.attempt_num, sizeof(uint8_t));
+        if (l_candidate_size)
+             l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
+                                                        a_session->cur_round.excluded_list, *a_session->cur_round.excluded_list * sizeof(uint16_t));
         if (l_candidate_size) {
             dap_hash_fast(l_candidate, l_candidate_size, &l_candidate_hash);
             if (PVT(a_session->esbocs)->debug) {
