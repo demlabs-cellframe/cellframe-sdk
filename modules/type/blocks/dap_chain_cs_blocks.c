@@ -103,7 +103,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
 //    Get block header size
 static size_t s_callback_atom_get_static_hdr_size(void);
 
-static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from, bool a_show_forked_branches);
+static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);
 static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
                                                                        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num);
@@ -1931,14 +1931,13 @@ static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_ato
  * @param a_chain
  * @return
  */
-static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from, bool a_show_forked_branches)
+static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from)
 {
     dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     if (!l_atom_iter) {
         log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return NULL;
     }
-    l_atom_iter->show_forked_branches = a_show_forked_branches;
     l_atom_iter->chain = a_chain;
     l_atom_iter->cell_id = a_cell_id;
     if (a_hash_from)
@@ -1983,12 +1982,6 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_at
         a_atom_iter->cur_size   = l_item->block_size;
         a_atom_iter->cur_hash   = &l_item->block_hash;
         a_atom_iter->cur_num    = l_item->block_number;
-        if (a_atom_iter->show_forked_branches && 
-            l_item->forked_branches && !a_atom_iter->on_forked_atoms){
-                for (dap_list_t *l_temp = l_item->forked_branches; l_temp; l_temp = l_temp->next){
-                    a_atom_iter->forked_atoms = dap_list_concat(a_atom_iter->forked_atoms, (dap_list_t *)l_temp->data);
-                }
-            }
     } else 
         *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
                                                  .cell_id = a_atom_iter->cell_id };

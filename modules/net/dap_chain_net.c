@@ -2382,7 +2382,7 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                                                             l_net_pvt->sync_context.cur_cell
                                                                             ? l_net_pvt->sync_context.cur_cell->id
                                                                             : c_dap_chain_cell_id_null,
-                                                                            NULL, false);
+                                                                            NULL);
         if (!l_iter) {
             log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             dap_stream_ch_write_error_unsafe(a_ch, l_net->pub.id,
@@ -3062,7 +3062,7 @@ dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, d
         {
             dap_chain_cell_t *l_cell = l_chain_cur->cells;
             size_t l_atom_size = 0;
-            dap_chain_atom_iter_t *l_atom_iter = l_chain_cur->callback_atom_iter_create(l_chain_cur, l_cell->id, NULL, false);
+            dap_chain_atom_iter_t *l_atom_iter = l_chain_cur->callback_atom_iter_create(l_chain_cur, l_cell->id, NULL);
             dap_chain_atom_ptr_t l_atom = l_chain_cur->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
             while(l_atom && l_atom_size)
             {

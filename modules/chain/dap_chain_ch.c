@@ -834,7 +834,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         bool l_sync_from_begin = dap_hash_fast_is_blank(&l_request->hash_from);
         dap_chain_atom_iter_t *l_iter = l_chain->callback_atom_iter_create(l_chain, l_chain_pkt->hdr.cell_id, l_sync_from_begin
-                                                                           ? NULL : &l_request->hash_from, true);
+                                                                           ? NULL : &l_request->hash_from);
         if (!l_iter) {
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
@@ -1307,7 +1307,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                                 DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND);
             break;
         }
-        dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create(l_chain, l_chain_pkt->hdr.cell_id, NULL, false);
+        dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create(l_chain, l_chain_pkt->hdr.cell_id, NULL);
         if (!l_atom_iter) {
             log_it(L_ERROR, "Can't create legacy atom iterator");
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
