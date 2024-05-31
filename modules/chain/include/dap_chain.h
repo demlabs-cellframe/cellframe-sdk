@@ -201,6 +201,8 @@ typedef struct dap_chain {
 
     dap_list_t *atom_notifiers;
 
+    dap_config_t *config;
+
     void * _pvt; // private data
     void * _inheritor; // inheritor object
 } dap_chain_t;
