@@ -106,10 +106,13 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             : NULL;
     if (!l_ticker)
         return false;
+    const char *l_description = dap_ledger_get_description_by_ticker(a_ledger, l_ticker);
     dap_chain_hash_fast_to_str(a_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
     json_object_object_add(json_obj_out, "Datum_tx_hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_out, "TS_Created", json_object_new_string(dap_ctime_r(&l_ts_create, l_tmp_buf)));
     json_object_object_add(json_obj_out, "Token_ticker", json_object_new_string(l_ticker));
+    json_object_object_add(json_obj_out, "Token_description", l_description ? json_object_new_string(l_description)
+                                                                            : json_object_new_null());
     json_object* datum_tx = dap_chain_datum_tx_to_json(a_datum,&a_ledger->net->pub.id);
     json_object_object_add(json_obj_out, "Datum_tx", datum_tx);
     dap_list_t *l_out_items = dap_chain_datum_tx_items_get(a_datum, TX_ITEM_TYPE_OUT_ALL, NULL);
@@ -155,6 +158,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                                         bool *accepted_tx)
 {
     const char *l_tx_token_ticker = NULL;
+    const char *l_tx_token_description = NULL;
     json_object* json_obj_datum = json_object_new_object();
     if (!json_obj_datum) {
         return NULL;
@@ -165,6 +169,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     if (l_tx_token_ticker) {
         json_object_object_add(json_obj_datum, "status", json_object_new_string("ACCEPTED"));
         *accepted_tx = true;
+        l_tx_token_description = dap_ledger_get_description_by_ticker(l_ledger, l_tx_token_ticker);
     } else {
         json_object_object_add(json_obj_datum, "status", json_object_new_string("DECLINED"));
         *accepted_tx = false;
@@ -186,6 +191,8 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
 
     json_object_object_add(json_obj_datum, "token_ticker", l_tx_token_ticker ? json_object_new_string(l_tx_token_ticker) 
                                                                              : json_object_new_null());
+    json_object_object_add(json_obj_datum, "token_description", l_tx_token_description ? json_object_new_string(l_tx_token_description)
+                                                                                       : json_object_new_null());
 
     json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(l_ret_code));
     json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_tx_check_err_str(l_ret_code)));
@@ -1118,6 +1125,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         }
        return 0;
     } else if (l_cmd == CMD_TX_INFO){
+        //
         //GET hash
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_tx_hash_str);
         //get net
@@ -1931,8 +1939,12 @@ int cmd_decree(int a_argc, char **a_argv, void ** reply)
         const char *l_hash_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
         if (!l_hash_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'decree find' requiers parameter '-hash'");
-            return -110;
+            dap_string_t *l_full_dump = dap_chain_net_decree_dump_all(l_net);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_full_dump->str);
+            dap_string_free(l_full_dump, false);
+            return 0;
+            //dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'decree find' requiers parameter '-hash'");
+            //return -110;
         }
         dap_hash_fast_t l_datum_hash;
         if (dap_chain_hash_fast_from_hex_str(l_hash_str, &l_datum_hash) &&

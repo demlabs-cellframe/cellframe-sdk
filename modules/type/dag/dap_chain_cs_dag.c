@@ -1570,7 +1570,7 @@ static int s_cli_dag(int argc, char ** argv, void **reply)
             // dap_chain_net_sync_all(l_net);
         }
         if (strcmp(l_round_cmd_str, "find") == 0) {
-            dap_cli_server_cmd_find_option_val(argv, arg_index, arg_index + 2, "-datum", &l_datum_hash_str);
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
             char *l_datum_in_hash = NULL;
             if (l_datum_hash_str) {
                 if(!dap_strncmp(l_datum_hash_str, "0x", 2) || !dap_strncmp(l_datum_hash_str, "0X", 2)) {
@@ -1836,7 +1836,7 @@ static int s_cli_dag(int argc, char ** argv, void **reply)
                         char * l_hash_str = dap_chain_hash_fast_to_str_new(&l_round_item->round_info.datum_hash);
                         dap_string_append_printf(l_str_tmp, "\t\tdatum_hash: %s\n", l_hash_str);
                         DAP_DELETE(l_hash_str);
-                        dap_time_to_str_rfc822(buf, 50, l_round_item->round_info.ts_update);
+                        dap_gbd_time_to_str_rfc822(buf, 50, l_round_item->round_info.ts_update);
                         dap_string_append_printf(l_str_tmp,"\t\tts_update: %s\n", buf);
                     }
 
@@ -1920,13 +1920,18 @@ static int s_cli_dag(int argc, char ** argv, void **reply)
                         dap_string_append_printf(l_str_tmp,"%s.%s: Found %zu records :\n",l_net->pub.name,l_chain->name,l_objs_count);
 
                         for (size_t i = 0; i< l_objs_count; i++){
-                            dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
-                                            ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
-                            char buf[50];
-                            dap_time_to_str_rfc822(buf, 50, l_event->header.ts_created);
-                            dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s\n",
-                                                     l_objs[i].key, buf);
-
+                            if (dap_strcmp(l_objs[i].key, DAG_ROUND_CURRENT_KEY)) {
+                                dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)
+                                        ((dap_chain_cs_dag_event_round_item_t *) l_objs[i].value)->event_n_signs;
+                                char buf[50];
+                                dap_time_to_str_rfc822(buf, 50, l_event->header.ts_created);
+                                dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s\n",
+                                                         l_objs[i].key, buf);
+                            } else {
+                                uint64_t l_number_current_round = *(uint64_t*)l_objs[i].value;
+                                dap_string_append_printf(l_str_tmp, "\t%s: %" DAP_UINT64_FORMAT_U "\n", l_objs[i].key,
+                                                         l_number_current_round);
+                            }
                         }
                         if (l_objs && l_objs_count )
                             dap_global_db_objs_delete(l_objs, l_objs_count);
