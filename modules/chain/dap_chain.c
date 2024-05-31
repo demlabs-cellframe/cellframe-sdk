@@ -110,7 +110,11 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
             .net_id     = a_chain_net_id,
             .name       = dap_strdup(a_chain_name),
             .net_name   = dap_strdup(a_chain_net_name),
+#ifdef DAP_OS_WINDOWS // TODO
+            .is_mapped  = false,
+#else
             .is_mapped  = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true),
+#endif
             .cell_rwlock    = PTHREAD_RWLOCK_INITIALIZER,
             .atom_notifiers = NULL
     };
