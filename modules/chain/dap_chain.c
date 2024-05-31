@@ -519,7 +519,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 				} else
 					l_chain->autoproc_datum_types_count = 0;
 			}
-            dap_config_close(l_cfg);
+            l_chain->config = l_cfg;
             return l_chain;
         } else
             return NULL;

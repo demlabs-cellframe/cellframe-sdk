@@ -49,7 +49,7 @@ DAP_STATIC_INLINE const char *dap_chain_net_balancer_type_to_str(dap_balancer_ty
         default: return "UNDEFINED";
     }
 }
-
+void dap_chain_net_balancer_deinit();
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
 dap_link_info_t *dap_chain_net_balancer_dns_issue_link(const char *a_net_name);
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t * a_net);
