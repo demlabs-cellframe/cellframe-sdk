@@ -663,7 +663,15 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         }break;
 
         case SUBCMD_DUMP:{
+            const char *l_hash_out_type = NULL;
             dap_chain_hash_fast_t l_block_hash={0};
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+            if(!l_hash_out_type)
+                l_hash_out_type = "hex";
+            if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "invalid parameter -H, valid values: -H <hex | base58>");
+                return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
+            }
             if (!l_subcmd_str_arg) {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR, "Enter block hash ");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
