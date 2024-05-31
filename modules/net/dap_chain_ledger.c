@@ -4750,9 +4750,11 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
         DAP_DELETE(l_gdb_group);
     }
     /* Notify the world*/
-    struct json_object *l_json = wallet_info_json_collect(a_ledger, a_balance);
-    dap_notify_server_send_mt(json_object_get_string(l_json));
-    json_object_put(l_json);
+    if ( !dap_chain_net_get_load_mode(a_ledger->net) ) {
+        struct json_object *l_json = wallet_info_json_collect(a_ledger, a_balance);
+        dap_notify_server_send_mt(json_object_get_string(l_json));
+        json_object_put(l_json);
+    }
     return 0;
 }
 

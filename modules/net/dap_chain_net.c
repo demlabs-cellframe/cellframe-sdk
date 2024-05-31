@@ -640,7 +640,6 @@ static bool s_net_states_proc(void *a_arg)
         // Prepare links
         case NET_STATE_LINKS_PREPARE: {
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_PREPARE", l_net->pub.name);
-            s_net_states_notify(l_net);
         } break;
 
         case NET_STATE_LINKS_CONNECTING: {
