@@ -242,6 +242,28 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
     return CHAIN_TYPE_INVALID;
 }
 
+const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type) {
+    switch (a_default_chain_type)
+    {
+        case CHAIN_TYPE_INVALID:
+            return "invalid";
+        case CHAIN_TYPE_TOKEN:
+            return "token";
+        case CHAIN_TYPE_EMISSION:
+            return "emission";
+        case CHAIN_TYPE_TX:
+            return "transaction";
+        case CHAIN_TYPE_CA:
+            return "ca";
+        case CHAIN_TYPE_SIGNER:
+            return "signer";
+        case CHAIN_TYPE_DECREE:
+            return "decree";
+        case CHAIN_TYPE_ANCHOR:
+            return "anchor";
+    }
+}
+
 /**
  * @brief s_datum_type_from_str
  * get datum type (DAP_CHAIN_DATUM_TOKEN_DECL, DAP_CHAIN_DATUM_TOKEN_EMISSION, DAP_CHAIN_DATUM_TX) by str value
