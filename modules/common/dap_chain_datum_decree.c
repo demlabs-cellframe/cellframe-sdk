@@ -177,7 +177,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
         l_offset += dap_tsd_size(l_tsd);
         switch(l_tsd->type) {
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE:
-                if (l_tsd->size > sizeof(uint256_t)){
+                if (l_tsd->size != sizeof(uint256_t)){
                     dap_string_append_printf(a_str_out, "\tValue: <WRONG SIZE>\n");
                     break;
                 }
@@ -189,7 +189,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN:
             break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE:
-                if (l_tsd->size > sizeof(uint256_t)){
+                if (l_tsd->size != sizeof(uint256_t)){
                     dap_string_append_printf(a_str_out, "\tFee: <WRONG SIZE>\n");
                     break;
                 }
@@ -199,7 +199,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 dap_string_append_printf(a_str_out, "\tFee: %s\n", l_fee_value_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER:
-                if (l_tsd->size < sizeof(dap_pkey_t)) {
+                if (l_tsd->size != sizeof(dap_pkey_t)) {
                     dap_string_append_printf(a_str_out, "\tOwner fingerprint: <WRONG SIZE>\n");
                     break;
                 }
@@ -210,7 +210,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 dap_string_append_printf(a_str_out, "\tOwner fingerprint: %s\n", l_owner_pkey_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER:
-                if (l_tsd->size != sizeof(uint32_t)){
+                if (l_tsd->size != sizeof(uint256_t)) {
                     dap_string_append_printf(a_str_out, "\tOwner min: <WRONG SIZE>\n");
                     break;
                 }
@@ -220,7 +220,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 dap_string_append_printf(a_str_out, "\tOwner min: %s\n", l_owner_min_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET:
-                if (l_tsd->size > sizeof(dap_chain_addr_t)) {
+                if (l_tsd->size != sizeof(dap_chain_addr_t)) {
                     dap_string_append_printf(a_str_out, "\tWallet for fee: <WRONG SIZE>\n");
                     break;
                 }
@@ -229,7 +229,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 dap_string_append_printf(a_str_out, "\tWallet for fee: %s\n", dap_chain_addr_to_str(l_addr_fee_wallet));
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH:
-                if (l_tsd->size > sizeof(dap_hash_fast_t)) {
+                if (l_tsd->size != sizeof(dap_hash_fast_t)) {
                     dap_string_append_printf(a_str_out, "\tHash: <WRONG SIZE>\n");
                     break;
                 }
@@ -241,7 +241,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 dap_string_append_printf(a_str_out, "\tHash: %s\n", l_stake_tx_hash);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE:
-                if (l_tsd->size > sizeof(uint256_t)){
+                if (l_tsd->size != sizeof(uint256_t)){
                     dap_string_append_printf(a_str_out, "\tStake value: <WRONG SIZE>\n");
                     break;
                 }
@@ -251,7 +251,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 dap_string_append_printf(a_str_out, "\tStake value: %s\n", l_stake_value_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR:
-                if (l_tsd->size > sizeof(dap_chain_addr_t)) {
+                if (l_tsd->size != sizeof(dap_chain_addr_t)) {
                     dap_string_append_printf(a_str_out, "\tSigning addr: <WRONG SIZE>\n");
                     break;
                 }
@@ -265,7 +265,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 dap_string_append_printf(a_str_out, "\tSigning pkey fingerprint: %s\n", l_pkey_signing_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
-                if(l_tsd->size > sizeof(dap_chain_node_addr_t)){
+                if (l_tsd->size != sizeof(dap_chain_node_addr_t)){
                     dap_string_append_printf(a_str_out, "\tNode addr: <WRONG SIZE>\n");
                     break;
                 }
@@ -274,7 +274,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                                          NODE_ADDR_FP_ARGS(l_node_addr));
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE:
-                if (l_tsd->size > sizeof(uint256_t)) {
+                if (l_tsd->size != sizeof(uint256_t)) {
                     dap_string_append_printf(a_str_out, "\tMin value: <WRONG SIZE>\n");
                     break;
                 }
@@ -284,7 +284,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 dap_string_append_printf(a_str_out, "\tMin value: %s\n", l_min_value_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT:
-                if (l_tsd->size > sizeof(uint256_t)) {
+                if (l_tsd->size != sizeof(uint256_t)) {
                     dap_string_append_printf(a_str_out, "\tMin signers count: <WRONG SIZE>\n");
                     break;
                 }
