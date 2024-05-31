@@ -192,9 +192,9 @@ int dap_chain_cs_esbocs_init()
             "\tEnables or disables checks for blocks signs structure validity\n"
         "esbocs check_signs_structure show -net <net_name> -chain <chain_name>\n"
             "\tShow status of checks for blocks signs structure validity\n"
-        "esbocs emergency_validator {add|remove} -net <net_name> -chain <chain_name> -cert <poa_cert_name> -pkey_hash <validator_pkey_hash>\n"
+        "esbocs emergency_validators {add|remove} -net <net_name> -chain <chain_name> -cert <poa_cert_name> -pkey_hash <validator_pkey_hash>\n"
             "\tAdd or remove validator by its signature public key hash to list of validators allowed to work in emergency mode\n"
-        "esbocs emergency_validator show -net <net_name> -chain <chain_name>\n"
+        "esbocs emergency_validators show -net <net_name> -chain <chain_name>\n"
             "\tShow list of validators public key hashes allowed to work in emergency mode\n");
     return 0;
 }
@@ -2969,7 +2969,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         [SUBCMD_UNDEFINED] = NULL,
         [SUBCMD_MIN_VALIDATORS_COUNT] = "min_validators_count",
         [SUBCMD_CHECK_SIGNS_STRUCTURE] = "check_signs_structure",
-        [SUBCMD_EMERGENCY_VALIDATOR] = "emergency_validator",
+        [SUBCMD_EMERGENCY_VALIDATOR] = "emergency_validators",
     };
 
     const size_t l_subcmd_str_count = sizeof(l_subcmd_strs) / sizeof(char *);
@@ -3100,7 +3100,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
     } break;
 
     default:
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized subcommand '%s'", a_argv[l_arg_index]);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized subcommand '%s'", a_argv[l_arg_index - 1]);
     }
     return ret;
 }
