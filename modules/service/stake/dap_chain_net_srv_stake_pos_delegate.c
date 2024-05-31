@@ -296,7 +296,6 @@ static void s_stake_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_
 
 static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond)
 {
-    assert(s_srv_stake);
     if (!a_cond)
         return;
     dap_chain_addr_t *l_signing_addr = &a_cond->subtype.srv_stake_pos_delegate.signing_addr;
