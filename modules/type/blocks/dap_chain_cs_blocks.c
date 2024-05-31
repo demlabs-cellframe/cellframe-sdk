@@ -1522,15 +1522,35 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     }
     dap_chain_atom_verify_res_t ret = s_callback_atom_verify(a_chain, a_atom, a_atom_size);
     switch (ret) {
-    case ATOM_ACCEPT:
-        l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, l_block_size, PVT(l_blocks)->blocks_count + 1);
-        if (!l_block_cache)
-            break;
+    case ATOM_ACCEPT: {
+        dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
+        if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
+            if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, &l_block_hash)) < 0 ) {
+                log_it(L_ERROR, "Can't save atom to file, code %d", ret);
+                pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+                return ATOM_REJECT;
+            } else if (a_chain->is_mapped) {
+                l_block = (dap_chain_block_t*)( l_cell->map_pos += sizeof(uint64_t) );  // Switching to mapped area
+                l_cell->map_pos += a_atom_size;
+            }
+            ret = ATOM_PASS;
+        }         
+        if ( !(l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, l_block_size,
+                                                         PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped)) )
+        {
+            log_it(L_DEBUG, "... corrupted block");
+            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+            return ATOM_REJECT;
+        }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
         HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
         ++PVT(l_blocks)->blocks_count;
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
+        s_add_atom_datums(l_blocks, l_block_cache);
+        dap_chain_atom_notify(l_cell, l_block, a_atom_size);
+        dap_chain_atom_add_from_threshold(a_chain);
         break;
+    }
     case ATOM_MOVE_TO_THRESHOLD:
         // TODO: reimplement and enable threshold for blocks
 /*      {
@@ -1547,8 +1567,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         break;
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-    if (ret == ATOM_ACCEPT)
-        s_add_atom_datums(l_blocks, l_block_cache);
     return ret;
 }
 
@@ -1779,7 +1797,7 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_at
         a_atom_iter->cur_item = l_blocks_pvt->blocks;
         break;
     case DAP_CHAIN_ITER_OP_LAST:
-        HASH_LAST(l_blocks_pvt->blocks, a_atom_iter->cur_item);
+        a_atom_iter->cur_item = HASH_LAST(l_blocks_pvt->blocks);
         break;
     case DAP_CHAIN_ITER_OP_NEXT:
         if (a_atom_iter->cur_item)
