@@ -240,7 +240,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
 
     l_net = dap_chain_net_by_id(a_chain->net_id);
 
-    if (!l_net->pub.decree)
+    if (!l_net || !l_net->pub.decree)
     {
         log_it(L_WARNING,"Decree is not inited!");
         return -108;

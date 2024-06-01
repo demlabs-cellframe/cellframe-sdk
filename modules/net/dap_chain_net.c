@@ -1789,6 +1789,30 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     DAP_DELETE(a_net);
 }
 
+#ifdef DAP_LEDGER_TEST
+int dap_chain_net_test_init()
+{
+    dap_chain_net_id_t l_iddn = {0};
+    sscanf("0xFA0", "0x%16"DAP_UINT64_FORMAT_x, &l_iddn.uint64);
+    dap_chain_net_t *l_net = s_net_new(&l_iddn, "Snet", "TestCoin", "root");
+    
+    
+    // l_net->pub.id.uint64 = l_iddn.uint64;
+    // l_net->pub.native_ticker = "TestCoin";
+    // l_net->pub.name = "Snet";
+
+    dap_chain_net_item_t *l_net_item = DAP_NEW_Z(dap_chain_net_item_t);
+    dap_strncpy(l_net_item->name, "Snet", DAP_CHAIN_NET_NAME_MAX);
+    l_net_item->chain_net = l_net;
+    l_net_item->net_id.uint64 = l_net->pub.id.uint64;
+
+    HASH_ADD(hh2, s_net_ids, net_id, sizeof(l_net_item->net_id), l_net_item);
+
+    return 0;
+}
+#endif
+
+
 /**
  * @brief load network config settings from cellframe-node.cfg file
  *
@@ -2078,7 +2102,6 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     dap_chain_net_decree_init(l_net);
 
     l_net->pub.config = l_cfg;
-
     return 0;
 }
 

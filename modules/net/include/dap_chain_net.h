@@ -91,6 +91,9 @@ typedef bool (dap_chain_datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_cha
 
 int dap_chain_net_init(void);
 void dap_chain_net_deinit(void);
+#ifdef DAP_LEDGER_TEST
+int dap_chain_net_test_init();
+#endif
 
 DAP_STATIC_INLINE uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net) { return g_node_addr.uint64; }
 
