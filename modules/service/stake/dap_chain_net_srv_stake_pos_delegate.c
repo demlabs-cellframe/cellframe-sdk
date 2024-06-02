@@ -77,19 +77,19 @@ static void s_stake_net_clear(dap_chain_net_t *a_net);
 
 static dap_chain_net_srv_stake_t *s_srv_stake_table = NULL;
 
-#define s_srv_stake_find_net(net_id) ({                                                 \
-    dap_chain_net_srv_stake_t *l_stake_rec = NULL;                                      \
-    HASH_FIND(hh, s_srv_stake_table, &net_id, sizeof(dap_chain_net_id_t), l_stake_rec); \
-    if (!l_stake_rec) {                                                                 \
-        log_it(L_ERROR, "[%s] Stake table for net id 0x%llX is not initialized",        \
-                        __PRETTY_FUNCTION__, net_id); }                                 \
-    l_stake_rec;                                                                        \
+#define s_srv_stake_find_net(net_id) ({                                                             \
+    dap_chain_net_srv_stake_t *l_stake_rec = NULL;                                                  \
+    HASH_FIND(hh, s_srv_stake_table, &net_id, sizeof(dap_chain_net_id_t), l_stake_rec);             \
+    if (!l_stake_rec) {                                                                             \
+        log_it(L_ERROR, "[%s] Stake table for net id 0x%"DAP_UINT64_FORMAT_X" is not initialized",  \
+                        __PRETTY_FUNCTION__, net_id.uint64); }                                      \
+    l_stake_rec;                                                                                    \
 })
 
 int dap_chain_net_srv_stake_add_net(dap_chain_net_id_t a_net_id) {
-    if ( s_srv_stake_find_net(a_net_id) )
+    if (s_srv_stake_find_net(a_net_id) )
         return 1;
-    log_it(L_INFO, "Adding stake table for net 0x%llX", a_net_id);
+    log_it(L_INFO, "Adding stake table for net 0x%"DAP_UINT64_FORMAT_X, a_net_id.uint64);
     dap_chain_net_srv_stake_t *l_stake_rec = DAP_NEW_Z(dap_chain_net_srv_stake_t);
     // TODO: move allowed_min to config?
     *l_stake_rec = (dap_chain_net_srv_stake_t) { .net_id = a_net_id, .delegate_allowed_min = dap_chain_coins_to_balance("1.0") };
@@ -184,7 +184,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
  */
 void s_stake_net_clear(dap_chain_net_t *a_net)
 {
-    log_it(L_INFO, "Clear stake table for net %llx", a_net->pub.id);
+    log_it(L_INFO, "Clear stake table for net %"DAP_UINT64_FORMAT_x, a_net->pub.id.uint64);
     dap_chain_net_srv_stake_t *l_stake_rec = NULL;
     HASH_FIND(hh, s_srv_stake_table, &a_net->pub.id, sizeof(dap_chain_net_id_t), l_stake_rec);
     if (l_stake_rec) {
@@ -350,7 +350,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_addr_t *a_signing_addr, dap_
     dap_return_if_fail(a_signing_addr && a_node_addr && a_stake_tx_hash);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_signing_addr->net_id);
     if (!l_net) {
-        log_it(L_ERROR, "Can't find net id 0x%llX", a_signing_addr->net_id);
+        log_it(L_ERROR, "Can't find net id 0x%"DAP_UINT64_FORMAT_X, a_signing_addr->net_id.uint64);
         return;
     }
     dap_chain_net_srv_stake_t *l_stake_rec = s_srv_stake_find_net(l_net->pub.id);
@@ -2001,7 +2001,8 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
 
     dap_chain_net_srv_stake_t *l_stake_rec = s_srv_stake_find_net(l_net->pub.id);
     if (!l_stake_rec) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Stake table for net id 0x%llX is not initialized", l_net->pub.id);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Stake table for net id 0x%"DAP_UINT64_FORMAT_X" is not initialized",
+                                          l_net->pub.id.uint64);
         return -16;
     }
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
@@ -2539,7 +2540,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **reply)
                 }
                 dap_chain_net_srv_stake_t *l_stake_rec = s_srv_stake_find_net(l_net->pub.id);
                 if (!l_stake_rec) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Stake table for net id 0x%llX is not initialized", l_net->pub.id);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Stake table for net id 0x%"DAP_UINT64_FORMAT_X" is "
+                                                                   "not initialized", l_net->pub.id.uint64);
                     return -5;
                 }
                 dap_chain_net_srv_stake_item_t *l_stake = NULL;

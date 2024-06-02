@@ -296,7 +296,7 @@ bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
 bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_net_srv_uid_t *uid, dap_chain_tx_tag_action_type_t *action);
 char * dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag);
-dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(char *str);
+dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *str);
 
 bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, 
                                 dap_chain_net_srv_uid_t *a_uid, char **a_service_name,  dap_chain_tx_tag_action_type_t *a_action);

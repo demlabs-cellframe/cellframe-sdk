@@ -7398,12 +7398,12 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
         } else
             l_net = dap_chain_net_by_id(l_addr->net_id);
     }
-    const char* l_sign_str = "";
+//    const char* l_sign_str = "";
     if (l_wallet_name) {
         const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
         dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path,NULL);
         if (l_wallet) {
-            l_sign_str = dap_chain_wallet_check_sign(l_wallet);
+//            l_sign_str = dap_chain_wallet_check_sign(l_wallet);
             dap_chain_addr_t *l_addr_tmp = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             if (l_addr) {
                 if (!dap_chain_addr_compare(l_addr, l_addr_tmp)) {
