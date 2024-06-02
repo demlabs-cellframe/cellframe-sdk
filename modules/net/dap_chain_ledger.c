@@ -5486,6 +5486,7 @@ static bool s_ledger_tps_callback(void *a_arg)
 
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash)
 {
+#ifndef DAP_LEDGER_TEST
     if (dap_chain_net_get_load_mode(a_ledger->net)) {
         if (PVT(a_ledger)->cache_tx_check_callback)
             PVT(a_ledger)->cache_tx_check_callback(a_ledger, a_tx_hash);
@@ -5503,6 +5504,7 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
         if (l_tx_item)
             return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
     }
+#endif
     return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false);
 }
 
