@@ -2846,7 +2846,8 @@ static int s_cli_esbocs(int a_argc, char ** a_argv, void **reply)
     const char *l_cert_str = NULL,
                *l_value_str = NULL;
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index,a_argc,a_argv,a_str_reply,&l_chain,&l_chain_net)) {
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index,a_argc,a_argv,a_str_reply,&l_chain,&l_chain_net,
+                                                      CHAIN_TYPE_INVALID)) {
         return -3;
     }
     const char *l_chain_type = dap_chain_net_get_type(l_chain);
