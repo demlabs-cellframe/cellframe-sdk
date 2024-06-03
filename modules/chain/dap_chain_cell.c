@@ -140,7 +140,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
 
     l_cell = DAP_NEW_Z(dap_chain_cell_t);
     *l_cell = (dap_chain_cell_t) {
-        .id             = a_cell_id.uint64,
+        .id             = a_cell_id,
         .map            = l_map,
         .map_pos        = l_map,
         .map_end        = l_map ? l_map + l_size : NULL,
