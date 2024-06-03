@@ -738,6 +738,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         l_objs[i].key = dap_chain_hash_fast_to_str_new(&l_tx_new_hash);
         l_objs[i].value = (uint8_t *)l_datum;
         l_objs[i].value_len = dap_chain_datum_size(l_datum);
+        l_objs[i].timestamp = dap_nanotime_now();
         log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
                l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
     }
@@ -766,7 +767,6 @@ static bool s_tx_create_massive_gdb_save_callback(dap_global_db_instance_t *a_db
                                                   const size_t a_values_total, const size_t a_values_count,
                                                   dap_global_db_obj_t *a_values, void *a_arg)
 {
-    DAP_DELETE(a_values);
     if(!a_rc) {
         log_it(L_NOTICE, "%zu transaction are placed in mempool", a_values_total);
         return true;
