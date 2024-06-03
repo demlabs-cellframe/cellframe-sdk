@@ -410,8 +410,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
             } else if(!dap_strcmp( l_order_str, "dump" )) {
                 // Select with specified service uid
                 if ( l_order_hash_str ){
-                    dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
-                    if (l_order) {
+                    dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );                    if (l_order) {
                         dap_chain_net_srv_order_dump_to_string(l_order,l_string_ret, l_hash_out_type, l_net->pub.native_ticker);
                         l_ret = 0;
                     }else{
@@ -446,6 +445,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                 }
             } else if (!dap_strcmp(l_order_str, "delete")) {
                 if (l_order_hash_str) {
+                    
                     l_ret = dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
                     if (!l_ret)
                         dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_str);
