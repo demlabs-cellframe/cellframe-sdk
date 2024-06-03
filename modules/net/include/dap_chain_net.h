@@ -201,6 +201,7 @@ int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
 void dap_chain_net_announce_addrs(dap_chain_net_t *a_net);
 char *dap_chain_net_links_dump(dap_chain_net_t*);
+struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t * l_net);
 
 enum dap_chain_net_json_rpc_error_list{
     DAP_CHAIN_NET_JSON_RPC_OK,

@@ -231,7 +231,6 @@ static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
 
 // State machine switchs here
 static bool s_net_states_proc(void *a_arg);
-json_object *s_net_states_json_collect(dap_chain_net_t * l_net);
 static void s_net_states_notify(dap_chain_net_t * l_net);
 static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg);
 //static void s_net_proc_kill( dap_chain_net_t * a_net );
@@ -464,7 +463,7 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
     log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
            NODE_ADDR_FP_ARGS_S(a_link->addr));
 
-    json_object *l_json = s_net_states_json_collect(l_net);
+    struct json_object *l_json = dap_chain_net_states_json_collect(l_net);
     char l_err_str[128] = { };
     snprintf(l_err_str, sizeof(l_err_str)
                  , "Established connection with link " NODE_ADDR_FP_STR
@@ -528,7 +527,7 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
     log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR,
            l_net ? l_net->pub.name : "(unknown)", NODE_ADDR_FP_ARGS_S(a_link->addr));
     if (l_net){
-        json_object *l_json = s_net_states_json_collect(l_net);
+        struct json_object *l_json = dap_chain_net_states_json_collect(l_net);
         char l_err_str[512] = { };
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
@@ -611,8 +610,7 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net) {
     return l_ret;
 }
 
-json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
-{
+struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t *a_net) {
     json_object *l_json = json_object_new_object();
     json_object_object_add(l_json, "class"            , json_object_new_string("NetStates"));
     json_object_object_add(l_json, "name"             , json_object_new_string((const char*)a_net->pub.name));
@@ -636,7 +634,7 @@ json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
  */
 static void s_net_states_notify(dap_chain_net_t *a_net)
 {
-    json_object *l_json = s_net_states_json_collect(a_net);
+    struct json_object *l_json = dap_chain_net_states_json_collect(a_net);
     json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
     dap_notify_server_send_mt(json_object_get_string(l_json));
     json_object_put(l_json);
@@ -672,7 +670,6 @@ static bool s_net_states_proc(void *a_arg)
         // Prepare links
         case NET_STATE_LINKS_PREPARE: {
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_PREPARE", l_net->pub.name);
-            s_net_states_notify(l_net);
         } break;
 
         case NET_STATE_LINKS_CONNECTING: {
