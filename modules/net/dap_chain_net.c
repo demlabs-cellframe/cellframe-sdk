@@ -612,7 +612,8 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
                                      l_args->atom, l_args->atom_size))
         debug_if(g_debug_reactor, L_ERROR, "Can't broadcast atom");
     DAP_DELETE(l_active_downs);
-    DAP_DELETE(l_args->atom);
+    if ( !dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ l_args->chain_id })->is_mapped )
+        DAP_DELETE(l_args->atom);
     DAP_DELETE(l_args);
     return true;
 }
@@ -640,11 +641,13 @@ static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain
         log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
-    l_args->net = l_net;
-    l_args->atom = DAP_DUP_SIZE(a_atom, a_atom_size);
-    l_args->atom_size = a_atom_size;
-    l_args->chain_id = a_chain->id.uint64;
-    l_args->cell_id = a_id.uint64;
+    *l_args = (struct net_broadcast_atoms_args) {
+        .atom       = a_chain->is_mapped ? a_atom : DAP_DUP_SIZE(a_atom, a_atom_size),
+        .atom_size  = a_atom_size,
+        .net        = l_net,
+        .chain_id   = a_chain->id.uint64,
+        .cell_id    = a_id.uint64
+    };
     dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_send_atoms, l_args);
 }
 
@@ -3575,11 +3578,11 @@ int s_net_load(dap_chain_net_t *a_net)
                 dap_chain_save_all(l_chain);
                 DAP_CHAIN_PVT(l_chain)->need_reorder = false;
                 if (l_chain->callback_purge) {
+                    dap_chain_net_decree_purge(l_net);
                     l_chain->callback_purge(l_chain);
                     dap_ledger_purge(l_net->pub.ledger, false);
                     l_net->pub.fee_value = uint256_0;
                     l_net->pub.fee_addr = c_dap_chain_addr_blank;
-                    dap_chain_net_decree_purge(l_net);
                     dap_chain_load_all(l_chain);
                 } else
                     log_it(L_WARNING, "No purge callback for chain %s, can't reload it with correct order", l_chain->name);
