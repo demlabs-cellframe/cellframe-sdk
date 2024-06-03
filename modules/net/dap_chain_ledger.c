@@ -584,7 +584,11 @@ static dap_ledger_t * dap_ledger_handle_new(void)
                                                                       (dap_timer_callback_t)s_threshold_txs_free, l_ledger);
     l_ledger_pvt->threshold_emissions_free_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
                                                                             (dap_timer_callback_t) s_threshold_emission_free, l_ledger);
+#ifdef DAP_OS_WINDOWS
+    l_ledger_pvt->mapped = false;
+#else
     l_ledger_pvt->mapped = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true);
+#endif
     return l_ledger;
 }
 
