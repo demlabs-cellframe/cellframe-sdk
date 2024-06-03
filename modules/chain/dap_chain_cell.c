@@ -290,7 +290,10 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     if (a_chain->is_mapped) {
         a_cell->map_pos = a_cell->map + sizeof(dap_chain_cell_file_header_t);
         for (uint64_t l_el_size = 0; a_cell->map_pos < a_cell->map_end && ( l_el_size = *(uint64_t*)a_cell->map_pos ); ++q, a_cell->map_pos += l_el_size) {
-            a_chain->callback_atom_add(a_chain, (dap_chain_atom_ptr_t)(a_cell->map_pos += sizeof(uint64_t)), l_el_size);
+            dap_hash_fast_t l_atom_hash = {};
+            dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos += sizeof(uint64_t));
+            dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
+            a_chain->callback_atom_add(a_chain, l_atom, l_el_size, &l_atom_hash);
         }
         fseek(a_cell->file_storage, a_cell->map_pos - a_cell->map, SEEK_SET);
     } else { 

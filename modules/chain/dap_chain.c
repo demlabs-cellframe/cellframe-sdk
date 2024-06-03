@@ -798,6 +798,10 @@ const char* dap_chain_get_path(dap_chain_t *a_chain)
 }
 
 void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size) {
+#ifdef DAP_CHAIN_BLOCKS_TEST
+    return;
+#endif
+
     if ( !a_chain_cell->chain->atom_notifiers )
         return;
     dap_list_t *l_iter;
