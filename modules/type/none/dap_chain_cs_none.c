@@ -333,7 +333,7 @@ static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t 
         dap_list_t *l_iter;
         DL_FOREACH(a_chain->atom_notifiers, l_iter) {
             dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
-            l_notifier->callback(l_notifier->arg, a_chain, (dap_chain_cell_id_t){ }, (void*)l_datum, l_datum_size);
+            l_notifier->callback(l_notifier->arg, a_chain, (dap_chain_cell_id_t){ }, &l_hash_item->datum_data_hash, (void*)l_datum, l_datum_size);
         }
     }
     return ATOM_ACCEPT;

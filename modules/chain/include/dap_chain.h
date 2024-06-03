@@ -111,7 +111,7 @@ typedef dap_chain_atom_ptr_t (*dap_chain_callback_block_find_by_hash_t)(dap_chai
 typedef dap_chain_atom_ptr_t * (*dap_chain_callback_atom_iter_get_atoms_t)(dap_chain_atom_iter_t * ,size_t* ,size_t**);
 typedef size_t (*dap_chain_callback_add_datums_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
 
-typedef void (*dap_chain_callback_notify_t)(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void *a_atom, size_t a_atom_size); //change in chain happened
+typedef void (*dap_chain_callback_notify_t)(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, dap_chain_hash_fast_t *a_atom_hash, void *a_atom, size_t a_atom_size); //change in chain happened
 
 typedef uint64_t (*dap_chain_callback_get_count)(dap_chain_t *a_chain);
 typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
@@ -139,7 +139,7 @@ typedef struct dap_chain {
     char *name;
     char *net_name;
     bool is_datum_pool_proc;
-
+    bool is_mapped;
     // Nested cells (hashtab by cell_id)
     dap_chain_cell_t *cells;
     dap_chain_cell_id_t active_cell_id;
@@ -151,6 +151,7 @@ typedef struct dap_chain {
     dap_chain_type_t *default_datum_types;
     uint16_t autoproc_datum_types_count;
     uint16_t *autoproc_datum_types;
+    uint64_t atom_num_last;
 
     // To hold it in double-linked lists
     struct dap_chain * next;
@@ -252,6 +253,8 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 
 void dap_chain_delete(dap_chain_t * a_chain);
 void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_notify_t a_callback, void * a_arg);
+void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size);
+void dap_chain_atom_add_from_threshold(dap_chain_t *a_chain);
 dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 bool dap_chain_get_atom_last_hash_num(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash, uint64_t *a_atom_num);
 DAP_STATIC_INLINE bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash)

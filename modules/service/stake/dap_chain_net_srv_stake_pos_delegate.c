@@ -155,7 +155,7 @@ int dap_chain_net_srv_stake_net_add(dap_chain_net_id_t a_net_id)
     l_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
     dap_list_t *l_list_new = dap_list_append(s_srv_stake_list, l_srv_stake);
     if (dap_list_last(l_list_new) == dap_list_last(s_srv_stake_list)) {
-        log_it(L_ERROR, "Can't add net %" DAP_UINT64_FORMAT_x "to stake service net list", a_net_id.uint64);
+        log_it(L_ERROR, "Can't add net %" DAP_UINT64_FORMAT_X " to stake service net list", a_net_id.uint64);
         DAP_DELETE(l_srv_stake);
         return -2;
     }

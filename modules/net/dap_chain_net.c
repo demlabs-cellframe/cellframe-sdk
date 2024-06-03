@@ -231,7 +231,7 @@ static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
 
 // State machine switchs here
 static bool s_net_states_proc(void *a_arg);
-struct json_object *s_net_states_json_collect(dap_chain_net_t * l_net);
+json_object *s_net_states_json_collect(dap_chain_net_t * l_net);
 static void s_net_states_notify(dap_chain_net_t * l_net);
 static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg);
 //static void s_net_proc_kill( dap_chain_net_t * a_net );
@@ -464,7 +464,7 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
     log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
            NODE_ADDR_FP_ARGS_S(a_link->addr));
 
-    struct json_object *l_json = s_net_states_json_collect(l_net);
+    json_object *l_json = s_net_states_json_collect(l_net);
     char l_err_str[128] = { };
     snprintf(l_err_str, sizeof(l_err_str)
                  , "Established connection with link " NODE_ADDR_FP_STR
@@ -528,7 +528,7 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
     log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR,
            l_net ? l_net->pub.name : "(unknown)", NODE_ADDR_FP_ARGS_S(a_link->addr));
     if (l_net){
-        struct json_object *l_json = s_net_states_json_collect(l_net);
+        json_object *l_json = s_net_states_json_collect(l_net);
         char l_err_str[512] = { };
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
@@ -583,9 +583,37 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
     return 0;
 }
 
-struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
+json_object *s_net_sync_status(dap_chain_net_t *a_net) {
+// sanity check
+    dap_return_val_if_pass(!a_net, NULL);
+// func work
+    json_object *l_ret = json_object_new_object();
+    size_t
+        l_count_el = 0,
+        l_count_el_all = 0,
+        l_node_link_nodes = 0;
+    char *l_gdb_nodes = a_net->pub.gdb_nodes;
+
+    dap_chain_t *l_chain = NULL;
+    DL_FOREACH(a_net->pub.chains, l_chain){
+        l_count_el += l_chain->callback_count_atom(l_chain);
+        l_count_el_all += l_chain->atom_num_last;
+    }
+    double l_percent = l_count_el_all ? (double)(l_count_el * 100) / l_count_el_all : 0;
+    char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
+    json_object *l_jobj_percent = json_object_new_string(l_percent_str);
+    DAP_DELETE(l_percent_str);
+    json_object *l_jobj_total = json_object_new_uint64(l_count_el_all);
+    json_object *l_jobj_current  = json_object_new_uint64(l_count_el);
+    json_object_object_add(l_ret, "current", l_jobj_current);
+    json_object_object_add(l_ret, "total", l_jobj_total);
+    json_object_object_add(l_ret, "percent", l_jobj_percent);
+    return l_ret;
+}
+
+json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
 {
-    struct json_object *l_json = json_object_new_object();
+    json_object *l_json = json_object_new_object();
     json_object_object_add(l_json, "class"            , json_object_new_string("NetStates"));
     json_object_object_add(l_json, "name"             , json_object_new_string((const char*)a_net->pub.name));
     json_object_object_add(l_json, "networkState"     , json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state)));
@@ -595,6 +623,10 @@ struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
     char l_node_addr_str[24] = {'\0'};
     int l_tmp = snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(g_node_addr));
     json_object_object_add(l_json, "nodeAddress"     , json_object_new_string(l_tmp ? l_node_addr_str : "0000::0000::0000::0000"));
+    if (PVT(a_net)->state == NET_STATE_SYNC_CHAINS) {
+        json_object *l_json_sync_status = s_net_sync_status(a_net);
+        json_object_object_add(l_json, "processed", l_json_sync_status);
+    }
     return l_json;
 }
 
@@ -604,7 +636,7 @@ struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
  */
 static void s_net_states_notify(dap_chain_net_t *a_net)
 {
-    struct json_object *l_json = s_net_states_json_collect(a_net);
+    json_object *l_json = s_net_states_json_collect(a_net);
     json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
     dap_notify_server_send_mt(json_object_get_string(l_json));
     json_object_put(l_json);
@@ -795,20 +827,24 @@ json_object* s_set_reply_text_node_status_json(dap_chain_net_t *a_net) {
     json_object_object_add(l_jobj_ret, "current_addr", l_jobj_cur_node_addr);
     if (PVT(a_net)->state != NET_STATE_OFFLINE) {
         json_object *l_jobj_links = json_object_new_object();
-        json_object *l_jobj_active_links = json_object_new_uint64(0 /*HASH_COUNT(PVT(a_net)->net_links)*/);  // need adopt to link manager
-        json_object *l_jobj_total_links = json_object_new_uint64(0 /*HASH_COUNT(PVT(a_net)->net_links)*/);
-        if (!l_jobj_links || !l_jobj_active_links || !l_jobj_total_links) {
+        json_object *l_jobj_active_links = json_object_new_uint64(dap_link_manager_links_count(a_net->pub.id.uint64));
+        json_object *l_jobj_required_links = json_object_new_uint64(dap_link_manager_required_links_count(a_net->pub.id.uint64));
+        if (!l_jobj_links || !l_jobj_active_links || !l_jobj_required_links) {
             json_object_put(l_jobj_ret);
             json_object_put(l_jobj_links);
             json_object_put(l_jobj_active_links);
-            json_object_put(l_jobj_total_links);
+            json_object_put(l_jobj_required_links);
             dap_json_rpc_allocation_error;
             return NULL;
         }
         json_object_object_add(l_jobj_links, "active", l_jobj_active_links);
-        json_object_object_add(l_jobj_links, "total", l_jobj_total_links);
+        json_object_object_add(l_jobj_links, "required", l_jobj_required_links);
         json_object_object_add(l_jobj_ret, "links", l_jobj_links);
     }
+
+    json_object *l_json_sync_status = s_net_sync_status(a_net);
+    json_object_object_add(l_jobj_ret, "processed", l_json_sync_status);
+
     json_object *l_jobj_states = json_object_new_object();
     json_object *l_jobj_current_states = json_object_new_string(c_net_states[PVT(a_net)->state]);
     json_object *l_jobj_target_states = json_object_new_string(c_net_states[PVT(a_net)->state_target]);
@@ -853,7 +889,6 @@ void dap_chain_net_purge(dap_chain_net_t *l_net)
 {
     dap_ledger_purge(l_net->pub.ledger, false);
     dap_chain_net_srv_stake_purge(l_net);
-    dap_chain_net_decree_purge(l_net);
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_purge)
@@ -862,6 +897,7 @@ void dap_chain_net_purge(dap_chain_net_t *l_net)
             dap_chain_esbocs_set_min_validators_count(l_chain, 0);
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
+        dap_chain_net_decree_purge(l_net);
         dap_chain_load_all(l_chain);
     }
     DL_FOREACH(l_net->pub.chains, l_chain) {
@@ -1404,12 +1440,18 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 if (!l_jobj_net_name || !l_jobj_id) {
                     json_object_put(l_jobj_net_name);
                     json_object_put(l_jobj_id);
+                    json_object_put(l_jobj_return);
                     dap_json_rpc_allocation_error;
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 json_object_object_add(l_jobj_return, "network", l_jobj_net_name);
                 json_object_object_add(l_jobj_return, "id", l_jobj_id);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
+            } else {
+                json_object_put(l_jobj_return);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS,
+                                       "Unknown \"%s\" subcommand, net get commands.", l_get_str);
+                return DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS;
             }
         } else if ( l_links_str ){
             if ( strcmp(l_links_str,"list") == 0 ) {
@@ -2157,7 +2199,7 @@ bool s_net_load(void *a_arg)
             dap_chain_save_all( l_chain );
             log_it (L_NOTICE, "Initialized chain files");
         }
-
+        l_chain->atom_num_last = l_chain->callback_count_atom(l_chain);
         l_chain = l_chain->next;
     }
     // Process thresholds if any
