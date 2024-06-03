@@ -264,6 +264,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         return -1;
     }
     int l_ret = 0;
+    uint64_t l_full_size = 0;
     dap_chain_cell_file_header_t *l_hdr = NULL;
     if (a_chain->is_mapped) {
         l_hdr = (dap_chain_cell_file_header_t*)a_cell->map;
@@ -275,6 +276,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             DAP_DELETE(l_hdr);
             return -2;
         }
+        l_full_size += sizeof(dap_chain_cell_file_header_t);
     }
     if (l_hdr->signature != DAP_CHAIN_CELL_FILE_SIGNATURE) {
         log_it(L_ERROR, "Wrong signature in chain \"%s\", possible file corrupt", a_cell->file_storage_path);
@@ -289,7 +291,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         return -4;
     }
 
-    uint64_t q = 0, l_full_size = 0;
+    uint64_t q = 0;
     if (a_chain->is_mapped) {
         a_cell->map_pos = a_cell->map + sizeof(dap_chain_cell_file_header_t);
         for (uint64_t l_el_size = 0; a_cell->map_pos < a_cell->map_end && ( l_el_size = *(uint64_t*)a_cell->map_pos ); ++q, a_cell->map_pos += l_el_size) {
@@ -340,7 +342,7 @@ static int s_file_write_header(dap_chain_cell_t *a_cell)
         return -2;
     } else {
         fseek(a_cell->file_storage, 0L, SEEK_END);
-        if (ftell(a_cell->file_storage) > (ssize_t)sizeof(dap_chain_cell_file_header_t)) {
+        if (ftell(a_cell->file_storage) >= (ssize_t)sizeof(dap_chain_cell_file_header_t)) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" is already not empty!",
                    a_cell->file_storage_path, a_cell->id.uint64);
             return -3;
