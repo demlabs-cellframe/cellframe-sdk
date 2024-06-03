@@ -366,6 +366,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
                 "exit\n" );
+    dap_notify_srv_set_callback_new(dap_notify_new_client_send_info);
     return 0;
 }
 

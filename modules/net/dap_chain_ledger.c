@@ -372,7 +372,6 @@ static bool s_debug_more = true;
 static size_t s_threshold_free_timer_tick = 900000; // 900000 ms = 15 minutes.
 
 struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t* a_bal);
-
 //add a service declaration for tx tagging and more
 static bool s_tag_check_block_reward(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
@@ -586,7 +585,11 @@ static dap_ledger_t * dap_ledger_handle_new(void)
                                                                       (dap_timer_callback_t)s_threshold_txs_free, l_ledger);
     l_ledger_pvt->threshold_emissions_free_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
                                                                             (dap_timer_callback_t) s_threshold_emission_free, l_ledger);
+#ifdef DAP_OS_WINDOWS
+    l_ledger_pvt->mapped = false;
+#else                                                                            
     l_ledger_pvt->mapped = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true);
+#endif
     return l_ledger;
 }
 
@@ -4758,9 +4761,11 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
         DAP_DELETE(l_gdb_group);
     }
     /* Notify the world*/
-    struct json_object *l_json = wallet_info_json_collect(a_ledger, a_balance);
-    dap_notify_server_send_mt(json_object_get_string(l_json));
-    json_object_put(l_json);
+    if ( !dap_chain_net_get_load_mode(a_ledger->net) ) {
+        struct json_object *l_json = wallet_info_json_collect(a_ledger, a_balance);
+        dap_notify_server_send_mt(json_object_get_string(l_json));
+        json_object_put(l_json);
+    }
     return 0;
 }
 
