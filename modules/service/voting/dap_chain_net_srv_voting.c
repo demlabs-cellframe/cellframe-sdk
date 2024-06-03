@@ -95,6 +95,7 @@ static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_has
 /// -1 error, 0 - unspent, 1 - spent
 static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_fast_t a_voting_hash, dap_hash_fast_t a_tx_prev_hash, int a_out_idx);
 static bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, bool a_apply);
+static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in);
 static int s_cli_voting(int argc, char **argv, void **a_str_reply);
 
 static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
@@ -117,7 +118,7 @@ static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_t
 int dap_chain_net_srv_voting_init()
 {
     pthread_rwlock_init(&s_votings_rwlock, NULL);
-    dap_chain_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback);
+    dap_chain_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback, s_datum_tx_voting_verification_delete_callback);
     dap_cli_server_cmd_add("voting", s_cli_voting, "Voting commands.", ""
                             "voting create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <voting_expire_time_in_RCF822>] [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value_datoshi> -w <fee_wallet_name>\n"
                             "voting vote -net <net_name> -hash <voting_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value_datoshi> -w <fee_wallet_name>\n"
@@ -490,6 +491,76 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
     }
 
     return false;
+}
+
+static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in)
+{
+    dap_hash_fast_t l_hash = {};
+    dap_hash_fast(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in), &l_hash);
+
+    if (a_type == TX_ITEM_TYPE_VOTING){
+        dap_chain_net_votings_t * l_voting = NULL;
+        pthread_rwlock_wrlock(&s_votings_rwlock);
+        HASH_FIND(hh, s_votings, &l_hash, sizeof(dap_hash_fast_t), l_voting);
+        if(!l_voting){
+            char* l_hash_str = dap_hash_fast_to_str_new(&l_hash);
+            log_it(L_ERROR, "Can't find voting with hash %s in net %s", l_hash_str, a_ledger->net->pub.name);
+            DAP_DEL_Z(l_hash_str);
+            pthread_rwlock_unlock(&s_votings_rwlock);
+            return false;
+        }
+        HASH_DEL(s_votings, l_voting);
+        pthread_rwlock_unlock(&s_votings_rwlock);
+
+        if (l_voting->voting_params.option_offsets_list)
+            dap_list_free_full(l_voting->voting_params.option_offsets_list, NULL);
+
+        if(l_voting->votes)
+            dap_list_free_full(l_voting->votes, NULL);
+
+        dap_chain_net_voting_cond_outs_t *l_el = NULL, *l_tmp = NULL;
+        if(l_voting->voting_spent_cond_outs && l_voting->voting_spent_cond_outs->hh.tbl->num_items){
+            HASH_ITER(hh, l_voting->voting_spent_cond_outs, l_el, l_tmp){
+                if (l_el){
+                    HASH_DEL(l_voting->voting_spent_cond_outs, l_el);
+                    DAP_DELETE(l_el);
+                }
+            }
+        }
+
+        DAP_DELETE(l_voting);
+
+        return true;
+    } else if (a_type == TX_ITEM_TYPE_VOTE){
+        dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_VOTE, NULL);
+        if(!l_vote_tx_item){
+            log_it(L_ERROR, "Can't find vote item");
+            return false;
+        }
+
+        dap_chain_net_votings_t * l_voting = NULL;
+        pthread_rwlock_wrlock(&s_votings_rwlock);
+        HASH_FIND(hh, s_votings, &l_vote_tx_item->voting_hash, sizeof(dap_hash_fast_t), l_voting);
+        pthread_rwlock_unlock(&s_votings_rwlock);
+        if(!l_voting || l_voting->net_id.uint64 != a_ledger->net->pub.id.uint64) {
+            char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
+            log_it(L_ERROR, "Can't find voting with hash %s in net %s", l_hash_str, a_ledger->net->pub.name);
+            DAP_DELETE(l_hash_str);
+            return false;
+        }
+
+        dap_list_t *l_vote = l_voting->votes;
+        while(l_vote){
+            if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)l_vote->data)->vote_hash, &l_hash)){
+                // Delete vote
+                l_voting->votes = dap_list_remove(l_voting->votes, l_vote->data);
+                break;
+            }
+            l_vote = l_vote->next;
+        }
+    }
+
+    return true;
 }
 
 static dap_list_t* s_get_options_list_from_str(const char* a_str)

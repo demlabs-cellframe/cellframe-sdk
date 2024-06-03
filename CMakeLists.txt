@@ -52,6 +52,7 @@ endif(NOT DAP_INT128_SUPPORT)
 if (BUILD_CELLFRAME_SDK_TESTS)
     enable_testing()
     add_definitions("-DDAP_LEDGER_TEST")
+    add_definitions("-DDAP_CHAIN_BLOCKS_TEST")
 endif()
 
 if (BUILD_WITH_ZIP)
