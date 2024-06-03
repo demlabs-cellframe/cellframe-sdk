@@ -6304,14 +6304,19 @@ const char *dap_ledger_tx_calculate_main_ticker(dap_ledger_t *a_ledger, dap_chai
 static void s_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void *a_arg) {
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
         struct json_object *l_json_net_states = dap_chain_net_states_json_collect(l_net);
-        dap_events_socket_write_unsafe(a_es, json_object_get_string(l_json_net_states), json_object_get_string_len(l_json_net_states));
+        size_t l_len = 0;
+        const char *l_json_str = json_object_to_json_string_length(l_json_net_states, JSON_C_TO_STRING_SPACED, &l_len);
+        dap_events_socket_write_mt(a_es->worker, a_es->uuid, l_json_str, l_len);
+        //dap_events_socket_write_unsafe(a_es, l_json_str, l_len);
         json_object_put(l_json_net_states);
         dap_ledger_private_t *l_ledger_pvt = PVT(l_net->pub.ledger);
         pthread_rwlock_rdlock(&l_ledger_pvt->balance_accounts_rwlock);
         dap_ledger_wallet_balance_t *wallet_balance = NULL, *tmp = NULL;
         HASH_ITER(hh, l_ledger_pvt->balance_accounts, wallet_balance, tmp) {
             struct json_object *l_json = wallet_info_json_collect(l_net->pub.ledger, wallet_balance);
-            dap_events_socket_write_unsafe(a_es, json_object_get_string(l_json), json_object_get_string_len(l_json));
+            l_json_str = json_object_to_json_string_length(l_json, JSON_C_TO_STRING_SPACED, &l_len);
+            //dap_events_socket_write_unsafe(a_es, l_json_str, l_len);
+            dap_events_socket_write_mt(a_es->worker, a_es->uuid, l_json_str, l_len);
             json_object_put(l_json);
         }
         pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
