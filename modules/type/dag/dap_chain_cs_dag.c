@@ -64,6 +64,7 @@ typedef struct dap_chain_cs_dag_event_item {
     dap_chain_cs_dag_event_t *event;
     size_t event_size;
     int ret_code;
+    char *mapped_region;
     UT_hash_handle hh, hh_select, hh_datums;
 } dap_chain_cs_dag_event_item_t;
 
@@ -359,7 +360,8 @@ static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag) {
             l_el->hash = l_current->hash;
             HASH_ADD(hh, l_pvt->removed_events_from_treshold, hash, sizeof(dap_chain_hash_fast_t), l_el);
             char *l_hash_dag = dap_hash_fast_to_str_new(&l_current->hash);
-            DAP_DELETE(l_current->event);
+            if (!l_current->mapped_region)
+                DAP_DELETE(l_current->event);
             HASH_DEL(l_pvt->events_treshold, l_current);
             DAP_DELETE(l_current);
             log_it(L_NOTICE, "Removed DAG event with %s hash from trashold.", l_hash_dag);
@@ -370,7 +372,8 @@ static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag) {
     HASH_ITER(hh, l_pvt->events_treshold_conflicted, l_current, l_tmp) {
         if (l_current->ts_added < l_time_cut_off) {
             char *l_hash_dag = dap_hash_fast_to_str_new(&l_current->hash);
-            DAP_DELETE(l_current->event);
+            if (!l_current->mapped_region)
+                DAP_DELETE(l_current->event);
             HASH_DEL(l_pvt->events_treshold_conflicted, l_current);
             DAP_DELETE(l_current);
             log_it(L_NOTICE, "Removed DAG event with %s hash from trashold.", l_hash_dag);
@@ -386,21 +389,28 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
     pthread_mutex_lock(&l_dag_pvt->events_mutex);
     HASH_CLEAR(hh_datums, l_dag_pvt->datums);
     dap_chain_cs_dag_event_item_t *l_event_current, *l_event_tmp;
-    // Clang bug at this, l_event_current should change at every loop cycle
     HASH_ITER(hh, l_dag_pvt->events, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events, l_event_current);
+        if (!a_chain->is_mapped && !l_event_current->mapped_region)
+            DAP_DELETE(l_event_current->event);
         DAP_DELETE(l_event_current);
     }
     HASH_ITER(hh, l_dag_pvt->events_lasts_unlinked, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events_lasts_unlinked, l_event_current);
+        if (!a_chain->is_mapped && !l_event_current->mapped_region)
+            DAP_DELETE(l_event_current->event);
         DAP_DELETE(l_event_current);
     }
     HASH_ITER(hh, l_dag_pvt->events_treshold, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events_treshold, l_event_current);
+        if (!a_chain->is_mapped && !l_event_current->mapped_region)
+            DAP_DELETE(l_event_current->event);
         DAP_DELETE(l_event_current);
     }
     HASH_ITER(hh, l_dag_pvt->events_treshold_conflicted, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events_treshold_conflicted, l_event_current);
+        if (!a_chain->is_mapped && !l_event_current->mapped_region)
+            DAP_DELETE(l_event_current->event);
         DAP_DELETE(l_event_current);
     }
     pthread_mutex_unlock(&l_dag_pvt->events_mutex);
@@ -491,57 +501,57 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
 {
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
-
-    dap_chain_cs_dag_event_item_t * l_event_item = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
-    if (!l_event_item) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return ATOM_REJECT;
-    }
-    pthread_mutex_t *l_events_mutex = &PVT(l_dag)->events_mutex;
-    l_event_item->event = l_event;
-    l_event_item->event_size = a_atom_size;
-    l_event_item->ts_added = dap_time_now();
-
     dap_chain_hash_fast_t l_event_hash;
     dap_chain_cs_dag_event_calc_hash(l_event, a_atom_size, &l_event_hash);
-    l_event_item->hash = l_event_hash;
-
+    pthread_mutex_t *l_events_mutex = &PVT(l_dag)->events_mutex;
+    
     if(s_debug_more) {
         char l_event_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
-        dap_chain_hash_fast_to_str(&l_event_item->hash, l_event_hash_str, sizeof(l_event_hash_str));
-        log_it(L_DEBUG, "Processing event: %s ... (size %zd)", l_event_hash_str,a_atom_size);
+        dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_str, sizeof(l_event_hash_str));
+        log_it(L_DEBUG, "Processing event: %s ... (size %zd)", l_event_hash_str, a_atom_size);
     }
 
     pthread_mutex_lock(l_events_mutex);
     // check if we already have this event
-    dap_chain_atom_verify_res_t ret = s_dap_chain_check_if_event_is_present(PVT(l_dag)->events, &l_event_item->hash) ||
-            s_dap_chain_check_if_event_is_present(PVT(l_dag)->events_treshold, &l_event_item->hash) ? ATOM_PASS : ATOM_ACCEPT;
+    dap_chain_atom_verify_res_t ret = s_dap_chain_check_if_event_is_present(PVT(l_dag)->events, &l_event_hash) ||
+            s_dap_chain_check_if_event_is_present(PVT(l_dag)->events_treshold, &l_event_hash) ? ATOM_PASS : ATOM_ACCEPT;
 
     // verify hashes and consensus
     switch (ret) {
     case ATOM_ACCEPT:
         ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size);
         if (ret == ATOM_MOVE_TO_THRESHOLD) {
-            if (!s_threshold_enabled && !dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id)))
+            if ( !s_threshold_enabled /*&& !dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id))*/ )
                 ret = ATOM_REJECT;
         }
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: %s", a_atom, dap_chain_atom_verify_res_str[ret]);
         break;
     case ATOM_PASS:
         debug_if(s_debug_more, L_DEBUG, "Atom already present");
-        DAP_DELETE(l_event_item);
         pthread_mutex_unlock(l_events_mutex);
         return ret;
     default:
         break;
     }
-
+    dap_chain_cs_dag_event_item_t *l_event_item = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
+    if (!l_event_item) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        ret = ATOM_REJECT;
+    }
+    *l_event_item = (dap_chain_cs_dag_event_item_t) {
+        .hash       = l_event_hash,
+        .ts_added   = dap_time_now(),
+        .event      = l_event,
+        .event_size = a_atom_size
+    };
     switch (ret) {
     case ATOM_MOVE_TO_THRESHOLD: {
         dap_chain_cs_dag_blocked_t *el = NULL;
-        HASH_FIND(hh, PVT(l_dag)->removed_events_from_treshold, &l_event_item->hash, sizeof(dap_chain_hash_fast_t), el);
+        HASH_FIND(hh, PVT(l_dag)->removed_events_from_treshold, &l_event_hash, sizeof(dap_chain_hash_fast_t), el);
         if (!el) {
-            HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_item->hash), l_event_item);
+            if ( a_chain->is_mapped && dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id)) )
+                l_event_item->mapped_region = (char*)l_event;
+            HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_hash), l_event_item);
             debug_if(s_debug_more, L_DEBUG, "... added to threshold");
         } else {
             ret = ATOM_REJECT;
@@ -550,6 +560,17 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         break;
     }
     case ATOM_ACCEPT: {
+        if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
+            if ( dap_chain_atom_save(a_chain, a_atom, a_atom_size, l_event->header.cell_id) < 0 ) {
+                log_it(L_ERROR, "Can't save atom to file");
+                ret = ATOM_REJECT;
+                break;
+            } else if (a_chain->is_mapped) {
+                dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_event->header.cell_id);
+                l_event_item->event = (dap_chain_cs_dag_event_t*)( l_cell->map_pos += sizeof(uint64_t) );
+                l_cell->map_pos += a_atom_size;
+            }
+        }
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, l_event_item);
         switch (l_consensus_check) {
         case 0:
@@ -580,7 +601,21 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
         else
             HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
+
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
+        if (a_chain->atom_notifiers) {
+            dap_list_t *l_iter;
+            DL_FOREACH(a_chain->atom_notifiers, l_iter) {
+                dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
+                l_notifier->callback(l_notifier->arg, a_chain, l_event->header.cell_id, l_event, a_atom_size);
+            }
+        }
+        if (a_chain->callback_atom_add_from_treshold) {
+            size_t l_atom_treshold_size = 0;
+            while ( a_chain->callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size) ) {
+                log_it(L_DEBUG, "Added atom with size %lu from threshold", l_atom_treshold_size);
+            }
+        }
     } break;
     default:
         DAP_DELETE(l_event_item); // Neither added, nor freed
@@ -724,11 +759,18 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         dap_chain_atom_verify_res_t l_verify_res;
         switch (l_verify_res = s_chain_callback_atom_add(a_chain, l_event, l_event_size)) {
         case ATOM_ACCEPT:
-            return dap_chain_atom_save(a_chain, (uint8_t *)l_event, l_event_size, a_chain->cells->id) > 0;
+            if ( !a_chain->is_mapped )
+                l_event = NULL;
+            break;
+        case ATOM_MOVE_TO_THRESHOLD:
+            l_event = NULL;
+            log_it(L_ERROR, "Event thresholded");
+            break;
         default:
             log_it(L_ERROR, "Can't add new event to the file, atom verification result %d", l_verify_res);
-            return false;
         }
+        DAP_DELETE(l_event);
+        return l_verify_res == ATOM_ACCEPT;
     }
 
     dap_global_db_set_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY,
@@ -997,6 +1039,17 @@ dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
                 log_it(L_DEBUG, "Processing event (threshold): %s...", l_event_hash_str);
                 DAP_DELETE(l_event_hash_str);
             }
+            if ( !l_event_item->mapped_region ) {
+                if ( dap_chain_atom_save(a_dag->chain, (const byte_t*)l_event_item->event, l_event_item->event_size, l_event_item->event->header.cell_id) < 0 ) {
+                    log_it(L_CRITICAL, "Can't move atom from threshold to file");
+                    res = false;
+                    break;
+                } else if (a_dag->chain->is_mapped) {
+                    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_dag->chain, l_event_item->event->header.cell_id);
+                    l_event_item->event = (dap_chain_cs_dag_event_t*)( l_cell->map_pos += sizeof(uint64_t) );
+                    l_cell->map_pos += l_event_item->event_size;
+                }
+            }
             int l_add_res = s_dap_chain_add_atom_to_events_table(a_dag, l_event_item);
             HASH_DEL(PVT(a_dag)->events_treshold, l_event_item);
             if (!l_add_res) {
@@ -1007,9 +1060,18 @@ dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
             } else {
                 // TODO clear other threshold items linked with this one
                 debug_if(s_debug_more, L_WARNING, "... rejected with ledger code %d", l_add_res);
-                DAP_DELETE(l_event_item->event);
+                if (!l_event_item->mapped_region)
+                    DAP_DELETE(l_event_item->event);
                 DAP_DELETE(l_event_item);
             }
+            if (a_dag->chain->atom_notifiers) {
+                dap_list_t *l_iter;
+                DL_FOREACH(a_dag->chain->atom_notifiers, l_iter) {
+                    dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
+                    l_notifier->callback(l_notifier->arg, a_dag->chain, l_event_item->event->header.cell_id,
+                                         l_event_item->event, l_event_item->event_size);
+                }
+        }
             break;
         } else if (ret == DAP_THRESHOLD_CONFLICTING) {
             HASH_DEL(PVT(a_dag)->events_treshold, l_event_item);
