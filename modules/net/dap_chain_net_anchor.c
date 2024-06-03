@@ -36,6 +36,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_decree.h"
 #include "dap_chain_datum_anchor.h"
+#include "dap_chain_cs_esbocs.h"
 
 #define LOG_TAG "chain_net_anchor"
 

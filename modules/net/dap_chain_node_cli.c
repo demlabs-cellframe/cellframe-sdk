@@ -29,11 +29,9 @@
 #include <assert.h>
 //#include <glib.h>
 #include <unistd.h>
-
-
 #include <pthread.h>
-
 #include "iputils/iputils.h"
+
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_strfuncs.h"
@@ -44,8 +42,7 @@
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_cli_server.h"
 #include "dap_chain_node_cli.h"
-
-//#include "dap_chain_node_cli.h"
+#include "dap_notify_srv.h"
 
 #define LOG_TAG "chain_node_cli"
 static bool s_debug_cli = false;
