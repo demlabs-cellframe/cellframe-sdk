@@ -387,12 +387,10 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
         for (uint16_t i = 0; i < PVT(a_net)->permanent_links_count; ++i) {
             dap_link_info_t *l_permalink_info = PVT(a_net)->permanent_links[i];
-            if (dap_link_manager_link_create(&l_permalink_info->node_addr, a_net->pub.id.uint64)) {
+            if (dap_chain_net_link_add(a_net, &l_permalink_info->node_addr, l_permalink_info->uplink_addr, l_permalink_info->uplink_port)) {
                 log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_permalink_info->node_addr));
                 continue;
             }
-            if (l_permalink_info->uplink_port)
-                dap_link_manager_link_update(&l_permalink_info->node_addr, l_permalink_info->uplink_addr, l_permalink_info->uplink_port);
         }
         if (a_new_state == NET_STATE_ONLINE)
             dap_chain_esbocs_start_timer(a_net->pub.id);
@@ -400,10 +398,9 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
     return dap_proc_thread_callback_add(NULL, s_net_states_proc, a_net);
 }
 
-dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
+DAP_INLINE dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
 {
-    dap_chain_net_state_t l_ret = PVT(a_net)->state_target;
-    return l_ret;
+    return PVT(a_net)->state_target;
 }
 
 static struct request_link_info *s_balancer_link_from_cfg(dap_chain_net_t *a_net)
@@ -1926,7 +1923,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
             return -4;
         }
         if (dap_stream_node_addr_from_str(&l_net_pvt->permanent_links[i]->node_addr, l_permanent_nodes_addrs[i])) {
-            log_it(L_ERROR, "Incorrect format of address \"%s\", fix net config and restart node", l_permanent_nodes_addrs[i]);
+            log_it(L_ERROR, "Incorrect format of node address \"%s\", fix net config and restart node", l_permanent_nodes_addrs[i]);
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
             return -16;
@@ -1938,7 +1935,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         uint16_t l_port = 0;
         char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
         if (dap_net_parse_hostname(l_permanent_links_hosts[i], l_host, &l_port) || !l_port) {
-            log_it(L_ERROR, "Incorrect format of address \"%s\", fix net config and restart node",
+            log_it(L_ERROR, "Incorrect format of host \"%s\", fix net config or recheck internet connection, and restart node",
                             l_permanent_links_hosts[i]);
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
@@ -1956,7 +1953,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     for (uint16_t i = 0; i < l_net_pvt->authorized_nodes_count; ++i) {
         dap_chain_node_addr_t l_addr;
         if (dap_stream_node_addr_from_str(&l_addr, l_authorized_nodes_addrs[i])) {
-            log_it(L_ERROR, "Incorrect format of address \"%s\", fix net config and restart node", l_authorized_nodes_addrs[i]);
+            log_it(L_ERROR, "Incorrect format of node address \"%s\", fix net config and restart node", l_authorized_nodes_addrs[i]);
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
             return -17;
@@ -1978,7 +1975,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         uint16_t l_port = 0;
         char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
         if (dap_net_parse_hostname(l_seed_nodes_hosts[i], l_host, &l_port) || !l_port) {
-            log_it(L_ERROR, "Incorrect format of address \"%s\", fix net config and restart node",
+            log_it(L_ERROR, "Incorrect format of host \"%s\", fix net config or recheck internet connection, and restart node",
                             l_seed_nodes_hosts[i]);
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
