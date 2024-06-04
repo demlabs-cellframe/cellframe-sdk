@@ -129,7 +129,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
             pthread_rwlock_unlock(&a_chain->cell_rwlock);
             return NULL;
         }
-        if ( MAP_FAILED == (l_map = mmap(NULL, l_size = dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT), PROT_READ|PROT_WRITE, MAP_PRIVATE, fileno(l_file), 0)) ) {
+        if ( a_chain->is_mapped && MAP_FAILED == (l_map = mmap(NULL, l_size = dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT), PROT_READ|PROT_WRITE, MAP_PRIVATE, fileno(l_file), 0)) ) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be mapped, error %d",
                             file_storage_path, a_cell_id.uint64, errno);
             fclose(l_file);
@@ -140,7 +140,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
 
     l_cell = DAP_NEW_Z(dap_chain_cell_t);
     *l_cell = (dap_chain_cell_t) {
-        .id             = a_cell_id.uint64,
+        .id             = a_cell_id,
         .map            = l_map,
         .map_pos        = l_map,
         .map_end        = l_map ? l_map + l_size : NULL,
@@ -290,7 +290,10 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     if (a_chain->is_mapped) {
         a_cell->map_pos = a_cell->map + sizeof(dap_chain_cell_file_header_t);
         for (uint64_t l_el_size = 0; a_cell->map_pos < a_cell->map_end && ( l_el_size = *(uint64_t*)a_cell->map_pos ); ++q, a_cell->map_pos += l_el_size) {
-            a_chain->callback_atom_add(a_chain, (dap_chain_atom_ptr_t)(a_cell->map_pos += sizeof(uint64_t)), l_el_size);
+            dap_hash_fast_t l_atom_hash = {};
+            dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos += sizeof(uint64_t));
+            dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
+            a_chain->callback_atom_add(a_chain, l_atom, l_el_size, &l_atom_hash);
         }
         fseek(a_cell->file_storage, a_cell->map_pos - a_cell->map, SEEK_SET);
     } else { 
@@ -316,8 +319,12 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
                 l_ret = -6;
                 break;
             }
-            if ( a_chain->callback_atom_add(a_chain, l_element, l_el_size) != ATOM_ACCEPT )
+            dap_hash_fast_t l_atom_hash = {};
+            dap_hash_fast(l_element, l_el_size, &l_atom_hash);
+            dap_chain_atom_verify_res_t l_res = a_chain->callback_atom_add(a_chain, l_element, l_el_size, &l_atom_hash);
+            if (l_res != ATOM_ACCEPT && l_res != ATOM_FORK) {
                 DAP_DELETE(l_element);
+            }
             ++q;
         }
         fseek(a_cell->file_storage, l_full_size, SEEK_SET);

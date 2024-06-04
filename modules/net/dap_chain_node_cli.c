@@ -29,11 +29,9 @@
 #include <assert.h>
 //#include <glib.h>
 #include <unistd.h>
-
-
 #include <pthread.h>
-
 #include "iputils/iputils.h"
+
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_strfuncs.h"
@@ -44,8 +42,7 @@
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_cli_server.h"
 #include "dap_chain_node_cli.h"
-
-//#include "dap_chain_node_cli.h"
+#include "dap_notify_srv.h"
 
 #define LOG_TAG "chain_node_cli"
 static bool s_debug_cli = false;
@@ -366,6 +363,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
                 "exit\n" );
+    dap_notify_srv_set_callback_new(dap_notify_new_client_send_info);
     return 0;
 }
 

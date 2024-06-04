@@ -3702,7 +3702,11 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply)
             return -2;
         }
     }
-    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_INVALID);
+    int cmd_parse_status = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_INVALID);
+    if (cmd_parse_status != 0){
+        dap_json_rpc_error_add(cmd_parse_status, "Request parsing error (code: %d)", cmd_parse_status);
+            return cmd_parse_status;
+    }
     const char *l_hash_out_type = "hex";
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     const char *l_datum_hash_in = NULL;
@@ -8348,3 +8352,35 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
     return NULL;
 }
 
+void dap_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void *a_arg) {
+    struct json_object *l_json_wallets = json_object_new_array();
+    char *l_args[2] = { "wallet", "list" };
+    com_tx_wallet(2, l_args, (void**)&l_json_wallets);
+    dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallets));
+    struct json_object *l_json_wallet_arr = json_object_array_get_idx(l_json_wallets, 0);
+    size_t l_count = json_object_array_length(l_json_wallet_arr);
+    for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        struct json_object *l_json_net_states = dap_chain_net_states_json_collect(l_net);
+        dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_net_states));
+        json_object_put(l_json_net_states);
+        for (size_t i = 0; i < l_count; ++i) {
+            struct json_object *l_json_wallet = json_object_array_get_idx(l_json_wallet_arr, i),
+                *l_json_wallet_name = json_object_object_get(l_json_wallet, "Wallet");
+            if ( !l_json_wallet_name )
+                continue;
+            char *l_tmp = (char*)json_object_get_string(l_json_wallet_name), *l_dot_pos = strstr(l_tmp, ".dwallet"), tmp = '\0';
+            if (l_dot_pos) {
+                tmp = *l_dot_pos;
+                *l_dot_pos = '\0';
+            }
+            char *l_args_info[6] = { "wallet", "info", "-w", l_tmp, "-net", l_net->pub.name};
+            struct json_object *l_json_wallet_info = json_object_new_array();
+            com_tx_wallet(6, l_args_info, (void**)&l_json_wallet_info);
+            if (tmp)
+                *l_dot_pos = tmp;
+            dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallet_info));
+            json_object_put(l_json_wallet_info);
+        }
+    }
+    json_object_put(l_json_wallets);
+}

@@ -621,9 +621,12 @@ static bool s_sync_in_chains_callback(void *a_arg)
         return false;
     }
     char *l_atom_hash_str = NULL;
+    l_atom_hash_str = DAP_NEW_STACK_SIZE(char, DAP_CHAIN_HASH_FAST_STR_SIZE); 
+    dap_hash_fast_t l_atom_hash = {}; 
+    dap_hash_fast(l_atom, l_atom_size, &l_atom_hash); 
     if (s_debug_more)
         dap_get_data_hash_str_static(l_atom, l_atom_size, l_atom_hash_str);
-    dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size);
+    dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size, &l_atom_hash);
     bool l_ack_send = false;
     switch (l_atom_add_res) {
     case ATOM_PASS:
@@ -640,6 +643,14 @@ static bool s_sync_in_chains_callback(void *a_arg)
         break;
     case ATOM_REJECT: {
         debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s rejected", l_atom_hash_str, l_chain->net_name, l_chain->name);
+        break;
+    }
+    case ATOM_FORK: {
+        debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s added to a fork branch.", l_atom_hash_str, l_chain->net_name, l_chain->name);
+        if (dap_chain_atom_save(l_chain->cells, l_atom, l_atom_size, NULL) < 0)
+            log_it(L_ERROR, "Can't save atom %s to the file", l_atom_hash_str);
+        else
+            l_ack_send = true;
         break;
     }
     default:

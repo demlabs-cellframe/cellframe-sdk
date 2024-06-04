@@ -1588,7 +1588,7 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
     // Process candidate
     a_session->processing_candidate = a_candidate;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_session->chain);
-    if (l_blocks->chain->callback_atom_verify(l_blocks->chain, a_candidate, a_candidate_size) == ATOM_ACCEPT) {
+    if (l_blocks->chain->callback_atom_verify(l_blocks->chain, a_candidate, a_candidate_size, a_candidate_hash) == ATOM_ACCEPT) {
         // validation - OK, gen event Approve
         s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_APPROVE, a_candidate_hash,
                        NULL, 0, a_session->cur_round.validators_list);
@@ -1682,7 +1682,7 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
         return false;
     }
     bool res = false;
-    dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, a_candidate, a_candidate_size);
+    dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, a_candidate, a_candidate_size, a_candidate_hash);
     const char *l_candidate_hash_str = dap_chain_hash_fast_to_str_static(a_candidate_hash);
     switch (l_res) {
     case ATOM_ACCEPT:
@@ -2338,6 +2338,15 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
     case DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT: {
         uint8_t *l_candidate = l_message_data;
         size_t l_candidate_size = l_message_data_size;
+        // check for NULL candidate
+        if (!l_candidate_size || dap_hash_fast_is_blank(&l_message->hdr.candidate_hash)) {
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                                        " Receive SUBMIT candidate NULL",
+                                            l_session->chain->net_name, l_session->chain->name,
+                                                l_session->cur_round.id, l_message->hdr.attempt_num);
+            s_session_attempt_new(l_session);
+            break;
+        }
         // check submission rights
         if (s_block_is_emergency((dap_chain_block_t *)l_candidate, l_candidate_size)) {
             if (!s_check_emergency_rights(l_session->esbocs, &l_signing_addr)) {
@@ -2349,15 +2358,6 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                 break;
             }
             l_session->cur_round.attempt_submit_validator = l_signing_addr;
-        }
-        // check for NULL candidate
-        if (!l_candidate_size || dap_hash_fast_is_blank(&l_message->hdr.candidate_hash)) {
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                        " Receive SUBMIT candidate NULL",
-                                            l_session->chain->net_name, l_session->chain->name,
-                                                l_session->cur_round.id, l_message->hdr.attempt_num);
-            s_session_attempt_new(l_session);
-            break;
         }
         // check candidate hash
         dap_chain_hash_fast_t l_check_hash;
