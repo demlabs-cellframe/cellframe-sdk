@@ -307,7 +307,8 @@ static bool s_srv_stake_is_poa_cert(dap_chain_net_t *a_net, dap_enc_key_t *a_key
 {
     bool l_is_poa_cert = false;
     dap_pkey_t *l_pkey = dap_pkey_from_enc_key(a_key);
-    for (dap_list_t *it = a_net->pub.decree->pkeys; it; it = it->next)
+    dap_list_t *l_pkeys = dap_chain_net_get_net_decree(a_net)->pkeys;
+    for (dap_list_t *it = l_pkeys; it; it = it->next)
         if (dap_pkey_compare(l_pkey, (dap_pkey_t *)it->data)) {
             l_is_poa_cert = true;
             break;
