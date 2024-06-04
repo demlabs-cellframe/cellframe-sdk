@@ -88,10 +88,7 @@ int dap_datum_mempool_init(void)
  */
 char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
-    if( a_datum == NULL){
-        log_it(L_ERROR, "NULL datum trying to add in mempool");
-        return NULL;
-    }
+    dap_return_val_if_pass(!a_datum, NULL);
 
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_key_hash);
@@ -145,9 +142,8 @@ char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_fr
         uint256_t a_value, uint256_t a_value_fee, const char *a_hash_out_type)
 {
     // check valid param
-    if(!a_chain | !a_key_from || ! a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
-            dap_chain_addr_check_sum(a_addr_from) || (a_addr_to && dap_chain_addr_check_sum(a_addr_to)) || IS_ZERO_256(a_value))
-        return NULL;
+    dap_return_val_if_pass(!a_chain | !a_key_from || !a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
+            dap_chain_addr_check_sum(a_addr_from) || (a_addr_to && dap_chain_addr_check_sum(a_addr_to)) || IS_ZERO_256(a_value), NULL);
 
     const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
     bool l_single_channel = !dap_strcmp(a_token_ticker, l_native_ticker);
