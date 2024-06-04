@@ -89,6 +89,9 @@ typedef bool (dap_chain_datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_cha
 
 int dap_chain_net_init(void);
 void dap_chain_net_deinit(void);
+#ifdef DAP_LEDGER_TEST
+int dap_chain_net_test_init();
+#endif
 
 DAP_STATIC_INLINE uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net) { return g_node_addr.uint64; }
 
@@ -144,6 +147,7 @@ bool dap_chain_net_remove_validator_from_clusters(dap_chain_t *a_chain, dap_stre
 dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain);
 
 int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_t a_block_num);
+void dap_chain_net_remove_last_reward(dap_chain_net_t *a_net);
 uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num);
 int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr, const char *a_host, uint16_t a_port);
 
@@ -193,10 +197,12 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 dap_list_t *dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_chain_datum_filter_func_t *a_filter_func, void *a_filter_func_param);
 
 int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
+int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
 void dap_chain_net_announce_addrs(dap_chain_net_t *a_net);
 char *dap_chain_net_links_dump(dap_chain_net_t*);
+struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t * l_net);
 
 enum dap_chain_net_json_rpc_error_list{
     DAP_CHAIN_NET_JSON_RPC_OK,

@@ -237,7 +237,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
 
     l_net = dap_chain_net_by_id(a_chain->net_id);
     
-    if (!dap_chain_net_get_net_decree(l_net))
+    if (!l_net || !dap_chain_net_get_net_decree(l_net))
     {
         log_it(L_WARNING,"Decree is not inited!");
         return -108;
@@ -322,6 +322,18 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     }
 
     return dap_chain_net_decree_apply(a_decree_hash, a_decree, a_chain);
+}
+
+int dap_chain_net_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_decree_hash)
+{
+    if (!a_net || !a_decree_hash)
+        return -1;
+    decree_table_t *l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree;
+    HASH_FIND(hh, l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
+    if (!l_sought_decree)
+        return -2;
+    l_sought_decree->is_applied = false;
+    return 0;
 }
 
 dap_chain_datum_decree_t *dap_chain_net_decree_get_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash, bool *is_applied)
