@@ -70,7 +70,7 @@ typedef struct dap_chain_cs_blocks_pvt
     dap_chain_hash_fast_t genesis_block_hash;
     dap_chain_hash_fast_t static_genesis_block_hash;
 
-    uint64_t blocks_count;
+    _Atomic uint64_t blocks_count;
 
     time_t time_between_blocks_minimum; // Minimal time between blocks
     bool is_celled;
@@ -2210,9 +2210,7 @@ static uint64_t s_callback_count_atom(dap_chain_t *a_chain)
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     assert(l_blocks && l_blocks->chain == a_chain);
     uint64_t l_ret = 0;
-    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
     l_ret = PVT(l_blocks)->blocks_count;
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     return l_ret;
 }
 
