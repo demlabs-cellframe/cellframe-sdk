@@ -75,7 +75,8 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
     size_t l_signs_size_original = a_anchor->header.signs_size;
     a_anchor->header.signs_size = 0;
     for (size_t i = 0; i < l_num_of_unique_signs; i++) {
-        for (dap_list_t *it = a_net->pub.decree->pkeys; it; it = it->next) {
+        dap_chain_net_decree_t *l_net_decree = dap_chain_net_get_net_decree(a_net);
+        for (dap_list_t *it = l_net_decree->pkeys; it; it = it->next) {
             if (dap_pkey_compare_with_sign(it->data, l_unique_signs[i])) {
                 // TODO make signs verification in s_concate_all_signs_in_array to correctly header.signs_size calculation
                 size_t l_verify_data_size = a_anchor->header.data_size + sizeof(dap_chain_datum_anchor_t);
@@ -109,7 +110,7 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
         return 0;
 
     bool l_is_applied = false;
-    l_decree = dap_chain_net_decree_get_by_hash(&l_decree_hash, &l_is_applied);
+    l_decree = dap_chain_net_decree_get_by_hash(a_net, &l_decree_hash, &l_is_applied);
     if (!l_decree) {
         log_it(L_WARNING, "Can't get decree by hash %s", dap_hash_fast_to_str_static(&l_decree_hash));
         return DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE;
@@ -139,8 +140,8 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
     }
 
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-
-    if (!l_net->pub.decree)
+    dap_chain_net_decree_t *l_net_decree = dap_chain_net_get_net_decree(l_net);
+    if (!l_net_decree)
     {
         log_it(L_WARNING, "Decree is not inited!");
         return -108;

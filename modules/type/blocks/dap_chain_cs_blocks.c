@@ -558,8 +558,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
     const char* l_subcmd_str_args[l_subcmd_str_count];
 	for(size_t i=0;i<l_subcmd_str_count;i++)
         l_subcmd_str_args[i]=NULL;
-    const char* l_subcmd_str_arg;
-    const char* l_subcmd_str = NULL;
+    const char* l_subcmd_str_arg = NULL, *l_subcmd_str = NULL;
 
     int arg_index = 1;
 
