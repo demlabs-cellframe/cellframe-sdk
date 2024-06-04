@@ -233,4 +233,4 @@ enum dap_chain_net_json_rpc_error_list{
 };
 dap_chain_net_decree_t *dap_chain_net_get_net_decree(dap_chain_net_t *a_net);
 void dap_chain_net_set_net_decree(dap_chain_net_t *a_net, dap_chain_net_decree_t *a_decree);
-decree_table_t *dap_chain_net_get_decrees(dap_chain_net_t *a_net);
+decree_table_t **dap_chain_net_get_decrees(dap_chain_net_t *a_net);

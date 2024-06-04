@@ -100,9 +100,9 @@ int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
     dap_chain_net_decree_t *l_decree = dap_chain_net_get_net_decree(a_net);
     dap_list_free_full(l_decree->pkeys, NULL);
     DAP_DELETE(l_decree);
-    decree_table_t *l_decrees = dap_chain_net_get_decrees(a_net), *l_cur_decree, *l_tmp;
-    HASH_ITER(hh, l_decrees, l_cur_decree, l_tmp) {
-        HASH_DEL(l_decrees, l_cur_decree);
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_cur_decree, *l_tmp;
+    HASH_ITER(hh, *l_decrees, l_cur_decree, l_tmp) {
+        HASH_DEL(*l_decrees, l_cur_decree);
         if ( !dap_chain_find_by_id(l_cur_decree->decree->header.common_decree_params.net_id, l_cur_decree->decree->header.common_decree_params.chain_id)->is_mapped )
             DAP_DELETE(l_cur_decree->decree);
         DAP_DELETE(l_cur_decree);
@@ -131,8 +131,8 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
         return -122;
     }
 
-    decree_table_t *l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree;
-    HASH_FIND(hh, l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree;
+    HASH_FIND(hh, *l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
     if (l_sought_decree && l_sought_decree->decree) {
         log_it(L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
         return -123;
@@ -243,8 +243,8 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
         return -108;
     }
 
-    decree_table_t *l_decrees = dap_chain_net_get_decrees(l_net), *l_new_decree;
-    HASH_FIND(hh, l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_new_decree);
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(l_net), *l_new_decree;
+    HASH_FIND(hh, *l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_new_decree);
 
     if (!l_new_decree) {
         l_new_decree = DAP_NEW_Z(decree_table_t);
@@ -253,7 +253,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
             return -1;
         }
         l_new_decree->key = *a_decree_hash;
-        HASH_ADD(hh, l_decrees, key, sizeof(dap_hash_fast_t), l_new_decree);
+        HASH_ADD(hh, *l_decrees, key, sizeof(dap_hash_fast_t), l_new_decree);
     }
 
     if (!a_decree) {    // Processing anchor for decree
@@ -328,8 +328,8 @@ int dap_chain_net_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fa
 {
     if (!a_net || !a_decree_hash)
         return -1;
-    decree_table_t *l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree;
-    HASH_FIND(hh, l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree;
+    HASH_FIND(hh, *l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
     if (!l_sought_decree)
         return -2;
     l_sought_decree->is_applied = false;
@@ -338,8 +338,8 @@ int dap_chain_net_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fa
 
 dap_chain_datum_decree_t *dap_chain_net_decree_get_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash, bool *is_applied)
 {
-    decree_table_t *l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree;
-    HASH_FIND(hh, l_decrees, a_hash, sizeof(dap_hash_fast_t), l_sought_decree);
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree;
+    HASH_FIND(hh, *l_decrees, a_hash, sizeof(dap_hash_fast_t), l_sought_decree);
     return ( !l_sought_decree || !l_sought_decree->decree )
         ? NULL
         : ({ if (is_applied) { *is_applied = l_sought_decree->is_applied; } l_sought_decree->decree; });
