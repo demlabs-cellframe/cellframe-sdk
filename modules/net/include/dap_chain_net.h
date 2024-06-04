@@ -43,7 +43,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 typedef struct dap_chain_node_client dap_chain_node_client_t;
 typedef struct dap_ledger dap_ledger_t;
 typedef struct dap_chain_net_decree dap_chain_net_decree_t;
-
+typedef struct decree_table decree_table_t;
 typedef enum dap_chain_net_state {
     NET_STATE_OFFLINE = 0,
     NET_STATE_LINKS_PREPARE,
@@ -67,11 +67,9 @@ typedef struct dap_chain_net{
         dap_chain_t *chains; // double-linked list of chains
         const char *native_ticker;
         dap_ledger_t *ledger;
-        dap_chain_net_decree_t *decree;
         // Net fee
         uint256_t fee_value;
         dap_chain_addr_t fee_addr;
-        
         dap_list_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TX
         dap_config_t *config;
     } pub;
@@ -171,9 +169,7 @@ DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_mempool_new(dap_chain_t *a_c
 DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_nochain_new(dap_chain_t *a_chain)
 {
     dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
-    return l_net
-            ? dap_strdup_printf("%s.chain-%s.data", l_net->pub.name, a_chain->name)
-            : NULL;
+    return l_net ? dap_strdup_printf("%s.chain-%s.data", l_net->pub.name, a_chain->name) : NULL;
 }
 
 dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
@@ -235,3 +231,6 @@ enum dap_chain_net_json_rpc_error_list{
     DAP_CHAIN_NET_JSON_RPC_NO_POA_CERTS_FOUND_POA_CERTS,
     DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS
 };
+dap_chain_net_decree_t *dap_chain_net_get_net_decree(dap_chain_net_t *a_net);
+void dap_chain_net_set_net_decree(dap_chain_net_t *a_net, dap_chain_net_decree_t *a_decree);
+decree_table_t **dap_chain_net_get_decrees(dap_chain_net_t *a_net);

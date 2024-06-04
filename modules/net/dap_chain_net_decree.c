@@ -38,14 +38,14 @@
 
 #define LOG_TAG "chain_net_decree"
 
+
 // private types definition
-static struct decree_hh {
+typedef struct decree_table {
     dap_hash_fast_t key;
-    bool is_applied;
-    bool wait_for_apply;
+    bool wait_for_apply, is_applied;
     dap_chain_datum_decree_t *decree;
     UT_hash_handle hh;
-} *s_decree_hh = NULL;
+} decree_table_t;
 
 // Private variable
 
@@ -91,23 +91,21 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net)
     l_decree->min_num_of_owners = l_count_verify;
     l_decree->num_of_owners = l_auth_certs_count;
     l_decree->pkeys = l_net_keys;
-
-    a_net->pub.decree = l_decree;
-
+    dap_chain_net_set_net_decree(a_net, l_decree);
     return 0;
 }
 
 int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
 {
-    dap_chain_net_decree_t *l_decree = a_net->pub.decree;
+    dap_chain_net_decree_t *l_decree = dap_chain_net_get_net_decree(a_net);
     dap_list_free_full(l_decree->pkeys, NULL);
     DAP_DELETE(l_decree);
-    struct decree_hh *l_decree_hh, *l_tmp;
-    HASH_ITER(hh, s_decree_hh, l_decree_hh, l_tmp) {
-        HASH_DEL(s_decree_hh, l_decree_hh);
-        if ( !dap_chain_find_by_id(l_decree_hh->decree->header.common_decree_params.net_id, l_decree_hh->decree->header.common_decree_params.chain_id)->is_mapped )
-            DAP_DELETE(l_decree_hh->decree);
-        DAP_DELETE(l_decree_hh);
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_cur_decree, *l_tmp;
+    HASH_ITER(hh, *l_decrees, l_cur_decree, l_tmp) {
+        HASH_DEL(*l_decrees, l_cur_decree);
+        if ( !dap_chain_find_by_id(l_cur_decree->decree->header.common_decree_params.net_id, l_cur_decree->decree->header.common_decree_params.chain_id)->is_mapped )
+            DAP_DELETE(l_cur_decree->decree);
+        DAP_DELETE(l_cur_decree);
     }
     return 0;
 }
@@ -133,9 +131,9 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
         return -122;
     }
 
-    struct decree_hh *l_decree_hh = NULL;
-    HASH_FIND(hh, s_decree_hh, a_decree_hash, sizeof(dap_hash_fast_t), l_decree_hh);
-    if (l_decree_hh && l_decree_hh->decree) {
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree;
+    HASH_FIND(hh, *l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
+    if (l_sought_decree && l_sought_decree->decree) {
         log_it(L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
         return -123;
     }
@@ -153,13 +151,13 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
     // Find unique pkeys in pkeys set from previous step and check that number of signs > min
     size_t l_num_of_unique_signs = 0;
     dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_block, l_signs_size, &l_num_of_unique_signs);
-
-    if (!a_net->pub.decree) {
+    dap_chain_net_decree_t *l_decree = dap_chain_net_get_net_decree(a_net);
+    if (!l_decree) {
         log_it(L_ERROR, "Decree module hasn't been initialized yet");
         return -404;
     }
 
-    uint16_t l_min_signs = a_net->pub.decree->min_num_of_owners;
+    uint16_t l_min_signs = l_decree->min_num_of_owners;
     if (l_num_of_unique_signs < l_min_signs) {
         log_it(L_WARNING, "Not enough unique signatures, get %zu from %hu", l_num_of_unique_signs, l_min_signs);
         return -106;
@@ -238,54 +236,54 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
     }
 
     l_net = dap_chain_net_by_id(a_chain->net_id);
-
-    if (!l_net || !l_net->pub.decree)
+    
+    if (!l_net || !dap_chain_net_get_net_decree(l_net))
     {
         log_it(L_WARNING,"Decree is not inited!");
         return -108;
     }
 
-    struct decree_hh *l_decree_hh = NULL;
-    HASH_FIND(hh, s_decree_hh, a_decree_hash, sizeof(dap_hash_fast_t), l_decree_hh);
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(l_net), *l_new_decree;
+    HASH_FIND(hh, *l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_new_decree);
 
-    if (!l_decree_hh) {
-        l_decree_hh = DAP_NEW_Z(struct decree_hh);
-        if (!l_decree_hh) {
+    if (!l_new_decree) {
+        l_new_decree = DAP_NEW_Z(decree_table_t);
+        if (!l_new_decree) {
             log_it(L_CRITICAL, "Memory allocation error");
             return -1;
         }
-        l_decree_hh->key = *a_decree_hash;
-        HASH_ADD(hh, s_decree_hh, key, sizeof(dap_hash_fast_t), l_decree_hh);
+        l_new_decree->key = *a_decree_hash;
+        HASH_ADD(hh, *l_decrees, key, sizeof(dap_hash_fast_t), l_new_decree);
     }
 
     if (!a_decree) {    // Processing anchor for decree
-        if (!l_decree_hh->decree) {
+        if (!l_new_decree->decree) {
             log_it(L_WARNING, "Decree with hash %s is not found", dap_hash_fast_to_str_static(a_decree_hash));
-            l_decree_hh->wait_for_apply = true;
+            l_new_decree->wait_for_apply = true;
             return -110;
         }
-        if (l_decree_hh->is_applied) {
+        if (l_new_decree->is_applied) {
             log_it(L_WARNING, "Decree already applied");
             return -111;
         }
     } else {            // Process decree itself
-        if (l_decree_hh->decree) {
+        if (l_new_decree->decree) {
             log_it(L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
             return -123;
         }
-        l_decree_hh->decree = a_chain->is_mapped ? a_decree : DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
-        if (a_decree->header.common_decree_params.chain_id.uint64 != a_chain->id.uint64 && !l_decree_hh->wait_for_apply)
+        l_new_decree->decree = a_chain->is_mapped ? a_decree : DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
+        if (a_decree->header.common_decree_params.chain_id.uint64 != a_chain->id.uint64 && !l_new_decree->wait_for_apply)
             // Apply it with corresponding anchor
             return ret_val;
     }
 
     // Process decree
-    switch(l_decree_hh->decree->header.type) {
+    switch(l_new_decree->decree->header.type) {
     case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:
-        ret_val = s_common_decree_handler(l_decree_hh->decree, l_net, true, false);
+        ret_val = s_common_decree_handler(l_new_decree->decree, l_net, true, false);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
-        ret_val = s_service_decree_handler(l_decree_hh->decree, l_net, true);
+        ret_val = s_service_decree_handler(l_new_decree->decree, l_net, true);
         break;
     default:
         log_it(L_WARNING,"Decree type is undefined!");
@@ -293,8 +291,8 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
     }
 
     if (!ret_val) {
-        l_decree_hh->is_applied = true;
-        l_decree_hh->wait_for_apply = false;
+        l_new_decree->is_applied = true;
+        l_new_decree->wait_for_apply = false;
     } else
         log_it(L_ERROR,"Decree applying failed!");
 
@@ -311,7 +309,7 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
 
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
 
-    if (!l_net->pub.decree) {
+    if ( !dap_chain_net_get_net_decree(l_net) ) {
         log_it(L_WARNING, "Decree is not inited!");
         return -108;
     }
@@ -326,37 +324,31 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     return dap_chain_net_decree_apply(a_decree_hash, a_decree, a_chain);
 }
 
-int dap_chain_net_decree_reset_applied(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_decree_hash)
+int dap_chain_net_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_decree_hash)
 {
-    if (!a_chain || !a_decree_hash)
+    if (!a_net || !a_decree_hash)
         return -1;
-    struct decree_hh* l_decree_hh = NULL;
-    HASH_FIND(hh, s_decree_hh, a_decree_hash, sizeof(dap_hash_fast_t), l_decree_hh);
-    if (!l_decree_hh)
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree;
+    HASH_FIND(hh, *l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
+    if (!l_sought_decree)
         return -2;
-
-    l_decree_hh->is_applied = false;
-
+    l_sought_decree->is_applied = false;
     return 0;
 }
 
-dap_chain_datum_decree_t *dap_chain_net_decree_get_by_hash(dap_hash_fast_t *a_hash, bool *is_applied)
+dap_chain_datum_decree_t *dap_chain_net_decree_get_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash, bool *is_applied)
 {
-    struct decree_hh* l_decree_hh = NULL;
-    HASH_FIND(hh, s_decree_hh, a_hash, sizeof(dap_hash_fast_t), l_decree_hh);
-    if (!l_decree_hh || !l_decree_hh->decree)
-        return NULL;
-
-    if (is_applied)
-        *is_applied = l_decree_hh->is_applied;
-
-    return l_decree_hh->decree;
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree;
+    HASH_FIND(hh, *l_decrees, a_hash, sizeof(dap_hash_fast_t), l_sought_decree);
+    return ( !l_sought_decree || !l_sought_decree->decree )
+        ? NULL
+        : ({ if (is_applied) { *is_applied = l_sought_decree->is_applied; } l_sought_decree->decree; });
 }
 
 // Private functions
 static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net)
 {
-    for (dap_list_t *it = a_net->pub.decree->pkeys; it; it = it->next)
+    for (dap_list_t *it = dap_chain_net_get_net_decree(a_net)->pkeys; it; it = it->next)
         if (dap_pkey_compare_with_sign(it->data, a_sign))
             return true;
     return false;
@@ -401,14 +393,13 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING,"Can't get ownners from decree.");
                 return -104;
             }
-
             if (!a_apply)
                 break;
+            dap_chain_net_decree_t *l_net_decree = dap_chain_net_get_net_decree(a_net);
+            l_net_decree->num_of_owners = l_owners_num;
+            dap_list_free_full(l_net_decree->pkeys, NULL);
 
-            a_net->pub.decree->num_of_owners = l_owners_num;
-            dap_list_free_full(a_net->pub.decree->pkeys, NULL);
-
-            a_net->pub.decree->pkeys = l_owners_list;
+            l_net_decree->pkeys = l_owners_list;
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
             if (dap_chain_datum_decree_get_min_owners(a_decree, &l_value)) {
@@ -421,7 +412,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
-            a_net->pub.decree->min_num_of_owners = dap_uint256_to_uint64(l_value);
+            dap_chain_net_get_net_decree(a_net)->min_num_of_owners = dap_uint256_to_uint64(l_value);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
             if (dap_chain_datum_decree_get_hash(a_decree, &l_hash)){
