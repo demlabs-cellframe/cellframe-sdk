@@ -3888,7 +3888,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger,
     int l_prev_tx_count = 0;
 
     // 1. Verify signature in current transaction
-    if (!a_from_threshold && dap_chain_datum_tx_verify_sign(a_tx) != 1)
+    if (!a_from_threshold && dap_chain_datum_tx_verify_sign(a_tx))
         return DAP_LEDGER_TX_CHECK_INVALID_TX_SIGN;
 
     // ----------------------------------------------------------------
@@ -4720,8 +4720,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger,
  */
 int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size, dap_hash_fast_t *a_datum_hash)
 {
-    if (!a_tx)
-        return DAP_LEDGER_TX_CHECK_NULL_TX;
+    dap_return_val_if_pass(!a_tx, DAP_LEDGER_TX_CHECK_NULL_TX);
 
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
     if (l_tx_size != a_datum_size) {
@@ -4732,13 +4731,11 @@ int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     int l_ret_check = dap_ledger_tx_cache_check(a_ledger, a_tx, a_datum_hash,
                                                       false, NULL, NULL, NULL, NULL, NULL, false);
     if(s_debug_more) {
-        char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_to_str(a_datum_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
         if (l_ret_check)
             log_it(L_NOTICE, "Ledger TX adding check not passed for TX %s: error %s",
-                   l_tx_hash_str, dap_ledger_tx_check_err_str(l_ret_check));
+                   dap_chain_hash_fast_to_str_static(a_datum_hash), dap_ledger_tx_check_err_str(l_ret_check));
         else
-            log_it(L_INFO, "Ledger TX adding check passed for TX %s", l_tx_hash_str);
+            log_it(L_INFO, "Ledger TX adding check passed for TX %s", dap_chain_hash_fast_to_str_static(a_datum_hash));
     }
 
     return l_ret_check;
@@ -5777,7 +5774,7 @@ uint256_t dap_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_a
                     if (!memcmp(a_addr, &l_tx_out->addr, sizeof(dap_chain_addr_t))) {
                         // if 'out' item not used & transaction is valid
                         if(!s_ledger_tx_hash_is_used_out_item(l_iter_current, l_out_idx_tmp, NULL) &&
-                                dap_chain_datum_tx_verify_sign(l_cur_tx)) {
+                                !dap_chain_datum_tx_verify_sign(l_cur_tx)) {
                             uint256_t l_add = dap_chain_uint256_from(l_tx_out->header.value);
                             SUM_256_256(balance, l_add, &balance);
                         }
@@ -5793,7 +5790,7 @@ uint256_t dap_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_a
                     if (!memcmp(a_addr, &l_tx_out->addr, sizeof(dap_chain_addr_t))) {
                         // if 'out' item not used & transaction is valid
                         if(!s_ledger_tx_hash_is_used_out_item(l_iter_current, l_out_idx_tmp, NULL) &&
-                                dap_chain_datum_tx_verify_sign(l_cur_tx)) {
+                                !dap_chain_datum_tx_verify_sign(l_cur_tx)) {
                             SUM_256_256(balance, l_tx_out->header.value, &balance);
                         }
                     }
@@ -5808,7 +5805,7 @@ uint256_t dap_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_a
                     if (!memcmp(a_addr, &l_tx_out->addr, sizeof(dap_chain_addr_t))) {
                         // if 'out' item not used & transaction is valid
                         if(!s_ledger_tx_hash_is_used_out_item(l_iter_current, l_out_idx_tmp, NULL) &&
-                                dap_chain_datum_tx_verify_sign(l_cur_tx)) {
+                                !dap_chain_datum_tx_verify_sign(l_cur_tx)) {
                             SUM_256_256(balance, l_tx_out->header.value, &balance);
                         }
                     }
