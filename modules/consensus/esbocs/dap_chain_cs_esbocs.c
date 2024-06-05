@@ -254,12 +254,14 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         char l_cert_name[512];
         dap_cert_t *l_cert_cur;
         snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu", l_auth_certs_prefix, i);
-        if ((l_cert_cur = dap_cert_find_by_name(l_cert_name)) == NULL) {
+        if ( !(l_cert_cur = dap_cert_find_by_name(l_cert_name)) ) {
             snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu.pub", l_auth_certs_prefix, i);
-            if ((l_cert_cur = dap_cert_find_by_name(l_cert_name)) == NULL) {
-                log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
-                l_ret = -3;
-                goto lb_err;
+            if ( !(l_cert_cur = dap_cert_find_by_name(l_cert_name)) ) {
+                if (i >= l_node_addrs_count)
+                    log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
+                else
+                    log_it(L_ERROR, "Can't find cert \"%s\" possibly for address \"%s\"", l_cert_name, l_addrs[i]);
+                continue;
             }
         }
         dap_chain_addr_t l_signing_addr;
