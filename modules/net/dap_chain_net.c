@@ -184,6 +184,8 @@ typedef struct dap_chain_net_pvt{
 
     // Block sign rewards history
     struct block_reward *rewards;
+    dap_chain_net_decree_t *decree;
+    decree_table_t *decrees;
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
@@ -3344,4 +3346,20 @@ void dap_chain_net_announce_addrs(dap_chain_net_t *a_net)
                l_net_pvt->node_info->ext_host,
                l_net_pvt->node_info->ext_port, a_net->pub.name);
     }
+}
+
+dap_chain_net_decree_t *dap_chain_net_get_net_decree(dap_chain_net_t *a_net) {
+    return a_net ? PVT(a_net)->decree : NULL;
+}
+
+void dap_chain_net_set_net_decree(dap_chain_net_t *a_net, dap_chain_net_decree_t *a_decree) {
+    if (!a_net) {
+        log_it(L_ERROR, "Net is not initialized");
+        return;
+    }
+    PVT(a_net)->decree = a_decree;
+}
+
+decree_table_t **dap_chain_net_get_decrees(dap_chain_net_t *a_net) {
+    return a_net ? &(PVT(a_net)->decrees) : NULL;
 }

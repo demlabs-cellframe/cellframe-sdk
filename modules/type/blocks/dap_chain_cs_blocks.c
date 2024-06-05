@@ -70,7 +70,7 @@ typedef struct dap_chain_cs_blocks_pvt
     dap_chain_hash_fast_t genesis_block_hash;
     dap_chain_hash_fast_t static_genesis_block_hash;
 
-    uint64_t blocks_count;
+    _Atomic uint64_t blocks_count;
 
     time_t time_between_blocks_minimum; // Minimal time between blocks
     bool is_celled;
@@ -563,8 +563,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
     const char* l_subcmd_str_args[l_subcmd_str_count];
 	for(size_t i=0;i<l_subcmd_str_count;i++)
         l_subcmd_str_args[i]=NULL;
-    const char* l_subcmd_str_arg;
-    const char* l_subcmd_str = NULL;
+    const char* l_subcmd_str_arg = NULL, *l_subcmd_str = NULL;
 
     int arg_index = 1;
 
@@ -1620,19 +1619,17 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
             if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, &l_block_hash)) < 0 ) {
                 log_it(L_ERROR, "Can't save atom to file, code %d", ret);
-                pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
                 return ATOM_REJECT;
             } else if (a_chain->is_mapped) {
                 l_block = (dap_chain_block_t*)( l_cell->map_pos += sizeof(uint64_t) );  // Switching to mapped area
                 l_cell->map_pos += a_atom_size;
             }
-            ret = ATOM_PASS;
+            ret = ATOM_ACCEPT;
         }
 #endif
         l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped);
         if (!l_block_cache) {
             log_it(L_DEBUG, "%s", "... corrupted block");
-            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
             return ATOM_REJECT;
         }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
@@ -1677,11 +1674,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         } else {
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
             ++PVT(l_blocks)->blocks_count;
-            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
             s_add_atom_datums(l_blocks, l_block_cache);
             dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size);
             dap_chain_atom_add_from_threshold(a_chain);
+            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
             return ret;
         }
         pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
@@ -1705,19 +1702,17 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
             if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, &l_block_hash)) < 0 ) {
                 log_it(L_ERROR, "Can't save atom to file, code %d", ret);
-                pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
                 return ATOM_REJECT;
             } else if (a_chain->is_mapped) {
                 l_block = (dap_chain_block_t*)( l_cell->map_pos += sizeof(uint64_t) );  // Switching to mapped area
                 l_cell->map_pos += a_atom_size;
             }
-            ret = ATOM_PASS;
+            ret = ATOM_FORK;
         }
 #endif
         l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped);
         if (!l_block_cache) {
             log_it(L_DEBUG, "%s", "... corrupted block");
-            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
             return ATOM_REJECT;
         }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
@@ -1749,7 +1744,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         debug_if(s_debug_more, L_DEBUG, "Unknown verification ret code %d", ret);
         break;
     }
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     return ret;
 }
 
@@ -2210,9 +2204,7 @@ static uint64_t s_callback_count_atom(dap_chain_t *a_chain)
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     assert(l_blocks && l_blocks->chain == a_chain);
     uint64_t l_ret = 0;
-    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
     l_ret = PVT(l_blocks)->blocks_count;
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     return l_ret;
 }
 
