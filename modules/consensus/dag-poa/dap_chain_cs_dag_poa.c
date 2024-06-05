@@ -632,7 +632,7 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
         if (!l_verify_datum) {
             dap_hash_fast_t l_atom_hash = {};
             dap_hash_fast(l_new_atom, l_event_size, &l_atom_hash);
-            dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size, &l_atom_hash/*l_chosen_item->round_info.datum_hash*/);
+            dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size, &l_atom_hash);
             if (l_res == ATOM_ACCEPT)
                 s_poa_round_clean(l_dag->chain);
             log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" %s",
