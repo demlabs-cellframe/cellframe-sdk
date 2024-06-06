@@ -1775,22 +1775,25 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
             } break;
 
             case SUBCMD_EVENT_COUNT: {
-                dap_string_t *l_ret_str = dap_string_new(NULL);
-                dap_string_append_printf(l_ret_str, "%s.%s:\n", l_net->pub.name, l_chain->name);
+                json_object * json_obj_event_count = json_object_new_object();
+                json_object_object_add(json_obj_event_count,"net name", json_object_new_string(l_net->pub.name));
+                json_object_object_add(json_obj_event_count,"chain", json_object_new_string(l_chain->name));
                 const char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
                 if (l_gdb_group_events) {
                     size_t l_objs_count = 0;
                     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
-                    dap_string_append_printf(l_ret_str,"%zu in round.new\n", l_objs_count);
+                    json_object_object_add(json_obj_event_count,"event count in round new", json_object_new_string(l_objs_count));
                 }
                 size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
                 size_t l_event_treshold_count = HASH_COUNT(PVT(l_dag)->events_treshold);
-                dap_string_append_printf(l_ret_str, "%zu atom(s) in events\n%zu atom(s) in threshold", l_event_count, l_event_treshold_count);
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_ret_str->str);
-                dap_string_free(l_ret_str, true);
+                json_object_object_add(json_obj_event_count,"atom in events", json_object_new_uint64(l_event_count));
+                json_object_object_add(json_obj_event_count,"atom in threshold", json_object_new_uint64(l_event_treshold_count));
+                json_object_array_add(*json_arr_reply, json_obj_event_count);
             } break;
 
             case SUBCMD_EVENT_SIGN: { // Sign event command
+                json_object * json_obj_event_count = json_object_new_object();
+                json_object * json_arr_obj_event = json_object_new_array();
                 char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
                 size_t l_round_item_size = 0;
                 dap_chain_cs_dag_event_round_item_t *l_round_item =
@@ -1812,10 +1815,17 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
 
                             if (dap_chain_cs_dag_event_gdb_set(l_dag, l_event_new_hash_hex_str, l_event,
                                                                l_event_size_new, l_round_item)) {
-                                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                            "Added new sign with cert \"%s\", event %s placed back in round.new\n",
-                                            l_cert_str, l_event_new_hash_base58_str ?
-                                                                      l_event_new_hash_base58_str : l_event_new_hash_hex_str);
+                                json_object * json_obj_sign = json_object_new_object();
+
+                                json_object_object_add(json_obj_sign,"cert", json_object_new_string(l_cert_str));
+                                json_object_object_add(json_obj_sign,"event", l_event_new_hash_base58_str ?
+                                                           json_object_new_string(l_event_new_hash_base58_str) :
+                                                           json_object_new_string(l_event_new_hash_hex_str));
+                                json_object_array_add(json_arr_obj_event, json_obj_sign);
+
+                                json_object_object_add(json_obj_event_count,"Added new sign with cert, event placed back in round.new", json_arr_obj_event);
+                                json_object_array_add(*json_arr_reply, json_obj_event_count);
+
                             } else {
                                 dap_cli_server_cmd_set_reply_text(a_str_reply,
                                             "GDB Error: Can't place event %s with new sign back in round.new\n",
