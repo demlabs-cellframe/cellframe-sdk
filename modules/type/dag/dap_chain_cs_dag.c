@@ -1827,37 +1827,32 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                                 json_object_array_add(*json_arr_reply, json_obj_event_count);
 
                             } else {
-                                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                            "GDB Error: Can't place event %s with new sign back in round.new\n",
-                                            l_event_new_hash_base58_str ? l_event_new_hash_base58_str : l_event_new_hash_hex_str);
-                                ret = -31;
+                                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_SIGN_ERR,"GDB Error: Can't place event %s with new sign back in round.new\n",
+                                                       l_event_new_hash_base58_str ? l_event_new_hash_base58_str : l_event_new_hash_hex_str);
+                                ret = -DAP_CHAIN_NODE_CLI_COM_DAG_SIGN_ERR;
                             }
                             DAP_DELETE(l_event);
                         } else {
-                            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                          "Can't sign event %s in round.new\n",
-                                                          l_event_hash_str);
-                            ret=-1;
+                            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_SIGN_ERR,"Can't sign event %s in round.new\n",
+                                                   l_event_hash_str);
+                            ret=-DAP_CHAIN_NODE_CLI_COM_DAG_SIGN_ERR;
                         }
                     } else {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                          "No valid certificate provided for event %s signing\n",
-                                                          l_event_hash_str);
-                        ret = -50;
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_CERT_ERR,"No valid certificate provided for event %s signing\n",
+                                               l_event_hash_str);
+                        ret = -DAP_CHAIN_NODE_CLI_COM_DAG_CERT_ERR;
                     }
                     DAP_DELETE(l_round_item);
                 } else {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                      "Can't find event %s in round.new - only place where could be signed the new event\n",
-                                                      l_event_hash_str);
-                    ret = -30;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_FIND_EVENT_ERR,"Can't find event %s in round.new - only place where could be signed the new event\n",
+                                           l_event_hash_str);
+                    ret = -DAP_CHAIN_NODE_CLI_COM_DAG_FIND_EVENT_ERR;
                 }
             } break;
             case SUBCMD_UNDEFINED: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Undefined event subcommand \"%s\" ",
-                                                  l_event_cmd_str);
-                ret=-11;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_UNKNOWN,"Undefined event subcommand \"%s\" ",
+                                       l_event_cmd_str);
+                ret=-DAP_CHAIN_NODE_CLI_COM_DAG_UNKNOWN;
             }
         }
         DAP_DEL_Z(l_datum_hash_hex_str);
@@ -1865,9 +1860,9 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
         DAP_DEL_Z(l_event_hash_hex_str);
         DAP_DEL_Z(l_event_hash_base58_str);
     } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                          "Undefined subcommand");
-        ret = -13;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_UNDEF_SUB_ERR,"Undefined subcommand");
+                               l_event_cmd_str);
+        ret = -DAP_CHAIN_NODE_CLI_COM_DAG_UNDEF_SUB_ERR;
     }
     return ret;
 }
