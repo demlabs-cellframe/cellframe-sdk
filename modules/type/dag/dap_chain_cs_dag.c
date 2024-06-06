@@ -1359,7 +1359,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
         return -DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
     }
 
-    if(dap_chain_node_cli_cmd_values_parse_net_chain_json(&arg_index, argc, argv, &l_chain, &l_net) < 0)
+    if(dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, argc, argv, &l_chain, &l_net,CHAIN_TYPE_TX) < 0)
         return -DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
 
     if ((l_net == NULL) || (l_chain == NULL)){
@@ -1418,7 +1418,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     json_object_object_add(json_obj_round,"verification status", json_object_new_string(l_buf));
                     // If not verify only mode we add
                     if ( ! l_verify_only ){
-                        if (s_chain_callback_atom_add(l_chain, l_event, l_event_size), &l_event_hash)!= ATOM_ACCEPT) { // Add new atom in chain
+                        if (s_chain_callback_atom_add(l_chain, l_event, l_event_size, &l_event_hash)!= ATOM_ACCEPT) { // Add new atom in chain
                             snprintf(l_buf, 150, "Event %s not added in chain\n", l_objs[i].key);
                             json_object_object_add(json_obj_round,"status add", json_object_new_string(l_buf));                            
                         } else {
@@ -1908,7 +1908,6 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
         DAP_DEL_Z(l_event_hash_base58_str);
     } else {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_UNDEF_SUB_ERR,"Undefined subcommand");
-                               l_event_cmd_str);
         ret = -DAP_CHAIN_NODE_CLI_COM_DAG_UNDEF_SUB_ERR;
     }
     return ret;
