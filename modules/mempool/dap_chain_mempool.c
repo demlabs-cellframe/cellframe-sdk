@@ -583,16 +583,23 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     const char *l_balance; dap_uint256_to_char(l_value_need, &l_balance);
     log_it(L_DEBUG, "Create %"DAP_UINT64_FORMAT_U" transactions, summary %s", a_tx_num, l_balance);
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
-
+    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
+                                                                          a_addr_from, l_value_need, &l_value_transfer);
+    if (!l_list_used_out) {
+        log_it(L_WARNING,"Not enough funds to transfer");
+        DAP_DELETE(l_objs);
+        return -2;
+    }    
+    
     dap_chain_hash_fast_t l_tx_new_hash = {0};
     for (size_t i=0; i< a_tx_num ; i++){
-        dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
-                                                                             a_addr_from, l_value_need, &l_value_transfer);
-        if (!l_list_used_out) {
-            log_it(L_WARNING,"Not enough funds to transfer");
-            DAP_DELETE(l_objs);
-            return -2;
-        }
+        //dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
+        //                                                                     a_addr_from, l_value_need, &l_value_transfer);
+        // if (!l_list_used_out) {
+        //     log_it(L_WARNING,"Not enough funds to transfer");
+        //     DAP_DELETE(l_objs);
+        //     return -2;
+        // }
         log_it(L_DEBUG, "Prepare tx %zu",i);
         // find the transactions from which to take away coins
 
@@ -615,8 +622,8 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
             } else {
                 log_it(L_WARNING, "Can't add input from %s with %s datoshi", l_in_hash_str, l_balance);
             }
-            //DL_DELETE(l_list_used_out, l_used_out);
-            //DAP_DELETE(l_item);
+            DL_DELETE(l_list_used_out, l_used_out);
+            DAP_DELETE(l_item);
             if (compare256(l_value_to_items, l_value_transfer) != -1)
                 break;
         }
@@ -726,7 +733,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         // Now produce datum
         dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx_new, l_tx_size);
 
-        dap_ledger_tx_add( l_ledger, l_tx_new, &l_tx_new_hash, false);
+        //dap_ledger_tx_add( l_ledger, l_tx_new, &l_tx_new_hash, false);
 
         l_objs[i].key = dap_chain_hash_fast_to_str_new(&l_tx_new_hash);
         l_objs[i].value = (uint8_t *)l_datum;
@@ -734,8 +741,9 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         l_objs[i].timestamp = dap_nanotime_now();
         log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
                l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
-        dap_list_free_full(l_list_used_out, NULL);
+        //dap_list_free_full(l_list_used_out, NULL);
     }
+    dap_list_free_full(l_list_used_out, NULL);
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     dap_global_db_set_multiple_zc(l_gdb_group, l_objs, a_tx_num, s_tx_create_massive_gdb_save_callback, NULL);
     DAP_DELETE(l_gdb_group);
