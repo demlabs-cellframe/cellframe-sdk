@@ -153,13 +153,7 @@ int dap_chain_net_srv_stake_net_add(dap_chain_net_id_t a_net_id)
     DAP_NEW_Z_RET_VAL(l_srv_stake, dap_chain_net_srv_stake_t, -1, NULL);
     l_srv_stake->net_id = a_net_id;
     l_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
-    dap_list_t *l_list_new = dap_list_append(s_srv_stake_list, l_srv_stake);
-    if (dap_list_last(l_list_new) == dap_list_last(s_srv_stake_list)) {
-        log_it(L_ERROR, "Can't add net %" DAP_UINT64_FORMAT_X " to stake service net list", a_net_id.uint64);
-        DAP_DELETE(l_srv_stake);
-        return -2;
-    }
-    s_srv_stake_list = l_list_new;
+    s_srv_stake_list = dap_list_append(s_srv_stake_list, l_srv_stake);
     log_it(L_NOTICE, "Successfully added net ID 0x%016" DAP_UINT64_FORMAT_x, a_net_id.uint64);
     return 0;
 }
