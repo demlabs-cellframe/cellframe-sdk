@@ -143,7 +143,7 @@ void s_http_balancer_link_prepare_success(void *a_response, size_t a_response_si
 
     size_t l_response_size_need = sizeof(dap_chain_net_links_t) + (sizeof(dap_link_info_t) * l_balancer_request->required_links_count);
     if (a_response_size < sizeof(dap_chain_net_links_t) + sizeof(dap_link_info_t) || a_response_size > l_response_size_need) {
-        log_it(L_ERROR, "Invalid balancer response size %zu (expected %zu)", a_response_size, l_response_size_need);
+        log_it(L_ERROR, "Invalid balancer response size %zu (expected %zu) in net %s from %s:%u", a_response_size, l_response_size_need, l_balancer_request->net->pub.name, l_balancer_request->host_addr, l_balancer_request->host_port);
     } else {
         s_balancer_link_prepare_success(l_balancer_request->net, l_link_full_node_list, l_balancer_request->host_addr, l_balancer_request->host_port);
     }
@@ -325,7 +325,7 @@ int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_cha
  */
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
 {
-    log_it(L_DEBUG,"Proc enc http request");
+    log_it(L_DEBUG,"Proc enc http request from %s", a_http_simple->es_hostaddr);
     http_status_code_t *l_return_code = (http_status_code_t *)a_arg;
 
     if (strcmp(a_http_simple->http_client->url_path, DAP_BALANCER_URI_HASH)) {
