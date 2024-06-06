@@ -103,7 +103,6 @@
 #include "dap_json_rpc_errors.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_datum_tx_voting.h"
-#include "dap_enc_ks.h"
 
 
 #define LOG_TAG "chain_node_cli_cmd"
@@ -2327,88 +2326,6 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
 }
 
 /**
- * @brief dap_chain_node_cli_cmd_values_parse_net_chain_json
- * @param argc
- * @param argv
- * @param a_chain
- * @param a_net
- * @return
- */
-int dap_chain_node_cli_cmd_values_parse_net_chain_json(int *a_arg_index, int a_argc, char **a_argv,
-        dap_chain_t **a_chain, dap_chain_net_t **a_net)
-{
-    const char * l_chain_str = NULL;
-    const char * l_net_str = NULL;
-
-    // Net name
-    if(a_net)
-        dap_cli_server_cmd_find_option_val(a_argv, *a_arg_index, a_argc, "-net", &l_net_str);
-    else
-        return -DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NET_STR_ERR;
-
-    // Select network
-    if(!l_net_str) {
-        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NET_PARAM_ERR, "%s requires parameter '-net'", a_argv[0]);
-        return -DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NET_PARAM_ERR;
-    }
-
-    if((*a_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
-        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NOT_FOUND_ERR, "%s can't find network \"%s\"", a_argv[0], l_net_str);
-        char l_str_to_reply_chain[500] = {0};
-        char *l_str_to_reply = NULL;
-        sprintf(l_str_to_reply_chain, "%s can't find network \"%s\"\n", a_argv[0], l_net_str);
-        l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
-        dap_string_t* l_net_str = dap_cli_list_net();
-        l_str_to_reply = dap_strcat2(l_str_to_reply,l_net_str->str);
-        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NOT_FOUND_ERR, l_str_to_reply);
-        DAP_DELETE(l_str_to_reply);
-        dap_string_free(l_net_str, true);
-        return -DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NOT_FOUND_ERR;
-    }
-
-    // Chain name
-    if(a_chain) {
-        dap_cli_server_cmd_find_option_val(a_argv, *a_arg_index, a_argc, "-chain", &l_chain_str);
-
-        // Select chain
-        if(l_chain_str) {
-            if ((*a_chain = dap_chain_net_get_chain_by_name(*a_net, l_chain_str)) == NULL) { // Can't find such chain
-                char l_str_to_reply_chain[500] = {0};
-                char *l_str_to_reply = NULL;
-                sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
-                        a_argv[0], l_net_str, l_chain_str);
-                l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
-                dap_chain_t * l_chain;
-                dap_chain_net_t * l_chain_net = *a_net;
-                l_str_to_reply = dap_strcat2(l_str_to_reply,"\nAvailable chains:\n");
-                DL_FOREACH(l_chain_net->pub.chains, l_chain) {
-                        l_str_to_reply = dap_strcat2(l_str_to_reply,"\t");
-                        l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
-                        l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
-                }
-                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_PARSE_NET_CHAIN_PARAM_ERR, l_str_to_reply);
-                DAP_DELETE(l_str_to_reply);
-                return -DAP_CHAIN_NODE_CLI_COM_PARSE_NET_CHAIN_PARAM_ERR;
-            }
-        }
-        else if (	!strcmp(a_argv[0], "token_decl")
-        ||			!strcmp(a_argv[0], "token_decl_sign")) {
-            if (	(*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, CHAIN_TYPE_TOKEN)) == NULL )
-            {
-                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_PARSE_NET_CHAIN_PARAM_ERR, "%s requires parameter '-chain' or set default datum type in chain configuration file",
-                                       a_argv[0]);
-                return -DAP_CHAIN_NODE_CLI_COM_PARSE_NET_CHAIN_PARAM_ERR;
-            }
-        } else {
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_PARSE_NET_CHAIN_PARAM_ERR, "%s requires parameter '-chain'", a_argv[0]);
-            return -DAP_CHAIN_NODE_CLI_COM_PARSE_NET_CHAIN_PARAM_ERR;
-        }
-    }
-    return 0;
-}
-
-
-/**
  * @brief
  * sign data (datum_token) by certificates (1 or more)
  * successful count of signes return in l_sign_counter
@@ -3785,7 +3702,11 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply)
             return -2;
         }
     }
-    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_INVALID);
+    int cmd_parse_status = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_INVALID);
+    if (cmd_parse_status != 0){
+        dap_json_rpc_error_add(cmd_parse_status, "Request parsing error (code: %d)", cmd_parse_status);
+            return cmd_parse_status;
+    }
     const char *l_hash_out_type = "hex";
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     const char *l_datum_hash_in = NULL;
@@ -8431,3 +8352,35 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
     return NULL;
 }
 
+void dap_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void *a_arg) {
+    struct json_object *l_json_wallets = json_object_new_array();
+    char *l_args[2] = { "wallet", "list" };
+    com_tx_wallet(2, l_args, (void**)&l_json_wallets);
+    dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallets));
+    struct json_object *l_json_wallet_arr = json_object_array_get_idx(l_json_wallets, 0);
+    size_t l_count = json_object_array_length(l_json_wallet_arr);
+    for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        struct json_object *l_json_net_states = dap_chain_net_states_json_collect(l_net);
+        dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_net_states));
+        json_object_put(l_json_net_states);
+        for (size_t i = 0; i < l_count; ++i) {
+            struct json_object *l_json_wallet = json_object_array_get_idx(l_json_wallet_arr, i),
+                *l_json_wallet_name = json_object_object_get(l_json_wallet, "Wallet");
+            if ( !l_json_wallet_name )
+                continue;
+            char *l_tmp = (char*)json_object_get_string(l_json_wallet_name), *l_dot_pos = strstr(l_tmp, ".dwallet"), tmp = '\0';
+            if (l_dot_pos) {
+                tmp = *l_dot_pos;
+                *l_dot_pos = '\0';
+            }
+            char *l_args_info[6] = { "wallet", "info", "-w", l_tmp, "-net", l_net->pub.name};
+            struct json_object *l_json_wallet_info = json_object_new_array();
+            com_tx_wallet(6, l_args_info, (void**)&l_json_wallet_info);
+            if (tmp)
+                *l_dot_pos = tmp;
+            dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallet_info));
+            json_object_put(l_json_wallet_info);
+        }
+    }
+    json_object_put(l_json_wallets);
+}

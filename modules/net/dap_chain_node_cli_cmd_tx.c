@@ -387,13 +387,17 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     }
     json_object_array_add(json_obj_datum, json_obj_lim);
     size_t i_tmp = 0;
+    size_t
+            l_tx_ledger_accepted = 0,
+            l_tx_ledger_rejected = 0;
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
-
+size_t datums = 0;
     for (dap_chain_datum_t *l_datum = a_chain->callback_datum_iter_get_first(l_datum_iter);
                             l_datum;
                             l_datum = a_chain->callback_datum_iter_get_next(l_datum_iter))
     {
+        datums++;
         json_object *l_corr_object = NULL;
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
             // go to next datum
@@ -405,11 +409,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         if (!l_list_in_items) // a bad tx
             continue;
         // all in items should be from the same address
-        if (i_tmp >= l_arr_end || i_tmp < l_arr_start) {
-            i_tmp++;
-            continue;                    
-        }
-        i_tmp++;
+        
         dap_chain_addr_t *l_src_addr = NULL;
         bool l_base_tx = false, l_reward_collect = false;
         const char *l_noaddr_token = NULL;
@@ -600,6 +600,11 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     l_corr_value = l_value;
                 }
                 const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
+                if (i_tmp >= l_arr_end || i_tmp < l_arr_start) {
+                    i_tmp++;
+                    continue;                    
+                }
+                i_tmp++;
                 
                 json_object *j_obj_data = json_object_new_object();
                 if (!j_obj_data) {
@@ -608,6 +613,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     json_object_put(j_arr_data);
                     return NULL;
                 }
+                l_src_token ? l_tx_ledger_accepted++ : l_tx_ledger_rejected++;
                 json_object_object_add(j_obj_data, "tx_type", json_object_new_string("recv"));
                 json_object_object_add(j_obj_data, "recv_coins", json_object_new_string(l_coins_str));
                 json_object_object_add(j_obj_data, "recv_datoshi", json_object_new_string(l_value_str));
@@ -634,6 +640,11 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                                                         : dap_chain_tx_out_cond_subtype_to_str(
                                                               ((dap_chain_tx_out_cond_t *)it->data)->header.subtype);
                 const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
+                if (i_tmp >= l_arr_end || i_tmp < l_arr_start) {
+                    i_tmp++;
+                    continue;                    
+                }
+                i_tmp++;
                 json_object * j_obj_data = json_object_new_object();
                 if (!j_obj_data) {
                     dap_json_rpc_allocation_error;
@@ -641,6 +652,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     json_object_put(j_arr_data);
                     return NULL;
                 }
+                l_src_token ? l_tx_ledger_accepted++ : l_tx_ledger_rejected++;
                 json_object_object_add(j_obj_data, "tx_type", json_object_new_string("send"));
                 json_object_object_add(j_obj_data, "send_coins", json_object_new_string(l_coins_str));
                 json_object_object_add(j_obj_data, "send_datoshi", json_object_new_string(l_value_str));
@@ -684,7 +696,9 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     }    
     json_object_object_add(json_obj_summary, "network", json_object_new_string(l_net->pub.name));
     json_object_object_add(json_obj_summary, "chain", json_object_new_string(a_chain->name));
-    json_object_object_add(json_obj_summary, "tx_sum", json_object_new_int(i_tmp));    
+    json_object_object_add(json_obj_summary, "tx_sum", json_object_new_int(i_tmp));
+    json_object_object_add(json_obj_summary, "accepted_tx", json_object_new_int(l_tx_ledger_accepted));
+    json_object_object_add(json_obj_summary, "rejected_tx", json_object_new_int(l_tx_ledger_rejected));    
     return json_obj_datum;
 }
 
@@ -712,26 +726,28 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
             json_object_object_add(json_obj_lim, "offset", json_object_new_int(l_arr_start));            
         }
         size_t l_arr_end =  l_chain->callback_count_atom(l_chain);
-        l_arr_end = a_limit ? l_arr_start + a_limit : l_arr_start + 1000;
-        json_object_object_add(json_obj_lim, "limit", json_object_new_int(l_arr_end - l_arr_start));
+        l_arr_end = a_limit ? l_arr_start + a_limit : 0;
+        l_arr_end ? json_object_object_add(json_obj_lim, "limit", json_object_new_int(l_arr_end - l_arr_start)):
+                    json_object_object_add(json_obj_lim, "limit", json_object_new_string("unlimit"));
         json_object_array_add(json_arr_out, json_obj_lim);
         if (l_arr_end > l_chain->callback_count_atom(l_chain)) {
             l_arr_end = l_chain->callback_count_atom(l_chain);
         }
 
         bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
-
-        HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
-            if (l_count_tx >= l_arr_end)
+size_t datums = 0;
+        HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {            
+            if ((l_count_tx >= l_arr_end)&&(l_arr_end))
                 break;
             l_iter = l_chain->callback_atom_iter_create(l_chain, l_cell->id, NULL);
             size_t l_atom_size = 0;
             dap_chain_atom_ptr_t l_ptr = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
-            while (l_ptr && l_atom_size && (l_count_tx < l_arr_end)) {
+            while (l_ptr && l_atom_size && ((l_count_tx < l_arr_end)||(!l_arr_end))) {
                 size_t l_datums_count = 0;
                 dap_chain_datum_t **l_datums = l_cell->chain->callback_atom_get_datums(l_ptr, l_atom_size, &l_datums_count);
-                for (size_t i = 0; i < l_datums_count && (l_count_tx < l_arr_end); i++) {
+                for (size_t i = 0; i < l_datums_count && ((l_count_tx < l_arr_end)||(!l_arr_end)); i++) {
                     if (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX) {
+                        datums++;
                         if (l_count_tx < l_arr_start) {
                             l_count_tx++;
                             continue;
@@ -1630,7 +1646,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 dap_cert_parse_str_list(l_param_value_str, &l_new_certs, &l_new_certs_count);
 
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-                uint16_t l_min_signs = l_net->pub.decree->min_num_of_owners;
+                uint16_t l_min_signs = dap_chain_net_get_net_decree(l_net)->min_num_of_owners;
                 if (l_new_certs_count < l_min_signs) {
                     log_it(L_WARNING,"Number of new certificates is less than minimum owner number.");
                     return -106;
@@ -1664,7 +1680,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                     return -112;
                 }
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-                uint256_t l_owners = GET_256_FROM_64(l_net->pub.decree->num_of_owners);
+                uint256_t l_owners = GET_256_FROM_64(dap_chain_net_get_net_decree(l_net)->num_of_owners);
                 if (compare256(l_new_num_of_owners, l_owners) > 0) {
                     log_it(L_WARNING, "The minimum number of owners is greater than the total number of owners.");
                     dap_list_free_full(l_tsd_list, NULL);
@@ -1960,14 +1976,15 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             return -111;
         }
         bool l_applied = false;
-        dap_chain_datum_decree_t *l_decree = dap_chain_net_decree_get_by_hash(&l_datum_hash, &l_applied);
+        dap_chain_datum_decree_t *l_decree = dap_chain_net_decree_get_by_hash(l_net, &l_datum_hash, &l_applied);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified decree is %s in decrees hash-table",
                                           l_decree ? (l_applied ? "applied" : "not applied") : "not found");
     } break;
     case CMD_INFO: {
         dap_string_t *l_str_owner_pkey = dap_string_new("");
+        dap_chain_net_decree_t *l_net_decree = dap_chain_net_get_net_decree(l_net);
         int i = 1;
-        for (dap_list_t *l_current_pkey = l_net->pub.decree->pkeys; l_current_pkey; l_current_pkey = l_current_pkey->next){
+        for (dap_list_t *l_current_pkey = l_net_decree->pkeys; l_current_pkey; l_current_pkey = l_current_pkey->next){
             dap_pkey_t *l_pkey = (dap_pkey_t*)(l_current_pkey->data);
             dap_hash_fast_t l_pkey_hash = {0};
             dap_pkey_get_hash(l_pkey, &l_pkey_hash);
@@ -1982,8 +1999,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                                                        "%s"
                                                        "\t=====================================================================\n"
                                                        "\tMin owners for apply decree: %d\n",
-                                          l_net->pub.decree->num_of_owners, l_str_owner_pkey->str,
-                                          l_net->pub.decree->min_num_of_owners);
+                                          l_net_decree->num_of_owners, l_str_owner_pkey->str,
+                                          l_net_decree->min_num_of_owners);
         dap_string_free(l_str_owner_pkey, true);
     } break;
     default:

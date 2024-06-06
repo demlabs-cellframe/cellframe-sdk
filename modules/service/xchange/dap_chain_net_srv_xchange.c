@@ -143,7 +143,7 @@ static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
  */
 int dap_chain_net_srv_xchange_init()
 {
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, s_xchange_verificator_callback, NULL);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, s_xchange_verificator_callback, NULL, NULL);
     dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
 
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -w <wallet_name>"
@@ -2769,11 +2769,8 @@ dap_chain_net_srv_xchange_purchase_error_t dap_chain_net_srv_xchange_purchase(da
         // Create conditional transaction
         char *l_ret = NULL;
         dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_exchange(l_price, a_wallet, a_value, a_fee);
-        if (l_tx && (l_ret = s_xchange_tx_put(l_tx, a_net)) &&
-            dap_hash_fast_is_blank(&l_price->order_hash)) {
-            char *l_order_hash_str = dap_hash_fast_to_str_new(a_order_hash);
-            dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net, l_order_hash_str);
-            DAP_DELETE(l_order_hash_str);
+        if (l_tx && !dap_hash_fast_is_blank(&l_price->order_hash)) {
+            l_ret = s_xchange_tx_put(l_tx, a_net);
         }
         DAP_DELETE(l_price);
         if (l_tx && l_ret){

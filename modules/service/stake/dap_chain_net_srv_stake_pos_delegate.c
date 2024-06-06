@@ -52,7 +52,10 @@ static bool s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_ou
                                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 static void s_stake_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond);
 
+static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond);
+
 static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
+static void s_uncache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
 
 static dap_list_t *s_srv_stake_list = NULL;
 
@@ -88,7 +91,7 @@ static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_t
  */
 int dap_chain_net_srv_stake_pos_delegate_init()
 {
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_updater_callback);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_updater_callback, s_stake_deleted_callback);
     dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, "Delegated stake service commands",
             "\t\t=== Commands for work with orders ===\n"
     "srv_stake order create [fee] -net <net_name> -value <value> -cert <priv_cert_name> [-H {hex(default) | base58}]\n"
@@ -152,7 +155,7 @@ int dap_chain_net_srv_stake_net_add(dap_chain_net_id_t a_net_id)
     l_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
     dap_list_t *l_list_new = dap_list_append(s_srv_stake_list, l_srv_stake);
     if (dap_list_last(l_list_new) == dap_list_last(s_srv_stake_list)) {
-        log_it(L_ERROR, "Can't add net %" DAP_UINT64_FORMAT_x "to stake service net list", a_net_id.uint64);
+        log_it(L_ERROR, "Can't add net %" DAP_UINT64_FORMAT_X " to stake service net list", a_net_id.uint64);
         DAP_DELETE(l_srv_stake);
         return -2;
     }
@@ -291,11 +294,21 @@ static void s_stake_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_
     s_cache_data(a_ledger, a_tx, l_signing_addr);
 }
 
+static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond)
+{
+    if (!a_cond)
+        return;
+    dap_chain_addr_t *l_signing_addr = &a_cond->subtype.srv_stake_pos_delegate.signing_addr;
+    dap_chain_net_srv_stake_key_invalidate(l_signing_addr);
+    s_uncache_data(a_ledger, a_tx, l_signing_addr);
+}
+
 static bool s_srv_stake_is_poa_cert(dap_chain_net_t *a_net, dap_enc_key_t *a_key)
 {
     bool l_is_poa_cert = false;
     dap_pkey_t *l_pkey = dap_pkey_from_enc_key(a_key);
-    for (dap_list_t *it = a_net->pub.decree->pkeys; it; it = it->next)
+    dap_list_t *l_pkeys = dap_chain_net_get_net_decree(a_net)->pkeys;
+    for (dap_list_t *it = l_pkeys; it; it = it->next)
         if (dap_pkey_compare(l_pkey, (dap_pkey_t *)it->data)) {
             l_is_poa_cert = true;
             break;
@@ -361,7 +374,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
 
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     bool l_found = false;
-    HASH_FIND(hh, l_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
+    HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
     if (!l_stake)
         l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
     else {
@@ -375,9 +388,9 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     l_stake->tx_hash = *a_stake_tx_hash;
     l_stake->is_active = true;
     if (!l_found)
-        HASH_ADD(hh, l_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
+        HASH_ADD(hh, l_srv_stake->itemlist, signing_addr.data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
     if (!dap_hash_fast_is_blank(a_stake_tx_hash)) {
-        HASH_ADD(ht, l_srv_stake->tx_itemlist, tx_hash, sizeof(dap_chain_hash_fast_t), l_stake);
+        HASH_ADD(ht, l_srv_stake->tx_itemlist, tx_hash, sizeof(dap_hash_fast_t), l_stake);
         dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, a_stake_tx_hash);
         if (l_tx) {
             dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL);
@@ -408,7 +421,7 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_signing_addr->net_id);
     dap_return_if_fail(l_srv_stake);
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
-    HASH_FIND(hh, l_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
+    HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
     if (l_stake) {
         dap_chain_esbocs_remove_validator_from_clusters(l_stake->signing_addr.net_id, &l_stake->node_addr);
         HASH_DEL(l_srv_stake->itemlist, l_stake);
@@ -462,7 +475,7 @@ int dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_signing_addr)
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_signing_addr->net_id);
     dap_return_val_if_fail(l_srv_stake, 0);
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
-    HASH_FIND(hh, l_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
+    HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
     if (l_stake) // public key delegated for this network
         return l_stake->is_active ? 1 : -1;
     return 0;
@@ -514,7 +527,7 @@ int dap_chain_net_srv_stake_mark_validator_active(dap_chain_addr_t *a_signing_ad
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_signing_addr->net_id);
     dap_return_val_if_fail(l_srv_stake, -3);
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
-    HASH_FIND(hh, l_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
+    HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
     if (l_stake) { // public key delegated for this network
         l_stake->is_active = a_on_off;
         return 0;
@@ -2015,7 +2028,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
             return -25;
         }
         dap_chain_net_srv_stake_item_t *l_stake;
-        HASH_FIND(hh, l_srv_stake->itemlist, &l_signing_addr, sizeof(dap_chain_addr_t), l_stake);
+        HASH_FIND(hh, l_srv_stake->itemlist, &l_signing_addr.data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
         if (!l_stake) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate/pkey hash is not delegated nor this delegating is approved."
                                                            " Try to invalidate with tx hash instead");
@@ -2522,7 +2535,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate is wrong");
                         return -20;
                     }
-                    HASH_FIND(hh, l_srv_stake->itemlist, &l_signing_addr, sizeof(dap_chain_addr_t), l_stake);
+                    HASH_FIND(hh, l_srv_stake->itemlist, &l_signing_addr.data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
                     if (!l_stake) {
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate isn't delegated nor approved");
                         return -21;
@@ -2905,6 +2918,19 @@ static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     l_cache_data.signing_addr = *a_signing_addr;
     char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
     if (dap_global_db_set(l_gdb_group, l_data_key, &l_cache_data, sizeof(l_cache_data), false, NULL, NULL))
+        log_it(L_WARNING, "Stake service cache mismatch");
+}
+
+static void s_uncache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr)
+{
+    if (!dap_ledger_cache_enabled(a_ledger))
+        return;
+    dap_chain_hash_fast_t l_hash = {};
+    dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_hash);
+    char l_data_key[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&l_hash, l_data_key, sizeof(l_data_key));
+    char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
+    if (dap_global_db_del_sync(l_gdb_group, l_data_key))
         log_it(L_WARNING, "Stake service cache mismatch");
 }
 
