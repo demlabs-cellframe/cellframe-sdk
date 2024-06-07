@@ -1800,7 +1800,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
     char* l_block_str = dap_chain_hash_fast_to_str_new(&l_block_hash);
     char* l_prev_block_str = dap_chain_hash_fast_to_str_new(&l_block_prev_hash);
 
-    log_it(L_WARNING,"Verify new block with hash %s. previous block %s", l_block_str, l_prev_block_str);
+    debug_if(s_debug_more, L_DEBUG,"Verify new block with hash %s. previous block %s", l_block_str, l_prev_block_str);
     DAP_DELETE(l_block_str);
     DAP_DELETE(l_prev_block_str);
     // genesis or seed mode
@@ -1847,14 +1847,14 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
             if (dap_hash_fast_compare(&l_prev_bcache->block_hash, &l_block_prev_hash)){
                 if (l_prev_bcache != l_bcache_last && 
                     dap_hash_fast_compare(&((dap_chain_block_cache_t *)l_prev_bcache->hh.next)->block_hash, &l_block_hash)){
-                    log_it(L_DEBUG,"%s","Block already exist");
+                    debug_if(s_debug_more,L_DEBUG,"%s","Block already exist");
                     pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
                     return ATOM_PASS;
                 }
 
                 if (!l_prev_bcache->forked_branches){
                     pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
-                    log_it(L_DEBUG,"%s","No forks, new fork!");
+                    debug_if(s_debug_more,L_DEBUG,"%s","No forks, new fork!");
                     return ATOM_FORK;
                 } else {
 
@@ -1864,7 +1864,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                         for (dap_list_t *l_branch = forked_branch; l_branch; l_branch = l_branch->next){
                             dap_hash_fast_t l_cur_forked_block_hash = ((dap_chain_block_cache_t *)l_branch->data)->block_hash;
                             if (dap_hash_fast_compare(&l_block_hash, &l_cur_forked_block_hash)){
-                                log_it(L_DEBUG,"%s","Block already exist in forked branch");
+                                debug_if(s_debug_more, L_DEBUG,"%s","Block already exist in forked branch");
                                 pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
                                 return ATOM_PASS;
                             }
@@ -1872,7 +1872,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                         l_forked_branches = l_forked_branches->next;
                     }
                     
-                    log_it(L_DEBUG,"%s","Block is no present in forked branches. Another new fork!");
+                    debug_if(s_debug_more, L_DEBUG,"%s","Block is no present in forked branches. Another new fork!");
                     pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
                     return ATOM_FORK;
                 }                
@@ -1888,7 +1888,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                     for (dap_list_t *l_branch = forked_branch; l_branch; l_branch = l_branch->next){
                         dap_hash_fast_t l_cur_forked_block_hash = ((dap_chain_block_cache_t *)l_branch->data)->block_hash;
                         if (dap_hash_fast_compare(&l_block_hash, &l_cur_forked_block_hash)){
-                            log_it(L_DEBUG,"%s","Block already exist in forked branch");
+                            debug_if(s_debug_more, L_DEBUG,"%s","Block already exist in forked branch");
                             pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
                             return ATOM_PASS;
                         }
@@ -1896,7 +1896,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                         if(l_forked_branch_last_block &&  
                             dap_hash_fast_compare(&l_forked_branch_last_block->block_hash, &l_block_prev_hash)){
                             pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
-                            log_it(L_DEBUG,"%s","Found prev block in forked branch");
+                            debug_if(s_debug_more, L_DEBUG,"%s","Found prev block in forked branch");
                             if (dap_hash_fast_compare(&l_forked_branch_last_block->block_hash, &l_cur_forked_block_hash))
                                 return ATOM_ACCEPT;
                             else
