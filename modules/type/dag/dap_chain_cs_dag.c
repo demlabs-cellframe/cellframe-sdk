@@ -1717,7 +1717,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"\nEvent %s:\n", l_event_hash_str);
 
                     // Round info
-                    if (l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) {
+                    if ((l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) && l_round_item) {
                         dap_string_append_printf(l_str_tmp,
                             "\tRound info:\n\t\tsigns reject: %d\n",
                             l_round_item->round_info.reject_count);
@@ -1789,7 +1789,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                                                       l_event_hash_str);
                     ret=-10;
                 }
-                DAP_DELETE(l_round_item);
+                DAP_DEL_Z(l_round_item);
             } break;
 
             case SUBCMD_EVENT_LIST: {

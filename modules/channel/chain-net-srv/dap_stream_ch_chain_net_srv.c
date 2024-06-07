@@ -355,7 +355,7 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
     if ( l_err.code || !l_srv_session){
         debug_if(
             l_check_role, L_ERROR,
-            "You can't provide service with ID %lu in net %s. Node role should be not lower than master\n",
+            "You can't provide service with ID %llu in net %s. Node role should be not lower than master\n",
             l_srv->uid.uint64, l_net->pub.name
             );
         if(a_ch)
@@ -592,6 +592,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                                                                                   l_success_size);
             if(!l_success) {
                 log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                DAP_DEL_Z(l_item);
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
                 if(l_ch)
                     dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -1116,6 +1117,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                 l_grace_new->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
                 if (!l_grace_new->request) {
                     log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    DAP_DEL_Z(l_grace_new);
                     RET_WITH_DEL_A_GRACE(0);
                 }
                 l_grace_new->request->hdr.net_id = a_grace_item->grace->usage->net->pub.id;

@@ -197,7 +197,7 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
         dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
                 pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
         dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
-        //DAP_DELETE(pkt_out);
+        DAP_DELETE(pkt_out);
     }
 
     // usage is present, we've accepted packets

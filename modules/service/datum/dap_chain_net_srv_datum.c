@@ -204,12 +204,14 @@ void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
 {
     if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL)
         return;
+    const char * a_obj_key_str = a_obj->key ? a_obj->key : "unknow";
+
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read((byte_t *)a_obj->value, a_obj->value_len);    // Old format comliance
-    if (!l_order && a_obj->key) {
-        log_it(L_NOTICE, "Order %s is corrupted", a_obj->key);
+    if (!l_order) {
+        log_it(L_NOTICE, "Order %s is corrupted", a_obj_key_str);
         if (dap_global_db_driver_delete(a_obj, 1) != 0)
-            log_it(L_ERROR,"Can't delete order %s", a_obj->key);
+            log_it(L_ERROR,"Can't delete order %s", a_obj_key_str);
         return; // order is corrupted
     }
 

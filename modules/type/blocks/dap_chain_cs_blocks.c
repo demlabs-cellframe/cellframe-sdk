@@ -401,6 +401,7 @@ static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_c
     // Processing will be made according to autoprocess policy
     char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain_decree, "hex");
     DAP_DELETE(l_datum);
+    DAP_DEL_Z(l_decree);
     return l_ret;
 }
 
@@ -2008,7 +2009,10 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_at
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = l_blocks ? PVT(l_blocks) : NULL;
     dap_chain_atom_ptr_t l_ret = NULL;
-    assert(l_blocks_pvt);
+    if (!l_blocks_pvt) {
+        log_it(L_ERROR, "l_blocks_pvt is NULL");
+        return NULL;
+    }
     pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
     switch (a_operation) {
     case DAP_CHAIN_ITER_OP_FIRST:
@@ -2060,7 +2064,7 @@ static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
  */
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links(dap_chain_atom_iter_t *a_atom_iter , size_t *a_links_size, size_t **a_links_size_ptr)
 {
-    assert(a_atom_iter);
+    dap_return_val_if_fail(a_atom_iter, NULL);
     assert(a_links_size);
     assert(a_links_size_ptr);
     if (!a_atom_iter->cur_item) {
@@ -2170,7 +2174,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    // dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
 
     size_t l_datum_processed = 0;
     pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
@@ -2310,8 +2314,15 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     }
     dap_hash_fast_t l_prev_block_hash = l_block_cache->prev_hash;
     HASH_FIND(hh, PVT(l_blocks)->blocks, &l_prev_block_hash, sizeof(l_prev_block_hash), l_block_cache);
-    assert(l_block_cache);
+    if (!l_block_cache) {
+        log_it(L_ERROR, "l_block_cache is NULL");
+        return l_ret;
+    }
     l_block = l_block_cache->block;
+    if (!l_block) {
+        log_it(L_ERROR, "l_block is NULL");
+        return l_ret;
+    }
     assert(l_block);
     dap_time_t l_time_diff = l_block_time - dap_max(l_block->hdr.ts_created, DAP_REWARD_INIT_TIMESTAMP);
     MULT_256_256(l_ret, GET_256_FROM_64(l_time_diff), &l_ret);
