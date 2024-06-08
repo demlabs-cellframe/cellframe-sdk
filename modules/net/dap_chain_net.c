@@ -2195,7 +2195,7 @@ bool s_net_load(void *a_arg)
                     log_it(L_WARNING, "No purge callback for chain %s, can't reload it with correct order", l_chain->name);
             }
         } else {
-            dap_chain_save_all( l_chain );
+            //dap_chain_save_all( l_chain );
             log_it (L_NOTICE, "Initialized chain files");
         }
         l_chain->atom_num_last = l_chain->callback_count_atom(l_chain);

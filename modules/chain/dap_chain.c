@@ -111,7 +111,7 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
             .name       = dap_strdup(a_chain_name),
             .net_name   = dap_strdup(a_chain_net_name),
 #ifdef DAP_OS_WINDOWS // TODO
-            .is_mapped  = false,
+            .is_mapped  = true,
 #else
             .is_mapped  = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true),
 #endif
@@ -610,7 +610,9 @@ int dap_chain_load_all(dap_chain_t *a_chain)
         const char l_suffix[] = ".dchaincell";
         size_t l_suffix_len = strlen(l_suffix);
         if (!strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len)) {
-            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill2(a_chain, l_filename);
+            uint64_t l_cell_id_uint64 = 0;
+            sscanf(l_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
+            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(a_chain, (dap_chain_cell_id_t){ .uint64 = l_cell_id_uint64 });
             l_ret += dap_chain_cell_load(a_chain, l_cell);
             if (DAP_CHAIN_PVT(a_chain)->need_reorder) {
                 const char *l_filename_backup = dap_strdup_printf("%s.unsorted", l_cell->file_storage_path);
