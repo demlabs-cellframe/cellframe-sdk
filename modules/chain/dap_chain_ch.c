@@ -647,10 +647,6 @@ static bool s_sync_in_chains_callback(void *a_arg)
     }
     case ATOM_FORK: {
         debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s added to a fork branch.", l_atom_hash_str, l_chain->net_name, l_chain->name);
-        if (dap_chain_atom_save(l_chain->cells, l_atom, l_atom_size, NULL) < 0)
-            log_it(L_ERROR, "Can't save atom %s to the file", l_atom_hash_str);
-        else
-            l_ack_send = true;
         break;
     }
     default:
