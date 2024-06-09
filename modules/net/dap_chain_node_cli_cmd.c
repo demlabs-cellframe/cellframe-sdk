@@ -6981,7 +6981,7 @@ int com_tx_verify(int a_argc, char **a_argv, void **reply)
         return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_REQUIRE_PARAMETER_TX;
     }
     dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&l_arg_index, a_argc, a_argv, &l_chain, &l_net,
-                                                           CHAIN_TYPE_INVALID);
+                                                           CHAIN_TYPE_TX);
     if (!l_net || !l_chain) {
         return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_NET_CHAIN_UNDEFINED;
     }
