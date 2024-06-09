@@ -6116,7 +6116,7 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, void ** reply)
 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc, a_argv, a_str_reply, &l_chain, &l_net,
-                                                  CHAIN_TYPE_INVALID);
+                                                  CHAIN_TYPE_CA);
 
     dap_cert_t * l_cert = dap_cert_find_by_name( l_ca_name );
     if( l_cert == NULL ){
