@@ -192,7 +192,8 @@ static int s_cli_dag_poa(int argc, char ** argv, void **reply)
         return -1;
     }
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net)) {
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net,
+                                                      CHAIN_TYPE_INVALID)) {
         return -3;
     }
 
