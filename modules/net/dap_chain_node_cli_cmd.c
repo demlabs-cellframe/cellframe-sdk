@@ -2224,14 +2224,15 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     uint256_t l_balance = dap_ledger_calc_balance(l_ledger, l_addr, l_l_addr_tokens[i]);
                     char *l_balance_coins = dap_chain_balance_to_coins(l_balance);
                     char *l_balance_datoshi = dap_chain_balance_print(l_balance);
+                    const char *l_token_description = dap_ledger_get_description_by_ticker(l_ledger, l_l_addr_tokens[i]);
                     json_object *j_token = json_object_new_object();
                     json_object_object_add(j_token, "ticker", json_object_new_string(l_l_addr_tokens[i]));
-                    const char *l_desc = dap_ledger_get_description_by_ticker(l_ledger, l_l_addr_tokens[i]);
-                    json_object_object_add(j_token, "description", l_desc ? json_object_new_string(l_desc) : json_object_new_null());
+                    json_object_object_add(j_token, "description", l_token_description ? json_object_new_string(l_token_description)
+                                                                                       : json_object_new_null());
                     json_object_object_add(j_balance_data, "balance", json_object_new_string(""));
                     json_object_object_add(j_balance_data, "coins", json_object_new_string(l_balance_coins));
                     json_object_object_add(j_balance_data, "datoshi", json_object_new_string(l_balance_datoshi));
-                    json_object_object_add(j_balance_data, "token", json_object_new_string(l_l_addr_tokens[i]));
+                    json_object_object_add(j_balance_data, "token", j_token);
                     DAP_DELETE(l_balance_coins);
                     DAP_DELETE(l_balance_datoshi);
                     json_object_array_add(j_arr_balance, j_balance_data);
@@ -4519,8 +4520,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
         DAP_DEL_Z(l_new_certs);
     }
     if (l_description_token) {
-        dap_tsd_t *l_desc_token = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description_token,
-                                                 dap_strlen(l_description_token));//dap_tsd_create_string(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description_token);
+        dap_tsd_t *l_desc_token = dap_tsd_create_string(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description_token);
         l_tsd_list = dap_list_append(l_tsd_list, l_desc_token);
         l_tsd_total_size += dap_tsd_size(l_desc_token);
         a_params->ext.parsed_tsd_size += dap_tsd_size(l_desc_token);
