@@ -2496,7 +2496,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
         l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
         dap_string_t* l_net_str = dap_cli_list_net();
         l_str_to_reply = dap_strcat2(l_str_to_reply,l_net_str->str);
-        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND, "%s can't find network \"%s\"\n%s", a_argv[0], l_net_str->str, l_str_to_reply);
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND, "%s", l_str_to_reply);
         DAP_DELETE(l_str_to_reply);
         dap_string_free(l_net_str, true);
         return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND;
