@@ -326,7 +326,7 @@ typedef struct dap_ledger_private {
     bool check_cells_ds;
     bool check_token_emission;
     bool cached;
-
+    bool mapped;
     dap_chain_cell_id_t local_cell_id;
 
     //Notifiers
@@ -584,6 +584,11 @@ static dap_ledger_t * dap_ledger_handle_new(void)
                                                                       (dap_timer_callback_t)s_threshold_txs_free, l_ledger);
     l_ledger_pvt->threshold_emissions_free_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
                                                                             (dap_timer_callback_t) s_threshold_emission_free, l_ledger);
+#ifdef DAP_OS_WINDOWS
+    l_ledger_pvt->mapped = false;
+#else
+    l_ledger_pvt->mapped = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true);
+#endif
     return l_ledger;
 }
 
@@ -1338,7 +1343,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
         }
     } else if (l_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE) {
         log_it(L_WARNING, "Token with ticker '%s' does not yet exist, declare it first", l_token->ticker);
-        DAP_DEL_Z(l_token);
+        DAP_DELETE(l_token);
         return -6;
     }
 
@@ -1347,12 +1352,12 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
         dap_sign_t **l_signs = dap_chain_datum_token_signs_parse(l_token, a_token_size, &l_auth_signs_total, &l_auth_signs_valid);
         if (!l_signs || !l_auth_signs_total) {
             log_it(L_ERROR, "No auth signs in token '%s' datum!", l_token->ticker);
-            DAP_DEL_Z(l_token);
+            DAP_DELETE(l_token);
             return -7;
         }
         l_token_item = DAP_NEW_Z(dap_ledger_token_item_t);
         if ( !l_token_item ) {
-            DAP_DEL_Z(l_token);
+            DAP_DELETE(l_token);
             log_it(L_CRITICAL, "Memory allocation error");
             return -8;
         }
@@ -1371,15 +1376,13 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
                 .description_token_size = 0
         };
         if ( !l_token_item->auth_pkeys ) {
-            if (l_token)
-                DAP_DELETE(l_token);
+            DAP_DELETE(l_token);
             DAP_DELETE(l_token_item);
             log_it(L_CRITICAL, "Memory allocation error");
             return -6;
         };
         if ( !l_token_item->auth_pkeys ) {
-            if (l_token)
-                DAP_DELETE(l_token);
+            DAP_DELETE(l_token);
             DAP_DEL_Z(l_token_item->auth_pkeys);
             DAP_DELETE(l_token_item);
             log_it(L_CRITICAL, "Memory allocation error");
@@ -1409,11 +1412,13 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
 
     char *l_balance_dbg = s_debug_more ? dap_chain_balance_to_coins(l_token->total_supply) : NULL;
 
-#define CLEAN_UP do { DAP_DELETE(l_token); \
+#define CLEAN_UP do { \
     DAP_DELETE(l_token_item->auth_pkeys); \
     DAP_DELETE(l_token_item->auth_pkeys_hash); \
     DAP_DELETE(l_token_item); \
-    DAP_DELETE(l_balance_dbg); } while (0);
+    DAP_DELETE(l_balance_dbg); \
+    DAP_DELETE(l_token);    \
+    } while (0);
 
     switch (l_token->type) {
     case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
@@ -2348,6 +2353,7 @@ static void s_threshold_txs_proc( dap_ledger_t *a_ledger)
             if (l_res != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
                     l_res != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS) {
                 HASH_DEL(l_ledger_pvt->threshold_txs, l_tx_item);
+                if ( !l_ledger_pvt->mapped )
                     DAP_DELETE(l_tx_item->tx);
                 DAP_DELETE(l_tx_item);
                 l_success = true;
@@ -2372,7 +2378,8 @@ static void s_threshold_txs_free(dap_ledger_t *a_ledger){
             HASH_DEL(l_pvt->threshold_txs, l_current);
             char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(&l_current->tx_hash_fast, l_tx_hash_str, sizeof(l_tx_hash_str));
-            DAP_DELETE(l_current->tx);
+            if ( !l_pvt->mapped )
+                DAP_DELETE(l_current->tx);
             DAP_DELETE(l_current);
             log_it(L_NOTICE, "Removed transaction %s form threshold ledger", l_tx_hash_str);
         }
@@ -3348,7 +3355,11 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
     }
 }
 
-
+const char *dap_ledger_get_description_by_ticker(dap_ledger_t *a_ledger, const char *a_token_ticker){
+    if (!a_ledger || !a_token_ticker)
+        return NULL;
+    return s_ledger_find_token(a_ledger, a_token_ticker)->description_token;
+}
 
 /**
  * Get transaction in the cache by hash
@@ -3695,7 +3706,7 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
             return true; 
         } 
     }
-
+    *a_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
     return false;
 }
 
@@ -4773,7 +4784,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                             return -1;
                         }
                         l_item_tmp->tx_hash_fast = *a_tx_hash;
-                        l_item_tmp->tx = DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
+                        l_item_tmp->tx = l_ledger_pvt->mapped ? a_tx : DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
                         if ( !l_item_tmp->tx ) {
                             DAP_DELETE(l_item_tmp);
                             log_it(L_CRITICAL, "Memory allocation error");
@@ -5049,7 +5060,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     }
     l_tx_item->tx_hash_fast = *a_tx_hash;
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
-    l_tx_item->tx = DAP_DUP_SIZE(a_tx, l_tx_size);
+    l_tx_item->tx = l_ledger_pvt->mapped ? a_tx : DAP_DUP_SIZE(a_tx, l_tx_size);
     l_tx_item->cache_data.ts_created = dap_time_now(); // Time of transasction added to ledger
     int l_outs_count = 0;
     dap_list_t *l_list_tmp = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, &l_outs_count);
@@ -5254,7 +5265,8 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     /* Delete threshold transactions */
     HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_item_current, l_item_tmp) {
         HASH_DEL(l_ledger_pvt->threshold_txs, l_item_current);
-        DAP_DELETE(l_item_current->tx);
+        if ( !l_ledger_pvt->mapped )
+            DAP_DELETE(l_item_current->tx);
         DAP_DEL_Z(l_item_current);
     }
 

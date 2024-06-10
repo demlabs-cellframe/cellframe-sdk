@@ -292,6 +292,8 @@ void dap_ledger_addr_get_token_ticker_all_depricated(dap_ledger_t *a_ledger, dap
 void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
         char *** a_tickers, size_t * a_tickers_size);
 
+const char *dap_ledger_get_description_by_ticker(dap_ledger_t *a_ledger, const char *a_token_ticker);
+
 bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
 
 bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_net_srv_uid_t *uid, dap_chain_tx_tag_action_type_t *action);

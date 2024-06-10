@@ -2226,10 +2226,15 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     uint256_t l_balance = dap_ledger_calc_balance(l_ledger, l_addr, l_l_addr_tokens[i]);
                     char *l_balance_coins = dap_chain_balance_to_coins(l_balance);
                     char *l_balance_datoshi = dap_chain_balance_print(l_balance);
+                    const char *l_token_description = dap_ledger_get_description_by_ticker(l_ledger, l_l_addr_tokens[i]);
+                    json_object *j_token = json_object_new_object();
+                    json_object_object_add(j_token, "ticker", json_object_new_string(l_l_addr_tokens[i]));
+                    json_object_object_add(j_token, "description", l_token_description ? json_object_new_string(l_token_description)
+                                                                                       : json_object_new_null());
                     json_object_object_add(j_balance_data, "balance", json_object_new_string(""));
                     json_object_object_add(j_balance_data, "coins", json_object_new_string(l_balance_coins));
                     json_object_object_add(j_balance_data, "datoshi", json_object_new_string(l_balance_datoshi));
-                    json_object_object_add(j_balance_data, "token", json_object_new_string(l_l_addr_tokens[i]));
+                    json_object_object_add(j_balance_data, "token", j_token);
                     DAP_DELETE(l_balance_coins);
                     DAP_DELETE(l_balance_datoshi);
                     json_object_array_add(j_arr_balance, j_balance_data);
@@ -2496,7 +2501,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
         l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
         dap_string_t* l_net_str = dap_cli_list_net();
         l_str_to_reply = dap_strcat2(l_str_to_reply,l_net_str->str);
-        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND, "%s can't find network \"%s\"\n%s", a_argv[0], l_net_str->str, l_str_to_reply);
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND, "%s", l_str_to_reply);
         DAP_DELETE(l_str_to_reply);
         dap_string_free(l_net_str, true);
         return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND;
@@ -4523,8 +4528,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
         DAP_DEL_Z(l_new_certs);
     }
     if (l_description_token) {
-        dap_tsd_t *l_desc_token = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description_token,
-                                                 dap_strlen(l_description_token));//dap_tsd_create_string(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description_token);
+        dap_tsd_t *l_desc_token = dap_tsd_create_string(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description_token);
         l_tsd_list = dap_list_append(l_tsd_list, l_desc_token);
         l_tsd_total_size += dap_tsd_size(l_desc_token);
         a_params->ext.parsed_tsd_size += dap_tsd_size(l_desc_token);
@@ -4729,6 +4733,11 @@ int com_token_decl(int a_argc, char ** a_argv, void ** reply)
                     DAP_DEL_Z(l_params);
 					return -91;
 				}
+                if (!dap_strcmp(l_ticker, l_params->ext.delegated_token_from)) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Delegated token ticker cannot match the original ticker");
+                    DAP_DEL_Z(l_params);
+                    return -92;
+                }
 				dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
                 strcpy((char *)l_tsd_section.ticker_token_from, l_params->ext.delegated_token_from);
 //				l_tsd_section.token_from = dap_hash_fast();
@@ -7318,6 +7327,8 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
     const char *l_tx_srv_str = NULL;
     const char *l_tx_act_str = NULL;
     const char *l_tx_action_str = NULL;
+    const char *l_limit_str = NULL;
+    const char *l_offset_str = NULL;
 
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
@@ -7468,8 +7479,13 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
         if (!json_obj_summary) {
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;
         }
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
+        size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
+        size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
+        json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_brief, l_hash_out_type, json_obj_summary, 
+                                                                    l_tx_srv_str,l_limit, l_offset, l_action);
 
-        json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_brief, l_hash_out_type, json_obj_summary, l_tx_srv_str, l_action);
         if (!json_arr_history_all) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ALL_ERR,
                                     "something went wrong in tx_history");

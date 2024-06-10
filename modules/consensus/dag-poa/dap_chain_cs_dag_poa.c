@@ -624,19 +624,19 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
         if (!l_verify_datum) {
             dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
             if (l_res == ATOM_ACCEPT) {
-                dap_chain_atom_save(l_dag->chain, (dap_chain_atom_ptr_t)l_new_atom, l_event_size, l_dag->chain->cells->id);
                 s_poa_round_clean(l_dag->chain);
-            } else if (l_res != ATOM_MOVE_TO_THRESHOLD)
-                DAP_DELETE(l_new_atom);
-            log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" %s",
+                if ( !l_dag->chain->is_mapped )
+                    l_new_atom = NULL;
+            }
+            log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" verification res: %s",
                    l_event_hash_hex_str, l_round_id, dap_chain_atom_verify_res_str[l_res]);
         } else {
-            DAP_DELETE(l_new_atom);
             char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(&l_chosen_item->round_info.datum_hash, l_datum_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
             log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" not added into chain, because the inner datum %s doesn't pass verification (%s)",
                    l_event_hash_hex_str, l_round_id, l_datum_hash_str, dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
         }
+        DAP_DELETE(l_new_atom);
     } else { /* !l_chosen_item */
         l_dag->round_completed = l_dag->round_current;
         log_it(L_WARNING, "No candidates for round id %"DAP_UINT64_FORMAT_U, l_round_id);

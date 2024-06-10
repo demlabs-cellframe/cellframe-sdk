@@ -612,7 +612,8 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
                                      l_args->atom, l_args->atom_size))
         debug_if(g_debug_reactor, L_ERROR, "Can't broadcast atom");
     DAP_DELETE(l_active_downs);
-    DAP_DELETE(l_args->atom);
+    if ( !dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ l_args->chain_id })->is_mapped )
+        DAP_DELETE(l_args->atom);
     DAP_DELETE(l_args);
     return true;
 }
@@ -640,11 +641,13 @@ static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain
         log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
-    l_args->net = l_net;
-    l_args->atom = DAP_DUP_SIZE(a_atom, a_atom_size);
-    l_args->atom_size = a_atom_size;
-    l_args->chain_id = a_chain->id.uint64;
-    l_args->cell_id = a_id.uint64;
+    *l_args = (struct net_broadcast_atoms_args) {
+        .atom       = a_chain->is_mapped ? a_atom : DAP_DUP_SIZE(a_atom, a_atom_size),
+        .atom_size  = a_atom_size,
+        .net        = l_net,
+        .chain_id   = a_chain->id.uint64,
+        .cell_id    = a_id.uint64
+    };
     dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_send_atoms, l_args);
 }
 
@@ -2292,7 +2295,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
 #else
                 dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS, "Subcommand 'stats' requires one of parameter: tx\n");
 #endif
-                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS;
+                return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS;
             }
         } else if ( l_go_str){
             json_object *l_jobj_net = json_object_new_string(l_net->pub.name);
@@ -2341,9 +2344,10 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else {
+                json_object_put(l_jobj_return);
                 dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO,
                                        "Subcommand 'go' requires one of parameters: online, offline, sync\n");
-                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO;
+                return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO;
             }
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
@@ -2426,12 +2430,18 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 if (!l_jobj_net_name || !l_jobj_id) {
                     json_object_put(l_jobj_net_name);
                     json_object_put(l_jobj_id);
+                    json_object_put(l_jobj_return);
                     dap_json_rpc_allocation_error;
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 json_object_object_add(l_jobj_return, "network", l_jobj_net_name);
                 json_object_object_add(l_jobj_return, "id", l_jobj_id);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
+            } else {
+                json_object_put(l_jobj_return);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS,
+                                       "Unknown \"%s\" subcommand, net get commands.", l_get_str);
+                return DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS;
             }
         } else if ( l_links_str ){
             if ( strcmp(l_links_str,"list") == 0 ) {
@@ -2601,6 +2611,8 @@ static int s_cli_net(int argc, char **argv, void **reply)
                         }
                         DAP_DELETE(l_node_inf_check);
                     }else{
+                        json_object_put(l_jobj_return);
+                        json_object_put(l_jobj_info);
                         dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CANT_FIND_ADDR_IN_GDB,
                                                "Can't find this address in global db");
                         return DAP_CHAIN_NET_JSON_RPC_CANT_FIND_ADDR_IN_GDB;
@@ -2654,7 +2666,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 json_object_put(l_jobj_current);
                 dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC,
                                        "Subcommand 'sync' requires one of parameters: all, gdb, chains");
-                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC;
+                return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC;
             }
             if (!l_jobj_requested) {
                 json_object_put(l_jobj_state_machine);
@@ -2887,6 +2899,9 @@ static int s_cli_net(int argc, char **argv, void **reply)
                                    "Command 'net' requires one of subcomands: sync, link, go, get, stats, ca, ledger");
             l_ret = DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS;
         }
+    } else {
+        json_object_put(l_jobj_return);
+        l_jobj_return = NULL;
     }
     if (l_jobj_return) {
         json_object_array_add(*reply, l_jobj_return);
@@ -3573,11 +3588,11 @@ int s_net_load(dap_chain_net_t *a_net)
                 dap_chain_save_all(l_chain);
                 DAP_CHAIN_PVT(l_chain)->need_reorder = false;
                 if (l_chain->callback_purge) {
+                    dap_chain_net_decree_purge(l_net);
                     l_chain->callback_purge(l_chain);
                     dap_ledger_purge(l_net->pub.ledger, false);
                     l_net->pub.fee_value = uint256_0;
                     l_net->pub.fee_addr = c_dap_chain_addr_blank;
-                    dap_chain_net_decree_purge(l_net);
                     dap_chain_load_all(l_chain);
                 } else
                     log_it(L_WARNING, "No purge callback for chain %s, can't reload it with correct order", l_chain->name);
