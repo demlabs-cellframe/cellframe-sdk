@@ -40,10 +40,11 @@ dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(dap_chain_net_t * a_net,
 
 int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int a_argc,
                                                            char **a_argv,
-                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net);
+                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net,
+                                                           dap_chain_type_t a_default_chain_type);
 
 int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index,int a_argc, char **a_argv, char ** a_str_reply,
-                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net);
+                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net, dap_chain_type_t a_default_type);
 
 /**
  * global_db command

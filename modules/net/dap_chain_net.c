@@ -2130,7 +2130,8 @@ static int s_cli_net(int argc, char **argv, void **reply)
         return 0;
     }
 
-    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, argc, argv, NULL, &l_net);
+    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, argc, argv, NULL, &l_net,
+                                                                       CHAIN_TYPE_INVALID);
 
     if ( l_net ) {
         const char *l_sync_str = NULL;

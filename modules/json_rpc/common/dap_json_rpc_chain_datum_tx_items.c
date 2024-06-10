@@ -410,7 +410,7 @@ json_object* dap_chain_datum_tx_item_tsd_to_json(dap_chain_tx_tsd_t *a_tsd){
         return NULL;
     }
     
-    json_object *l_obj_data = json_object_new_string_len(l_data, l_size);
+    json_object *l_obj_data = json_object_new_string_len((char*)l_data, (int)l_size);
     
     
     if (!l_obj_data) {

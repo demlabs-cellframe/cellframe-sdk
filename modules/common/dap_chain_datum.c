@@ -325,7 +325,7 @@ void s_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datum_
             char *balance = NULL;
             dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
             balance = dap_chain_balance_to_coins(l_tsd_section->emission_rate);
-            json_object_object_add(json_obj_out, "ticker_token_from", json_object_new_string(l_tsd_section->ticker_token_from));
+            json_object_object_add(json_obj_out, "ticker_token_from", json_object_new_string((char*)l_tsd_section->ticker_token_from));
             json_object_object_add(json_obj_out, "emission_rate", json_object_new_string(balance));
             DAP_DEL_Z(balance);
         }continue;
@@ -370,9 +370,9 @@ void s_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datum_
             continue;
         default: {
                 char l_tsd_type_char[50] = {};
-                dap_snprintf(l_tsd_type_char, sizeof(l_tsd_type_char), "<0x%04hX>", l_tsd->type, l_tsd->size);
+                dap_snprintf(l_tsd_type_char, sizeof(l_tsd_type_char), "<0x%04hX>:%u", l_tsd->type, l_tsd->size);
                 json_object_object_add(json_obj_out, "tsd_type", json_object_new_string(l_tsd_type_char));
-                json_object_object_add(json_obj_out, "tsd_size", json_object_new_int(l_tsd->size));
+                json_object_object_add(json_obj_out, "tsd_size", json_object_new_int((int32_t)l_tsd->size));
             }
         }
     }

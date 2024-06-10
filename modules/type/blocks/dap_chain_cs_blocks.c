@@ -561,7 +561,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
     const char* l_subcmd_str_args[l_subcmd_str_count];
 	for(size_t i=0;i<l_subcmd_str_count;i++)
         l_subcmd_str_args[i]=NULL;
-    const char* l_subcmd_str_arg;
+    const char* l_subcmd_str_arg = NULL;
     const char* l_subcmd_str = NULL;
 
     int arg_index = 1;
@@ -571,7 +571,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
     dap_chain_net_t * l_net = NULL;
 
     // Parse default values
-    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
+    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net,
+                                                     CHAIN_TYPE_INVALID) < 0)
         return -11;
 
     const char *l_chain_type = dap_chain_net_get_type(l_chain);
@@ -1076,11 +1077,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
                 l_addr = dap_chain_addr_from_str(l_addr_str);
                 if(!l_cert_name) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-cert'", l_subcmd_str);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-cert'");
                     return -20;
                 }
                 if (!l_addr_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-addr'", l_addr_str);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-addr'");
                     return -20;
                 }
                 dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);

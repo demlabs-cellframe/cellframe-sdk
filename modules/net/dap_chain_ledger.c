@@ -517,7 +517,7 @@ int dap_ledger_service_add(dap_chain_net_srv_uid_t a_uid, char *tag_str, dap_led
     HASH_ADD_INT(s_services, service_uid.raw_ui64, l_new_sinfo);
     pthread_rwlock_unlock(&s_services_rwlock);
 
-    log_it(L_NOTICE, "Successfully registered service tag %s with uid %02X", tag_str, a_uid.raw_ui64);
+    log_it(L_NOTICE, "Successfully registered service tag %s with uid %02" DAP_UINT64_FORMAT_X, tag_str, a_uid.raw_ui64);
 
     return 0;
 }
@@ -3663,7 +3663,7 @@ char * dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag)
 
 }
 
-dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(char *str){
+dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *str){
     if (!str) 
         return DAP_CHAIN_TX_TAG_ACTION_ALL;
     
