@@ -5,6 +5,14 @@ file(GLOB DAP_CHAIN_SRCS *.c)
 
 file(GLOB DAP_CHAIN_HEADERS include/*.h)
 
+if (WIN32)
+    file (GLOB MMAN_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/mman/*)
+    #message("[!!!] " ${MMAN_SRCS}) 
+    list(APPEND DAP_CHAIN_SRCS ${MMAN_SRCS})
+endif()
+
+#message("[!!!] " ${DAP_CHAIN_SRCS})
+
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_SRCS} ${DAP_CHAIN_HEADERS})
 
 if(BUILD_CELLFRAME_SDK_TESTS)
@@ -18,6 +26,10 @@ target_link_libraries(${PROJECT_NAME} dap_chain_common dap_global_db dap_notify_
 target_include_directories(${PROJECT_NAME} INTERFACE . include/ ${GLIB_INCLUDE_DIRS})
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/uthash/src)
+
+if (WIN32)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/mman/)
+endif()
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_HEADERS}")

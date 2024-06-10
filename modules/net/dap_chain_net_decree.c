@@ -104,7 +104,8 @@ int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
     struct decree_hh *l_decree_hh, *l_tmp;
     HASH_ITER(hh, s_decree_hh, l_decree_hh, l_tmp) {
         HASH_DEL(s_decree_hh, l_decree_hh);
-        DAP_DELETE(l_decree_hh->decree);
+        if ( !dap_chain_find_by_id(l_decree_hh->decree->header.common_decree_params.net_id, l_decree_hh->decree->header.common_decree_params.chain_id)->is_mapped )
+            DAP_DELETE(l_decree_hh->decree);
         DAP_DELETE(l_decree_hh);
     }
     return 0;
@@ -168,12 +169,10 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
     if (l_decree_hh)
         return -123;
 
-    dap_chain_datum_decree_t *l_decree = a_decree;
     // Get pkeys sign from decree datum
-
     size_t l_signs_size = 0;
     //multiple signs reading from datum
-    dap_sign_t *l_signs_block = dap_chain_datum_decree_get_signs(l_decree, &l_signs_size);
+    dap_sign_t *l_signs_block = dap_chain_datum_decree_get_signs(a_decree, &l_signs_size);
     if (!l_signs_size || !l_signs_block)
     {
         log_it(L_WARNING,"Decree data sign not found");
@@ -197,14 +196,14 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
 
     // Verify all keys and its signatures
     uint16_t l_signs_size_for_current_sign = 0, l_signs_verify_counter = 0;
-    l_decree->header.signs_size = 0;
-    size_t l_verify_data_size = l_decree->header.data_size + sizeof(dap_chain_datum_decree_t);
+    a_decree->header.signs_size = 0;
+    size_t l_verify_data_size = a_decree->header.data_size + sizeof(dap_chain_datum_decree_t);
 
     for (size_t i = 0; i < l_num_of_unique_signs; i++) {
         size_t l_sign_max_size = dap_sign_get_size(l_unique_signs[i]);
         if (s_verify_pkey(l_unique_signs[i], a_net)) {
             // 3. verify sign
-            if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, l_decree, l_verify_data_size))
+            if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, a_decree, l_verify_data_size))
                 l_signs_verify_counter++;
         } else {
             dap_hash_fast_t l_sign_pkey_hash = {0};
@@ -217,12 +216,10 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
         }
         // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
         l_signs_size_for_current_sign += l_sign_max_size;
-        l_decree->header.signs_size = l_signs_size_for_current_sign;
+        a_decree->header.signs_size = l_signs_size_for_current_sign;
     }
 
-    l_decree->header.signs_size = l_signs_size;
-
-//    DAP_DELETE(l_signs_arr);
+    a_decree->header.signs_size = l_signs_size;
     DAP_DELETE(l_unique_signs);
 
     if (l_signs_verify_counter < l_min_signs) {
@@ -278,7 +275,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
             log_it(L_CRITICAL, "Memory allocation error");
             return -1;
         }
-        l_decree_hh->decree = DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
+        l_decree_hh->decree = a_chain->is_mapped ? a_decree : DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
         l_decree_hh->key = *a_decree_hash;
         HASH_ADD(hh, s_decree_hh, key, sizeof(dap_hash_fast_t), l_decree_hh);
         if (a_decree->header.common_decree_params.chain_id.uint64 != a_chain->id.uint64)

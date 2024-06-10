@@ -65,6 +65,7 @@ json_object* dap_db_history_tx_all(dap_chain_t *l_chain,
                                     const char *l_hash_out_type, 
                                     json_object * json_obj_summary, 
                                     const char *a_srv,
+                                    size_t a_limit, size_t a_offset,
                                     dap_chain_tx_tag_action_type_t a_action);
 
 /**
