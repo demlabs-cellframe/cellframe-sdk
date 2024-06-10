@@ -1915,10 +1915,17 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     json_object * j_balance_data = json_object_new_object();
                     uint256_t l_balance = dap_ledger_calc_balance(l_ledger, l_addr, l_l_addr_tokens[i]);
                     const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_balance, &l_balance_coins);
+                    json_object *l_jobj_token = json_object_new_object();
+                    json_object *l_jobj_ticker = json_object_new_string(l_l_addr_tokens[i]);
+                    const char *l_description =  dap_ledger_get_description_by_ticker(l_ledger, l_l_addr_tokens[i]);
+                    json_object *l_jobj_description = l_description ? json_object_new_string(l_description)
+                                                                    : json_object_new_null();
+                    json_object_object_add(l_jobj_token, "ticker", l_jobj_ticker);
+                    json_object_object_add(l_jobj_token, "description", l_jobj_description);
                     json_object_object_add(j_balance_data, "balance", json_object_new_string(""));
                     json_object_object_add(j_balance_data, "coins", json_object_new_string(l_balance_coins));
                     json_object_object_add(j_balance_data, "datoshi", json_object_new_string(l_balance_datoshi));
-                    json_object_object_add(j_balance_data, "token", json_object_new_string(l_l_addr_tokens[i]));
+                    json_object_object_add(j_balance_data, "token", l_jobj_token);
                     json_object_array_add(j_arr_balance, j_balance_data);
                 }
                 DAP_DELETE(l_l_addr_tokens[i]);
