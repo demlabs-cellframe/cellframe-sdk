@@ -3695,7 +3695,7 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
             return true; 
         } 
     }
-
+    *a_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
     return false;
 }
 
