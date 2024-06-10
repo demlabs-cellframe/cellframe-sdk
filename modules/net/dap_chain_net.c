@@ -1739,6 +1739,9 @@ static int s_cli_net(int argc, char **argv, void **reply)
                                    "Command 'net' requires one of subcomands: sync, link, go, get, stats, ca, ledger");
             l_ret = DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS;
         }
+    } else {
+        json_object_put(l_jobj_return);
+        l_jobj_return = NULL;
     }
     if (l_jobj_return) {
         json_object_array_add(*json_arr_reply, l_jobj_return);
