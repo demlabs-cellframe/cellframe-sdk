@@ -7467,7 +7467,7 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
     } else if (l_addr) {
         // history addr and wallet
         char *l_addr_str = dap_chain_addr_to_str(l_addr);
-        json_obj_out = dap_db_history_addr(l_addr,  l_chain, l_hash_out_type, l_addr_str, l_tx_srv_str, l_action);
+        json_obj_out = dap_db_history_addr(l_addr,  l_chain, l_hash_out_type, l_addr_str, l_brief, l_tx_srv_str, l_action);
         if (!json_obj_out) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR,
                                     "something went wrong in tx_history");
