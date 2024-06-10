@@ -347,8 +347,8 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
     }
     HASH_ITER(hh, l_dag_pvt->events_lasts_unlinked, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events_lasts_unlinked, l_event_current);
-        if (!a_chain->is_mapped && !l_event_current->mapped_region)
-            DAP_DELETE(l_event_current->event);
+        //if (!a_chain->is_mapped && !l_event_current->mapped_region)
+        //    DAP_DELETE(l_event_current->event);
         DAP_DELETE(l_event_current);
     }
     HASH_ITER(hh, l_dag_pvt->events_treshold, l_event_current, l_event_tmp) {

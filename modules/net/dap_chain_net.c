@@ -2177,7 +2177,7 @@ bool s_net_load(void *a_arg)
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
         if (!dap_chain_load_all(l_chain)) {
             log_it (L_NOTICE, "Loaded chain files");
-            if (DAP_CHAIN_PVT(l_chain)->need_reorder) {
+            if (!DAP_CHAIN_PVT(l_chain)->need_reorder) {
                 log_it(L_DAP, "Reordering chain files for chain %s", l_chain->name);
                 if (l_chain->callback_atom_add_from_treshold)
                     while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))

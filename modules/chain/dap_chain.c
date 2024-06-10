@@ -110,11 +110,7 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
             .net_id     = a_chain_net_id,
             .name       = dap_strdup(a_chain_name),
             .net_name   = dap_strdup(a_chain_net_name),
-#ifdef DAP_OS_WINDOWS // TODO
-            .is_mapped  = true,
-#else
             .is_mapped  = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true),
-#endif
             .cell_rwlock    = PTHREAD_RWLOCK_INITIALIZER,
             .atom_notifiers = NULL
     };
@@ -614,7 +610,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
             sscanf(l_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
             dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(a_chain, (dap_chain_cell_id_t){ .uint64 = l_cell_id_uint64 });
             l_ret += dap_chain_cell_load(a_chain, l_cell);
-            if (DAP_CHAIN_PVT(a_chain)->need_reorder) {
+            if (!DAP_CHAIN_PVT(a_chain)->need_reorder) {
                 const char *l_filename_backup = dap_strdup_printf("%s.unsorted", l_cell->file_storage_path);
                 if (remove(l_filename_backup) == -1) {
                     log_it(L_ERROR, "File %s doesn't exist", l_filename_backup);

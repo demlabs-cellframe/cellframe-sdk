@@ -41,7 +41,7 @@
 #define DAP_CHAIN_CELL_FILE_SIGNATURE 0xfa340bef153eba48
 #define DAP_CHAIN_CELL_FILE_TYPE_RAW 0
 #define DAP_CHAIN_CELL_FILE_TYPE_COMPRESSED 1
-#define DAP_MAPPED_VOLUME_LIMIT (1 << 28) // 256 MB for now, may be should be configurable?
+#define DAP_MAPPED_VOLUME_LIMIT (1 << 20) // 256 MB for now, may be should be configurable?
 /**
   * @struct dap_chain_cell_file_header
   */
@@ -355,6 +355,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     if (a_chain->is_mapped) {
         l_hdr = (dap_chain_cell_file_header_t*)a_cell->map;
     } else {
+        fseek(a_cell->file_storage, 0, SEEK_SET);
         l_hdr = DAP_NEW(dap_chain_cell_file_header_t);
         if ( fread(l_hdr, 1, sizeof(*l_hdr), a_cell->file_storage) != sizeof(*l_hdr) ) {
             log_it(L_ERROR,"Can't read chain header \"%s\"", a_cell->file_storage_path);
@@ -383,7 +384,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         for ( uint64_t l_el_size = 0; l_pos < l_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
             size_t space_left = (size_t)( a_cell->map_end - a_cell->map_pos );
             if ( space_left < sizeof(uint64_t) || (space_left - sizeof(uint64_t)) < *(uint64_t*)a_cell->map_pos )
-                if ( !s_cell_map_new_volume(a_cell, l_pos) )
+                if ( s_cell_map_new_volume(a_cell, l_pos) )
                     break;
             l_el_size = *(uint64_t*)a_cell->map_pos;
             dap_hash_fast_t l_atom_hash;
@@ -567,13 +568,3 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
     return l_total_res;
 }
 
-/**
- * @brief
- * return dap_chain_cell_file_append(a_cell, NULL, 0);
- * @param a_cell dap_chain_cell_t
- * @return
- */
-ssize_t dap_chain_cell_file_update(dap_chain_cell_t *a_cell)
-{
-    return dap_chain_cell_file_append(a_cell, NULL, 0);
-}
