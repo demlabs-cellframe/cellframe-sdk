@@ -97,6 +97,16 @@ typedef enum s_com_ledger_err{
  */
 int com_token(int a_argc, char ** a_argv, void **a_str_reply);
 
+typedef enum s_com_token_err{
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_HASH_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_FOUND_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN /* MAX */
+} s_com_token_err_t;
 /**
  * decree command
  *
