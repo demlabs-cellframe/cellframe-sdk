@@ -41,7 +41,7 @@
 #define DAP_CHAIN_CELL_FILE_SIGNATURE 0xfa340bef153eba48
 #define DAP_CHAIN_CELL_FILE_TYPE_RAW 0
 #define DAP_CHAIN_CELL_FILE_TYPE_COMPRESSED 1
-#define DAP_MAPPED_VOLUME_LIMIT (1 << 20) // 256 MB for now, may be should be configurable?
+#define DAP_MAPPED_VOLUME_LIMIT ( 1 << 28 ) // 256 MB for now, may be should be configurable?
 /**
   * @struct dap_chain_cell_file_header
   */
@@ -291,6 +291,16 @@ void dap_chain_cell_close(dap_chain_cell_t *a_cell)
 #endif
         dap_list_free(a_cell->map_range_bounds);
     }
+#ifdef DAP_OS_WINDOWS
+    char *l_new = strstr(a_cell->file_storage_path, ".new");
+    if (l_new) {
+        char *l_orig = dap_strdup(a_cell->file_storage_path);
+        *l_new = '\0';
+        remove(a_cell->file_storage_path);
+        rename(l_orig, a_cell->file_storage_path);
+        DAP_DELETE(l_orig);
+    }
+#endif
 }
 
 /**
@@ -493,6 +503,9 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
     bool l_err = false;
     pthread_rwlock_wrlock(&a_cell->storage_rwlock);
     if (!a_atom || !a_atom_size) {
+#ifdef DAP_OS_WINDOWS
+        strcat(a_cell->file_storage_path, ".new");
+#endif
         a_cell->file_storage = freopen(a_cell->file_storage_path, "w+b", a_cell->file_storage);
         debug_if (s_debug_more,L_DEBUG, "Rewinding file %s", a_cell->file_storage_path);
         bool was_mapped = a_cell->chain->is_mapped;

@@ -610,7 +610,14 @@ int dap_chain_load_all(dap_chain_t *a_chain)
             sscanf(l_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
             dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(a_chain, (dap_chain_cell_id_t){ .uint64 = l_cell_id_uint64 });
             l_ret += dap_chain_cell_load(a_chain, l_cell);
-            if (!DAP_CHAIN_PVT(a_chain)->need_reorder) {
+            if ( DAP_CHAIN_PVT(a_chain)->need_reorder ) {
+#ifdef DAP_OS_WINDOWS
+                strcat(l_cell->file_storage_path, ".new");
+                if (remove(l_cell->file_storage_path) == -1) {
+                    log_it(L_ERROR, "File %s doesn't exist", l_cell->file_storage_path);
+                }
+                *(l_cell->file_storage_path + strlen(l_cell->file_storage_path) - 4) = '\0';
+#else
                 const char *l_filename_backup = dap_strdup_printf("%s.unsorted", l_cell->file_storage_path);
                 if (remove(l_filename_backup) == -1) {
                     log_it(L_ERROR, "File %s doesn't exist", l_filename_backup);
@@ -619,6 +626,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
                     log_it(L_ERROR, "Couldn't rename %s to %s", l_cell->file_storage_path, l_filename_backup);
                 }
                 DAP_DELETE(l_filename_backup);
+#endif
             }
         }
     }
