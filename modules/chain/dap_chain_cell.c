@@ -356,8 +356,8 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     if (!a_cell)
         return -1;
     size_t l_size = ( fseek(a_cell->file_storage, 0, SEEK_END), ftell(a_cell->file_storage) ), l_pos = 0;
-    if ( l_size <= sizeof(dap_chain_cell_file_header_t) ) {
-        log_it(L_INFO, "Chain cell \"%s\" is yet empty", a_cell->file_storage_path);
+    if ( l_size < sizeof(dap_chain_cell_file_header_t) ) {
+        log_it(L_ERROR, "Chain cell \"%s\" is corrupt, create new file", a_cell->file_storage_path);
         return -1;
     }
     int l_ret = 0;
@@ -386,8 +386,15 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         if (!a_chain->is_mapped) DAP_DELETE(l_hdr);
         return -4;
     }
-
     l_pos += sizeof(dap_chain_cell_file_header_t);
+    if (a_chain->is_mapped)
+        a_cell->map_pos += l_pos;
+    if (l_size == l_pos) {
+        fseek(a_cell->file_storage, l_pos, SEEK_END);
+        return 0;
+    }
+        
+        
     uint64_t q = 0;
     if (a_chain->is_mapped) {
         a_cell->map_pos = a_cell->map + sizeof(dap_chain_cell_file_header_t);
