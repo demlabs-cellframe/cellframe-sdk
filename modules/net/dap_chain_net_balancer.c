@@ -38,17 +38,25 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define DAP_CHAIN_NET_BALANCER_REQUEST_DELAY 20 // sec
 
+typedef struct dap_balancer_request_info {
+    dap_chain_net_id_t net_id;
+    dap_time_t request_time;
+    UT_hash_handle hh;
+} dap_balancer_request_info_t;
+
 typedef struct dap_balancer_link_request {
     const char* host_addr;
     uint16_t host_port;
     dap_chain_net_t *net;
     dap_worker_t *worker;
     uint16_t required_links_count;
+    dap_balancer_request_info_t *request_info;
 } dap_balancer_link_request_t;
 
 static_assert(sizeof(dap_chain_net_links_t) + sizeof(dap_chain_node_info_old_t) < DAP_BALANCER_MAX_REPLY_SIZE, "DAP_BALANCER_MAX_REPLY_SIZE cannot accommodate information minimum about 1 link");
 static const size_t s_max_links_response_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_links_t)) / sizeof(dap_chain_node_info_old_t);
 static const dap_time_t s_request_period = 5; // sec
+static dap_balancer_request_info_t* s_request_info_items = NULL;
 
 /**
  * @brief forming json file with balancer info: class networkName nodeAddress hostAddress hostPort
@@ -130,7 +138,6 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_chain_ne
         log_it(L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added",
                  NODE_ADDR_FP_ARGS_S(l_link_info->node_addr));
     }
-    a_net->pub.request_error_time = 0;
 }
 
 /**
@@ -147,9 +154,10 @@ void s_http_balancer_link_prepare_success(void *a_response, size_t a_response_si
     size_t l_response_size_need = sizeof(dap_chain_net_links_t) + (sizeof(dap_link_info_t) * l_balancer_request->required_links_count);
     if (a_response_size < sizeof(dap_chain_net_links_t) + sizeof(dap_link_info_t) || a_response_size > l_response_size_need) {
         log_it(L_ERROR, "Invalid balancer response size %zu (expected %zu) in net %s from %s:%u", a_response_size, l_response_size_need, l_balancer_request->net->pub.name, l_balancer_request->host_addr, l_balancer_request->host_port);
-        l_balancer_request->net->pub.request_error_time = dap_time_now();
+        l_balancer_request->request_info->request_time = dap_time_now();
     } else {
         s_balancer_link_prepare_success(l_balancer_request->net, l_link_full_node_list, l_balancer_request->host_addr, l_balancer_request->host_port);
+        l_balancer_request->request_info->request_time = 0;
     }
     DAP_DELETE(l_balancer_request);
 }
@@ -171,7 +179,6 @@ static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request
     json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
     dap_notify_server_send_mt(json_object_get_string(l_json));
     json_object_put(l_json);
-    a_request->net->pub.request_error_time = dap_time_now();
 }
 
 /**
@@ -183,6 +190,7 @@ static void s_http_balancer_link_prepare_error(int a_errno, void *a_arg)
 {
     dap_balancer_link_request_t *l_balancer_request = (dap_balancer_link_request_t *)a_arg;
     s_balancer_link_prepare_error(l_balancer_request, l_balancer_request->host_addr, l_balancer_request->host_port, a_errno);
+    l_balancer_request->request_info->request_time = dap_time_now();
     DAP_DELETE(l_balancer_request);
 }
 
@@ -304,11 +312,15 @@ static dap_chain_net_links_t *s_balancer_issue_link(const char *a_net_name, uint
 }
 
 /**
- * @brief balancer deinit
+ * @brief balancer deinit, use ONLY after dap_link_manager deinit
  */
 void dap_chain_net_balancer_deinit()
 {
-
+    dap_balancer_request_info_t
+        *l_item = NULL,
+        *l_tmp = NULL;
+    HASH_ITER(hh, s_request_info_items, l_item, l_tmp)
+        HASH_DEL(s_request_info_items, l_item);
 }
 
 /**
@@ -419,19 +431,26 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, const char *a_host_ad
 {
 // sanity check
     dap_return_val_if_pass(!a_net, -1);
-// func work
-    // if error request each 20 sec
-    if (a_net->pub.request_error_time + DAP_CHAIN_NET_BALANCER_REQUEST_DELAY > dap_time_now()) {
+// period request check
+    dap_balancer_request_info_t *l_item = NULL;
+    HASH_FIND(hh, s_request_info_items, &a_net->pub.id, sizeof(a_net->pub.id), l_item);
+    if (!l_item) {
+        DAP_NEW_Z_RET_VAL(l_item, dap_balancer_request_info_t, -2, NULL);
+        l_item->net_id = a_net->pub.id;
+        HASH_ADD(hh, s_request_info_items, net_id, sizeof(l_item->net_id), l_item);
+    }
+    if (l_item->request_time + DAP_CHAIN_NET_BALANCER_REQUEST_DELAY > dap_time_now()) {
         log_it(L_DEBUG, "Who understands life, he is in no hurry. Dear %s, please wait few seconds", a_net->pub.name);
         return 0;
     }
-
+// preparing to request
     size_t
         l_ignored_addrs_size = 0,
         l_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
     dap_chain_net_links_t
         *l_ignored_addrs = s_get_ignored_node_addrs(a_net, &l_ignored_addrs_size),
-        *l_links = s_get_node_addrs(a_net, l_required_links_count, l_ignored_addrs, false);     // links from local GDB
+        *l_links = s_get_node_addrs(a_net, l_required_links_count, l_ignored_addrs, false);
+// links from local GDB
     if (l_links) {
         s_balancer_link_prepare_success(a_net, l_links, NULL, 0);
         if (l_links->count_node >= l_required_links_count) {
@@ -441,12 +460,12 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, const char *a_host_ad
         l_required_links_count -= l_links->count_node;
         DAP_DELETE(l_links);
     }
+// links from http balancer request
     if (!a_host_addr || !a_host_port) {
         log_it(L_INFO, "Can't read seed nodes addresses in net %s, work with local balancer only", a_net->pub.name);
         DAP_DEL_Z(l_ignored_addrs);
         return 0;
     }
-    // dynamic links from http balancer request
     dap_balancer_link_request_t *l_balancer_request = NULL;
     DAP_NEW_Z_RET_VAL(l_balancer_request, dap_balancer_link_request_t, -4, NULL);
     *l_balancer_request = (dap_balancer_link_request_t) {
@@ -454,7 +473,8 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, const char *a_host_ad
         .host_port = a_host_port,
         .net = a_net,
         .worker = dap_events_worker_get_auto(),
-        .required_links_count = l_required_links_count
+        .required_links_count = l_required_links_count,
+        .request_info = l_item
     };
     log_it(L_DEBUG, "Start balancer %s request to %s:%u",
            dap_chain_net_balancer_type_to_str(a_balancer_type), l_balancer_request->host_addr, l_balancer_request->host_port);
