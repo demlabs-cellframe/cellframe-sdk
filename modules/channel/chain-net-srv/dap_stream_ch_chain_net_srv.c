@@ -130,6 +130,7 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_
                 l_item = DAP_NEW_Z(dap_chain_net_srv_banlist_item_t);
                 if (!l_item) {
                     log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    pthread_mutex_unlock(&a_grace->usage->service->banlist_mutex);
                     DAP_DEL_Z(a_grace->request);
                     DAP_DEL_Z(a_grace);
                     return;
@@ -355,8 +356,8 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
     if ( l_err.code || !l_srv_session){
         debug_if(
             l_check_role, L_ERROR,
-            "You can't provide service with ID %llu in net %s. Node role should be not lower than master\n",
-            l_srv->uid.uint64, l_net->pub.name
+            "You can't provide service with ID %llu in net %s. Node role should be not lower than master\n", l_srv ?
+            l_srv->uid.uint64 : 0, l_net->pub.name
             );
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));

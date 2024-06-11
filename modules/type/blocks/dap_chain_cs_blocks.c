@@ -656,7 +656,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 if (l_err)
                     break;
             }
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_OK, "All datums processed");
+            json_object* json_obj_out = json_object_new_string("All datums processed");
+            json_object_array_add(*json_arr_reply, json_obj_out);
+            ret = DAP_CHAIN_NODE_CLI_COM_BLOCK_OK;
+            DAP_DEL_Z(l_datums);
             DAP_DELETE(l_gdb_group_mempool);
         } break;
 
