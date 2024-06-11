@@ -71,10 +71,15 @@ typedef struct dap_chain_block_cache {
     UT_hash_handle hh;
 } dap_chain_block_cache_t;
 
+typedef struct dap_chain_block_forked_branch_atoms_table{
+    dap_hash_fast_t block_hash;
+    dap_chain_block_cache_t *block_cache;
+    UT_hash_handle hh;
+} dap_chain_block_forked_branch_atoms_table_t;
 
 typedef struct dap_chain_block_forked_branch {
     dap_chain_block_cache_t *connected_block; // pointer to a block connected with this forked branch
-    dap_list_t *forked_branch_atoms;
+    dap_chain_block_forked_branch_atoms_table_t *forked_branch_atoms;
 } dap_chain_block_forked_branch_t;
 
 int dap_chain_block_cache_init();
