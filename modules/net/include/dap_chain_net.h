@@ -72,6 +72,7 @@ typedef struct dap_chain_net{
         dap_chain_addr_t fee_addr;
         dap_list_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TX
         dap_config_t *config;
+        dap_time_t request_error_time;  // check balancer request error time to wait 20 sec
     } pub;
     uint8_t pvt[];
 } dap_chain_net_t;

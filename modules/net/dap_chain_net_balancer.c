@@ -36,6 +36,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_balancer"
 
+#define DAP_CHAIN_NET_BALANCER_REQUEST_DELAY 20 // sec
+
 typedef struct dap_balancer_link_request {
     const char* host_addr;
     uint16_t host_port;
@@ -128,6 +130,7 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_chain_ne
         log_it(L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added",
                  NODE_ADDR_FP_ARGS_S(l_link_info->node_addr));
     }
+    a_net->pub.request_error_time = 0;
 }
 
 /**
@@ -143,7 +146,8 @@ void s_http_balancer_link_prepare_success(void *a_response, size_t a_response_si
 
     size_t l_response_size_need = sizeof(dap_chain_net_links_t) + (sizeof(dap_link_info_t) * l_balancer_request->required_links_count);
     if (a_response_size < sizeof(dap_chain_net_links_t) + sizeof(dap_link_info_t) || a_response_size > l_response_size_need) {
-        log_it(L_ERROR, "Invalid balancer response size %zu (expected %zu)", a_response_size, l_response_size_need);
+        log_it(L_ERROR, "Invalid balancer response size %zu (expected %zu) in net %s from %s:%u", a_response_size, l_response_size_need, l_balancer_request->net->pub.name, l_balancer_request->host_addr, l_balancer_request->host_port);
+        l_balancer_request->net->pub.request_error_time = dap_time_now();
     } else {
         s_balancer_link_prepare_success(l_balancer_request->net, l_link_full_node_list, l_balancer_request->host_addr, l_balancer_request->host_port);
     }
@@ -167,6 +171,7 @@ static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request
     json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
     dap_notify_server_send_mt(json_object_get_string(l_json));
     json_object_put(l_json);
+    a_request->net->pub.request_error_time = dap_time_now();
 }
 
 /**
@@ -415,13 +420,12 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, const char *a_host_ad
 // sanity check
     dap_return_val_if_pass(!a_net, -1);
 // func work
-    // request each 5 sec
-    static dap_time_t l_last_time = 0;
-    if (dap_time_now() - l_last_time < s_request_period) {
-        log_it(L_DEBUG, "Who understands life, he is in no hurry");
+    // if error request each 20 sec
+    if (a_net->pub.request_error_time + DAP_CHAIN_NET_BALANCER_REQUEST_DELAY > dap_time_now()) {
+        log_it(L_DEBUG, "Who understands life, he is in no hurry. Dear %s, please wait few seconds", a_net->pub.name);
         return 0;
     }
-    l_last_time = dap_time_now();
+
     size_t
         l_ignored_addrs_size = 0,
         l_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
@@ -438,7 +442,7 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, const char *a_host_ad
         DAP_DELETE(l_links);
     }
     if (!a_host_addr || !a_host_port) {
-        log_it(L_INFO, "Can't read seed nodes addresses, work with local balancer only");
+        log_it(L_INFO, "Can't read seed nodes addresses in net %s, work with local balancer only", a_net->pub.name);
         DAP_DEL_Z(l_ignored_addrs);
         return 0;
     }
