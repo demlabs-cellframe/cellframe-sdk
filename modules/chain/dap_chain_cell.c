@@ -382,7 +382,7 @@ static int s_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_atom
         size_t l_pos = ftell(a_cell->file_storage);
         log_it(L_MSG, "[!] Before filling volume for atom size %lu, stream pos of %s is %lu, map pos is %lu, space left in map %lu",
                       a_atom_size, a_cell->file_storage_path, l_pos, (size_t)(a_cell->map_pos - a_cell->map), (size_t)(a_cell->map_end - a_cell->map_pos));
-        if ( a_atom_size > (size_t)(a_cell->map_end - a_cell->map_pos) ) {
+        if ( a_atom_size + sizeof(a_atom_size) > (size_t)(a_cell->map_end - a_cell->map_pos) ) {
             size_t  l_map_size      = dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT),
                     l_volume_start  = dap_page_rounddown(l_pos),
                     l_offset        = l_pos - l_volume_start;
