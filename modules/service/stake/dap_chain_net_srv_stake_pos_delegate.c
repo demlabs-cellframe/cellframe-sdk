@@ -2946,3 +2946,22 @@ dap_chain_net_srv_stake_item_t *dap_chain_net_srv_stake_check_pkey_hash(dap_chai
     }
     return NULL;
 }
+
+size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_t *a_in_active_count){
+    dap_chain_net_srv_stake_t *l_stake_rec = s_srv_stake_by_net_id(a_net_id);
+    if (!l_stake_rec)
+        return 0;
+    size_t l_total_count = 0, l_inactive_count = 0;
+    dap_chain_net_srv_stake_item_t *l_item = NULL;
+    for (l_item = l_stake_rec->itemlist; l_item; l_item = l_item->hh.next) {
+        if (l_item->net->pub.id.uint64 != a_net_id.uint64)
+            continue;
+        l_total_count++;
+        if (!l_item->is_active)
+            l_inactive_count++;
+    }
+    if (a_in_active_count) {
+        *a_in_active_count = l_inactive_count;
+    }
+    return l_total_count;
+}
