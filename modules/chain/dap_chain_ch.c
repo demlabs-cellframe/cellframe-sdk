@@ -621,9 +621,12 @@ static bool s_sync_in_chains_callback(void *a_arg)
         return false;
     }
     char *l_atom_hash_str = NULL;
+    l_atom_hash_str = DAP_NEW_STACK_SIZE(char, DAP_CHAIN_HASH_FAST_STR_SIZE); 
+    dap_hash_fast_t l_atom_hash = {}; 
+    dap_hash_fast(l_atom, l_atom_size, &l_atom_hash); 
     if (s_debug_more)
         dap_get_data_hash_str_static(l_atom, l_atom_size, l_atom_hash_str);
-    dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size);
+    dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size, &l_atom_hash);
     bool l_ack_send = false;
     switch (l_atom_add_res) {
     case ATOM_PASS:
@@ -636,13 +639,14 @@ static bool s_sync_in_chains_callback(void *a_arg)
         break;
     case ATOM_ACCEPT:
         debug_if(s_debug_more, L_INFO, "Accepted atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
-        if (dap_chain_atom_save(l_chain->cells, l_atom, l_atom_size, NULL) < 0)
-            log_it(L_ERROR, "Can't save atom %s to the file", l_atom_hash_str);
-        else
-            l_ack_send = true;
+        l_ack_send = true;
         break;
     case ATOM_REJECT: {
         debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s rejected", l_atom_hash_str, l_chain->net_name, l_chain->name);
+        break;
+    }
+    case ATOM_FORK: {
+        debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s added to a fork branch.", l_atom_hash_str, l_chain->net_name, l_chain->name);
         break;
     }
     default:
@@ -656,10 +660,7 @@ static bool s_sync_in_chains_callback(void *a_arg)
         dap_stream_ch_pkt_send_by_addr(&l_args->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK, l_pkt, dap_chain_ch_pkt_get_size(l_pkt));
         DAP_DELETE(l_pkt);
         debug_if(s_debug_more, L_DEBUG, "Out: CHAIN_ACK %s for net %s to destination " NODE_ADDR_FP_STR " with num %" DAP_UINT64_FORMAT_U,
-                                l_chain ? l_chain->name : "(null)",
-                                            l_chain ? l_chain->net_name : "(null)",
-                                                            NODE_ADDR_FP_ARGS_S(l_args->addr),
-                                l_ack_num);
+                                         l_chain->name, l_chain->net_name, NODE_ADDR_FP_ARGS_S(l_args->addr), l_ack_num);
     }
     DAP_DELETE(l_args);
     return false;
@@ -917,6 +918,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
         dap_chain_ch_summary_t *l_sum = (dap_chain_ch_summary_t *)l_chain_pkt->data;
+        if(l_chain->atom_num_last < l_sum->num_last)
+            l_chain->atom_num_last = l_sum->num_last;
         debug_if(s_debug_more, L_DEBUG, "In: CHAIN_SUMMARY of %s for net %s from source " NODE_ADDR_FP_STR
                                             " with %" DAP_UINT64_FORMAT_U " atoms to sync from %" DAP_UINT64_FORMAT_U " to %" DAP_UINT64_FORMAT_U,
                                 l_chain ? l_chain->name : "(null)",
@@ -1360,7 +1363,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_UPDATE_CHAINS_REMOTE) {
             log_it(L_WARNING, "Can't process UPDATE_CHAINS packet cause synchronization sequence violation");
-            dap_stream_ch_write_error_unsafe(a_ch, l_context->request_hdr.net_id,
+            if(l_context)
+                dap_stream_ch_write_error_unsafe(a_ch, l_context->request_hdr.net_id,
                     l_context->request_hdr.chain_id, l_context->request_hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;

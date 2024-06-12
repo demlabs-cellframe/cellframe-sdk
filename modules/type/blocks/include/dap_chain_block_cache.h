@@ -60,6 +60,9 @@ typedef struct dap_chain_block_cache {
     // Pointer to block itself
     dap_chain_block_t * block;
 
+    // List for keeping pointers to list of atoms in side branches
+    dap_list_t *forked_branches;
+
     // Links to prev and next block
     struct dap_chain_block_cache * prev;
     struct dap_chain_block_cache * next;
@@ -68,17 +71,28 @@ typedef struct dap_chain_block_cache {
     UT_hash_handle hh;
 } dap_chain_block_cache_t;
 
+typedef struct dap_chain_block_forked_branch_atoms_table{
+    dap_hash_fast_t block_hash;
+    dap_chain_block_cache_t *block_cache;
+    UT_hash_handle hh;
+} dap_chain_block_forked_branch_atoms_table_t;
+
+typedef struct dap_chain_block_forked_branch {
+    dap_chain_block_cache_t *connected_block; // pointer to a block connected with this forked branch
+    dap_chain_block_forked_branch_atoms_table_t *forked_branch_atoms;
+} dap_chain_block_forked_branch_t;
+
 int dap_chain_block_cache_init();
 void dap_chain_block_cache_deinit();
 
 
 dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash, dap_chain_block_t *a_block,
-                                                   size_t a_block_size, uint64_t a_block_number);
+                                                   size_t a_block_size, uint64_t a_block_number, bool a_copy_block);
 dap_chain_block_cache_t *dap_chain_block_cache_dup(dap_chain_block_cache_t *a_block);
 int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_hash_fast_t *a_block_hash);
 void dap_chain_block_cache_delete(dap_chain_block_cache_t *a_block_cache);
 
 // Get the list of 'out_cond' items from previous transactions with summary out value. Put this summary value to a_value_out
-dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger,dap_chain_block_cache_t * a_block_cache,uint256_t *a_value_out);
+dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, dap_chain_block_cache_t * a_block_cache, uint256_t *a_value_out);
 
 
