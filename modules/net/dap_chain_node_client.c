@@ -293,7 +293,8 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
-    dap_client_set_auth_cert(a_node_client->client, a_node_client->net->pub.name);
+    const char *l_cert_node_name = dap_config_get_item_str(a_node_client->net->pub.config, "general", "auth_cert");
+    dap_client_set_auth_cert(a_node_client->client, l_cert_node_name);
     char *l_host_addr = a_node_client->info->ext_host;
     
     if ( !*l_host_addr || !strcmp(l_host_addr, "::") || !a_node_client->info->ext_port ) {

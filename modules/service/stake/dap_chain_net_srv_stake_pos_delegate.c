@@ -153,13 +153,13 @@ int dap_chain_net_srv_stake_net_add(dap_chain_net_id_t a_net_id)
     DAP_NEW_Z_RET_VAL(l_srv_stake, dap_chain_net_srv_stake_t, -1, NULL);
     l_srv_stake->net_id = a_net_id;
     l_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
-    dap_list_t *l_list_new = dap_list_append(s_srv_stake_list, l_srv_stake);
-    if (dap_list_last(l_list_new) == dap_list_last(s_srv_stake_list)) {
+    dap_list_t *l_list_last = dap_list_last(s_srv_stake_list);
+    s_srv_stake_list = dap_list_append(s_srv_stake_list, l_srv_stake);
+    if (l_list_last == dap_list_last(s_srv_stake_list)) {
         log_it(L_ERROR, "Can't add net %" DAP_UINT64_FORMAT_X " to stake service net list", a_net_id.uint64);
         DAP_DELETE(l_srv_stake);
         return -2;
     }
-    s_srv_stake_list = l_list_new;
     log_it(L_NOTICE, "Successfully added net ID 0x%016" DAP_UINT64_FORMAT_x, a_net_id.uint64);
     return 0;
 }
@@ -307,7 +307,8 @@ static bool s_srv_stake_is_poa_cert(dap_chain_net_t *a_net, dap_enc_key_t *a_key
 {
     bool l_is_poa_cert = false;
     dap_pkey_t *l_pkey = dap_pkey_from_enc_key(a_key);
-    for (dap_list_t *it = a_net->pub.decree->pkeys; it; it = it->next)
+    dap_list_t *l_pkeys = dap_chain_net_get_net_decree(a_net)->pkeys;
+    for (dap_list_t *it = l_pkeys; it; it = it->next)
         if (dap_pkey_compare(l_pkey, (dap_pkey_t *)it->data)) {
             l_is_poa_cert = true;
             break;
@@ -2944,4 +2945,23 @@ dap_chain_net_srv_stake_item_t *dap_chain_net_srv_stake_check_pkey_hash(dap_chai
             return l_stake;
     }
     return NULL;
+}
+
+size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_t *a_in_active_count){
+    dap_chain_net_srv_stake_t *l_stake_rec = s_srv_stake_by_net_id(a_net_id);
+    if (!l_stake_rec)
+        return 0;
+    size_t l_total_count = 0, l_inactive_count = 0;
+    dap_chain_net_srv_stake_item_t *l_item = NULL;
+    for (l_item = l_stake_rec->itemlist; l_item; l_item = l_item->hh.next) {
+        if (l_item->net->pub.id.uint64 != a_net_id.uint64)
+            continue;
+        l_total_count++;
+        if (!l_item->is_active)
+            l_inactive_count++;
+    }
+    if (a_in_active_count) {
+        *a_in_active_count = l_inactive_count;
+    }
+    return l_total_count;
 }

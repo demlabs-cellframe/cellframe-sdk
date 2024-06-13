@@ -254,12 +254,14 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         char l_cert_name[512];
         dap_cert_t *l_cert_cur;
         snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu", l_auth_certs_prefix, i);
-        if ((l_cert_cur = dap_cert_find_by_name(l_cert_name)) == NULL) {
+        if ( !(l_cert_cur = dap_cert_find_by_name(l_cert_name)) ) {
             snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu.pub", l_auth_certs_prefix, i);
-            if ((l_cert_cur = dap_cert_find_by_name(l_cert_name)) == NULL) {
-                log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
-                l_ret = -3;
-                goto lb_err;
+            if ( !(l_cert_cur = dap_cert_find_by_name(l_cert_name)) ) {
+                if (i >= l_node_addrs_count)
+                    log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
+                else
+                    log_it(L_ERROR, "Can't find cert \"%s\" possibly for address \"%s\"", l_cert_name, l_addrs[i]);
+                continue;
             }
         }
         dap_chain_addr_t l_signing_addr;
@@ -1589,7 +1591,8 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
     // Process candidate
     a_session->processing_candidate = a_candidate;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_session->chain);
-    if (l_blocks->chain->callback_atom_verify(l_blocks->chain, a_candidate, a_candidate_size, a_candidate_hash) == ATOM_ACCEPT) {
+    dap_chain_atom_verify_res_t l_verify_status = l_blocks->chain->callback_atom_verify(l_blocks->chain, a_candidate, a_candidate_size, a_candidate_hash);
+    if (l_verify_status == ATOM_ACCEPT || l_verify_status == ATOM_FORK) {
         // validation - OK, gen event Approve
         s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_APPROVE, a_candidate_hash,
                        NULL, 0, a_session->cur_round.validators_list);
@@ -1698,6 +1701,9 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
         break;
     case ATOM_REJECT:
         log_it(L_WARNING,"Atom with hash %s rejected", l_candidate_hash_str);
+        break;
+    case ATOM_FORK:
+        log_it(L_WARNING,"Atom with hash %s is added to forked branch.", l_candidate_hash_str);
         break;
     default:
          log_it(L_CRITICAL, "Wtf is this ret code ? Atom hash %s code %d", l_candidate_hash_str, l_res);
