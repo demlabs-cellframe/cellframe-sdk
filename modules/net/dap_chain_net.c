@@ -1793,6 +1793,8 @@ static int callback_compare_prioritity_list(dap_list_t *a_item1, dap_list_t *a_i
  */
 void dap_chain_net_deinit()
 {
+    dap_link_manager_deinit();
+    dap_chain_net_balancer_deinit();
     dap_chain_net_item_t *l_current_item, *l_tmp;
     HASH_ITER(hh, s_net_ids, l_current_item, l_tmp)
         HASH_DELETE(hh2, s_net_ids, l_current_item);
