@@ -1587,8 +1587,6 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                                      l_price->net->pub.name);
 
 
-            DAP_DEL_Z(l_amount_coins_str);
-            DAP_DEL_Z(l_amount_datoshi_str);
             DAP_DEL_Z(l_cp_rate);
             DAP_DEL_Z(l_price);
         } break;
