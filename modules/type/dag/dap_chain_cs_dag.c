@@ -1364,10 +1364,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
 
     if ((l_net == NULL) || (l_chain == NULL)){
         return -1;
-    } else if (a_str_reply && *a_str_reply) {
-        DAP_DELETE(*a_str_reply);
-        *a_str_reply = NULL;
-    }
+    } 
     l_dag = DAP_CHAIN_CS_DAG(l_chain);
 
     const char *l_chain_type = dap_chain_get_cs_type(l_chain);
@@ -1776,7 +1773,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     json_object_object_add(json_obj_event_list,"chain", json_object_new_string(l_chain->name));
                     json_object_object_add(json_obj_event_list,"total events", json_object_new_uint64(l_events_count));
 
-                    json_object_array_add(*json_arr_reply, json_obj_event_list);                    
+                    json_object_array_add(*json_arr_reply, json_obj_event_list);                                       
                 }else if (l_from_events_str && (strcmp(l_from_events_str,"threshold") == 0) ){
                     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
