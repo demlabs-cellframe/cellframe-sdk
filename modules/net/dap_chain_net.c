@@ -612,7 +612,7 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
                                      l_args->atom, l_args->atom_size))
         debug_if(g_debug_reactor, L_ERROR, "Can't broadcast atom");
     DAP_DELETE(l_active_downs);
-    if ( !dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ l_args->chain_id })->is_mapped )
+    if ( !dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){{ l_args->chain_id }})->is_mapped )
         DAP_DELETE(l_args->atom);
     DAP_DELETE(l_args);
     return true;
