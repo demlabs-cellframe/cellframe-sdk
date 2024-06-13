@@ -2084,6 +2084,11 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links(dap_chain_atom_iter_
         dap_chain_cs_blocks_t *l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
         dap_chain_block_cache_t *l_link = dap_chain_block_cache_get_by_hash(l_cs_blocks, &l_block_cache->links_hash[i]);
         assert(l_link);
+        if (!l_link) {
+            DAP_DEL_Z(a_links_size_ptr);
+            DAP_DEL_Z(l_ret);
+            return NULL;
+        }
         (*a_links_size_ptr)[i] = l_link->block_size;
         l_ret[i] = l_link->block;
     }
