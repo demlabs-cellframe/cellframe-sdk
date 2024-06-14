@@ -3590,7 +3590,7 @@ int _cmd_mempool_proc_all(dap_chain_net_t *a_net, dap_chain_t *a_chain, void **a
     }
 
 #ifdef DAP_TPS_TEST
-    dap_chain_ledger_set_tps_start_time(a_net->pub.ledger);
+    dap_ledger_set_tps_start_time(a_net->pub.ledger);
 #endif
     dap_chain_node_mempool_process_all(a_chain, true);
     char *l_str_result = dap_strdup_printf("The entire mempool has been processed in %s.%s.",

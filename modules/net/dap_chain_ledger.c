@@ -4768,7 +4768,7 @@ static int s_sort_ledger_tx_item(dap_ledger_tx_item_t* a, dap_ledger_tx_item_t* 
                 a->tx->header.ts_created < b->tx->header.ts_created ? -1 : 1;
 }
 
-void dap_ledger_set_tps_start_time(dap_ledger_t *a_ledger)
+DAP_INLINE void dap_ledger_set_tps_start_time(dap_ledger_t *a_ledger)
 {
     clock_gettime(CLOCK_REALTIME, &PVT(a_ledger)->tps_start_time);
 }
