@@ -1758,6 +1758,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
                             a_session->cur_round.attempt_num, l_finish_candidate_hash_str, l_finish_block_hash_str);
         DAP_DEL_MULTY(l_finish_candidate_hash_str, l_finish_block_hash_str);
     }
+
     s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size);
 }
 
