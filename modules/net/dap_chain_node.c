@@ -410,11 +410,6 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
             log_it(L_ERROR, "Invalid record, key %s", l_objs[i].key);
             continue;
         }
-        dap_nanotime_t l_state_timestamp = 0;
-        dap_chain_node_net_states_info_t *l_state_store_obj = (dap_chain_node_net_states_info_t *)dap_global_db_get_sync(l_gdb_group, l_objs[i].key, NULL, NULL, &l_state_timestamp);
-        if (!l_state_store_obj) {
-            log_it(L_WARNING, "Can't find state about %s node", l_objs[i].key);
-        }
         bool l_ignored = false;
         for(size_t j = 0; !l_ignored && j < a_ignored_count; ++j) {
             l_ignored = a_ignored[j].uint64 == ((dap_chain_node_info_t*)(l_objs + i)->value)->address.uint64;
@@ -427,6 +422,11 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
         if(!l_item) {
             log_it(L_ERROR, "%s", g_error_memory_alloc);
             break;
+        }
+        dap_nanotime_t l_state_timestamp = 0;
+        dap_chain_node_net_states_info_t *l_state_store_obj = (dap_chain_node_net_states_info_t *)dap_global_db_get_sync(l_gdb_group, l_objs[i].key, NULL, NULL, &l_state_timestamp);
+        if (!l_state_store_obj) {
+            log_it(L_WARNING, "Can't find state about %s node, apply low priority", l_objs[i].key);
         }
         l_item->link_info.node_addr.uint64 = ((dap_chain_node_info_t*)(l_objs + i)->value)->address.uint64;
         l_item->link_info.uplink_port = ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_port;
