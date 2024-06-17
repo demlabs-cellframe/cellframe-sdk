@@ -1758,16 +1758,6 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
         DAP_DEL_MULTY(l_finish_candidate_hash_str, l_finish_block_hash_str);
     }
 
-    // Random desision of changing hash
-    bool desision = rand() % 2 == 0;
-    size_t l_signs_cnt = dap_chain_block_get_signs_count(l_store->candidate, l_store->candidate_size);
-    if (desision && l_signs_cnt){
-        log_it(L_MSG, "Let's change the block");
-        l_store->candidate_size = s_callback_block_sign(DAP_CHAIN_CS_BLOCKS(a_session->chain), &l_store->candidate, l_store->candidate_size);
-        l_store->candidate->hdr.meta_n_datum_n_signs_size = l_store->candidate_size - sizeof(l_store->candidate->hdr);
-        log_it(L_MSG, "NEW block size %"DAP_UINT64_FORMAT_U, l_store->candidate_size);
-        dap_hash_fast(l_store->candidate, l_store->candidate_size, &l_store->precommit_candidate_hash);
-    }
     s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size);
 }
 
