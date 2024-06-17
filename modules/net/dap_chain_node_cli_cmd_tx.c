@@ -714,7 +714,6 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
             l_tx_ledger_rejected = 0,
             l_count = 0,
             l_count_tx = 0;
-
         dap_chain_cell_t    *l_cell = NULL,
                             *l_cell_tmp = NULL;
         dap_chain_atom_iter_t *l_iter = NULL;
@@ -762,7 +761,7 @@ size_t datums = 0;
                         bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_ttx_hash, NULL, &service_name, &l_action);
                         
                         if (!(l_action & a_action))
-                            continue;
+                            continue;                           
 
                         if (a_srv)
                         {
