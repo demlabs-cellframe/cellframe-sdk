@@ -579,7 +579,6 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         log_it(L_ERROR, "This validator is not allowed to work in emergency mode. Use special decree to supply it");
         return -5;
     }
-    l_esbocs_pvt->check_signs_structure = true;
     pthread_mutex_init(&l_session->mutex, NULL);
     dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session);
     s_session_round_new(l_session);
