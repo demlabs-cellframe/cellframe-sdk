@@ -1893,7 +1893,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
     int l_check_result = dap_chain_net_srv_stake_verify_key_and_node(&l_signing_addr, &l_node_addr);
     if (l_check_result) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Key and node verification error");
-        dap_chain_wallet_close(l_wallet);
+        dap_enc_key_delete(l_enc_key);
         return l_check_result;
     }
     uint256_t l_allowed_min = dap_chain_net_srv_stake_get_allowed_min_value(l_net->pub.id);
