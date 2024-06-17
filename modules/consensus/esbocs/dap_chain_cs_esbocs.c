@@ -1270,6 +1270,10 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                 break;
             }
         }
+        if (!l_validator) {
+            log_it(L_CRITICAL, "l_validator is NULL");
+            break;
+        }
         a_session->cur_round.attempt_submit_validator = l_validator->signing_addr;
         if (dap_chain_addr_compare(&a_session->cur_round.attempt_submit_validator, &a_session->my_signing_addr)) {
             dap_chain_esbocs_directive_t *l_directive = NULL;
