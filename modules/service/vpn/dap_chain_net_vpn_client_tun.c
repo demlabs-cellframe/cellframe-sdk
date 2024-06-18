@@ -644,7 +644,7 @@ static void ch_sf_pkt_send(dap_stream_ch_t * a_ch, void * a_data, size_t a_data_
     l_pkt_out->header.op_data.data_size = a_data_size;
     memcpy(l_pkt_out->data, a_data, a_data_size);
     dap_stream_ch_pkt_write_unsafe(a_ch, 'd', l_pkt_out, l_pkt_out_size);
-
+    DAP_DELETE(l_pkt_out);
 }
 
 /**
@@ -695,6 +695,7 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
         pkt_out->header.sock_id = s_fd_tun;
         dap_stream_ch_pkt_write_unsafe(ch_sf->ch, 'd', pkt_out,
                 pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
+        DAP_DELETE(pkt_out);
     } else {
         //log_it(L_DEBUG, "Raw IP packet daddr:%s saddr:%s  %u from %d bytes sent to tun/tap interface",
         //  str_saddr,str_daddr, sf_pkt->header.op_data.data_size,ret);

@@ -1270,6 +1270,10 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                 break;
             }
         }
+        if (!l_validator) {
+            log_it(L_CRITICAL, "l_validator is NULL");
+            break;
+        }
         a_session->cur_round.attempt_submit_validator = l_validator->signing_addr;
         if (dap_chain_addr_compare(&a_session->cur_round.attempt_submit_validator, &a_session->my_signing_addr)) {
             dap_chain_esbocs_directive_t *l_directive = NULL;
@@ -1325,7 +1329,8 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                 const char *l_addr = dap_chain_hash_fast_to_str_static(&a_session->cur_round.attempt_submit_validator.data.hash_fast);
                 log_it(L_MSG, "Error: can't find current attmempt submit validator %s in signers list", l_addr);
             }
-            l_validator->is_chosen = false;
+            if (l_validator && l_validator->is_chosen)
+                l_validator->is_chosen = false;
         } else
             a_session->old_state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC;
     } break;
@@ -1773,7 +1778,7 @@ void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_e
     dap_chain_esbocs_sync_item_t *l_sync_item;
     HASH_FIND(hh, a_session->sync_items, &a_message->hdr.candidate_hash, sizeof(dap_hash_fast_t), l_sync_item);
     if (!l_sync_item) {
-        DAP_NEW_Z_RET(l_sync_item, dap_chain_esbocs_sync_item_t, NULL);
+        DAP_NEW_Z_RET(l_sync_item, dap_chain_esbocs_sync_item_t, l_message_copy);
         l_sync_item->last_block_hash = a_message->hdr.candidate_hash;
         HASH_ADD(hh, a_session->sync_items, last_block_hash, sizeof(dap_hash_fast_t), l_sync_item);
     }
@@ -2677,6 +2682,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
                                                           sizeof(struct esbocs_msg_args) + l_message_size + l_sign_size);
             if (!l_args) {
                 log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                DAP_DELETE(l_message);
                 return;
             }
             l_args->addr_from = a_session->my_addr;

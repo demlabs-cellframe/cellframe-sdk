@@ -588,7 +588,6 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net) {
         l_count_el = 0,
         l_count_el_all = 0,
         l_node_link_nodes = 0;
-    char *l_gdb_nodes = a_net->pub.gdb_nodes;
 
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(a_net->pub.chains, l_chain){

@@ -1235,9 +1235,11 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         l_args->pkt = DAP_DUP_SIZE(l_pkt, l_chain_pkt_data_size);
         if (!l_args->pkt) {
             log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            DAP_DEL_Z(l_args);
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
+
             break;
         }
         l_args->worker = a_ch->stream_worker;
@@ -1531,6 +1533,10 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 static bool s_sync_timer_callback(void *a_arg)
 {
     dap_worker_t *l_worker = dap_worker_get_current();
+    if (!l_worker) {
+        DAP_DELETE(a_arg);
+        return false;
+    }
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_worker), *(dap_stream_ch_uuid_t *)a_arg);
     if (!l_ch) {
         DAP_DELETE(a_arg);

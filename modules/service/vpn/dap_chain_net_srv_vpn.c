@@ -1696,7 +1696,7 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         return false;
 
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (a_ch->stream->session );
-    dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
+    // dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
 
     if ( ! l_usage){
@@ -1821,7 +1821,7 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION( a_ch->stream->session );
-    dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
+    // dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
 
     dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
     if ( ! l_usage){
