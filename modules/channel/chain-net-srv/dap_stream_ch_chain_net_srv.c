@@ -356,7 +356,7 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
     if ( l_err.code || !l_srv_session){
         debug_if(
             l_check_role, L_ERROR,
-            "You can't provide service with ID %llu in net %s. Node role should be not lower than master\n", l_srv ?
+            "You can't provide service with ID %" DAP_UINT64_FORMAT_U " in net %s. Node role should be not lower than master\n", l_srv ?
             l_srv->uid.uint64 : 0, l_net->pub.name
             );
         if(a_ch)
