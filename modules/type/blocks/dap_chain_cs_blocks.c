@@ -1432,14 +1432,17 @@ static int s_delete_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block
             i++, l_block_offset += l_datum_size){
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
         dap_chain_datum_t *l_datum = a_block_cache->datum[i];
-        int l_res = dap_chain_datum_remove(a_blocks->chain, l_datum, l_datum_size, l_datum_hash);
-        l_ret++;
-
         pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
         dap_chain_block_datum_index_t *l_datum_index = NULL;
+        size_t l_datum_data_size = l_datum->header.data_size;
+        l_datum_size = l_datum_data_size + sizeof(l_datum->header);
         HASH_FIND(hh, PVT(a_blocks)->datum_index, l_datum_hash, sizeof(dap_hash_fast_t), l_datum_index);
-        if (l_datum_index)
+        if (l_datum_index){
+            if (l_datum_index->ret_code >= 0)
+                dap_chain_datum_remove(a_blocks->chain, l_datum, l_datum_size, l_datum_hash);
+            l_ret++;
             HASH_DEL(PVT(a_blocks)->datum_index, l_datum_index);
+        }
         pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
