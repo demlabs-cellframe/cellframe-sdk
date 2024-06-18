@@ -584,12 +584,8 @@ static dap_ledger_t * dap_ledger_handle_new(void)
     l_ledger_pvt->threshold_txs_free_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
                                                                       (dap_timer_callback_t)s_threshold_txs_free, l_ledger);
     l_ledger_pvt->threshold_emissions_free_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
-                                                                            (dap_timer_callback_t) s_threshold_emission_free, l_ledger);
-#ifdef DAP_OS_WINDOWS
-    l_ledger_pvt->mapped = false;
-#else                                                                            
+                                                                            (dap_timer_callback_t) s_threshold_emission_free, l_ledger);                                                                          
     l_ledger_pvt->mapped = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true);
-#endif
     return l_ledger;
 }
 
@@ -5269,8 +5265,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             if(l_item){
                 HASH_DEL(l_ledger_pvt->rewards, l_item);
                 DAP_DEL_Z(l_item);
-            }
-                
+            } 
             pthread_rwlock_unlock(&l_ledger_pvt->rewards_rwlock);
         }
         l_outs_used--; // Do not calc this output with tx used items
@@ -5316,7 +5311,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             break;
         }
 
-        // add a used output memset(&(l_bound_item->stake_lock_item->tx_used_out), 0, sizeof(dap_hash_fast_t));
+        // add a used output 
         dap_ledger_tx_item_t *l_prev_item_out = l_bound_item->prev_item;
         memset(&(l_prev_item_out->cache_data.tx_hash_spent_fast[l_bound_item->prev_out_idx]), 0, sizeof(dap_hash_fast_t));
         l_prev_item_out->cache_data.n_outs_used--;
@@ -5401,7 +5396,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_cur_token_ticker, (char*)NULL);
         if(s_debug_more) {
             char *l_balance = dap_chain_balance_print(l_value);
-            log_it(L_DEBUG, "GOT %s to addr: %s", l_balance, l_wallet_balance_key);
+            log_it(L_DEBUG, "UNDO %s from addr: %s", l_balance, l_wallet_balance_key);
             DAP_DELETE(l_balance);
         }
         pthread_rwlock_rdlock(&l_ledger_pvt->balance_accounts_rwlock);
