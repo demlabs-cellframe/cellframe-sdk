@@ -1233,7 +1233,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
                 DAP_DEL_Z(l_token);
                 return;
             }
-            json_object_object_add(json_obj_datum,"=== Datum Token Declaration ===",json_object_new_string("empty"));
+            json_object_object_add(json_obj_datum,"=== Datum Token Declaration ===",json_object_new_string(""));
             json_object_object_add(json_obj_datum,"hash",json_object_new_string(l_hash_str));
             json_object_object_add(json_obj_datum,"ticker",json_object_new_string(l_token->ticker));
             json_object_object_add(json_obj_datum,"size",json_object_new_uint64(l_token_size));
