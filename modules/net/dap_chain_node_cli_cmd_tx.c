@@ -761,7 +761,7 @@ size_t datums = 0;
                         bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_ttx_hash, NULL, &service_name, &l_action);
                         
                         if (!(l_action & a_action))
-                            continue;                           
+                            continue;
 
                         if (a_srv)
                         {
