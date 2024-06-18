@@ -2202,6 +2202,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR;
                 }
             }
+            if (l_ledger == NULL) {
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR, "The ledger is not defined, the specified %s network may not be loaded.", l_net_name);
+                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR;
+            }
             json_object * json_obj_wall = json_object_new_object();
             char *l_l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
             if(l_wallet)
