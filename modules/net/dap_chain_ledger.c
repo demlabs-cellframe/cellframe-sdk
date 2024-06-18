@@ -1633,6 +1633,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_ledger_token_item_t *a
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
                     if (dap_chain_addr_check_sum(l_add_addr)) {
+                        DAP_DEL_Z(l_addrs);
                         debug_if(s_debug_more, L_ERROR, "Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD");
                         return -12;
                     }
@@ -1715,6 +1716,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_ledger_token_item_t *a
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
                     if (dap_chain_addr_check_sum(l_add_addr)) {
+                        DAP_DEL_Z(l_addrs);
                         debug_if(s_debug_more, L_ERROR, "Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD");
                         return -12;
                     }
@@ -1794,6 +1796,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_ledger_token_item_t *a
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
                     if (dap_chain_addr_check_sum(l_add_addr)) {
+                        DAP_DEL_Z(l_addrs);
                         debug_if(s_debug_more, L_ERROR, "Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD");
                         return -12;
                     }
@@ -2271,7 +2274,6 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
         i_tmp++;
         json_obj_datum = json_object_new_object();
         const char *l_type_str;
-        const char *l_flags_str = s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags);
         switch (l_token_item->type) {
             case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL: {
                 switch (l_token_item->subtype) {
@@ -4351,7 +4353,6 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger,
 
                 // 5a. Check for condition owner
                 dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx_prev, NULL, TX_ITEM_TYPE_SIG, NULL);
-                dap_sign_t *l_prev_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_prev_sig);
                 dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
                 dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
                 dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
@@ -4874,7 +4875,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     dap_store_obj_t *l_cache_used_outs = NULL;
     char *l_ledger_cache_group = NULL;
     if (PVT(a_ledger)->cached) {
-        dap_store_obj_t *l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * (l_outs_used + 1));
+        l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * (l_outs_used + 1));
         if ( !l_cache_used_outs ) {
             log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             l_ret = -1;
@@ -5168,9 +5169,11 @@ FIN:
         dap_list_free(l_list_tx_out);
     DAP_DEL_Z(l_main_token_ticker);
     if (PVT(a_ledger)->cached) {
-        for (size_t i = 1; i <= l_outs_used; i++) {
-            DAP_DEL_Z(l_cache_used_outs[i].key);
-            DAP_DEL_Z(l_cache_used_outs[i].value);
+        if (l_cache_used_outs) {
+            for (size_t i = 1; i <= l_outs_used; i++) {
+                DAP_DEL_Z(l_cache_used_outs[i].key);
+                DAP_DEL_Z(l_cache_used_outs[i].value);
+            }
         }
         DAP_DEL_Z(l_cache_used_outs);
         DAP_DEL_Z(l_ledger_cache_group);
@@ -5222,7 +5225,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     dap_store_obj_t *l_cache_used_outs = NULL;
     char *l_ledger_cache_group = NULL;
     if (PVT(a_ledger)->cached) {
-        dap_store_obj_t *l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * (l_outs_used));
+        l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * (l_outs_used));
         if ( !l_cache_used_outs ) {
             log_it(L_CRITICAL, "Memory allocation error");
             l_ret = -1;
@@ -5456,9 +5459,11 @@ FIN:
         dap_list_free(l_list_tx_out);
     DAP_DEL_Z(l_main_token_ticker);
     if (PVT(a_ledger)->cached) {
-        for (size_t i = 1; i < l_outs_used; i++) {
-            DAP_DEL_Z(l_cache_used_outs[i].key);
-            DAP_DEL_Z(l_cache_used_outs[i].value);
+        if (l_cache_used_outs) {
+            for (size_t i = 1; i < l_outs_used; i++) {
+                DAP_DEL_Z(l_cache_used_outs[i].key);
+                DAP_DEL_Z(l_cache_used_outs[i].value);
+            }
         }
         DAP_DEL_Z(l_cache_used_outs);
         DAP_DEL_Z(l_ledger_cache_group);
@@ -6325,7 +6330,6 @@ dap_list_t *dap_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_
     }
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
-    size_t l_end = l_offset + a_count;
     dap_ledger_tx_item_t *l_item_current, *l_item_tmp;
     HASH_ITER(hh, l_ledger_pvt->ledger_items, l_item_current, l_item_tmp) {
         if (l_counter++ >= l_offset) {
