@@ -1587,8 +1587,6 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                                      l_price->net->pub.name);
 
 
-            DAP_DEL_Z(l_amount_coins_str);
-            DAP_DEL_Z(l_amount_datoshi_str);
             DAP_DEL_Z(l_cp_rate);
             DAP_DEL_Z(l_price);
         } break;
@@ -1665,8 +1663,7 @@ xchange_tx_type_t dap_chain_net_srv_xchange_tx_get_type (dap_ledger_t * a_ledger
     
     if (l_out_cond_item && !l_out_prev_cond_item)
         l_tx_type = TX_TYPE_ORDER;
-    else if (l_out_cond_item && l_out_prev_cond_item)
-    {
+    else if (l_out_cond_item && l_out_prev_cond_item) {
         l_tx_type = TX_TYPE_EXCHANGE;
     }
     else if (!l_out_cond_item && l_out_prev_cond_item)
@@ -1699,14 +1696,13 @@ xchange_tx_type_t dap_chain_net_srv_xchange_tx_get_type (dap_ledger_t * a_ledger
                 l_tx_type = TX_TYPE_EXCHANGE;
         }
 
-        if(a_out_cond_item)
-            *a_out_cond_item = l_out_cond_item;
-        if(a_out_prev_cond_item)
-            *a_out_prev_cond_item = l_out_prev_cond_item;
-        if (a_item_idx)
-            *a_item_idx = l_cond_idx;
-        return l_tx_type;
     }
+    if(a_out_cond_item)
+        *a_out_cond_item = l_out_cond_item;
+    if(a_out_prev_cond_item)
+        *a_out_prev_cond_item = l_out_prev_cond_item;
+    if (a_item_idx)
+        *a_item_idx = l_cond_idx;
     return l_tx_type;
 }
 

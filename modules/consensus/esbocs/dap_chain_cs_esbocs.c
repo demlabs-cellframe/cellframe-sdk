@@ -1549,7 +1549,7 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                                                             &a_session->cur_round.attempt_num, sizeof(uint8_t));
             if (l_candidate_size)
                  l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
-                                                            a_session->cur_round.excluded_list, *a_session->cur_round.excluded_list * sizeof(uint16_t));
+                                                            a_session->cur_round.excluded_list, (*a_session->cur_round.excluded_list + 1) * sizeof(uint16_t));
         }
         if (l_candidate_size) {
             dap_hash_fast(l_candidate, l_candidate_size, &l_candidate_hash);
@@ -1762,6 +1762,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
                             a_session->cur_round.attempt_num, l_finish_candidate_hash_str, l_finish_block_hash_str);
         DAP_DEL_MULTY(l_finish_candidate_hash_str, l_finish_block_hash_str);
     }
+
     s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size);
 }
 
@@ -2026,8 +2027,11 @@ static bool s_check_signing_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_block
         }
         l_round_attempt = *l_round_attempt_ptr;
     }
+    dap_hash_fast_t l_prev_hash = {};
     dap_hash_fast_t *l_prev_hash_ptr = (dap_hash_fast_t *)dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_PREV);
-    if (!l_prev_hash_ptr) {
+    if (l_prev_hash_ptr)
+        l_prev_hash = *l_prev_hash_ptr;
+    else if (!dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_GENESIS)) {
         log_it(L_ERROR, "Can't get block metadata for PREV_HASH");
         return false;
     }
@@ -2036,7 +2040,7 @@ static bool s_check_signing_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_block
         log_it(L_ERROR, "Can't get block metadata for EXCLUDED_KEYS");
         return false;
     }
-    dap_list_t *l_allowed_validators_list = s_get_validators_list(a_esbocs, l_prev_hash_ptr, l_sync_attempt - 1,
+    dap_list_t *l_allowed_validators_list = s_get_validators_list(a_esbocs, &l_prev_hash, l_sync_attempt - 1,
                                                                   l_excluded_list + 1, *l_excluded_list);
     if (!l_allowed_validators_list) {
         log_it(L_ERROR, "Can't get block allowed validators list");
@@ -2049,7 +2053,7 @@ static bool s_check_signing_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_block
                                                 l_round_attempt, l_list_len);
             return false;
         }
-        dap_chain_esbocs_validator_t *l_chosen_validator = dap_list_nth(l_allowed_validators_list, l_round_attempt)->data;
+        dap_chain_esbocs_validator_t *l_chosen_validator = dap_list_nth(l_allowed_validators_list, l_round_attempt - 1)->data;
         if (dap_hash_fast_compare(&l_chosen_validator->signing_addr.data.hash_fast, &a_signing_addr->data.hash_fast))
             return true;
         return false;

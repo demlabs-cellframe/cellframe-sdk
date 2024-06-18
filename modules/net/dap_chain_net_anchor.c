@@ -266,7 +266,9 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
         return -108;
     }
 
-    if ((ret_val = dap_chain_net_anchor_verify(l_net, a_anchor, dap_chain_datum_anchor_get_size(a_anchor))) != 0)
+    ret_val = s_anchor_verify(l_net, a_anchor, dap_chain_datum_anchor_get_size(a_anchor), true);
+
+    if (ret_val != 0)
     {
         log_it(L_WARNING,"Decree is not pass verification!");
         return ret_val;
@@ -284,6 +286,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
         switch (l_decree->header.sub_type)
         {
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:{
+                dap_chain_net_decree_reset_applied(l_net, &l_hash);
                 dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor, a_chain);
                 if (l_new_anchor){// if previous anchor is founded apply it
                     dap_chain_hash_fast_t l_hash = {0};
@@ -313,10 +316,12 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                     return -105;
                 }
                 dap_chain_net_srv_stake_key_invalidate(&l_signing_addr);
+                dap_chain_net_decree_reset_applied(l_net, &l_hash);
             }
             break;
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:{
                 // Find previous anchor with this stake approve and apply it 
+                dap_chain_net_decree_reset_applied(l_net, &l_hash);
                 dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor, a_chain);
                 if (l_new_anchor){// if previous anchor is founded apply it
                     dap_chain_hash_fast_t l_hash = {0};
@@ -332,6 +337,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
             }
             break;
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:{
+                dap_chain_net_decree_reset_applied(l_net, &l_hash);
                 dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor, a_chain);
                 if (l_new_anchor){// if previous anchor is founded apply it
                     dap_chain_hash_fast_t l_hash = {0};
@@ -350,6 +356,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
             }
             break;
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:{
+                dap_chain_net_decree_reset_applied(l_net, &l_hash);
                 dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor, a_chain);
                 if (l_new_anchor){// if previous anchor is founded apply it
                     dap_chain_hash_fast_t l_hash = {0};
@@ -369,6 +376,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
             break;
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD:{
                 // find previous anchor with rewarrd and apply it
+                dap_chain_net_decree_reset_applied(l_net, &l_hash);
                 dap_chain_net_remove_last_reward(dap_chain_net_by_id(a_chain->net_id));
             }
             break;

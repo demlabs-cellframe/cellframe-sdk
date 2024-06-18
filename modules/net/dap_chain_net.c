@@ -3259,6 +3259,9 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
         }
         case DAP_CHAIN_DATUM_ANCHOR: {
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
+
+            
+
             size_t l_anchor_size = dap_chain_datum_anchor_get_size(l_anchor);
             if (l_anchor_size != l_datum_data_size) {
                 log_it(L_WARNING, "Corrupted anchor, datum size %zd is not equal to size of anchor %zd", l_datum_data_size, l_anchor_size);
