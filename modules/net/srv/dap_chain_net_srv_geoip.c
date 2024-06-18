@@ -46,7 +46,8 @@ static char *s_geoip_db_file_path = NULL; // share/geoip/GeoLite2-City.mmdb
  * @param a_response_size
  * @param a_obj
  */
-static void m_request_getip_response(void * a_response, size_t a_response_size, void * a_obj)
+static void m_request_getip_response(void * a_response, size_t a_response_size, void * a_obj,
+                                     http_status_code_t http_status_code)
 {
     char *l_addr = (char *) a_obj;
     //printf("m_request_getip_response %s\n", a_response);
