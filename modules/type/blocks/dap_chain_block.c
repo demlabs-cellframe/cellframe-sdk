@@ -467,17 +467,15 @@ size_t dap_chain_block_meta_add(dap_chain_block_t ** a_block_ptr, size_t a_block
         return 0;
     }
     size_t l_offset = s_block_get_datum_offset(l_block, a_block_size);
-    size_t l_datum_n_sign_copy_size = a_block_size - sizeof(l_block->hdr) - l_offset;
-    if (l_datum_n_sign_copy_size) {
-        byte_t *l_meta_end = l_block->meta_n_datum_n_sign + l_offset;
-        memmove(l_meta_end + l_add_size, l_meta_end, l_datum_n_sign_copy_size);
-    }
     l_meta = (dap_chain_block_meta_t *)(l_block->meta_n_datum_n_sign + l_offset); // Update data end in reallocated block
+    size_t l_datum_n_sign_copy_size = a_block_size - sizeof(l_block->hdr) - l_offset;
+    if (l_datum_n_sign_copy_size)
+        memmove((byte_t *)l_meta + l_add_size, l_meta, l_datum_n_sign_copy_size);
     l_meta->hdr.data_size = a_data_size;
     l_meta->hdr.type = a_meta_type;
     if (a_data_size)
         memcpy(l_meta->data, a_data, a_data_size);
-    l_block->hdr.meta_n_datum_n_signs_size = l_offset + l_datum_n_sign_copy_size;
+    l_block->hdr.meta_n_datum_n_signs_size += l_add_size;
     l_block->hdr.meta_count++;
     return a_block_size + l_add_size;
 }
@@ -534,7 +532,7 @@ static uint8_t *s_meta_extract(dap_chain_block_meta_t *a_meta)
                s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size, sizeof(uint8_t));
     break;
     case DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS:
-        if (a_meta->hdr.data_size > sizeof(uint16_t)) {
+        if (a_meta->hdr.data_size >= sizeof(uint16_t)) {
             uint16_t l_expected_size = *(uint16_t *)a_meta->data + sizeof(uint16_t);
             if (!(l_expected_size % sizeof(uint16_t)) &&
                     l_expected_size == a_meta->hdr.data_size)
@@ -721,6 +719,12 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
                 else
                     return -4;
             }
+        break;
+        case DAP_CHAIN_BLOCK_META_EMERGENCY:
+        case DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS:
+        case DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT:
+        case DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT:
+            // No warning here
         break;
         default: log_it(L_WARNING, "Unknown meta #%zu type 0x%02x (size %u), possible corrupted block or you need to upgrade your software",
                                     i, l_meta->hdr.type, l_meta->hdr.type);

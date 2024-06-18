@@ -1793,6 +1793,8 @@ static int callback_compare_prioritity_list(dap_list_t *a_item1, dap_list_t *a_i
  */
 void dap_chain_net_deinit()
 {
+    dap_link_manager_deinit();
+    dap_chain_net_balancer_deinit();
     dap_chain_net_item_t *l_current_item, *l_tmp;
     HASH_ITER(hh, s_net_ids, l_current_item, l_tmp)
         HASH_DELETE(hh2, s_net_ids, l_current_item);
@@ -2172,25 +2174,26 @@ bool s_net_load(void *a_arg)
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
         if (!dap_chain_load_all(l_chain)) {
             log_it (L_NOTICE, "Loaded chain files");
-            if (DAP_CHAIN_PVT(l_chain)->need_reorder) {
+            if ( DAP_CHAIN_PVT(l_chain)->need_reorder ) {
                 log_it(L_DAP, "Reordering chain files for chain %s", l_chain->name);
-                if (l_chain->callback_atom_add_from_treshold)
+                if (l_chain->callback_atom_add_from_treshold) {
                     while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
                         log_it(L_DEBUG, "Added atom from treshold");
+                }
                 dap_chain_save_all(l_chain);
                 DAP_CHAIN_PVT(l_chain)->need_reorder = false;
                 if (l_chain->callback_purge) {
+                    dap_chain_net_decree_purge(l_net);
                     l_chain->callback_purge(l_chain);
                     dap_ledger_purge(l_net->pub.ledger, false);
                     l_net->pub.fee_value = uint256_0;
                     l_net->pub.fee_addr = c_dap_chain_addr_blank;
-                    dap_chain_net_decree_purge(l_net);
                     dap_chain_load_all(l_chain);
                 } else
                     log_it(L_WARNING, "No purge callback for chain %s, can't reload it with correct order", l_chain->name);
             }
         } else {
-            dap_chain_save_all( l_chain );
+            //dap_chain_save_all( l_chain );
             log_it (L_NOTICE, "Initialized chain files");
         }
         l_chain->atom_num_last = l_chain->callback_count_atom(l_chain);
@@ -3257,6 +3260,9 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
         }
         case DAP_CHAIN_DATUM_ANCHOR: {
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
+
+            
+
             size_t l_anchor_size = dap_chain_datum_anchor_get_size(l_anchor);
             if (l_anchor_size != l_datum_data_size) {
                 log_it(L_WARNING, "Corrupted anchor, datum size %zd is not equal to size of anchor %zd", l_datum_data_size, l_anchor_size);
