@@ -103,8 +103,10 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
     DAP_NEW_Z_SIZE_RET_VAL(l_ret, dap_chain_net_links_t, l_size, NULL, l_uplinks, l_low_availability);
 // func work
     memcpy(l_ret->nodes_info, l_curr_addr, sizeof(dap_stream_node_addr_t));
-    memcpy(l_ret->nodes_info + sizeof(dap_stream_node_addr_t), l_uplinks, l_uplinks_count * sizeof(dap_stream_node_addr_t));
-    memcpy(l_ret->nodes_info + (l_uplinks_count + 1) * sizeof(dap_stream_node_addr_t), l_low_availability, l_low_availability_count * sizeof(dap_stream_node_addr_t));
+    if(l_uplinks)
+        memcpy(l_ret->nodes_info + sizeof(dap_stream_node_addr_t), l_uplinks, l_uplinks_count * sizeof(dap_stream_node_addr_t));
+    if(l_low_availability)
+        memcpy(l_ret->nodes_info + (l_uplinks_count + 1) * sizeof(dap_stream_node_addr_t), l_low_availability, l_low_availability_count * sizeof(dap_stream_node_addr_t));
     l_ret->count_node = l_uplinks_count + l_low_availability_count + 1;
     if (a_size)
         *a_size = l_size;
