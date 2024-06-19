@@ -1206,26 +1206,18 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     dap_json_rpc_allocation_error;
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
-                if (l_from_str) {
-                    json_object *l_jobj_from = json_object_new_string(l_from_str);
-                    if (!l_jobj_from) {
-                        json_object_put(l_jobj_return);
-                        json_object_put(l_jobj_stats);
-                        dap_json_rpc_allocation_error;
-                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                    }
-                    json_object_object_add(l_jobj_stats, "from", l_jobj_from);
+                json_object *l_jobj_from = json_object_new_string(l_from_str_new);
+                json_object *l_jobj_to = json_object_new_string(l_to_str_new);
+                if (!l_jobj_from || !l_jobj_to) {
+                    json_object_put(l_jobj_return);
+                    json_object_put(l_jobj_stats);
+                    json_object_put(l_jobj_from);
+                    json_object_put(l_jobj_to);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
-                if (l_to_str) {
-                    json_object *l_jobj_to = json_object_new_string(l_to_str);
-                    if (!l_jobj_to) {
-                        json_object_put(l_jobj_return);
-                        json_object_put(l_jobj_stats);
-                        dap_json_rpc_allocation_error;
-                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                    }
-                    json_object_object_add(l_jobj_stats, "to", l_jobj_to);
-                }
+                json_object_object_add(l_jobj_stats, "from", l_jobj_from);
+                json_object_object_add(l_jobj_stats, "to", l_jobj_to);
                 log_it(L_INFO, "Calc TPS from %s to %s", l_from_str_new, l_to_str_new);
                 uint64_t l_tx_count = dap_ledger_count_from_to ( l_net->pub.ledger, l_from_ts, l_to_ts);
                 long double l_tpd = l_to_ts == l_from_ts ? 0 :
@@ -1234,74 +1226,38 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 json_object *l_jobj_tpd = json_object_new_string(l_tpd_str);
                 DAP_DELETE(l_tpd_str);
                 json_object *l_jobj_total = json_object_new_uint64(l_tx_count);
+#ifdef DAP_TPS_TEST
+                long double l_tps = l_to_ts == l_from_ts ? 0 :
+                                                     (long double) l_tx_count / (long double) (long double)(l_to_ts - l_from_ts);
+                char *l_tps_str = dap_strdup_printf("%.3Lf", l_tps);
+                json_object *l_jobj_tps = json_object_new_string(l_tps_str);
+                DAP_DELETE(l_tps_str);
+                if (!l_jobj_tpd || !l_jobj_total || !l_jobj_tps) {
+                    json_object_put(l_jobj_tps);
+#else
                 if (!l_jobj_tpd || !l_jobj_total) {
+#endif
+                    
                     json_object_put(l_jobj_return);
                     json_object_put(l_jobj_stats);
+                    json_object_put(l_jobj_from);
+                    json_object_put(l_jobj_to);
                     json_object_put(l_jobj_tpd);
                     json_object_put(l_jobj_total);
                     dap_json_rpc_allocation_error;
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
+#ifdef DAP_TPS_TEST
+                json_object_object_add(l_jobj_stats, "transaction_per_sec", l_jobj_tps);
+#endif
                 json_object_object_add(l_jobj_stats, "transaction_per_day", l_jobj_tpd);
                 json_object_object_add(l_jobj_stats, "total", l_jobj_total);
                 json_object_object_add(l_jobj_return, "transaction_statistics", l_jobj_stats);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
-            }
-#ifdef DAP_TPS_TEST
-            else if (strcmp(l_stats_str, "tps") == 0) {
-                struct timespec l_from_time_acc = {}, l_to_time_acc = {};
-                json_object *l_jobj_values = json_object_new_object();
-                if (!l_jobj_values) {
-                    dap_json_rpc_allocation_error;
-                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                }
-                size_t l_tx_num = dap_ledger_count_tps(l_net->pub.ledger, &l_from_time_acc, &l_to_time_acc);
-                if (l_tx_num) {
-                    localtime_r(&l_from_time_acc.tv_sec, &l_from_tm);
-                    strftime(l_from_str_new, sizeof(l_from_str_new), c_time_fmt, &l_from_tm);
-                    localtime_r(&l_to_time_acc.tv_sec, &l_to_tm);
-                    strftime(l_to_str_new, sizeof(l_to_str_new), c_time_fmt, &l_to_tm);
-                    json_object *l_jobj_from = json_object_new_string(l_from_str_new);
-                    json_object *l_jobj_to = json_object_new_string(l_to_str_new);
-                    uint64_t l_diff_ns = (l_to_time_acc.tv_sec - l_from_time_acc.tv_sec) * 1000000000 +
-                                            l_to_time_acc.tv_nsec - l_from_time_acc.tv_nsec;
-                    long double l_tps = (long double)(l_tx_num * 1000000000) / (long double)(l_diff_ns);
-                    char *l_tps_str = dap_strdup_printf("%.3Lf", l_tps);
-                    json_object *l_jobj_tps = json_object_new_string(l_tps_str);
-                    DAP_DELETE(l_tps_str);
-                    if (!l_jobj_from || !l_jobj_to || !l_jobj_tps) {
-                        json_object_put(l_jobj_return);
-                        json_object_put(l_jobj_values);
-                        json_object_put(l_jobj_from);
-                        json_object_put(l_jobj_to);
-                        json_object_put(l_jobj_tps);
-                        dap_json_rpc_allocation_error;
-                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                    }
-                    json_object_object_add(l_jobj_values, "from", l_jobj_from);
-                    json_object_object_add(l_jobj_values, "to", l_jobj_to);
-                    json_object_object_add(l_jobj_values, "tps", l_jobj_tps);
-                }
-                json_object *l_jobj_total = json_object_new_uint64(l_tx_num);
-                if (!l_jobj_total) {
-                    json_object_put(l_jobj_return);
-                    json_object_put(l_jobj_values);
-                    dap_json_rpc_allocation_error;
-                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                }
-                json_object_object_add(l_jobj_values, "total", l_jobj_total);
-                json_object_object_add(l_jobj_return, "transactions_per_second_peak", l_jobj_values);
-                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
-            }
-#endif
-            else {
+            } else {
                 json_object_put(l_jobj_return);
-#ifdef DAP_TPS_TEST
-                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS, "Subcommand 'stats' requires one of parameter: tx, tps");
-#else
                 dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS, "%s",
                  "Subcommand 'stats' requires one of parameter: tx");
-#endif
                 return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS;
             }
         } else if ( l_go_str){
@@ -3213,7 +3169,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
             size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
             if (l_tx_size != l_datum_data_size) {
-                log_it(L_WARNING, "Corrupted trnsaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
+                log_it(L_WARNING, "Corrupted transaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
                 return -102;
             }
             return dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash);

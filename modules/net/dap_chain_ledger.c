@@ -336,12 +336,6 @@ typedef struct dap_ledger_private {
     dap_list_t *tx_add_notifiers;
 
     dap_ledger_cache_tx_check_callback_t cache_tx_check_callback;
-    // TPS section
-    dap_timerfd_t *tps_timer;
-    struct timespec tps_start_time;
-    struct timespec tps_current_time;
-    struct timespec tps_end_time;
-    size_t tps_count;
     // Threshold fee
     dap_interval_timer_t threshold_txs_free_timer, threshold_emissions_free_timer;
 } dap_ledger_private_t;
@@ -363,7 +357,6 @@ static void s_threshold_emission_free(dap_ledger_t *a_ledger);
 static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_ledger_token_item_t *a_token_item , dap_chain_datum_token_t * a_token, size_t a_token_size);
 static int s_tsd_sign_apply(dap_ledger_t *a_ledger, dap_ledger_token_item_t *a_token_item , dap_chain_datum_token_t *a_token, size_t a_token_size);
 static int s_ledger_permissions_check(dap_ledger_token_item_t *  a_token_item, uint16_t a_permission_id, const void * a_data,size_t a_data_size );
-static bool s_ledger_tps_callback(void *a_arg);
 static int s_sort_ledger_tx_item(dap_ledger_tx_item_t* a, dap_ledger_tx_item_t* b);
 
 static size_t s_threshold_emissions_max = 1000;
@@ -4768,11 +4761,6 @@ static int s_sort_ledger_tx_item(dap_ledger_tx_item_t* a, dap_ledger_tx_item_t* 
                 a->tx->header.ts_created < b->tx->header.ts_created ? -1 : 1;
 }
 
-DAP_INLINE void dap_ledger_set_tps_start_time(dap_ledger_t *a_ledger)
-{
-    clock_gettime(CLOCK_REALTIME, &PVT(a_ledger)->tps_start_time);
-}
-
 /**
  * @brief Add new transaction to the cache list
  * @param a_ledger
@@ -4794,18 +4782,6 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     dap_ledger_tx_item_t *l_item_tmp = NULL;
     char *l_main_token_ticker = NULL;
 
-    if (!l_ledger_pvt->tps_timer) {
-#ifndef DAP_TPS_TEST
-        dap_ledger_set_tps_start_time(a_ledger);
-#endif
-        l_ledger_pvt->tps_current_time.tv_sec = l_ledger_pvt->tps_start_time.tv_sec;
-        l_ledger_pvt->tps_current_time.tv_nsec = l_ledger_pvt->tps_start_time.tv_nsec;
-        l_ledger_pvt->tps_count = 0;
-        if (dap_events_workers_init_status())
-            l_ledger_pvt->tps_timer = dap_timerfd_start(500, s_ledger_tps_callback, l_ledger_pvt);
-        else
-            l_ledger_pvt->tps_timer = NULL;
-    }
     bool l_from_threshold = a_from_threshold;
     char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_to_str(a_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
@@ -5136,9 +5112,6 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_notify->callback(a_ledger, a_tx, a_tx_hash, l_notify->arg, DAP_LEDGER_NOTIFY_OPCODE_ADDED);
         }
     }
-    // Count TPS
-    clock_gettime(CLOCK_REALTIME, &l_ledger_pvt->tps_end_time);
-    l_ledger_pvt->tps_count++;
     if (PVT(a_ledger)->cached) {
         // Add it to cache
         size_t l_tx_cache_sz = l_tx_size + sizeof(l_tx_item->cache_data);
@@ -5464,20 +5437,6 @@ FIN:
     return l_ret;
 }
 
-
-static bool s_ledger_tps_callback(void *a_arg)
-{
-    dap_ledger_private_t *l_ledger_pvt = (dap_ledger_private_t *)a_arg;
-    if (l_ledger_pvt->tps_current_time.tv_sec != l_ledger_pvt->tps_end_time.tv_sec ||
-            l_ledger_pvt->tps_current_time.tv_nsec != l_ledger_pvt->tps_end_time.tv_nsec) {
-        l_ledger_pvt->tps_current_time.tv_sec = l_ledger_pvt->tps_end_time.tv_sec;
-        l_ledger_pvt->tps_current_time.tv_nsec = l_ledger_pvt->tps_end_time.tv_nsec;
-        return true;
-    }
-    l_ledger_pvt->tps_timer = NULL;
-    return false;
-}
-
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash)
 {
 #ifndef DAP_LEDGER_TEST
@@ -5650,44 +5609,26 @@ uint64_t dap_ledger_count_from_to(dap_ledger_t * a_ledger, dap_time_t a_ts_from,
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     if ( a_ts_from && a_ts_to) {
         HASH_ITER(hh, l_ledger_pvt->ledger_items , l_iter_current, l_item_tmp){
-            if ( l_iter_current->tx->header.ts_created >= a_ts_from && l_iter_current->cache_data.ts_created <= a_ts_to )
-            l_ret++;
+            if ( l_iter_current->tx->header.ts_created >= a_ts_from && l_iter_current->tx->header.ts_created <= a_ts_to )
+                l_ret++;
         }
     } else if ( a_ts_to ){
         HASH_ITER(hh, l_ledger_pvt->ledger_items , l_iter_current, l_item_tmp){
             if ( l_iter_current->tx->header.ts_created <= a_ts_to )
-            l_ret++;
+                l_ret++;
         }
     } else if ( a_ts_from ){
         HASH_ITER(hh, l_ledger_pvt->ledger_items , l_iter_current, l_item_tmp){
             if ( l_iter_current->tx->header.ts_created >= a_ts_from )
-            l_ret++;
+                l_ret++;
         }
-    }else {
-        HASH_ITER(hh, l_ledger_pvt->ledger_items , l_iter_current, l_item_tmp){
-            l_ret++;
-        }
+    } else {
+        l_ret = HASH_COUNT(l_ledger_pvt->ledger_items);
     }
-
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     return l_ret;
 }
 
-size_t dap_ledger_count_tps(dap_ledger_t *a_ledger, struct timespec *a_ts_from, struct timespec *a_ts_to)
-{
-    if (!a_ledger)
-        return 0;
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    if (a_ts_from) {
-        a_ts_from->tv_sec = l_ledger_pvt->tps_start_time.tv_sec;
-        a_ts_from->tv_nsec = l_ledger_pvt->tps_start_time.tv_nsec;
-    }
-    if (a_ts_to) {
-        a_ts_to->tv_sec = l_ledger_pvt->tps_end_time.tv_sec;
-        a_ts_to->tv_nsec = l_ledger_pvt->tps_end_time.tv_nsec;
-    }
-    return l_ledger_pvt->tps_count;
-}
 
 /**
  * Check whether used 'out' items
