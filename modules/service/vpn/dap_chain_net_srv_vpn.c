@@ -898,20 +898,25 @@ static int s_vpn_service_create(dap_config_t * g_config)
  * @return 0 if everything is okay, lesser then zero if errors
  */
 int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
-    s_vpn_tun_init();
-
-    log_it(L_DEBUG,"Initializing TUN driver...");
-    if(s_vpn_tun_create(g_config)){
+    
+    if(s_vpn_tun_init()){
         log_it(L_CRITICAL, "Error initializing TUN device driver!");
         dap_chain_net_srv_vpn_deinit();
         return -1;
+    }
+
+    log_it(L_DEBUG,"Initializing TUN driver...");
+    if(s_vpn_tun_create(g_config)){
+        log_it(L_CRITICAL, "Error creating TUN device driver!");
+        dap_chain_net_srv_vpn_deinit();
+        return -2;
     }
 
     log_it(L_INFO,"TUN driver configured successfuly");
     if (s_vpn_service_create(g_config)){
         log_it(L_CRITICAL, "VPN service creating failed");
         dap_chain_net_srv_vpn_deinit();
-        return -2;
+        return -3;
     }
     dap_stream_ch_proc_add(DAP_STREAM_CH_NET_SRV_ID_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in,
             s_ch_packet_out);
@@ -920,6 +925,10 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
     dap_cli_server_cmd_add ("vpn_stat", com_vpn_statistics, "VPN statistics",
             "vpn_stat -net <net_name> [-full]\n"
             );
+
+    // add groups with limits into clusters
+
+    
     return 0;
 }
 
@@ -1088,7 +1097,7 @@ static dap_stream_ch_chain_net_srv_remain_service_store_t* s_callback_get_remain
         log_it(L_DEBUG, "Can't get server pkey hash.");
         return NULL;
     }
-    char *l_remain_limits_gdb_group =  dap_strdup_printf( "%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s", l_net->pub.gdb_groups_prefix, a_srv->uid.uint64, l_server_pkey_hash);
+    char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s", l_net->pub.gdb_groups_prefix, a_srv->uid.uint64, l_server_pkey_hash);
     DAP_DEL_Z(l_server_pkey_hash);
     char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
     log_it(L_DEBUG, "Checkout user %s in group %s", l_user_key, l_remain_limits_gdb_group);
@@ -1166,7 +1175,7 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
         log_it(L_DEBUG, "Can't get server pkey hash.");
         return -101;
     }
-    char *l_remain_limits_gdb_group =  dap_strdup_printf( "%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s", l_net->pub.gdb_groups_prefix, a_srv->uid.uint64, l_server_pkey_hash);
+    char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s", l_net->pub.gdb_groups_prefix, a_srv->uid.uint64, l_server_pkey_hash);
     DAP_DEL_Z(l_server_pkey_hash);
     char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
     log_it(L_DEBUG, "Save user %s remain service into group %s", l_user_key, l_remain_limits_gdb_group);

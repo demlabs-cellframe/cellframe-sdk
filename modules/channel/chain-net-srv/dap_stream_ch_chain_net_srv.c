@@ -1312,7 +1312,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             break;
         }
         l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_usage->tx_cond, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL );
-        if ( ! l_tx_out_cond ){ // No conditioned output
+        if ( ! l_tx_out_cond ){ // No condition output
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_COND_OUT ;
             dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
             if (l_usage->service->callbacks.response_error)
@@ -1628,7 +1628,69 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
         DAP_DELETE(l_success);
     } break;
+    case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REMAIN_LIMITS_REQ: {
+        if (l_ch_pkt->hdr.data_size < sizeof(dap_stream_ch_chain_net_srv_pkt_remain_service_req_t)){
+            log_it( L_WARNING, "Wrong request size, less than minimum");
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_SIZE;
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
+            break;
+        }
+        dap_stream_ch_chain_net_srv_pkt_remain_service_req_t * l_req = (dap_stream_ch_chain_net_srv_pkt_remain_service_req_t *) l_ch_pkt->data;
+        dap_stream_ch_chain_net_srv_remain_service_store_t *l_remain_service = NULL;
+        const char *l_cert_name = dap_config_get_item_str_default(g_config, "srv_vpn", "receipt_sign_cert", NULL);
+        if (l_cert_name){
+            dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
+            dap_hash_fast_t price_pkey_hash = {};
+            size_t l_key_size = 0;
+            uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_key_size);
+            if (!l_pub_key || !l_key_size)
+            {
+                log_it(L_ERROR, "Can't get pkey from cert %s.", l_cert_name);
+                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH;
+                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
+                break;
+            }
 
+            dap_hash_fast(l_pub_key, l_key_size, &price_pkey_hash);
+            DAP_DELETE(l_pub_key);
+            char* l_server_pkey_hash = dap_chain_hash_fast_to_str_new(&price_pkey_hash);
+            if (!l_server_pkey_hash){
+                log_it(L_DEBUG, "Can't get server pkey hash.");
+                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH;
+                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
+                break;
+            }
+
+            dap_chain_net_t *l_net = dap_chain_net_by_id(l_req->net_id);
+            if(!l_net){
+                log_it(L_DEBUG, "Can't find net with id %"DAP_UINT64_FORMAT_U, l_req->net_id.uint64);
+                DAP_DEL_Z(l_server_pkey_hash);
+                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NOT_FOUND;
+                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
+                break;
+            }
+            char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s", l_net->pub.gdb_groups_prefix, l_req->srv_uid.uint64, l_server_pkey_hash);
+            DAP_DEL_Z(l_server_pkey_hash);
+            char *l_user_key = dap_chain_hash_fast_to_str_new(&l_req->user_pkey_hash);
+            log_it(L_DEBUG, "Checkout user %s in group %s", l_user_key, l_remain_limits_gdb_group);
+            size_t l_remain_service_size = 0;
+            l_remain_service = (dap_stream_ch_chain_net_srv_remain_service_store_t*) dap_global_db_get_sync(l_remain_limits_gdb_group, l_user_key, &l_remain_service_size, NULL, NULL);
+            DAP_DELETE(l_remain_limits_gdb_group);
+            DAP_DELETE(l_user_key);
+
+            dap_stream_ch_chain_net_srv_pkt_remain_service_resp_t l_resp = {};
+            l_resp.net_id = l_req->net_id;
+            l_resp.srv_uid = l_req->srv_uid;
+            l_resp.user_pkey_hash = l_req->user_pkey_hash;
+            l_resp.limits_bytes = l_remain_service ? l_remain_service->limits_bytes : 0;
+            l_resp.limits_ts = l_remain_service ? l_remain_service->limits_ts : 0;
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REMAIN_LIMITS_RESP, &l_resp, sizeof(l_resp));
+            DAP_DEL_Z(l_remain_service);
+            break;
+        }
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH;
+        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
+    } break;
     default:
         log_it( L_WARNING, "Unknown packet type 0x%02X", l_ch_pkt->hdr.type);
         return false;

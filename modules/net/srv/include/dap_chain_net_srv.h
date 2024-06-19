@@ -96,6 +96,8 @@ typedef struct dap_chain_net_srv_price
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_DATA                 0x31
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NEW_TX_COND_REQUEST           0x40
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NEW_TX_COND_RESPONSE          0x41
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REMAIN_LIMITS_REQ             0x60
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REMAIN_LIMITS_RESP            0x61
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS              0xf0
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR                0xff
 // for connection testing
@@ -166,6 +168,20 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_success_hdr{
     dap_chain_net_id_t net_id;
     dap_chain_net_srv_uid_t srv_uid;
 } DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_success_hdr_t;
+
+typedef struct dap_stream_ch_chain_net_srv_pkt_remain_service_req{
+    dap_chain_net_id_t net_id;
+    dap_chain_net_srv_uid_t srv_uid;
+    dap_hash_fast_t user_pkey_hash;
+} DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_remain_service_req_t;
+
+typedef struct dap_stream_ch_chain_net_srv_pkt_remain_service_resp{
+    dap_chain_net_id_t net_id;
+    dap_chain_net_srv_uid_t srv_uid;
+    dap_hash_fast_t user_pkey_hash;
+    long int limits_bytes; // Bytes provided for using the service left
+    long int limits_ts;
+} DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_remain_service_resp_t;
 
 typedef struct dap_stream_ch_chain_net_srv_pkt_success{
     dap_stream_ch_chain_net_srv_pkt_success_hdr_t hdr;

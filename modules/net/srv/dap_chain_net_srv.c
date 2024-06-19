@@ -623,7 +623,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
 
             dap_stream_ch_chain_net_srv_remain_service_store_t *l_remain_service = NULL;
             size_t l_remain_service_size = 0;
-            char *l_remain_limits_gdb_group =  dap_strdup_printf( "%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s",
+            char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s",
                                                                 l_net->pub.gdb_groups_prefix, l_srv_uid.uint64,
                                                                 l_provider_pkey_hash_str);
 
