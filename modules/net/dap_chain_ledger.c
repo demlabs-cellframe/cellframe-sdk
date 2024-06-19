@@ -5529,7 +5529,8 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     char *l_gdb_group;
     HASH_ITER(hh, l_ledger_pvt->ledger_items , l_item_current, l_item_tmp) {
         HASH_DEL(l_ledger_pvt->ledger_items, l_item_current);
-        DAP_DELETE(l_item_current->tx);
+        if (!l_ledger_pvt->mapped)
+            DAP_DELETE(l_item_current->tx);
         DAP_DEL_Z(l_item_current);
     }
     if (!a_preserve_db) {
