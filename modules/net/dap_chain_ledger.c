@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -4295,7 +4295,8 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger,
                 l_bound_item->in.addr_from = *l_addr_from;
                 dap_strncpy(l_bound_item->in.token_ticker, l_token, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                 // 4. compare public key hashes in the signature of the current transaction and in the 'out' item of the previous transaction
-                if (!dap_hash_fast_compare(&l_tx_first_sign_pkey_hash, &l_addr_from->data.hash_fast)) {
+                if (l_addr_from->net_id.uint64 != a_ledger->net->pub.id.uint64 ||
+                        !dap_hash_fast_compare(&l_tx_first_sign_pkey_hash, &l_addr_from->data.hash_fast)) {
                     l_err_num = DAP_LEDGER_TX_CHECK_PKEY_HASHES_DONT_MATCH;
                     break;
                 }
