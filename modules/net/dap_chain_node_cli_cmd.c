@@ -2510,40 +2510,36 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                 l_datum_size = dap_chain_datum_size(l_datum);
                 dap_chain_hash_fast_t l_key_hash = { };
                 dap_hash_fast(l_datum->data, l_token_size, &l_key_hash);
-                const char *l_key_str = dap_chain_hash_fast_to_str_static(&l_key_hash);
+                const char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
                 const char *l_key_str_base58 = dap_enc_base58_encode_hash_to_str_static(&l_key_hash);
                 const char *l_key_out_str = dap_strcmp(l_hash_out_type, "hex")
                         ? l_key_str_base58 : l_key_str;
+                int rc = 0;
                 // Add datum to mempool with datum_token hash as a key
                 if( dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, dap_chain_datum_size(l_datum), false) == 0) {
-
                     char* l_hash_str = l_datum_hash_hex_str;
                     // Remove old datum from pool
                     if( dap_global_db_del_sync(l_gdb_group_mempool, l_hash_str ) == 0) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                "datum %s is replacing the %s in datum pool",
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is replacing the %s in datum pool",
                                 l_key_out_str, l_datum_hash_out_str);
-                        DAP_DELETE(l_datum);
-                        //DAP_DELETE(l_datum_token);
-                        DAP_DELETE(l_gdb_group_mempool);
-                        return 0;
                     } else {
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                 "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)",
                                 l_datum_hash_out_str, l_key_out_str);
-                        DAP_DELETE(l_datum);
-                        DAP_DELETE(l_gdb_group_mempool);
-                        return 1;
+                        rc = -3;
                     }
-                    DAP_DELETE(l_hash_str);
                 } else {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
                             "Error! datum %s produced from %s can't be placed in mempool",
                             l_key_out_str, l_datum_hash_out_str);
-                    DAP_DELETE(l_datum);
-                    DAP_DELETE(l_gdb_group_mempool);
-                    return -2;
+                    rc = -2;
                 }
+                DAP_DELETE(l_key_str);
+                DAP_DELETE(l_datum_hash_hex_str);
+                DAP_DELETE(l_datum_hash_base58_str);
+                DAP_DELETE(l_datum);
+                DAP_DELETE(l_gdb_group_mempool);
+                return rc;
             } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Error! Wrong datum type. token_decl_sign sign only token declarations datum");
