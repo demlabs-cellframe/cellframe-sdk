@@ -29,11 +29,9 @@
 #include <assert.h>
 //#include <glib.h>
 #include <unistd.h>
-
-
 #include <pthread.h>
-
 #include "iputils/iputils.h"
+
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_strfuncs.h"
@@ -44,8 +42,7 @@
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_cli_server.h"
 #include "dap_chain_node_cli.h"
-
-//#include "dap_chain_node_cli.h"
+#include "dap_notify_srv.h"
 
 #define LOG_TAG "chain_node_cli"
 static bool s_debug_cli = false;
@@ -146,14 +143,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add ("token_update", com_token_update, "Token update",
                             "\nPrivate or CF20 token update\n"
                             "\nPrivate token update\n"
-                            "token_update -net <net_name> -chain <chain_name> -token <existing token_ticker> -type private -total_supply <the same or more> -decimals <18>\n"
+                            "token_update -net <net_name> [-chain <chain_name>] -token <existing token_ticker> -type private -total_supply <the same or more> -decimals <18>\n"
                             "-signs_total <the same total as the token you are updating> -signs_emission <the same total as the token you are updating> -certs <use the certificates of the token you are update>\n"
                             "-flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
                             "\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
                             "\t   Update token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
                             "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
                             "\nCF20 token update\n"
-                            "token_update -net <net_name> -chain <chain_name> -token <existing token_ticker> -type CF20 -total_supply <the same or more/if 0 = endless> -decimals <18>\n"
+                            "token_update -net <net_name> [-chain <chain_name>] -token <existing token_ticker> -type CF20 -total_supply <the same or more/if 0 = endless> -decimals <18>\n"
                             "-signs_total <the same total as the token you are updating> -signs_emission <the same total as the token you are updating> -certs <use the certificates of the token you are update>\n"
                             "\t -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
                             "\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
@@ -194,16 +191,16 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Token commands
     dap_cli_server_cmd_add ("token_decl", com_token_decl, "Token declaration",
             "Simple token declaration:\n"
-            "token_decl -net <net_name> -chain <chain_name> -token <token_ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
+            "token_decl -net <net_name> [-chain <chain_name>] -token <token_ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
             "\t  Declare new simple token for <netname>:<chain_name> with ticker <token_ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"
             "\nExtended private token declaration\n"
-            "token_decl -net <net_name> -chain <chain_name> -token <token_ticker> -type private -total_supply <total supply> "
+            "token_decl -net <net_name> [-chain <chain_name>] -token <token_ticker> -type private -total_supply <total supply> "
                 "-decimals <18> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list> -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
             "\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
             "\t   Declare new token for <netname>:<chain_name> with ticker <token_ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
             "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
             "\nExtended CF20 token declaration\n"
-            "token_decl -net <net_name> -chain <chain_name> -token <token_ticker> -type CF20 "
+            "token_decl -net <net_name> [-chain <chain_name>] -token <token_ticker> -type CF20 "
                 "-total_supply <total supply/if 0 = endless> -decimals <18> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
             "\t -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
             "\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
@@ -241,13 +238,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             );
 
     dap_cli_server_cmd_add("token_update_sign", com_token_decl_sign, "Token update add sign and new sign",
-                                        "token_update_sign -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs list> -new_certs <certs list>\n"
+                                        "token_update_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs list> -new_certs <certs list>\n"
                                         "\t Sign existent <datum hash> in mempool with <certs list>\n"
     );
     // Token commands
 
     dap_cli_server_cmd_add ("token_decl_sign", com_token_decl_sign, "Token declaration add sign",
-            "token_decl_sign -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs list>\n"
+            "token_decl_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
             );
 
@@ -289,10 +286,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_cli_server_cmd_add ("tx_create", com_tx_create, "Make transaction",
-            "tx_create -net <net_name> -chain <chain_name> -value <value> -token <token_ticker> -to_addr <addr>"
+            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> -to_addr <addr>"
             "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction",
-                "tx_create_json -net <net_name> -chain <chain_name> -json <json_file_path>\n" );
+                "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
                                         "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
                                         " -cert <pub_cert_name> -value <value_datoshi> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n" );
@@ -303,7 +300,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "tx_cond_unspent_find -net <net_name> -srv_uid <numeric_uid> -w <wallet_name> \n" );
 
     dap_cli_server_cmd_add ("tx_verify", com_tx_verify, "Verifing transaction in mempool",
-            "tx_verify -net <net_name> -chain <chain_name> -tx <tx_hash>\n" );
+            "tx_verify -net <net_name> [-chain <chain_name>] -tx <tx_hash>\n" );
 
     // Transaction history
     dap_cli_server_cmd_add("tx_history", com_tx_history, "Transaction history (for address or by hash)",
@@ -356,7 +353,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "Creates service decree in net <net_name> for service -srv_id.\n\n"
             "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
             "Signs decree with hash -datum.\n\n"
-            "decree anchor -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs_list>\n"
+            "decree anchor -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
             "Creates anchor for decree with hash -datum.\n\n"
             "decree find -net <net_name> -hash <decree_hash>\n"
             "Find decree by hash and show it's status (apllied or not)\n\n"
@@ -366,6 +363,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
                 "exit\n" );
+    dap_notify_srv_set_callback_new(dap_notify_new_client_send_info);
     return 0;
 }
 

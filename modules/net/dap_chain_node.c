@@ -3,9 +3,9 @@
  * Dmitriy A. Gerasimov <naeper@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -39,13 +39,11 @@
 #include <netinet/in.h>
 #endif
 
-#include "utlist.h"
 #include "dap_hash.h"
-#include "rand/dap_rand.h"
 #include "dap_chain_net.h"
 #include "dap_global_db.h"
 #include "dap_chain_node.h"
-#include "dap_chain_cell.h"
+#include "dap_chain_cs_esbocs.h"
 #include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_node"
@@ -89,14 +87,14 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
             memcpy(l_info->links_addrs, l_linked_node_addrs, (l_info->uplinks_count + l_info->downlinks_count) * sizeof(dap_chain_node_addr_t));
             // DB write
             char *l_gdb_group = dap_strdup_printf("%s.nodes.states", l_net->pub.gdb_groups_prefix);
-            char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->address);
+            const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->address);
             dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_size, false);
             DAP_DEL_MULTY(l_linked_node_addrs, l_info, l_gdb_group);
         }
     }
 }
 
-static void s_states_info_to_str(dap_chain_net_t *a_net, char *a_node_addr_str, dap_string_t *l_info_str)
+static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr_str, dap_string_t *l_info_str)
 {
 // sanity check
     dap_return_if_pass(!a_net || !a_node_addr_str || !l_info_str);
@@ -137,7 +135,7 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, char *a_node_addr_str, 
 dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
 {
     dap_string_t *l_ret = dap_string_new("");
-    char *l_node_addr_str = dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr);
+    const char *l_node_addr_str = dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr);
     if(!a_net) {
         for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
             s_states_info_to_str(l_net, l_node_addr_str, l_ret);
@@ -227,7 +225,7 @@ int dap_chain_node_info_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_nod
  */
 dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
 {
-    char *l_key = dap_stream_node_addr_to_str_static(*a_address);
+    const char *l_key = dap_stream_node_addr_to_str_static(*a_address);
     size_t l_node_info_size = 0;
     dap_chain_node_info_t *l_node_info
         = (dap_chain_node_info_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
@@ -302,7 +300,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
             if (dap_chain_node_mempool_need_process(a_chain, l_datum)) {
 
                 if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX &&
-                        a_chain->callback_get_minimum_fee){
+                        !dap_strcmp(dap_chain_get_cs_type(a_chain), "esbocs")) {
                     uint256_t l_tx_fee = {};
                     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
                     if (dap_chain_datum_tx_get_fee_value (l_tx, &l_tx_fee) ||
@@ -313,7 +311,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                         } else
                             log_it(L_DEBUG, "Process service tx without fee");
                     } else {
-                        uint256_t l_min_fee = a_chain->callback_get_minimum_fee(a_chain);
+                        uint256_t l_min_fee = dap_chain_esbocs_get_fee(a_chain->net_id);
                         if (compare256(l_tx_fee, l_min_fee) < 0) {
                             char *l_tx_fee_str = dap_chain_balance_to_coins(l_tx_fee);
                             char *l_min_fee_str = dap_chain_balance_to_coins(l_min_fee);

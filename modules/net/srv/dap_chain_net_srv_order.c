@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -429,6 +429,11 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_find_by_hash_str(dap_chain_ne
             return NULL;
         }
         l_order = dap_chain_net_srv_order_read(l_gdb_order, l_order_size);
+        if (!l_order || (l_order->ts_expires &&  l_order->ts_expires < dap_time_now())){
+            DAP_DEL_Z(l_order);
+            DAP_DELETE(l_gdb_order);
+            continue;
+        }
         DAP_DELETE(l_gdb_order);
     }
     return l_order;
@@ -472,31 +477,49 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
                 dap_global_db_del_sync(l_gdb_group_str, l_orders[i].key);
                 continue; // order is corrupted
             }
+            if (l_order->ts_expires && l_order->ts_expires < dap_time_now()){
+                DAP_DEL_Z(l_order);
+                continue;
+            }
+
             dap_chain_hash_fast_t l_hash, l_hash_gdb;
             dap_hash_fast(l_orders[i].value, l_orders[i].value_len, &l_hash);
             dap_chain_hash_fast_from_str(l_orders[i].key, &l_hash_gdb);
             if (memcmp(&l_hash, &l_hash_gdb, sizeof(dap_chain_hash_fast_t))) {
                 dap_global_db_del_sync(l_gdb_group_str, l_orders[i].key);
+                DAP_DEL_Z(l_order);
                 continue; // order is corrupted
             }
             // Check direction
-            if (a_direction != SERV_DIR_UNDEFINED && l_order->direction != a_direction)
+            if (a_direction != SERV_DIR_UNDEFINED && l_order->direction != a_direction){
+                DAP_DEL_Z(l_order);
                 continue;
+            }
             // Check srv uid
-            if (a_srv_uid.uint64 && l_order->srv_uid.uint64 != a_srv_uid.uint64)
+            if (a_srv_uid.uint64 && l_order->srv_uid.uint64 != a_srv_uid.uint64){
+                DAP_DEL_Z(l_order);
                 continue;
+            }
             // check price unit
-            if (a_price_unit.uint32 && a_price_unit.uint32 != l_order->price_unit.uint32)
+            if (a_price_unit.uint32 && a_price_unit.uint32 != l_order->price_unit.uint32){
+                DAP_DEL_Z(l_order);
                 continue;
+            }
             // Check price minimum
-            if (!IS_ZERO_256(a_price_min) && compare256(l_order->price, a_price_min) == -1)
+            if (!IS_ZERO_256(a_price_min) && compare256(l_order->price, a_price_min) == -1){
+                DAP_DEL_Z(l_order);
                 continue;
+            }
             // Check price maximum
-            if (!IS_ZERO_256(a_price_max) && compare256(l_order->price, a_price_max) == 1)
+            if (!IS_ZERO_256(a_price_max) && compare256(l_order->price, a_price_max) == 1){
+                DAP_DEL_Z(l_order);
                 continue;
+            }
             // Check ticker
-            if (a_price_ticker && strcmp( l_order->price_ticker, a_price_ticker))
+            if (a_price_ticker && strcmp( l_order->price_ticker, a_price_ticker)){
+                DAP_DEL_Z(l_order);
                 continue;
+            }
             size_t l_order_mem_size = dap_chain_net_srv_order_get_size(l_order);
             dap_chain_net_srv_order_t *l_output_order = DAP_DUP_SIZE(l_order, l_order_mem_size);
             DAP_DEL_Z(l_order);
@@ -520,13 +543,14 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
 int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, const char *a_hash_str)
 {
     int l_ret = -2;
+
+    dap_chain_net_srv_order_t *l_order = NULL;
     for (int i = 0; a_net && a_hash_str && i < 2; i++) {
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
                                   : dap_chain_net_srv_order_get_common_group(a_net);
+
         l_ret = dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
         DAP_DELETE(l_gdb_group_str);
-        if (!l_ret)
-            break;
     }
     return l_ret;
 }
@@ -558,7 +582,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         dap_string_append_printf(a_str_out, "  created:          %s\n", buf_time);
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016"DAP_UINT64_FORMAT_X"\n", a_order->srv_uid.uint64 );
         
-        char *l_balance_coins, *l_balance = dap_uint256_to_char(a_order->price, &l_balance_coins);
+        const char *l_balance_coins, *l_balance = dap_uint256_to_char(a_order->price, &l_balance_coins);
         dap_string_append_printf(a_str_out, "  price:            %s (%s)\n", l_balance_coins, l_balance);
         dap_string_append_printf(a_str_out, "  price_token:      %s\n",  (*a_order->price_ticker) ? a_order->price_ticker: a_native_ticker);
         dap_string_append_printf(a_str_out, "  units:            %zu\n", a_order->units);

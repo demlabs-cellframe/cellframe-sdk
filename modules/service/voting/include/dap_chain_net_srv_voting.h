@@ -6,9 +6,9 @@
  * Copyright  (c) 2022
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -28,6 +28,15 @@
 #include "dap_chain_common.h"
 #include "dap_chain_wallet.h"
 
+#define DAP_CHAIN_NET_SRV_VOTING_ID 0x06
+
+
+//typedef struct dap_chain_net_vote_info_result {
+//    uint64_t answer_idx;
+//    uint64_t votes_count;
+//}dap_chain_net_vote_result_t;
+
+
 typedef struct dap_chain_net_vote_info_option{
     uint64_t option_idx;
     uint64_t votes_count;
@@ -36,7 +45,6 @@ typedef struct dap_chain_net_vote_info_option{
     char *description;
     dap_list_t *hashes_tx_votes;
 }dap_chain_net_vote_info_option_t;
-
 typedef struct dap_chain_net_vote_info{
     dap_hash_fast_t hash;
     dap_chain_net_id_t net_id;
@@ -56,9 +64,8 @@ typedef struct dap_chain_net_vote_info{
     } options;
 }dap_chain_net_vote_info_t;
 
-
-int dap_chain_net_voting_init();
-
+int dap_chain_net_srv_voting_init();
+void dap_chain_net_srv_voting_deinit();
 
 uint64_t* dap_chain_net_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_voting_hash);
 
@@ -80,9 +87,9 @@ enum DAP_CHAIN_NET_VOTE_CREATE_ERROR {
     DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_POOL_DATUM_IN_MEMPOOL
 };
 int dap_chain_net_vote_create(const char *a_question, dap_list_t *a_options, dap_time_t a_expire_vote,
-                              uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
-                              bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
-                              dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_output);
+                             uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
+                             bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
+                             dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_output);
 
 enum DAP_CHAIN_NET_VOTE_VOTING_ERROR{
     DAP_CHAIN_NET_VOTE_VOTING_OK,
@@ -111,3 +118,4 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
 dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net);
 dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_vote_hash);
 void dap_chain_net_vote_info_free(dap_chain_net_vote_info_t *a_info);
+

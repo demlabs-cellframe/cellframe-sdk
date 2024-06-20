@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -38,6 +38,12 @@ static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply);
 
 void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg);
 
+static bool s_tag_check_datum(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
+{
+    //datum service do not produce transactions for now.
+    return false;
+}
+
 int dap_chain_net_srv_datum_init()
 {
     dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, "Service Datum commands", 
@@ -51,6 +57,10 @@ int dap_chain_net_srv_datum_init()
         return -1;
     }
     s_srv_datum->uid.uint64 = DAP_CHAIN_NET_SRV_DATUM_ID;
+
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_DATUM_ID };
+    dap_ledger_service_add(l_uid, "datum", s_tag_check_datum);
+    
     return 0;
 }
 
@@ -100,7 +110,7 @@ static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply)
     dap_chain_net_t * l_chain_net = NULL;
     dap_chain_t * l_chain = NULL;
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net)) {
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net, CHAIN_TYPE_INVALID)) {
         return -3;
     }
 
@@ -194,12 +204,14 @@ void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
 {
     if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL)
         return;
+    const char * a_obj_key_str = a_obj->key ? a_obj->key : "unknow";
+
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read((byte_t *)a_obj->value, a_obj->value_len);    // Old format comliance
-    if (!l_order && a_obj->key) {
-        log_it(L_NOTICE, "Order %s is corrupted", a_obj->key);
+    if (!l_order) {
+        log_it(L_NOTICE, "Order %s is corrupted", a_obj_key_str);
         if (dap_global_db_driver_delete(a_obj, 1) != 0)
-            log_it(L_ERROR,"Can't delete order %s", a_obj->key);
+            log_it(L_ERROR,"Can't delete order %s", a_obj_key_str);
         return; // order is corrupted
     }
 

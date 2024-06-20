@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -30,12 +30,13 @@
 #include <errno.h>
 #include <pthread.h>
 
-#include "dap_chain_net_voting.h"
+#include "dap_chain_net_srv_voting.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
-#include "dap_chain_node_cli.h"
+#include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
 #include "uthash.h"
 #include "utlist.h"
+#include "dap_cli_server.h"
 
 #define LOG_TAG "chain_net_voting"
 
@@ -94,18 +95,46 @@ static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_has
 /// -1 error, 0 - unspent, 1 - spent
 static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_fast_t a_voting_hash, dap_hash_fast_t a_tx_prev_hash, int a_out_idx);
 static bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, bool a_apply);
+static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in);
 static int s_cli_voting(int argc, char **argv, void **a_str_reply);
 
-int dap_chain_net_voting_init()
+static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
+{
+    //voting open 
+    if (a_items_grp->items_voting) {
+        *a_action = DAP_CHAIN_TX_TAG_ACTION_OPEN;
+        return true;
+    }
+
+    //voting use
+    if (a_items_grp->items_vote) {
+        *a_action = DAP_CHAIN_TX_TAG_ACTION_USE;
+        return true;
+    }
+
+    return false;
+}
+
+int dap_chain_net_srv_voting_init()
 {
     pthread_rwlock_init(&s_votings_rwlock, NULL);
-    dap_chain_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback);
+    dap_chain_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback, s_datum_tx_voting_verification_delete_callback);
     dap_cli_server_cmd_add("voting", s_cli_voting, "Voting commands.", ""
                             "voting create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <voting_expire_time_in_RCF822>] [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value_datoshi> -w <fee_wallet_name>\n"
                             "voting vote -net <net_name> -hash <voting_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value_datoshi> -w <fee_wallet_name>\n"
                             "voting list -net <net_name>\n"
                             "voting dump -net <net_name> -hash <voting_hash>\n");
+
+    
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
+    dap_ledger_service_add(l_uid, "voting", s_tag_check_voting);
+
     return 0;
+}
+
+void dap_chain_net_srv_voting_deinit()
+{
+
 }
 
 uint64_t* dap_chain_net_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_voting_hash)
@@ -294,7 +323,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
             dap_sign_get_pkey_hash((dap_sign_t*)l_vote_sig->sig, &pkey_hash);
             if (l_voting->voting_params.delegate_key_required_offset &&
                 *(bool*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.delegate_key_required_offset)){
-                if (!dap_chain_net_srv_stake_check_pkey_hash(&pkey_hash)){
+                if (!dap_chain_net_srv_stake_check_pkey_hash(a_ledger->net->pub.id, &pkey_hash)){
                     log_it(L_ERROR, "The voting required a delegated key.");
                     dap_list_free(l_signs_list);
                     return false;
@@ -462,6 +491,76 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
     }
 
     return false;
+}
+
+static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in)
+{
+    dap_hash_fast_t l_hash = {};
+    dap_hash_fast(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in), &l_hash);
+
+    if (a_type == TX_ITEM_TYPE_VOTING){
+        dap_chain_net_votings_t * l_voting = NULL;
+        pthread_rwlock_wrlock(&s_votings_rwlock);
+        HASH_FIND(hh, s_votings, &l_hash, sizeof(dap_hash_fast_t), l_voting);
+        if(!l_voting){
+            char* l_hash_str = dap_hash_fast_to_str_new(&l_hash);
+            log_it(L_ERROR, "Can't find voting with hash %s in net %s", l_hash_str, a_ledger->net->pub.name);
+            DAP_DEL_Z(l_hash_str);
+            pthread_rwlock_unlock(&s_votings_rwlock);
+            return false;
+        }
+        HASH_DEL(s_votings, l_voting);
+        pthread_rwlock_unlock(&s_votings_rwlock);
+
+        if (l_voting->voting_params.option_offsets_list)
+            dap_list_free_full(l_voting->voting_params.option_offsets_list, NULL);
+
+        if(l_voting->votes)
+            dap_list_free_full(l_voting->votes, NULL);
+
+        dap_chain_net_voting_cond_outs_t *l_el = NULL, *l_tmp = NULL;
+        if(l_voting->voting_spent_cond_outs && l_voting->voting_spent_cond_outs->hh.tbl->num_items){
+            HASH_ITER(hh, l_voting->voting_spent_cond_outs, l_el, l_tmp){
+                if (l_el){
+                    HASH_DEL(l_voting->voting_spent_cond_outs, l_el);
+                    DAP_DELETE(l_el);
+                }
+            }
+        }
+
+        DAP_DELETE(l_voting);
+
+        return true;
+    } else if (a_type == TX_ITEM_TYPE_VOTE){
+        dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_VOTE, NULL);
+        if(!l_vote_tx_item){
+            log_it(L_ERROR, "Can't find vote item");
+            return false;
+        }
+
+        dap_chain_net_votings_t * l_voting = NULL;
+        pthread_rwlock_wrlock(&s_votings_rwlock);
+        HASH_FIND(hh, s_votings, &l_vote_tx_item->voting_hash, sizeof(dap_hash_fast_t), l_voting);
+        pthread_rwlock_unlock(&s_votings_rwlock);
+        if(!l_voting || l_voting->net_id.uint64 != a_ledger->net->pub.id.uint64) {
+            char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
+            log_it(L_ERROR, "Can't find voting with hash %s in net %s", l_hash_str, a_ledger->net->pub.name);
+            DAP_DELETE(l_hash_str);
+            return false;
+        }
+
+        dap_list_t *l_vote = l_voting->votes;
+        while(l_vote){
+            if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)l_vote->data)->vote_hash, &l_hash)){
+                // Delete vote
+                l_voting->votes = dap_list_remove(l_voting->votes, l_vote->data);
+                break;
+            }
+            l_vote = l_vote->next;
+        }
+    }
+
+    return true;
 }
 
 static dap_list_t* s_get_options_list_from_str(const char* a_str)
@@ -927,14 +1026,14 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 
             DIV_256_COIN(l_results[i].weights, l_total_weight, &l_weight_percentage);
             MULT_256_COIN(l_weight_percentage, dap_chain_coins_to_balance("100.0"), &l_weight_percentage);
-            char *l_weight_percentage_str = dap_uint256_decimal_to_round_char(l_weight_percentage, 2, true);
-            char *l_w_coins, *l_w_datoshi = dap_uint256_to_char(l_results[i].weights, &l_w_coins);
+            const char *l_weight_percentage_str = dap_uint256_decimal_to_round_char(l_weight_percentage, 2, true);
+            const char *l_w_coins, *l_w_datoshi = dap_uint256_to_char(l_results[i].weights, &l_w_coins);
             dap_string_append_printf(l_str_out, "\nVotes: %"DAP_UINT64_FORMAT_U" (%.2f%%)\nWeight: %s (%s) %s (%s%%)\n",
                                      l_results[i].num_of_votes, l_percentage, l_w_coins, l_w_datoshi, l_net->pub.native_ticker, l_weight_percentage_str);
         }
         DAP_DELETE(l_results);
         dap_string_append_printf(l_str_out, "\nTotal number of votes: %"DAP_UINT64_FORMAT_U, l_votes_count);
-        char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
+        const char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
         dap_string_append_printf(l_str_out, "\nTotal weight: %s (%s) %s\n\n", l_tw_coins, l_tw_datoshi, l_net->pub.native_ticker);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
         dap_string_free(l_str_out, true);
@@ -1349,7 +1448,7 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
             dap_hash_fast_t l_pkey_hash = {0};
 
             dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
-            if (!dap_chain_net_srv_stake_check_pkey_hash(&l_pkey_hash)) {
+            if (!dap_chain_net_srv_stake_check_pkey_hash(a_net->pub.id, &l_pkey_hash)) {
                 return DAP_CHAIN_NET_VOTE_VOTING_KEY_IS_NOT_DELEGATED;
             }
             dap_list_t *l_temp = l_voting->votes;

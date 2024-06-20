@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -90,8 +90,8 @@ static int s_str_to_price_unit(const char *a_price_unit_str, dap_chain_net_srv_p
  */
 int dap_chain_net_srv_init()
 {
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL);
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL, NULL);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL);
 
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
         "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
@@ -108,13 +108,6 @@ int dap_chain_net_srv_init()
         "net_srv get_limits -net <net_name> -srv_uid <Service_UID> -provider_pkey_hash <Service_provider_public_key_hash> -client_pkey_hash <Client_public_key_hash>\n"
         "net_srv report\n"
         "\tGet report about srv usage"
-#ifdef DAP_MODULES_DYNAMIC
-        "\tOrder create\n"
-            "net_srv -net <net_name> order static [save | delete]\n"
-            "\tStatic nodelist create/delete\n"
-            "net_srv -net <net_name> order recheck\n"
-            "\tCheck the availability of orders\n"
-#endif
         );
 
     s_load_all();
@@ -136,7 +129,7 @@ void s_load_all()
                 continue;
             // don't search in directories
             char l_full_path[MAX_PATH + 1] = {0};
-            dap_snprintf(l_full_path, sizeof(l_full_path), "%s/%s", l_net_dir_str, l_dir_entry->d_name);
+            snprintf(l_full_path, sizeof(l_full_path), "%s/%s", l_net_dir_str, l_dir_entry->d_name);
             if(dap_dir_test(l_full_path)) {
                 continue;
             }
@@ -210,7 +203,8 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
         return 0;
     }
 
-    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net );
+    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net,
+                                                               CHAIN_TYPE_INVALID);
     if ( l_net ) {
         //char * l_orders_group = dap_chain_net_srv_order_get_gdb_group( l_net );
 
@@ -409,8 +403,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
             } else if(!dap_strcmp( l_order_str, "dump" )) {
                 // Select with specified service uid
                 if ( l_order_hash_str ){
-                    dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
-                    if (l_order) {
+                    dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );                    if (l_order) {
                         dap_chain_net_srv_order_dump_to_string(l_order,l_string_ret, l_hash_out_type, l_net->pub.native_ticker);
                         l_ret = 0;
                     }else{
@@ -445,6 +438,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                 }
             } else if (!dap_strcmp(l_order_str, "delete")) {
                 if (l_order_hash_str) {
+                    
                     l_ret = dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
                     if (!l_ret)
                         dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_str);
@@ -717,7 +711,6 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
         log_it(L_ERROR, "Can't get provider sign from receipt.");
         return false;
     }
-    dap_sign_type_t l_provider_sign_type = l_sign->header.type;
 
     if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, sizeof(l_receipt->receipt_info))){
         log_it(L_ERROR, "Provider sign in receipt not passed verification.");

@@ -3,9 +3,9 @@
  * Dmitriy A. Gerasimov <naeper@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -24,11 +24,7 @@
 #include <limits.h>
 #include "dap_common.h"
 #include "dap_list.h"
-#include "dap_worker.h"
-#include "dap_events_socket.h"
-#include "dap_stream.h"
 #include "dap_chain_common.h"
-#include "dap_global_db.h"
 #include "dap_chain.h"
 #include "dap_client.h"
 

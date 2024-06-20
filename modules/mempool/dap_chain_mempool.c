@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -95,9 +95,10 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_key_hash);
-    const char *l_key_str = dap_strcmp(a_hash_out_type, "hex")
+    char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+    const char *l_key_str_out = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash)
-            : dap_chain_hash_fast_to_str_static(&l_key_hash);
+            : l_key_str;
 
     const char *l_type_str;
     switch (a_datum->header.type_id) {
@@ -111,7 +112,8 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
         DAP_DELETE(l_emission);
         if (l_net_id != a_chain->net_id.uint64) {
             log_it(L_WARNING, "Datum emission with hash %s NOT placed in mempool: wallet addr net ID %lu != %lu chain net ID",
-                   l_key_str, l_net_id, a_chain->net_id.uint64);
+                   l_key_str_out, l_net_id, a_chain->net_id.uint64);
+            DAP_DELETE(l_key_str);
             return NULL;
         }
         l_type_str = "emission";
@@ -125,13 +127,15 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     }
 
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    int l_res = dap_global_db_set(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), false, NULL, NULL);
+    int l_res = dap_global_db_set_sync(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), false);//, NULL, NULL);
     if (l_res == DAP_GLOBAL_DB_RC_SUCCESS)
-        log_it(L_NOTICE, "Datum %s with hash %s was placed in mempool group %s", l_type_str, l_key_str, l_gdb_group);
+        log_it(L_NOTICE, "Datum %s with hash %s was placed in mempool group %s", l_type_str, l_key_str_out, l_gdb_group);
     else
-        log_it(L_WARNING, "Can't place datum %s with hash %s in mempool group %s", l_type_str, l_key_str, l_gdb_group);
+        log_it(L_WARNING, "Can't place datum %s with hash %s in mempool group %s", l_type_str, l_key_str_out, l_gdb_group);
+    char *ret = (l_res == DAP_GLOBAL_DB_RC_SUCCESS) ? dap_strdup(l_key_str_out) : NULL;
     DAP_DELETE(l_gdb_group);
-    return (l_res == DAP_GLOBAL_DB_RC_SUCCESS) ? dap_strdup(l_key_str) : NULL;
+    DAP_DELETE(l_key_str);
+    return ret;
 }
 
 /**
@@ -383,7 +387,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
 
     // Check and apply sovereign tax for this key
     uint256_t l_value_tax = {};
-    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_sign_pkey_hash);
+    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(l_chain->net_id, &l_sign_pkey_hash);
     if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
                 !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
         MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
@@ -512,7 +516,7 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
     }
     // Check and apply sovereign tax for this key
     uint256_t l_value_tax = {};
-    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_sign_pkey_hash);
+    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(l_chain->net_id, &l_sign_pkey_hash);
     if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
                 !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
         MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
@@ -584,7 +588,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     uint256_t l_value_need = {};
     MULT_256_256(dap_chain_uint256_from(a_tx_num), l_single_val, &l_value_need);
     uint256_t l_value_transfer = {}; // how many coins to transfer
-    char *l_balance; dap_uint256_to_char(l_value_need, &l_balance);
+    const char *l_balance; dap_uint256_to_char(l_value_need, &l_balance);
     log_it(L_DEBUG, "Create %"DAP_UINT64_FORMAT_U" transactions, summary %s", a_tx_num, l_balance);
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
@@ -627,7 +631,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         if (compare256(l_value_to_items, l_single_val) == -1) {
             char l_log_str[256] = { '\0' };
             l_balance = dap_uint256_to_char(l_value_to_items, NULL);
-            dap_snprintf(l_log_str, sizeof(l_log_str),
+            snprintf(l_log_str, sizeof(l_log_str),
                          "Not enough values on output to produce enough inputs: %s when need ", l_balance);
             strcat(l_log_str, dap_uint256_to_char(l_single_val, NULL));
             log_it(L_ERROR, "%s", l_log_str);

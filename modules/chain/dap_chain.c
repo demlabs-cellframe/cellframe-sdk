@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -110,6 +110,7 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
             .net_id     = a_chain_net_id,
             .name       = dap_strdup(a_chain_name),
             .net_name   = dap_strdup(a_chain_net_name),
+            .is_mapped  = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true),
             .cell_rwlock    = PTHREAD_RWLOCK_INITIALIZER,
             .atom_notifiers = NULL
     };
@@ -248,7 +249,7 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
         return CHAIN_TYPE_DECREE;
     if (!dap_strcmp(a_type_str, "anchor"))
         return CHAIN_TYPE_ANCHOR;
-    return CHAIN_TYPE_LAST;
+    return CHAIN_TYPE_INVALID;
 }
 
 /**
@@ -392,7 +393,10 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 
                 if ( dap_config_get_item_str_default(l_cfg, "files","storage_dir", NULL) )
 				{
-                    DAP_CHAIN_PVT(l_chain)->file_storage_dir = (char*)dap_config_get_item_path( l_cfg , "files","storage_dir" );
+                    DAP_CHAIN_PVT(l_chain)->file_storage_dir = (char*)dap_config_get_item_path( l_cfg, "files", "storage_dir" );
+                    if (!dap_dir_test(DAP_CHAIN_PVT(l_chain)->file_storage_dir)) {
+                        dap_mkdir_with_parents(DAP_CHAIN_PVT(l_chain)->file_storage_dir);
+                    }
                 } else
                     log_it (L_INFO, "Not set file storage path, will not stored in files");
 
@@ -445,7 +449,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 					for (uint16_t i = 0; i < l_datum_types_count; i++)
 					{
 						dap_chain_type_t l_chain_type = s_chain_type_from_str(l_datum_types[i]);
-						if (l_chain_type != CHAIN_TYPE_LAST)
+						if (l_chain_type != CHAIN_TYPE_INVALID)
 						{
 							l_chain->datum_types[l_count_recognized] = l_chain_type;
 							l_count_recognized++;
@@ -470,7 +474,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 					for (uint16_t i = 0; i < l_default_datum_types_count; i++)
 					{
 						dap_chain_type_t l_chain_type = s_chain_type_from_str(l_default_datum_types[i]);
-						if (l_chain_type != CHAIN_TYPE_LAST
+						if (l_chain_type != CHAIN_TYPE_INVALID
 						&& s_chain_in_chain_types(l_chain_type, l_chain->datum_types, l_chain->datum_types_count))// <<--- check this chain_type in readed datum_types
 						{
 							l_chain->default_datum_types[l_count_recognized] = l_chain_type;
@@ -519,7 +523,8 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 				} else
 					l_chain->autoproc_datum_types_count = 0;
 			}
-            dap_config_close(l_cfg);
+            if (l_chain && l_chain->config)
+                l_chain->config = l_cfg;
             return l_chain;
         } else
             return NULL;
@@ -541,6 +546,21 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain)
     return  DAP_CHAIN_PVT(a_chain)->file_storage_dir != NULL;
 }
 
+
+/**
+ * @brief get type of chain
+ *
+ * @param l_chain
+ * @return char*
+ */
+const char *dap_chain_get_cs_type(dap_chain_t *l_chain)
+{
+    if (!l_chain){
+        log_it(L_DEBUG, "dap_get_chain_type. Chain object is 0");
+        return NULL;
+    }
+    return (const char *)DAP_CHAIN_PVT(l_chain)->cs_name;
+}
 
 /**
  * @brief dap_chain_save_all
@@ -577,9 +597,6 @@ int dap_chain_load_all(dap_chain_t *a_chain)
     char *l_storage_dir = DAP_CHAIN_PVT(a_chain)->file_storage_dir;
     if (!l_storage_dir)
         return 0;
-    if (!dap_dir_test(l_storage_dir)) {
-        dap_mkdir_with_parents(l_storage_dir);
-    }
     DIR *l_dir = opendir(l_storage_dir);
     if (!l_dir) {
         log_it(L_ERROR, "Cannot open directory %s", DAP_CHAIN_PVT(a_chain)->file_storage_dir);
@@ -590,9 +607,18 @@ int dap_chain_load_all(dap_chain_t *a_chain)
         const char l_suffix[] = ".dchaincell";
         size_t l_suffix_len = strlen(l_suffix);
         if (!strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len)) {
-            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill2(a_chain, l_filename);
+            uint64_t l_cell_id_uint64 = 0;
+            sscanf(l_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
+            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(a_chain, (dap_chain_cell_id_t){ .uint64 = l_cell_id_uint64 });
             l_ret += dap_chain_cell_load(a_chain, l_cell);
-            if (DAP_CHAIN_PVT(a_chain)->need_reorder) {
+            if ( DAP_CHAIN_PVT(a_chain)->need_reorder ) {
+#ifdef DAP_OS_WINDOWS
+                strcat(l_cell->file_storage_path, ".new");
+                if (remove(l_cell->file_storage_path) == -1) {
+                    log_it(L_ERROR, "File %s doesn't exist", l_cell->file_storage_path);
+                }
+                *(l_cell->file_storage_path + strlen(l_cell->file_storage_path) - 4) = '\0';
+#else
                 const char *l_filename_backup = dap_strdup_printf("%s.unsorted", l_cell->file_storage_path);
                 if (remove(l_filename_backup) == -1) {
                     log_it(L_ERROR, "File %s doesn't exist", l_filename_backup);
@@ -601,6 +627,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
                     log_it(L_ERROR, "Couldn't rename %s to %s", l_cell->file_storage_path, l_filename_backup);
                 }
                 DAP_DELETE(l_filename_backup);
+#endif
             }
         }
     }
@@ -700,6 +727,7 @@ struct chain_thread_notifier {
     void *callback_arg;
     dap_chain_t *chain;
     dap_chain_cell_id_t cell_id;
+    dap_hash_fast_t hash;
     void *atom;
     size_t atom_size;
 };
@@ -708,8 +736,9 @@ static bool s_notify_atom_on_thread(void *a_arg)
 {
     struct chain_thread_notifier *l_arg = a_arg;
     assert(l_arg->atom && l_arg->callback);
-    l_arg->callback(l_arg->callback_arg, l_arg->chain, l_arg->cell_id, l_arg->atom, l_arg->atom_size);
-    DAP_DELETE(l_arg->atom);
+    l_arg->callback(l_arg->callback_arg, l_arg->chain, l_arg->cell_id, &l_arg->hash, l_arg->atom, l_arg->atom_size);
+    if ( !l_arg->chain->is_mapped )
+        DAP_DELETE(l_arg->atom);
     DAP_DELETE(l_arg);
     return false;
 }
@@ -732,41 +761,7 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
             }
         }
     }
-    ssize_t l_res = dap_chain_cell_file_append(a_chain_cell, a_atom, a_atom_size);
-    if (l_chain->atom_notifiers) {
-        dap_list_t *l_iter;
-        DL_FOREACH(l_chain->atom_notifiers, l_iter) {
-            dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
-            struct chain_thread_notifier *l_arg = DAP_NEW_Z(struct chain_thread_notifier);
-            if (!l_arg) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
-                continue;
-            }
-            *l_arg = (struct chain_thread_notifier) { .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
-                                                      .chain = l_chain, .cell_id = a_chain_cell->id, .atom_size = a_atom_size };
-            l_arg->atom = DAP_DUP_SIZE(a_atom, a_atom_size);
-            if (!l_arg->atom) {
-                DAP_DELETE(l_arg);
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
-                continue;
-            }
-            dap_proc_thread_callback_add_pri(NULL, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
-        }
-    }
-    if (l_chain->callback_atom_add_from_treshold) {
-        dap_chain_atom_ptr_t l_atom_treshold;
-        do {
-            size_t l_atom_treshold_size;
-            l_atom_treshold = l_chain->callback_atom_add_from_treshold(l_chain, &l_atom_treshold_size);
-            if (l_atom_treshold) {
-                if (dap_chain_cell_file_append(a_chain_cell, l_atom_treshold, l_atom_treshold_size) > 0)
-                    log_it(L_INFO, "Added atom from treshold");
-                else
-                    log_it(L_ERROR, "Can't add atom from treshold");
-            }
-        } while(l_atom_treshold);
-    }
-    return l_res;
+    return dap_chain_cell_file_append(a_chain_cell, a_atom, a_atom_size);
 }
 
 /**
@@ -809,3 +804,60 @@ const char* dap_chain_get_path(dap_chain_t *a_chain)
     return DAP_CHAIN_PVT(a_chain)->file_storage_dir;
 }
 
+void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size) {
+#ifdef DAP_CHAIN_BLOCKS_TEST
+    return;
+#endif
+
+    if ( !a_chain_cell->chain->atom_notifiers )
+        return;
+    dap_list_t *l_iter;
+    DL_FOREACH(a_chain_cell->chain->atom_notifiers, l_iter) {
+        dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
+        struct chain_thread_notifier *l_arg = DAP_NEW_Z(struct chain_thread_notifier);
+        if (!l_arg) {
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            continue;
+        }
+        *l_arg = (struct chain_thread_notifier) {
+            .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
+            .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
+            .hash = *a_hash,
+            .atom = a_chain_cell->chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE(a_atom, a_atom_size),
+            .atom_size = a_atom_size };
+        dap_proc_thread_callback_add_pri(NULL, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
+    }
+}
+
+void dap_chain_atom_add_from_threshold(dap_chain_t *a_chain) {
+    if ( !a_chain->callback_atom_add_from_treshold )
+        return;
+    dap_chain_atom_ptr_t l_atom_treshold = NULL;
+    do {
+        size_t l_atom_treshold_size;
+        l_atom_treshold = a_chain->callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size);
+    } while(l_atom_treshold);
+}
+
+const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type) {
+    switch (a_default_chain_type)
+    {
+        case CHAIN_TYPE_INVALID:
+            return "invalid";
+        case CHAIN_TYPE_TOKEN:
+            return "token";
+        case CHAIN_TYPE_EMISSION:
+            return "emission";
+        case CHAIN_TYPE_TX:
+            return "transaction";
+        case CHAIN_TYPE_CA:
+            return "ca";
+        case CHAIN_TYPE_SIGNER:
+            return "signer";
+        case CHAIN_TYPE_DECREE:
+            return "decree";
+        case CHAIN_TYPE_ANCHOR:
+            return "anchor";
+    }
+    return "invalid";
+}

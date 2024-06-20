@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -84,6 +84,42 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         default: return "UNDEFINED";
     }
 }
+
+typedef struct dap_chain_datum_tx_item_groups {
+
+    dap_list_t *items_in_all;
+    dap_list_t *items_in;
+    dap_list_t *items_in_cond;
+    dap_list_t *items_in_reward;
+    dap_list_t *items_sig;
+
+    
+    dap_list_t *items_out;
+    dap_list_t *items_out_all;
+    dap_list_t *items_out_old;
+    dap_list_t *items_out_ext;
+    dap_list_t *items_out_cond;
+    dap_list_t *items_out_cond_srv_fee;
+    dap_list_t *items_out_cond_srv_pay;
+    dap_list_t *items_out_cond_srv_xchange;
+    dap_list_t *items_out_cond_srv_stake_pos_delegate;
+    dap_list_t *items_out_cond_srv_stake_lock;
+    dap_list_t *items_out_cond_unknonwn;
+    dap_list_t *items_out_cond_undefined;
+    
+    dap_list_t *items_in_ems;
+    dap_list_t *items_vote;
+    dap_list_t *items_voting;
+    dap_list_t *items_tsd;
+    dap_list_t *items_pkey;
+    dap_list_t *items_receipt;
+
+    dap_list_t *items_unknown;
+
+} dap_chain_datum_tx_item_groups_t;
+
+bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_res_group);
+void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_group);
 
 /**
  * Get item type by item name

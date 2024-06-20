@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -23,43 +23,17 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-
-#ifdef WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#include <pthread.h>
-#endif
-
 #include "dap_common.h"
-#include "dap_strfuncs.h"
 #include "dap_list.h"
 #include "dap_config.h"
 #include "dap_hash.h"
 #include "dap_time.h"
-#include "utlist.h"
-
 #include "dap_worker.h"
-#include "dap_events.h"
 #include "dap_proc_thread.h"
-#include "dap_client_pvt.h"
-
 #include "dap_chain.h"
-#include "dap_chain_datum.h"
-#include "dap_chain_cs.h"
 #include "dap_chain_cell.h"
-
 #include "dap_global_db_legacy.h"
-#include "dap_global_db_pkt.h"
 #include "dap_global_db_ch.h"
-
 #include "dap_stream.h"
 #include "dap_stream_pkt.h"
 #include "dap_stream_worker.h"
@@ -425,6 +399,8 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
                 if (l_cur_size + sizeof(dap_global_db_pkt_old_t) + l_pkt->data_size >= DAP_CHAIN_PKT_EXPECT_SIZE) {
                     l_context->enqueued_data_size += l_data_size;
                     if (!l_go_wait && l_context->enqueued_data_size > DAP_EVENTS_SOCKET_BUF_SIZE / 2) {
+                        if (!atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_WAITING))
+                            goto context_delete;
                         l_context->prev_state = l_cur_state;
                         l_go_wait = true;
                     }
@@ -474,8 +450,7 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
     }
     if (!l_go_wait)
         return true;
-    if (atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_WAITING))
-        return false;
+    return false;
 context_delete:
     dap_worker_exec_callback_on(l_context->worker->worker, s_legacy_sync_context_delete, l_context);
     return false;
@@ -507,13 +482,8 @@ static bool s_gdb_in_pkt_proc_callback(void *a_arg)
             break;
     if (l_args->new && l_objs_count == 1)
         l_objs[0].flags |= DAP_GLOBAL_DB_RECORD_NEW;
-    if (l_success && dap_global_db_set_raw_sync(l_objs, l_objs_count)) {
-        const char *l_err_str = s_error_type_to_string(DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED);
-        dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(l_args->hdr.net_id, l_args->hdr.chain_id, l_args->hdr.cell_id,
-                                                               l_err_str, strlen(l_err_str), DAP_CHAIN_CH_PKT_VERSION_LEGACY);
-        dap_stream_ch_pkt_write_mt(l_args->worker, l_args->uuid, DAP_CHAIN_CH_PKT_TYPE_ERROR, l_chain_pkt, dap_chain_ch_pkt_get_size(l_chain_pkt));
-        DAP_DELETE(l_chain_pkt);
-    }
+    if (l_success)
+        dap_global_db_set_raw_sync(l_objs, l_objs_count);
     dap_store_obj_free(l_objs, l_objs_count);
     DAP_DELETE(l_args);
     return false;
@@ -555,6 +525,8 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
             if (!l_hash_item) {
                 l_context->enqueued_data_size += l_context->atom_iter->cur_size;
                 if (l_context->enqueued_data_size > DAP_EVENTS_SOCKET_BUF_SIZE / 2) {
+                    if (!atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_WAITING))
+                        goto context_delete;
                     l_context->prev_state = l_cur_state;
                     l_go_wait = true;
                 }
@@ -610,8 +582,7 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
     }
     if (!l_go_wait)
         return true;
-    if (atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_WAITING))
-        return false;
+    return false;
 context_delete:
     dap_worker_exec_callback_on(l_context->worker->worker, s_legacy_sync_context_delete, l_context);
     return false;
@@ -650,9 +621,12 @@ static bool s_sync_in_chains_callback(void *a_arg)
         return false;
     }
     char *l_atom_hash_str = NULL;
+    l_atom_hash_str = DAP_NEW_STACK_SIZE(char, DAP_CHAIN_HASH_FAST_STR_SIZE); 
+    dap_hash_fast_t l_atom_hash = {}; 
+    dap_hash_fast(l_atom, l_atom_size, &l_atom_hash); 
     if (s_debug_more)
         dap_get_data_hash_str_static(l_atom, l_atom_size, l_atom_hash_str);
-    dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size);
+    dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size, &l_atom_hash);
     bool l_ack_send = false;
     switch (l_atom_add_res) {
     case ATOM_PASS:
@@ -665,13 +639,14 @@ static bool s_sync_in_chains_callback(void *a_arg)
         break;
     case ATOM_ACCEPT:
         debug_if(s_debug_more, L_INFO, "Accepted atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
-        if (dap_chain_atom_save(l_chain->cells, l_atom, l_atom_size, NULL) < 0)
-            log_it(L_ERROR, "Can't save atom %s to the file", l_atom_hash_str);
-        else
-            l_ack_send = true;
+        l_ack_send = true;
         break;
     case ATOM_REJECT: {
         debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s rejected", l_atom_hash_str, l_chain->net_name, l_chain->name);
+        break;
+    }
+    case ATOM_FORK: {
+        debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s added to a fork branch.", l_atom_hash_str, l_chain->net_name, l_chain->name);
         break;
     }
     default:
@@ -685,10 +660,7 @@ static bool s_sync_in_chains_callback(void *a_arg)
         dap_stream_ch_pkt_send_by_addr(&l_args->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK, l_pkt, dap_chain_ch_pkt_get_size(l_pkt));
         DAP_DELETE(l_pkt);
         debug_if(s_debug_more, L_DEBUG, "Out: CHAIN_ACK %s for net %s to destination " NODE_ADDR_FP_STR " with num %" DAP_UINT64_FORMAT_U,
-                                l_chain ? l_chain->name : "(null)",
-                                            l_chain ? l_chain->net_name : "(null)",
-                                                            NODE_ADDR_FP_ARGS_S(l_args->addr),
-                                l_ack_num);
+                                         l_chain->name, l_chain->net_name, NODE_ADDR_FP_ARGS_S(l_args->addr), l_ack_num);
     }
     DAP_DELETE(l_args);
     return false;
@@ -946,6 +918,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
         dap_chain_ch_summary_t *l_sum = (dap_chain_ch_summary_t *)l_chain_pkt->data;
+        if(l_chain->atom_num_last < l_sum->num_last)
+            l_chain->atom_num_last = l_sum->num_last;
         debug_if(s_debug_more, L_DEBUG, "In: CHAIN_SUMMARY of %s for net %s from source " NODE_ADDR_FP_STR
                                             " with %" DAP_UINT64_FORMAT_U " atoms to sync from %" DAP_UINT64_FORMAT_U " to %" DAP_UINT64_FORMAT_U,
                                 l_chain ? l_chain->name : "(null)",
@@ -1126,7 +1100,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     // Response with gdb element hashes and sizes
     case DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB: {
-        if (l_chain_pkt_data_size > sizeof(dap_chain_ch_update_element_t) * s_update_pack_size) {
+        if (l_chain_pkt_data_size % sizeof(dap_chain_ch_update_element_t)) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
@@ -1261,9 +1235,11 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         l_args->pkt = DAP_DUP_SIZE(l_pkt, l_chain_pkt_data_size);
         if (!l_args->pkt) {
             log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            DAP_DEL_Z(l_args);
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
+
             break;
         }
         l_args->worker = a_ch->stream_worker;
@@ -1389,7 +1365,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_UPDATE_CHAINS_REMOTE) {
             log_it(L_WARNING, "Can't process UPDATE_CHAINS packet cause synchronization sequence violation");
-            dap_stream_ch_write_error_unsafe(a_ch, l_context->request_hdr.net_id,
+            if(l_context)
+                dap_stream_ch_write_error_unsafe(a_ch, l_context->request_hdr.net_id,
                     l_context->request_hdr.chain_id, l_context->request_hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
@@ -1556,6 +1533,10 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 static bool s_sync_timer_callback(void *a_arg)
 {
     dap_worker_t *l_worker = dap_worker_get_current();
+    if (!l_worker) {
+        DAP_DELETE(a_arg);
+        return false;
+    }
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_worker), *(dap_stream_ch_uuid_t *)a_arg);
     if (!l_ch) {
         DAP_DELETE(a_arg);

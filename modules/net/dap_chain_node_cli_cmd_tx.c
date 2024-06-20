@@ -6,9 +6,9 @@
  * Copyright  (c) 2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -26,7 +26,7 @@
 #include <stddef.h>
 #include <pthread.h>
 
-#include "dap_chain_wallet.h"
+#include "dap_cli_server.h"
 #include "dap_common.h"
 #include "dap_enc_base58.h"
 #include "dap_strfuncs.h"
@@ -40,14 +40,14 @@
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_tx_items.h"
-#include "dap_chain_node_cli.h"
+#include "dap_chain_datum_anchor.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_net_tx.h"
+#include "dap_chain_net_decree.h"
 #include "dap_chain_mempool.h"
 #include "dap_math_convert.h"
 
 #include "dap_json_rpc_errors.h"
-#include "dap_json_rpc_chain_datum_tx.h"
 
 #define LOG_TAG "chain_node_cli_cmd_tx"
 
@@ -92,7 +92,7 @@ void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **l_
  * @param l_tx_num
  */
 
-static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
+bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                           dap_ledger_t *a_ledger,
                                           json_object * json_obj_out,
                                           const char *a_hash_out_type,
@@ -106,13 +106,16 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             : NULL;
     if (!l_ticker)
         return false;
+    const char *l_description = dap_ledger_get_description_by_ticker(a_ledger, l_ticker);
     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_create);
     dap_chain_hash_fast_to_str(a_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
     json_object_object_add(json_obj_out, "Datum_tx_hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_out, "TS_Created", json_object_new_string(l_tmp_buf));
     json_object_object_add(json_obj_out, "Token_ticker", json_object_new_string(l_ticker));
-    json_object* datum_tx = dap_chain_datum_tx_to_json(a_datum,&a_ledger->net->pub.id);
-    json_object_object_add(json_obj_out, "Datum_tx", datum_tx);
+    json_object_object_add(json_obj_out, "Token_description", l_description ? json_object_new_string(l_description)
+                                                                            : json_object_new_null());
+    dap_chain_datum_dump_tx_json(a_datum, l_ticker, json_obj_out, a_hash_out_type, a_tx_hash, a_ledger->net->pub.id);
+
     dap_list_t *l_out_items = dap_chain_datum_tx_items_get(a_datum, TX_ITEM_TYPE_OUT_ALL, NULL);
     int l_out_idx = 0;
     json_object* json_arr_items = json_object_new_array();
@@ -156,6 +159,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                                         bool brief_out)
 {
     const char *l_tx_token_ticker = NULL;
+    const char *l_tx_token_description = NULL;
     json_object* json_obj_datum = json_object_new_object();
     if (!json_obj_datum) {
         return NULL;
@@ -165,6 +169,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     l_tx_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, a_tx_hash);
     if (l_tx_token_ticker) {
         json_object_object_add(json_obj_datum, "status", json_object_new_string("ACCEPTED"));
+        l_tx_token_description = dap_ledger_get_description_by_ticker(l_ledger, l_tx_token_ticker);
         *accepted_tx = true;
     } else {
         json_object_object_add(json_obj_datum, "status", json_object_new_string("DECLINED"));
@@ -185,9 +190,26 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
 
     json_object_object_add(json_obj_datum, "token_ticker", l_tx_token_ticker ? json_object_new_string(l_tx_token_ticker) 
                                                                              : json_object_new_null());
+    json_object_object_add(json_obj_datum, "token_description", l_tx_token_description ? json_object_new_string(l_tx_token_description)
+                                                                                       : json_object_new_null());
 
     json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(l_ret_code));
     json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_tx_check_err_str(l_ret_code)));
+
+    dap_chain_net_srv_uid_t uid;
+    char *service_name;
+    dap_chain_tx_tag_action_type_t action;
+
+    if (dap_ledger_tx_service_info(l_ledger, a_tx_hash, &uid, &service_name, &action))
+    {
+        json_object_object_add(json_obj_datum, "service", json_object_new_string(service_name));
+        json_object_object_add(json_obj_datum, "action", json_object_new_string(dap_ledger_tx_action_str(action)));
+    }
+    else
+    {   
+        json_object_object_add(json_obj_datum, "service", json_object_new_string("UNKNOWN"));
+        json_object_object_add(json_obj_datum, "action", json_object_new_string("UNKNOWN"));
+    }
 
     char l_time_str[DAP_TIME_STR_SIZE];
     if (l_tx->header.ts_created) {
@@ -198,9 +220,8 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     json_object_object_add(json_obj_datum, "tx_created", l_obj_ts_created);
     
     if(!brief_out)
-    {
-        json_object* datum_tx = dap_chain_datum_tx_to_json(l_tx,&a_chain->net_id);
-        json_object_object_add(json_obj_datum, "items", datum_tx);
+    {        
+        dap_chain_datum_dump_tx_json(l_tx,NULL,json_obj_datum,a_hash_out_type,a_tx_hash,a_chain->net_id);        
     }
 
     return json_obj_datum;
@@ -277,6 +298,23 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
     json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(a_ret_code));
     json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_tx_check_err_str(a_ret_code)));
+
+
+    dap_chain_net_srv_uid_t uid;
+    char *service_name;
+    dap_chain_tx_tag_action_type_t action;
+    
+    if (dap_ledger_tx_service_info(a_ledger, a_tx_hash, &uid, &service_name, &action))
+    {
+        json_object_object_add(json_obj_datum, "service", json_object_new_string(service_name));
+        json_object_object_add(json_obj_datum, "action", json_object_new_string(dap_ledger_tx_action_str(action)));
+    }
+    else
+    {
+        json_object_object_add(json_obj_datum, "service", json_object_new_string("UNKNOWN"));
+        json_object_object_add(json_obj_datum, "action", json_object_new_string("UNKNOWN"));
+    }
+
     json_object_object_add(json_obj_datum, "tx_created", json_object_new_string(l_time_str));
 
     DAP_DELETE(l_tx_hash_str);
@@ -296,7 +334,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
  */
 json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, 
                                  const char *a_hash_out_type, const char * l_addr_str, json_object *json_obj_summary,
-                                 size_t a_limit, size_t a_offset)
+                                 size_t a_limit, size_t a_offset, bool a_brief, const char *a_srv, dap_chain_tx_tag_action_type_t a_action)
 {
     json_object* json_obj_datum = json_object_new_array();
     if (!json_obj_datum){
@@ -331,36 +369,39 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     bool l_net_fee_used = dap_chain_net_tx_get_fee(l_net->pub.id, NULL, &l_net_fee_addr);
     bool l_is_need_correction = false;
     uint256_t l_corr_value = {}, l_unstake_value = {};    
+    bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
 
+    json_object* json_obj_lim = json_object_new_object();
     size_t l_arr_start = 0;
     if (a_offset){
         l_arr_start = a_offset;
-        json_object* json_obj_off = json_object_new_object();
-        json_object_object_add(json_obj_off, "offset", json_object_new_int(l_arr_start));
-        json_object_array_add(json_obj_datum, json_obj_off);
+        json_object_object_add(json_obj_lim, "offset", json_object_new_int(l_arr_start));
     }        
     size_t l_arr_end = a_chain->callback_count_atom(a_chain);
     if (a_limit) {
-        json_object* json_obj_lim = json_object_new_object();
-        json_object_object_add(json_obj_lim, "limit", json_object_new_int(a_limit));
-        json_object_array_add(json_obj_datum, json_obj_lim);        
+        json_object_object_add(json_obj_lim, "limit", json_object_new_int(a_limit));        
         l_arr_end = l_arr_start + a_limit;
         size_t l_length = a_chain->callback_count_atom(a_chain);
         if (l_arr_end > l_length)
             l_arr_end = l_length;
     }
+    json_object_array_add(json_obj_datum, json_obj_lim);
     size_t i_tmp = 0;
+    size_t
+            l_tx_ledger_accepted = 0,
+            l_tx_ledger_rejected = 0;
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
-
+size_t datums = 0;
     for (dap_chain_datum_t *l_datum = a_chain->callback_datum_iter_get_first(l_datum_iter);
                             l_datum;
                             l_datum = a_chain->callback_datum_iter_get_next(l_datum_iter))
     {
+        datums++;
         json_object *l_corr_object = NULL;
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
             // go to next datum
-            continue;
+            continue;        
         // it's a transaction        
         bool l_is_unstake = false;
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
@@ -368,6 +409,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         if (!l_list_in_items) // a bad tx
             continue;
         // all in items should be from the same address
+        
         dap_chain_addr_t *l_src_addr = NULL;
         bool l_base_tx = false, l_reward_collect = false;
         const char *l_noaddr_token = NULL;
@@ -515,46 +557,74 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
 
             if (l_dst_addr && l_net_fee_used && dap_chain_addr_compare(&l_net_fee_addr, l_dst_addr))
                 SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
+            
+            //tag
+            char *service_name = NULL;
+            dap_chain_tx_tag_action_type_t l_action;
+            bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_tx_hash, NULL, &service_name, &l_action);
+            if (!(l_action & a_action))
+                continue;
+
+            if (a_srv)
+            {
+              
+                //skip if looking for UNKNOWN + it is known
+                if (look_for_unknown_service && srv_found) {
+                    continue;
+                }
+                            
+                //skip if search condition provided, it not UNKNOWN and found name not match
+                if (!look_for_unknown_service && (!srv_found || strcmp(service_name, a_srv) != 0))
+                {
+                    continue;
+                }
+            }
+
             if (l_dst_addr && dap_chain_addr_compare(l_dst_addr, a_addr)) {
                 if (!l_header_printed) {
                     s_tx_header_print(j_obj_tx, &l_tx_data_ht, l_tx, l_datum_iter->cur_atom_hash,
                                       a_hash_out_type, l_ledger, &l_tx_hash, l_datum_iter->ret_code);
                     l_header_printed = true;
                 }
-                char *l_src_str = NULL;
+                const char *l_src_str = NULL;
                 if (l_base_tx)
                     l_src_str = l_reward_collect ? "reward collecting" : "emission";
                 else if (l_src_addr && dap_strcmp(l_dst_token, l_noaddr_token))
                     l_src_str = dap_chain_addr_to_str(l_src_addr);
                 else
-                    l_src_str = (char*)dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
+                    l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
                 if (l_is_unstake)
                     l_value = l_unstake_value;
                 else if (!dap_strcmp(l_native_ticker, l_noaddr_token)) {
                     l_is_need_correction = true;
                     l_corr_value = l_value;
                 }
-                char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
-                if (i_tmp > l_arr_start && i_tmp <= l_arr_end) {
-                    json_object *j_obj_data = json_object_new_object();
-                    if (!j_obj_data) {
-                        dap_json_rpc_allocation_error;
-                        json_object_put(j_obj_tx);
-                        json_object_put(j_arr_data);
-                        return NULL;
-                    }
-                    json_object_object_add(j_obj_data, "tx_type", json_object_new_string("recv"));
-                    json_object_object_add(j_obj_data, "recv_coins", json_object_new_string(l_coins_str));
-                    json_object_object_add(j_obj_data, "recv_datoshi", json_object_new_string(l_value_str));
-                    json_object_object_add(j_obj_data, "token", l_dst_token ? json_object_new_string(l_dst_token)
-                                                                                : json_object_new_string("UNKNOWN"));
-                    json_object_object_add(j_obj_data, "source_address", json_object_new_string(l_src_str));
-                    if (l_is_need_correction)
-                        l_corr_object = j_obj_data;
-                    else
-                        json_object_array_add(j_arr_data, j_obj_data);
+                const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
+                if (i_tmp >= l_arr_end || i_tmp < l_arr_start) {
+                    i_tmp++;
+                    continue;                    
                 }
                 i_tmp++;
+                
+                json_object *j_obj_data = json_object_new_object();
+                if (!j_obj_data) {
+                    dap_json_rpc_allocation_error;
+                    json_object_put(j_obj_tx);
+                    json_object_put(j_arr_data);
+                    return NULL;
+                }
+                l_src_token ? l_tx_ledger_accepted++ : l_tx_ledger_rejected++;
+                json_object_object_add(j_obj_data, "tx_type", json_object_new_string("recv"));
+                json_object_object_add(j_obj_data, "recv_coins", json_object_new_string(l_coins_str));
+                json_object_object_add(j_obj_data, "recv_datoshi", json_object_new_string(l_value_str));
+                json_object_object_add(j_obj_data, "token", l_dst_token ? json_object_new_string(l_dst_token)
+                                                                            : json_object_new_string("UNKNOWN"));
+                json_object_object_add(j_obj_data, "source_address", json_object_new_string(l_src_str));
+                if (l_is_need_correction)
+                    l_corr_object = j_obj_data;
+                else
+                    json_object_array_add(j_arr_data, j_obj_data);
+                
             } else if (!l_src_addr || dap_chain_addr_compare(l_src_addr, a_addr)) {
                 if (!l_dst_addr && ((dap_chain_tx_out_cond_t *)it->data)->header.subtype == l_src_subtype && l_src_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                     continue;
@@ -569,24 +639,27 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 const char *l_dst_addr_str = l_dst_addr ? dap_chain_addr_to_str(l_dst_addr)
                                                         : dap_chain_tx_out_cond_subtype_to_str(
                                                               ((dap_chain_tx_out_cond_t *)it->data)->header.subtype);
-                char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
-                if (i_tmp > l_arr_start && i_tmp <= l_arr_end) {
-                    json_object * j_obj_data = json_object_new_object();
-                    if (!j_obj_data) {
-                        dap_json_rpc_allocation_error;
-                        json_object_put(j_obj_tx);
-                        json_object_put(j_arr_data);
-                        return NULL;
-                    }
-                    json_object_object_add(j_obj_data, "tx_type", json_object_new_string("send"));
-                    json_object_object_add(j_obj_data, "send_coins", json_object_new_string(l_coins_str));
-                    json_object_object_add(j_obj_data, "send_datoshi", json_object_new_string(l_value_str));
-                    json_object_object_add(j_obj_data, "token", l_dst_token ? json_object_new_string(l_dst_token)
-                                                                            : json_object_new_string("UNKNOWN"));
-                    json_object_object_add(j_obj_data, "destination_address", json_object_new_string(l_dst_addr_str));
-                    json_object_array_add(j_arr_data, j_obj_data);
+                const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
+                if (i_tmp >= l_arr_end || i_tmp < l_arr_start) {
+                    i_tmp++;
+                    continue;                    
                 }
                 i_tmp++;
+                json_object * j_obj_data = json_object_new_object();
+                if (!j_obj_data) {
+                    dap_json_rpc_allocation_error;
+                    json_object_put(j_obj_tx);
+                    json_object_put(j_arr_data);
+                    return NULL;
+                }
+                l_src_token ? l_tx_ledger_accepted++ : l_tx_ledger_rejected++;
+                json_object_object_add(j_obj_data, "tx_type", json_object_new_string("send"));
+                json_object_object_add(j_obj_data, "send_coins", json_object_new_string(l_coins_str));
+                json_object_object_add(j_obj_data, "send_datoshi", json_object_new_string(l_value_str));
+                json_object_object_add(j_obj_data, "token", l_dst_token ? json_object_new_string(l_dst_token)
+                                                                        : json_object_new_string("UNKNOWN"));
+                json_object_object_add(j_obj_data, "destination_address", json_object_new_string(l_dst_addr_str));
+                json_object_array_add(j_arr_data, j_obj_data);                
             }
         }
         if (json_object_array_length(j_arr_data) > 0) {
@@ -596,7 +669,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         dap_list_free(l_list_out_items);
         if (l_is_need_correction && l_corr_object) {
             SUM_256_256(l_corr_value, l_fee_sum, &l_corr_value);
-            char *l_coins_str, *l_value_str = dap_uint256_to_char(l_corr_value, &l_coins_str);
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_corr_value, &l_coins_str);
             json_object_object_add(l_corr_object, "recv_coins", json_object_new_string(l_coins_str));
             json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));
             if (!j_arr_data) {
@@ -623,13 +696,17 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     }    
     json_object_object_add(json_obj_summary, "network", json_object_new_string(l_net->pub.name));
     json_object_object_add(json_obj_summary, "chain", json_object_new_string(a_chain->name));
-    json_object_object_add(json_obj_summary, "tx_sum", json_object_new_int(i_tmp));    
+    json_object_object_add(json_obj_summary, "tx_sum", json_object_new_int(i_tmp));
+    json_object_object_add(json_obj_summary, "accepted_tx", json_object_new_int(l_tx_ledger_accepted));
+    json_object_object_add(json_obj_summary, "rejected_tx", json_object_new_int(l_tx_ledger_rejected));    
     return json_obj_datum;
 }
 
 json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
                                    const char *l_hash_out_type, json_object *json_obj_summary,
-                                   size_t a_limit, size_t a_offset, bool out_brief)
+                                   size_t a_limit, size_t a_offset, bool out_brief,
+					const char *a_srv, 
+                                    dap_chain_tx_tag_action_type_t a_action)
 {
         log_it(L_DEBUG, "Start getting tx from chain");
         size_t
@@ -637,48 +714,71 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
             l_tx_ledger_rejected = 0,
             l_count = 0,
             l_count_tx = 0;
-
         dap_chain_cell_t    *l_cell = NULL,
                             *l_cell_tmp = NULL;
         dap_chain_atom_iter_t *l_iter = NULL;
         json_object * json_arr_out = json_object_new_array();
+        json_object* json_obj_lim = json_object_new_object();
         size_t l_arr_start = 0;
         if (a_offset) {
             l_arr_start = a_offset;
-            json_object* json_obj_off = json_object_new_object();
-            json_object_object_add(json_obj_off, "offset", json_object_new_int(l_arr_start));
-            json_object_array_add(json_arr_out, json_obj_off);
+            json_object_object_add(json_obj_lim, "offset", json_object_new_int(l_arr_start));            
         }
         size_t l_arr_end =  l_chain->callback_count_atom(l_chain);
-        if (a_limit) {
-            l_arr_end = l_arr_start + a_limit;
-            json_object* json_obj_lim = json_object_new_object();
-            json_object_object_add(json_obj_lim, "limit", json_object_new_int(a_limit));
-            json_object_array_add(json_arr_out, json_obj_lim);
-            if (l_arr_end > l_chain->callback_count_atom(l_chain)) {
-                l_arr_end = l_chain->callback_count_atom(l_chain);
-            }
+        l_arr_end = a_limit ? l_arr_start + a_limit : 0;
+        l_arr_end ? json_object_object_add(json_obj_lim, "limit", json_object_new_int(l_arr_end - l_arr_start)):
+                    json_object_object_add(json_obj_lim, "limit", json_object_new_string("unlimit"));
+        json_object_array_add(json_arr_out, json_obj_lim);
+        if (l_arr_end > l_chain->callback_count_atom(l_chain)) {
+            l_arr_end = l_chain->callback_count_atom(l_chain);
         }
-        size_t i_tmp = 1;
-        HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
-            if (a_limit && l_count_tx >= a_limit)
+
+        bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
+size_t datums = 0;
+        HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {            
+            if ((l_count_tx >= l_arr_end)&&(l_arr_end))
                 break;
             l_iter = l_chain->callback_atom_iter_create(l_chain, l_cell->id, NULL);
             size_t l_atom_size = 0;
             dap_chain_atom_ptr_t l_ptr = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
-            while (l_ptr && l_atom_size && (a_limit ? l_count_tx < a_limit : true)) {
+            while (l_ptr && l_atom_size && ((l_count_tx < l_arr_end)||(!l_arr_end))) {
                 size_t l_datums_count = 0;
                 dap_chain_datum_t **l_datums = l_cell->chain->callback_atom_get_datums(l_ptr, l_atom_size, &l_datums_count);
-                for (size_t i = 0; i < l_datums_count && (a_limit ? l_count_tx < a_limit : true); i++) {
+                for (size_t i = 0; i < l_datums_count && ((l_count_tx < l_arr_end)||(!l_arr_end)); i++) {
                     if (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX) {
-                        if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
-                            i_tmp++;
+                        datums++;
+                        if (l_count_tx < l_arr_start) {
+                            l_count_tx++;
                             continue;
                         }
-                        i_tmp++;
                         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datums[i]->data;
                         dap_hash_fast_t l_ttx_hash = {0};
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
+
+                        char *service_name = NULL;
+                        dap_chain_tx_tag_action_type_t l_action;
+                        dap_ledger_t *l_ledger = l_net->pub.ledger;
+                        bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_ttx_hash, NULL, &service_name, &l_action);
+                        
+                        if (!(l_action & a_action))
+                            continue;
+
+                        if (a_srv)
+                        {
+                            char *service_name = NULL;
+                            bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_ttx_hash, NULL, &service_name, NULL);
+                            //skip if looking for UNKNOWN + it is known
+                            if (look_for_unknown_service && srv_found) {
+                                continue;
+                            }
+                            
+                            //skip if search condition provided, it not UNKNOWN and found name not match
+                            if (!look_for_unknown_service && (!srv_found || strcmp(service_name, a_srv) != 0))
+                            {
+                                continue;
+                            }
+                        }        
+                        
                         bool accepted_tx;
                         json_object* json_obj_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, l_chain, l_hash_out_type, l_net, 0, &accepted_tx, out_brief);
                         if (!json_obj_datum) {
@@ -691,8 +791,9 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
                             ++l_tx_ledger_rejected;
                         }
                         json_object_array_add(json_arr_out, json_obj_datum);
-                        const char * debug_json_string = json_object_to_json_string(json_obj_datum);
+                        //const char * debug_json_string = json_object_to_json_string(json_obj_datum);
                         ++l_count_tx;
+                        l_count++;
                     }
                 }
                 DAP_DEL_Z(l_datums);
@@ -704,7 +805,7 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
 
         json_object_object_add(json_obj_summary, "network", json_object_new_string(l_net->pub.name));
         json_object_object_add(json_obj_summary, "chain", json_object_new_string(l_chain->name));
-        json_object_object_add(json_obj_summary, "tx_sum", json_object_new_int(l_count_tx));
+        json_object_object_add(json_obj_summary, "tx_sum", json_object_new_int(l_count));
         json_object_object_add(json_obj_summary, "accepted_tx", json_object_new_int(l_tx_ledger_accepted));
         json_object_object_add(json_obj_summary, "rejected_tx", json_object_new_int(l_tx_ledger_rejected));
         return json_arr_out;
@@ -719,23 +820,20 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
  * @param a_token_num
  * @return char*
  */
-static char* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *a_token_name, const char *a_hash_out_type, size_t *a_token_num) {
+static json_object* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *a_token_name, const char *a_hash_out_type, size_t *a_token_num) {
     if (!a_chain->callback_atom_get_datums) {
         log_it(L_WARNING, "Not defined callback_atom_get_datums for chain \"%s\"", a_chain->name);
         return NULL;
-    }
-    dap_string_t *l_str_out = dap_string_new(NULL);
-    if (!l_str_out) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
-        return NULL;
-    }
+    }    
     *a_token_num  = 0;
     size_t l_atom_size = 0;
     dap_chain_cell_t *l_cell = a_chain->cells;
+    json_object* json_arr_history_token_out = json_object_new_array();    
     do {
         dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, NULL);
         if(!a_chain->callback_atom_get_datums) {
             log_it(L_DEBUG, "Not defined callback_atom_get_datums for chain \"%s\"", a_chain->name);
+            json_object_put(json_arr_history_token_out);
             return NULL ;
         }
         for (dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
@@ -754,16 +852,17 @@ static char* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *
                     if (l_cmp)
                         continue;
                 }
-                dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type, a_chain->net_id);
+                json_object* json_history_token = json_object_new_object();
+                dap_chain_datum_dump_json(json_history_token, l_datum, a_hash_out_type, a_chain->net_id);
+                json_object_array_add(json_arr_history_token_out, json_history_token);
                 (*a_token_num)++;
             }
             DAP_DELETE(l_datums);
         }
         a_chain->callback_atom_iter_delete(l_atom_iter);
         l_cell = l_cell->hh.next;
-    } while (l_cell);
-    char *l_ret_str = l_str_out ? dap_string_free(l_str_out, false) : NULL;
-    return l_ret_str;
+    } while (l_cell);    
+    return json_arr_history_token_out;
 }
 
 /**
@@ -776,17 +875,19 @@ static char* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *
  * @return char*
  */
 
-static size_t dap_db_net_history_token_list(dap_chain_net_t * l_net, const char *a_token_name, const char *a_hash_out_type, dap_string_t *a_str_out) {
+static size_t dap_db_net_history_token_list(dap_chain_net_t * l_net, const char *a_token_name, const char *a_hash_out_type, json_object* a_obj_out) {
     size_t l_token_num_total = 0;
     dap_chain_t *l_chain_cur;
+    json_object* json_arr_obj_tx = json_object_new_array();    
     DL_FOREACH(l_net->pub.chains, l_chain_cur) {
         size_t l_token_num = 0;
-        char *token_list_str = dap_db_chain_history_token_list(l_chain_cur, a_token_name, a_hash_out_type, &l_token_num);
-        if(token_list_str)
-            dap_string_append(a_str_out, token_list_str);
-        l_token_num_total += l_token_num;
-        DAP_DEL_Z(token_list_str);
+        json_object* json_obj_tx = NULL;
+        json_obj_tx = dap_db_chain_history_token_list(l_chain_cur, a_token_name, a_hash_out_type, &l_token_num);
+        if(json_obj_tx)
+            json_object_array_add(json_arr_obj_tx, json_obj_tx);
+        l_token_num_total += l_token_num;        
     }
+    json_object_object_add(a_obj_out, "TOKENS", json_arr_obj_tx);
     return l_token_num_total;
 }
 
@@ -1119,6 +1220,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
  */
 int com_token(int a_argc, char ** a_argv, void **a_str_reply)
 {
+    json_object **json_arr_reply = (json_object **)a_str_reply;
     enum { CMD_NONE, CMD_LIST, CMD_INFO, CMD_TX };
     int arg_index = 1;
     const char *l_net_str = NULL;
@@ -1129,20 +1231,20 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply)
     if (!l_hash_out_type)
         l_hash_out_type = "hex";
     if (dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR, "invalid parameter -H, valid values: -H <hex | base58>");
+        return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
     }
 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
     // Select chain network
     if(!l_net_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "command requires parameter '-net'");
-        return -2;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR, "command requires parameter '-net'");
+        return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
     } else {
         if((l_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "command requires parameter '-net' to be valid chain network name");
-            return -3;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR,
+                    "command requires parameter '-net' to be valid chain network name");            
+            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
         }
     }
 
@@ -1155,12 +1257,12 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply)
             l_cmd = CMD_TX;
     // token list
     if(l_cmd == CMD_LIST) {
-        dap_string_t *l_str_out = dap_string_new(NULL);
-        size_t l_token_num_total = dap_db_net_history_token_list(l_net, NULL, l_hash_out_type, l_str_out);
+        json_object* json_obj_tx = json_object_new_object();
+        size_t l_token_num_total = dap_db_net_history_token_list(l_net, NULL, l_hash_out_type, json_obj_tx);
+
         //total
-        dap_string_append_printf(l_str_out, "---------------\ntokens: %zu\n", l_token_num_total);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
-        dap_string_free(l_str_out, true);
+        json_object_object_add(json_obj_tx, "tokens", json_object_new_uint64(l_token_num_total));
+        json_object_array_add(*json_arr_reply, json_obj_tx);
         return 0;
     }
     // token info
@@ -1168,20 +1270,23 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply)
         const char *l_token_name_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-name", &l_token_name_str);
         if(!l_token_name_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "command requires parameter '-name' <token name>");
-                return -4;
-            }
-        dap_string_t *l_str_out = dap_string_new(NULL);
-        if(!dap_db_net_history_token_list(l_net, l_token_name_str, l_hash_out_type, l_str_out))
-            dap_string_append_printf(l_str_out, "token '%s' not found\n", l_token_name_str);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
-        dap_string_free(l_str_out, true);
-        return 0;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR, "command requires parameter '-name' <token name>");
+                return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
+        }
+        json_object* json_obj_tx = json_object_new_object();
+        if(!dap_db_net_history_token_list(l_net, l_token_name_str, l_hash_out_type, json_obj_tx)){
+            json_object_put(json_obj_tx);
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_FOUND_ERR, "token '%s' not found\n", l_token_name_str);               
+        }
+        json_object_array_add(*json_arr_reply, json_obj_tx);
+        return DAP_CHAIN_NODE_CLI_COM_TOKEN_OK;
     }
     // command tx history
     else if(l_cmd == CMD_TX) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "The cellframe-node-cli token tx command is deprecated and no longer supported.\n");
-        return 0;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN, 
+            "The cellframe-node-cli token tx command is deprecated and no longer supported.\n");
+        
+        return DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN;
 #if 0
         dap_chain_tx_hash_processed_ht_t *l_list_tx_hash_processd = NULL;
         enum { SUBCMD_TX_NONE, SUBCMD_TX_ALL, SUBCMD_TX_ADDR };
@@ -1319,8 +1424,8 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply)
 #endif
     }
 
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "unknown command code %d", l_cmd);
-    return -5;
+    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN, "unknown command code %d", l_cmd);
+    return -DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN;
 }
 
 /* Decree section */
@@ -1544,7 +1649,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 dap_cert_parse_str_list(l_param_value_str, &l_new_certs, &l_new_certs_count);
 
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-                uint16_t l_min_signs = l_net->pub.decree->min_num_of_owners;
+                uint16_t l_min_signs = dap_chain_net_get_net_decree(l_net)->min_num_of_owners;
                 if (l_new_certs_count < l_min_signs) {
                     log_it(L_WARNING,"Number of new certificates is less than minimum owner number.");
                     return -106;
@@ -1578,7 +1683,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                     return -112;
                 }
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-                uint256_t l_owners = GET_256_FROM_64(l_net->pub.decree->num_of_owners);
+                uint256_t l_owners = GET_256_FROM_64(dap_chain_net_get_net_decree(l_net)->num_of_owners);
                 if (compare256(l_new_num_of_owners, l_owners) > 0) {
                     log_it(L_WARNING, "The minimum number of owners is greater than the total number of owners.");
                     dap_list_free_full(l_tsd_list, NULL);
@@ -1874,14 +1979,15 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             return -111;
         }
         bool l_applied = false;
-        dap_chain_datum_decree_t *l_decree = dap_chain_net_decree_get_by_hash(&l_datum_hash, &l_applied);
+        dap_chain_datum_decree_t *l_decree = dap_chain_net_decree_get_by_hash(l_net, &l_datum_hash, &l_applied);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified decree is %s in decrees hash-table",
                                           l_decree ? (l_applied ? "applied" : "not applied") : "not found");
     } break;
     case CMD_INFO: {
         dap_string_t *l_str_owner_pkey = dap_string_new("");
+        dap_chain_net_decree_t *l_net_decree = dap_chain_net_get_net_decree(l_net);
         int i = 1;
-        for (dap_list_t *l_current_pkey = l_net->pub.decree->pkeys; l_current_pkey; l_current_pkey = l_current_pkey->next){
+        for (dap_list_t *l_current_pkey = l_net_decree->pkeys; l_current_pkey; l_current_pkey = l_current_pkey->next){
             dap_pkey_t *l_pkey = (dap_pkey_t*)(l_current_pkey->data);
             dap_hash_fast_t l_pkey_hash = {0};
             dap_pkey_get_hash(l_pkey, &l_pkey_hash);
@@ -1896,8 +2002,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                                                        "%s"
                                                        "\t=====================================================================\n"
                                                        "\tMin owners for apply decree: %d\n",
-                                          l_net->pub.decree->num_of_owners, l_str_owner_pkey->str,
-                                          l_net->pub.decree->min_num_of_owners);
+                                          l_net_decree->num_of_owners, l_str_owner_pkey->str,
+                                          l_net_decree->min_num_of_owners);
         dap_string_free(l_str_owner_pkey, true);
     } break;
     default:

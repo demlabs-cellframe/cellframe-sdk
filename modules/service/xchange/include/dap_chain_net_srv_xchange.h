@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2020
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -25,7 +25,8 @@
 #pragma once
 
 #include "dap_chain_net_srv.h"
-#include "dap_chain_net_srv_order.h"
+#include "dap_chain_wallet.h"
+#include "dap_chain_datum_tx_out_cond.h"
 
 #define DAP_CHAIN_NET_SRV_XCHANGE_ID 0x2
 #define GROUP_LOCAL_XCHANGE "local.xchange"
@@ -77,7 +78,7 @@ typedef enum dap_chain_net_srv_xchange_create_error_list{
     XCHANGE_CREATE_ERROR_MEMORY_ALLOCATED,
     XCHANGE_CREATE_ERROR_CAN_NOT_COMPOSE_THE_CONDITIONAL_TRANSACTION,
     XCHANGE_CREATE_ERROR_CAN_NOT_PUT_TRANSACTION_TO_MEMPOOL,
-}dap_chain_net_srv_xchange_create_error_t;
+} dap_chain_net_srv_xchange_create_error_t;
 dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token_buy,
                                      const char *a_token_sell, uint256_t a_datoshi_sell,
                                      uint256_t a_rate, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
@@ -90,7 +91,7 @@ typedef enum dap_chain_net_srv_xchange_remove_error_list{
     XCHANGE_REMOVE_ERROR_CAN_NOT_FIND_TX,
     XCHANGE_REMOVE_ERROR_CAN_NOT_CREATE_PRICE,
     XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX
-}dap_chain_net_srv_xchange_remove_error_t;
+} dap_chain_net_srv_xchange_remove_error_t;
 dap_chain_net_srv_xchange_remove_error_t dap_chain_net_srv_xchange_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
                                      dap_chain_wallet_t *a_wallet, char **a_out_hash_tx);
 
@@ -103,7 +104,7 @@ typedef enum dap_chain_net_srv_xchange_purchase_error_list{
     XCHANGE_PURCHASE_ERROR_SPECIFIED_ORDER_NOT_FOUND,
     XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_PRICE,
     XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_EXCHANGE_TX,
-}dap_chain_net_srv_xchange_purchase_error_t;
+} dap_chain_net_srv_xchange_purchase_error_t;
 dap_chain_net_srv_xchange_purchase_error_t dap_chain_net_srv_xchange_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_value,
                                        uint256_t a_fee, dap_chain_wallet_t *a_wallet, char **a_hash_out);
 
@@ -113,6 +114,15 @@ typedef enum dap_chain_net_srv_xchange_order_status{
     XCHANGE_ORDER_STATUS_OPENED = 0,
     XCHANGE_ORDER_STATUS_CLOSED,
     XCHANGE_ORDER_STATUS_UNKNOWN,
-}dap_chain_net_srv_xchange_order_status_t;
+} dap_chain_net_srv_xchange_order_status_t;
+
+typedef enum xchange_tx_type{
+    TX_TYPE_UNDEFINED=0,
+    TX_TYPE_ORDER,
+    TX_TYPE_EXCHANGE,
+    TX_TYPE_INVALIDATE
+}   xchange_tx_type_t;
+
 dap_chain_net_srv_xchange_order_status_t dap_chain_net_srv_xchange_get_order_status(dap_chain_net_t *a_net, dap_hash_fast_t a_order_tx_hash);
 bool dap_chain_net_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_fee, dap_chain_addr_t *a_addr, uint16_t *a_type);
+xchange_tx_type_t dap_chain_net_srv_xchange_tx_get_type (dap_ledger_t * a_ledger, dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t **a_out_cond_item, int *a_item_idx, dap_chain_tx_out_cond_t **a_out_prev_cond_item);

@@ -27,7 +27,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain.h"
 #include "dap_chain_block.h"
 #include "dap_chain_cs_blocks.h"
-#include "dap_cert.h"
 #include "dap_global_db_driver.h"
 
 #define DAP_STREAM_CH_ESBOCS_ID                     'E'
@@ -137,31 +136,30 @@ typedef struct dap_chain_esbocs_directive {
 } DAP_ALIGN_PACKED dap_chain_esbocs_directive_t;
 
 typedef struct dap_chain_esbocs_round {
-    // Base fields
     uint64_t id;
-    uint8_t attempt_num;
+    uint64_t sync_attempt;
+
     dap_hash_fast_t last_block_hash;
-    // Round store
+    dap_hash_fast_t directive_hash;
+    dap_hash_fast_t attempt_candidate_hash;
+    dap_chain_addr_t attempt_submit_validator;
+
+    dap_list_t *all_validators;
     dap_chain_esbocs_store_t *store_items;
     dap_chain_esbocs_message_item_t *message_items;
-    // Round directive
-    dap_hash_fast_t directive_hash;
     dap_chain_esbocs_directive_t *directive;
-    bool directive_applied;
+    uint16_t *excluded_list;
+    dap_list_t *validators_list;
+
+
     uint16_t votes_for_count;
     uint16_t votes_against_count;
-    // Attempt dependent fields
-    dap_chain_addr_t attempt_submit_validator;
-    dap_hash_fast_t attempt_candidate_hash;
-    // Validators section
-    dap_list_t *validators_list;
     uint16_t validators_synced_count;
-    // Synchronization params
-    uint64_t sync_attempt;
-    bool sync_sent;
-    // Check validators online & wide consensus sync
-    dap_list_t *all_validators;
     uint16_t total_validators_synced;
+
+    bool directive_applied;
+    bool sync_sent;
+    uint8_t attempt_num;
 } dap_chain_esbocs_round_t;
 
 typedef struct dap_chain_esbocs_validator {
@@ -223,16 +221,30 @@ typedef struct dap_chain_esbocs_block_collect{
 
 #define DAP_CHAIN_ESBOCS(a) ((dap_chain_esbocs_t *)(a)->_inheritor)
 
+typedef enum dap_chain_block_autocollect_type {
+    DAP_CHAIN_BLOCK_COLLECT_BOTH,
+    DAP_CHAIN_BLOCK_COLLECT_FEES,
+    DAP_CHAIN_BLOCK_COLLECT_REWARDS
+} dap_chain_block_autocollect_type_t;
+
 int dap_chain_cs_esbocs_init();
 void dap_chain_cs_esbocs_deinit(void);
-bool dap_chain_esbocs_started();
 
+bool dap_chain_esbocs_started(dap_chain_net_id_t a_net_id);
 void dap_chain_esbocs_stop_timer(dap_chain_net_id_t a_net_id);
 void dap_chain_esbocs_start_timer(dap_chain_net_id_t a_net_id);
+
 dap_pkey_t *dap_chain_esbocs_get_sign_pkey(dap_chain_net_id_t a_net_id);
 uint256_t dap_chain_esbocs_get_fee(dap_chain_net_id_t a_net_id);
 bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id);
-void dap_chain_esbocs_add_block_collect(dap_chain_block_t *a_block_ptr, size_t a_block_size,
-                                        dap_chain_esbocs_block_collect_t *a_block_collect_params,int a_type);
+void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
+                                        dap_chain_esbocs_block_collect_t *a_block_collect_params,
+                                        dap_chain_block_autocollect_type_t a_type);
 bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr);
 bool dap_chain_esbocs_remove_validator_from_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr);
+
+uint256_t dap_chain_esbocs_get_collecting_level(dap_chain_t *a_chain);
+dap_enc_key_t *dap_chain_esbocs_get_sign_key(dap_chain_t *a_chain);
+int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
+int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash);
+int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable);

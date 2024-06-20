@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -34,6 +34,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_voting.h"
 
+#define LOG_TAG "dap_chain_datum_tx_items"
 
 static size_t dap_chain_tx_in_get_size(const dap_chain_tx_in_t *a_item)
 {
@@ -271,7 +272,7 @@ dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_in_ems_create(dap_chain_id_t a_id
     }
     l_item->header.type = TX_ITEM_TYPE_IN_EMS;
     l_item->header.token_emission_chain_id.uint64 = a_id.uint64;
-    l_item->header.token_emission_hash = *a_datum_token_hash;;
+    l_item->header.token_emission_hash = *a_datum_token_hash;
     strncpy(l_item->header.ticker, a_ticker, sizeof(l_item->header.ticker) - 1);
     return l_item;
 }
@@ -694,5 +695,154 @@ uint8_t *dap_chain_datum_tx_out_get_by_out_idx(dap_chain_datum_tx_t *a_tx, int a
     l_ret = l_item->data;
     dap_list_free(l_list_out_items);
     return l_ret;
+
+}
+
+void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_items_groups)
+{   
+    if (a_items_groups->items_in) dap_list_free(a_items_groups->items_in);
+    if (a_items_groups->items_in_cond) dap_list_free(a_items_groups->items_in_cond);
+    if (a_items_groups->items_in_reward) dap_list_free(a_items_groups->items_in_reward);
+    if (a_items_groups->items_sig) dap_list_free(a_items_groups->items_sig);
+    if (a_items_groups->items_out) dap_list_free(a_items_groups->items_out);
+    if (a_items_groups->items_out_ext) dap_list_free(a_items_groups->items_out_ext);
+    if (a_items_groups->items_out_cond) dap_list_free(a_items_groups->items_out_cond);
+    if (a_items_groups->items_out_cond_srv_fee) dap_list_free(a_items_groups->items_out_cond_srv_fee);
+    if (a_items_groups->items_out_cond_srv_pay) dap_list_free(a_items_groups->items_out_cond_srv_pay);
+    if (a_items_groups->items_out_cond_srv_xchange) dap_list_free(a_items_groups->items_out_cond_srv_xchange);
+    if (a_items_groups->items_out_cond_srv_stake_pos_delegate) dap_list_free(a_items_groups->items_out_cond_srv_stake_pos_delegate);
+    if (a_items_groups->items_out_cond_srv_stake_lock) dap_list_free(a_items_groups->items_out_cond_srv_stake_lock);
+    if (a_items_groups->items_in_ems) dap_list_free(a_items_groups->items_in_ems);
+    if (a_items_groups->items_vote) dap_list_free(a_items_groups->items_vote);
+    if (a_items_groups->items_voting) dap_list_free(a_items_groups->items_voting);
+    if (a_items_groups->items_tsd) dap_list_free(a_items_groups->items_tsd);
+    if (a_items_groups->items_pkey) dap_list_free(a_items_groups->items_pkey);
+    if (a_items_groups->items_receipt) dap_list_free(a_items_groups->items_receipt);
+    if (a_items_groups->items_unknown) dap_list_free(a_items_groups->items_unknown);
+    if (a_items_groups->items_out_old) dap_list_free(a_items_groups->items_out_old);
+    if (a_items_groups->items_out_cond_unknonwn) dap_list_free(a_items_groups->items_out_cond_unknonwn);
+    if (a_items_groups->items_out_cond_undefined) dap_list_free(a_items_groups->items_out_cond_undefined);
+    if (a_items_groups->items_out_all) dap_list_free(a_items_groups->items_out_all);
+    if (a_items_groups->items_in_all) dap_list_free(a_items_groups->items_in_all);
+}
+
+#define DAP_LIST_SAPPEND(X, Y) X = dap_list_append(X,Y)
+bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_res_group)
+{   
+    
+    if(!a_tx || !a_res_group)
+        return NULL;
+    
+    uint32_t l_tx_items_pos = 0, l_tx_items_size = a_tx->header.tx_items_size;
+
+    int l_item_idx = 0;
+
+    while (l_tx_items_pos < l_tx_items_size) {
+
+        uint8_t *l_item = a_tx->tx_items + l_tx_items_pos;
+        int l_item_size = dap_chain_datum_item_tx_get_size(l_item);
+        
+        if(!l_item_size)
+            return false;
+        
+        dap_chain_tx_item_type_t l_type = dap_chain_datum_tx_item_get_type(l_item);
+        
+        switch (l_type)
+        {
+            case TX_ITEM_TYPE_IN:
+                DAP_LIST_SAPPEND(a_res_group->items_in, l_item);
+                DAP_LIST_SAPPEND(a_res_group->items_in_all, l_item);
+                break;
+
+            case TX_ITEM_TYPE_IN_COND:
+                DAP_LIST_SAPPEND(a_res_group->items_in_cond, l_item);
+                DAP_LIST_SAPPEND(a_res_group->items_in_all, l_item);
+                break;
+
+            case TX_ITEM_TYPE_IN_REWARD:
+                DAP_LIST_SAPPEND(a_res_group->items_in_reward, l_item);
+                DAP_LIST_SAPPEND(a_res_group->items_in_all, l_item);
+                break;
+
+            case TX_ITEM_TYPE_IN_EMS:
+                DAP_LIST_SAPPEND(a_res_group->items_in_ems, l_item);
+                DAP_LIST_SAPPEND(a_res_group->items_in_all, l_item);
+                break;
+
+            case TX_ITEM_TYPE_OUT_OLD:
+                DAP_LIST_SAPPEND(a_res_group->items_out_old, l_item);
+                DAP_LIST_SAPPEND(a_res_group->items_out_all, l_item);
+                break;
+
+            case TX_ITEM_TYPE_OUT_EXT:
+                DAP_LIST_SAPPEND(a_res_group->items_out_ext, l_item);
+                DAP_LIST_SAPPEND(a_res_group->items_out_all, l_item);
+                break;
+
+            case TX_ITEM_TYPE_OUT:
+                DAP_LIST_SAPPEND(a_res_group->items_out, l_item);
+                DAP_LIST_SAPPEND(a_res_group->items_out_all, l_item);
+                break;
+
+            case TX_ITEM_TYPE_OUT_COND: {
+                switch ( ((dap_chain_tx_out_cond_t *)l_item)->header.subtype )
+                {
+                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED:
+                        DAP_LIST_SAPPEND(a_res_group->items_out_cond_undefined, l_item);
+                        break;
+                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:
+                        DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_pay, l_item);
+                        break;
+                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
+                        DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_xchange, l_item);
+                        break;
+                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE:
+                        DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_stake_pos_delegate, l_item);
+                        break;
+                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE:
+                        DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_fee, l_item);
+                        break;
+                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK:
+                        DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_stake_lock, l_item);
+                        break;
+                    default:
+                        DAP_LIST_SAPPEND(a_res_group->items_out_cond_unknonwn, l_item);
+                        break;
+                }
+
+                DAP_LIST_SAPPEND(a_res_group->items_out_cond, l_item);
+                DAP_LIST_SAPPEND(a_res_group->items_out_all, l_item);
+                }
+                break;
+
+            case TX_ITEM_TYPE_PKEY:
+                DAP_LIST_SAPPEND(a_res_group->items_pkey, l_item);
+                break;
+            case TX_ITEM_TYPE_SIG:
+                DAP_LIST_SAPPEND(a_res_group->items_sig, l_item);
+                break;
+            case TX_ITEM_TYPE_RECEIPT:
+                DAP_LIST_SAPPEND(a_res_group->items_receipt, l_item);
+                break;
+            case TX_ITEM_TYPE_TSD:
+                DAP_LIST_SAPPEND(a_res_group->items_tsd, l_item);
+                break;
+
+            case TX_ITEM_TYPE_VOTING:
+                DAP_LIST_SAPPEND(a_res_group->items_voting, l_item);
+                break;
+
+            case TX_ITEM_TYPE_VOTE:
+                DAP_LIST_SAPPEND(a_res_group->items_vote, l_item);
+                break;
+            default:
+                DAP_LIST_SAPPEND(a_res_group->items_unknown, l_item);
+        }
+        
+        l_tx_items_pos += l_item_size;
+        l_item_idx++;
+    }
+    
+    return true;
 
 }

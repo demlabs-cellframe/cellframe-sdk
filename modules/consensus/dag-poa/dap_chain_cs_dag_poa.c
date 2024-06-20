@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -190,11 +190,12 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
         return -1;
     }
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net)) {
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net,
+                                                      CHAIN_TYPE_INVALID)) {
         return -3;
     }
 
-    const char *l_chain_type = dap_chain_net_get_type(l_chain);
+    const char *l_chain_type = dap_chain_get_cs_type(l_chain);
 
     if (strcmp(l_chain_type, "dag_poa")){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -274,7 +275,7 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
                     dap_chain_cs_dag_event_calc_hash(l_event, l_event_size_new, &l_event_new_hash);
                     char l_event_new_hash_hex_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_chain_hash_fast_to_str(&l_event_new_hash, l_event_new_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                    char *l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str_static(&l_event_new_hash);
+                    const char *l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str_static(&l_event_new_hash);
 
                     bool l_event_is_ready = s_round_event_ready_minimum_check(l_dag, l_event, l_event_size_new,
                                                                         l_event_new_hash_hex_str);
@@ -362,6 +363,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
     pthread_rwlock_init(&l_poa_pvt->rounds_rwlock, NULL);
     // PoA rounds
+#ifndef DAP_LEDGER_TEST
     l_poa_pvt->confirmations_timeout = dap_config_get_item_uint32_default(a_chain_cfg,"dag-poa","confirmations_timeout",600);
     l_poa_pvt->auto_confirmation = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_confirmation",true);
     l_poa_pvt->auto_round_complete = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_round_complete",true);
@@ -378,9 +380,9 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             }
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
-                snprintf(l_cert_name,sizeof(l_cert_name),"%s.%zu",l_poa_pvt->auth_certs_prefix, i);
+                snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu",l_poa_pvt->auth_certs_prefix, i);
                 if ((l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) == NULL) {
-                    snprintf(l_cert_name,sizeof(l_cert_name),"%s.%zu.pub",l_poa_pvt->auth_certs_prefix, i);
+                    snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu.pub",l_poa_pvt->auth_certs_prefix, i);
                     if ((l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) == NULL) {
                         log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
                         return -1;
@@ -404,6 +406,15 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             DAP_CHAIN_PVT(a_chain)->cs_started = true;
         }
     }
+
+#else
+    l_poa_pvt->auth_certs_count = 1;
+    l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t *));
+    char *l_seed_ph = "H58i9GJKbn91238937^#$t6cjdf";
+    size_t l_seed_ph_size = strlen(l_seed_ph);
+    dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("testCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, l_seed_ph, l_seed_ph_size);
+    l_poa_pvt->auth_certs[0] = l_cert;
+#endif
 
     return 0;
 }
@@ -613,19 +624,17 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
     if (l_chosen_item) {
         size_t l_event_size = l_chosen_item->event_size;
         dap_chain_cs_dag_event_t *l_new_atom = (dap_chain_cs_dag_event_t *)l_chosen_item->event_n_signs;
-        dap_hash_fast_t l_event_hash;
-        dap_hash_fast(l_new_atom, l_event_size, &l_event_hash);
-        char *l_event_hash_hex_str = DAP_NEW_STACK_SIZE(char, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        char *l_event_hash_hex_str;
+        dap_get_data_hash_str_static(l_new_atom, l_event_size, l_event_hash_hex_str);
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_new_atom, l_event_size);
         l_dag->round_completed = dap_max(l_new_atom->header.round_id, l_dag->round_current);
         int l_verify_datum = dap_chain_net_verify_datum_for_add(l_dag->chain, l_datum, &l_chosen_item->round_info.datum_hash);
         if (!l_verify_datum) {
-            dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
-            if (l_res == ATOM_ACCEPT) {
-                dap_chain_atom_save(l_dag->chain->cells, (dap_chain_atom_ptr_t)l_new_atom, l_event_size, &l_event_hash);
+            dap_hash_fast_t l_atom_hash = {};
+            dap_hash_fast(l_new_atom, l_event_size, &l_atom_hash);
+            dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size, &l_atom_hash);
+            if (l_res == ATOM_ACCEPT)
                 s_poa_round_clean(l_dag->chain);
-            }
             log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" %s",
                    l_event_hash_hex_str, l_round_id, dap_chain_atom_verify_res_str[l_res]);
         } else {

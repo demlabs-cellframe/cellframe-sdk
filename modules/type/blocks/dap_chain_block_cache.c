@@ -26,7 +26,6 @@
 #include "dap_chain_block_cache.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in.h"
-#include "dap_chain_datum_tx_out.h"
 
 #define LOG_TAG "dap_chain_block_cache"
 
@@ -55,7 +54,7 @@ void dap_chain_block_cache_deinit()
  */
 
 dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash, dap_chain_block_t *a_block,
-                                                   size_t a_block_size, uint64_t a_block_number)
+                                                   size_t a_block_size, uint64_t a_block_number, bool a_copy_block)
 {
     if (! a_block)
         return NULL;
@@ -65,9 +64,10 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash
         log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         return NULL;
     }
-    l_block_cache->block = DAP_DUP_SIZE(a_block, a_block_size);
+    l_block_cache->block = a_copy_block ? DAP_DUP_SIZE(a_block, a_block_size) : a_block;
     if (!l_block_cache->block) {
         log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        DAP_DEL_Z(l_block_cache);
         return NULL;
     }
     l_block_cache->block_size = a_block_size;
@@ -76,10 +76,11 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash
     l_block_cache->sign_count = dap_chain_block_get_signs_count(a_block, a_block_size);
     if (dap_chain_block_cache_update(l_block_cache, a_block_hash)) {
         log_it(L_WARNING, "Block cache can't be created, possible cause corrupted block inside");
+        if (a_copy_block)
+            DAP_DELETE(l_block_cache->block);
         DAP_DELETE(l_block_cache);
         return NULL;
     }
-    //log_it(L_DEBUG,"Block cache created");
     return l_block_cache;
 }
 

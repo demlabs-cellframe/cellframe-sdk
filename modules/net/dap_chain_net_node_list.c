@@ -105,7 +105,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         *l_return_code = Http_Status_MethodNotAllowed;
         return;
     }
-    char *l_key = dap_stream_node_addr_to_str_static( (dap_chain_node_addr_t){.uint64 = addr} );
+    const char *l_key = dap_stream_node_addr_to_str_static( (dap_chain_node_addr_t){.uint64 = addr} );
     if (!l_key) {
         log_it(L_ERROR, "Bad node address %zu", addr);
         *l_return_code = Http_Status_BadRequest;
@@ -167,7 +167,9 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     dap_http_simple_reply(a_http_simple, &l_response, sizeof(uint8_t));
 }
 
-static void s_net_node_link_prepare_success(void *a_response, size_t a_response_size, void *a_arg) {
+static void s_net_node_link_prepare_success(void *a_response, size_t a_response_size, void *a_arg,
+                                            http_status_code_t http_status_code) {
+    (void)http_status_code;
     struct node_link_request *l_node_list_request = (struct node_link_request *)a_arg;
     pthread_mutex_lock(&l_node_list_request->wait_mutex);
     l_node_list_request->response = *(uint8_t*)a_response;
@@ -302,8 +304,7 @@ int dap_chain_net_node_list_request(dap_chain_net_t *a_net, uint16_t a_port, boo
             }
         }
     }
-    DAP_DELETE(l_request);
-    DAP_DELETE(l_seeds_addrs);
+    DAP_DEL_MULTY(l_request, l_seeds_addrs);
     s_node_list_request_deinit(l_link_node_request);
     return l_ret;
 }

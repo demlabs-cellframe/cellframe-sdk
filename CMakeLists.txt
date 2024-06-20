@@ -18,7 +18,7 @@ endif()
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
 
-    set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-esbocs cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
+    set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-esbocs cs-none srv-app srv-app-db srv-datum srv-stake srv-voting srv-bridge srv-xchange")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
@@ -52,6 +52,7 @@ endif(NOT DAP_INT128_SUPPORT)
 if (BUILD_CELLFRAME_SDK_TESTS)
     enable_testing()
     add_definitions("-DDAP_LEDGER_TEST")
+    add_definitions("-DDAP_CHAIN_BLOCKS_TEST")
 endif()
 
 if (BUILD_WITH_ZIP)
@@ -180,6 +181,19 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-stake")
     message("[+] Module 'srv-stake'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake)
+endif()
+
+
+# Enable service bridge
+if (CELLFRAME_MODULES MATCHES "srv-bridge")
+    message("[+] Module 'srv-bridge'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_bridge)
+endif()
+
+# Enable service voting
+if (CELLFRAME_MODULES MATCHES "srv-voting")
+    message("[+] Module 'srv-voting'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_voting)
 endif()
 
 # Enable service for dynamic modules

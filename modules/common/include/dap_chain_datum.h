@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -25,11 +25,9 @@
 #pragma once
 #include <stdint.h>
 #include "dap_common.h"
-#include "dap_math_ops.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_token.h"
-#include "json.h"
 
 #define DAP_CHAIN_DATUM_VERSION 0x00
 
@@ -162,4 +160,11 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              const char *a_hash_out_type,
                              dap_hash_fast_t *a_tx_hash,
                              dap_chain_net_id_t a_net_id);
+bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
+                             const char *a_ticker,
+                             json_object* json_obj_out,
+                             const char *a_hash_out_type,
+                             dap_hash_fast_t *a_tx_hash,
+                             dap_chain_net_id_t a_net_id);
 json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum);
+void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id);

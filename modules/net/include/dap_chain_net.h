@@ -27,32 +27,24 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include <stdint.h>
 #include <string.h>
-#include "dap_net.h"
-#include "dap_time.h"
 #include "dap_math_ops.h"
-#include "dap_stream_ch.h"
 #include "dap_strfuncs.h"
 #include "dap_string.h"
 #include "dap_list.h"
 #include "dap_chain_common.h"
 #include "dap_chain.h"
 #include "dap_chain_node.h"
-#include "dap_chain_net_decree.h"
-#include "dap_chain_net_tx.h"
-#include "dap_chain_datum_decree.h"
-#include "dap_chain_datum_anchor.h"
-#include "dap_chain_datum_tx.h"
-#include "uthash.h"
-#include "dap_json_rpc.h"
+#include "dap_global_db_cluster.h"
+#include "dap_json_rpc_errors.h"
 
 #define DAP_CHAIN_NET_NAME_MAX 32
 #define DAP_CHAIN_NET_MEMPOOL_TTL 48 // Hours
 
-struct dap_chain_node_info;
 typedef struct dap_chain_node_client dap_chain_node_client_t;
 typedef struct dap_ledger dap_ledger_t;
-
-typedef enum dap_chain_net_state{
+typedef struct dap_chain_net_decree dap_chain_net_decree_t;
+typedef struct decree_table decree_table_t;
+typedef enum dap_chain_net_state {
     NET_STATE_OFFLINE = 0,
     NET_STATE_LINKS_PREPARE,
     NET_STATE_LINKS_CONNECTING,
@@ -75,12 +67,11 @@ typedef struct dap_chain_net{
         dap_chain_t *chains; // double-linked list of chains
         const char *native_ticker;
         dap_ledger_t *ledger;
-        dap_chain_net_decree_t *decree;
         // Net fee
         uint256_t fee_value;
         dap_chain_addr_t fee_addr;
-        
         dap_list_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TX
+        dap_config_t *config;
     } pub;
     uint8_t pvt[];
 } dap_chain_net_t;
@@ -98,6 +89,9 @@ typedef bool (dap_chain_datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_cha
 
 int dap_chain_net_init(void);
 void dap_chain_net_deinit(void);
+#ifdef DAP_LEDGER_TEST
+int dap_chain_net_test_init();
+#endif
 
 DAP_STATIC_INLINE uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net) { return g_node_addr.uint64; }
 
@@ -140,7 +134,6 @@ dap_chain_t *dap_chain_net_get_chain_by_id(dap_chain_net_t *l_net, dap_chain_id_
 
 uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net);
 dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net);
-const char* dap_chain_net_get_type(dap_chain_t *l_chain);
 
 // Get inintial authorized nodes pointed by config
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
@@ -154,8 +147,11 @@ bool dap_chain_net_remove_validator_from_clusters(dap_chain_t *a_chain, dap_stre
 dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain);
 
 int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_t a_block_num);
+void dap_chain_net_remove_last_reward(dap_chain_net_t *a_net);
 uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num);
 int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr, const char *a_host, uint16_t a_port);
+
+void dap_chain_net_purge(dap_chain_net_t *l_net);
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool
@@ -173,9 +169,7 @@ DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_mempool_new(dap_chain_t *a_c
 DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_nochain_new(dap_chain_t *a_chain)
 {
     dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
-    return l_net
-            ? dap_strdup_printf("%s.chain-%s.data", l_net->pub.name, a_chain->name)
-            : NULL;
+    return l_net ? dap_strdup_printf("%s.chain-%s.data", l_net->pub.name, a_chain->name) : NULL;
 }
 
 dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
@@ -203,10 +197,12 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 dap_list_t *dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_chain_datum_filter_func_t *a_filter_func, void *a_filter_func_param);
 
 int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
+int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
 void dap_chain_net_announce_addrs(dap_chain_net_t *a_net);
 char *dap_chain_net_links_dump(dap_chain_net_t*);
+struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t * l_net);
 
 enum dap_chain_net_json_rpc_error_list{
     DAP_CHAIN_NET_JSON_RPC_OK,
@@ -235,3 +231,6 @@ enum dap_chain_net_json_rpc_error_list{
     DAP_CHAIN_NET_JSON_RPC_NO_POA_CERTS_FOUND_POA_CERTS,
     DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS
 };
+dap_chain_net_decree_t *dap_chain_net_get_net_decree(dap_chain_net_t *a_net);
+void dap_chain_net_set_net_decree(dap_chain_net_t *a_net, dap_chain_net_decree_t *a_decree);
+decree_table_t **dap_chain_net_get_decrees(dap_chain_net_t *a_net);

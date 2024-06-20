@@ -8,9 +8,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -28,6 +28,7 @@
 #include "dap_config.h"
 #include "dap_chain_net_srv.h"
 #include "dap_events.h"
+#include "dap_chain_net_srv_vpn_common.h"
 
 #define DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX "srv.vpn"
 
@@ -35,8 +36,6 @@
 #define DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA      0x02
 
 #define DAP_STREAM_CH_NET_SRV_ID_VPN        'S'
-
-#define DAP_CHAIN_NET_SRV_VPN_ID            0x0000000000000001
 
 #define VPN_PACKET_OP_CODE_CONNECTED        0x000000a9
 #define VPN_PACKET_OP_CODE_CONNECT          0x000000aa
@@ -172,6 +171,7 @@ typedef struct dap_chain_net_srv_vpn
 
 int dap_chain_net_srv_client_vpn_init(dap_config_t * g_config);
 
+int dap_chain_net_srv_vpn_pre_init();
 int dap_chain_net_srv_vpn_init(dap_config_t * g_config);
 void dap_chain_net_srv_vpn_deinit(void);
 

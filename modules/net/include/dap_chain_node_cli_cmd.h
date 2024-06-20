@@ -7,9 +7,9 @@
  * Copyright  (c) 2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -33,11 +33,24 @@
 
 int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int a_argc,
                                                            char **a_argv,
-                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net);
+                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net,
+                                                           dap_chain_type_t a_default_chain_type);
 
 
 int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, char **a_argv, void **a_str_reply,
-                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net);
+                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net, dap_chain_type_t a_default_chain_type);
+
+typedef enum s_com_parse_net_chain_err{
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NET_STR_ERR = 100,
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NET_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NOT_FOUND_ERR,
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_CHAIN_PARAM_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_PARSE_NET_UNKNOWN /* MAX */
+} s_com_parse_net_chain_err_t;
+
 
 /**
  * global_db command
@@ -316,3 +329,5 @@ int com_chain_ca_copy( int a_argc,  char **a_argv, void **a_str_reply);
 int com_signer(int a_argc, char **a_argv, void **a_str_reply);
 //remove func
 int cmd_remove(int a_argc, char **a_argv, void **a_str_reply);
+
+void dap_notify_new_client_send_info(dap_events_socket_t *a_es, void *a_arg);

@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -34,10 +34,11 @@ typedef struct dap_chain_cell {
     dap_chain_t * chain;
 
     char file_storage_path[MAX_PATH];
-    FILE * file_storage; /// @param file_cache @brief Cache for raw blocks
-    uint8_t file_storage_type; /// @param file_storage_type  @brief Is file_storage is raw, compressed or smth else
+    char *map, *map_pos, *map_end;
+    FILE *file_storage;
+    uint8_t file_storage_type;
+    dap_list_t *map_range_bounds;
     pthread_rwlock_t storage_rwlock;
-
     UT_hash_handle hh;
 } dap_chain_cell_t;
 
@@ -73,11 +74,12 @@ typedef struct dap_chain_cell_decl{
 
 int dap_chain_cell_init(void);
 dap_chain_cell_t *dap_chain_cell_create_fill(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id);
-dap_chain_cell_t *dap_chain_cell_create_fill2(dap_chain_t *a_chain, const char *a_filename);
 dap_chain_cell_t *dap_chain_cell_find_by_id(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id);
 void dap_chain_cell_close(dap_chain_cell_t *a_cell);
 void dap_chain_cell_delete(dap_chain_cell_t *a_cell);
 void dap_chain_cell_delete_all(dap_chain_t *a_chain);
 int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell);
-ssize_t dap_chain_cell_file_update(dap_chain_cell_t *a_cell);
 ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell,const void *a_atom, size_t a_atom_size);
+DAP_STATIC_INLINE ssize_t dap_chain_cell_file_update(dap_chain_cell_t *a_cell) {
+    return dap_chain_cell_file_append(a_cell, NULL, 0);
+}

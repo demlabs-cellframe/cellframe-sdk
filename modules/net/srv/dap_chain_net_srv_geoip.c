@@ -6,9 +6,9 @@
  * Copyright  (c) 2020
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -46,7 +46,8 @@ static char *s_geoip_db_file_path = NULL; // share/geoip/GeoLite2-City.mmdb
  * @param a_response_size
  * @param a_obj
  */
-static void m_request_getip_response(void * a_response, size_t a_response_size, void * a_obj)
+static void m_request_getip_response(void * a_response, size_t a_response_size, void * a_obj,
+                                     http_status_code_t http_status_code)
 {
     char *l_addr = (char *) a_obj;
     //printf("m_request_getip_response %s\n", a_response);
