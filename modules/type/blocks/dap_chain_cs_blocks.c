@@ -1352,7 +1352,8 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     dap_chain_block_cache_t *l_block = NULL, *l_block_tmp = NULL;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
         HASH_DEL(PVT(l_blocks)->blocks, l_block);
-        DAP_DELETE(l_block->block);
+        if (!a_chain->is_mapped)
+            DAP_DELETE(l_block->block);
         dap_chain_block_cache_delete(l_block);
     }
     PVT(l_blocks)->blocks_count = 0;
@@ -1368,7 +1369,7 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
 
     dap_chain_block_chunks_delete(PVT(l_blocks)->chunks);
-    dap_chain_cell_delete_all(a_chain);
+    dap_chain_cell_delete_all_and_free_file(a_chain);
     PVT(l_blocks)->chunks = dap_chain_block_chunks_create(l_blocks);
 }
 
