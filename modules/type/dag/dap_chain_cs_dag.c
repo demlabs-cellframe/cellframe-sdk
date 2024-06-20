@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -1717,7 +1717,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"\nEvent %s:\n", l_event_hash_str);
 
                     // Round info
-                    if (l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) {
+                    if ((l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) && l_round_item) {
                         dap_string_append_printf(l_str_tmp,
                             "\tRound info:\n\t\tsigns reject: %d\n",
                             l_round_item->round_info.reject_count);
@@ -1789,7 +1789,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                                                       l_event_hash_str);
                     ret=-10;
                 }
-                DAP_DELETE(l_round_item);
+                DAP_DEL_Z(l_round_item);
             } break;
 
             case SUBCMD_EVENT_LIST: {

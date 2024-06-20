@@ -6,9 +6,9 @@
  * Copyright  (c) 2022
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -362,7 +362,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     }
 
     l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
-    if (strcmp(l_ticker_str, (char*)l_tsd_section->ticker_token_from))
+    if (!l_tsd_section || strcmp(l_ticker_str, (char*)l_tsd_section->ticker_token_from))
         return TOKEN_ERROR;
 
     if (IS_ZERO_256(l_tsd_section->emission_rate))
@@ -569,7 +569,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
         }
 
         l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
-        if (strcmp(l_ticker_str, (char*)l_tsd_section->ticker_token_from))
+        if (!l_tsd_section || strcmp(l_ticker_str, (char*)l_tsd_section->ticker_token_from))
             return TOKEN_ERROR;
 
         if (!IS_ZERO_256(l_tsd_section->emission_rate)) {

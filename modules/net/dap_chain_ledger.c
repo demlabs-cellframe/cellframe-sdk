@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -1626,6 +1626,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_ledger_token_item_t *a
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
                     if (dap_chain_addr_check_sum(l_add_addr)) {
+                        DAP_DEL_Z(l_addrs);
                         debug_if(s_debug_more, L_ERROR, "Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD");
                         return -12;
                     }
@@ -1708,6 +1709,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_ledger_token_item_t *a
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
                     if (dap_chain_addr_check_sum(l_add_addr)) {
+                        DAP_DEL_Z(l_addrs);
                         debug_if(s_debug_more, L_ERROR, "Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD");
                         return -12;
                     }
@@ -1787,6 +1789,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_ledger_token_item_t *a
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
                     if (dap_chain_addr_check_sum(l_add_addr)) {
+                        DAP_DEL_Z(l_addrs);
                         debug_if(s_debug_more, L_ERROR, "Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD");
                         return -12;
                     }
@@ -2264,7 +2267,6 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
         i_tmp++;
         json_obj_datum = json_object_new_object();
         const char *l_type_str;
-        const char *l_flags_str = s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags);
         switch (l_token_item->type) {
             case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL: {
                 switch (l_token_item->subtype) {
@@ -4286,7 +4288,8 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger,
                 l_bound_item->in.addr_from = *l_addr_from;
                 dap_strncpy(l_bound_item->in.token_ticker, l_token, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                 // 4. compare public key hashes in the signature of the current transaction and in the 'out' item of the previous transaction
-                if (!dap_hash_fast_compare(&l_tx_first_sign_pkey_hash, &l_addr_from->data.hash_fast)) {
+                if (l_addr_from->net_id.uint64 != a_ledger->net->pub.id.uint64 ||
+                        !dap_hash_fast_compare(&l_tx_first_sign_pkey_hash, &l_addr_from->data.hash_fast)) {
                     l_err_num = DAP_LEDGER_TX_CHECK_PKEY_HASHES_DONT_MATCH;
                     break;
                 }
@@ -4344,7 +4347,6 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger,
 
                 // 5a. Check for condition owner
                 dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx_prev, NULL, TX_ITEM_TYPE_SIG, NULL);
-                dap_sign_t *l_prev_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_prev_sig);
                 dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
                 dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
                 dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
@@ -4847,7 +4849,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     dap_store_obj_t *l_cache_used_outs = NULL;
     char *l_ledger_cache_group = NULL;
     if (PVT(a_ledger)->cached) {
-        dap_store_obj_t *l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * (l_outs_used + 1));
+        l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * (l_outs_used + 1));
         if ( !l_cache_used_outs ) {
             log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             l_ret = -1;
@@ -5138,9 +5140,11 @@ FIN:
         dap_list_free(l_list_tx_out);
     DAP_DEL_Z(l_main_token_ticker);
     if (PVT(a_ledger)->cached) {
-        for (size_t i = 1; i <= l_outs_used; i++) {
-            DAP_DEL_Z(l_cache_used_outs[i].key);
-            DAP_DEL_Z(l_cache_used_outs[i].value);
+        if (l_cache_used_outs) {
+            for (size_t i = 1; i <= l_outs_used; i++) {
+                DAP_DEL_Z(l_cache_used_outs[i].key);
+                DAP_DEL_Z(l_cache_used_outs[i].value);
+            }
         }
         DAP_DEL_Z(l_cache_used_outs);
         DAP_DEL_Z(l_ledger_cache_group);
@@ -5192,7 +5196,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     dap_store_obj_t *l_cache_used_outs = NULL;
     char *l_ledger_cache_group = NULL;
     if (PVT(a_ledger)->cached) {
-        dap_store_obj_t *l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * (l_outs_used));
+        l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * (l_outs_used));
         if ( !l_cache_used_outs ) {
             log_it(L_CRITICAL, "Memory allocation error");
             l_ret = -1;
@@ -5235,8 +5239,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             if(l_item){
                 HASH_DEL(l_ledger_pvt->rewards, l_item);
                 DAP_DEL_Z(l_item);
-            }
-                
+            } 
             pthread_rwlock_unlock(&l_ledger_pvt->rewards_rwlock);
         }
         l_outs_used--; // Do not calc this output with tx used items
@@ -5282,7 +5285,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             break;
         }
 
-        // add a used output memset(&(l_bound_item->stake_lock_item->tx_used_out), 0, sizeof(dap_hash_fast_t));
+        // add a used output 
         dap_ledger_tx_item_t *l_prev_item_out = l_bound_item->prev_item;
         memset(&(l_prev_item_out->cache_data.tx_hash_spent_fast[l_bound_item->prev_out_idx]), 0, sizeof(dap_hash_fast_t));
         l_prev_item_out->cache_data.n_outs_used--;
@@ -5367,7 +5370,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_cur_token_ticker, (char*)NULL);
         if(s_debug_more) {
             char *l_balance = dap_chain_balance_print(l_value);
-            log_it(L_DEBUG, "GOT %s to addr: %s", l_balance, l_wallet_balance_key);
+            log_it(L_DEBUG, "UNDO %s from addr: %s", l_balance, l_wallet_balance_key);
             DAP_DELETE(l_balance);
         }
         pthread_rwlock_rdlock(&l_ledger_pvt->balance_accounts_rwlock);
@@ -5427,9 +5430,11 @@ FIN:
         dap_list_free(l_list_tx_out);
     DAP_DEL_Z(l_main_token_ticker);
     if (PVT(a_ledger)->cached) {
-        for (size_t i = 1; i < l_outs_used; i++) {
-            DAP_DEL_Z(l_cache_used_outs[i].key);
-            DAP_DEL_Z(l_cache_used_outs[i].value);
+        if (l_cache_used_outs) {
+            for (size_t i = 1; i < l_outs_used; i++) {
+                DAP_DEL_Z(l_cache_used_outs[i].key);
+                DAP_DEL_Z(l_cache_used_outs[i].value);
+            }
         }
         DAP_DEL_Z(l_cache_used_outs);
         DAP_DEL_Z(l_ledger_cache_group);
@@ -6264,7 +6269,6 @@ dap_list_t *dap_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_
     }
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
-    size_t l_end = l_offset + a_count;
     dap_ledger_tx_item_t *l_item_current, *l_item_tmp;
     HASH_ITER(hh, l_ledger_pvt->ledger_items, l_item_current, l_item_tmp) {
         if (l_counter++ >= l_offset) {

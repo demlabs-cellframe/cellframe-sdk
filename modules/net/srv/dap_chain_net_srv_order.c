@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -549,7 +549,7 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
                                   : dap_chain_net_srv_order_get_common_group(a_net);
 
-        int l_ret = dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
+        l_ret = dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
         DAP_DELETE(l_gdb_group_str);
     }
     return l_ret;

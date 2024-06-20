@@ -136,32 +136,30 @@ typedef struct dap_chain_esbocs_directive {
 } DAP_ALIGN_PACKED dap_chain_esbocs_directive_t;
 
 typedef struct dap_chain_esbocs_round {
-    // Base fields
     uint64_t id;
-    uint8_t attempt_num;
+    uint64_t sync_attempt;
+
     dap_hash_fast_t last_block_hash;
-    // Round store
+    dap_hash_fast_t directive_hash;
+    dap_hash_fast_t attempt_candidate_hash;
+    dap_chain_addr_t attempt_submit_validator;
+
+    dap_list_t *all_validators;
     dap_chain_esbocs_store_t *store_items;
     dap_chain_esbocs_message_item_t *message_items;
-    // Round directive
-    dap_hash_fast_t directive_hash;
     dap_chain_esbocs_directive_t *directive;
-    bool directive_applied;
+    uint16_t *excluded_list;
+    dap_list_t *validators_list;
+
+
     uint16_t votes_for_count;
     uint16_t votes_against_count;
-    // Attempt dependent fields
-    dap_chain_addr_t attempt_submit_validator;
-    dap_hash_fast_t attempt_candidate_hash;
-    // Validators section
-    dap_list_t *validators_list;
     uint16_t validators_synced_count;
-    uint16_t *excluded_list;
-    // Synchronization params
-    uint64_t sync_attempt;
-    bool sync_sent;
-    // Check validators online & wide consensus sync
-    dap_list_t *all_validators;
     uint16_t total_validators_synced;
+
+    bool directive_applied;
+    bool sync_sent;
+    uint8_t attempt_num;
 } dap_chain_esbocs_round_t;
 
 typedef struct dap_chain_esbocs_validator {

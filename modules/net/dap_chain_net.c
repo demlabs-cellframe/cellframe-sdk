@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -585,7 +585,6 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net) {
         l_count_el = 0,
         l_count_el_all = 0,
         l_node_link_nodes = 0;
-    char *l_gdb_nodes = a_net->pub.gdb_nodes;
 
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(a_net->pub.chains, l_chain){
@@ -3214,6 +3213,9 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
         }
         case DAP_CHAIN_DATUM_ANCHOR: {
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
+
+            
+
             size_t l_anchor_size = dap_chain_datum_anchor_get_size(l_anchor);
             if (l_anchor_size != l_datum_data_size) {
                 log_it(L_WARNING, "Corrupted anchor, datum size %zd is not equal to size of anchor %zd", l_datum_data_size, l_anchor_size);

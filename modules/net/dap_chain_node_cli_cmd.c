@@ -7,9 +7,9 @@
  * Copyright  (c) 2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -5541,7 +5541,6 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply)
     }
 
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path);
-    const char* l_sign_str = "";
     if(!l_wallet) {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_OPEN_WALLET, "Can't open wallet '%s'", l_wallet_str);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_OPEN_WALLET;
@@ -5640,6 +5639,7 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply)
     json_object_object_add(l_jobj_total, "datoshi", l_jobj_total_datoshi);
     json_object_object_add(l_jobj_total, "coins", l_jobj_total_coins);
     json_object_object_add(l_jobj_total, "ticker", l_jobj_native_ticker);
+    json_object_object_add(l_jobj_total, "tx_count", json_object_new_uint64(l_tx_count));
     json_object *l_jobj_ret = json_object_new_object();
     json_object_object_add(l_jobj_ret, "transactions_out_cond", l_jobj_tx_list_cond_outs);
     json_object_object_add(l_jobj_ret, "total", l_jobj_total);
@@ -6067,7 +6067,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply)
     // Read items from json file
     struct json_object *l_json_items = json_object_object_get(l_json, "items");
     size_t l_items_count = json_object_array_length(l_json_items);
-    bool a = (l_items_count = json_object_array_length(l_json_items));
     if(!l_json_items || !json_object_is_type(l_json_items, json_type_array) || !(l_items_count = json_object_array_length(l_json_items))) {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS,
                                "Wrong json format: not found array 'items' or array is empty");
@@ -6445,6 +6444,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply)
                 log_it(L_WARNING, "Invalid 'in' item, bad prev_hash %s", l_prev_hash_str);
                 char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in' item, "
                                                     "bad prev_hash %s", l_prev_hash_str);
+                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                json_object_array_add(l_jobj_errors, l_jobj_err);
                 // Go to the next item
                 l_list = dap_list_next(l_list);
                 continue;
@@ -6888,6 +6889,7 @@ int com_tx_create(int a_argc, char **a_argv, void **reply)
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WALLET_DOES_NOT_EXIST;
     } else {
         json_object *l_jobj_check_wallet = json_object_new_string(dap_chain_wallet_check_sign(l_wallet));
+        json_object_array_add(*reply, l_jobj_check_wallet);
     }
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
@@ -7095,7 +7097,8 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
     size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
 
     //default is ALL/ANY
-    dap_chain_tx_tag_action_type_t l_action = dap_ledger_tx_action_str_to_action_t(l_tx_act_str); 
+    dap_chain_tx_tag_action_type_t l_action = l_tx_act_str ? dap_ledger_tx_action_str_to_action_t(l_tx_act_str):
+                                     DAP_CHAIN_TX_TAG_ACTION_ALL;                    
 
     bool l_brief = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-brief") != -1) ? true : false;
 
@@ -7444,8 +7447,10 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply)
             size_t l_sign_size = DAP_ENC_BASE64_ENCODE_SIZE(dap_sign_get_size(l_sign))+1;
             char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size);
             char *l_sign_str = DAP_NEW_Z_SIZE(char, l_sign_size);
-            if(!l_value_enc_str) {
+            if(!l_value_enc_str || !l_sign_str) {
                 log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                DAP_DEL_Z(l_sign_str);
+                DAP_DEL_Z(l_value_enc_str);
                 return -1;
             }
             dap_enc_base64_encode(l_store_obj[i].value, l_store_obj[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
