@@ -877,18 +877,20 @@ void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
  */
 void dap_chain_net_purge(dap_chain_net_t *l_net)
 {
-    dap_ledger_purge(l_net->pub.ledger, false);
     dap_chain_net_srv_stake_purge(l_net);
+    dap_chain_net_decree_deinit(l_net);
+    dap_ledger_purge(l_net->pub.ledger, false);
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
-        if (l_chain->callback_purge)
+        if (l_chain->callback_purge) {
             l_chain->callback_purge(l_chain);
-        if (!dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs"))
+        }
+        if (!dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
             dap_chain_esbocs_set_min_validators_count(l_chain, 0);
+        }
+        dap_chain_load_all(l_chain);
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
-        dap_chain_net_decree_purge(l_net);
-        dap_chain_load_all(l_chain);
     }
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_atom_add_from_treshold) {
@@ -896,6 +898,7 @@ void dap_chain_net_purge(dap_chain_net_t *l_net)
                 debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
         }
     }
+    dap_chain_net_decree_init(l_net);
 }
 
 /**

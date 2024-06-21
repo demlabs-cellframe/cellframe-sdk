@@ -364,7 +364,7 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
         DAP_DELETE(l_event_current);
     }
     pthread_mutex_unlock(&l_dag_pvt->events_mutex);
-    dap_chain_cell_delete_all(a_chain);
+    dap_chain_cell_delete_all_and_free_file(a_chain);
 }
 
 /**
@@ -389,7 +389,11 @@ static void s_chain_cs_dag_delete(dap_chain_t * a_chain)
 static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_item_t *a_event_item)
 {
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) dap_chain_cs_dag_event_get_datum(a_event_item->event, a_event_item->event_size);
-    if(a_event_item->event_size< sizeof(l_datum->header) ){
+    if (!l_datum) {
+        log_it(L_WARNING, "Corrupted event, failed to extract datum from event.");
+        return -2;
+    }
+    if(a_event_item->event_size < sizeof(l_datum->header) ){
         log_it(L_WARNING, "Corrupted event, too small to fit datum in it");
         return -1;
     }
