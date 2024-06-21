@@ -42,3 +42,5 @@ int dap_chain_node_cli_init(dap_config_t * g_config);
  * Deinitialization of the server side
  */
 void dap_chain_node_cli_delete(void);
+
+extern dap_cli_cmd_t *cli_commands;
