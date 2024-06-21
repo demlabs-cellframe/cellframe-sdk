@@ -1812,24 +1812,25 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
                     const char *l_file_name = l_dir_entry->d_name;
                     size_t l_file_name_len = (l_file_name) ? strlen(l_file_name) : 0;
-
+                    unsigned int res = 0;
                     if ( (l_file_name_len > 8) && (!strcmp(l_file_name + l_file_name_len - 8, ".dwallet")) ) {
                         char l_file_path_tmp[MAX_PATH] = {0};
                         snprintf(l_file_path_tmp, sizeof(l_file_path_tmp) - 1, "%s/%s", c_wallets_path, l_file_name);
 
-                        l_wallet = dap_chain_wallet_open(l_file_name, c_wallets_path);
+                        l_wallet = dap_chain_wallet_open(l_file_name, c_wallets_path, &res);
 
                         if (l_wallet) {
                             l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
                             const char *l_addr_str = dap_chain_addr_to_str(l_addr);
+
                             json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
                             if(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)
-                                json_object_object_add(json_obj_wall, "status", json_object_new_string("active"));
+                                json_object_object_add(json_obj_wall, "status", json_object_new_string("protected-active"));
                             else
-                                json_object_object_add(json_obj_wall, "status", json_object_new_string("not active"));
-                            json_object_object_add(json_obj_wall, "sign_status", json_object_new_string(
+                                json_object_object_add(json_obj_wall, "status", json_object_new_string("unprotected"));
+                            json_object_object_add(json_obj_wall, "deprecated", json_object_new_string(
                                                                                      strlen(dap_chain_wallet_check_sign(l_wallet))!=0 ?
-                                                                                     dap_chain_wallet_check_sign(l_wallet) : "correct"));
+                                                                                     "true" : "false"));
                             if (l_addr_str) {
                                 json_object_object_add(json_obj_wall, "addr", json_object_new_string(l_addr_str));
                             }
@@ -1838,7 +1839,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                         } else{
                             json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
-                            json_object_object_add(json_obj_wall, "status", json_object_new_string("can't open"));
+                            if(res==4)json_object_object_add(json_obj_wall, "status", json_object_new_string("protected-inactive"));
+                            else if(res != 0)json_object_object_add(json_obj_wall, "status", json_object_new_string("invalid"));
                         }
                     } else if ((l_file_name_len > 7) && (!strcmp(l_file_name + l_file_name_len - 7, ".backup"))) {
                         json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
@@ -1866,7 +1868,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     json_object_put(json_arr_out);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
                 }
-                l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
+                l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
                 l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id );
             } else {
                 l_addr = dap_chain_addr_from_str(l_addr_str);
