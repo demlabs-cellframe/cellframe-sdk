@@ -593,13 +593,6 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     
     dap_chain_hash_fast_t l_tx_new_hash = {0};
     for (size_t i=0; i< a_tx_num ; i++){
-        //dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
-        //                                                                     a_addr_from, l_value_need, &l_value_transfer);
-        // if (!l_list_used_out) {
-        //     log_it(L_WARNING,"Not enough funds to transfer");
-        //     DAP_DELETE(l_objs);
-        //     return -2;
-        // }
         log_it(L_DEBUG, "Prepare tx %zu",i);
         // find the transactions from which to take away coins
 
@@ -733,18 +726,14 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         // Now produce datum
         dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx_new, l_tx_size);
 
-        //dap_ledger_tx_add( l_ledger, l_tx_new, &l_tx_new_hash, false);
-
-        // l_objs[i].key = dap_chain_hash_fast_to_str_new(&l_tx_new_hash);
-        // l_objs[i].value = (uint8_t *)l_datum;
-        // l_objs[i].value_len = dap_chain_datum_size(l_datum);
-        // l_objs[i].timestamp = dap_nanotime_now();
-        // log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
-        //        l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
-        //dap_list_free_full(l_list_used_out, NULL);
+        l_objs[i].key = dap_chain_hash_fast_to_str_new(&l_tx_new_hash);
+        l_objs[i].value = (uint8_t *)l_datum;
+        l_objs[i].value_len = dap_chain_datum_size(l_datum);
+        l_objs[i].timestamp = dap_nanotime_now();
+        log_it(L_ERROR, "FUCK FUCK FUCK");
+        log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
+               l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
         dap_chain_datum_tx_delete(l_tx_new);
-        char *l_ret = dap_chain_mempool_datum_add(l_datum, a_chain, "hex");
-        DAP_DEL_Z(l_ret);
     }
     dap_list_free_full(l_list_used_out, NULL);
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
@@ -1004,7 +993,6 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
         log_it( L_ERROR, "Can't add sign output");
         return NULL;
     }
-
     size_t l_tx_size = dap_chain_datum_tx_get_size( l_tx );
     dap_chain_datum_t *l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_TX, l_tx, l_tx_size );
     dap_chain_datum_tx_delete(l_tx);
