@@ -6,9 +6,9 @@
  * Copyright  (c) 2022
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -434,7 +434,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
         }
     }
 
-    if(NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path))) {
+    if(NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path, NULL))) {
         dap_string_append_printf(output_line, "'%s'", l_wallet_str);
         return WALLET_OPEN_ERROR;
     } else {
@@ -590,7 +590,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     if (IS_ZERO_256( (l_value_fee = dap_chain_balance_scan(l_value_fee_str)) ))
         return FEE_FORMAT_ERROR;
 
-    if (NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path)))
+    if (NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path, NULL)))
         return WALLET_OPEN_ERROR;
     else
         dap_string_append(output_line, dap_chain_wallet_check_sign(l_wallet));

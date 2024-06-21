@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -164,7 +164,7 @@ char *c_wallets_path;
         return  log_it(L_ERROR, "Wallet's path has been not configured"), -EINVAL;
     }
 
-    if ( !(l_wallet = dap_chain_wallet_open (a_name, c_wallets_path)) )
+    if ( !(l_wallet = dap_chain_wallet_open (a_name, c_wallets_path, NULL)) )
     {
         memset(l_prec->pass, 0, l_prec->pass_len), l_prec->pass_len = 0;    /* Say <what> again ?! */
         return  log_it(L_ERROR, "Wallet's password is invalid, say <password> again"), -EAGAIN;

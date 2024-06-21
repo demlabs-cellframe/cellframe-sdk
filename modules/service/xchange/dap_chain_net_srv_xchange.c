@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2020
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -1256,7 +1256,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -w");
                 return -10;
             }
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
             const char* l_sign_str = "";
             if (!l_wallet) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
@@ -1432,7 +1432,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                                                                 l_cmd_num == CMD_REMOVE ? "remove" : "update");
                 return -10;
             }
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
             const char* l_sign_str = "";
             if (!l_wallet) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
@@ -2163,7 +2163,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' requires parameter -w");
                 return -10;
             }
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
             if (!l_wallet) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
                 return -11;

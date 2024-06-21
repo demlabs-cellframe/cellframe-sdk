@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -5530,7 +5530,8 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     char *l_gdb_group;
     HASH_ITER(hh, l_ledger_pvt->ledger_items , l_item_current, l_item_tmp) {
         HASH_DEL(l_ledger_pvt->ledger_items, l_item_current);
-        DAP_DELETE(l_item_current->tx);
+        if (!l_ledger_pvt->mapped)
+            DAP_DELETE(l_item_current->tx);
         DAP_DEL_Z(l_item_current);
     }
     if (!a_preserve_db) {
