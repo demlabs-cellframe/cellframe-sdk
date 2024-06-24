@@ -450,6 +450,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                     l_ret = -9 ;
                     dap_string_append(l_string_ret,"need -hash param to obtain what the order we need to dump\n");
                 }
+
             } else if(!dap_strcmp( l_order_str, "create" )) {
                 if (dap_chain_net_get_role(l_net).enums > NODE_ROLE_MASTER) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Node role should be not lower than master\n");
@@ -475,7 +476,6 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             log_it(L_DEBUG, "Created order to buy");
                         } else {
                             log_it(L_WARNING, "Undefined order direction");
-                            dap_string_free(l_string_ret, true);
                             dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong direction of the token was "
                                                                            "specified, possible directions: buy, sell.");
                             return -18;
@@ -486,11 +486,9 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         l_expires = (dap_time_t ) atoll( l_expires_str);
                     if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
-                        dap_string_free(l_string_ret, true);
                         return -21;
                     }else if (!l_srv_uid_str){
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter -srv_uid is required.");
-                        dap_string_free(l_string_ret, true);
                         return -22;
                     }
                     if (l_node_addr_str){
@@ -501,7 +499,6 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             dap_cli_server_cmd_set_reply_text(a_str_reply, "The order has not been created. "
                                                                            "Failed to convert string representation of '%s' "
                                                                            "to node address.", l_node_addr_str);
-                            dap_string_free(l_string_ret, true);
                             return -17;
                         }
                     } else {
@@ -530,58 +527,58 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         l_price_unit.enm = SERV_UNIT_PCS;
                     } else {
                         log_it(L_ERROR, "Undefined price unit");
-                        dap_string_free(l_string_ret, true);
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong unit type sepcified, possible values: B, KB, MB, SEC, DAY, PCS");
                         return -18;
                     } 
-
-
                     
                     strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                     size_t l_ext_len = l_ext? strlen(l_ext) + 1 : 0;
                     // get cert to order sign
                     dap_cert_t *l_cert = NULL;
                     dap_enc_key_t *l_key = NULL;
-                    if(l_order_cert_name) {
+                    if (l_order_cert_name) {
                         l_cert = dap_cert_find_by_name(l_order_cert_name);
-                        if(l_cert) {
+                        if (l_cert) {
                             l_key = l_cert->enc_key;
+                            if (!l_key->priv_key_data || !l_key->priv_key_data_size) {
+                                log_it(L_ERROR, "Certificate '%s' doesn't contain a private key", l_order_cert_name);
+                                dap_cli_server_cmd_set_reply_text(a_str_reply, "Certificate '%s' doesn't contain a private key", l_order_cert_name);
+                                return -25;
+                            }
                         } else {
                             log_it(L_ERROR, "Can't load cert '%s' for sign order", l_order_cert_name);
                             dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert '%s' for sign "
                                                                            "order", l_order_cert_name);
-                            dap_string_free(l_string_ret, true);
                             return -19;
                         }
                     } else {
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "The certificate name was not "
                                                                        "specified. Since version 5.2 it is not possible to "
                                                                        "create unsigned orders.");
-                        dap_string_free(l_string_ret, true);
                         return -20;
                     }
                 // create order
-                    char * l_order_new_hash_str = dap_chain_net_srv_order_create(
+                    char *l_order_new_hash_str = dap_chain_net_srv_order_create(
                                 l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, &l_price, l_price_unit,
                                 l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_units, l_region_str, l_continent_num, l_key);
-                    if(l_cert)
-                        dap_cert_delete(l_cert);
-                    if (l_order_new_hash_str)
-                        dap_string_append_printf( l_string_ret, "Created order %s\n", l_order_new_hash_str);
-                    else {
-                        dap_string_append_printf( l_string_ret, "Error! Can't created order\n");
-                        l_ret = -4;
+                    if (l_order_new_hash_str) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Created order %s\n", l_order_new_hash_str);
+                        DAP_DELETE(l_order_new_hash_str);
+                        return 0;
+                    } else {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't created order\n");
+                        return -4;
                     }
                 } else {
-                    dap_string_append_printf( l_string_ret, "Missed some required params\n");
-                    l_ret=-5;
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Missed some required params\n");
+                    return -5;
                 }
             } else if (l_order_str) {
-                dap_string_append_printf(l_string_ret, "Unrecognized subcommand '%s'", l_order_str);
-                l_ret = -14;
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized subcommand '%s'", l_order_str);
+                return -14;
             }
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_ret->str);
-            dap_string_free(l_string_ret, true);
+
         } else if (l_get_limits_str){
             const char *l_provider_pkey_hash_str = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-provider_pkey_hash", &l_provider_pkey_hash_str);
