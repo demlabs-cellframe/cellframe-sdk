@@ -1225,7 +1225,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             return -8;
         }
         DAP_DELETE(node_info);
-        dap_chain_node_client_close_mt(l_client);
+        dap_chain_node_client_close_unsafe(l_client);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Connection established");
     } break;
 
