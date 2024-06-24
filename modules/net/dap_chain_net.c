@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -880,18 +880,20 @@ void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
  */
 void dap_chain_net_purge(dap_chain_net_t *l_net)
 {
-    dap_ledger_purge(l_net->pub.ledger, false);
     dap_chain_net_srv_stake_purge(l_net);
+    dap_chain_net_decree_deinit(l_net);
+    dap_ledger_purge(l_net->pub.ledger, false);
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
-        if (l_chain->callback_purge)
+        if (l_chain->callback_purge) {
             l_chain->callback_purge(l_chain);
-        if (!dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs"))
+        }
+        if (!dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
             dap_chain_esbocs_set_min_validators_count(l_chain, 0);
+        }
+        dap_chain_load_all(l_chain);
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
-        dap_chain_net_decree_purge(l_net);
-        dap_chain_load_all(l_chain);
     }
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_atom_add_from_treshold) {
@@ -899,6 +901,7 @@ void dap_chain_net_purge(dap_chain_net_t *l_net)
                 debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
         }
     }
+    dap_chain_net_decree_init(l_net);
 }
 
 /**

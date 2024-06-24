@@ -7,9 +7,9 @@
  * Copyright  (c) 2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -2511,40 +2511,36 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                 l_datum_size = dap_chain_datum_size(l_datum);
                 dap_chain_hash_fast_t l_key_hash = { };
                 dap_hash_fast(l_datum->data, l_token_size, &l_key_hash);
-                const char *l_key_str = dap_chain_hash_fast_to_str_static(&l_key_hash);
+                const char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
                 const char *l_key_str_base58 = dap_enc_base58_encode_hash_to_str_static(&l_key_hash);
                 const char *l_key_out_str = dap_strcmp(l_hash_out_type, "hex")
                         ? l_key_str_base58 : l_key_str;
+                int rc = 0;
                 // Add datum to mempool with datum_token hash as a key
                 if( dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, dap_chain_datum_size(l_datum), false) == 0) {
-
                     char* l_hash_str = l_datum_hash_hex_str;
                     // Remove old datum from pool
                     if( dap_global_db_del_sync(l_gdb_group_mempool, l_hash_str ) == 0) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                "datum %s is replacing the %s in datum pool",
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is replacing the %s in datum pool",
                                 l_key_out_str, l_datum_hash_out_str);
-                        DAP_DELETE(l_datum);
-                        //DAP_DELETE(l_datum_token);
-                        DAP_DELETE(l_gdb_group_mempool);
-                        return 0;
                     } else {
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                 "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)",
                                 l_datum_hash_out_str, l_key_out_str);
-                        DAP_DELETE(l_datum);
-                        DAP_DELETE(l_gdb_group_mempool);
-                        return 1;
+                        rc = -3;
                     }
-                    DAP_DELETE(l_hash_str);
                 } else {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
                             "Error! datum %s produced from %s can't be placed in mempool",
                             l_key_out_str, l_datum_hash_out_str);
-                    DAP_DELETE(l_datum);
-                    DAP_DELETE(l_gdb_group_mempool);
-                    return -2;
+                    rc = -2;
                 }
+                DAP_DELETE(l_key_str);
+                DAP_DELETE(l_datum_hash_hex_str);
+                DAP_DELETE(l_datum_hash_base58_str);
+                DAP_DELETE(l_datum);
+                DAP_DELETE(l_gdb_group_mempool);
+                return rc;
             } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Error! Wrong datum type. token_decl_sign sign only token declarations datum");
@@ -4556,9 +4552,9 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
     // Calc datum's hash
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
-    const char *l_key_str = !dap_strcmp(l_hash_out_type, "hex") ?
-                dap_chain_hash_fast_to_str_static(&l_key_hash) :
-                dap_enc_base58_encode_hash_to_str_static(&l_key_hash);
+    char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+    const char *l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
+                           dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str;
 
     // Add datum to mempool with datum_token hash as a key
     char *l_gdb_group_mempool = l_chain
@@ -4571,8 +4567,10 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
         return -10;
     }
     bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, false) == 0;
+    DAP_DELETE(l_gdb_group_mempool);
     dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s with token %s is%s placed in datum pool",
-                                      l_key_str, l_ticker, l_placed ? "" : " not");
+                                      l_key_str_out, l_ticker, l_placed ? "" : " not");
+    DAP_DELETE(l_key_str);
     DAP_DELETE(l_datum);
     DAP_DELETE(l_params);
     return l_placed ? 0 : -2;
@@ -4759,7 +4757,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
     // Calc datum's hash
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
-    const char *l_key_str = dap_chain_hash_fast_to_str_static(&l_key_hash);
+    char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     const char *l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
                            dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str;
 
@@ -4773,8 +4771,10 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
         return -10;
     }
     bool l_placed = !dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, (uint8_t *)l_datum, l_datum_size, false);
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s with 256bit token %s is%s placed in datum pool",
+    DAP_DELETE(l_gdb_group_mempool);
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s with token update datum for ticker %s is%s placed in datum pool",
                                       l_key_str_out, l_ticker, l_placed ? "" : " not");
+    DAP_DELETE(l_key_str);
     DAP_DELETE(l_datum);
     DAP_DELETE(l_params);
     return l_placed ? 0 : -2;
