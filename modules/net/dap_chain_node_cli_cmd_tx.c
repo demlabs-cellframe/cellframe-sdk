@@ -729,12 +729,9 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
         l_arr_end ? json_object_object_add(json_obj_lim, "limit", json_object_new_int(l_arr_end - l_arr_start)):
                     json_object_object_add(json_obj_lim, "limit", json_object_new_string("unlimit"));
         json_object_array_add(json_arr_out, json_obj_lim);
-        if (l_arr_end > l_chain->callback_count_atom(l_chain)) {
-            l_arr_end = l_chain->callback_count_atom(l_chain);
-        }
-
+        
+        
         bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
-size_t datums = 0;
         HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {            
             if ((l_count_tx >= l_arr_end)&&(l_arr_end))
                 break;
@@ -746,7 +743,6 @@ size_t datums = 0;
                 dap_chain_datum_t **l_datums = l_cell->chain->callback_atom_get_datums(l_ptr, l_atom_size, &l_datums_count);
                 for (size_t i = 0; i < l_datums_count && ((l_count_tx < l_arr_end)||(!l_arr_end)); i++) {
                     if (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX) {
-                        datums++;
                         if (l_count_tx < l_arr_start) {
                             l_count_tx++;
                             continue;
@@ -756,11 +752,12 @@ size_t datums = 0;
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
 
                         char *service_name = NULL;
-                        dap_chain_tx_tag_action_type_t l_action;
+                        dap_chain_tx_tag_action_type_t l_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
+                        
                         dap_ledger_t *l_ledger = l_net->pub.ledger;
                         bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_ttx_hash, NULL, &service_name, &l_action);
-                        
-                        if (!(l_action & a_action))
+
+                        if (!(l_action & a_action))                        
                             continue;
 
                         if (a_srv)
