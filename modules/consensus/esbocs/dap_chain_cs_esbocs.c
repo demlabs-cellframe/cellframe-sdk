@@ -825,9 +825,13 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_
                     l_excluded_num = a_excluded_list[++l_excluded_list_idx];
                 }
             }
-        } else
-            l_validators = dap_chain_net_srv_stake_get_validators(a_esbocs->chain->net_id, true,
-                                                                  &a_esbocs->session->cur_round.excluded_list);
+        } else {
+            l_validators = dap_chain_net_srv_stake_get_validators(a_esbocs->chain->net_id,
+                                                                  true,
+                                                                  a_esbocs->session
+                                                                  ? &a_esbocs->session->cur_round.excluded_list
+                                                                  : NULL);
+        }
         uint16_t l_total_validators_count = dap_list_length(l_validators);
         if (l_total_validators_count < l_esbocs_pvt->min_validators_count) {
             log_it(L_MSG, "Can't start new round. Totally active validators count %hu is below minimum count %hu",
