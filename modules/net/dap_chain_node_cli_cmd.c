@@ -1220,11 +1220,12 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         if (res) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "No response from node");
             // clean client struct
-            dap_chain_node_client_close_mt(l_client);
+            dap_chain_node_client_close_unsafe(l_client);
             DAP_DELETE(node_info);
             return -8;
         }
         DAP_DELETE(node_info);
+        dap_chain_node_client_close_unsafe(l_client);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Connection established");
     } break;
 
