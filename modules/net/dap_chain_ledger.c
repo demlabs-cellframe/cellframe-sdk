@@ -3772,7 +3772,7 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
 }
 
 
-bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_net_srv_uid_t *a_tag, dap_chain_tx_tag_action_type_t *a_action)
+bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, char **a_service_name, dap_chain_net_srv_uid_t *a_tag, dap_chain_tx_tag_action_type_t *a_action)
 {
     dap_ledger_service_info_t *l_sinfo_current, *l_sinfo_tmp;
 
@@ -3789,6 +3789,7 @@ bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         if (l_sinfo_current->callback && l_sinfo_current->callback(a_ledger, a_tx, &l_items_groups, &action)){
             if (a_tag) *a_tag =  l_sinfo_current->service_uid;
             if (a_action) *a_action =  action;
+            if (a_service_name) *a_service_name = l_sinfo_current->tag_str;
             l_res = true;
             l_deductions_ok ++;
         }
@@ -3901,7 +3902,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger,
     bool l_girdled_ems_used = false;
     uint256_t l_taxed_value = {};
     
-    if(a_tag) dap_ledger_deduct_tx_tag(a_ledger, a_tx, a_tag, a_action);
+    if(a_tag) dap_ledger_deduct_tx_tag(a_ledger, a_tx, NULL, a_tag, a_action);
 
     // find all previous transactions
     for (dap_list_t *it = l_list_in; it; it = it->next) {
