@@ -414,6 +414,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
     switch (cmd_name) {
     case CMD_NAME_CELL:
     {
+        
         if(!arg_index || a_argc < 3) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "parameters are not valid");
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
@@ -452,8 +453,12 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     }
                     dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_cell_id);
                     int l_ret = (int)dap_chain_cell_file_update(l_cell);
-                    if(l_ret > 0)
-                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK, "cell added successfully"); ПЕРЕДЕЛАТЬ
+                    if ( l_ret > 0 )
+                    {
+                        json_object* json_obj_name = json_object_new_object();
+                        json_object_object_add(json_obj_name, "comand status", json_object_new_string("cell added successfully"));
+                        json_object_array_add(*json_arr_reply, json_obj_name);
+                    }
                     else
                         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_CAN_CREATE_CELL_ERR, "can't create file for cell 0x%016"DAP_UINT64_FORMAT_X" ( %s )",
                                 l_cell->id.uint64,l_cell->file_storage_path);                        
@@ -472,7 +477,9 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         int res_flush = dap_global_db_flush_sync();
         switch (res_flush) {
         case 0:
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Commit data base and filesystem caches to disk completed.\n\n");
+            json_object* json_obj_flush = json_object_new_object();
+            json_object_object_add(json_obj_flush, "command status", json_object_new_string("Commit data base and filesystem caches to disk completed.\n\n"));
+            json_object_array_add(*json_arr_reply, json_obj_flush);
             break;
         case -1:
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_CAN_NOT_OPEN_DIR,
@@ -540,7 +547,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                                             "Record not found\n\n");
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_RECORD_NOT_FOUND;
         }
-
+        json_object* json_obj_rec = json_object_new_object();
         int l_ret = 0;
         // prepare record information
         switch (l_subcmd) {
@@ -552,25 +559,28 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                 if(!l_value_str) {
                     log_it(L_CRITICAL, "%s", g_error_memory_alloc);
                     DAP_DELETE(l_value);
-                    return -1;
+                    json_object_put(json_obj_rec);
+                    return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
                 }
+                json_object_object_add(json_obj_rec, "command status", json_object_new_string("Commit data base and filesystem caches to disk completed."));
+                
                 size_t ret = dap_bin2hex(l_value_str, l_value, l_value_len);
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Record found\n"
-                        "lenght:\t%zu byte\n"
-                        "hash:\t%s\n"
-                        "pinned:\t%s\n"
-                        "value:\t0x%s\n\n", l_value_len, l_hash_str, l_is_pinned ? "Yes" : "No", l_value_str);
+                json_object_object_add(json_obj_rec, "command status", json_object_new_string("Record found"));
+                json_object_object_add(json_obj_rec, "lenght(byte)", json_object_new_uint64(l_value_len));
+                json_object_object_add(json_obj_rec, "hash", json_object_new_string(l_hash_str));
+                json_object_object_add(json_obj_rec, "pinned", l_is_pinned ? json_object_new_string("Yes") : json_object_new_string("No") );
+                json_object_object_add(json_obj_rec, "value", json_object_new_string(l_value_str));                
                 DAP_DELETE(l_value_str);
                 break;
             }
             case SUMCMD_PIN: // Pin record
             {
                 if(l_is_pinned){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "record already pinned");
+                    json_object_object_add(json_obj_rec, "pinned status", json_object_new_string("record already pinned"));
                     break;
                 }
                 if(dap_global_db_set_sync( l_group, l_key, l_value, l_value_len, true) ==0 ){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "record successfully pinned");
+                    json_object_object_add(json_obj_rec, "pinned status", json_object_new_string("record successfully pinned"));                    
                 }
                 else{
                     dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_RECORD_NOT_PINED,
@@ -580,13 +590,13 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                 break;
             }
             case SUMCMD_UNPIN: // Unpin record
-            {
+            {                
                 if(!l_is_pinned) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "record already unpinned");
+                    json_object_object_add(json_obj_rec, "unpinned status", json_object_new_string("record already unpinned"));
                     break;
                 }
                 if(dap_global_db_set_sync(l_group,l_key, l_value, l_value_len, false) == 0 ) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "record successfully unpinned");
+                    json_object_object_add(json_obj_rec, "unpinned status", json_object_new_string("record successfully unpinned"));
                 }
                 else {
                     dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_RECORD_NOT_UNPINED,
@@ -595,6 +605,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                 }
                 break;
             }
+            json_object_array_add(*json_arr_reply, json_obj_rec);
         }
         DAP_DELETE(l_value);
         return l_ret;
@@ -604,7 +615,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         const char *l_group_str = NULL;
         const char *l_key_str = NULL;
         const char *l_value_str = NULL;
-
+        json_object* json_obj_write = json_object_new_object();
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-key", &l_key_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &l_value_str);
@@ -631,7 +642,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         }
 
         if (!dap_global_db_set_sync(l_group_str, l_key_str, l_value_str, strlen(l_value_str) +1 , false)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Data has been successfully written to the database");
+            json_object_object_add(json_obj_write, "write status", json_object_new_string("Data has been successfully written to the database"));            
             return 0;
         } else {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_WRITING_FILED,
@@ -642,7 +653,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
     {
         const char *l_group_str = NULL;
         const char *l_key_str = NULL;
-
+        json_object* json_obj_read = json_object_new_object();
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-key", &l_key_str);
 
@@ -671,9 +682,11 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             dap_nanotime_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_ts);
             char *l_value_hexdump = dap_dump_hex(l_value_out, l_out_len);
             if (l_value_hexdump) {
-
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "\n\"%s : %s\"\nTime: %s\nValue len: %zu\nValue hex:\n\n%s",
-                                                  l_group_str, l_key_str, l_ts_str, l_out_len, l_value_hexdump);
+                json_object_object_add(json_obj_read, "group", json_object_new_string(l_group_str));
+                json_object_object_add(json_obj_read, "key", json_object_new_string(l_key_str));
+                json_object_object_add(json_obj_read, "time", json_object_new_string(l_ts_str));
+                json_object_object_add(json_obj_read, "value len", json_object_new_uint64(l_out_len));
+                json_object_object_add(json_obj_read, "value hex", json_object_new_string(l_value_hexdump));
                 DAP_DELETE(l_value_hexdump);
             } else {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_TIME_NO_VALUE,
@@ -766,8 +779,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
 
         if(!l_group_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter 'group' to be valid", a_argv[0]);
-            return -120;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR,"%s requires parameter 'group' to be valid", a_argv[0]);            
+            return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
         }
 
         size_t l_objs_count = 0;
@@ -775,8 +788,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
 
         if (!l_obj || !l_objs_count)
         {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "No data in group %s.", l_group_str);
-            return -124;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_DATA_IN_GROUP,"No data in group %s.", l_group_str);            
+            return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_DATA_IN_GROUP;
         }
 
         dap_string_t *l_ret_str = dap_string_new(NULL);
@@ -804,8 +817,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         return 0;
     }
     default:
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "parameters are not valid");
-        return -1;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR,"parameters are not valid");           
+            return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
     }
 }
 
