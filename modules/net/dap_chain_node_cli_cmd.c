@@ -2751,6 +2751,21 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         json_object_object_add(l_jobj_datum, "main_ticker", l_jobj_main_ticker);
                         json_object_object_add(l_jobj_datum, "ledger_rc", l_jobj_ledger_rc);
 
+                        dap_chain_net_srv_uid_t uid;
+                        char *service_name;
+                        dap_chain_tx_tag_action_type_t action;
+                        if (dap_ledger_deduct_tx_tag(a_net->pub.ledger, l_tx, &service_name, &uid, &action))
+                        {
+                            json_object_object_add(l_jobj_datum, "service", json_object_new_string(service_name));
+                            json_object_object_add(l_jobj_datum, "action", json_object_new_string(dap_ledger_tx_action_str(action)));
+                        }
+                        else
+                        {   
+                            json_object_object_add(l_jobj_datum, "service", json_object_new_string("UNKNOWN"));
+                            json_object_object_add(l_jobj_datum, "action", json_object_new_string("UNKNOWN"));
+                        }
+
+
                         dap_list_t *l_list_sig_item = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_SIG, NULL);
                         dap_list_t *l_list_in_ems = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_EMS, NULL);
                         if (!l_list_sig_item) {
