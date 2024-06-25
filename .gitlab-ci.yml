@@ -72,7 +72,8 @@ windows-tests:
     before_script: /opt/buildtools/prepare_environment.sh amd64-windows
     script:
       - mkdir build
-      - cd build && export PATH=${MXE_ROOT}/usr/bin:$PATH && x86_64-w64-mingw32.static-cmake .. -DCMAKE_BUILD_TYPE=Release && make -j$(nproc)
+      - ./build.sh --target windows release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
+(nproc)
     
 
 macos-tests:
