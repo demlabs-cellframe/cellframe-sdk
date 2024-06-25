@@ -596,6 +596,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     }    
     
     dap_chain_hash_fast_t l_tx_new_hash = {0};
+    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     for (size_t i=0; i< a_tx_num ; i++){
         log_it(L_DEBUG, "Prepare tx %zu",i);
         // find the transactions from which to take away coins
@@ -729,20 +730,25 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
         // Now produce datum
         dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx_new, l_tx_size);
-
+        //dap_global_db_set_sync(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(l_datum), false);
         l_objs[i].key = dap_chain_hash_fast_to_str_new(&l_tx_new_hash);
         l_objs[i].value = (uint8_t *)l_datum;
         l_objs[i].value_len = dap_chain_datum_size(l_datum);
         l_objs[i].timestamp = dap_nanotime_now();
-        log_it(L_ERROR, "FUCK FUCK FUCK");
         log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
-               l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
+               l_objs[i].key ? l_objs[i].key :"NULL" , l_objs[i].value_len );
+        //dap_global_db_set(l_gdb_group, l_objs[i].key, l_objs[i].value, l_objs[i].value_len, false, NULL, NULL);
+        char *l_ret = dap_chain_mempool_datum_add(l_datum, a_chain, "hex");
+        DAP_DEL_Z(l_ret);
         dap_chain_datum_tx_delete(l_tx_new);
+
     }
-    dap_list_free_full(l_list_used_out, NULL);
-    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    dap_global_db_set_multiple_zc(l_gdb_group, l_objs, a_tx_num, s_tx_create_massive_gdb_save_callback, NULL);
     DAP_DELETE(l_gdb_group);
+    dap_list_free_full(l_list_used_out, NULL);
+    //char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    //dap_global_db_set_multiple_zc(l_gdb_group, l_objs, a_tx_num, s_tx_create_massive_gdb_save_callback, NULL);
+    //DAP_DELETE(l_gdb_group);
+    dap_global_db_objs_delete(l_objs, a_tx_num + 1);
     return 0;
 }
 
