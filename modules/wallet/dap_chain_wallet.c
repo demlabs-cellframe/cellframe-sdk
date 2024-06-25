@@ -164,7 +164,7 @@ char *c_wallets_path;
         return  log_it(L_ERROR, "Wallet's path has been not configured"), -EINVAL;
     }
 
-    if ( !(l_wallet = dap_chain_wallet_open (a_name, c_wallets_path)) )
+    if ( !(l_wallet = dap_chain_wallet_open (a_name, c_wallets_path, NULL)) )
     {
         memset(l_prec->pass, 0, l_prec->pass_len), l_prec->pass_len = 0;    /* Say <what> again ?! */
         return  log_it(L_ERROR, "Wallet's password is invalid, say <password> again"), -EAGAIN;
@@ -326,7 +326,7 @@ int dap_chain_wallet_init()
         if ( l_len > 8 && !strcmp(l_dir_entry->d_name + l_len - (sizeof(s_wallet_ext) - 1), s_wallet_ext) ) {
             if (snprintf(l_fspec, sizeof(l_fspec) - 1, "%s/%s", c_wallets_path, l_dir_entry->d_name) < 0)
                 continue;
-            if ( (l_wallet = dap_chain_wallet_open_file(l_fspec, NULL)) )
+            if ( (l_wallet = dap_chain_wallet_open_file(l_fspec, NULL, NULL)) )
                 dap_chain_wallet_close(l_wallet);
         }
     }
@@ -712,7 +712,8 @@ if ( a_pass )
  */
 dap_chain_wallet_t *dap_chain_wallet_open_file (
                     const char *a_file_name,
-                    const char *l_pass
+                    const char *l_pass,
+                    unsigned int * a_out_stat
                     )
 {
 dap_chain_wallet_t *l_wallet;
@@ -736,6 +737,8 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     if ( 0 > (l_fh = open(a_file_name , O_RDONLY)) ) {                      /* Open file for ReadOnly !!! */
         l_err = errno;
 #endif
+        if ( a_out_stat )
+            *a_out_stat = 1;
         return  log_it(L_ERROR,"Cant open file %s for read, error %"DAP_FORMAT_ERRNUM, a_file_name, l_err), NULL;
     }
 #ifdef DAP_OS_WINDOWS
@@ -745,6 +748,8 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     if (sizeof(l_file_hdr) != read(l_fh, &l_file_hdr, sizeof(l_file_hdr))) {/* Get the file header record */
         l_err = errno;
 #endif
+        if ( a_out_stat )
+            *a_out_stat = 2;
         return  log_it(L_ERROR, "Error reading Wallet file (%s) header, err %"DAP_FORMAT_ERRNUM, a_file_name, l_err),
                 dap_fileclose(l_fh), NULL;
     }
@@ -752,18 +757,24 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         log_it(L_ERROR, "Wallet (%s) signature mismatch (%"DAP_UINT64_FORMAT_X" != %"DAP_UINT64_FORMAT_X")",
                a_file_name, l_file_hdr.signature, DAP_CHAIN_WALLETS_FILE_SIGNATURE);
         dap_fileclose(l_fh);
+        if ( a_out_stat )
+            *a_out_stat = 3;
         return NULL;
     }
 
     if ( (l_file_hdr.version == DAP_WALLET$K_VER_2) && (!l_pass) ) {
         log_it(L_DEBUG, "Wallet (%s) version 2 cannot be processed w/o password", a_file_name);
         dap_fileclose(l_fh);
+        if ( a_out_stat )
+            *a_out_stat = 4;
         return NULL;
     }
 
     if ( l_file_hdr.wallet_len > DAP_WALLET$SZ_NAME ) {
         log_it(L_ERROR, "Invalid Wallet name (%s) length ( >%d)", a_file_name, DAP_WALLET$SZ_NAME);
         dap_fileclose(l_fh);
+        if ( a_out_stat )
+            *a_out_stat = 5;
         return NULL;
     }
 
@@ -774,6 +785,8 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     if (l_file_hdr.wallet_len != read(l_fh, l_wallet_name, l_file_hdr.wallet_len)) { /* Read wallet's name */
         l_err = errno;
 #endif
+        if ( a_out_stat )
+            *a_out_stat = 6;
         return log_it(L_ERROR, "Error reading Wallet name, err %"DAP_FORMAT_ERRNUM, l_err),
                dap_fileclose(l_fh), NULL;
     }
@@ -805,13 +818,18 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         }
     }
 #endif
-    if (l_err)
+    if (l_err){
+        if ( a_out_stat )
+            *a_out_stat = 6;
         return log_it(L_ERROR, "Wallet file (%s) I/O error reading certificate body (%d != %zd), error %"DAP_FORMAT_ERRNUM,
                       a_file_name, l_cert_hdr.cert_raw_size, (ssize_t)l_rc, l_err), dap_fileclose(l_fh), NULL;
+    }
 
     if ( !l_certs_count ) {
         log_it(L_ERROR, "No certificate (-s) in the wallet file (%s)", a_file_name);
         dap_fileclose(l_fh);
+        if ( a_out_stat )
+            *a_out_stat = 7;
         return NULL;
     }
 
@@ -820,6 +838,8 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         if ( !(l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_GOST_OFB, NULL, 0, l_pass, strlen(l_pass), 0)) ) {
             log_it(L_ERROR, "Error create key context");
             dap_fileclose(l_fh);
+            if ( a_out_stat )
+                *a_out_stat = 8;
             return NULL;
         }
 
@@ -831,6 +851,8 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     if (!l_wallet) {
         log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         dap_fileclose(l_fh);
+        if ( a_out_stat )
+            *a_out_stat = 9;
         return NULL;
     }
 
@@ -840,6 +862,8 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         DAP_DEL_Z(l_wallet);
         dap_fileclose(l_fh);
+        if ( a_out_stat )
+            *a_out_stat = 9;
         return NULL;
     }
 
@@ -852,6 +876,8 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         log_it(L_ERROR, "Count is zero in dap_chain_wallet_open_file");
         DAP_DEL_Z(l_wallet);
         dap_fileclose(l_fh);
+        if ( a_out_stat )
+            *a_out_stat = 10;
         return NULL;
     }
 
@@ -861,6 +887,8 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         DAP_DEL_Z(l_wallet);
         dap_fileclose(l_fh);
+        if ( a_out_stat )
+            *a_out_stat = 9;
         return NULL;
     }
 
@@ -921,6 +949,8 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
             log_it(L_ERROR, "Wallet checksum mismatch, %#x <> %#x", l_csum, l_csum2);
             dap_chain_wallet_close( l_wallet);
             l_wallet = NULL;
+            if ( a_out_stat )
+                *a_out_stat = 11;
         }
 
         dap_enc_key_delete(l_enc_key);
@@ -941,7 +971,8 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
  */
 dap_chain_wallet_t *dap_chain_wallet_open (
                         const char *a_wallet_name,
-                        const char *a_wallets_path
+                        const char *a_wallets_path,
+                        unsigned int * a_out_stat
                                     )
 {
 char l_file_name [MAX_PATH] = {0}, l_pass [ DAP_WALLET$SZ_PASS + 3] = {0},
@@ -965,7 +996,7 @@ ssize_t     l_rc, l_pass_len;
         l_pass_len = 0;
 
 
-    return  dap_chain_wallet_open_file(l_file_name, l_pass_len ? l_pass : NULL);
+    return  dap_chain_wallet_open_file(l_file_name, l_pass_len ? l_pass : NULL, a_out_stat);
 }
 
 /**
