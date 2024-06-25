@@ -72,8 +72,7 @@ windows-tests:
     before_script: /opt/buildtools/prepare_environment.sh amd64-windows
     script:
       - mkdir build
-      - ./build.sh --target windows release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
-(nproc)
+      - ./prod_build/build.sh --target windows release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
     
 
 macos-tests:
