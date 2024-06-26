@@ -357,7 +357,7 @@ int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_cha
  */
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
 {
-    log_it(L_DEBUG,"Proc enc http request");
+    log_it(L_DEBUG,"Proc enc http request from %s", a_http_simple->es_hostaddr);
     http_status_code_t *l_return_code = (http_status_code_t *)a_arg;
 
     if (strcmp(a_http_simple->http_client->url_path, DAP_BALANCER_URI_HASH)) {
