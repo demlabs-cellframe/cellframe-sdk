@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -364,7 +364,7 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
         DAP_DELETE(l_event_current);
     }
     pthread_mutex_unlock(&l_dag_pvt->events_mutex);
-    dap_chain_cell_delete_all(a_chain);
+    dap_chain_cell_delete_all_and_free_file(a_chain);
 }
 
 /**
@@ -389,7 +389,11 @@ static void s_chain_cs_dag_delete(dap_chain_t * a_chain)
 static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_item_t *a_event_item)
 {
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) dap_chain_cs_dag_event_get_datum(a_event_item->event, a_event_item->event_size);
-    if(a_event_item->event_size< sizeof(l_datum->header) ){
+    if (!l_datum) {
+        log_it(L_WARNING, "Corrupted event, failed to extract datum from event.");
+        return -2;
+    }
+    if(a_event_item->event_size < sizeof(l_datum->header) ){
         log_it(L_WARNING, "Corrupted event, too small to fit datum in it");
         return -1;
     }
@@ -1717,7 +1721,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"\nEvent %s:\n", l_event_hash_str);
 
                     // Round info
-                    if (l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) {
+                    if ((l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) && l_round_item) {
                         dap_string_append_printf(l_str_tmp,
                             "\tRound info:\n\t\tsigns reject: %d\n",
                             l_round_item->round_info.reject_count);
@@ -1789,7 +1793,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                                                       l_event_hash_str);
                     ret=-10;
                 }
-                DAP_DELETE(l_round_item);
+                DAP_DEL_Z(l_round_item);
             } break;
 
             case SUBCMD_EVENT_LIST: {

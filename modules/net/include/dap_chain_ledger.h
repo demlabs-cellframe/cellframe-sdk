@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -303,7 +303,7 @@ const char *dap_ledger_get_description_by_ticker(dap_ledger_t *a_ledger, const c
 bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
 
 //TX service-tags
-bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_net_srv_uid_t *uid, dap_chain_tx_tag_action_type_t *action);
+bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, char **a_service_name, dap_chain_net_srv_uid_t *uid, dap_chain_tx_tag_action_type_t *action);
 const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag);
 dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *a_str);
 

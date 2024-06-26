@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2020
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -1256,7 +1256,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -w");
                 return -10;
             }
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
             const char* l_sign_str = "";
             if (!l_wallet) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
@@ -1432,7 +1432,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                                                                 l_cmd_num == CMD_REMOVE ? "remove" : "update");
                 return -10;
             }
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
             const char* l_sign_str = "";
             if (!l_wallet) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
@@ -1587,8 +1587,6 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                                      l_price->net->pub.name);
 
 
-            DAP_DEL_Z(l_amount_coins_str);
-            DAP_DEL_Z(l_amount_datoshi_str);
             DAP_DEL_Z(l_cp_rate);
             DAP_DEL_Z(l_price);
         } break;
@@ -1665,8 +1663,7 @@ xchange_tx_type_t dap_chain_net_srv_xchange_tx_get_type (dap_ledger_t * a_ledger
     
     if (l_out_cond_item && !l_out_prev_cond_item)
         l_tx_type = TX_TYPE_ORDER;
-    else if (l_out_cond_item && l_out_prev_cond_item)
-    {
+    else if (l_out_cond_item && l_out_prev_cond_item) {
         l_tx_type = TX_TYPE_EXCHANGE;
     }
     else if (!l_out_cond_item && l_out_prev_cond_item)
@@ -1699,14 +1696,13 @@ xchange_tx_type_t dap_chain_net_srv_xchange_tx_get_type (dap_ledger_t * a_ledger
                 l_tx_type = TX_TYPE_EXCHANGE;
         }
 
-        if(a_out_cond_item)
-            *a_out_cond_item = l_out_cond_item;
-        if(a_out_prev_cond_item)
-            *a_out_prev_cond_item = l_out_prev_cond_item;
-        if (a_item_idx)
-            *a_item_idx = l_cond_idx;
-        return l_tx_type;
     }
+    if(a_out_cond_item)
+        *a_out_cond_item = l_out_cond_item;
+    if(a_out_prev_cond_item)
+        *a_out_prev_cond_item = l_out_prev_cond_item;
+    if (a_item_idx)
+        *a_item_idx = l_cond_idx;
     return l_tx_type;
 }
 
@@ -1785,6 +1781,10 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
 
     switch(l_tx_type){
         case TX_TYPE_ORDER:{
+            if (!l_out_cond_item) {
+                log_it(L_ERROR, "Can't find conditional output");
+                return false;
+            }
             char *l_rate_str = dap_chain_balance_to_coins(l_out_cond_item->subtype.srv_xchange.rate);
             const char *l_amount_str, *l_amount_datoshi_str = dap_uint256_to_char(l_out_cond_item->header.value, &l_amount_str);
 
@@ -1806,6 +1806,11 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
                 = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_IN_COND , NULL);
             char l_tx_prev_cond_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&l_in_cond->header.tx_prev_hash, l_tx_prev_cond_hash_str, sizeof(l_tx_prev_cond_hash_str));
+
+            if (!l_out_prev_cond_item) {
+                log_it(L_ERROR, "Can't find previous transaction");
+                return false;
+            }
 
             uint256_t l_rate = l_out_cond_item 
                 ? l_out_cond_item->subtype.srv_xchange.rate
@@ -1851,6 +1856,11 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
             dap_chain_tx_in_cond_t * l_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_IN_COND , NULL);
             char l_tx_prev_cond_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&l_in_cond->header.tx_prev_hash,l_tx_prev_cond_hash_str, sizeof(l_tx_prev_cond_hash_str));
+
+            if (!l_out_prev_cond_item) {
+                log_it(L_ERROR, "Can't find previous transaction");
+                return false;
+            }
 
             dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_in_cond->header.tx_prev_hash);
             if (!l_prev_tx)
@@ -2153,7 +2163,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' requires parameter -w");
                 return -10;
             }
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
             if (!l_wallet) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
                 return -11;

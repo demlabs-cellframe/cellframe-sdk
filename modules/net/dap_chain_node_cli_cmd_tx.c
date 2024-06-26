@@ -6,9 +6,9 @@
  * Copyright  (c) 2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -714,7 +714,6 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
             l_tx_ledger_rejected = 0,
             l_count = 0,
             l_count_tx = 0;
-
         dap_chain_cell_t    *l_cell = NULL,
                             *l_cell_tmp = NULL;
         dap_chain_atom_iter_t *l_iter = NULL;
@@ -730,12 +729,9 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
         l_arr_end ? json_object_object_add(json_obj_lim, "limit", json_object_new_int(l_arr_end - l_arr_start)):
                     json_object_object_add(json_obj_lim, "limit", json_object_new_string("unlimit"));
         json_object_array_add(json_arr_out, json_obj_lim);
-        if (l_arr_end > l_chain->callback_count_atom(l_chain)) {
-            l_arr_end = l_chain->callback_count_atom(l_chain);
-        }
-
+        
+        
         bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
-size_t datums = 0;
         HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {            
             if ((l_count_tx >= l_arr_end)&&(l_arr_end))
                 break;
@@ -747,7 +743,6 @@ size_t datums = 0;
                 dap_chain_datum_t **l_datums = l_cell->chain->callback_atom_get_datums(l_ptr, l_atom_size, &l_datums_count);
                 for (size_t i = 0; i < l_datums_count && ((l_count_tx < l_arr_end)||(!l_arr_end)); i++) {
                     if (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX) {
-                        datums++;
                         if (l_count_tx < l_arr_start) {
                             l_count_tx++;
                             continue;
@@ -757,11 +752,12 @@ size_t datums = 0;
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
 
                         char *service_name = NULL;
-                        dap_chain_tx_tag_action_type_t l_action;
+                        dap_chain_tx_tag_action_type_t l_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
+                        
                         dap_ledger_t *l_ledger = l_net->pub.ledger;
                         bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_ttx_hash, NULL, &service_name, &l_action);
-                        
-                        if (!(l_action & a_action))
+
+                        if (!(l_action & a_action))                        
                             continue;
 
                         if (a_srv)
@@ -821,23 +817,20 @@ size_t datums = 0;
  * @param a_token_num
  * @return char*
  */
-static char* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *a_token_name, const char *a_hash_out_type, size_t *a_token_num) {
+static json_object* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *a_token_name, const char *a_hash_out_type, size_t *a_token_num) {
     if (!a_chain->callback_atom_get_datums) {
         log_it(L_WARNING, "Not defined callback_atom_get_datums for chain \"%s\"", a_chain->name);
         return NULL;
-    }
-    dap_string_t *l_str_out = dap_string_new(NULL);
-    if (!l_str_out) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
-        return NULL;
-    }
+    }    
     *a_token_num  = 0;
     size_t l_atom_size = 0;
     dap_chain_cell_t *l_cell = a_chain->cells;
+    json_object* json_arr_history_token_out = json_object_new_array();    
     do {
         dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, NULL);
         if(!a_chain->callback_atom_get_datums) {
             log_it(L_DEBUG, "Not defined callback_atom_get_datums for chain \"%s\"", a_chain->name);
+            json_object_put(json_arr_history_token_out);
             return NULL ;
         }
         for (dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
@@ -856,16 +849,17 @@ static char* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *
                     if (l_cmp)
                         continue;
                 }
-                dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type, a_chain->net_id);
+                json_object* json_history_token = json_object_new_object();
+                dap_chain_datum_dump_json(json_history_token, l_datum, a_hash_out_type, a_chain->net_id);
+                json_object_array_add(json_arr_history_token_out, json_history_token);
                 (*a_token_num)++;
             }
             DAP_DELETE(l_datums);
         }
         a_chain->callback_atom_iter_delete(l_atom_iter);
         l_cell = l_cell->hh.next;
-    } while (l_cell);
-    char *l_ret_str = l_str_out ? dap_string_free(l_str_out, false) : NULL;
-    return l_ret_str;
+    } while (l_cell);    
+    return json_arr_history_token_out;
 }
 
 /**
@@ -878,17 +872,19 @@ static char* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *
  * @return char*
  */
 
-static size_t dap_db_net_history_token_list(dap_chain_net_t * l_net, const char *a_token_name, const char *a_hash_out_type, dap_string_t *a_str_out) {
+static size_t dap_db_net_history_token_list(dap_chain_net_t * l_net, const char *a_token_name, const char *a_hash_out_type, json_object* a_obj_out) {
     size_t l_token_num_total = 0;
     dap_chain_t *l_chain_cur;
+    json_object* json_arr_obj_tx = json_object_new_array();    
     DL_FOREACH(l_net->pub.chains, l_chain_cur) {
         size_t l_token_num = 0;
-        char *token_list_str = dap_db_chain_history_token_list(l_chain_cur, a_token_name, a_hash_out_type, &l_token_num);
-        if(token_list_str)
-            dap_string_append(a_str_out, token_list_str);
-        l_token_num_total += l_token_num;
-        DAP_DEL_Z(token_list_str);
+        json_object* json_obj_tx = NULL;
+        json_obj_tx = dap_db_chain_history_token_list(l_chain_cur, a_token_name, a_hash_out_type, &l_token_num);
+        if(json_obj_tx)
+            json_object_array_add(json_arr_obj_tx, json_obj_tx);
+        l_token_num_total += l_token_num;        
     }
+    json_object_object_add(a_obj_out, "TOKENS", json_arr_obj_tx);
     return l_token_num_total;
 }
 
@@ -1221,6 +1217,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
  */
 int com_token(int a_argc, char ** a_argv, void **a_str_reply)
 {
+    json_object **json_arr_reply = (json_object **)a_str_reply;
     enum { CMD_NONE, CMD_LIST, CMD_INFO, CMD_TX };
     int arg_index = 1;
     const char *l_net_str = NULL;
@@ -1231,20 +1228,20 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply)
     if (!l_hash_out_type)
         l_hash_out_type = "hex";
     if (dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR, "invalid parameter -H, valid values: -H <hex | base58>");
+        return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
     }
 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
     // Select chain network
     if(!l_net_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "command requires parameter '-net'");
-        return -2;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR, "command requires parameter '-net'");
+        return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
     } else {
         if((l_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "command requires parameter '-net' to be valid chain network name");
-            return -3;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR,
+                    "command requires parameter '-net' to be valid chain network name");            
+            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
         }
     }
 
@@ -1257,12 +1254,12 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply)
             l_cmd = CMD_TX;
     // token list
     if(l_cmd == CMD_LIST) {
-        dap_string_t *l_str_out = dap_string_new(NULL);
-        size_t l_token_num_total = dap_db_net_history_token_list(l_net, NULL, l_hash_out_type, l_str_out);
+        json_object* json_obj_tx = json_object_new_object();
+        size_t l_token_num_total = dap_db_net_history_token_list(l_net, NULL, l_hash_out_type, json_obj_tx);
+
         //total
-        dap_string_append_printf(l_str_out, "---------------\ntokens: %zu\n", l_token_num_total);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
-        dap_string_free(l_str_out, true);
+        json_object_object_add(json_obj_tx, "tokens", json_object_new_uint64(l_token_num_total));
+        json_object_array_add(*json_arr_reply, json_obj_tx);
         return 0;
     }
     // token info
@@ -1270,20 +1267,23 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply)
         const char *l_token_name_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-name", &l_token_name_str);
         if(!l_token_name_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "command requires parameter '-name' <token name>");
-                return -4;
-            }
-        dap_string_t *l_str_out = dap_string_new(NULL);
-        if(!dap_db_net_history_token_list(l_net, l_token_name_str, l_hash_out_type, l_str_out))
-            dap_string_append_printf(l_str_out, "token '%s' not found\n", l_token_name_str);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
-        dap_string_free(l_str_out, true);
-        return 0;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR, "command requires parameter '-name' <token name>");
+                return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
+        }
+        json_object* json_obj_tx = json_object_new_object();
+        if(!dap_db_net_history_token_list(l_net, l_token_name_str, l_hash_out_type, json_obj_tx)){
+            json_object_put(json_obj_tx);
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_FOUND_ERR, "token '%s' not found\n", l_token_name_str);               
+        }
+        json_object_array_add(*json_arr_reply, json_obj_tx);
+        return DAP_CHAIN_NODE_CLI_COM_TOKEN_OK;
     }
     // command tx history
     else if(l_cmd == CMD_TX) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "The cellframe-node-cli token tx command is deprecated and no longer supported.\n");
-        return 0;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN, 
+            "The cellframe-node-cli token tx command is deprecated and no longer supported.\n");
+        
+        return DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN;
 #if 0
         dap_chain_tx_hash_processed_ht_t *l_list_tx_hash_processd = NULL;
         enum { SUBCMD_TX_NONE, SUBCMD_TX_ALL, SUBCMD_TX_ADDR };
@@ -1421,8 +1421,8 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply)
 #endif
     }
 
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "unknown command code %d", l_cmd);
-    return -5;
+    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN, "unknown command code %d", l_cmd);
+    return -DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN;
 }
 
 /* Decree section */

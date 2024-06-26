@@ -6,9 +6,9 @@
  * Copyright  (c) 2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -97,6 +97,16 @@ typedef enum s_com_ledger_err{
  */
 int com_token(int a_argc, char ** a_argv, void **a_str_reply);
 
+typedef enum s_com_token_err{
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_HASH_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_FOUND_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN /* MAX */
+} s_com_token_err_t;
 /**
  * decree command
  *
