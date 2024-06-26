@@ -153,7 +153,7 @@ static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request
     struct json_object *l_json = s_balancer_states_json_collect(a_request->net, a_host_addr, a_host_port);
     char l_err_str[512] = { '\0' };
     snprintf(l_err_str, sizeof(l_err_str)
-            , "Link from balancer %s:%u in net %s can't be prepared, connection errno %d"
+            , "Links from balancer %s:%u in net %s can't be prepared, connection errno %d"
             , a_host_addr, a_host_port, a_request->net->pub.name, a_errno);
     log_it(L_WARNING, "%s", l_err_str);
     json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
