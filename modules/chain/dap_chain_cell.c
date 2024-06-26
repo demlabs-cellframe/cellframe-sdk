@@ -431,7 +431,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     if (a_chain->is_mapped)
         a_cell->map_pos += l_pos;
     if (l_size == l_pos) {
-        fseek(a_cell->file_storage, l_pos, SEEK_END);
+        fseek(a_cell->file_storage, l_pos, SEEK_SET);
         return 0;
     }
         
@@ -451,7 +451,6 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             a_chain->callback_atom_add(a_chain, l_atom, l_el_size, &l_atom_hash);
             a_cell->map_pos += l_el_size;
         }
-        fseek(a_cell->file_storage, l_pos, SEEK_SET);
     } else { 
         DAP_DELETE(l_hdr);
         size_t l_read = 0;
@@ -483,8 +482,8 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             }
             ++q;
         }
-        fseek(a_cell->file_storage, l_pos, SEEK_SET);
     }
+    fseek(a_cell->file_storage, l_pos, SEEK_SET);
     log_it(L_INFO, "Loaded %lu atoms in cell %s", q, a_cell->file_storage_path);
     return l_ret;
 }
