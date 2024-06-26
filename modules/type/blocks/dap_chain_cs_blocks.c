@@ -819,7 +819,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
-            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
+            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
 
             if (l_signed_flag && l_first_signed_flag) {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Choose only one option from 'singed' and 'first_signed'");
@@ -887,12 +887,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             json_object* json_arr_bl_cache_out = json_object_new_array();
             json_object* json_obj_lim = json_object_new_object();
             size_t l_start_arr = 0;
-            if(l_offset > 0) {
+            if ( l_offset > 0 ) {
                 l_start_arr = l_offset;
                 json_object_object_add(json_obj_lim, "offset",json_object_new_uint64(l_start_arr));
             }
             size_t l_arr_end = PVT(l_blocks)->blocks_count;
-            if (l_limit) {
+            if ( l_limit ) {
                 json_object_object_add(json_obj_lim, "limit",json_object_new_uint64(l_limit));
                 l_arr_end = l_start_arr + l_limit;
                 if (l_arr_end > PVT(l_blocks)->blocks_count)
@@ -900,7 +900,20 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             }
             json_object_array_add(json_arr_bl_cache_out, json_obj_lim);
             size_t i_tmp = 0;
-            for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
+            dap_chain_block_cache_t *l_block_last = PVT(l_blocks)->blocks;
+            
+            if ( !l_offset && !l_limit){
+                l_block_last = PVT(l_blocks)->blocks ? PVT(l_blocks)->blocks->hh.tbl->tail->prev : NULL;
+                for ( size_t i = 0; ( i < 500 ) && ( i < l_arr_end - 1 ) && l_block_last; l_block_last = l_block_last->hh.prev)
+                {
+                     i++;
+
+                }
+            }
+            else
+                l_block_last = PVT(l_blocks)->blocks;           
+
+            for (dap_chain_block_cache_t *l_block_cache = l_block_last; l_block_last; l_block_last = l_block_last->hh.next) {            
                 dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                 if (l_from_time && l_ts < l_from_time)
                     continue;
