@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -61,14 +61,15 @@ typedef struct dap_chain_datum_iter {
 } dap_chain_datum_iter_t;
 
 typedef enum dap_chain_atom_verify_res{
-    ATOM_ACCEPT = 0, ATOM_PASS, ATOM_REJECT, ATOM_MOVE_TO_THRESHOLD
+    ATOM_ACCEPT = 0, ATOM_PASS, ATOM_REJECT, ATOM_MOVE_TO_THRESHOLD, ATOM_FORK
 } dap_chain_atom_verify_res_t;
 
 static const char* const dap_chain_atom_verify_res_str[] = {
     [ATOM_ACCEPT]   = "accepted",
     [ATOM_PASS]     = "skipped",
     [ATOM_REJECT]   = "rejected",
-    [ATOM_MOVE_TO_THRESHOLD] = "thresholded"
+    [ATOM_MOVE_TO_THRESHOLD] = "thresholded",
+    [ATOM_FORK] = "forked"
 };
 
 typedef enum dap_chain_iter_op {
@@ -84,9 +85,9 @@ typedef void (*dap_chain_callback_t)(dap_chain_t *);
 typedef int (*dap_chain_callback_new_cfg_t)(dap_chain_t *, dap_config_t *);
 typedef void (*dap_chain_callback_ptr_t)(dap_chain_t *, void * );
 
-typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_t)(dap_chain_t *, dap_chain_atom_ptr_t, size_t );
+typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_t)(dap_chain_t *, dap_chain_atom_ptr_t, size_t, dap_hash_fast_t*);
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_form_treshold_t)(dap_chain_t *, size_t *);
-typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_verify_t)(dap_chain_t *, dap_chain_atom_ptr_t , size_t);
+typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_verify_t)(dap_chain_t *, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t*);
 typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)(void);
 
 typedef dap_chain_atom_iter_t * (*dap_chain_callback_atom_iter_create_t)(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);

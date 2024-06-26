@@ -8,9 +8,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -1696,7 +1696,7 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         return false;
 
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (a_ch->stream->session );
-    dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
+    // dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
 
     if ( ! l_usage){
@@ -1821,7 +1821,7 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION( a_ch->stream->session );
-    dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
+    // dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
 
     dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
     if ( ! l_usage){

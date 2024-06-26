@@ -67,6 +67,7 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash
     l_block_cache->block = a_copy_block ? DAP_DUP_SIZE(a_block, a_block_size) : a_block;
     if (!l_block_cache->block) {
         log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        DAP_DEL_Z(l_block_cache);
         return NULL;
     }
     l_block_cache->block_size = a_block_size;

@@ -7,9 +7,9 @@
  * Copyright  (c) 2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -329,3 +329,5 @@ int com_chain_ca_copy( int a_argc,  char **a_argv, void **a_str_reply);
 int com_signer(int a_argc, char **a_argv, void **a_str_reply);
 //remove func
 int cmd_remove(int a_argc, char **a_argv, void **a_str_reply);
+
+void dap_notify_new_client_send_info(dap_events_socket_t *a_es, void *a_arg);

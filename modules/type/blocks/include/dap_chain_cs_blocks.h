@@ -5,9 +5,9 @@
  * Copyright  (c) 2017-2020
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -31,6 +31,8 @@
 #else
 #define DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE (256 * 1024) // 256 KB
 #endif
+
+#define DAP_FORK_MAX_DEPTH 100
 
 #define DAP_REWARD_INIT_TIMESTAMP 1700870400UL // 25 Nov 2023 00:00:00 GMT
 

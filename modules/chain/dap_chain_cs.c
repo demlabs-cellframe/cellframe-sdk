@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -121,7 +121,15 @@ void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_ca
 int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_callback_new_cfg_item_t *l_item = NULL;
+#if defined(DAP_CHAIN_BLOCKS_TEST) || defined(DAP_LEDGER_TEST)
+    const char *l_consensus = NULL;
+    if (a_chain->id.uint64 == 0)
+        l_consensus = dap_strdup("dag_poa");
+    else
+        l_consensus = dap_strdup("esbocs");
+#else
     const char *l_consensus = dap_config_get_item_str( a_chain_cfg, "chain", "consensus");
+#endif
     if(l_consensus)
         HASH_FIND_STR(s_cs_callbacks, l_consensus, l_item );
     if (l_item) {

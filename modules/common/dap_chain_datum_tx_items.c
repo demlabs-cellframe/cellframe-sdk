@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -272,7 +272,7 @@ dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_in_ems_create(dap_chain_id_t a_id
     }
     l_item->header.type = TX_ITEM_TYPE_IN_EMS;
     l_item->header.token_emission_chain_id.uint64 = a_id.uint64;
-    l_item->header.token_emission_hash = *a_datum_token_hash;;
+    l_item->header.token_emission_hash = *a_datum_token_hash;
     strncpy(l_item->header.ticker, a_ticker, sizeof(l_item->header.ticker) - 1);
     return l_item;
 }

@@ -6,9 +6,9 @@
  * Copyright  (c) 2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -60,8 +60,8 @@ typedef struct dap_nonconsensus_private {
 #define PVT(a) ((a) ? (dap_nonconsensus_private_t *)(a)->_internal : NULL)
 
 // Atomic element organization callbacks
-static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t); //    Accept new event in gdb
-static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t); //    Verify new event in gdb
+static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t, dap_hash_fast_t *a_atom_hash); //    Accept new event in gdb
+static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t, dap_hash_fast_t *a_atom_hash); //    Verify new event in gdb
 static size_t s_nonconsensus_callback_atom_get_static_hdr_size(void); //    Get gdb event header size
 
 static dap_chain_atom_iter_t* s_nonconsensus_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);
@@ -127,7 +127,9 @@ static void s_changes_callback_notify(dap_store_obj_t *a_obj, void *a_arg)
     dap_chain_t *l_chain = a_arg;
     if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL)
         return;
-    s_nonconsensus_callback_atom_add(l_chain, (dap_chain_datum_t *)a_obj->value, a_obj->value_len);
+    dap_hash_fast_t l_hash = {};
+    dap_hash_fast(a_obj->value, a_obj->value_len, &l_hash);
+    s_nonconsensus_callback_atom_add(l_chain, (dap_chain_datum_t *)a_obj->value, a_obj->value_len, &l_hash);
 }
 
 int s_nonconsensus_callback_created(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_chain_cfg)
@@ -261,7 +263,9 @@ static void s_nonconsensus_ledger_load(dap_chain_t *a_chain)
     for (size_t i = 0; l_values && i < l_values_count; i++) {
         dap_global_db_obj_t *it = l_values + i;
         // load ledger
-        s_nonconsensus_callback_atom_add(a_chain, it->value, it->value_len);
+        dap_hash_fast_t l_hash = {};
+        dap_hash_fast(it->value, it->value_len, &l_hash);
+        s_nonconsensus_callback_atom_add(a_chain, it->value, it->value_len, &l_hash);
         log_it(L_DEBUG,"Load mode, doesn't save item %s:%s", it->key, l_nochain_pvt->group_datums);
     }
     dap_global_db_objs_delete(l_values, l_values_count);
@@ -303,7 +307,7 @@ static size_t s_nonconsensus_callback_datums_pool_proc(dap_chain_t * a_chain, da
  * @param a_atom_size atom size
  * @return dap_chain_atom_verify_res_t
  */
-static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
+static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash)
 {
     if (NULL == a_chain) {
         log_it(L_WARNING, "Arguments is NULL for s_nonconsensus_callback_atom_add");
@@ -312,9 +316,8 @@ static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t 
     dap_nonconsensus_t * l_nochain = DAP_NONCONSENSUS(a_chain);
     dap_nonconsensus_private_t *l_nochain_priv = PVT(l_nochain);
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) a_atom;
-    dap_hash_fast_t l_datum_hash;
-    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_hash);
-    if (dap_chain_datum_add(a_chain, l_datum, a_atom_size, &l_datum_hash))
+    dap_hash_fast_t l_datum_hash = *a_atom_hash;
+    if(dap_chain_datum_add(a_chain, l_datum, a_atom_size, &l_datum_hash))
         return ATOM_REJECT;
 
     dap_nonconsensus_datum_hash_item_t * l_hash_item = DAP_NEW_Z(dap_nonconsensus_datum_hash_item_t);
@@ -323,7 +326,7 @@ static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t 
         return ATOM_REJECT;
     }
     size_t l_datum_size = dap_chain_datum_size(l_datum);
-    dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_hash_item->datum_data_hash );
+    l_hash_item->datum_data_hash = l_datum_hash;
     dap_chain_hash_fast_to_str(&l_hash_item->datum_data_hash, l_hash_item->key, sizeof(l_hash_item->key));
     DL_APPEND(l_nochain_priv->hash_items, l_hash_item);
     if (!l_nochain_priv->is_load_mode && a_chain->atom_notifiers) {
@@ -345,7 +348,7 @@ static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t 
  * @param a_atom_size size of atom
  * @return dap_chain_atom_verify_res_t
  */
-static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
+static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash)
 {
     (void) a_chain;
     (void) a_atom;

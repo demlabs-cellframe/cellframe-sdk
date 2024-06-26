@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -110,11 +110,7 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
             .net_id     = a_chain_net_id,
             .name       = dap_strdup(a_chain_name),
             .net_name   = dap_strdup(a_chain_net_name),
-#ifdef DAP_OS_WINDOWS // TODO
-            .is_mapped  = false,
-#else
             .is_mapped  = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true),
-#endif
             .cell_rwlock    = PTHREAD_RWLOCK_INITIALIZER,
             .atom_notifiers = NULL
     };
@@ -527,7 +523,8 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 				} else
 					l_chain->autoproc_datum_types_count = 0;
 			}
-            l_chain->config = l_cfg;
+            if (l_chain && l_chain->config)
+                l_chain->config = l_cfg;
             return l_chain;
         } else
             return NULL;
@@ -610,9 +607,18 @@ int dap_chain_load_all(dap_chain_t *a_chain)
         const char l_suffix[] = ".dchaincell";
         size_t l_suffix_len = strlen(l_suffix);
         if (!strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len)) {
-            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill2(a_chain, l_filename);
+            uint64_t l_cell_id_uint64 = 0;
+            sscanf(l_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
+            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(a_chain, (dap_chain_cell_id_t){ .uint64 = l_cell_id_uint64 });
             l_ret += dap_chain_cell_load(a_chain, l_cell);
-            if (DAP_CHAIN_PVT(a_chain)->need_reorder) {
+            if ( DAP_CHAIN_PVT(a_chain)->need_reorder ) {
+#ifdef DAP_OS_WINDOWS
+                strcat(l_cell->file_storage_path, ".new");
+                if (remove(l_cell->file_storage_path) == -1) {
+                    log_it(L_ERROR, "File %s doesn't exist", l_cell->file_storage_path);
+                }
+                *(l_cell->file_storage_path + strlen(l_cell->file_storage_path) - 4) = '\0';
+#else
                 const char *l_filename_backup = dap_strdup_printf("%s.unsorted", l_cell->file_storage_path);
                 if (remove(l_filename_backup) == -1) {
                     log_it(L_ERROR, "File %s doesn't exist", l_filename_backup);
@@ -621,6 +627,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
                     log_it(L_ERROR, "Couldn't rename %s to %s", l_cell->file_storage_path, l_filename_backup);
                 }
                 DAP_DELETE(l_filename_backup);
+#endif
             }
         }
     }
@@ -798,6 +805,10 @@ const char* dap_chain_get_path(dap_chain_t *a_chain)
 }
 
 void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size) {
+#ifdef DAP_CHAIN_BLOCKS_TEST
+    return;
+#endif
+
     if ( !a_chain_cell->chain->atom_notifiers )
         return;
     dap_list_t *l_iter;
