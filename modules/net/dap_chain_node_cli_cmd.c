@@ -474,25 +474,25 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
     }
     case CMD_FLUSH:
     {
+        json_object* json_obj_flush = json_object_new_object();
         int res_flush = dap_global_db_flush_sync();
         switch (res_flush) {
-        case 0:
-            json_object* json_obj_flush = json_object_new_object();
+        case 0:            
             json_object_object_add(json_obj_flush, "command status", json_object_new_string("Commit data base and filesystem caches to disk completed.\n\n"));
             json_object_array_add(*json_arr_reply, json_obj_flush);
             break;
         case -1:
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_CAN_NOT_OPEN_DIR,
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_CAN_NOT_OPEN_DIR,
                                                         "Couldn't open db directory. Can't init cdb\n"
                                                         "Reboot the node.\n\n");            
             break;
         case -2:
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_CAN_NOT_INIT_DB,
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_CAN_NOT_INIT_DB,
                                                         "Couldn't open db directory. Can't init cdb\n"
                                                         "Reboot the node.\n\n");
             break;
         case -3:
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_CAN_NOT_INIT_SQL,
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_CAN_NOT_INIT_SQL,
                                                         "Can't init sqlite\n"
                                                         "Reboot the node.\n\n");
             break;
