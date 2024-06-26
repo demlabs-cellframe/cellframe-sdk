@@ -444,6 +444,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             if ( space_left < sizeof(uint64_t) || (space_left - sizeof(uint64_t)) < *(uint64_t*)a_cell->map_pos )
                 if ( s_cell_map_new_volume(a_cell, l_pos) )
                     break;
+            a_chain->download_percentage =  (int)((double)l_pos/l_size * 100 + 0.5);
             l_el_size = *(uint64_t*)a_cell->map_pos;
             dap_hash_fast_t l_atom_hash;
             dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos += sizeof(uint64_t));
@@ -468,6 +469,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
                 break;
             }
             l_pos += sizeof(uint64_t) + ( l_read = fread((void*)l_element, 1, l_el_size, a_cell->file_storage) );
+            a_chain->download_percentage =  (int)((double)l_pos/l_size * 100 + 0.5);
             if (l_read != l_el_size) {
                 log_it(L_ERROR, "Read only %lu of %zu bytes, stop cell loading", l_read, l_el_size);
                 DAP_DELETE(l_element);
