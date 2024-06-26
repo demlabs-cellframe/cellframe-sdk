@@ -1491,7 +1491,8 @@ static void send_pong_pkt(dap_stream_ch_t* a_ch)
  * @param a_ch
  * @param a_usage
  */
-static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_net_srv_usage_t * a_usage){
+static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t *a_ch, dap_chain_net_srv_usage_t *a_usage)
+{
     dap_chain_net_srv_ch_vpn_t         *l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_vpn_t            *l_srv_vpn = (dap_chain_net_srv_vpn_t*)a_usage->service->_internal;
     dap_chain_net_srv_stream_session_t *l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
@@ -1691,10 +1692,12 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
     dap_stream_ch_pkt_t * l_pkt = (dap_stream_ch_pkt_t *) a_arg;
     ch_vpn_pkt_t *l_vpn_pkt = (ch_vpn_pkt_t*)l_pkt->data;
-    size_t l_vpn_pkt_size = l_pkt->hdr.data_size;
-    if (l_vpn_pkt_size < sizeof(l_vpn_pkt->header))
+    if (l_pkt->hdr.data_size < sizeof(l_vpn_pkt->header)) {
+        log_it(L_WARNING, "Data size of stream channel packet %zu is lesser than size of VPN packet header %zu",
+                                                              l_pkt->hdr.data_size, sizeof(l_vpn_pkt->header));
         return false;
-
+    }
+    size_t l_vpn_pkt_data_size = l_pkt->hdr.data_size - sizeof(l_vpn_pkt->header);
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (a_ch->stream->session );
     // dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
@@ -1729,20 +1732,18 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     }
 
     // TODO move address leasing to this structure
-    //dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_usage->service->_internal;
-    l_vpn_pkt_size -= sizeof (l_vpn_pkt->header);
     debug_if(s_debug_more, L_INFO, "Got srv_vpn packet with op_code=0x%02x", l_vpn_pkt->header.op_code);
     if(l_vpn_pkt->header.op_code >= 0xb0) { // Raw packets
         switch (l_vpn_pkt->header.op_code) {
             case VPN_PACKET_OP_CODE_PING:
                 a_ch->stream->esocket->last_ping_request = time(NULL);
-                l_srv_session->stats.bytes_recv += l_vpn_pkt_size;
+                l_srv_session->stats.bytes_recv += l_vpn_pkt_data_size;
                 l_srv_session->stats.packets_recv++;
                 send_pong_pkt(a_ch);
             break;
             case VPN_PACKET_OP_CODE_PONG:
                 a_ch->stream->esocket->last_ping_request = time(NULL);
-                l_srv_session->stats.bytes_recv += l_vpn_pkt_size;
+                l_srv_session->stats.bytes_recv += l_vpn_pkt_data_size;
                 l_srv_session->stats.packets_recv++;
             break;
             // for client
@@ -1770,6 +1771,11 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             } break;
             // for client only
             case VPN_PACKET_OP_CODE_VPN_RECV:{
+                if (l_vpn_pkt_data_size != l_vpn_pkt->header.op_data.data_size) {
+                    log_it(L_WARNING, "Size of VPN packet data %zu is not equal to estimated size %zu",
+                                                    l_vpn_pkt_data_size, l_vpn_pkt->header.op_data.data_size);
+                    return false;
+                }
                 a_ch->stream->esocket->last_ping_request = time(NULL); // not ping, but better  ;-)
                 dap_events_socket_t *l_es = dap_chain_net_vpn_client_tun_get_esock();
                 // Find tun socket for current worker
@@ -1786,9 +1792,13 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     l_srv_session->stats.packets_sent_lost++;
                 }
             } break;
-
             // for server only
             case VPN_PACKET_OP_CODE_VPN_SEND: {
+                if (l_vpn_pkt_data_size != l_vpn_pkt->header.op_data.data_size) {
+                    log_it(L_WARNING, "Size of VPN packet data %zu is not equal to estimated size %zu",
+                                                    l_vpn_pkt_data_size, l_vpn_pkt->header.op_data.data_size);
+                    return false;
+                }
                 dap_chain_net_srv_vpn_tun_socket_t *l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
                 assert(l_tun);
                 size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt,
@@ -1807,6 +1817,7 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             } break;
             default:
                 log_it(L_WARNING, "Can't process SF type 0x%02x", l_vpn_pkt->header.op_code);
+                return false;
         }
     }
     return true;
