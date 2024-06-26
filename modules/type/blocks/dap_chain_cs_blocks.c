@@ -543,6 +543,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         SUBCMD_REWARD,
         SUBCMD_AUTOCOLLECT,
         SUBCMD_COUNT,
+        SUBCMD_LAST,
+        SUBCMD_FIND
     } l_subcmd={0};
 
     const char* l_subcmd_strs[]={
@@ -558,6 +560,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         [SUBCMD_REWARD] = "reward",
         [SUBCMD_AUTOCOLLECT] = "autocollect",
         [SUBCMD_COUNT] = "count",
+        [SUBCMD_LAST] = "last",
+        [SUBCMD_FIND] = "find",
         [SUBCMD_UNDEFINED]=NULL
     };
     const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs);
@@ -987,7 +991,23 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(i_tmp));
             json_object_array_add(*json_arr_reply,json_obj_out);
         } break;
+        case SUBCMD_LAST: {
+            char l_tmp_buff[70]={0};
+            json_object* json_obj_out = json_object_new_object();
+            dap_chain_block_cache_t *l_last_block = HASH_LAST(PVT(l_blocks)->blocks);
+            char l_buf[DAP_TIME_STR_SIZE];
+            dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_block->ts_created);
+            json_object_object_add(json_obj_out, "block",json_object_new_uint64(l_last_block->block_number));
+            json_object_object_add(json_obj_out, "hash",json_object_new_string(l_last_block->block_hash_str));
+            json_object_object_add(json_obj_out, "ts_create",json_object_new_string(l_buf));
 
+            sprintf(l_tmp_buff,"%s.%s has blocks - ",l_net->pub.name,l_chain->name);
+            json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(PVT(l_blocks)->blocks_count));
+            json_object_array_add(*json_arr_reply, json_obj_out);
+        } break;
+        case SUBCMD_FIND: {
+
+        } break;
         case SUBCMD_COUNT: {
             char l_tmp_buff[70]={0};
             json_object* json_obj_out = json_object_new_object();
