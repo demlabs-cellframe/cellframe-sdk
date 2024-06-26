@@ -4901,13 +4901,16 @@ int com_token_emit(int a_argc, char **a_argv, void **a_str_reply)
         }
 
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain_emission", &l_chain_emission_str);
-        if(l_chain_emission_str) {
-            if((l_chain_emission = dap_chain_net_get_chain_by_name(l_net, l_chain_emission_str)) == NULL) { // Can't find such chain
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                      "token_emit requires parameter '-chain_emission' to be valid chain name in chain net %s"
-                                      " or set default datum type in chain configuration file", l_net->pub.name);
-                return -45;
-            }
+        if(l_chain_emission_str)
+            l_chain_emission = dap_chain_net_get_chain_by_name(l_net, l_chain_emission_str);
+        else
+            l_chain_emission = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_EMISSION);
+
+        if (l_chain_emission == NULL) { // Can't find such chain
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                              "token_emit requires parameter '-chain_emission' to be valid chain name in chain net %s"
+                                              " or set default datum type in chain configuration file", l_net->pub.name);
+            return -45;
         }
     } else {
         if (l_emission_hash_str) {

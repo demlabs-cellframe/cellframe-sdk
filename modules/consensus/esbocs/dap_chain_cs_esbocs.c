@@ -184,17 +184,17 @@ int dap_chain_cs_esbocs_init()
                            s_stream_ch_packet_in,
                            NULL);
     dap_cli_server_cmd_add ("esbocs", s_cli_esbocs, "ESBOCS commands",
-        "esbocs min_validators_count set -net <net_name> -chain <chain_name> -cert <poa_cert_name> -val_count <value>\n"
+        "esbocs min_validators_count set -net <net_name> [-chain <chain_name>] -cert <poa_cert_name> -val_count <value>\n"
             "\tSets minimum validators count for ESBOCS consensus\n"
-        "esbocs min_validators_count show -net <net_name> -chain <chain_name>\n"
+        "esbocs min_validators_count show -net <net_name> [-chain <chain_name>]\n"
             "\tShow minimum validators count for ESBOCS consensus\n"
-        "esbocs check_signs_structure {enable|disable} -net <net_name> -chain <chain_name> -cert <poa_cert_name>\n"
+        "esbocs check_signs_structure {enable|disable} -net <net_name> [-chain <chain_name>] -cert <poa_cert_name>\n"
             "\tEnables or disables checks for blocks signs structure validity\n"
-        "esbocs check_signs_structure show -net <net_name> -chain <chain_name>\n"
+        "esbocs check_signs_structure show -net <net_name> [-chain <chain_name>]\n"
             "\tShow status of checks for blocks signs structure validity\n"
-        "esbocs emergency_validators {add|remove} -net <net_name> -chain <chain_name> -cert <poa_cert_name> -pkey_hash <validator_pkey_hash>\n"
+        "esbocs emergency_validators {add|remove} -net <net_name> [-chain <chain_name>] -cert <poa_cert_name> -pkey_hash <validator_pkey_hash>\n"
             "\tAdd or remove validator by its signature public key hash to list of validators allowed to work in emergency mode\n"
-        "esbocs emergency_validators show -net <net_name> -chain <chain_name>\n"
+        "esbocs emergency_validators show -net <net_name> [-chain <chain_name>]\n"
             "\tShow list of validators public key hashes allowed to work in emergency mode\n");
     return 0;
 }

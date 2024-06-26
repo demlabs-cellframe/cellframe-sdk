@@ -151,22 +151,22 @@ int dap_chain_cs_dag_init()
     s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
     debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
     dap_cli_server_cmd_add ("dag", s_cli_dag, "DAG commands",
-        "dag event create -net <net_name> -chain <chain_name> -datum <datum_hash> [-H {hex | base58(default)}]\n"
+        "dag event create -net <net_name> [-chain <chain_name>] -datum <datum_hash> [-H {hex | base58(default)}]\n"
             "\tCreate event from datum mempool element\n\n"
-        "dag event cancel -net <net_name> -chain <chain_name> -event <event_hash>\n"
+        "dag event cancel -net <net_name> [-chain <chain_name>] -event <event_hash>\n"
             "\tRemove event from forming new round and put back its datum to mempool\n\n"
-        "dag event sign -net <net_name> -chain <chain_name> -event <event_hash>\n"
+        "dag event sign -net <net_name> [-chain <chain_name>] -event <event_hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
-        "dag event dump -net <net_name> -chain <chain_name> -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round id in hex>} [-H {hex | base58(default)}]\n"
+        "dag event dump -net <net_name> [-chain <chain_name>] -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round id in hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
-        "dag event list -net <net_name> -chain <chain_name> -from {events | events_lasts | threshold | round.new | round.<Round id in hex>} [-limit] [-offset]\n\n"
+        "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round id in hex>} [-limit] [-offset]\n\n"
             "\tShow event list \n\n"
-        "dag event count -net <net_name> -chain <chain_name>\n"
+        "dag event count -net <net_name> [-chain <chain_name>]\n"
             "\tShow count event \n\n"
-        "dag round complete -net <net_name> -chain <chain_name> \n"
+        "dag round complete -net <net_name> [-chain <chain_name>] \n"
                                         "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n"
-        "dag round find -net <net_name> -chain <chain_name> -datum <datum_hash> \n"
+        "dag round find -net <net_name> [-chain <chain_name>] -datum <datum_hash> \n"
             "\tSearches for rounds that have events that contain the specified datum.\n\n"
                                         );
     log_it(L_NOTICE,"Initialized DAG chain items organization class");
@@ -1369,7 +1369,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
     }
 
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net,
-                                                  CHAIN_TYPE_INVALID);
+                                                  CHAIN_TYPE_TOKEN);
     if ((l_net == NULL) || (l_chain == NULL)){
         return -1;
     } else if (a_str_reply && *a_str_reply) {
