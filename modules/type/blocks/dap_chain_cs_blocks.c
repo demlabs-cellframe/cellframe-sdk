@@ -997,8 +997,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_chain_block_cache_t *l_last_block = HASH_LAST(PVT(l_blocks)->blocks);
             char l_buf[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_block->ts_created);
-            json_object_object_add(json_obj_out, "block",json_object_new_uint64(l_last_block->block_number));
-            json_object_object_add(json_obj_out, "hash",json_object_new_string(l_last_block->block_hash_str));
+            json_object_object_add(json_obj_out, "Last block num",json_object_new_uint64(l_last_block->block_number));
+            json_object_object_add(json_obj_out, "Last block hash",json_object_new_string(l_last_block->block_hash_str));
             json_object_object_add(json_obj_out, "ts_create",json_object_new_string(l_buf));
 
             sprintf(l_tmp_buff,"%s.%s has blocks - ",l_net->pub.name,l_chain->name);
@@ -1006,7 +1006,33 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             json_object_array_add(*json_arr_reply, json_obj_out);
         } break;
         case SUBCMD_FIND: {
-
+            const char* l_datum_hash_str = NULL;
+            json_object* json_obj_out = json_object_new_object();
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
+            if (!l_datum_hash_str) {
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block find' requires parameter '-datum'");
+                return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
+            }
+            dap_hash_fast_t l_datum_hash = {};
+            int ret_code = 0;
+            int l_atoms_cnt = 0;
+            dap_chain_hash_fast_from_str(l_datum_hash_str, &l_datum_hash);
+            pthread_rwlock_rdlock(&PVT(l_blocks)->datums_rwlock);
+            dap_chain_block_cache_t *l_curr_block = PVT(l_blocks)->blocks;
+            json_object* json_arr_bl_cache_out = json_object_new_array();
+            for (;l_curr_block;l_curr_block = l_curr_block->hh.next){
+                for (size_t i = 0; i < l_curr_block->datum_count; i++){
+                    if (dap_hash_fast_compare(&l_datum_hash, &l_curr_block->datum_hash[i])){
+                        json_object_array_add(json_arr_bl_cache_out, json_object_new_string(dap_hash_fast_to_str_static(&l_curr_block->block_hash)));
+                        l_atoms_cnt++;
+                        continue;
+                    }
+                }
+            }
+            pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
+            json_object_object_add(json_obj_out, "Blocks", json_arr_bl_cache_out);
+            json_object_object_add(json_obj_out, "Total",json_object_new_int(l_atoms_cnt));
+            json_object_array_add(*json_arr_reply, json_obj_out);
         } break;
         case SUBCMD_COUNT: {
             char l_tmp_buff[70]={0};

@@ -1336,6 +1336,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
         SUBCMD_EVENT_DUMP,
         SUBCMD_EVENT_SIGN,
         SUBCMD_EVENT_COUNT,
+        SUBCMD_EVENT_LAST,
+        SUBCMD_EVENT_FIND,
         SUBCMD_UNDEFINED
     } l_event_subcmd={0};
 
@@ -1945,7 +1947,27 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_ret_str->str);
                 dap_string_free(l_ret_str, true);
             } break;
+            case SUBCMD_EVENT_LAST:{
+                char l_tmp_buff[70]={0};
+                dap_string_t *l_ret_str = dap_string_new(NULL);
+                pthread_mutex_lock(&PVT(l_dag)->events_mutex);
+                dap_chain_cs_dag_event_item_t *l_last_event = HASH_LAST(PVT(l_dag)->events);
+                pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
+                char l_buf[DAP_TIME_STR_SIZE];
+                dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_event->ts_added);
+                char buf[DAP_TIME_STR_SIZE];
+                dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_last_event->header.ts_created);
+                json_object_object_add(json_obj_out, "Last block num",json_object_new_uint64(l_last_block->block_number));
+                json_object_object_add(json_obj_out, "Last block hash",json_object_new_string(l_last_block->block_hash_str));
+                json_object_object_add(json_obj_out, "ts_create",json_object_new_string(l_buf));
 
+                sprintf(l_tmp_buff,"%s.%s has blocks - ",l_net->pub.name,l_chain->name);
+                json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(PVT(l_blocks)->blocks_count));
+                json_object_array_add(*json_arr_reply, json_obj_out);
+            } break;
+            case SUBCMD_EVENT_FIND:{
+
+            } break;
             case SUBCMD_EVENT_SIGN: { // Sign event command
                 char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
                 size_t l_round_item_size = 0;
