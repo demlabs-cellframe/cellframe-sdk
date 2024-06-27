@@ -339,8 +339,6 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
  */
 unsigned dap_ledger_count(dap_ledger_t *a_ledger);
 uint64_t dap_ledger_count_from_to(dap_ledger_t * a_ledger, dap_time_t a_ts_from, dap_time_t a_ts_to);
-size_t dap_ledger_count_tps(dap_ledger_t *a_ledger, struct timespec *a_ts_from, struct timespec *a_ts_to);
-void dap_ledger_set_tps_start_time(dap_ledger_t *a_ledger);
 
 /**
  * Check whether used 'out' items

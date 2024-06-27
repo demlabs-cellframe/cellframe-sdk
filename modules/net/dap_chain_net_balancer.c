@@ -153,7 +153,7 @@ static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request
     struct json_object *l_json = s_balancer_states_json_collect(a_request->net, a_host_addr, a_host_port);
     char l_err_str[512] = { '\0' };
     snprintf(l_err_str, sizeof(l_err_str)
-            , "Link from balancer %s:%u in net %s can't be prepared, errno %d"
+            , "Links from balancer %s:%u in net %s can't be prepared, connection errno %d"
             , a_host_addr, a_host_port, a_request->net->pub.name, a_errno);
     log_it(L_WARNING, "%s", l_err_str);
     json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
@@ -172,7 +172,7 @@ void s_http_balancer_link_prepare_success(void *a_response,
 {
     dap_balancer_link_request_t *l_balancer_request = (dap_balancer_link_request_t *)a_arg;
     if (a_response_code != 200) {
-        log_it(L_ERROR, "The server responded with code %d. It is not possible to install the link.", a_response_code);
+        log_it(L_ERROR, "The server responded with code %d. It is not possible to install the link to %s:%u in net %s", a_response_code, l_balancer_request->host_addr, l_balancer_request->host_port, l_balancer_request->net->pub.name);
         s_balancer_link_prepare_error(l_balancer_request, l_balancer_request->host_addr, l_balancer_request->host_port, a_response_code);
         l_balancer_request->request_info->request_time = dap_time_now();
         DAP_DELETE(l_balancer_request);
@@ -185,6 +185,7 @@ void s_http_balancer_link_prepare_success(void *a_response,
         log_it(L_ERROR, "Invalid balancer response size %zu (expected %zu) in net %s from %s:%u", a_response_size, l_response_size_need, l_balancer_request->net->pub.name, l_balancer_request->host_addr, l_balancer_request->host_port);
         l_balancer_request->request_info->request_time = dap_time_now();
     } else {
+        log_it(L_INFO, "Valid balancer response from %s:%u in net %s with %"DAP_UINT64_FORMAT_U" links", l_balancer_request->host_addr, l_balancer_request->host_port, l_balancer_request->net->pub.name, l_link_full_node_list->count_node);
         s_balancer_link_prepare_success(l_balancer_request->net, l_link_full_node_list, l_balancer_request->host_addr, l_balancer_request->host_port);
         l_balancer_request->request_info->request_time = 0;
     }
@@ -220,7 +221,7 @@ static dap_chain_net_links_t *s_get_node_addrs(dap_chain_net_t *a_net, uint16_t 
 // preparing
     dap_list_t *l_nodes_list = dap_chain_node_get_states_list_sort(a_net, a_ignored ? (dap_chain_node_addr_t *)a_ignored->nodes_info : (dap_chain_node_addr_t *)NULL, a_ignored ? a_ignored->count_node : 0);
     if (!l_nodes_list) {
-        log_it(L_DEBUG, "There isn't any nodes to list prepare in net %s", a_net->pub.name);
+        log_it(L_DEBUG, "There isn't any nodes to %s list prepare in net %s", a_external_call ? "external" : "local", a_net->pub.name);
         if (!a_external_call)
             return NULL;
     }
@@ -357,7 +358,7 @@ int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_cha
  */
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
 {
-    log_it(L_DEBUG,"Proc enc http request");
+    log_it(L_DEBUG,"Proc enc http request from %s", a_http_simple->es_hostaddr);
     http_status_code_t *l_return_code = (http_status_code_t *)a_arg;
 
     if (strcmp(a_http_simple->http_client->url_path, DAP_BALANCER_URI_HASH)) {
@@ -467,6 +468,7 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, const char *a_host_ad
         *l_links = s_get_node_addrs(a_net, l_required_links_count, l_ignored_addrs, false);
 // links from local GDB
     if (l_links) {
+        log_it(L_INFO, "%"DAP_UINT64_FORMAT_U" links successful prepared from global-db in net %s", l_links->count_node, a_net->pub.name);
         s_balancer_link_prepare_success(a_net, l_links, NULL, 0);
         if (l_links->count_node >= l_required_links_count) {
             DAP_DEL_MULTY(l_ignored_addrs, l_links);
