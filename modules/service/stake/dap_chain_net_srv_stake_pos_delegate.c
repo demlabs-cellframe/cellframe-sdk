@@ -2216,9 +2216,8 @@ static int s_callback_compare_tx_list(dap_list_t *a_datum1, dap_list_t *a_datum2
 int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_chain_ch_validator_test_t * out_data,
                                              int a_time_connect, int a_time_respone)
 {
-    char *l_key = NULL;
     size_t l_node_info_size = 0;
-    uint8_t l_test_data[1024] = {0};
+    uint8_t l_test_data[DAP_CHAIN_NET_CH_VALIDATOR_READY_REQUEST_SIZE] = {0};
     dap_chain_node_client_t *l_node_client = NULL;
     dap_chain_node_info_t *l_remote_node_info = NULL;
     dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_net->pub.name);
