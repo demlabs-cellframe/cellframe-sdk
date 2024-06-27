@@ -112,7 +112,7 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
             .net_id     = a_chain_net_id,
             .name       = dap_strdup(a_chain_name),
             .net_name   = dap_strdup(a_chain_net_name),
-            .is_mapped  = dap_config_get_item_bool_default(g_config, "ledger", "mapped", false),
+            .is_mapped  = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true),
             .cell_rwlock    = PTHREAD_RWLOCK_INITIALIZER,
             .atom_notifiers = NULL
     };
@@ -584,10 +584,12 @@ int dap_chain_save_all(dap_chain_t *l_chain)
 
 bool download_notify_callback(dap_chain_t* a_chain) {
     json_object* l_chain_info = json_object_new_object();
-    json_object_object_add(l_chain_info, "net_name", json_object_new_string(a_chain->net_name));
+    json_object_object_add(l_chain_info, "net_id", json_object_new_uint64(a_chain->net_id.uint64));
+    json_object_object_add(l_chain_info, "chain_id", json_object_new_uint64(a_chain->id.uint64));
+    json_object_object_add(l_chain_info, "cell_id", json_object_new_uint64(a_chain->active_cell_id.uint64));
     json_object_object_add(l_chain_info, "download_percentage", json_object_new_int(a_chain->download_percentage));
     dap_notify_server_send_mt(l_chain_info);
-    log_it(L_DEBUG, "Download notify: net_name: %s download:%d%c", a_chain->net_name, a_chain->download_percentage, '%');
+    log_it(L_DEBUG, "Download notify: net_name: %s; chain_id: %d; download:%d%c", a_chain->net_name, a_chain->id.uint64, a_chain->download_percentage, '%');
     json_object_put(l_chain_info);
     return true;
 }
