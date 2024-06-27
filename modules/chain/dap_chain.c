@@ -177,6 +177,7 @@ void dap_chain_delete(dap_chain_t * a_chain)
     if (a_chain->callback_delete)
         a_chain->callback_delete(a_chain);
     DAP_DEL_Z(a_chain->_inheritor);
+    dap_config_close(a_chain->config);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
 }
