@@ -38,8 +38,6 @@
 
 /// Transaction header section
 #define DAP_CHAIN_DATUM_TX                  0x0100
-/// Transaction batch header section
-#define DAP_CHAIN_DATUM_TX_BATCH            0x0101
 
 /// Network decree for governance
 #define DAP_CHAIN_DATUM_DECREE              0x0200

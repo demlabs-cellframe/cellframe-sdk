@@ -593,7 +593,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         log_it(L_WARNING,"Not enough funds to transfer");
         DAP_DELETE(l_objs);
         return -2;
-    }    
+    }
     
     dap_chain_hash_fast_t l_tx_new_hash = {0};
     for (size_t i=0; i< a_tx_num ; i++){
@@ -631,6 +631,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                          "Not enough values on output to produce enough inputs: %s when need ", l_balance);
             strcat(l_log_str, dap_uint256_to_char(l_single_val, NULL));
             log_it(L_ERROR, "%s", l_log_str);
+            dap_list_free_full(l_list_used_out, NULL);
             DAP_DELETE(l_objs);
             return -5;
         }
@@ -641,6 +642,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
         else {
             dap_chain_datum_tx_delete(l_tx_new);
+            dap_list_free_full(l_list_used_out, NULL);
             DAP_DELETE(l_objs);
             return -3;
         }
@@ -650,6 +652,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
             else {
                 dap_chain_datum_tx_delete(l_tx_new);
+                dap_list_free_full(l_list_used_out, NULL);
                 DAP_DELETE(l_objs);
                 return -3;
             }
@@ -660,6 +663,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
             else {
                 dap_chain_datum_tx_delete(l_tx_new);
+                dap_list_free_full(l_list_used_out, NULL);
                 DAP_DELETE(l_objs);
                 return -3;
             }
@@ -669,6 +673,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         if (!IS_ZERO_256(l_value_back)) {
             if(dap_chain_datum_tx_add_out_item(&l_tx_new, a_addr_from, l_value_back) != 1) {
                 dap_chain_datum_tx_delete(l_tx_new);
+                dap_list_free_full(l_list_used_out, NULL);
                 DAP_DELETE(l_objs);
                 return -3;
             }
@@ -677,6 +682,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         // add 'sign' items
         if(dap_chain_datum_tx_add_sign_item(&l_tx_new, a_key_from) != 1) {
             dap_chain_datum_tx_delete(l_tx_new);
+            dap_list_free_full(l_list_used_out, NULL);
             DAP_DELETE(l_objs);
             return -4;
         }
@@ -709,6 +715,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                     dap_chain_tx_used_out_item_t *l_item_back = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
                     if (!l_item_back) {
                         log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                        dap_list_free_full(l_list_used_out, NULL);
                         DAP_DELETE(l_objs);
                         return -6;
                     }
