@@ -1693,7 +1693,7 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     dap_stream_ch_pkt_t * l_pkt = (dap_stream_ch_pkt_t *) a_arg;
     ch_vpn_pkt_t *l_vpn_pkt = (ch_vpn_pkt_t*)l_pkt->data;
     if (l_pkt->hdr.data_size < sizeof(l_vpn_pkt->header)) {
-        log_it(L_WARNING, "Data size of stream channel packet %zu is lesser than size of VPN packet header %zu",
+        log_it(L_WARNING, "Data size of stream channel packet %u is lesser than size of VPN packet header %zu",
                                                               l_pkt->hdr.data_size, sizeof(l_vpn_pkt->header));
         return false;
     }
@@ -1748,11 +1748,12 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             break;
             // for client
             case VPN_PACKET_OP_CODE_VPN_ADDR_REPLY: { // Assigned address for peer
-                if(ch_sf_tun_addr_leased(CH_VPN(a_ch), l_vpn_pkt, l_vpn_pkt_size) < 0) {
+                if(ch_sf_tun_addr_leased(CH_VPN(a_ch), l_vpn_pkt, l_pkt->hdr.data_size) < 0) {
                     log_it(L_ERROR, "Can't create tun");
-                }else
-                    s_tun_send_msg_ip_assigned_all(a_ch->stream_worker->worker->id, CH_VPN(a_ch), CH_VPN(a_ch)->addr_ipv4);
-                l_srv_session->stats.bytes_recv += l_vpn_pkt_size;
+                    break;
+                }
+                s_tun_send_msg_ip_assigned_all(a_ch->stream_worker->worker->id, CH_VPN(a_ch), CH_VPN(a_ch)->addr_ipv4);
+                l_srv_session->stats.bytes_recv += l_pkt->hdr.data_size;
                 l_srv_session->stats.packets_recv++;
             } break;
             // for server
@@ -1766,13 +1767,13 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR,
                                                     &l_err, sizeof (l_err));
                 }
-                l_srv_session->stats.bytes_recv += l_vpn_pkt_size;
+                l_srv_session->stats.bytes_recv += l_pkt->hdr.data_size;
                 l_srv_session->stats.packets_recv++;
             } break;
             // for client only
             case VPN_PACKET_OP_CODE_VPN_RECV:{
                 if (l_vpn_pkt_data_size != l_vpn_pkt->header.op_data.data_size) {
-                    log_it(L_WARNING, "Size of VPN packet data %zu is not equal to estimated size %zu",
+                    log_it(L_WARNING, "Size of VPN packet data %zu is not equal to estimated size %u",
                                                     l_vpn_pkt_data_size, l_vpn_pkt->header.op_data.data_size);
                     return false;
                 }
@@ -1795,7 +1796,7 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             // for server only
             case VPN_PACKET_OP_CODE_VPN_SEND: {
                 if (l_vpn_pkt_data_size != l_vpn_pkt->header.op_data.data_size) {
-                    log_it(L_WARNING, "Size of VPN packet data %zu is not equal to estimated size %zu",
+                    log_it(L_WARNING, "Size of VPN packet data %zu is not equal to estimated size %u",
                                                     l_vpn_pkt_data_size, l_vpn_pkt->header.op_data.data_size);
                     return false;
                 }

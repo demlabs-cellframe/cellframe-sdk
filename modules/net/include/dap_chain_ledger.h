@@ -177,11 +177,13 @@ typedef bool (*dap_ledger_tag_check_callback_t)(dap_ledger_t *a_ledger, dap_chai
 #define DAP_LEDGER_CACHE_ENABLED           0x0200
 
 // Error code for no previous transaction (for stay in mempool)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS  DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND
-// Error code for no emission for a transaction (for stay in mempoold)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION  DAP_LEDGER_TX_CHECK_EMISSION_NOT_FOUND
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS     DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND
+// Error code for no emission for a transaction (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION     DAP_LEDGER_TX_CHECK_EMISSION_NOT_FOUND
+// Error code for not enough valid emission signs (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS   DAP_LEDGER_EMISSION_ADD_CHECK_NOT_ENOUGH_VALID_SIGNS
 // Error code for no decree for anchor (for stay in mempool)
-#define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE       -1113
+#define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE          -1113
 
 #define DAP_LEDGER_TOKENS_STR              "tokens"
 #define DAP_LEDGER_EMISSIONS_STR           "emissions"
