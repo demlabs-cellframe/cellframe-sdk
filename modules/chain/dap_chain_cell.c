@@ -439,12 +439,11 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     uint64_t q = 0;
     if (a_chain->is_mapped) {
         a_cell->map_pos = a_cell->map + sizeof(dap_chain_cell_file_header_t);
-        for ( uint64_t l_el_size = 0; l_pos < l_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
+        for ( uint64_t l_el_size = 0; l_pos < l_size; ++q, l_pos += l_el_size + sizeof(uint64_t), a_chain->download_percentage =  (int)((double)l_pos/l_size * 100 + 0.5)) {
             size_t space_left = (size_t)( a_cell->map_end - a_cell->map_pos );
             if ( space_left < sizeof(uint64_t) || (space_left - sizeof(uint64_t)) < *(uint64_t*)a_cell->map_pos )
                 if ( s_cell_map_new_volume(a_cell, l_pos) )
                     break;
-            a_chain->download_percentage =  (int)((double)l_pos/l_size * 100 + 0.5);
             l_el_size = *(uint64_t*)a_cell->map_pos;
             dap_hash_fast_t l_atom_hash;
             dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos += sizeof(uint64_t));
