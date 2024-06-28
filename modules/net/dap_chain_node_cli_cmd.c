@@ -3695,7 +3695,7 @@ int _cmd_mempool_dump(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     } else {
         dap_chain_t *l_chain = NULL;
         DL_FOREACH(a_net->pub.chains, l_chain){
-            char *l_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+            char *l_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
             if (!_cmd_mempool_dump_from_group(a_net->pub.id, l_group_mempool, a_datum_hash, a_hash_out_type, a_json_reply)){
                 DAP_DELETE(l_group_mempool);
                 break;
