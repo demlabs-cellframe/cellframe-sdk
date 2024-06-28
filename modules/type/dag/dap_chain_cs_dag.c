@@ -1606,9 +1606,10 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     // Round info
 
                     if ((l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) && l_round_item) {
-                        dap_string_append_printf(l_str_tmp,
-                            "\tRound info:\n\t\tsigns reject: %d\n",
-                            l_round_item->round_info.reject_count);
+
+                        json_object_object_add(json_obj_event,"Round info", json_object_new_string(" "));
+                        json_object_object_add(json_obj_event,"tsigns reject", json_object_new_uint64(l_round_item->round_info.reject_count));
+                        json_object_object_add(json_obj_event,"ts_update", json_object_new_string(buf));
                         dap_nanotime_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_round_item->round_info.ts_update);
                         json_object_object_add(json_obj_event,"datum_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_round_item->round_info.datum_hash)));
                         json_object_object_add(json_obj_event,"ts_update", json_object_new_string(buf));                        
