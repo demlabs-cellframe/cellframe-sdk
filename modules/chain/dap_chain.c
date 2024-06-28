@@ -582,15 +582,15 @@ int dap_chain_save_all(dap_chain_t *l_chain)
     return l_ret;
 }
 
-//send chain downloading data to notify socket
+//send chain load_progress data to notify socket
 bool download_notify_callback(dap_chain_t* a_chain) {
     json_object* l_chain_info = json_object_new_object();
-    json_object_object_add(l_chain_info, "net_id", json_object_new_uint64(a_chain->net_id.uint64));
+    json_object_object_add(l_chain_info, "class", json_object_new_string("chain_init"));
+    json_object_object_add(l_chain_info, "net", json_object_new_string(a_chain->net_name));
     json_object_object_add(l_chain_info, "chain_id", json_object_new_uint64(a_chain->id.uint64));
-    json_object_object_add(l_chain_info, "cell_id", json_object_new_uint64(a_chain->active_cell_id.uint64));
-    json_object_object_add(l_chain_info, "download_percentage", json_object_new_int(a_chain->download_percentage));
+    json_object_object_add(l_chain_info, "load_progress", json_object_new_int(a_chain->load_progress));
     dap_notify_server_send_mt(json_object_get_string(l_chain_info));
-    log_it(L_DEBUG, "Download notify: net_name: %s; chain_id: %d; download:%d%c", a_chain->net_name, a_chain->id.uint64, a_chain->download_percentage, '%');
+    log_it(L_DEBUG, "Load progress: net_name: %s; chain_id: %d; download:%d%c", a_chain->net_name, a_chain->id.uint64, a_chain->load_progress, '%');
     json_object_put(l_chain_info);
     return true;
 }
