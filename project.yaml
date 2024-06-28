@@ -1,0 +1,12 @@
+
+build_dependencies:
+  deb:
+    - 'build-essential'
+    - 'libmagic-dev'
+    - 'libsqlite3-dev'
+    - 'libjson-c-dev' 
+    - 'libffi-dev'
+    - 'xsltproc'
+    - 'curl'
+    - 'jq'
+    
