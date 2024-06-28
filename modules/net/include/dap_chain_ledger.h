@@ -177,11 +177,13 @@ typedef bool (*dap_ledger_tag_check_callback_t)(dap_ledger_t *a_ledger, dap_chai
 #define DAP_LEDGER_CACHE_ENABLED           0x0200
 
 // Error code for no previous transaction (for stay in mempool)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS  DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND
-// Error code for no emission for a transaction (for stay in mempoold)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION  DAP_LEDGER_TX_CHECK_EMISSION_NOT_FOUND
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS     DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND
+// Error code for no emission for a transaction (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION     DAP_LEDGER_TX_CHECK_EMISSION_NOT_FOUND
+// Error code for not enough valid emission signs (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS   DAP_LEDGER_EMISSION_ADD_CHECK_NOT_ENOUGH_VALID_SIGNS
 // Error code for no decree for anchor (for stay in mempool)
-#define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE       -1113
+#define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE          -1113
 
 #define DAP_LEDGER_TOKENS_STR              "tokens"
 #define DAP_LEDGER_EMISSIONS_STR           "emissions"
@@ -337,8 +339,6 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
  */
 unsigned dap_ledger_count(dap_ledger_t *a_ledger);
 uint64_t dap_ledger_count_from_to(dap_ledger_t * a_ledger, dap_time_t a_ts_from, dap_time_t a_ts_to);
-size_t dap_ledger_count_tps(dap_ledger_t *a_ledger, struct timespec *a_ts_from, struct timespec *a_ts_to);
-void dap_ledger_set_tps_start_time(dap_ledger_t *a_ledger);
 
 /**
  * Check whether used 'out' items

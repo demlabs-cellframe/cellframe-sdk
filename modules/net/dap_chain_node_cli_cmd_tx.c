@@ -98,7 +98,6 @@ bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                           const char *a_hash_out_type,
                                           dap_chain_hash_fast_t *a_tx_hash)
 {
-    dap_time_t l_ts_create = (dap_time_t)a_datum->header.ts_created;
     char l_tx_hash_str[70]={0};
     char l_tmp_buf[DAP_TIME_STR_SIZE];
     const char *l_ticker = a_ledger
@@ -107,7 +106,7 @@ bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
     if (!l_ticker)
         return false;
     const char *l_description = dap_ledger_get_description_by_ticker(a_ledger, l_ticker);
-    dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_create);
+    dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_datum->header.ts_created);
     dap_chain_hash_fast_to_str(a_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
     json_object_object_add(json_obj_out, "Datum_tx_hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_out, "TS_Created", json_object_new_string(l_tmp_buf));
@@ -212,10 +211,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     }
 
     char l_time_str[DAP_TIME_STR_SIZE];
-    if (l_tx->header.ts_created) {
-        dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, l_tx->header.ts_created);/* Convert ts to  "Sat May 17 01:17:08 2014\n" */
-        l_time_str[strlen(l_time_str)-1] = '\0';                    /* Remove "\n"*/
-    }
+    dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, l_tx->header.ts_created); /* Convert ts to  "Sat May 17 01:17:08 2014" */
     json_object *l_obj_ts_created = json_object_new_string(l_time_str);
     json_object_object_add(json_obj_datum, "tx_created", l_obj_ts_created);
     
@@ -265,10 +261,8 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     bool l_declined = false;
     // transaction time
     char l_time_str[DAP_TIME_STR_SIZE] = "unknown";                                /* Prefill string */
-    if (a_tx->header.ts_created) {
-        dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, a_tx->header.ts_created); /* Convert ts to  "Sat May 17 01:17:08 2014\n" */
-        l_time_str[strlen(l_time_str)-1] = '\0';                    /* Remove "\n"*/
-    }
+    if (a_tx->header.ts_created)
+        dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, a_tx->header.ts_created); /* Convert ts to  "Sat May 17 01:17:08 2014" */
     dap_chain_tx_hash_processed_ht_t *l_tx_data = NULL;
     HASH_FIND(hh, *a_tx_data_ht, a_tx_hash, sizeof(*a_tx_hash), l_tx_data);
     if (l_tx_data)  // this tx already present in ledger (double)
