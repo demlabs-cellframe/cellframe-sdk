@@ -47,11 +47,8 @@
  */
 dap_chain_datum_t *dap_chain_datum_create(uint16_t a_type_id, const void *a_data, size_t a_data_size)
 {
-   dap_chain_datum_t *l_datum = DAP_NEW_Z_SIZE(dap_chain_datum_t, sizeof(l_datum->header) + a_data_size);
-   if(!l_datum) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
-        return NULL;
-   }
+   dap_chain_datum_t *l_datum = NULL;
+   DAP_NEW_Z_SIZE_RET_VAL(l_datum, dap_chain_datum_t, sizeof(l_datum->header) + a_data_size, NULL, NULL);
    *l_datum = (dap_chain_datum_t) {
         .header = {
             .version_id = DAP_CHAIN_DATUM_VERSION,
