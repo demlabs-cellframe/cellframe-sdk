@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -47,11 +47,8 @@
  */
 dap_chain_datum_t *dap_chain_datum_create(uint16_t a_type_id, const void *a_data, size_t a_data_size)
 {
-   dap_chain_datum_t *l_datum = DAP_NEW_Z_SIZE(dap_chain_datum_t, sizeof(l_datum->header) + a_data_size);
-   if(!l_datum) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
-        return NULL;
-   }
+   dap_chain_datum_t *l_datum = NULL;
+   DAP_NEW_Z_SIZE_RET_VAL(l_datum, dap_chain_datum_t, sizeof(l_datum->header) + a_data_size, NULL, NULL);
    *l_datum = (dap_chain_datum_t) {
         .header = {
             .version_id = DAP_CHAIN_DATUM_VERSION,
@@ -1233,7 +1230,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
                 DAP_DEL_Z(l_token);
                 return;
             }
-            json_object_object_add(json_obj_datum,"=== Datum Token Declaration ===",json_object_new_string("empty"));
+            json_object_object_add(json_obj_datum,"=== Datum Token Declaration ===",json_object_new_string(""));
             json_object_object_add(json_obj_datum,"hash",json_object_new_string(l_hash_str));
             json_object_object_add(json_obj_datum,"ticker",json_object_new_string(l_token->ticker));
             json_object_object_add(json_obj_datum,"size",json_object_new_uint64(l_token_size));

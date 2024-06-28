@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2020
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -44,7 +44,6 @@ typedef struct dap_chain_net_srv_stake_item {
     uint256_t sovereign_tax;
     UT_hash_handle hh, ht;
 } dap_chain_net_srv_stake_item_t;
-
 
 typedef struct dap_chain_net_srv_stake_cache_data {
     dap_chain_hash_fast_t tx_hash;

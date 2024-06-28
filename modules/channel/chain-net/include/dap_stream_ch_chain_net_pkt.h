@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -44,6 +44,8 @@
 #define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE_ACK                   0x45
 
 #define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR                          0xff
+
+#define DAP_CHAIN_NET_CH_VALIDATOR_READY_REQUEST_SIZE                   1024
 
 typedef struct stream_ch_chain_net_pkt_hdr {
     uint8_t version;

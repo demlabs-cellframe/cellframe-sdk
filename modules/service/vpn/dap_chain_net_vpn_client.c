@@ -6,9 +6,9 @@
  * Copyright  (c) 2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -197,7 +197,7 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
         dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
                 pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
         dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
-        //DAP_DELETE(pkt_out);
+        DAP_DELETE(pkt_out);
     }
 
     // usage is present, we've accepted packets
@@ -221,7 +221,7 @@ static dap_chain_datum_tx_receipt_t * s_callback_client_sign_request(dap_chain_n
     char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
     char *l_wallet_name = (char*) dap_global_db_get_sync(l_gdb_group, dap_strdup("wallet_name"), NULL,NULL, NULL);
 
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, dap_chain_wallet_get_path(g_config));
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, dap_chain_wallet_get_path(g_config), NULL);
     dap_chain_datum_tx_receipt_t *l_ret = NULL;
     if(l_wallet) {
         dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
@@ -359,7 +359,7 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
 int dap_chain_net_vpn_client_update(dap_chain_net_t *a_net, const char *a_wallet_name, const char *a_str_token,
         uint64_t a_value_datoshi)
 {
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_wallet_name, dap_chain_wallet_get_path(g_config));
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_wallet_name, dap_chain_wallet_get_path(g_config), NULL);
     if(!l_wallet) {
         return -1;
     }

@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2020
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -1452,7 +1452,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Staker order creation requires parameter -w");
             return -17;
         }
-        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
+        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config),NULL);
         if (!l_wallet) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
             return -18;
@@ -1682,7 +1682,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
         return -17;
     }
     const char* l_sign_str = "";
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
     if (!l_wallet) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
         return -18;
@@ -2077,7 +2077,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
 
     if (l_wallet_str) {
         const char* l_sign_str = "";
-        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
+        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config),NULL);
         if (!l_wallet) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
             return -18;
@@ -2216,9 +2216,8 @@ static int s_callback_compare_tx_list(dap_list_t *a_datum1, dap_list_t *a_datum2
 int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_chain_ch_validator_test_t * out_data,
                                              int a_time_connect, int a_time_respone)
 {
-    char *l_key = NULL;
     size_t l_node_info_size = 0;
-    uint8_t l_test_data[1024] = {0};
+    uint8_t l_test_data[DAP_CHAIN_NET_CH_VALIDATOR_READY_REQUEST_SIZE] = {0};
     dap_chain_node_client_t *l_node_client = NULL;
     dap_chain_node_info_t *l_remote_node_info = NULL;
     dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_net->pub.name);
