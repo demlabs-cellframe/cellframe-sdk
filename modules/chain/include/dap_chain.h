@@ -198,7 +198,7 @@ typedef struct dap_chain {
     // Iterator callbacks
     dap_chain_datum_callback_iter_create_t callback_datum_iter_create;
     dap_chain_datum_callback_iter_get_first_t callback_datum_iter_get_first;
-    dap_chain_datum_callback_iter_get_first_t callback_datum_iter_get_next;
+    dap_chain_datum_callback_iter_get_next_t callback_datum_iter_get_next;
     dap_chain_datum_callback_iter_delete_t callback_datum_iter_delete;
 
     dap_list_t *atom_notifiers;

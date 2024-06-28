@@ -1718,7 +1718,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     char buf[DAP_TIME_STR_SIZE];
 
-                    dap_string_append_printf(l_str_tmp,"\nEvent %s:\n", l_event_hash_str);
+                    dap_string_append_printf(l_str_tmp, "\nEvent %s:\n", l_event_hash_str);
 
                     // Round info
                     if ((l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) && l_round_item) {
