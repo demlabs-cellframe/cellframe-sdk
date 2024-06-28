@@ -3152,16 +3152,6 @@ static int mempool_delete_for_chain(dap_chain_t *a_chain, const char * a_datum_h
             return 1;
         }
         if (dap_global_db_del_sync(l_gdb_group_mempool, a_datum_hash_str) == 0) {
-            char *l_msg_str = dap_strdup_printf("Datum %s deleted", a_datum_hash_str);
-            json_object *l_msg = json_object_new_string(l_msg_str);
-            DAP_DELETE(l_msg_str);
-            if (!l_msg) {
-                dap_json_rpc_allocation_error;
-                DAP_DELETE(l_gdb_group_mempool);
-                DAP_DELETE(l_data_tmp);
-                return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-            }
-            json_object_array_add(*a_json_reply, l_msg);
             DAP_DELETE(l_gdb_group_mempool);
             DAP_DELETE(l_data_tmp);
             return 0;
