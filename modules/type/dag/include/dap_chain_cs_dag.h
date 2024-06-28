@@ -74,6 +74,25 @@ typedef struct dap_chain_cs_dag
     void * _inheritor;
 } dap_chain_cs_dag_t;
 
+typedef enum s_com_dag_err{
+    DAP_CHAIN_NODE_CLI_COM_DAG_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_CHAIN_TYPE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_DATUM_DEL_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_EVENT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_SIGN_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_GLOBALDB_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_UNDEF_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_CERT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_FIND_EVENT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_UNDEF_SUB_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_DAG_UNKNOWN /* MAX */
+} s_com_dag_err_t;
+
 #define DAP_CHAIN_CS_DAG(a) ( (dap_chain_cs_dag_t *) (a)->_inheritor)
 
 int dap_chain_cs_dag_init();

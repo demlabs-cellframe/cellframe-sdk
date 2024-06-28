@@ -44,6 +44,7 @@ typedef struct dap_chain_node_client dap_chain_node_client_t;
 typedef struct dap_ledger dap_ledger_t;
 typedef struct dap_chain_net_decree dap_chain_net_decree_t;
 typedef struct decree_table decree_table_t;
+typedef struct anchor_table anchor_table_t;
 typedef enum dap_chain_net_state {
     NET_STATE_OFFLINE = 0,
     NET_STATE_LINKS_PREPARE,
@@ -234,3 +235,4 @@ enum dap_chain_net_json_rpc_error_list{
 dap_chain_net_decree_t *dap_chain_net_get_net_decree(dap_chain_net_t *a_net);
 void dap_chain_net_set_net_decree(dap_chain_net_t *a_net, dap_chain_net_decree_t *a_decree);
 decree_table_t **dap_chain_net_get_decrees(dap_chain_net_t *a_net);
+anchor_table_t **dap_chain_net_get_anchors(dap_chain_net_t *a_net);

@@ -197,7 +197,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
 
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST:{
             if (l_ch_chain_net_pkt->hdr.data_size != DAP_CHAIN_NET_CH_VALIDATOR_READY_REQUEST_SIZE) {
-                log_it(L_WARNING, "Invalid VALIDATOR_READY_REQUEST size %hu, expected %zu", l_ch_chain_net_pkt->hdr.data_size,
+                log_it(L_WARNING, "Invalid VALIDATOR_READY_REQUEST size %hu, expected %u", l_ch_chain_net_pkt->hdr.data_size,
                                                                             DAP_CHAIN_NET_CH_VALIDATOR_READY_REQUEST_SIZE);
                 return false;
             }
