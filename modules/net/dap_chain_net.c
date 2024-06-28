@@ -186,6 +186,7 @@ typedef struct dap_chain_net_pvt{
     struct block_reward *rewards;
     dap_chain_net_decree_t *decree;
     decree_table_t *decrees;
+    anchor_table_t *anchors;
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
@@ -3158,7 +3159,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 log_it(L_WARNING, "Corrupted anchor, datum size %zd is not equal to size of anchor %zd", l_datum_data_size, l_anchor_size);
                 return -102;
             }
-            return dap_chain_net_anchor_load(l_anchor, a_chain);
+            return dap_chain_net_anchor_load(l_anchor, a_chain, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_TOKEN_DECL:
             return dap_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size);
@@ -3205,32 +3206,22 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {
-            /*dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
-            size_t l_decree_size = dap_chain_datum_decree_get_size(l_decree);
-            if (l_decree_size != l_datum_data_size) {
-                log_it(L_WARNING, "Corrupted decree, datum size %zd is not equal to size of decree %zd", l_datum_data_size, l_decree_size);
-                return -102;
-            }*/
-            return 0; //dap_chain_net_decree_load(l_decree, a_chain, a_datum_hash);
+            return 0; 
         }
         case DAP_CHAIN_DATUM_ANCHOR: {
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
-
-            
-
             size_t l_anchor_size = dap_chain_datum_anchor_get_size(l_anchor);
             if (l_anchor_size != l_datum_data_size) {
                 log_it(L_WARNING, "Corrupted anchor, datum size %zd is not equal to size of anchor %zd", l_datum_data_size, l_anchor_size);
                 return -102;
             }
-            return dap_chain_net_anchor_unload(l_anchor, a_chain);
+            return dap_chain_net_anchor_unload(l_anchor, a_chain, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_TOKEN_DECL:
-            return 0;//dap_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size);
+            return 0;
 
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-            return 0;//dap_ledger_token_emission_load(l_ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
-
+            return 0;
         case DAP_CHAIN_DATUM_TX: {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
             size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
@@ -3318,4 +3309,8 @@ void dap_chain_net_set_net_decree(dap_chain_net_t *a_net, dap_chain_net_decree_t
 
 decree_table_t **dap_chain_net_get_decrees(dap_chain_net_t *a_net) {
     return a_net ? &(PVT(a_net)->decrees) : NULL;
+}
+
+anchor_table_t **dap_chain_net_get_anchors(dap_chain_net_t *a_net) {
+    return a_net ? &(PVT(a_net)->anchors) : NULL;
 }
