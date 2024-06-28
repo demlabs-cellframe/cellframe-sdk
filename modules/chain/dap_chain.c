@@ -41,8 +41,10 @@
 #include "dap_cert_file.h"
 #include "dap_chain_ch.h"
 #include "dap_stream_ch_gossip.h"
+#include "dap_notify_srv.h"
 #include <uthash.h>
 #include <pthread.h>
+#include "json.h"
 
 #define LOG_TAG "chain"
 
@@ -581,6 +583,19 @@ int dap_chain_save_all(dap_chain_t *l_chain)
     return l_ret;
 }
 
+//send chain load_progress data to notify socket
+bool download_notify_callback(dap_chain_t* a_chain) {
+    json_object* l_chain_info = json_object_new_object();
+    json_object_object_add(l_chain_info, "class", json_object_new_string("chain_init"));
+    json_object_object_add(l_chain_info, "net", json_object_new_string(a_chain->net_name));
+    json_object_object_add(l_chain_info, "chain_id", json_object_new_uint64(a_chain->id.uint64));
+    json_object_object_add(l_chain_info, "load_progress", json_object_new_int(a_chain->load_progress));
+    dap_notify_server_send_mt(json_object_get_string(l_chain_info));
+    log_it(L_DEBUG, "Load progress: net_name: %s; chain_id: %" DAP_UINT64_FORMAT_U "; download:%d%%", a_chain->net_name, a_chain->id.uint64, a_chain->load_progress);
+    json_object_put(l_chain_info);
+    return true;
+}
+
 /**
  * @brief dap_chain_load_all
  * @param l_chain
@@ -611,6 +626,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
             uint64_t l_cell_id_uint64 = 0;
             sscanf(l_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
             dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(a_chain, (dap_chain_cell_id_t){ .uint64 = l_cell_id_uint64 });
+            dap_timerfd_t* l_download_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)download_notify_callback, a_chain);
             l_ret += dap_chain_cell_load(a_chain, l_cell);
             if ( DAP_CHAIN_PVT(a_chain)->need_reorder ) {
 #ifdef DAP_OS_WINDOWS
@@ -630,6 +646,8 @@ int dap_chain_load_all(dap_chain_t *a_chain)
                 DAP_DELETE(l_filename_backup);
 #endif
             }
+            dap_timerfd_delete_unsafe(l_download_notify_timer);
+            download_notify_callback(a_chain);
         }
     }
     closedir(l_dir);
