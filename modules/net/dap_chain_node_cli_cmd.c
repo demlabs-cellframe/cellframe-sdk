@@ -109,6 +109,18 @@
 
 int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply);
 
+dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_hash) {
+    dap_chain_t *l_chain = NULL;
+    DL_FOREACH(a_net->pub.chains, l_chain) {
+        char *l_gdb_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+        bool is_hash = dap_global_db_driver_is(l_gdb_mempool, a_datum_hash);
+        DAP_DELETE(l_gdb_mempool);
+        if (is_hash)
+            return l_chain;
+    }
+    return NULL;
+}
+
 /**
  * @brief node_info_read_and_reply
  * Read node from base
@@ -3185,14 +3197,11 @@ int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char
     json_object *l_jobj_chain = NULL;
     json_object *l_jobj_datum_hash = json_object_new_string(a_datum_hash);
     if (!a_chain) {
-        dap_chain_t * l_chain;
-        DL_FOREACH(a_net->pub.chains, l_chain){
+        dap_chain_t * l_chain = s_get_chain_with_datum(a_net, a_datum_hash);
+        if (l_chain) {
             res = mempool_delete_for_chain(l_chain, a_datum_hash, a_json_reply);
-            if (res == 0) {
-                l_jobj_chain = json_object_new_string(l_chain->name);
-                break;
-            }
-        }
+        } else
+            res = 1;
     } else {
         res = mempool_delete_for_chain(a_chain, a_datum_hash, a_json_reply);
         l_jobj_chain = json_object_new_string(a_chain->name);
@@ -3383,19 +3392,6 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         json_object_array_add(*a_json_reply, l_jobj_datum);
         return COM_MEMPOOL_CHECK_ERR_DATUM_NOT_FIND;
     }
-}
-
-
-dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_hash) {
-    dap_chain_t *l_chain = NULL;
-    DL_FOREACH(a_net->pub.chains, l_chain) {
-        char *l_gdb_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-        bool is_hash = dap_global_db_driver_is(l_gdb_mempool, a_datum_hash);
-        DAP_DELETE(l_gdb_mempool);
-        if (is_hash)
-            return l_chain;
-    }
-    return NULL;
 }
 
 typedef enum cmd_mempool_proc_list_error{
