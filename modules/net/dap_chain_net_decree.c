@@ -245,7 +245,6 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
 
     decree_table_t **l_decrees = dap_chain_net_get_decrees(l_net), *l_new_decree;
     HASH_FIND(hh, *l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_new_decree);
-
     if (!l_new_decree) {
         l_new_decree = DAP_NEW_Z(decree_table_t);
         if (!l_new_decree) {
