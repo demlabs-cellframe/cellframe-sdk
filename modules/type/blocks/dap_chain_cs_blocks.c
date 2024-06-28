@@ -527,8 +527,7 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object* json_
 static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
 {
     json_object **json_arr_reply = (json_object **)a_str_reply;
-    //char ** a_str_reply = (char **) reply;
-    const char *l_hash_out_type = NULL;
+    //char ** a_str_reply = (char **) reply;    
     enum {
         SUBCMD_UNDEFINED =0,
         SUBCMD_NEW_FLUSH,
