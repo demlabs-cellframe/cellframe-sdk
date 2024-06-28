@@ -3190,8 +3190,11 @@ int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char
         dap_chain_t * l_chain = s_get_chain_with_datum(a_net, a_datum_hash);
         if (l_chain) {
             res = mempool_delete_for_chain(l_chain, a_datum_hash, a_json_reply);
-        } else
+            l_jobj_chain = json_object_new_string(l_chain->name);
+        } else {
             res = 1;
+            l_jobj_chain = json_object_new_string("empty chain parameter");
+        }
     } else {
         res = mempool_delete_for_chain(a_chain, a_datum_hash, a_json_reply);
         l_jobj_chain = json_object_new_string(a_chain->name);
@@ -3206,7 +3209,7 @@ int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char
     if (!res) {
         l_jobj_status = json_object_new_string("deleted");
     } else if (res == 1) {
-        l_jobj_status = json_object_new_string("datum not find");
+        l_jobj_status = json_object_new_string("datum not found");
     } else {
         l_jobj_status = json_object_new_string("datum was found but could not be deleted");
     }
