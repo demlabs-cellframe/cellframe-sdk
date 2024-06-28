@@ -42,14 +42,6 @@ linux-arm32v7-tests:
       - mkdir build
       - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
 
-linux-arm32v7-tests-clang:
-    extends: .tests
-    image: demlabs/arm32v7/debian-bullseye:linuxbuilder
-    before_script: /opt/buildtools/prepare_environment.sh arm32v7-linux
-    script:
-      - mkdir build
-      - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
-
 linux-arm64v8-tests:
     extends: .tests
     image: demlabs/arm64v8/debian-bullseye:linuxbuilder
