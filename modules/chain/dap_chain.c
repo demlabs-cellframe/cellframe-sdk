@@ -590,7 +590,7 @@ bool download_notify_callback(dap_chain_t* a_chain) {
     json_object_object_add(l_chain_info, "chain_id", json_object_new_uint64(a_chain->id.uint64));
     json_object_object_add(l_chain_info, "load_progress", json_object_new_int(a_chain->load_progress));
     dap_notify_server_send_mt(json_object_get_string(l_chain_info));
-    log_it(L_DEBUG, "Load progress: net_name: %s; chain_id: %d; download:%d%c", a_chain->net_name, a_chain->id.uint64, a_chain->load_progress, '%');
+    log_it(L_DEBUG, "Load progress: net_name: %s; chain_id: %" DAP_UINT64_FORMAT_U "; download:%d%%", a_chain->net_name, a_chain->id.uint64, a_chain->load_progress);
     json_object_put(l_chain_info);
     return true;
 }
