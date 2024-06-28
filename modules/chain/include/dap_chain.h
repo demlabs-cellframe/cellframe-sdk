@@ -140,7 +140,7 @@ typedef struct dap_chain {
     char *net_name;
     bool is_datum_pool_proc;
     bool is_mapped;
-    atomic_int download_percentage; 
+    atomic_int load_progress; 
     // Nested cells (hashtab by cell_id)
     dap_chain_cell_t *cells;
     dap_chain_cell_id_t active_cell_id;
