@@ -1392,10 +1392,12 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
             }
             log_it(L_NOTICE,"Round complete command accepted, forming new events");
 
-            size_t l_objs_size=0;
+            size_t l_objs_size = 0;
             dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_dag->gdb_group_events_round_new,&l_objs_size);
-            dap_string_t *l_str_ret_tmp= l_objs_size>0 ? json_object_object_add(json_obj_round,"round status", json_object_new_string("Completing round")):
-                                                         json_object_object_add(json_obj_round,"round status", json_object_new_string("Completing round: no data"));
+            if (l_objs_size)
+                json_object_object_add(json_obj_round,"round status", json_object_new_string("Completing round"));
+            else
+                json_object_object_add(json_obj_round,"round status", json_object_new_string("Completing round: no data"));
             // list for verifed and added events
             dap_list_t *l_list_to_del = NULL;
 
@@ -1448,7 +1450,6 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
             // Cleaning up
             dap_global_db_objs_delete(l_objs, l_objs_size);
             json_object_array_add(*json_arr_reply, json_obj_round);
-            dap_string_free(l_str_ret_tmp, true);
 
             // Spread new  mempool changes and  dag events in network - going to SYNC_ALL
             // dap_chain_net_sync_all(l_net);
@@ -1829,9 +1830,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 json_object_object_add(json_obj_event_count,"chain", json_object_new_string(l_chain->name));
                 const char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
                 if (l_gdb_group_events) {
-                    size_t l_objs_count = 0;
-                    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
-                    json_object_object_add(json_obj_event_count,"event count in round new", json_object_new_string(l_objs_count));
+                    size_t l_objs_count = dap_global_db_driver_count(l_gdb_group_events, c_dap_global_db_driver_hash_blank, false);
+                    json_object_object_add(json_obj_event_count, "event count in round new", json_object_new_int(l_objs_count));
                 }
                 size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
                 size_t l_event_treshold_count = HASH_COUNT(PVT(l_dag)->events_treshold);
