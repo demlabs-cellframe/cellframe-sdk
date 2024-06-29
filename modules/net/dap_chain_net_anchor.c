@@ -346,7 +346,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:{
                 // Find previous anchor with this stake approve and apply it 
                 dap_chain_net_decree_reset_applied(l_net, &l_hash);
-                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor, a_chain);
+                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
                 s_delete_anchor(l_net, a_anchor_hash);
                 if (l_new_anchor){// if previous anchor is founded apply it
                     dap_chain_hash_fast_t l_hash = {0};
@@ -363,7 +363,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
             break;
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:{
                 dap_chain_net_decree_reset_applied(l_net, &l_hash);
-                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor, a_chain);
+                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
                 s_delete_anchor(l_net, a_anchor_hash);
                 if (l_new_anchor){// if previous anchor is founded apply it
                     dap_chain_hash_fast_t l_hash = {0};
@@ -383,7 +383,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
             break;
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:{
                 dap_chain_net_decree_reset_applied(l_net, &l_hash);
-                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor, a_chain);
+                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
                 s_delete_anchor(l_net, a_anchor_hash);
                 if (l_new_anchor){// if previous anchor is founded apply it
                     dap_chain_hash_fast_t l_hash = {0};
