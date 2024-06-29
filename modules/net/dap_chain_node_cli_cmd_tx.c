@@ -98,7 +98,6 @@ bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                           const char *a_hash_out_type,
                                           dap_chain_hash_fast_t *a_tx_hash)
 {
-    dap_time_t l_ts_create = (dap_time_t)a_datum->header.ts_created;
     char l_tx_hash_str[70]={0};
     char l_tmp_buf[DAP_TIME_STR_SIZE];
     const char *l_ticker = a_ledger
@@ -107,7 +106,7 @@ bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
     if (!l_ticker)
         return false;
     const char *l_description = dap_ledger_get_description_by_ticker(a_ledger, l_ticker);
-    dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_create);
+    dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_datum->header.ts_created);
     dap_chain_hash_fast_to_str(a_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
     json_object_object_add(json_obj_out, "Datum_tx_hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_out, "TS_Created", json_object_new_string(l_tmp_buf));
@@ -212,10 +211,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     }
 
     char l_time_str[DAP_TIME_STR_SIZE];
-    if (l_tx->header.ts_created) {
-        dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, l_tx->header.ts_created);/* Convert ts to  "Sat May 17 01:17:08 2014\n" */
-        l_time_str[strlen(l_time_str)-1] = '\0';                    /* Remove "\n"*/
-    }
+    dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, l_tx->header.ts_created); /* Convert ts to  "Sat May 17 01:17:08 2014" */
     json_object *l_obj_ts_created = json_object_new_string(l_time_str);
     json_object_object_add(json_obj_datum, "tx_created", l_obj_ts_created);
     
@@ -265,10 +261,8 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     bool l_declined = false;
     // transaction time
     char l_time_str[DAP_TIME_STR_SIZE] = "unknown";                                /* Prefill string */
-    if (a_tx->header.ts_created) {
-        dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, a_tx->header.ts_created); /* Convert ts to  "Sat May 17 01:17:08 2014\n" */
-        l_time_str[strlen(l_time_str)-1] = '\0';                    /* Remove "\n"*/
-    }
+    if (a_tx->header.ts_created)
+        dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, a_tx->header.ts_created); /* Convert ts to  "Sat May 17 01:17:08 2014" */
     dap_chain_tx_hash_processed_ht_t *l_tx_data = NULL;
     HASH_FIND(hh, *a_tx_data_ht, a_tx_hash, sizeof(*a_tx_hash), l_tx_data);
     if (l_tx_data)  // this tx already present in ledger (double)
@@ -817,48 +811,38 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
  * @param a_token_num
  * @return char*
  */
-static json_object* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *a_token_name, const char *a_hash_out_type, size_t *a_token_num) {
-    if (!a_chain->callback_atom_get_datums) {
-        log_it(L_WARNING, "Not defined callback_atom_get_datums for chain \"%s\"", a_chain->name);
+static json_object* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *a_token_name, const char *a_hash_out_type, size_t *a_token_num)
+{
+    if (!a_chain->callback_datum_iter_create) {
+        log_it(L_WARNING, "Not defined datum iterators for chain \"%s\"", a_chain->name);
         return NULL;
     }    
-    *a_token_num  = 0;
-    size_t l_atom_size = 0;
-    dap_chain_cell_t *l_cell = a_chain->cells;
+    size_t l_token_num  = 0;
     json_object* json_arr_history_token_out = json_object_new_array();    
-    do {
-        dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, NULL);
-        if(!a_chain->callback_atom_get_datums) {
-            log_it(L_DEBUG, "Not defined callback_atom_get_datums for chain \"%s\"", a_chain->name);
-            json_object_put(json_arr_history_token_out);
-            return NULL ;
+    dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
+    for (dap_chain_datum_t *l_datum = a_chain->callback_datum_iter_get_first(l_datum_iter);
+            l_datum; l_datum = a_chain->callback_datum_iter_get_next(l_datum_iter)) {
+        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_DECL)
+            continue;
+        if (a_token_name) {
+            size_t l_token_size = l_datum->header.data_size;
+            dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(l_datum->data, &l_token_size);
+            int l_cmp = dap_strcmp(l_token->ticker, a_token_name);
+            DAP_DELETE(l_token);
+            if (l_cmp)
+                continue;
         }
-        for (dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
-                l_atom && l_atom_size; l_atom = a_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size)) {
-            size_t l_datums_count = 0;
-            dap_chain_datum_t **l_datums = a_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
-            for(size_t l_datum_n = 0; l_datum_n < l_datums_count; l_datum_n++) {
-                dap_chain_datum_t *l_datum = l_datums[l_datum_n];
-                if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_DECL)
-                    continue;
-                if (a_token_name) {
-                    size_t l_token_size = l_datum->header.data_size;
-                    dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(l_datum->data, &l_token_size);
-                    int l_cmp = dap_strcmp(l_token->ticker, a_token_name);
-                    DAP_DELETE(l_token);
-                    if (l_cmp)
-                        continue;
-                }
-                json_object* json_history_token = json_object_new_object();
-                dap_chain_datum_dump_json(json_history_token, l_datum, a_hash_out_type, a_chain->net_id);
-                json_object_array_add(json_arr_history_token_out, json_history_token);
-                (*a_token_num)++;
-            }
-            DAP_DELETE(l_datums);
-        }
-        a_chain->callback_atom_iter_delete(l_atom_iter);
-        l_cell = l_cell->hh.next;
-    } while (l_cell);    
+        int l_ret_code = l_datum_iter->ret_code;
+        json_object* json_history_token = json_object_new_object();
+        json_object_object_add(json_history_token, "status", json_object_new_string(l_ret_code ? "DECLINED" : "ACCEPTED"));
+        json_object_object_add(json_history_token, "Ledger return code", json_object_new_int(l_ret_code));
+        dap_chain_datum_dump_json(json_history_token, l_datum, a_hash_out_type, a_chain->net_id);
+        json_object_array_add(json_arr_history_token_out, json_history_token);
+        l_token_num++;
+    }
+    a_chain->callback_datum_iter_delete(l_datum_iter);
+    if (a_token_num)
+        *a_token_num = l_token_num;
     return json_arr_history_token_out;
 }
 
