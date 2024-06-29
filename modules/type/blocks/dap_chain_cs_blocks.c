@@ -199,6 +199,12 @@ int dap_chain_cs_blocks_init()
             "block -net <net_name> -chain <chain_name> count\n"
                 "\t\t Show count block\n\n"
 
+            "block -net <net_name> -chain <chain_name> last\n\n"
+                "\t\tShow last block in chain\n\n"
+
+            "block -net <net_name> -chain <chain_name> find -datum <datum_hash>\n\n"
+                "\t\tSearches and shows blocks that contains specify datum\n\n"
+
         "Commission collect:\n"
             "block -net <net_name> -chain <chain_name> fee collect"
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
@@ -227,6 +233,7 @@ int dap_chain_cs_blocks_init()
             " -cert <priv_cert_name> -addr <addr>\n"
                 "\t\t Update reward and fees block table."
                     " Automatic collection of commission in case of triggering of the setting\n\n"
+        
                                         );
     if( dap_chain_block_cache_init() ) {
         log_it(L_WARNING, "Can't init blocks cache");
@@ -1024,7 +1031,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             json_object* json_obj_out = json_object_new_object();
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
             if (!l_datum_hash_str) {
-                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block find' requires parameter '-datum'");
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'event find' requires parameter '-datum'");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
             dap_hash_fast_t l_datum_hash = {};
