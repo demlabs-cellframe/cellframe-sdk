@@ -6900,14 +6900,18 @@ int com_tx_create(int a_argc, char **a_argv, void **reply)
     }
 
     dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_from_wallet_name, c_wallets_path, NULL);
+    json_object *l_jobj_result = json_object_new_object();
 
     if(!l_wallet) {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WALLET_DOES_NOT_EXIST,
                                "wallet %s does not exist", l_from_wallet_name);
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WALLET_DOES_NOT_EXIST;
     } else {
-        json_object *l_jobj_check_wallet = json_object_new_string(dap_chain_wallet_check_sign(l_wallet));
-        json_object_array_add(*reply, l_jobj_check_wallet);
+        const char *l_wallet_check_str = dap_chain_wallet_check_sign(l_wallet);
+        if (dap_strcmp(l_wallet_check_str, "") != 0) {
+            json_object *l_obj_wgn_str = json_object_new_string(l_wallet_check_str);
+            json_object_object_add(l_jobj_result, "warning", l_obj_wgn_str);
+        }
     }
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
@@ -6916,6 +6920,7 @@ int com_tx_create(int a_argc, char **a_argv, void **reply)
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_priv_key);
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID, "source address is invalid");
+        json_object_put(l_jobj_result);
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID;
     }
 
@@ -6924,6 +6929,7 @@ int com_tx_create(int a_argc, char **a_argv, void **reply)
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_priv_key);
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS, "The transaction cannot be directed to the same address as the source.");
+        json_object_put(l_jobj_result);
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS;
     }
 
@@ -6946,13 +6952,13 @@ int com_tx_create(int a_argc, char **a_argv, void **reply)
                                    " Please, change network name or wallet address",
                                    l_addr_to->net_id.uint64, l_allowed_list->str);
             dap_string_free(l_allowed_list, true);
+            json_object_put(l_jobj_result);
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_NETWORK_IS_UNREACHEBLE;
         }
     }
 
     json_object *l_jobj_transfer_status = NULL;
     json_object *l_jobj_tx_hash = NULL;
-    json_object *l_jobj_result = json_object_new_object();
 
     l_priv_key = dap_chain_wallet_get_key(l_wallet, 0);
     if(l_tx_num){
