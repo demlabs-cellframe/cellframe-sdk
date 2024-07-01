@@ -172,58 +172,58 @@ int dap_chain_cs_blocks_init()
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains",
         "New block create, fill and complete commands:\n"
-            "block -net <net_name> -chain <chain_name> new\n"
+            "block -net <net_name> [-chain <chain_name>] new\n"
                 "\t\tCreate new block and flush memory if was smth formed before\n\n"
 
-            "block -net <net_name> -chain <chain_name> new_datum_add <datum_hash>\n"
+            "block -net <net_name> [-chain <chain_name>] new_datum_add <datum_hash>\n"
                 "\t\tAdd block section from datum <datum hash> taken from the mempool\n\n"
 
-            "block -net <net_name> -chain <chain_name> new_datum_del <datum_hash>\n"
+            "block -net <net_name> [-chain <chain_name>] new_datum_del <datum_hash>\n"
                 "\t\tDel block section with datum <datum hash>\n\n"
 
-            "block -net <net_name> -chain <chain_name> new_datum_list\n"
+            "block -net <net_name> [-chain <chain_name>] new_datum_list\n"
                 "\t\tList block sections and show their datums hashes\n\n"
 
-            "block -net <net_name> -chain <chain_name> new_datum\n\n"
+            "block -net <net_name> [-chain <chain_name>] new_datum\n\n"
                 "\t\tComplete the current new round, verify it and if everything is ok - publish new blocks in chain\n\n"
 
         "Blockchain explorer:\n"
-            "block -net <net_name> -chain <chain_name> dump <block_hash>\n"
+            "block -net <net_name> [-chain <chain_name>] dump <block_hash>\n"
                 "\t\tDump block info\n\n"
 
-            "block -net <net_name> -chain <chain_name> list [{signed | first_signed}] [-limit] [-offset]"
+            "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset]"
             " [-from_hash <block_hash>] [-to_hash <block_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]"
             " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>} [-unspent]]\n"
                 "\t\t List blocks\n\n"
 
-            "block -net <net_name> -chain <chain_name> count\n"
+            "block -net <net_name> [-chain <chain_name>] count\n"
                 "\t\t Show count block\n\n"
 
         "Commission collect:\n"
-            "block -net <net_name> -chain <chain_name> fee collect"
+            "block -net <net_name> [-chain <chain_name>] fee collect"
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
                 "\t\t Take delegated part of commission\n\n"
 
         "Reward for block signs:\n"
-            "block -net <net_name> -chain <chain_name> reward set"
+            "block -net <net_name> [-chain <chain_name>] reward set"
             " -cert <poa_cert_name> -value <value>\n"
                 "\t\t Set base reward for sign for one block at one minute\n\n"
 
-            "block -net <net_name> -chain <chain_name> reward show"
+            "block -net <net_name> [-chain <chain_name>] reward show"
             " -cert <poa_cert_name> -value <value>\n"
                 "\t\t Show base reward for sign for one block at one minute\n\n"
 
-            "block -net <net_name> -chain <chain_name> reward collect"
+            "block -net <net_name> [-chain <chain_name>] reward collect"
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
                 "\t\t Take delegated part of reward\n\n"
 
         "Rewards and fees autocollect status:\n"
-            "block -net <net_name> -chain <chain_name> autocollect status\n"
+            "block -net <net_name> [-chain <chain_name>] autocollect status\n"
                 "\t\t Show rewards and fees automatic collecting status (enabled or not)."
                     " Show prepared blocks for collecting rewards and fees if status is enabled\n\n"
 
         "Rewards and fees autocollect renew:\n"
-            "block -net <net_name> -chain <chain_name> autocollect renew\n"
+            "block -net <net_name> [-chain <chain_name>] autocollect renew\n"
             " -cert <priv_cert_name> -addr <addr>\n"
                 "\t\t Update reward and fees block table."
                     " Automatic collection of commission in case of triggering of the setting\n\n"
