@@ -1850,19 +1850,20 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
             } break;
             case SUBCMD_EVENT_LAST:{
                 json_object * json_obj_out = json_object_new_object();
-                char l_tmp_buff[70]={0};
-                dap_string_t *l_ret_str = dap_string_new(NULL);
+                char l_tmp_buff[70] = {0};
                 pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-                dap_chain_cs_dag_event_item_t *l_last_event = HASH_LAST(PVT(l_dag)->events);
+                dap_chain_cs_dag_event_item_t *l_last_item = HASH_LAST(PVT(l_dag)->events);
                 pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
                 char l_buf[DAP_TIME_STR_SIZE];
-                dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_event->event->header.ts_created);
-
-                json_object_object_add(json_obj_out, "Last atom hash in events",json_object_new_string(dap_hash_fast_to_str_static(&l_last_event->hash)));
-                json_object_object_add(json_obj_out, "ts_create",json_object_new_string(l_buf));
+                if (l_last_item)
+                    dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_item->event->header.ts_created);
+                 json_object_object_add(json_obj_out, "Last event num", json_object_new_uint64(l_last_item ? l_last_item->event_number : 0));
+                json_object_object_add(json_obj_out, "Last event hash", json_object_new_string(l_last_item ?
+                                                                                dap_hash_fast_to_str_static(&l_last_item->hash) : "empty"));
+                json_object_object_add(json_obj_out, "ts_create", l_last_item ? json_object_new_string(l_buf) : "never");
 
                 size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
-                sprintf(l_tmp_buff,"%s.%s has events - ",l_net->pub.name,l_chain->name);
+                sprintf(l_tmp_buff,"%s.%s has events", l_net->pub.name, l_chain->name);
                 json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(l_event_count));
                 json_object_array_add(*json_arr_reply, json_obj_out);
             } break;
