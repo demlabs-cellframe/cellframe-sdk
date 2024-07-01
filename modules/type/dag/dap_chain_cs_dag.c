@@ -164,6 +164,10 @@ int dap_chain_cs_dag_init()
                                         "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n"
         "dag round find -net <net_name> [-chain <chain_name>] -datum <datum_hash> \n"
             "\tSearches for rounds that have events that contain the specified datum.\n\n"
+        "dag event last -net <net_name> -chain <chain_name> \n"
+            "\tShow last event in chain\n\n"
+        "dag event find -net <net_name> -chain <chain_name> -datum <datum_hash>\n"
+            "\tSearches for events that contain the specified datum.\n\n"
                                         );
     log_it(L_NOTICE,"Initialized DAG chain items organization class");
     return 0;
@@ -1331,6 +1335,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
         SUBCMD_EVENT_DUMP,
         SUBCMD_EVENT_SIGN,
         SUBCMD_EVENT_COUNT,
+        SUBCMD_EVENT_LAST,
+        SUBCMD_EVENT_FIND,
         SUBCMD_UNDEFINED
     } l_event_subcmd={0};
 
@@ -1519,6 +1525,10 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
             l_event_subcmd = SUBCMD_EVENT_SIGN;
         } else if (strcmp(l_event_cmd_str, "count") == 0) {
             l_event_subcmd = SUBCMD_EVENT_COUNT;
+        } else if (strcmp(l_event_cmd_str, "last") == 0) {
+            l_event_subcmd = SUBCMD_EVENT_LAST;
+        } else if (strcmp(l_event_cmd_str, "find") == 0) {
+            l_event_subcmd = SUBCMD_EVENT_FIND;
         } else {
             l_event_subcmd = SUBCMD_UNDEFINED;
         }
@@ -1838,7 +1848,52 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 json_object_object_add(json_obj_event_count,"atom in threshold", json_object_new_uint64(l_event_treshold_count));
                 json_object_array_add(*json_arr_reply, json_obj_event_count);
             } break;
+            case SUBCMD_EVENT_LAST:{
+                json_object * json_obj_out = json_object_new_object();
+                char l_tmp_buff[70]={0};
+                dap_string_t *l_ret_str = dap_string_new(NULL);
+                pthread_mutex_lock(&PVT(l_dag)->events_mutex);
+                dap_chain_cs_dag_event_item_t *l_last_event = HASH_LAST(PVT(l_dag)->events);
+                pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
+                char l_buf[DAP_TIME_STR_SIZE];
+                dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_event->event->header.ts_created);
 
+                json_object_object_add(json_obj_out, "Last atom hash in events",json_object_new_string(dap_hash_fast_to_str_static(&l_last_event->hash)));
+                json_object_object_add(json_obj_out, "ts_create",json_object_new_string(l_buf));
+
+                size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
+                sprintf(l_tmp_buff,"%s.%s has events - ",l_net->pub.name,l_chain->name);
+                json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(l_event_count));
+                json_object_array_add(*json_arr_reply, json_obj_out);
+            } break;
+            case SUBCMD_EVENT_FIND:{
+                const char* l_datum_hash_str = NULL;
+                json_object* json_obj_out = json_object_new_object();
+                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
+                if (!l_datum_hash_str) {
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR, "Command 'event find' requires parameter '-datum'");
+                    ret = DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
+                }
+                dap_hash_fast_t l_datum_hash = {};
+                int ret_code = 0;
+                int l_atoms_cnt = 0;
+                dap_chain_hash_fast_from_str(l_datum_hash_str, &l_datum_hash);
+                pthread_mutex_lock(&PVT(l_dag)->events_mutex);
+                // dap_chain_cs_dag_event_item_t *l_curr_event = PVT(l_dag)->events;
+                dap_chain_cs_dag_event_item_t *l_curr_event = NULL, *l_temp;
+                json_object* json_arr_bl_cache_out = json_object_new_array();
+                // for (;l_curr_event;l_curr_event = l_curr_event->hh.next)
+                HASH_ITER(hh, PVT(l_dag)->events, l_curr_event, l_temp){
+                    if (l_curr_event && dap_hash_fast_compare(&l_datum_hash, &l_curr_event->datum_hash)){
+                        json_object_array_add(json_arr_bl_cache_out, json_object_new_string(dap_hash_fast_to_str_static(&l_curr_event->hash)));
+                        l_atoms_cnt++;
+                    }
+                }
+                pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
+                json_object_object_add(json_obj_out, "Events", json_arr_bl_cache_out);
+                json_object_object_add(json_obj_out, "Total",json_object_new_int(l_atoms_cnt));
+                json_object_array_add(*json_arr_reply, json_obj_out);
+            } break;
             case SUBCMD_EVENT_SIGN: { // Sign event command
                 json_object * json_obj_event_count = json_object_new_object();
                 json_object * json_arr_obj_event = json_object_new_array();
