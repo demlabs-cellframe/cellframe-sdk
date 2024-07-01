@@ -93,15 +93,17 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
  * @param a_sign_position
  * @return
  */
-dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size, uint16_t a_sign_position)
+dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t *a_receipt, size_t a_receipt_size, uint16_t a_sign_position)
 {
-    if (!l_receipt ||  l_receipt_size != l_receipt->size ||
-            l_receipt->size == sizeof(dap_chain_datum_tx_receipt_t) + l_receipt->exts_size)
-        return NULL;
-    dap_sign_t *l_sign = (dap_sign_t *)l_receipt->exts_n_signs + l_receipt->exts_size;
+    dap_return_val_if_fail(a_receipt && a_receipt_size == a_receipt->size &&
+                           a_receipt_size >= sizeof(dap_chain_datum_tx_receipt_t) + a_receipt->exts_size,
+                           NULL);
+    if (a_receipt_size < sizeof(dap_chain_datum_tx_receipt_t) + a_receipt->exts_size + sizeof(dap_sign_t))
+        return NULL;    // No signs at all
+    dap_sign_t *l_sign = (dap_sign_t *)(a_receipt->exts_n_signs + a_receipt->exts_size);
     uint16_t l_sign_position;
     for (l_sign_position = a_sign_position;
-             l_sign_position && l_receipt_size > (size_t)((byte_t *)l_sign - (byte_t *)l_receipt);
+             l_sign_position && a_receipt_size > (size_t)((byte_t *)l_sign - (byte_t *)a_receipt) + sizeof(dap_sign_t);
              l_sign_position--) {
         l_sign = (dap_sign_t *)((byte_t *)l_sign + dap_sign_get_size(l_sign));
     }
@@ -109,35 +111,31 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
     if (l_sign_position > 0)
         return NULL;
     // too big sign size
-    if ((size_t)(l_sign->header.sign_size + ((byte_t *)l_sign - l_receipt->exts_n_signs)) >= l_receipt->size)
+    if (dap_sign_get_size(l_sign) + ((byte_t *)l_sign - a_receipt->exts_n_signs) + sizeof(dap_chain_datum_tx_receipt_t) > a_receipt_size)
         return NULL;
     return l_sign;
 }
 
-uint32_t dap_chain_datum_tx_receipt_type_get(dap_chain_datum_tx_receipt_t * l_receipt)
+uint32_t dap_chain_datum_tx_receipt_type_get(dap_chain_datum_tx_receipt_t *a_receipt)
 {
-    if (!l_receipt)
-        return -1;
-    return l_receipt->receipt_info.units_type.enm;
+    dap_return_val_if_fail(a_receipt, -1);
+    return a_receipt->receipt_info.units_type.enm;
 }
-uint64_t    dap_chain_datum_tx_receipt_srv_uid_get(dap_chain_datum_tx_receipt_t * l_receipt)
+
+uint64_t dap_chain_datum_tx_receipt_srv_uid_get(dap_chain_datum_tx_receipt_t *a_receipt)
 {
-    if (!l_receipt)
-        return -1;
-    return l_receipt->receipt_info.srv_uid.uint64;
+    dap_return_val_if_fail(a_receipt, -1)
+    return a_receipt->receipt_info.srv_uid.uint64;
 }
-uint64_t    dap_chain_datum_tx_receipt_units_get(dap_chain_datum_tx_receipt_t * l_receipt)
+uint64_t dap_chain_datum_tx_receipt_units_get(dap_chain_datum_tx_receipt_t *a_receipt)
 {
-    if (!l_receipt)
-        return -1;
-    return l_receipt->receipt_info.units;
+    dap_return_val_if_fail(a_receipt, -1);
+    return a_receipt->receipt_info.units;
 }
-uint256_t   dap_chain_datum_tx_receipt_value_get(dap_chain_datum_tx_receipt_t * l_receipt)
+uint256_t   dap_chain_datum_tx_receipt_value_get(dap_chain_datum_tx_receipt_t *a_receipt)
 {
-    uint256_t res = {};
-    if (!l_receipt)
-        return res;
-    return l_receipt->receipt_info.value_datoshi;
+    dap_return_val_if_fail(a_receipt, uint256_0);
+    return a_receipt->receipt_info.value_datoshi;
 }
 
 /**
