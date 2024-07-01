@@ -150,19 +150,19 @@ int dap_chain_cs_dag_init()
     s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
     s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
     debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
-    dap_cli_server_cmd_add ("dag", s_cli_dag, "DAG commands",        
-        "dag event sign -net <net_name> -chain <chain_name> -event <event_hash>\n"
+    dap_cli_server_cmd_add ("dag", s_cli_dag, "DAG commands",
+        "dag event sign -net <net_name> [-chain <chain_name>] -event <event_hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
-        "dag event dump -net <net_name> -chain <chain_name> -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round id in hex>} [-H {hex | base58(default)}]\n"
+        "dag event dump -net <net_name> [-chain <chain_name>] -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round id in hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
-        "dag event list -net <net_name> -chain <chain_name> -from {events | events_lasts | threshold | round.new | round.<Round id in hex>} [-limit] [-offset]\n\n"
+        "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round id in hex>} [-limit] [-offset]\n\n"
             "\tShow event list \n\n"
-        "dag event count -net <net_name> -chain <chain_name>\n"
+        "dag event count -net <net_name> [-chain <chain_name>]\n"
             "\tShow count event \n\n"
-        "dag round complete -net <net_name> -chain <chain_name> \n"
+        "dag round complete -net <net_name> [-chain <chain_name>] \n"
                                         "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n"
-        "dag round find -net <net_name> -chain <chain_name> -datum <datum_hash> \n"
+        "dag round find -net <net_name> [-chain <chain_name>] -datum <datum_hash> \n"
             "\tSearches for rounds that have events that contain the specified datum.\n\n"
                                         );
     log_it(L_NOTICE,"Initialized DAG chain items organization class");
@@ -1368,14 +1368,14 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
 
     if ((l_net == NULL) || (l_chain == NULL)){
         return -1;
-    } 
+    }
     l_dag = DAP_CHAIN_CS_DAG(l_chain);
 
     const char *l_chain_type = dap_chain_get_cs_type(l_chain);
 
     if (!strstr(l_chain_type, "dag_")){
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_CHAIN_TYPE_ERR,"Type of chain %s is not dag. This chain with type %s is not supported by this command",
-                        l_chain->name, l_chain_type);            
+                        l_chain->name, l_chain_type);
             return -DAP_CHAIN_NODE_CLI_COM_DAG_CHAIN_TYPE_ERR;
     }
 
@@ -1411,7 +1411,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 size_t l_event_size = l_round_item->event_size;
                 dap_hash_fast(l_event, l_event_size, &l_event_hash);
                 int l_ret_event_verify;
-                if ( ( l_ret_event_verify = l_dag->callback_cs_verify (l_dag,l_event,l_event_size) ) !=0 ){// if consensus accept the event                                        
+                if ( ( l_ret_event_verify = l_dag->callback_cs_verify (l_dag,l_event,l_event_size) ) !=0 ){// if consensus accept the event
                     dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_EVENT_ERR,"Error! Event %s is not passing consensus verification, ret code %d\n",
                                               l_objs[i].key, l_ret_event_verify );
                     ret = -DAP_CHAIN_NODE_CLI_COM_DAG_EVENT_ERR;
@@ -1423,7 +1423,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     if ( ! l_verify_only ){
                         if (s_chain_callback_atom_add(l_chain, l_event, l_event_size, &l_event_hash)!= ATOM_ACCEPT) { // Add new atom in chain
                             snprintf(l_buf, 150, "Event %s not added in chain\n", l_objs[i].key);
-                            json_object_object_add(json_obj_round,"status add", json_object_new_string(l_buf));                            
+                            json_object_object_add(json_obj_round,"status add", json_object_new_string(l_buf));
                         } else {
                             // add event to delete
                             l_list_to_del = dap_list_prepend(l_list_to_del, (void *)l_objs[i].key);
@@ -1497,13 +1497,13 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
             }
             dap_global_db_objs_delete(l_objs, l_objs_size);
             DAP_DELETE(l_datum_in_hash);
-            if (!l_search_events) {                  
+            if (!l_search_events) {
                 snprintf(l_buf, 150, "Datum hash %s not found in round event.\n", l_datum_hash_str);
                 json_object_object_add(json_obj_round,"find result", json_object_new_string(l_buf));
-            }            
+            }
             return 0;
         }
-    }else if ( l_event_cmd_str  ) {        
+    }else if ( l_event_cmd_str  ) {
         char *l_datum_hash_hex_str = NULL;
         char *l_datum_hash_base58_str = NULL;
         if ( strcmp( l_event_cmd_str, "list" ) == 0 ) {
@@ -1539,7 +1539,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
         if (l_event_hash_hex_str)
             dap_chain_hash_fast_from_str(l_event_hash_hex_str, &l_event_hash);
 
-        switch (l_event_subcmd) {        
+        switch (l_event_subcmd) {
 
         case SUBCMD_EVENT_DUMP: {
             json_object * json_obj_event = json_object_new_object();
@@ -1565,7 +1565,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         l_event = l_event_item->event;
                     else {
                         ret = -DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
-                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,"Can't find event %s in events_last table\n", l_event_hash_str);                        
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,"Can't find event %s in events_last table\n", l_event_hash_str);
                         break;
                     }
                 } else if (!l_from_events_str || strcmp(l_from_events_str,"events") == 0) {
@@ -1578,7 +1578,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         l_event_size = l_event_item->event_size;
                     } else {
                         ret = -DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
-                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,"Can't find event %s in events table\n", l_event_hash_str);                        
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,"Can't find event %s in events table\n", l_event_hash_str);
                         break;
                     }
                 } else if (l_from_events_str && strcmp(l_from_events_str,"threshold") == 0) {
@@ -1590,13 +1590,13 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         l_event = l_event_item->event;
                     else {
                         ret = -DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
-                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,"Can't find event %s in threshold table\n", l_event_hash_str);                        
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,"Can't find event %s in threshold table\n", l_event_hash_str);
                         break;
                     }
                 } else {
                     ret = -DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
                     dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR,
-                            "Wrong events_from option \"%s\", need one of variant: events, round.new, events_lasts, threshold", l_from_events_str);                    
+                            "Wrong events_from option \"%s\", need one of variant: events, round.new, events_lasts, threshold", l_from_events_str);
                     break;
 
                 }
@@ -1611,7 +1611,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         json_object_object_add(json_obj_event,"ts_update", json_object_new_string(buf));
                         dap_nanotime_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_round_item->round_info.ts_update);
                         json_object_object_add(json_obj_event,"datum_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_round_item->round_info.datum_hash)));
-                        json_object_object_add(json_obj_event,"ts_update", json_object_new_string(buf));                        
+                        json_object_object_add(json_obj_event,"ts_update", json_object_new_string(buf));
                     }
 
                     // Header
@@ -1648,7 +1648,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
                     json_object_object_add(json_obj_event,"ts_create", json_object_new_string(buf));
                     json_object_object_add(json_obj_event,"data_size", json_object_new_uint64(l_datum->header.data_size));
-                    
+
                     // Signatures
                     json_object_object_add(json_obj_event,"signs count", json_object_new_uint64(l_event->header.signs_count));
                     l_offset += l_datum_size;
@@ -1667,7 +1667,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
 
                         json_object_object_add(json_obj_event,"type", json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
                         json_object_object_add(json_obj_event,"pkey_hash", json_object_new_string(l_hash_str));
-                        
+
                         l_offset += l_sign_size;
                     }
                     dap_chain_datum_dump_json(json_obj_event, l_datum, l_hash_out_type, l_net->pub.id);
@@ -1687,24 +1687,24 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 json_object * json_arr_obj_event = json_object_new_array();
                 const char *l_limit_str = NULL, *l_offset_str = NULL;
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-limit", &l_limit_str);
-                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-offset", &l_offset_str);                
+                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-offset", &l_offset_str);
                 char *ptr;
                 size_t l_limit = l_limit_str ? strtoull(l_limit_str, &ptr, 10) : 1000;
                 size_t l_offset = l_offset_str ? strtoull(l_offset_str, &ptr, 10) : 0;
                 if (l_offset)
-                    json_object_object_add(json_obj_event_list,"offset", json_object_new_uint64(l_offset));                
+                    json_object_object_add(json_obj_event_list,"offset", json_object_new_uint64(l_offset));
                 if (l_limit)
                     json_object_object_add(json_obj_event_list,"limit", json_object_new_uint64(l_limit));
-                    
+
                 if (l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) {
                     char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
                     if ( l_gdb_group_events ){
                         dap_global_db_obj_t * l_objs;
                         size_t l_objs_count = 0;
-                        l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);                        
+                        l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
                         size_t l_arr_start = 0;
                         if (l_offset) {
-                            l_arr_start = l_offset;                           
+                            l_arr_start = l_offset;
                         }
                         size_t l_arr_end = l_objs_count;
                         if (l_limit) {
@@ -1714,13 +1714,13 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         }
                         json_object_object_add(json_obj_event_list,"net name", json_object_new_string(l_net->pub.name));
                         json_object_object_add(json_obj_event_list,"chain", json_object_new_string(l_chain->name));
-                        json_object_object_add(json_obj_event_list,"obj count", json_object_new_uint64(l_objs_count));                        
+                        json_object_object_add(json_obj_event_list,"obj count", json_object_new_uint64(l_objs_count));
 
                         for (size_t i = l_arr_start; i < l_arr_end; i++) {
                             json_object * json_obj_event_i = json_object_new_object();
                             if (!strcmp(DAG_ROUND_CURRENT_KEY, l_objs[i].key)) {
-                                json_object_object_add(json_obj_event_i, l_objs[i].key, json_object_new_uint64(*(uint64_t *)l_objs[i].value)); 
-                                json_object_array_add(json_arr_obj_event, json_obj_event_i);                               
+                                json_object_object_add(json_obj_event_i, l_objs[i].key, json_object_new_uint64(*(uint64_t *)l_objs[i].value));
+                                json_object_array_add(json_arr_obj_event, json_obj_event_i);
                                 continue;
                             }
                             dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
@@ -1741,12 +1741,12 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         ret = -2;
 
                     }
-                    json_object_array_add(*json_arr_reply, json_obj_event_list);   
+                    json_object_array_add(*json_arr_reply, json_obj_event_list);
                 } else if (!l_from_events_str || (strcmp(l_from_events_str,"events") == 0)) {
-                    pthread_mutex_lock(&PVT(l_dag)->events_mutex);                    
+                    pthread_mutex_lock(&PVT(l_dag)->events_mutex);
                     size_t l_arr_start = 0;
                     if (l_offset > 0) {
-                        l_arr_start = l_offset;                        
+                        l_arr_start = l_offset;
                     }
                     size_t l_arr_end = HASH_COUNT(PVT(l_dag)->events);
                     if (l_limit) {
@@ -1766,8 +1766,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                             dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
                             json_object_object_add(json_obj_event_i, "#", json_object_new_string(dap_itoa(i_tmp)));
                             json_object_object_add(json_obj_event_i, "hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_event_item->hash)));
-                            json_object_object_add(json_obj_event_i, "ts_create", json_object_new_string(buf)); 
-                            json_object_array_add(json_arr_obj_event, json_obj_event_i);                           
+                            json_object_object_add(json_obj_event_i, "ts_create", json_object_new_string(buf));
+                            json_object_array_add(json_arr_obj_event, json_obj_event_i);
                         }
                     }
                     json_object_object_add(json_obj_event_list, "EVENTS", json_arr_obj_event);
@@ -1778,7 +1778,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     json_object_object_add(json_obj_event_list,"chain", json_object_new_string(l_chain->name));
                     json_object_object_add(json_obj_event_list,"total events", json_object_new_uint64(l_events_count));
 
-                    json_object_array_add(*json_arr_reply, json_obj_event_list);                                       
+                    json_object_array_add(*json_arr_reply, json_obj_event_list);
                 }else if (l_from_events_str && (strcmp(l_from_events_str,"threshold") == 0) ){
                     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
@@ -1804,8 +1804,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
                         json_object_object_add(json_obj_event_i, "#", json_object_new_string(dap_itoa(i_tmp)));
                         json_object_object_add(json_obj_event_i, "hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_event_item->hash)));
-                        json_object_object_add(json_obj_event_i, "ts_create", json_object_new_string(buf)); 
-                        json_object_array_add(json_arr_obj_event, json_obj_event_i);                       
+                        json_object_object_add(json_obj_event_i, "ts_create", json_object_new_string(buf));
+                        json_object_array_add(json_arr_obj_event, json_obj_event_i);
                     }
                     json_object_object_add(json_obj_event_list, "TRESHOLD", json_arr_obj_event);
                     size_t l_events_count = HASH_COUNT(PVT(l_dag)->events_treshold);
