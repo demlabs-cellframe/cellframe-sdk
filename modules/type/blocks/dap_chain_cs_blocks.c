@@ -199,6 +199,12 @@ int dap_chain_cs_blocks_init()
             "block -net <net_name> [-chain <chain_name>] count\n"
                 "\t\t Show count block\n\n"
 
+            "block -net <net_name> -chain <chain_name> last\n\n"
+                "\t\tShow last block in chain\n\n"
+
+            "block -net <net_name> -chain <chain_name> find -datum <datum_hash>\n\n"
+                "\t\tSearches and shows blocks that contains specify datum\n\n"
+
         "Commission collect:\n"
             "block -net <net_name> [-chain <chain_name>] fee collect"
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
@@ -227,6 +233,7 @@ int dap_chain_cs_blocks_init()
             " -cert <priv_cert_name> -addr <addr>\n"
                 "\t\t Update reward and fees block table."
                     " Automatic collection of commission in case of triggering of the setting\n\n"
+        
                                         );
     if( dap_chain_block_cache_init() ) {
         log_it(L_WARNING, "Can't init blocks cache");
@@ -557,6 +564,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         SUBCMD_REWARD,
         SUBCMD_AUTOCOLLECT,
         SUBCMD_COUNT,
+        SUBCMD_LAST,
+        SUBCMD_FIND
     } l_subcmd={0};
 
     const char* l_subcmd_strs[]={
@@ -572,6 +581,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         [SUBCMD_REWARD] = "reward",
         [SUBCMD_AUTOCOLLECT] = "autocollect",
         [SUBCMD_COUNT] = "count",
+        [SUBCMD_LAST] = "last",
+        [SUBCMD_FIND] = "find",
         [SUBCMD_UNDEFINED]=NULL
     };
     const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs);
@@ -1001,7 +1012,49 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(i_tmp));
             json_object_array_add(*json_arr_reply,json_obj_out);
         } break;
+        case SUBCMD_LAST: {
+            char l_tmp_buff[70]={0};
+            json_object* json_obj_out = json_object_new_object();
+            dap_chain_block_cache_t *l_last_block = HASH_LAST(PVT(l_blocks)->blocks);
+            char l_buf[DAP_TIME_STR_SIZE];
+            dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_block->ts_created);
+            json_object_object_add(json_obj_out, "Last block num",json_object_new_uint64(l_last_block->block_number));
+            json_object_object_add(json_obj_out, "Last block hash",json_object_new_string(l_last_block->block_hash_str));
+            json_object_object_add(json_obj_out, "ts_create",json_object_new_string(l_buf));
 
+            sprintf(l_tmp_buff,"%s.%s has blocks - ",l_net->pub.name,l_chain->name);
+            json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(PVT(l_blocks)->blocks_count));
+            json_object_array_add(*json_arr_reply, json_obj_out);
+        } break;
+        case SUBCMD_FIND: {
+            const char* l_datum_hash_str = NULL;
+            json_object* json_obj_out = json_object_new_object();
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
+            if (!l_datum_hash_str) {
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'event find' requires parameter '-datum'");
+                return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
+            }
+            dap_hash_fast_t l_datum_hash = {};
+            int ret_code = 0;
+            int l_atoms_cnt = 0;
+            dap_chain_hash_fast_from_str(l_datum_hash_str, &l_datum_hash);
+            pthread_rwlock_rdlock(&PVT(l_blocks)->datums_rwlock);
+            dap_chain_block_cache_t *l_curr_block = PVT(l_blocks)->blocks;
+            json_object* json_arr_bl_cache_out = json_object_new_array();
+            for (;l_curr_block;l_curr_block = l_curr_block->hh.next){
+                for (size_t i = 0; i < l_curr_block->datum_count; i++){
+                    if (dap_hash_fast_compare(&l_datum_hash, &l_curr_block->datum_hash[i])){
+                        json_object_array_add(json_arr_bl_cache_out, json_object_new_string(dap_hash_fast_to_str_static(&l_curr_block->block_hash)));
+                        l_atoms_cnt++;
+                        continue;
+                    }
+                }
+            }
+            pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
+            json_object_object_add(json_obj_out, "Blocks", json_arr_bl_cache_out);
+            json_object_object_add(json_obj_out, "Total",json_object_new_int(l_atoms_cnt));
+            json_object_array_add(*json_arr_reply, json_obj_out);
+        } break;
         case SUBCMD_COUNT: {
             char l_tmp_buff[70]={0};
             json_object* json_obj_out = json_object_new_object();
