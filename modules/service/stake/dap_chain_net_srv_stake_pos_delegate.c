@@ -2301,7 +2301,8 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
             if (l_sign_correct)
                 l_sign_correct = !dap_sign_verify_all(l_sign, validators_data->header.sign_size, l_test_data, sizeof(l_test_data));
         }
-        l_overall_correct = l_sign_correct && validators_data->header.flags == 0xCF;
+        l_overall_correct = l_sign_correct && (validators_data->header.flags & A_PROC) && (validators_data->header.flags & F_ORDR) &&
+                                              (validators_data->header.flags & D_SIGN) && (validators_data->header.flags & F_CERT);
         *out_data = *validators_data;
         out_data->header.sign_correct = l_sign_correct ? 1 : 0;
         out_data->header.overall_correct = l_overall_correct ? 1 : 0;
@@ -2408,7 +2409,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             int res = dap_chain_net_srv_stake_check_validator(l_net, &l_tx, &l_out, 10000, 15000);
             switch (res) {
             case -4:
-                dap_cli_server_cmd_set_reply_text(a_str_reply,"Requested conditional transaction has no requires conditional output");
+                dap_cli_server_cmd_set_reply_text(a_str_reply,"Requested conditional transaction has no required conditional output");
                 return -30;
                 break;
             case -5:
