@@ -179,6 +179,7 @@ void dap_chain_delete(dap_chain_t * a_chain)
     if (a_chain->callback_delete)
         a_chain->callback_delete(a_chain);
     DAP_DEL_Z(a_chain->_inheritor);
+    dap_config_close(a_chain->config);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
 }
@@ -525,7 +526,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 				} else
 					l_chain->autoproc_datum_types_count = 0;
 			}
-            if (l_chain && l_chain->config)
+            if (l_chain)
                 l_chain->config = l_cfg;
             return l_chain;
         } else

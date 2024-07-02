@@ -172,61 +172,68 @@ int dap_chain_cs_blocks_init()
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains",
         "New block create, fill and complete commands:\n"
-            "block -net <net_name> -chain <chain_name> new\n"
+            "block -net <net_name> [-chain <chain_name>] new\n"
                 "\t\tCreate new block and flush memory if was smth formed before\n\n"
 
-            "block -net <net_name> -chain <chain_name> new_datum_add <datum_hash>\n"
+            "block -net <net_name> [-chain <chain_name>] new_datum_add <datum_hash>\n"
                 "\t\tAdd block section from datum <datum hash> taken from the mempool\n\n"
 
-            "block -net <net_name> -chain <chain_name> new_datum_del <datum_hash>\n"
+            "block -net <net_name> [-chain <chain_name>] new_datum_del <datum_hash>\n"
                 "\t\tDel block section with datum <datum hash>\n\n"
 
-            "block -net <net_name> -chain <chain_name> new_datum_list\n"
+            "block -net <net_name> [-chain <chain_name>] new_datum_list\n"
                 "\t\tList block sections and show their datums hashes\n\n"
 
-            "block -net <net_name> -chain <chain_name> new_datum\n\n"
+            "block -net <net_name> [-chain <chain_name>] new_datum\n\n"
                 "\t\tComplete the current new round, verify it and if everything is ok - publish new blocks in chain\n\n"
 
         "Blockchain explorer:\n"
-            "block -net <net_name> -chain <chain_name> dump <block_hash>\n"
+            "block -net <net_name> [-chain <chain_name>] dump <block_hash>\n"
                 "\t\tDump block info\n\n"
 
-            "block -net <net_name> -chain <chain_name> list [{signed | first_signed}] [-limit] [-offset]"
+            "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset]"
             " [-from_hash <block_hash>] [-to_hash <block_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]"
             " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>} [-unspent]]\n"
                 "\t\t List blocks\n\n"
 
-            "block -net <net_name> -chain <chain_name> count\n"
+            "block -net <net_name> [-chain <chain_name>] count\n"
                 "\t\t Show count block\n\n"
 
+            "block -net <net_name> -chain <chain_name> last\n\n"
+                "\t\tShow last block in chain\n\n"
+
+            "block -net <net_name> -chain <chain_name> find -datum <datum_hash>\n\n"
+                "\t\tSearches and shows blocks that contains specify datum\n\n"
+
         "Commission collect:\n"
-            "block -net <net_name> -chain <chain_name> fee collect"
+            "block -net <net_name> [-chain <chain_name>] fee collect"
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
                 "\t\t Take delegated part of commission\n\n"
 
         "Reward for block signs:\n"
-            "block -net <net_name> -chain <chain_name> reward set"
+            "block -net <net_name> [-chain <chain_name>] reward set"
             " -cert <poa_cert_name> -value <value>\n"
                 "\t\t Set base reward for sign for one block at one minute\n\n"
 
-            "block -net <net_name> -chain <chain_name> reward show"
+            "block -net <net_name> [-chain <chain_name>] reward show"
             " -cert <poa_cert_name> -value <value>\n"
                 "\t\t Show base reward for sign for one block at one minute\n\n"
 
-            "block -net <net_name> -chain <chain_name> reward collect"
+            "block -net <net_name> [-chain <chain_name>] reward collect"
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
                 "\t\t Take delegated part of reward\n\n"
 
         "Rewards and fees autocollect status:\n"
-            "block -net <net_name> -chain <chain_name> autocollect status\n"
+            "block -net <net_name> [-chain <chain_name>] autocollect status\n"
                 "\t\t Show rewards and fees automatic collecting status (enabled or not)."
                     " Show prepared blocks for collecting rewards and fees if status is enabled\n\n"
 
         "Rewards and fees autocollect renew:\n"
-            "block -net <net_name> -chain <chain_name> autocollect renew\n"
+            "block -net <net_name> [-chain <chain_name>] autocollect renew\n"
             " -cert <priv_cert_name> -addr <addr>\n"
                 "\t\t Update reward and fees block table."
                     " Automatic collection of commission in case of triggering of the setting\n\n"
+        
                                         );
     if( dap_chain_block_cache_init() ) {
         log_it(L_WARNING, "Can't init blocks cache");
@@ -557,6 +564,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         SUBCMD_REWARD,
         SUBCMD_AUTOCOLLECT,
         SUBCMD_COUNT,
+        SUBCMD_LAST,
+        SUBCMD_FIND
     } l_subcmd={0};
 
     const char* l_subcmd_strs[]={
@@ -572,6 +581,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         [SUBCMD_REWARD] = "reward",
         [SUBCMD_AUTOCOLLECT] = "autocollect",
         [SUBCMD_COUNT] = "count",
+        [SUBCMD_LAST] = "last",
+        [SUBCMD_FIND] = "find",
         [SUBCMD_UNDEFINED]=NULL
     };
     const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs);
@@ -1001,7 +1012,50 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(i_tmp));
             json_object_array_add(*json_arr_reply,json_obj_out);
         } break;
+        case SUBCMD_LAST: {
+            char l_tmp_buff[70]={0};
+            json_object* json_obj_out = json_object_new_object();
+            dap_chain_block_cache_t *l_last_block = HASH_LAST(PVT(l_blocks)->blocks);
+            char l_buf[DAP_TIME_STR_SIZE];
+            if (l_last_block)
+                dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_block->ts_created);
+            json_object_object_add(json_obj_out, "Last block num", json_object_new_uint64(l_last_block ? l_last_block->block_number : 0));
+            json_object_object_add(json_obj_out, "Last block hash", json_object_new_string(l_last_block ? l_last_block->block_hash_str : "empty"));
+            json_object_object_add(json_obj_out, "ts_created", json_object_new_string(l_last_block ? l_buf : "never"));
 
+            sprintf(l_tmp_buff,"%s.%s has blocks", l_net->pub.name, l_chain->name);
+            json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(PVT(l_blocks)->blocks_count));
+            json_object_array_add(*json_arr_reply, json_obj_out);
+        } break;
+        case SUBCMD_FIND: {
+            const char* l_datum_hash_str = NULL;
+            json_object* json_obj_out = json_object_new_object();
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
+            if (!l_datum_hash_str) {
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'event find' requires parameter '-datum'");
+                return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
+            }
+            dap_hash_fast_t l_datum_hash = {};
+            int ret_code = 0;
+            int l_atoms_cnt = 0;
+            dap_chain_hash_fast_from_str(l_datum_hash_str, &l_datum_hash);
+            pthread_rwlock_rdlock(&PVT(l_blocks)->datums_rwlock);
+            dap_chain_block_cache_t *l_curr_block = PVT(l_blocks)->blocks;
+            json_object* json_arr_bl_cache_out = json_object_new_array();
+            for (;l_curr_block;l_curr_block = l_curr_block->hh.next){
+                for (size_t i = 0; i < l_curr_block->datum_count; i++){
+                    if (dap_hash_fast_compare(&l_datum_hash, &l_curr_block->datum_hash[i])){
+                        json_object_array_add(json_arr_bl_cache_out, json_object_new_string(dap_hash_fast_to_str_static(&l_curr_block->block_hash)));
+                        l_atoms_cnt++;
+                        continue;
+                    }
+                }
+            }
+            pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
+            json_object_object_add(json_obj_out, "Blocks", json_arr_bl_cache_out);
+            json_object_object_add(json_obj_out, "Total",json_object_new_int(l_atoms_cnt));
+            json_object_array_add(*json_arr_reply, json_obj_out);
+        } break;
         case SUBCMD_COUNT: {
             char l_tmp_buff[70]={0};
             json_object* json_obj_out = json_object_new_object();
@@ -1139,7 +1193,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 l_hash_tx = dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
             if (l_hash_tx) {
                 json_object* json_obj_out = json_object_new_object();
-                sprintf(l_tmp_buff, "TX for %s collection created succefully, hash = %s\n", l_subcmd_str, l_hash_tx);
+                sprintf(l_tmp_buff, "TX for %s collection created successfully, hash = %s\n", l_subcmd_str, l_hash_tx);
                 json_object_object_add(json_obj_out, "status", json_object_new_string(l_tmp_buff));
                 json_object_array_add(*json_arr_reply, json_obj_out);
                 DAP_DELETE(l_hash_tx);

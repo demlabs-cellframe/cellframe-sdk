@@ -494,11 +494,11 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
 int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_host, uint16_t a_port, size_t a_data_size_to_send, size_t a_data_size_to_recv, int a_timeout_test_ms)
 {
     dap_return_val_if_fail(a_net && a_host && (*a_host) && a_port, -1);
-    // default 10k
+    // default 1k
     if(a_data_size_to_send== (size_t) -1)
-        a_data_size_to_send = 10240;
+        a_data_size_to_send = 1024;
     if(a_data_size_to_recv== (size_t) -1)
-        a_data_size_to_recv = 10240;
+        a_data_size_to_recv = 1024;
     // default 10 sec = 10000 ms
     if(a_timeout_test_ms==-1)
         a_timeout_test_ms = 10000;
