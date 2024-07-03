@@ -206,13 +206,13 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
     int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net,
                                                                CHAIN_TYPE_INVALID);
     if ( l_net ) {
-        //char * l_orders_group = dap_chain_net_srv_order_get_gdb_group( l_net );
-
         dap_string_t *l_string_ret = dap_string_new("");
+
         const char *l_order_str = NULL;
-        int l_order_arg_pos = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "order", &l_order_str);
+        dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "order", &l_order_str);
+
         const char *l_get_limits_str = NULL;
-        int l_get_limits_arg_pos = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "get_limits", &l_get_limits_str);
+        dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "get_limits", &l_get_limits_str);
 
         // Order direction
         const char *l_direction_str = NULL;

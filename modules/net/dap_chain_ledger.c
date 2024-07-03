@@ -3417,8 +3417,8 @@ const char *dap_ledger_get_description_by_ticker(dap_ledger_t *a_ledger, const c
  *
  * return transaction, or NULL if transaction not found in the cache
  */
-static dap_chain_datum_tx_t* s_find_datum_tx_by_hash(dap_ledger_t *a_ledger,
-        dap_chain_hash_fast_t *a_tx_hash, dap_ledger_tx_item_t **a_item_out, bool a_unspent_only)
+static dap_chain_datum_tx_t* s_find_datum_tx_by_hash(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash,
+                                                     dap_ledger_tx_item_t **a_item_out, bool a_unspent_only)
 {
     if(!a_tx_hash)
         return NULL;
@@ -3447,12 +3447,12 @@ static dap_chain_datum_tx_t* s_find_datum_tx_by_hash(dap_ledger_t *a_ledger,
  * @return
  */
 
-dap_chain_datum_tx_t *dap_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash)
+dap_chain_datum_tx_t *dap_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash)
 {
     return s_find_datum_tx_by_hash(a_ledger, a_tx_hash, NULL, false);
 }
 
-dap_chain_datum_tx_t *dap_ledger_tx_unspent_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash)
+dap_chain_datum_tx_t *dap_ledger_tx_unspent_find_by_hash(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash)
 {
     return s_find_datum_tx_by_hash(a_ledger, a_tx_hash, NULL, true);
 }

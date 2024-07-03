@@ -207,7 +207,7 @@ void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
     const char * a_obj_key_str = a_obj->key ? a_obj->key : "unknow";
 
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read((byte_t *)a_obj->value, a_obj->value_len);    // Old format comliance
+    const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(a_obj->key, a_obj->value, a_obj->value_len);    // Old format comliance
     if (!l_order) {
         log_it(L_NOTICE, "Order %s is corrupted", a_obj_key_str);
         if (dap_global_db_driver_delete(a_obj, 1) != 0)

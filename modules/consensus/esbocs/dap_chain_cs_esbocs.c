@@ -549,13 +549,13 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     size_t l_orders_count = 0;
     dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
     DAP_DELETE(l_gdb_group_str);
-    dap_chain_net_srv_order_t *l_order_service = NULL;
+    const dap_chain_net_srv_order_t *l_order_service = NULL;
     for (size_t i = 0; i < l_orders_count; i++) {
-        if (l_orders[i].value_len < sizeof(dap_chain_net_srv_order_t)) {
-            log_it(L_ERROR, "Too small order %s with size %zu", l_orders[i].key, l_orders[i].value_len);
+        const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_orders[i].key, l_orders[i].value, l_orders[i].value_len);
+        if (!l_order) {
+            log_it(L_WARNING, "Unreadable order %s", l_orders[i].key);
             continue;
         }
-        dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
         if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
             continue;
         dap_sign_t *l_order_sign = (dap_sign_t*)(l_order->ext_n_sign + l_order->ext_size);
