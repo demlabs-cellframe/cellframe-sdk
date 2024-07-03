@@ -250,14 +250,16 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             //strncpy(send->header.data,(uint8_t*)l_ch_chain_net_pkt->data,10);
             flags = (l_net->pub.mempool_autoproc) ? flags | A_PROC : flags & ~A_PROC;
 
-            if (dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,l_uid,
-                                                l_price_unit,NULL,l_price_min,l_price_max,&l_orders,&l_orders_num)==0){
-                for (dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next){
-                    dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) l_temp->data;
-                    if(l_order->node_addr.uint64 == g_node_addr.uint64)
-                    {
-                        flags = flags | F_ORDR;
-                        break;
+            if (dap_chain_net_srv_order_find_all_by(l_net, SERV_DIR_UNDEFINED, l_uid, l_price_unit, NULL,
+                                                    l_price_min, l_price_max, &l_orders, &l_orders_num) == 0) {
+                for (dap_list_t *l_temp = l_orders; l_temp; l_temp = l_temp->next) {
+                    dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_temp->data;
+                    if (l_order->node_addr.uint64 == g_node_addr.uint64) {
+                        dap_sign_t *l_order_sign = (dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size);
+                        if (dap_sign_compare_pkeys(l_sign, l_order_sign)) {
+                            flags = flags | F_ORDR;
+                            break;
+                        }
                     }
                 }
                 dap_list_free_full(l_orders, NULL);
