@@ -163,7 +163,7 @@ bool dap_chain_net_srv_order_get_continent_region(const dap_chain_net_srv_order_
         if(l_size > 0) {
             *a_region = DAP_NEW_SIZE(char, l_size);
             if (!a_region) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return false;
             }
             memcpy(*a_region, a_order_static->ext_n_sign + 1 + sizeof(uint8_t), l_size);
@@ -298,7 +298,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
     if (a_ext_size) {
         l_order = (dap_chain_net_srv_order_t *)DAP_NEW_Z_SIZE(void, sizeof(dap_chain_net_srv_order_t) + a_ext_size);
         if (!l_order) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return NULL;
         }
         memcpy(l_order->ext_n_sign, a_ext, a_ext_size);
@@ -307,7 +307,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
     else {
         l_order = DAP_NEW_Z(dap_chain_net_srv_order_t);
         if (!l_order) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return NULL;
         }
         dap_chain_net_srv_order_set_continent_region(&l_order, a_continent_num, a_region);
@@ -461,7 +461,7 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t *a_net, const dap_chain_
             size_t l_order_mem_size = dap_chain_net_srv_order_get_size(l_order);
             dap_chain_net_srv_order_t *l_output_order = DAP_DUP_SIZE(l_order, l_order_mem_size);
             if (!l_output_order) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_global_db_objs_delete(l_orders, l_orders_count);
                 return -1;
             }

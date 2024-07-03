@@ -36,7 +36,7 @@ dap_chain_tx_t * dap_chain_tx_wrap_packed(dap_chain_datum_tx_t * a_tx_packed)
 {
     dap_chain_tx_t * l_tx = DAP_NEW_Z(dap_chain_tx_t);
     if (!l_tx) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     dap_hash_fast(a_tx_packed, dap_chain_datum_tx_get_size(a_tx_packed), &l_tx->hash);

@@ -222,7 +222,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     if (!l_esbocs_pvt) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         l_ret = - 5;
         goto lb_err;
     }
@@ -281,7 +281,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         }
         dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
         if (!l_validator) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             l_ret = - 5;
             goto lb_err;
         }
@@ -740,7 +740,7 @@ int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, u
             return -2;
         dap_chain_addr_t *l_addr_new = DAP_DUP(&l_signing_addr);
         if (!l_addr_new) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return -4;
         }
         l_esbocs_pvt->emergency_validator_addrs = dap_list_append(
@@ -1776,7 +1776,7 @@ void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_e
 
     void *l_message_copy = DAP_DUP_SIZE(a_message, a_message_size);
     if (!l_message_copy) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     }
     dap_chain_esbocs_sync_item_t *l_sync_item;
@@ -2130,7 +2130,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                                         NODE_ADDR_FP_ARGS_S(a_ch->stream->node), NODE_ADDR_FP_ARGS_S(l_session->my_addr));
     struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args, sizeof(struct esbocs_msg_args) + l_message_size);
     if (!l_args) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return false;
     }
     l_args->addr_from = a_ch->stream->node;
@@ -2407,7 +2407,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         // store for new candidate
         l_store = DAP_NEW_Z(dap_chain_esbocs_store_t);
         if (!l_store) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             goto session_unlock;
         }
         l_store->candidate_size = l_candidate_size;
@@ -2671,7 +2671,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             l_message->hdr.sign_size = l_sign_size;
             l_message = DAP_REALLOC(l_message, l_message_size + l_sign_size);
             if (!l_message) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return;
             }
             memcpy(l_message->msg_n_sign + a_data_size, l_sign, l_sign_size);
@@ -2685,7 +2685,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args,
                                                           sizeof(struct esbocs_msg_args) + l_message_size + l_sign_size);
             if (!l_args) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 DAP_DELETE(l_message);
                 return;
             }
