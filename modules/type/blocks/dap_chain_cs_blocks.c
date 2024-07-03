@@ -1017,12 +1017,13 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             json_object* json_obj_out = json_object_new_object();
             dap_chain_block_cache_t *l_last_block = HASH_LAST(PVT(l_blocks)->blocks);
             char l_buf[DAP_TIME_STR_SIZE];
-            dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_block->ts_created);
-            json_object_object_add(json_obj_out, "Last block num",json_object_new_uint64(l_last_block->block_number));
-            json_object_object_add(json_obj_out, "Last block hash",json_object_new_string(l_last_block->block_hash_str));
-            json_object_object_add(json_obj_out, "ts_create",json_object_new_string(l_buf));
+            if (l_last_block)
+                dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_block->ts_created);
+            json_object_object_add(json_obj_out, "Last block num", json_object_new_uint64(l_last_block ? l_last_block->block_number : 0));
+            json_object_object_add(json_obj_out, "Last block hash", json_object_new_string(l_last_block ? l_last_block->block_hash_str : "empty"));
+            json_object_object_add(json_obj_out, "ts_created", json_object_new_string(l_last_block ? l_buf : "never"));
 
-            sprintf(l_tmp_buff,"%s.%s has blocks - ",l_net->pub.name,l_chain->name);
+            sprintf(l_tmp_buff,"%s.%s has blocks", l_net->pub.name, l_chain->name);
             json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(PVT(l_blocks)->blocks_count));
             json_object_array_add(*json_arr_reply, json_obj_out);
         } break;

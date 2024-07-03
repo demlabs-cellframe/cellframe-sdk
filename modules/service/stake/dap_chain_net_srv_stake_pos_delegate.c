@@ -1326,6 +1326,10 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert %s", l_cert_str);
             return -8;
         }
+        if (!l_cert->enc_key || !l_cert->enc_key->priv_key_data || !l_cert->enc_key->priv_key_data_size) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Certificate \"%s\" has no private key", l_cert_str);
+            return -20;
+        }
         // Create the order & put it in GDB
         char *l_order_hash_str = s_fee_order_create(l_net, &l_value, l_cert->enc_key, a_hash_out_type);
         if (l_order_hash_str) {
@@ -1382,6 +1386,10 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
         if (!l_cert) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert %s", l_cert_str);
             return -8;
+        }
+        if (!l_cert->enc_key || !l_cert->enc_key->priv_key_data || !l_cert->enc_key->priv_key_data_size) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Certificate \"%s\" has no private key", l_cert_str);
+            return -20;
         }
         dap_chain_addr_t l_signing_addr;
         dap_chain_addr_fill_from_key(&l_signing_addr, l_cert->enc_key, l_net->pub.id);
@@ -1497,6 +1505,10 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             DAP_DEL_Z(l_default_cert_str);
             DAP_DELETE(l_tx_hash_str);
             return -8;
+        }
+        if (!l_cert->enc_key || !l_cert->enc_key->priv_key_data || !l_cert->enc_key->priv_key_data_size) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Certificate \"%s\" has no private key", l_cert_str);
+            return -20;
         }
         DAP_DEL_Z(l_default_cert_str);
         char *l_order_hash_str = s_staker_order_create(l_net, l_value, &l_tx_hash, l_cert->enc_key, a_hash_out_type);
@@ -2289,7 +2301,8 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
             if (l_sign_correct)
                 l_sign_correct = !dap_sign_verify_all(l_sign, validators_data->header.sign_size, l_test_data, sizeof(l_test_data));
         }
-        l_overall_correct = l_sign_correct && validators_data->header.flags == 0xCF;
+        l_overall_correct = l_sign_correct && (validators_data->header.flags & A_PROC) && (validators_data->header.flags & F_ORDR) &&
+                                              (validators_data->header.flags & D_SIGN) && (validators_data->header.flags & F_CERT);
         *out_data = *validators_data;
         out_data->header.sign_correct = l_sign_correct ? 1 : 0;
         out_data->header.overall_correct = l_overall_correct ? 1 : 0;
@@ -2396,7 +2409,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             int res = dap_chain_net_srv_stake_check_validator(l_net, &l_tx, &l_out, 10000, 15000);
             switch (res) {
             case -4:
-                dap_cli_server_cmd_set_reply_text(a_str_reply,"Requested conditional transaction has no requires conditional output");
+                dap_cli_server_cmd_set_reply_text(a_str_reply,"Requested conditional transaction has no required conditional output");
                 return -30;
                 break;
             case -5:
