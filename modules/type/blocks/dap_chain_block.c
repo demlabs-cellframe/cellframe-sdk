@@ -163,11 +163,13 @@ size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_bloc
     }
     if (a_datum_size + l_block->hdr.meta_n_datum_n_signs_size < UINT32_MAX && l_block->hdr.datum_count < UINT16_MAX) {
         // If were signs - they would be deleted after because signed should be all the block filled
+#ifndef DAP_TPS_TEST
         *a_block_ptr = l_block = DAP_REALLOC(l_block, sizeof(l_block->hdr) + l_offset + a_datum_size);
         if (!l_block) {
             log_it(L_CRITICAL, "Memory reallocation error");
             return 0;
         }
+#endif
         memcpy(l_block->meta_n_datum_n_sign + l_offset, a_datum, a_datum_size);
         l_offset += a_datum_size;
         l_block->hdr.datum_count++;

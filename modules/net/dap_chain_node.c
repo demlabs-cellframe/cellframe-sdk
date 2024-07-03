@@ -294,6 +294,33 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     size_t l_objs_size = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_size);
     if (l_objs_size) {
+#ifdef DAP_TPS_TEST
+        log_it(L_INFO, "Get %zu datums from mempool", l_objs_size);
+        FILE *l_file = fopen("/tmp/tps_start.txt", "r");
+        if (!l_file) {
+            l_file = fopen("/tmp/tps_start.txt", "w");
+            char l_from_str[50];
+            const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
+            struct tm l_from_tm = {};
+            time_t l_ts_now = time(NULL);
+            localtime_r(&l_ts_now, &l_from_tm);
+            strftime(l_from_str, sizeof(l_from_str), c_time_fmt, &l_from_tm);
+            fputs(l_from_str, l_file);
+        }
+        fclose(l_file);
+        dap_chain_datum_t **l_datums = DAP_NEW_Z_COUNT(dap_chain_datum_t *, l_objs_size);
+        if (!l_datums) {
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            dap_global_db_objs_delete(l_objs, l_objs_size);
+            DAP_DELETE(l_gdb_group_mempool);
+        }
+        for (size_t i = 0; i < l_objs_size; ++i) {
+            l_datums[i] = (dap_chain_datum_t *)l_objs[i].value;
+            dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
+        }
+        a_chain->callback_add_datums(a_chain, l_datums, l_objs_size);
+        DAP_DELETE(l_datums);
+#else
         for (size_t i = 0; i < l_objs_size; i++) {
             if (!l_objs[i].value_len)
                 continue;
@@ -334,6 +361,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                 }
             }
         }
+#endif
         dap_global_db_objs_delete(l_objs, l_objs_size);
     }
     DAP_DELETE(l_gdb_group_mempool);

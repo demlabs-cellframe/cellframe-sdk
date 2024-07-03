@@ -2241,6 +2241,20 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
 
     size_t l_datum_processed = 0;
     pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
+#ifdef DAP_TPS_TEST
+    static _Thread_local bool l_need_realloc = true;
+    size_t l_total_size = 0;
+    for (size_t i = 0; i < a_datums_count; ++i) {
+        l_total_size += dap_chain_datum_size(a_datums[i]);
+    }
+    char l_from_str[50];
+    const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
+    struct tm l_from_tm = {};
+    time_t l_ts_now = time(NULL);
+    localtime_r(&l_ts_now, &l_from_tm);
+    strftime(l_from_str, sizeof(l_from_str), c_time_fmt, &l_from_tm);
+    log_it(L_INFO, "Start tps %zu datums add %s", a_datums_count, l_from_str);
+#endif
     for (size_t i = 0; i < a_datums_count; ++i) {
         dap_chain_datum_t *l_datum = a_datums[i];
         size_t l_datum_size = dap_chain_datum_size(l_datum);
@@ -2259,10 +2273,21 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
             l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
             l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
         }
-
+#ifdef DAP_TPS_TEST
+        if (l_need_realloc)
+            l_blocks->block_new = DAP_REALLOC(l_blocks->block_new, sizeof(l_blocks->block_new->hdr) + l_blocks->block_new_size + l_total_size);
+        l_need_realloc = false;
+#endif
         l_blocks->block_new_size = dap_chain_block_datum_add(&l_blocks->block_new, l_blocks->block_new_size, l_datum, l_datum_size);
         l_datum_processed++;
     }
+#ifdef DAP_TPS_TEST
+    l_need_realloc = true;
+    l_ts_now = time(NULL);
+    localtime_r(&l_ts_now, &l_from_tm);
+    strftime(l_from_str, sizeof(l_from_str), c_time_fmt, &l_from_tm);
+    log_it(L_INFO, "Finish tps %zu datums add %s", a_datums_count, l_from_str);
+#endif
     pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
     return l_datum_processed;
 }
