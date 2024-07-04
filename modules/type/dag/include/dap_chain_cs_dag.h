@@ -31,9 +31,9 @@
 
 typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
 
-typedef void (*dap_chain_cs_dag_callback_t)(dap_chain_cs_dag_t *);
+typedef void (*dap_chain_cs_dag_callback_t)(dap_chain_cs_dag_t *a_dag);
 typedef void (*dap_chain_cs_dag_callback_rc_ptr_t)(dap_chain_cs_dag_t *, int a_rc, void * a_arg);
-typedef int (*dap_chain_cs_dag_callback_event_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_t *,size_t);
+typedef int (*dap_chain_cs_dag_callback_event_t)(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_t *a_event, dap_hash_fast_t *a_event_hash);
 
 typedef dap_chain_cs_dag_event_t * (*dap_chain_cs_dag_callback_event_create_t)(dap_chain_cs_dag_t *,
                                                                                dap_chain_datum_t *,

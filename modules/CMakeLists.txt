@@ -49,11 +49,6 @@ if (CELLFRAME_MODULES MATCHES "cs-dag-poa")
     add_subdirectory(consensus/dag-poa)
 endif()
 
-# DAG PoS
-if (CELLFRAME_MODULES MATCHES "cs-dag-pos")
-    add_subdirectory(consensus/dag-pos)
-endif()
-
 # Consensus type blocks
 if (CELLFRAME_MODULES MATCHES "cs-block-")
     add_subdirectory(type/blocks)
