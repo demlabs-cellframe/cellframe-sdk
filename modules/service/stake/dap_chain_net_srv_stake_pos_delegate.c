@@ -128,7 +128,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
          "\tSets the minimum stake value\n"
     "srv_stake max_weight -net <net_name> [-chain <chain_name>] -poa_cert <poa_cert_name> -percent <value>\n"
         "\tSets maximum validator related weight (in percent)\n"
-    "srv_stake check -net <net_name> -tx <tx_hash>"
+    "srv_stake check -net <net_name> -tx <tx_hash>\n"
          "\tCheck remote validator"
     );
 
