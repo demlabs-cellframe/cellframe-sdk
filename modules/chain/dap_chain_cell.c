@@ -41,7 +41,7 @@
 #define DAP_CHAIN_CELL_FILE_SIGNATURE 0xfa340bef153eba48
 #define DAP_CHAIN_CELL_FILE_TYPE_RAW 0
 #define DAP_CHAIN_CELL_FILE_TYPE_COMPRESSED 1
-#define DAP_MAPPED_VOLUME_LIMIT ( 1 << 28 ) // 256 MB for now, may be should be configurable?
+#define DAP_MAPPED_VOLUME_LIMIT ( 1 << 20 ) // 256 MB for now, may be should be configurable?
 /**
   * @struct dap_chain_cell_file_header
   */
@@ -172,6 +172,7 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
                         a_cell->file_storage_path, a_cell->id.uint64, errno);
         return -1;
     }
+    a_cell->cur_vol_start = l_volume_start;
 #endif
     a_cell->map_pos = a_cell->map + l_offset;
     a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map);
@@ -525,11 +526,10 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
                                             (size_t)(a_cell->map_pos - a_cell->map));
 #ifdef DAP_OS_DARWIN
     if (a_cell->chain->is_mapped) {
-        if ( MAP_FAILED == (a_cell->map = mmap(a_cell->map, l_map_size, PROT_READ|PROT_WRITE,
-                                            MAP_PRIVATE|MAP_FIXED, fileno(a_cell->file_storage), l_vol_start)) ) {
+        if ( MAP_FAILED == (a_cell->map = mmap(a_cell->map, dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT), PROT_READ|PROT_WRITE,
+                                            MAP_PRIVATE|MAP_FIXED, fileno(a_cell->file_storage), a_cell->cur_vol_start)) ) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be remapped, errno %d",
                             a_cell->file_storage_path, a_cell->id.uint64, errno);
-            pthread_rwlock_unlock(&a_cell->storage_rwlock);
             return -1;
         }
     }
