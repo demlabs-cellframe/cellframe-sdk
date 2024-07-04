@@ -172,7 +172,9 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
                         a_cell->file_storage_path, a_cell->id.uint64, errno);
         return -1;
     }
+#ifdef DAP_OS_DARWIN
     a_cell->cur_vol_start = l_volume_start;
+#endif
 #endif
     a_cell->map_pos = a_cell->map + l_offset;
     a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map);
