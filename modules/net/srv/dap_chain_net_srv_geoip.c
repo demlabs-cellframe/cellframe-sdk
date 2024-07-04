@@ -188,7 +188,7 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_local_db(const char *a_ip_str, cons
 
 	geoip_info_t *l_ret = DAP_NEW_Z(geoip_info_t);
 	if (!l_ret) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
 		return NULL;
 	}
 

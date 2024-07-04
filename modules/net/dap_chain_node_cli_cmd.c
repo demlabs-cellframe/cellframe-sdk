@@ -563,7 +563,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_get_data_hash_str_static(l_value, l_value_len, l_hash_str);
                 char *l_value_str = DAP_NEW_Z_SIZE(char, l_value_len * 2 + 2);
                 if(!l_value_str) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     DAP_DELETE(l_value);
                     return -1;
                 }
@@ -2131,7 +2131,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             l_seed_size = (l_restore_str_size - 2) / 2;
                             l_seed = DAP_NEW_Z_SIZE(uint8_t, l_seed_size);
                             if(!l_seed) {
-                                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                                 json_object_put(json_arr_out);
                                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
                             }
@@ -4189,7 +4189,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
     size_t l_tsd_offset = 0;
     a_params->ext.parsed_tsd = DAP_NEW_SIZE(byte_t, l_tsd_total_size);
     if(l_tsd_total_size && !a_params->ext.parsed_tsd) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
     for (dap_list_t *l_iter = dap_list_first(l_tsd_list); l_iter; l_iter = l_iter->next) {
@@ -4322,7 +4322,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
     dap_sdk_cli_params* l_params = DAP_NEW_Z(dap_sdk_cli_params);
 
     if (!l_params) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
 
@@ -4439,7 +4439,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_tsd_total_size);
             if (!l_datum_token) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory in com_token_decl");
                 DAP_DEL_Z(l_params);
                 return -1;
@@ -4530,7 +4530,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             if (!l_datum_token) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory in com_token_decl");
                 DAP_DEL_Z(l_params);
                 return -1;
@@ -4663,7 +4663,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
     dap_sdk_cli_params* l_params = DAP_NEW_Z(dap_sdk_cli_params);
 
     if (!l_params) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
 
@@ -4701,7 +4701,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size);
             if (!l_datum_token) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return -1;
             }
             l_datum_token->version = 2;
@@ -4738,7 +4738,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             if (!l_datum_token) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return -1;
             }
             l_datum_token->version = 2;
@@ -5853,7 +5853,7 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply)
                                                       l_cert_new->enc_key->pub_key_data_size =
                                                       l_cert->enc_key->pub_key_data_size );
     if(!l_cert_new->enc_key->pub_key_data) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         DAP_DELETE(l_cert_new->enc_key);
         DAP_DELETE(l_cert_new);
         return -11;
@@ -7484,7 +7484,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply)
             char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size);
             char *l_sign_str = DAP_NEW_Z_SIZE(char, l_sign_size);
             if(!l_value_enc_str || !l_sign_str) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 DAP_DEL_Z(l_sign_str);
                 DAP_DEL_Z(l_value_enc_str);
                 return -1;
@@ -7576,7 +7576,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
         size_t l_records_count = json_object_array_length(l_json_records);
         dap_store_obj_t *l_group_store = DAP_NEW_Z_SIZE(dap_store_obj_t, l_records_count * sizeof(dap_store_obj_t));
         if(!l_group_store) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return -1;
         }
         for (size_t j = 0; j < l_records_count; ++j) {
@@ -7589,13 +7589,13 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
             l_ts        = json_object_object_get(l_record, "timestamp");
             l_group_store[j].key    = dap_strdup(json_object_get_string(l_key));
             if(!l_group_store[j].key) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 l_records_count = j;
                 break;
             }
             l_group_store[j].group  = dap_strdup(l_group_name);
             if(!l_group_store[j].group) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 l_records_count = j;
                 break;
             }
@@ -7606,7 +7606,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
             const char *l_value_str = json_object_get_string(l_value);
             char *l_val = DAP_NEW_Z_SIZE(char, l_group_store[j].value_len);
             if(!l_val) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 l_records_count = j;
                 break;
             }
@@ -7706,7 +7706,7 @@ int cmd_remove(int a_argc, char **a_argv, void **a_str_reply)
         for (dap_chain_net_t *it = dap_chain_net_iter_start(); it; it = dap_chain_net_iter_next(it)) {
             _pvt_net_nodes_list_t *l_gdb_groups = DAP_NEW(_pvt_net_nodes_list_t);
             if (!l_gdb_groups) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_list_free(l_net_returns);
                 return -1;
             }
@@ -8268,7 +8268,7 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
     int l_power = 1;
     byte_t *l_buf = DAP_CALLOC(l_part * l_power++, 1);
     if (!l_buf) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     size_t l_counter = 0;
@@ -8284,7 +8284,7 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
             l_part_power = l_part * l_power++;
             l_buf = (byte_t *) DAP_REALLOC(l_buf, l_part_power);
             if (!l_buf) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return NULL;
             }
         }
@@ -8307,7 +8307,7 @@ static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash
     *a_fullsize += sizeof (a_chain_hash->raw) + 1;
     uint8_t *l_fullbuf = DAP_CALLOC(*a_fullsize, 1);
     if (!l_fullbuf) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         DAP_DELETE(l_buf);
         return NULL;
     }
@@ -8326,7 +8326,7 @@ static char *s_strdup_by_index (const char *a_file, const int a_index)
 {
     char *l_buf = DAP_CALLOC(a_index + 1, 1);
     if (!l_buf) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     strncpy (l_buf, a_file, a_index);

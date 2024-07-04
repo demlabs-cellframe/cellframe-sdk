@@ -714,7 +714,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 if ( memcmp(&l_out->addr, a_addr_from, sizeof (*a_addr_from))==0 ){
                     dap_chain_tx_used_out_item_t *l_item_back = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
                     if (!l_item_back) {
-                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         dap_list_free_full(l_list_used_out, NULL);
                         DAP_DELETE(l_objs);
                         return -6;
@@ -1258,7 +1258,7 @@ dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *a_datum_mempool_ser
     //datum_mempool_size = hex2bin(a_datum_mempool_ser, datum_mempool_str_in, datum_mempool_size) / 2;
     dap_datum_mempool_t *datum_mempool = DAP_NEW_Z(dap_datum_mempool_t);
     if (!datum_mempool) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     datum_mempool->version = *(uint16_t*)(a_datum_mempool_ser + shift_size);

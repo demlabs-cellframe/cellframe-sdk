@@ -82,7 +82,7 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE: {
         dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
         if (!l_token) {
-            log_it(L_CRITICAL, g_error_memory_alloc);
+            log_it(L_CRITICAL, c_error_memory_alloc);
             return NULL;
         }
         *l_token = (dap_chain_datum_token_t) {
@@ -102,7 +102,7 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL: {
         dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
         if (!l_token) {
-            log_it(L_CRITICAL, g_error_memory_alloc);
+            log_it(L_CRITICAL, c_error_memory_alloc);
             return NULL;
         }
         *l_token = (dap_chain_datum_token_t) {
@@ -124,7 +124,7 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE: {
         dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
         if (!l_token) {
-            log_it(L_CRITICAL, g_error_memory_alloc);
+            log_it(L_CRITICAL, c_error_memory_alloc);
             return NULL;
         }
         *l_token = (dap_chain_datum_token_t) {
@@ -146,7 +146,7 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_DECL: {
         dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
         if (!l_token) {
-            log_it(L_CRITICAL, g_error_memory_alloc);
+            log_it(L_CRITICAL, c_error_memory_alloc);
             return NULL;
         }
         *l_token = (dap_chain_datum_token_t) {
@@ -168,7 +168,7 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE: {
         dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
         if (!l_token) {
-            log_it(L_CRITICAL, g_error_memory_alloc);
+            log_it(L_CRITICAL, c_error_memory_alloc);
             return NULL;
         }
         *l_token = (dap_chain_datum_token_t) {
@@ -190,7 +190,7 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC: {
         dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
         if (!l_token) {
-            log_it(L_CRITICAL, g_error_memory_alloc);
+            log_it(L_CRITICAL, c_error_memory_alloc);
             return NULL;
         }
         *l_token = (dap_chain_datum_token_t) {
@@ -455,7 +455,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_create(uint256_t a_va
 {
     dap_chain_datum_token_emission_t *l_emission = DAP_NEW_Z(dap_chain_datum_token_emission_t);
     if (!l_emission) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     l_emission->hdr.version = 3;
@@ -499,7 +499,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
         size_t l_add_size = sizeof(l_emission->hdr) - l_old_hdr_size;
         l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size + l_add_size);
         if (!l_emission) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return NULL;
         }
         l_emission->hdr.version = 2;
@@ -514,7 +514,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
     } else {
         l_emission = DAP_DUP_SIZE(a_emission_serial, *a_emission_size);
         if (!l_emission) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return NULL;
         }
         if (((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.version == 1)

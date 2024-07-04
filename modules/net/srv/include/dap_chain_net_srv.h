@@ -36,10 +36,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_NET_SRV_GRACE_PERIOD_DEFAULT 60
 
 //Service direction
-enum dap_chain_net_srv_order_direction{
+enum dap_chain_net_srv_order_direction {
+    SERV_DIR_UNDEFINED = 0,
     SERV_DIR_BUY = 1,
-    SERV_DIR_SELL = 2,
-    SERV_DIR_UNDEFINED = 0
+    SERV_DIR_SELL = 2
 };
 typedef byte_t dap_chain_net_srv_order_direction_t;
 
