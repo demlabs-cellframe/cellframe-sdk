@@ -290,15 +290,20 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     if (!a_force && !l_net->pub.mempool_autoproc)
         return;
-    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    size_t l_objs_size = 0;
-    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_size);
-    if (l_objs_size) {
 #ifdef DAP_TPS_TEST
-        log_it(L_INFO, "Get %zu datums from mempool", l_objs_size);
-        FILE *l_file = fopen("/tmp/tps_start.txt", "r");
+    FILE *l_mempool_file = fopen("/opt/cellframe-node/share/ca/mempool_start.txt", "r");
+    if (l_mempool_file) {
+        fclose(l_mempool_file);
+        l_mempool_file = fopen("/opt/cellframe-node/share/ca/mempool_finish.txt", "r");
+        if(!l_mempool_file) {
+            log_it(L_TPS, "Wait mempool");
+            return;
+        }
+        log_it(L_TPS, "Mempool ready");
+        fclose(l_mempool_file);
+        FILE *l_file = fopen("/opt/cellframe-node/share/ca/tps_start.txt", "r");
         if (!l_file) {
-            l_file = fopen("/tmp/tps_start.txt", "w");
+            l_file = fopen("/opt/cellframe-node/share/ca/tps_start.txt", "w");
             char l_from_str[50];
             const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
             struct tm l_from_tm = {};
@@ -308,19 +313,15 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
             fputs(l_from_str, l_file);
         }
         fclose(l_file);
-        dap_chain_datum_t **l_datums = DAP_NEW_Z_COUNT(dap_chain_datum_t *, l_objs_size);
-        if (!l_datums) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
-            dap_global_db_objs_delete(l_objs, l_objs_size);
-            DAP_DELETE(l_gdb_group_mempool);
-        }
-        for (size_t i = 0; i < l_objs_size; ++i) {
-            l_datums[i] = (dap_chain_datum_t *)l_objs[i].value;
-            dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
-        }
-        a_chain->callback_add_datums(a_chain, l_datums, l_objs_size);
-        DAP_DELETE(l_datums);
-#else
+    }
+#endif
+    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    size_t l_objs_size = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_size);
+    if (l_objs_size) {
+#ifdef DAP_TPS_TEST
+        log_it(L_TPS, "Get %zu datums from mempool", l_objs_size);
+#endif
         for (size_t i = 0; i < l_objs_size; i++) {
             if (!l_objs[i].value_len)
                 continue;
@@ -361,7 +362,6 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                 }
             }
         }
-#endif
         dap_global_db_objs_delete(l_objs, l_objs_size);
     }
     DAP_DELETE(l_gdb_group_mempool);

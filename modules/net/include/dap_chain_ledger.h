@@ -338,7 +338,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
  * Return number transactions from the cache
  */
 unsigned dap_ledger_count(dap_ledger_t *a_ledger);
-uint64_t dap_ledger_count_from_to(dap_ledger_t * a_ledger, dap_time_t a_ts_from, dap_time_t a_ts_to);
+uint64_t dap_ledger_count_from_to(dap_ledger_t * a_ledger, dap_nanotime_t a_ts_from, dap_nanotime_t a_ts_to);
 
 /**
  * Check whether used 'out' items

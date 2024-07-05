@@ -5608,7 +5608,7 @@ unsigned dap_ledger_count(dap_ledger_t *a_ledger)
  * @param a_ts_to
  * @return
  */
-uint64_t dap_ledger_count_from_to(dap_ledger_t * a_ledger, dap_time_t a_ts_from, dap_time_t a_ts_to)
+uint64_t dap_ledger_count_from_to(dap_ledger_t * a_ledger, dap_nanotime_t a_ts_from, dap_nanotime_t a_ts_to)
 {
     uint64_t l_ret = 0;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
@@ -5616,17 +5616,17 @@ uint64_t dap_ledger_count_from_to(dap_ledger_t * a_ledger, dap_time_t a_ts_from,
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     if ( a_ts_from && a_ts_to) {
         HASH_ITER(hh, l_ledger_pvt->ledger_items , l_iter_current, l_item_tmp){
-            if ( l_iter_current->tx->header.ts_created >= a_ts_from && l_iter_current->tx->header.ts_created <= a_ts_to )
+            if ( l_iter_current->ts_added >= a_ts_from && l_iter_current->ts_added <= a_ts_to )
                 l_ret++;
         }
     } else if ( a_ts_to ){
         HASH_ITER(hh, l_ledger_pvt->ledger_items , l_iter_current, l_item_tmp){
-            if ( l_iter_current->tx->header.ts_created <= a_ts_to )
+            if ( l_iter_current->ts_added <= a_ts_to )
                 l_ret++;
         }
     } else if ( a_ts_from ){
         HASH_ITER(hh, l_ledger_pvt->ledger_items , l_iter_current, l_item_tmp){
-            if ( l_iter_current->tx->header.ts_created >= a_ts_from )
+            if ( l_iter_current->ts_added >= a_ts_from )
                 l_ret++;
         }
     } else {
