@@ -184,17 +184,17 @@ int dap_chain_cs_esbocs_init()
                            s_stream_ch_packet_in,
                            NULL);
     dap_cli_server_cmd_add ("esbocs", s_cli_esbocs, "ESBOCS commands",
-        "esbocs min_validators_count set -net <net_name> -chain <chain_name> -cert <poa_cert_name> -val_count <value>\n"
+        "esbocs min_validators_count set -net <net_name> [-chain <chain_name>] -cert <poa_cert_name> -val_count <value>\n"
             "\tSets minimum validators count for ESBOCS consensus\n"
-        "esbocs min_validators_count show -net <net_name> -chain <chain_name>\n"
+        "esbocs min_validators_count show -net <net_name> [-chain <chain_name>]\n"
             "\tShow minimum validators count for ESBOCS consensus\n"
-        "esbocs check_signs_structure {enable|disable} -net <net_name> -chain <chain_name> -cert <poa_cert_name>\n"
+        "esbocs check_signs_structure {enable|disable} -net <net_name> [-chain <chain_name>] -cert <poa_cert_name>\n"
             "\tEnables or disables checks for blocks signs structure validity\n"
-        "esbocs check_signs_structure show -net <net_name> -chain <chain_name>\n"
+        "esbocs check_signs_structure show -net <net_name> [-chain <chain_name>]\n"
             "\tShow status of checks for blocks signs structure validity\n"
-        "esbocs emergency_validators {add|remove} -net <net_name> -chain <chain_name> -cert <poa_cert_name> -pkey_hash <validator_pkey_hash>\n"
+        "esbocs emergency_validators {add|remove} -net <net_name> [-chain <chain_name>] -cert <poa_cert_name> -pkey_hash <validator_pkey_hash>\n"
             "\tAdd or remove validator by its signature public key hash to list of validators allowed to work in emergency mode\n"
-        "esbocs emergency_validators show -net <net_name> -chain <chain_name>\n"
+        "esbocs emergency_validators show -net <net_name> [-chain <chain_name>]\n"
             "\tShow list of validators public key hashes allowed to work in emergency mode\n");
     return 0;
 }
@@ -222,7 +222,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     if (!l_esbocs_pvt) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         l_ret = - 5;
         goto lb_err;
     }
@@ -281,7 +281,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         }
         dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
         if (!l_validator) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             l_ret = - 5;
             goto lb_err;
         }
@@ -549,13 +549,13 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     size_t l_orders_count = 0;
     dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
     DAP_DELETE(l_gdb_group_str);
-    dap_chain_net_srv_order_t *l_order_service = NULL;
+    const dap_chain_net_srv_order_t *l_order_service = NULL;
     for (size_t i = 0; i < l_orders_count; i++) {
-        if (l_orders[i].value_len < sizeof(dap_chain_net_srv_order_t)) {
-            log_it(L_ERROR, "Too small order %s with size %zu", l_orders[i].key, l_orders[i].value_len);
+        const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_orders[i].key, l_orders[i].value, l_orders[i].value_len);
+        if (!l_order) {
+            log_it(L_WARNING, "Unreadable order %s", l_orders[i].key);
             continue;
         }
-        dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
         if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
             continue;
         dap_sign_t *l_order_sign = (dap_sign_t*)(l_order->ext_n_sign + l_order->ext_size);
@@ -740,7 +740,7 @@ int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, u
             return -2;
         dap_chain_addr_t *l_addr_new = DAP_DUP(&l_signing_addr);
         if (!l_addr_new) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return -4;
         }
         l_esbocs_pvt->emergency_validator_addrs = dap_list_append(
@@ -825,9 +825,13 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_
                     l_excluded_num = a_excluded_list[++l_excluded_list_idx];
                 }
             }
-        } else
-            l_validators = dap_chain_net_srv_stake_get_validators(a_esbocs->chain->net_id, true,
-                                                                  &a_esbocs->session->cur_round.excluded_list);
+        } else {
+            l_validators = dap_chain_net_srv_stake_get_validators(a_esbocs->chain->net_id,
+                                                                  true,
+                                                                  a_esbocs->session
+                                                                  ? &a_esbocs->session->cur_round.excluded_list
+                                                                  : NULL);
+        }
         uint16_t l_total_validators_count = dap_list_length(l_validators);
         if (l_total_validators_count < l_esbocs_pvt->min_validators_count) {
             log_it(L_MSG, "Can't start new round. Totally active validators count %hu is below minimum count %hu",
@@ -1270,6 +1274,10 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                 break;
             }
         }
+        if (!l_validator) {
+            log_it(L_CRITICAL, "l_validator is NULL");
+            break;
+        }
         a_session->cur_round.attempt_submit_validator = l_validator->signing_addr;
         if (dap_chain_addr_compare(&a_session->cur_round.attempt_submit_validator, &a_session->my_signing_addr)) {
             dap_chain_esbocs_directive_t *l_directive = NULL;
@@ -1325,7 +1333,8 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                 const char *l_addr = dap_chain_hash_fast_to_str_static(&a_session->cur_round.attempt_submit_validator.data.hash_fast);
                 log_it(L_MSG, "Error: can't find current attmempt submit validator %s in signers list", l_addr);
             }
-            l_validator->is_chosen = false;
+            if (l_validator && l_validator->is_chosen)
+                l_validator->is_chosen = false;
         } else
             a_session->old_state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC;
     } break;
@@ -1767,13 +1776,13 @@ void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_e
 
     void *l_message_copy = DAP_DUP_SIZE(a_message, a_message_size);
     if (!l_message_copy) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     }
     dap_chain_esbocs_sync_item_t *l_sync_item;
     HASH_FIND(hh, a_session->sync_items, &a_message->hdr.candidate_hash, sizeof(dap_hash_fast_t), l_sync_item);
     if (!l_sync_item) {
-        DAP_NEW_Z_RET(l_sync_item, dap_chain_esbocs_sync_item_t, NULL);
+        DAP_NEW_Z_RET(l_sync_item, dap_chain_esbocs_sync_item_t, l_message_copy);
         l_sync_item->last_block_hash = a_message->hdr.candidate_hash;
         HASH_ADD(hh, a_session->sync_items, last_block_hash, sizeof(dap_hash_fast_t), l_sync_item);
     }
@@ -2121,7 +2130,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                                         NODE_ADDR_FP_ARGS_S(a_ch->stream->node), NODE_ADDR_FP_ARGS_S(l_session->my_addr));
     struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args, sizeof(struct esbocs_msg_args) + l_message_size);
     if (!l_args) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return false;
     }
     l_args->addr_from = a_ch->stream->node;
@@ -2398,7 +2407,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         // store for new candidate
         l_store = DAP_NEW_Z(dap_chain_esbocs_store_t);
         if (!l_store) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             goto session_unlock;
         }
         l_store->candidate_size = l_candidate_size;
@@ -2662,7 +2671,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             l_message->hdr.sign_size = l_sign_size;
             l_message = DAP_REALLOC(l_message, l_message_size + l_sign_size);
             if (!l_message) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return;
             }
             memcpy(l_message->msg_n_sign + a_data_size, l_sign, l_sign_size);
@@ -2676,7 +2685,8 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args,
                                                           sizeof(struct esbocs_msg_args) + l_message_size + l_sign_size);
             if (!l_args) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                DAP_DELETE(l_message);
                 return;
             }
             l_args->addr_from = a_session->my_addr;

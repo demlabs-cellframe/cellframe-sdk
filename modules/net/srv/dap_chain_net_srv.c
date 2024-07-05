@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -94,18 +94,18 @@ int dap_chain_net_srv_init()
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL);
 
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
-        "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
+        "net_srv -net <net_name> order find [-direction {sell|buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
         " [-price_token <token_ticker>] [-price_min <price_minimum>] [-price_max <price_maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
         "net_srv -net <net_name> order delete -hash <order_hash>\n"
         "\tOrder delete\n"
         "net_srv -net <net_name> order dump -hash <order_hash>\n"
         "\tOrder dump info\n"
-        "net_srv -net <net_name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>\n"
-        " -price_unit <Price Unit> -price_token <token_ticker> -units <units> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
-        " [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
-        " [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
-        "net_srv get_limits -net <net_name> -srv_uid <Service_UID> -provider_pkey_hash <Service_provider_public_key_hash> -client_pkey_hash <Client_public_key_hash>\n"
+        "net_srv -net <net_name> order create -direction {sell|buy} -srv_uid <service_UID> -price <price>\n"
+        " -price_unit <price_unit> -price_token <token_ticker> -units <units> [-node_addr <node_address>] [-tx_cond <TX_cond_hash>]\n"
+        " [-expires <unix_time_when_expires>] [-cert <cert_name_to_sign_order>]\n"
+        " [{-ext <extension_with_params>|-region <region_name> -continent <continent_name>}]\n"
+        "net_srv get_limits -net <net_name> -srv_uid <service_UID> -provider_pkey_hash <service_provider_public_key_hash> -client_pkey_hash <client_public_key_hash>\n"
         "net_srv report\n"
         "\tGet report about srv usage"
         );
@@ -206,13 +206,13 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
     int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net,
                                                                CHAIN_TYPE_INVALID);
     if ( l_net ) {
-        //char * l_orders_group = dap_chain_net_srv_order_get_gdb_group( l_net );
-
         dap_string_t *l_string_ret = dap_string_new("");
+
         const char *l_order_str = NULL;
-        int l_order_arg_pos = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "order", &l_order_str);
+        dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "order", &l_order_str);
+
         const char *l_get_limits_str = NULL;
-        int l_get_limits_arg_pos = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "get_limits", &l_get_limits_str);
+        dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "get_limits", &l_get_limits_str);
 
         // Order direction
         const char *l_direction_str = NULL;
@@ -461,6 +461,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                     l_ret = -9 ;
                     dap_string_append(l_string_ret,"need -hash param to obtain what the order we need to dump\n");
                 }
+
             } else if(!dap_strcmp( l_order_str, "create" )) {
                 if (dap_chain_net_get_role(l_net).enums > NODE_ROLE_MASTER) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Node role should be not lower than master\n");
@@ -486,7 +487,6 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             log_it(L_DEBUG, "Created order to buy");
                         } else {
                             log_it(L_WARNING, "Undefined order direction");
-                            dap_string_free(l_string_ret, true);
                             dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong direction of the token was "
                                                                            "specified, possible directions: buy, sell.");
                             return -18;
@@ -497,11 +497,9 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         l_expires = (dap_time_t ) atoll( l_expires_str);
                     if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
-                        dap_string_free(l_string_ret, true);
                         return -21;
                     }else if (!l_srv_uid_str){
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter -srv_uid is required.");
-                        dap_string_free(l_string_ret, true);
                         return -22;
                     }
                     if (l_node_addr_str){
@@ -512,7 +510,6 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             dap_cli_server_cmd_set_reply_text(a_str_reply, "The order has not been created. "
                                                                            "Failed to convert string representation of '%s' "
                                                                            "to node address.", l_node_addr_str);
-                            dap_string_free(l_string_ret, true);
                             return -17;
                         }
                     } else {
@@ -541,34 +538,34 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         l_price_unit.enm = SERV_UNIT_PCS;
                     } else {
                         log_it(L_ERROR, "Undefined price unit");
-                        dap_string_free(l_string_ret, true);
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong unit type sepcified, possible values: B, KB, MB, SEC, DAY, PCS");
                         return -18;
                     } 
-
-
                     
                     strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                     size_t l_ext_len = l_ext? strlen(l_ext) + 1 : 0;
                     // get cert to order sign
                     dap_cert_t *l_cert = NULL;
                     dap_enc_key_t *l_key = NULL;
-                    if(l_order_cert_name) {
+                    if (l_order_cert_name) {
                         l_cert = dap_cert_find_by_name(l_order_cert_name);
-                        if(l_cert) {
+                        if (l_cert) {
                             l_key = l_cert->enc_key;
+                            if (!l_key->priv_key_data || !l_key->priv_key_data_size) {
+                                log_it(L_ERROR, "Certificate '%s' doesn't contain a private key", l_order_cert_name);
+                                dap_cli_server_cmd_set_reply_text(a_str_reply, "Certificate '%s' doesn't contain a private key", l_order_cert_name);
+                                return -25;
+                            }
                         } else {
                             log_it(L_ERROR, "Can't load cert '%s' for sign order", l_order_cert_name);
                             dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert '%s' for sign "
                                                                            "order", l_order_cert_name);
-                            dap_string_free(l_string_ret, true);
                             return -19;
                         }
                     } else {
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "The certificate name was not "
                                                                        "specified. Since version 5.2 it is not possible to "
                                                                        "create unsigned orders.");
-                        dap_string_free(l_string_ret, true);
                         return -20;
                     }
                 // create order
@@ -582,15 +579,15 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         l_ret = -4;
                     }
                 } else {
-                    dap_string_append_printf( l_string_ret, "Missed some required params\n");
-                    l_ret=-5;
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Missed some required params\n");
+                    return -5;
                 }
             } else if (l_order_str) {
-                dap_string_append_printf(l_string_ret, "Unrecognized subcommand '%s'", l_order_str);
-                l_ret = -14;
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized subcommand '%s'", l_order_str);
+                return -14;
             }
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_ret->str);
-            dap_string_free(l_string_ret, true);
+
         } else if (l_get_limits_str){
             const char *l_provider_pkey_hash_str = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-provider_pkey_hash", &l_provider_pkey_hash_str);
@@ -720,7 +717,6 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
         log_it(L_ERROR, "Can't get provider sign from receipt.");
         return false;
     }
-    dap_sign_type_t l_provider_sign_type = l_sign->header.type;
 
     if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, sizeof(l_receipt->receipt_info))){
         log_it(L_ERROR, "Provider sign in receipt not passed verification.");
@@ -870,7 +866,7 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
 
     dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
     if (!l_price) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         DAP_DEL_Z(l_order);
         return NULL;
     }
@@ -990,7 +986,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
     if(!l_sdata) {
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         if (!l_srv) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             pthread_mutex_unlock(&s_srv_list_mutex);
             return NULL;
         }
@@ -1000,7 +996,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         if (!l_sdata) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             DAP_DEL_Z(l_srv);
             pthread_mutex_unlock(&s_srv_list_mutex);
             return NULL;

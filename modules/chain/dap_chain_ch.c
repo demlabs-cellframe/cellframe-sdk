@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -225,7 +225,7 @@ void s_stream_ch_new(dap_stream_ch_t *a_ch, void *a_arg)
 {
     UNUSED(a_arg);
     if (!(a_ch->internal = DAP_NEW_Z(dap_chain_ch_t))) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     };
     dap_chain_ch_t *l_ch_chain = DAP_CHAIN_CH(a_ch);
@@ -280,7 +280,7 @@ struct legacy_sync_context *s_legacy_sync_context_create(dap_chain_ch_pkt_t *a_c
         };
     dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&a_ch->uuid);
     if (!l_uuid) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         DAP_DELETE(l_context);
         return NULL;
     }
@@ -373,7 +373,7 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
         l_data_size = dap_list_length(l_list_out) * sizeof(dap_chain_ch_update_element_t);
         l_data = DAP_NEW_Z_SIZE(dap_chain_ch_update_element_t, l_data_size);
         if (!l_data) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             l_context->state = DAP_CHAIN_CH_STATE_ERROR;
             goto context_delete;
         }
@@ -398,12 +398,8 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
                 size_t l_cur_size = l_pkt_pack ? l_pkt_pack->data_size : 0;
                 if (l_cur_size + sizeof(dap_global_db_pkt_old_t) + l_pkt->data_size >= DAP_CHAIN_PKT_EXPECT_SIZE) {
                     l_context->enqueued_data_size += l_data_size;
-                    if (!l_go_wait && l_context->enqueued_data_size > DAP_EVENTS_SOCKET_BUF_SIZE / 2) {
-                        if (!atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_WAITING))
-                            goto context_delete;
-                        l_context->prev_state = l_cur_state;
+                    if (l_context->enqueued_data_size > DAP_EVENTS_SOCKET_BUF_SIZE / 2)
                         l_go_wait = true;
-                    }
                     dap_chain_ch_pkt_write_mt(l_context->worker, l_context->ch_uuid, l_type,
                                               l_context->request_hdr.net_id, l_context->request_hdr.chain_id, l_context->request_hdr.cell_id,
                                               l_data, l_data_size, DAP_CHAIN_CH_PKT_VERSION_LEGACY);
@@ -415,7 +411,7 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
                 }
                 l_pkt_pack = dap_global_db_pkt_pack_old(l_pkt_pack, l_pkt);
                 if (!l_pkt_pack || l_cur_size == l_pkt_pack->data_size) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     l_context->state = DAP_CHAIN_CH_STATE_ERROR;
                     goto context_delete;
                 }
@@ -450,6 +446,9 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
     }
     if (!l_go_wait)
         return true;
+    l_context->prev_state = l_cur_state;
+    if (!atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_WAITING))
+        goto context_delete;
     return false;
 context_delete:
     dap_worker_exec_callback_on(l_context->worker->worker, s_legacy_sync_context_delete, l_context);
@@ -503,7 +502,7 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
     if (l_cur_state == DAP_CHAIN_CH_STATE_UPDATE_CHAINS) {
         l_hashes = DAP_NEW_Z_SIZE(dap_chain_ch_update_element_t, s_update_pack_size * sizeof(dap_chain_ch_update_element_t));
         if (!l_hashes) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             l_context->state = DAP_CHAIN_CH_STATE_ERROR;
             goto context_delete;
         }
@@ -524,12 +523,8 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
             HASH_FIND(hh, l_context->remote_atoms, l_context->atom_iter->cur_hash, sizeof(dap_hash_fast_t), l_hash_item);
             if (!l_hash_item) {
                 l_context->enqueued_data_size += l_context->atom_iter->cur_size;
-                if (l_context->enqueued_data_size > DAP_EVENTS_SOCKET_BUF_SIZE / 2) {
-                    if (!atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_WAITING))
-                        goto context_delete;
-                    l_context->prev_state = l_cur_state;
+                if (l_context->enqueued_data_size > DAP_EVENTS_SOCKET_BUF_SIZE / 2)
                     l_go_wait = true;
-                }
                 dap_chain_ch_pkt_write_mt(l_context->worker, l_context->ch_uuid, DAP_CHAIN_CH_PKT_TYPE_CHAIN_OLD,
                                           l_context->request_hdr.net_id, l_context->request_hdr.chain_id, l_context->request_hdr.cell_id,
                                           l_context->atom_iter->cur, l_context->atom_iter->cur_size, DAP_CHAIN_CH_PKT_VERSION_LEGACY);
@@ -582,6 +577,9 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
     }
     if (!l_go_wait)
         return true;
+    l_context->prev_state = l_cur_state;
+    if (!atomic_compare_exchange_strong(&l_context->state, &l_cur_state, DAP_CHAIN_CH_STATE_WAITING))
+        goto context_delete;
     return false;
 context_delete:
     dap_worker_exec_callback_on(l_context->worker->worker, s_legacy_sync_context_delete, l_context);
@@ -677,7 +675,7 @@ static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, da
     }
     struct atom_processing_args *l_args = DAP_NEW_SIZE(struct atom_processing_args, a_payload_size + sizeof(struct atom_processing_args));
     if (!l_args) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     }
     l_args->addr = a_sender_addr;
@@ -770,7 +768,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         struct atom_processing_args *l_args = DAP_NEW_SIZE(struct atom_processing_args, l_ch_pkt->hdr.data_size + sizeof(struct atom_processing_args));
         if (!l_args) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             break;
         }
         l_args->addr = a_ch->stream->node;
@@ -858,7 +856,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 atomic_store(&l_context->allowed_num, l_sum.num_cur + s_sync_ack_window_size);
                 dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&a_ch->uuid);
                 if (!l_uuid) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     DAP_DELETE(l_context);
                     break;
                 }
@@ -1130,7 +1128,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             if (!l_hash_item) {
                 l_hash_item = DAP_NEW_Z(dap_chain_ch_hash_item_t);
                 if (!l_hash_item) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
@@ -1234,10 +1232,12 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         DAP_NEW_Z_RET_VAL(l_args, struct record_processing_args, true, NULL);
         l_args->pkt = DAP_DUP_SIZE(l_pkt, l_chain_pkt_data_size);
         if (!l_args->pkt) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            DAP_DEL_Z(l_args);
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
+
             break;
         }
         l_args->worker = a_ch->stream_worker;
@@ -1384,7 +1384,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             if (!l_hash_item) {
                 l_hash_item = DAP_NEW_Z(dap_chain_ch_hash_item_t);
                 if (!l_hash_item) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
@@ -1487,7 +1487,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         debug_if(s_debug_legacy, L_INFO, "In: CHAIN_OLD data_size=%zu", l_chain_pkt_data_size);
         struct atom_processing_args *l_args = DAP_NEW_Z_SIZE(struct atom_processing_args, l_ch_pkt->hdr.data_size + sizeof(struct atom_processing_args));
         if (!l_args) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
@@ -1531,6 +1531,10 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 static bool s_sync_timer_callback(void *a_arg)
 {
     dap_worker_t *l_worker = dap_worker_get_current();
+    if (!l_worker) {
+        DAP_DELETE(a_arg);
+        return false;
+    }
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_worker), *(dap_stream_ch_uuid_t *)a_arg);
     if (!l_ch) {
         DAP_DELETE(a_arg);
@@ -1662,15 +1666,15 @@ static void s_ch_chain_go_idle(dap_chain_ch_t *a_ch_chain)
 //}
     // Legacy
     if (a_ch_chain->legacy_sync_context) {
-        dap_chain_ch_state_t l_current_state = atomic_exchange(
-                    &((struct legacy_sync_context *)a_ch_chain->legacy_sync_context)->state, DAP_CHAIN_CH_STATE_IDLE);
+        dap_chain_ch_state_t l_current_state = atomic_exchange(&a_ch_chain->legacy_sync_context->state,
+                                                               DAP_CHAIN_CH_STATE_IDLE);
         if (l_current_state != DAP_CHAIN_CH_STATE_UPDATE_CHAINS &&
                 l_current_state != DAP_CHAIN_CH_STATE_SYNC_CHAINS &&
                 l_current_state != DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB &&
                 l_current_state != DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB &&
                 l_current_state != DAP_CHAIN_CH_STATE_IDLE &&
                 l_current_state != DAP_CHAIN_CH_STATE_ERROR)
-            // Context will not be removed from proc thread
+            // Context will not be destroyed from proc thread
             s_legacy_sync_context_delete(a_ch_chain->legacy_sync_context);
         a_ch_chain->legacy_sync_context = NULL;
     }

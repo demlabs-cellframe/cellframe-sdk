@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -41,8 +41,10 @@
 #include "dap_cert_file.h"
 #include "dap_chain_ch.h"
 #include "dap_stream_ch_gossip.h"
+#include "dap_notify_srv.h"
 #include <uthash.h>
 #include <pthread.h>
+#include "json.h"
 
 #define LOG_TAG "chain"
 
@@ -101,7 +103,7 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
 {
     dap_chain_t *l_ret = DAP_NEW_Z(dap_chain_t);
     if ( !l_ret ) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;   
     }
     *l_ret = (dap_chain_t) {
@@ -119,7 +121,7 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
         DAP_DEL_Z(l_ret->name);
         DAP_DEL_Z(l_ret->net_name);
         DAP_DELETE(l_ret);
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     l_ret->_pvt = l_chain_pvt;
@@ -129,7 +131,7 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
         DAP_DEL_Z(l_ret->net_name);
         DAP_DELETE(l_ret->_pvt);
         DAP_DELETE(l_ret);
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     *l_ret_item = (dap_chain_item_t) {
@@ -177,6 +179,7 @@ void dap_chain_delete(dap_chain_t * a_chain)
     if (a_chain->callback_delete)
         a_chain->callback_delete(a_chain);
     DAP_DEL_Z(a_chain->_inheritor);
+    dap_config_close(a_chain->config);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
 }
@@ -442,7 +445,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 					l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t)); // TODO: pls check counter for recognized types before memory allocation!
                     if ( !l_chain->datum_types ) {
                         DAP_DELETE(l_chain);
-                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         return NULL;
                     }
                     l_count_recognized = 0;
@@ -467,7 +470,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
                         if (l_chain->datum_types)
                             DAP_DELETE(l_chain->datum_types);
                         DAP_DELETE(l_chain);
-                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         return NULL;
                     }
                     l_count_recognized = 0;
@@ -493,7 +496,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 				{
 					l_chain->autoproc_datum_types = DAP_NEW_Z_SIZE(uint16_t, l_chain->datum_types_count * sizeof(uint16_t)); // TODO: pls check counter for recognized types before memory allocation!
                     if ( !l_chain->autoproc_datum_types ) {
-                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         if (l_chain->datum_types)
                             DAP_DELETE(l_chain->datum_types);
                         if (l_chain->default_datum_types)
@@ -523,7 +526,8 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 				} else
 					l_chain->autoproc_datum_types_count = 0;
 			}
-            l_chain->config = l_cfg;
+            if (l_chain)
+                l_chain->config = l_cfg;
             return l_chain;
         } else
             return NULL;
@@ -579,6 +583,19 @@ int dap_chain_save_all(dap_chain_t *l_chain)
     return l_ret;
 }
 
+//send chain load_progress data to notify socket
+bool download_notify_callback(dap_chain_t* a_chain) {
+    json_object* l_chain_info = json_object_new_object();
+    json_object_object_add(l_chain_info, "class", json_object_new_string("chain_init"));
+    json_object_object_add(l_chain_info, "net", json_object_new_string(a_chain->net_name));
+    json_object_object_add(l_chain_info, "chain_id", json_object_new_uint64(a_chain->id.uint64));
+    json_object_object_add(l_chain_info, "load_progress", json_object_new_int(a_chain->load_progress));
+    dap_notify_server_send_mt(json_object_get_string(l_chain_info));
+    log_it(L_DEBUG, "Load progress: net_name: %s; chain_id: %" DAP_UINT64_FORMAT_U "; download:%d%%", a_chain->net_name, a_chain->id.uint64, a_chain->load_progress);
+    json_object_put(l_chain_info);
+    return true;
+}
+
 /**
  * @brief dap_chain_load_all
  * @param l_chain
@@ -609,6 +626,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
             uint64_t l_cell_id_uint64 = 0;
             sscanf(l_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
             dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(a_chain, (dap_chain_cell_id_t){ .uint64 = l_cell_id_uint64 });
+            dap_timerfd_t* l_download_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)download_notify_callback, a_chain);
             l_ret += dap_chain_cell_load(a_chain, l_cell);
             if ( DAP_CHAIN_PVT(a_chain)->need_reorder ) {
 #ifdef DAP_OS_WINDOWS
@@ -628,6 +646,8 @@ int dap_chain_load_all(dap_chain_t *a_chain)
                 DAP_DELETE(l_filename_backup);
 #endif
             }
+            dap_timerfd_delete_unsafe(l_download_notify_timer);
+            download_notify_callback(a_chain);
         }
     }
     closedir(l_dir);
@@ -815,7 +835,7 @@ void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_ha
         dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
         struct chain_thread_notifier *l_arg = DAP_NEW_Z(struct chain_thread_notifier);
         if (!l_arg) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             continue;
         }
         *l_arg = (struct chain_thread_notifier) {

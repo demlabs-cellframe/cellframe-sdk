@@ -79,14 +79,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                         );
 
     dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database",
-            "global_db cells add -cell <cell id> \n"
+            "global_db cells add -cell <cell_id> \n"
             "global_db flush \n\n"
             "global_db write -group <group_name> -key <key_name> -value <value>\n"
             "global_db read -group <group_name> -key <key_name>\n"
             "global_db delete -group <group_name> -key <key_name>\n"
             "global_db group_list\n"
             "global_db drop_table -group <group_name>\n"
-            "global_db get_keys -group <group name>"
+            "global_db get_keys -group <group_name>"
 
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
@@ -95,7 +95,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                "mempool check -cert <priv_cert_name> -net <net_name> {-file <filename> | -hash <hash>} [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
                                           );
     dap_cli_server_cmd_add("node", com_node, "Work with node",
-                    "node add -net <net_name> [ -port <port> ]\n\n"
+                    "node add -net <net_name> [-port <port>]\n\n"
                     "node del -net <net_name> {-addr <node_address> | -alias <node_alias>}\n\n"
                     "node link {add | del}  -net <net_name> {-addr <node_address> | -alias <node_alias>} -link <node_address>\n\n"
                     "node alias -addr <node_address> -alias <node_alias>\n\n"
@@ -103,10 +103,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node handshake -net <net_name> {-addr <node_address> | -alias <node_alias>}\n"
                     "node connections -net <net_name>\n"
                     "node balancer -net <net_name>\n"
-                    "node dump [ -net <net_name> | -addr <node_address> ]\n\n"
-                    "node list -net <net_name> [ -addr <node_address> | -alias <node_alias>] [-full]\n\n"
-                    "node ban -net <net_name> -chain <chain_name> -certs <certs_name> [ -addr <node_address> | -ip <ip v4 or v6 address> ]\n"
-                    "node unban -net <net_name> -chain <chain_name> -certs <certs_name> [ -addr <node_address> | -ip <ip v4 or v6 address> ]\n"
+                    "node dump [-net <net_name> | -addr <node_address>]\n\n"
+                    "node list -net <net_name> [-addr <node_address> | -alias <node_alias>] [-full]\n\n"
+                    "node ban -net <net_name> -chain <chain_name> -certs <certs_name> [-addr <node_address> | -ip <ip_v4_or_v6_address>]\n"
+                    "node unban -net <net_name> -chain <chain_name> -certs <certs_name> [-addr <node_address> | -ip <ip_v4_or_v6_address>]\n"
                     "node banlist\n\n");
     #ifndef DAP_OS_ANDROID
     dap_cli_server_cmd_add ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
@@ -191,21 +191,21 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Token commands
     dap_cli_server_cmd_add ("token_decl", com_token_decl, "Token declaration",
             "Simple token declaration:\n"
-            "token_decl -net <net_name> [-chain <chain_name>] -token <token_ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
-            "\t  Declare new simple token for <netname>:<chain_name> with ticker <token_ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"
+            "token_decl -net <net_name> [-chain <chain_name>] -token <token_ticker> -total_supply <total_supply> -signs_total <sign_total> -signs_emission <signs_for_emission> -certs <certs_list>\n"
+            "\t  Declare new simple token for <net_name>:<chain_name> with ticker <token_ticker>, maximum emission <total_supply> and <signs_for_emission> from <signs_total> signatures on valid emission\n"
             "\nExtended private token declaration\n"
-            "token_decl -net <net_name> [-chain <chain_name>] -token <token_ticker> -type private -total_supply <total supply> "
-                "-decimals <18> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list> -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
-            "\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
-            "\t   Declare new token for <netname>:<chain_name> with ticker <token_ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
-            "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
+            "token_decl -net <net_name> [-chain <chain_name>] -token <token_ticker> -type private -total_supply <total_supply> "
+                "-decimals <18> -signs_total <sign_total> -signs_emission <signs_for_emission> -certs <certs_list> -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
+            "\t [-<Param_name_1> <Param_Value_1>] [-Param_name_2> <Param_Value_2>] ...[-<Param_Name_N> <Param_Value_N>]\n"
+            "\t   Declare new token for <net_name>:<chain_name> with ticker <token_ticker>, flags <Flag_1>,<Flag_2>...<Flag_N>\n"
+            "\t   and custom parameters list <Param_1>, <Param_2>...<Param_N>.\n"
             "\nExtended CF20 token declaration\n"
             "token_decl -net <net_name> [-chain <chain_name>] -token <token_ticker> -type CF20 "
-                "-total_supply <total supply/if 0 = endless> -decimals <18> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
-            "\t -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
-            "\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
-            "\t   Declare new token for <netname>:<chain_name> with ticker <token_ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
-            "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
+                "-total_supply <total_supply/if_0 =_endless> -decimals <18> -signs_total <sign_total> -signs_emission <signs_for_emission> -certs <certs_list>\n"
+            "\t -flags [<Flag_1>][,<Flag_2>]...[,<Flag_N>]...\n"
+            "\t [-<Param_name_1> <Param_Value_1>] [-Param_name_2> <Param_Value_2>] ...[-<Param_Name_N> <Param_Value_N>]\n"
+            "\t   Declare new token for <net_name>:<chain_name> with ticker <token_ticker>, flags <Flag_1>,<Flag_2>...<Flag_N>\n"
+            "\t   and custom parameters list <Param_1>, <Param_2>...<Param_N>.\n"
             "\n"
             "==Flags=="
             "\t ALL_BLOCKED:\t Blocked all permissions, usefull add it first and then add allows what you want to allow\n"
@@ -244,8 +244,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Token commands
 
     dap_cli_server_cmd_add ("token_decl_sign", com_token_decl_sign, "Token declaration add sign",
-            "token_decl_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs list>\n"
-            "\t Sign existent <datum hash> in mempool with <certs list>\n"
+            "token_decl_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
+            "\t Sign existent <datum_hash> in mempool with <certs_list>\n"
             );
 
     dap_cli_server_cmd_add ("token_emit", com_token_emit, "Token emission",
@@ -257,14 +257,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"
                            "mempool check -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
                            "\tCheck mempool entrie for presence in selected chain network\n"
-                           "mempool proc -net <net_name> -chain <chain_name> -datum <datum_hash>\n"
+                           "mempool proc -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
                            "\tProc mempool entrie with specified hash for selected chain network\n"
                            "\tCAUTION!!! This command will process transaction with any comission! Parameter minimum_comission will not be taken into account!\n"
                            "mempool proc_all -net <net_name> -chain <chain_name>\n"
                            "\tProc mempool all entries for selected chain network\n"
-                           "mempool delete -net <net_name> -chain <chain_name> -datum <datum_hash>\n"
+                           "mempool delete -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
                            "\tDelete datum with hash <datum hash> for selected chain network\n"
-                           "mempool dump -net <net_name> -chain <chain_name> -datum <datum_hash>\n"
+                           "mempool dump -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
                            "\tOutput information about datum in mempool\n"
                            "mempool add_ca -net <net_name> [-chain <chain_name>] -ca_name <pub_cert_name>\n"
                            "\tAdd pubic certificate into the mempool to prepare its way to chains\n"
@@ -333,7 +333,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     //Import GDB from JSON
     dap_cli_server_cmd_add("gdb_import", cmd_gdb_import, "Import gdb from JSON",
-                                        "gdb_import filename <filename without extension>");
+                                        "gdb_import filename <filename_without_extension>");
 
     dap_cli_server_cmd_add ("remove", cmd_remove, "Delete chain files or global database",
            "remove -gdb\n"

@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -73,6 +73,25 @@ typedef struct dap_chain_cs_dag
     void * _pvt;
     void * _inheritor;
 } dap_chain_cs_dag_t;
+
+typedef enum s_com_dag_err{
+    DAP_CHAIN_NODE_CLI_COM_DAG_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_CHAIN_TYPE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_DATUM_DEL_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_EVENT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_SIGN_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_GLOBALDB_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_UNDEF_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_CERT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_FIND_EVENT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_UNDEF_SUB_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_DAG_UNKNOWN /* MAX */
+} s_com_dag_err_t;
 
 #define DAP_CHAIN_CS_DAG(a) ( (dap_chain_cs_dag_t *) (a)->_inheritor)
 

@@ -6,9 +6,9 @@
  * Copyright  (c) 2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -644,7 +644,7 @@ static void ch_sf_pkt_send(dap_stream_ch_t * a_ch, void * a_data, size_t a_data_
     l_pkt_out->header.op_data.data_size = a_data_size;
     memcpy(l_pkt_out->data, a_data, a_data_size);
     dap_stream_ch_pkt_write_unsafe(a_ch, 'd', l_pkt_out, l_pkt_out_size);
-
+    DAP_DELETE(l_pkt_out);
 }
 
 /**
@@ -683,7 +683,7 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
         //log_it(ERROR,"raw socket ring buffer overflowed");
         ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
         if (!pkt_out) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             if(in_daddr_str)
                 DAP_DELETE(in_daddr_str);
             if(in_saddr_str)
@@ -695,6 +695,7 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
         pkt_out->header.sock_id = s_fd_tun;
         dap_stream_ch_pkt_write_unsafe(ch_sf->ch, 'd', pkt_out,
                 pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
+        DAP_DELETE(pkt_out);
     } else {
         //log_it(L_DEBUG, "Raw IP packet daddr:%s saddr:%s  %u from %d bytes sent to tun/tap interface",
         //  str_saddr,str_daddr, sf_pkt->header.op_data.data_size,ret);

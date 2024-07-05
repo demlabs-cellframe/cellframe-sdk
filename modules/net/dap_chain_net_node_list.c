@@ -167,7 +167,9 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     dap_http_simple_reply(a_http_simple, &l_response, sizeof(uint8_t));
 }
 
-static void s_net_node_link_prepare_success(void *a_response, size_t a_response_size, void *a_arg) {
+static void s_net_node_link_prepare_success(void *a_response, size_t a_response_size, void *a_arg,
+                                            http_status_code_t http_status_code) {
+    (void)http_status_code;
     struct node_link_request *l_node_list_request = (struct node_link_request *)a_arg;
     pthread_mutex_lock(&l_node_list_request->wait_mutex);
     l_node_list_request->response = *(uint8_t*)a_response;
@@ -257,7 +259,7 @@ int dap_chain_net_node_list_request(dap_chain_net_t *a_net, uint16_t a_port, boo
     
     struct node_link_request *l_link_node_request = s_node_list_request_init();
     if (!l_link_node_request) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -4;
     };
 

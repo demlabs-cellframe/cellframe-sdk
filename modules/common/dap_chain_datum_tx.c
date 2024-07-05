@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -41,7 +41,7 @@ dap_chain_datum_tx_t* dap_chain_datum_tx_create(void)
 {
     dap_chain_datum_tx_t *tx = DAP_NEW_Z(dap_chain_datum_tx_t);
     if (!tx) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return 0;
     }
     tx->header.ts_created = time(NULL);
@@ -296,40 +296,36 @@ int dap_chain_datum_tx_add_sign_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t 
  *
  * return 1 Ok, 0 Invalid signature, -1 Not found signature or other Error
  */
-int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
+int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx)
 {
-    int ret = -1;
-    if(!tx)
-        return -2;
-    uint32_t tx_items_pos = 0, tx_items_size = tx->header.tx_items_size;
+    dap_return_val_if_pass(!a_tx, -1);
+    int l_ret = 0;
+    uint32_t tx_items_pos = 0, tx_items_size = a_tx->header.tx_items_size;
     while(tx_items_pos < tx_items_size) {
-        uint8_t *item = tx->tx_items + tx_items_pos;
+        uint8_t *item = a_tx->tx_items + tx_items_pos;
         size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
         if(!l_item_tx_size || l_item_tx_size > tx_items_size)
-            return -3;
+            return -2;
         if(dap_chain_datum_tx_item_get_type(item) == TX_ITEM_TYPE_SIG) {
             dap_chain_tx_sig_t *l_item_tx_sig = (dap_chain_tx_sig_t*) item;
             dap_sign_t *l_sign = (dap_sign_t*) l_item_tx_sig->sig;
             if ( ( l_sign->header.sign_size + l_sign->header.sign_pkey_size +sizeof (l_sign->header) )
                   > l_item_tx_size ){
                 log_it(L_WARNING,"Incorrect signature's header, possible corrupted data");
-                return -4;
+                return -3;
             }
-            if (dap_sign_verify_all(l_sign, tx_items_size, tx->tx_items, tx_items_pos)) {
+            if ((l_ret = dap_sign_verify_all(l_sign, tx_items_size, a_tx->tx_items, tx_items_pos))) {
                 // invalid signature
-                ret = 0;
                 tx_items_pos += l_item_tx_size;
                 break;
             }
-            // signature verify successfully
-            ret = 1;
         }
         // sign item or items must be at the end, therefore ret will be changed later anyway
         else
-            ret = -4;
+            l_ret = -4;
         // go to text item
         tx_items_pos += l_item_tx_size;
     }
     assert(tx_items_pos == tx_items_size);
-    return ret;
+    return l_ret;
 }

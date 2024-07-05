@@ -401,7 +401,7 @@ dap_chain_datum_t** dap_chain_block_get_datums(const dap_chain_block_t *a_block,
     dap_chain_datum_t * l_datum =(dap_chain_datum_t *) (a_block->meta_n_datum_n_sign + l_offset);
     dap_chain_datum_t **l_ret = DAP_NEW_Z_SIZE(dap_chain_datum_t *, sizeof(dap_chain_datum_t *) * a_block->hdr.datum_count);
     if (!l_ret) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     for(size_t n=0; n<a_block->hdr.datum_count && l_offset<(a_block_size-sizeof (a_block->hdr)) ; n++){

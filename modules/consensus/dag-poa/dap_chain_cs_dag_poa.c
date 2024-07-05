@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -113,7 +113,7 @@ int dap_chain_cs_dag_poa_init()
     dap_chain_cs_add("dag_poa", s_callback_new);
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, "DAG PoA commands",
-        "dag_poa event sign -net <net_name> -chain <chain_name> -event <event_hash> [-H {hex | base58(default)}]\n"
+        "dag_poa event sign -net <net_name> [-chain <chain_name>] -event <event_hash> [-H {hex | base58(default)}]\n"
             "\tSign event <event hash> in the new round pool with its authorize certificate\n\n");
 
     return 0;
@@ -157,7 +157,7 @@ void dap_chain_cs_dag_poa_presign_callback_set(dap_chain_t *a_chain, dap_chain_c
     l_poa_pvt->callback_pre_sign =
             (dap_chain_cs_dag_poa_presign_callback_t*)DAP_NEW_Z(dap_chain_cs_dag_poa_presign_callback_t);
     if (!l_poa_pvt->callback_pre_sign) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     }
     l_poa_pvt->callback_pre_sign->callback = a_callback;
@@ -191,7 +191,7 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
     }
 
     if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net,
-                                                      CHAIN_TYPE_INVALID)) {
+                                                      CHAIN_TYPE_TOKEN)) {
         return -3;
     }
 
@@ -275,7 +275,7 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
                     dap_chain_cs_dag_event_calc_hash(l_event, l_event_size_new, &l_event_new_hash);
                     char l_event_new_hash_hex_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_chain_hash_fast_to_str(&l_event_new_hash, l_event_new_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                    char *l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str_static(&l_event_new_hash);
+                    const char *l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str_static(&l_event_new_hash);
 
                     bool l_event_is_ready = s_round_event_ready_minimum_check(l_dag, l_event, l_event_size_new,
                                                                         l_event_new_hash_hex_str);
@@ -347,7 +347,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
     dap_chain_cs_dag_poa_t *l_poa = DAP_NEW_Z(dap_chain_cs_dag_poa_t);
     if (!l_poa) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
     l_dag->_inheritor = l_poa;
@@ -357,7 +357,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->chain->callback_get_poa_certs = dap_chain_cs_dag_poa_get_auth_certs;
     l_poa->_pvt = DAP_NEW_Z ( dap_chain_cs_dag_poa_pvt_t );
     if (!l_poa->_pvt) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
@@ -375,7 +375,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         if (l_poa_pvt->auth_certs_count && l_poa_pvt->auth_certs_count_verify) {
             l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t *));
             if (!l_poa_pvt->auth_certs) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return -1;
             }
             char l_cert_name[512];
@@ -675,7 +675,7 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
         l_callback_arg = DAP_NEW_Z(struct round_timer_arg);
         if (!l_callback_arg) {
             pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return;
         }
         l_callback_arg->dag = a_dag;

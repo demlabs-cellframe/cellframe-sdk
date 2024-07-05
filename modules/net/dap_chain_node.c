@@ -3,9 +3,9 @@
  * Dmitriy A. Gerasimov <naeper@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -271,6 +271,7 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
     if (l_verify_datum != 0 &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
+            l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE)
         return true;
     if (!l_verify_datum
@@ -410,12 +411,6 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
             log_it(L_ERROR, "Invalid record, key %s", l_objs[i].key);
             continue;
         }
-        dap_nanotime_t l_timestamp = 0;
-        dap_chain_node_net_states_info_t *l_store_obj = (dap_chain_node_net_states_info_t *)dap_global_db_get_sync(l_gdb_group, l_objs[i].key, NULL, NULL, &l_timestamp);
-        if (!l_store_obj) {
-            log_it(L_ERROR, "Can't find state about %s node", l_objs[i].key);
-            continue;
-        }
         bool l_ignored = false;
         for(size_t j = 0; !l_ignored && j < a_ignored_count; ++j) {
             l_ignored = a_ignored[j].uint64 == ((dap_chain_node_info_t*)(l_objs + i)->value)->address.uint64;
@@ -426,17 +421,22 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
         }
         dap_chain_node_states_info_t *l_item = DAP_NEW_Z(dap_chain_node_states_info_t);
         if(!l_item) {
-            log_it(L_ERROR, "%s", g_error_memory_alloc);
+            log_it(L_ERROR, "%s", c_error_memory_alloc);
             break;
+        }
+        dap_nanotime_t l_state_timestamp = 0;
+        dap_chain_node_net_states_info_t *l_state_store_obj = (dap_chain_node_net_states_info_t *)dap_global_db_get_sync(l_gdb_group, l_objs[i].key, NULL, NULL, &l_state_timestamp);
+        if (!l_state_store_obj) {
+            log_it(L_WARNING, "Can't find state about %s node, apply low priority", l_objs[i].key);
         }
         l_item->link_info.node_addr.uint64 = ((dap_chain_node_info_t*)(l_objs + i)->value)->address.uint64;
         l_item->link_info.uplink_port = ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_port;
         dap_strncpy(l_item->link_info.uplink_addr, ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_host, sizeof(l_item->link_info.uplink_addr) - 1);
-        l_item->atoms_count = l_store_obj->atoms_count;
-        l_item->downlinks_count = l_store_obj->downlinks_count;
-        l_item->timestamp = l_timestamp;
+        l_item->atoms_count = l_state_store_obj ? l_state_store_obj->atoms_count : 0;
+        l_item->downlinks_count = l_state_store_obj ? l_state_store_obj->downlinks_count : (uint32_t)(-1);
+        l_item->timestamp = l_state_timestamp;
         l_ret = dap_list_insert_sorted(l_ret, (void *)l_item, s_node_states_info_cmp);
-        DAP_DELETE(l_store_obj);
+        DAP_DELETE(l_state_store_obj);
     }
     DAP_DELETE(l_gdb_group);
     dap_global_db_objs_delete(l_objs, l_node_count);

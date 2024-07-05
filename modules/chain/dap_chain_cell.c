@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -333,6 +333,44 @@ void dap_chain_cell_delete(dap_chain_cell_t *a_cell)
     DAP_DELETE(a_cell);
 }
 
+void dap_chain_cell_delete_all_and_free_file(dap_chain_t *a_chain) {
+    if (!a_chain)
+        return;
+    pthread_rwlock_wrlock(&a_chain->cell_rwlock);
+    dap_chain_cell_t *l_cell, *l_tmp;
+    HASH_ITER(hh, a_chain->cells, l_cell, l_tmp) {
+        char *l_fsp = dap_strdup(l_cell->file_storage_path);
+        dap_chain_cell_id_t l_cell_id = l_cell->id;
+        dap_chain_cell_close(l_cell);
+
+        dap_chain_cell_t * l_cell_nh = DAP_NEW_Z(dap_chain_cell_t);
+        FILE *l_file = fopen(l_fsp, "w+b");
+        if ( !l_file ) {
+            log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be opened, error %d",
+                   l_fsp, l_cell_id.uint64, errno);
+        }
+        *l_cell_nh = (dap_chain_cell_t) {
+                .id             = l_cell_id,
+                .chain          = a_chain,
+                .file_storage   = l_file
+        };
+        if ( !s_cell_file_write_header(l_cell_nh)) {
+            log_it(L_ERROR, "Can't init file storage for cell 0x%016"DAP_UINT64_FORMAT_X" \"%s\", errno %d",
+                   l_cell_id.uint64, l_fsp, errno);
+        } else {
+            log_it(L_NOTICE, "Reinitialized file storage for cell 0x%016"DAP_UINT64_FORMAT_X" \"%s\"",
+                   l_cell_id.uint64, l_fsp);
+        }
+        dap_chain_cell_close(l_cell_nh);
+
+        DAP_DELETE(l_fsp);
+        HASH_DEL(a_chain->cells, l_cell);
+        pthread_rwlock_destroy(&l_cell->storage_rwlock);
+        DAP_DELETE(l_cell);
+    }
+    pthread_rwlock_unlock(&a_chain->cell_rwlock);
+}
+
 void dap_chain_cell_delete_all(dap_chain_t *a_chain) {
     if (!a_chain)
         return;
@@ -393,7 +431,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     if (a_chain->is_mapped)
         a_cell->map_pos += l_pos;
     if (l_size == l_pos) {
-        fseek(a_cell->file_storage, l_pos, SEEK_END);
+        fseek(a_cell->file_storage, l_pos, SEEK_SET);
         return 0;
     }
         
@@ -401,7 +439,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     uint64_t q = 0;
     if (a_chain->is_mapped) {
         a_cell->map_pos = a_cell->map + sizeof(dap_chain_cell_file_header_t);
-        for ( uint64_t l_el_size = 0; l_pos < l_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
+        for ( uint64_t l_el_size = 0; l_pos < l_size; ++q, l_pos += l_el_size + sizeof(uint64_t), a_chain->load_progress =  (int)((double)l_pos/l_size * 100 + 0.5)) {
             size_t space_left = (size_t)( a_cell->map_end - a_cell->map_pos );
             if ( space_left < sizeof(uint64_t) || (space_left - sizeof(uint64_t)) < *(uint64_t*)a_cell->map_pos )
                 if ( s_cell_map_new_volume(a_cell, l_pos) )
@@ -413,7 +451,6 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             a_chain->callback_atom_add(a_chain, l_atom, l_el_size, &l_atom_hash);
             a_cell->map_pos += l_el_size;
         }
-        fseek(a_cell->file_storage, l_pos, SEEK_SET);
     } else { 
         DAP_DELETE(l_hdr);
         size_t l_read = 0;
@@ -431,6 +468,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
                 break;
             }
             l_pos += sizeof(uint64_t) + ( l_read = fread((void*)l_element, 1, l_el_size, a_cell->file_storage) );
+            a_chain->load_progress =  (int)((double)l_pos/l_size * 100 + 0.5);
             if (l_read != l_el_size) {
                 log_it(L_ERROR, "Read only %lu of %zu bytes, stop cell loading", l_read, l_el_size);
                 DAP_DELETE(l_element);
@@ -445,8 +483,8 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             }
             ++q;
         }
-        fseek(a_cell->file_storage, l_pos, SEEK_SET);
     }
+    fseek(a_cell->file_storage, l_pos, SEEK_SET);
     log_it(L_INFO, "Loaded %lu atoms in cell %s", q, a_cell->file_storage_path);
     return l_ret;
 }

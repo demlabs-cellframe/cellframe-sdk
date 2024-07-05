@@ -4,9 +4,9 @@
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -156,7 +156,11 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                 }
             }
         }
-        if(l_node_client->callbacks.connected)
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        l_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
+        pthread_cond_signal(&l_node_client->wait_cond);
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
+        if (l_node_client->callbacks.connected)
             l_node_client->callbacks.connected(l_node_client, l_node_client->callbacks_arg);
     }
 }
@@ -256,7 +260,7 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
     }
     dap_chain_node_client_t *l_node_client = DAP_NEW_Z(dap_chain_node_client_t);
     if (!l_node_client) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
 
@@ -293,8 +297,9 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
-    const char *l_cert_node_name = dap_config_get_item_str(a_node_client->net->pub.config, "general", "auth_cert");
-    dap_client_set_auth_cert(a_node_client->client, l_cert_node_name);
+    const char *l_auth_cert_name = dap_config_get_item_str(a_node_client->net->pub.config, "general", "auth_cert");
+    if (l_auth_cert_name)
+        dap_client_set_auth_cert(a_node_client->client, l_auth_cert_name);
     char *l_host_addr = a_node_client->info->ext_host;
     
     if ( !*l_host_addr || !strcmp(l_host_addr, "::") || !a_node_client->info->ext_port ) {
@@ -316,7 +321,7 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
  */
 void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
 {
-    log_it(L_INFO, "Closing node client to uplink"NODE_ADDR_FP_STR" [ %s : %u ]",
+    log_it(L_INFO, "Closing node client to uplink "NODE_ADDR_FP_STR" [ %s : %u ]",
                     NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr),
                     a_node_client->info->ext_host,
                     a_node_client->info->ext_port);
@@ -392,8 +397,8 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
 
     // prepare for signal waiting
     struct timespec l_cond_timeout;
-    clock_gettime( CLOCK_MONOTONIC, &l_cond_timeout);
-    l_cond_timeout.tv_sec += a_timeout_ms/1000;
+    clock_gettime(CLOCK_REALTIME, &l_cond_timeout);
+    l_cond_timeout.tv_sec += a_timeout_ms;//1000;
     // signal waiting
     dap_chain_node_client_state_t l_clinet_state = a_client->state;
     while (a_client->state == l_clinet_state) {
@@ -406,7 +411,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
             break;
         }
         else if(l_ret_wait == ETIMEDOUT) { // 110 260
-            //log_it(L_NOTICE,"Wait for status is stopped by timeout");
+            log_it(L_NOTICE, "Wait for status is stopped by timeout");
             ret = -1;
             break;
         }else if (l_ret_wait != 0 ){

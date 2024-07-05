@@ -178,7 +178,7 @@ static void s_dns_client_esocket_worker_assign_callback(dap_events_socket_t * a_
 
     dap_events_socket_uuid_t * l_es_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
     if (!l_es_uuid_ptr) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     }
     *l_es_uuid_ptr = a_esocket->uuid;

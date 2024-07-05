@@ -6,9 +6,9 @@
  * Copyright  (c) 2022
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -36,7 +36,7 @@ dap_chain_tx_t * dap_chain_tx_wrap_packed(dap_chain_datum_tx_t * a_tx_packed)
 {
     dap_chain_tx_t * l_tx = DAP_NEW_Z(dap_chain_tx_t);
     if (!l_tx) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     dap_hash_fast(a_tx_packed, dap_chain_datum_tx_get_size(a_tx_packed), &l_tx->hash);

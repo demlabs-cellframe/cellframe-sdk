@@ -8,9 +8,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Demlabs Application Protocol) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
+    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -92,19 +92,6 @@ typedef struct ch_vpn_pkt {
 
 typedef struct dap_chain_net_srv_vpn_tun_socket dap_chain_net_srv_vpn_tun_socket_t;
 typedef struct dap_chain_net_srv_ch_vpn dap_chain_net_srv_ch_vpn_t;
-
-
-// Copy is present on each tun socket
-typedef struct usage_client {
-    dap_chain_net_srv_ch_vpn_t * ch_vpn;
-    dap_chain_datum_tx_receipt_t * receipt;
-    size_t receipt_size;
-    uint32_t usage_id;
-    dap_chain_net_srv_t * srv;
-    dap_chain_net_srv_vpn_tun_socket_t * tun_socket;
-    UT_hash_handle hh;
-} usage_client_t;
-
 typedef struct dap_chain_net_srv_ch_vpn_info dap_chain_net_srv_ch_vpn_info_t;
 
 typedef struct dap_chain_net_srv_vpn_tun_socket {

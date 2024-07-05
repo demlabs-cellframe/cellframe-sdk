@@ -31,11 +31,11 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_receipt.h"
-#include "dap_chain_net_srv.h"
 #include "dap_chain_wallet.h"
 
 typedef struct dap_chain_net_srv dap_chain_net_srv_t;
 typedef struct dap_chain_net_srv_client_remote dap_chain_net_srv_client_remote_t;
+typedef struct dap_chain_net_srv_price dap_chain_net_srv_price_t;
 
 typedef struct dap_chain_net_srv_usage{
     uint32_t id; // Usage id

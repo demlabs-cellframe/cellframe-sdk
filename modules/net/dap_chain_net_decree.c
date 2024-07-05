@@ -103,7 +103,7 @@ int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
     decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_cur_decree, *l_tmp;
     HASH_ITER(hh, *l_decrees, l_cur_decree, l_tmp) {
         HASH_DEL(*l_decrees, l_cur_decree);
-        if ( !dap_chain_find_by_id(l_cur_decree->decree->header.common_decree_params.net_id, l_cur_decree->decree->header.common_decree_params.chain_id)->is_mapped )
+        if ( l_cur_decree->decree && !dap_chain_find_by_id(l_cur_decree->decree->header.common_decree_params.net_id, l_cur_decree->decree->header.common_decree_params.chain_id)->is_mapped )
             DAP_DELETE(l_cur_decree->decree);
         DAP_DELETE(l_cur_decree);
     }
@@ -245,7 +245,6 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
 
     decree_table_t **l_decrees = dap_chain_net_get_decrees(l_net), *l_new_decree;
     HASH_FIND(hh, *l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_new_decree);
-
     if (!l_new_decree) {
         l_new_decree = DAP_NEW_Z(decree_table_t);
         if (!l_new_decree) {
