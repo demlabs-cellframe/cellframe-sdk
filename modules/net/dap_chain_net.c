@@ -2927,7 +2927,7 @@ void dap_chain_net_proc_mempool(dap_chain_net_t *a_net)
  * @brief dap_chain_net_verify_datum_for_add
  * process datum verification process. Can be:
  *   if DAP_CHAIN_DATUM_TX, called dap_ledger_tx_add_check
- *   if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_ledger_token_decl_add_check
+ *   if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_ledger_token_add_check
  *   if DAP_CHAIN_DATUM_TOKEN_EMISSION, called dap_ledger_token_emission_add_check
  *   if DAP_CHAIN_DATUM_DECREE
  * @param a_net
@@ -2945,7 +2945,7 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
     case DAP_CHAIN_DATUM_TX:
         return dap_ledger_tx_add_check(l_net->pub.ledger, (dap_chain_datum_tx_t *)a_datum->data, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_TOKEN_DECL:
-        return dap_ledger_token_decl_add_check(l_net->pub.ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
+        return dap_ledger_token_add_check(l_net->pub.ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
         return dap_ledger_token_emission_add_check(l_net->pub.ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_DECREE:
@@ -2968,7 +2968,7 @@ char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int
     case DAP_CHAIN_DATUM_TX:
         return dap_ledger_tx_check_err_str(a_code);
     case DAP_CHAIN_DATUM_TOKEN_DECL:
-        return dap_ledger_token_decl_add_err_code_to_str(a_code);
+        return dap_ledger_token_add_err_code_to_str(a_code);
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
         return dap_ledger_token_emission_err_code_to_str(a_code);
     default:

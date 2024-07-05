@@ -49,9 +49,9 @@ typedef struct dap_ledger {
  * @brief Error codes for accepting a transaction to the ledger.
  */
 typedef enum dap_ledger_tx_check{
-    DAP_LEDGER_TX_CHECK_OK = 0,
-    DAP_LEDGER_TX_CHECK_NULL_TX,
-    DAP_LEDGER_TX_CHECK_INVALID_TX_SIZE,
+    DAP_LEDGER_CHECK_OK = 0,
+    DAP_LEDGER_CHECK_INVALID_ARGS,
+    DAP_LEDGER_CHECK_INVALID_SIZE,
     DAP_LEDGER_TX_ALREADY_CACHED,
     DAP_LEDGER_TX_CHECK_INVALID_TX_SIGN,
     DAP_LEDGER_TX_CHECK_IN_EMS_ALREADY_USED,
@@ -78,7 +78,7 @@ typedef enum dap_ledger_tx_check{
     DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE,
     DAP_LEDGER_TX_CHECK_PREV_TICKER_NOT_FOUND,
     DAP_LEDGER_TX_CHECK_PREV_TOKEN_NOT_FOUND,
-    DAP_LEDGER_PERMISSION_CHECK_FAILED,
+    DAP_LEDGER_TX_CHECK_PERMISSION_CHECK_FAILED,
     DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS,
     DAP_LEDGER_TX_CHECK_REWARD_ITEM_ALREADY_USED,
     DAP_LEDGER_TX_CHECK_REWARD_ITEM_ILLEGAL,
@@ -90,32 +90,33 @@ typedef enum dap_ledger_tx_check{
 } dap_ledger_tx_check_t;
 
 typedef enum dap_ledger_emission_err{
-    DAP_LEDGER_EMISSION_ADD_OK = 0,
-    DAP_LEDGER_EMISSION_ADD_CHECK_EMS_IS_NULL,
-    DAP_LEDGER_EMISSION_ADD_CHECK_EMS_ALREADY_CACHED,
-    DAP_LEDGER_EMISSION_ADD_CHECK_THRESHOLD_OVERFLOW,
-    DAP_LEDGER_EMISSION_ADD_CHECK_VALUE_EXEEDS_CURRENT_SUPPLY,
-    DAP_LEDGER_EMISSION_ADD_CHECK_NOT_ENOUGH_VALID_SIGNS,
-    DAP_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN,
-    DAP_LEDGER_EMISSION_ADD_CHECK_ZERO_VALUE,
-    DAP_LEDGER_EMISSION_ADD_TSD_CHECK_FAILED,
+    DAP_LEDGER_EMISSION_CHECK_OK = 0,
+    DAP_LEDGER_EMISSION_CHECK_EMS_IS_NULL,
+    DAP_LEDGER_EMISSION_CHECK_EMS_ALREADY_CACHED,
+    DAP_LEDGER_EMISSION_CHECK_THRESHOLD_OVERFLOW,
+    DAP_LEDGER_EMISSION_CHECK_VALUE_EXEEDS_CURRENT_SUPPLY,
+    DAP_LEDGER_EMISSION_CHECK_NOT_ENOUGH_VALID_SIGNS,
+    DAP_LEDGER_EMISSION_CHECK_CANT_FIND_DECLARATION_TOKEN,
+    DAP_LEDGER_EMISSION_CHECK_ZERO_VALUE,
+    DAP_LEDGER_EMISSION_CHECK_TSD_CHECK_FAILED,
     /* add custom codes here */
-    DAP_LEDGER_EMISSION_ADD_MEMORY_PROBLEM,
-    DAP_LEDGER_EMISSION_ADD_UNKNOWN /* MAX */
+    DAP_LEDGER_EMISSION_CHECK_MEMORY_PROBLEM,
+    DAP_LEDGER_EMISSION_CHECK_UNKNOWN /* MAX */
 } dap_ledger_emission_err_code_t;
 
-typedef enum dap_ledger_token_decl_add_err{
-    DAP_LEDGER_TOKEN_DECL_ADD_OK = 0,
-    DAP_LEDGER_TOKEN_DECL_ADD_ERR_LEDGER_IS_NULL,
-    DAP_LEDGER_TOKEN_DECL_ADD_ERR_DECL_DUPLICATE,
-    DAP_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_CHECK,
-    DAP_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_ABSENT_TOKEN,
-    DAP_LEDGER_TOKEN_DECL_ADD_ERR_NOT_ENOUGH_VALID_SIGN,
-    DAP_LEDGER_TOKEN_DECL_ADD_ERR_TOTAL_SIGNS_EXCEED_UNIQUE_SIGNS,
+typedef enum dap_ledger_token_add_err {
+    DAP_LEDGER_TOKEN_ADD_OK = 0,
+    DAP_LEDGER_TOKEN_ADD_ERR_TOKEN_SIZE,
+    DAP_LEDGER_TOKEN_ADD_ERR_TOKEN_TYPE,
+    DAP_LEDGER_TOKEN_ADD_ERR_NOT_ENOUGH_VALID_SIGN,
+    DAP_LEDGER_TOKEN_ADD_ERR_TOTAL_SIGNS_EXCEED_UNIQUE_SIGNS,
+    DAP_LEDGER_TOKEN_ADD_ERR_DECL_DUPLICATE,
+    DAP_LEDGER_TOKEN_ADD_ERR_UPDATE_DUPLICATE,
+    DAP_LEDGER_TOKEN_ADD_ERR_UPDATE_ABSENT_TOKEN,
     /* add custom codes here */
 
-    DAP_LEDGER_TOKEN_DECL_ADD_UNKNOWN /* MAX */
-} dap_ledger_token_decl_add_err_t;
+    DAP_LEDGER_TOKEN_ADD_UNKNOWN /* MAX */
+} dap_ledger_token_add_err_t;
 
 typedef enum dap_chan_ledger_notify_opcodes{
     DAP_LEDGER_NOTIFY_OPCODE_ADDED = 'a', // 0x61
@@ -181,7 +182,7 @@ typedef bool (*dap_ledger_tag_check_callback_t)(dap_ledger_t *a_ledger, dap_chai
 // Error code for no emission for a transaction (for stay in mempool)
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION     DAP_LEDGER_TX_CHECK_EMISSION_NOT_FOUND
 // Error code for not enough valid emission signs (for stay in mempool)
-#define DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS   DAP_LEDGER_EMISSION_ADD_CHECK_NOT_ENOUGH_VALID_SIGNS
+#define DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS   DAP_LEDGER_EMISSION_CHECK_NOT_ENOUGH_VALID_SIGNS
 // Error code for no decree for anchor (for stay in mempool)
 #define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE          -1113
 
@@ -261,8 +262,8 @@ dap_chain_datum_token_t *dap_ledger_token_ticker_check(dap_ledger_t * a_ledger, 
 
 int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
 int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
-int dap_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
-char *dap_ledger_token_decl_add_err_code_to_str(int a_code);
+int dap_ledger_token_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
+char *dap_ledger_token_add_err_code_to_str(int a_code);
 json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset);
 
 // Get all token-declarations

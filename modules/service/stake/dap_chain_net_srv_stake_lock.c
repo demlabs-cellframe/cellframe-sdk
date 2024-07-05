@@ -355,7 +355,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     if (NULL == (l_delegated_token = dap_ledger_token_ticker_check(l_ledger, l_delegated_ticker_str))
     ||	(l_delegated_token->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE)
     ||	!l_delegated_token->header_native_decl.tsd_total_size
-    ||	NULL == (l_tsd = dap_tsd_find(l_delegated_token->data_n_tsd, l_delegated_token->header_native_decl.tsd_total_size,
+    ||	NULL == (l_tsd = dap_tsd_find(l_delegated_token->tsd_n_signs, l_delegated_token->header_native_decl.tsd_total_size,
                                       DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
         dap_string_append_printf(output_line, "'%s'", l_delegated_ticker_str);
         return NO_DELEGATED_TOKEN_ERROR;
@@ -561,7 +561,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
         if (NULL == (l_delegated_token = dap_ledger_token_ticker_check(l_ledger, l_delegated_ticker_str))
             ||	(l_delegated_token->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE)
             ||	!l_delegated_token->header_native_decl.tsd_total_size
-            ||	NULL == (l_tsd = dap_tsd_find(l_delegated_token->data_n_tsd,
+            ||	NULL == (l_tsd = dap_tsd_find(l_delegated_token->tsd_n_signs,
                                               l_delegated_token->header_native_decl.tsd_total_size,
                                               DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
             dap_string_append_printf(output_line, "'%s'", l_delegated_ticker_str);
@@ -1055,7 +1055,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
         if (NULL == (l_delegated_token = dap_ledger_token_ticker_check(a_ledger, l_delegated_ticker_str))
             ||	(l_delegated_token->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE)
             ||	!l_delegated_token->header_native_decl.tsd_total_size
-            ||	NULL == (l_tsd = dap_tsd_find(l_delegated_token->data_n_tsd,
+            ||	NULL == (l_tsd = dap_tsd_find(l_delegated_token->tsd_n_signs,
                                               l_delegated_token->header_native_decl.tsd_total_size,
                                               DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
             return false;

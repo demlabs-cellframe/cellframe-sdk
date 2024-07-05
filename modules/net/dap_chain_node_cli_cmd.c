@@ -2387,7 +2387,7 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
         if (l_sign) {
             size_t l_sign_size = dap_sign_get_size(l_sign);
             l_datum_token = DAP_REALLOC(l_datum_token, sizeof(*l_datum_token) + (*l_datum_signs_offset) + l_sign_size);
-            memcpy(l_datum_token->data_n_tsd + *l_datum_signs_offset, l_sign, l_sign_size);
+            memcpy(l_datum_token->tsd_n_signs + *l_datum_signs_offset, l_sign, l_sign_size);
             *l_datum_signs_offset += l_sign_size;
             DAP_DELETE(l_sign);
             log_it(L_DEBUG,"<-- Signed with '%s'", l_certs[i]->name);
@@ -2493,7 +2493,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                 uint16_t l_tmp_signs_total = l_datum_token->signs_total;
                 l_datum_token->signs_total = 0;
                 for (i = 1; i <= l_tmp_signs_total; i++){
-                    dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->data_n_tsd + l_tsd_size + l_signs_size);
+                    dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->tsd_n_signs + l_tsd_size + l_signs_size);
                     if( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) + l_tsd_size) ) {
                         log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -4514,11 +4514,11 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
                     default: log_it(L_DEBUG, "== 0x%04X: binary data %u size ",l_tsd->type, l_tsd->size );
                 }
                 size_t l_tsd_size = dap_tsd_size(l_tsd);
-                memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
+                memcpy(l_datum_token->tsd_n_signs + l_datum_data_offset, l_tsd, l_tsd_size);
                 l_datum_data_offset += l_tsd_size;
             }
             if (l_params->ext.parsed_tsd) {
-                memcpy(l_datum_token->data_n_tsd + l_datum_data_offset,
+                memcpy(l_datum_token->tsd_n_signs + l_datum_data_offset,
                        l_params->ext.parsed_tsd,
                        l_params->ext.tsd_total_size);
                 l_datum_data_offset += l_params->ext.tsd_total_size;
@@ -4729,7 +4729,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
             // Add TSD sections in the end
             // Add TSD sections in the end
             if (l_params->ext.tsd_total_size) {
-                memcpy(l_datum_token->data_n_tsd, l_params->ext.parsed_tsd, l_params->ext.parsed_tsd_size);
+                memcpy(l_datum_token->tsd_n_signs, l_params->ext.parsed_tsd, l_params->ext.parsed_tsd_size);
                 DAP_DELETE(l_params->ext.parsed_tsd);
             }
             log_it(L_DEBUG, "%s token declaration update '%s' initialized", (	l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)	?

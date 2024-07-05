@@ -90,7 +90,7 @@ static dap_chain_ledger_votings_callbacks_t s_voting_callbacks;
 #define MAX_OUT_ITEMS   10
 
 static const char * const s_ledger_tx_check_err_str[] = {
-    [DAP_LEDGER_TX_CHECK_OK] = "DAP_LEDGER_TX_CHECK_OK",
+    [DAP_LEDGER_CHECK_OK] = "DAP_LEDGER_CHECK_OK",
     [DAP_LEDGER_TX_CHECK_NULL_TX] = "DAP_LEDGER_TX_CHECK_NULL_TX",
     [DAP_LEDGER_TX_CHECK_INVALID_TX_SIZE] = "DAP_LEDGER_TX_CHECK_INVALID_TX_SIZE",
     [DAP_LEDGER_TX_ALREADY_CACHED] = "DAP_LEDGER_TX_ALREADY_CACHED",
@@ -125,29 +125,29 @@ static const char * const s_ledger_tx_check_err_str[] = {
 };
 
 static const char * const s_ledger_emission_add_err_str[] = {
-    [DAP_LEDGER_EMISSION_ADD_OK] = "DAP_LEDGER_EMISSION_ADD_OK",
-    [DAP_LEDGER_EMISSION_ADD_CHECK_EMS_IS_NULL] = "DAP_LEDGER_EMISSION_ADD_CHECK_EMS_IS_NULL",
-    [DAP_LEDGER_EMISSION_ADD_CHECK_EMS_ALREADY_CACHED] = "DAP_LEDGER_EMISSION_ADD_CHECK_EMS_ALREADY_CACHED",
-    [DAP_LEDGER_EMISSION_ADD_CHECK_THRESHOLD_OVERFLOW] = "DAP_LEDGER_EMISSION_ADD_CHECK_THRESHOLD_OVERFLOW",
-    [DAP_LEDGER_EMISSION_ADD_CHECK_VALUE_EXEEDS_CURRENT_SUPPLY] = "DAP_LEDGER_EMISSION_ADD_CHECK_VALUE_EXEEDS_CURRENT_SUPPLY",
-    [DAP_LEDGER_EMISSION_ADD_CHECK_NOT_ENOUGH_VALID_SIGNS] = "DAP_LEDGER_EMISSION_ADD_CHECK_NOT_ENOUGH_VALID_SIGNS",
-    [DAP_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN] = "DAP_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN",
-    [DAP_LEDGER_EMISSION_ADD_CHECK_ZERO_VALUE] = "DAP_LEDGER_EMISSION_ADD_CHECK_ZERO_VALUE",
-    [DAP_LEDGER_EMISSION_ADD_TSD_CHECK_FAILED] = "DAP_LEDGER_EMISSION_ADD_TSD_CHECK_FAILED"
+    [DAP_LEDGER_EMISSION_CHECK_OK] = "DAP_LEDGER_EMISSION_CHECK_OK",
+    [DAP_LEDGER_EMISSION_CHECK_EMS_IS_NULL] = "DAP_LEDGER_EMISSION_CHECK_EMS_IS_NULL",
+    [DAP_LEDGER_EMISSION_CHECK_EMS_ALREADY_CACHED] = "DAP_LEDGER_EMISSION_CHECK_EMS_ALREADY_CACHED",
+    [DAP_LEDGER_EMISSION_CHECK_THRESHOLD_OVERFLOW] = "DAP_LEDGER_EMISSION_CHECK_THRESHOLD_OVERFLOW",
+    [DAP_LEDGER_EMISSION_CHECK_VALUE_EXEEDS_CURRENT_SUPPLY] = "DAP_LEDGER_EMISSION_CHECK_VALUE_EXEEDS_CURRENT_SUPPLY",
+    [DAP_LEDGER_EMISSION_CHECK_NOT_ENOUGH_VALID_SIGNS] = "DAP_LEDGER_EMISSION_CHECK_NOT_ENOUGH_VALID_SIGNS",
+    [DAP_LEDGER_EMISSION_CHECK_CANT_FIND_DECLARATION_TOKEN] = "DAP_LEDGER_EMISSION_CHECK_CANT_FIND_DECLARATION_TOKEN",
+    [DAP_LEDGER_EMISSION_CHECK_ZERO_VALUE] = "DAP_LEDGER_EMISSION_CHECK_ZERO_VALUE",
+    [DAP_LEDGER_EMISSION_CHECK_TSD_CHECK_FAILED] = "DAP_LEDGER_EMISSION_CHECK_TSD_CHECK_FAILED"
 };
 
 static const char * const s_ledger_token_decl_err_str[] = {
-    [DAP_LEDGER_TOKEN_DECL_ADD_OK] = "DAP_LEDGER_TOKEN_DECL_ADD_OK",
-    [DAP_LEDGER_TOKEN_DECL_ADD_ERR_LEDGER_IS_NULL] = "DAP_LEDGER_TOKEN_DECL_ADD_ERR_LEDGER_IS_NULL",
-    [DAP_LEDGER_TOKEN_DECL_ADD_ERR_DECL_DUPLICATE] = "DAP_LEDGER_TOKEN_DECL_ADD_ERR_DECL_DUPLICATE",
-    [DAP_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_CHECK] = "DAP_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_CHECK",
-    [DAP_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_ABSENT_TOKEN] = "DAP_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_ABSENT_TOKEN",
-    [DAP_LEDGER_TOKEN_DECL_ADD_ERR_NOT_ENOUGH_VALID_SIGN] = "DAP_LEDGER_TOKEN_DECL_ADD_ERR_NOT_ENOUGH_VALID_SIGN",
-    [DAP_LEDGER_TOKEN_DECL_ADD_ERR_TOTAL_SIGNS_EXCEED_UNIQUE_SIGNS] = "DAP_LEDGER_TOKEN_DECL_ADD_ERR_TOTAL_SIGNS_EXCEED_UNIQUE_SIGNS"
+    [DAP_LEDGER_TOKEN_ADD_OK] = "DAP_LEDGER_TOKEN_ADD_OK",
+    [DAP_LEDGER_TOKEN_ADD_ERR_TOKEN_SIZE] = "DAP_LEDGER_TOKEN_ADD_ERR_TOKEN_SIZE",
+    [DAP_LEDGER_TOKEN_ADD_ERR_DECL_DUPLICATE] = "DAP_LEDGER_TOKEN_ADD_ERR_DECL_DUPLICATE",
+    [DAP_LEDGER_TOKEN_ADD_ERR_TOKEN_UPDATE_CHECK] = "DAP_LEDGER_TOKEN_ADD_ERR_TOKEN_UPDATE_CHECK",
+    [DAP_LEDGER_TOKEN_ADD_ERR_TOKEN_UPDATE_ABSENT_TOKEN] = "DAP_LEDGER_TOKEN_ADD_ERR_TOKEN_UPDATE_ABSENT_TOKEN",
+    [DAP_LEDGER_TOKEN_ADD_ERR_NOT_ENOUGH_VALID_SIGN] = "DAP_LEDGER_TOKEN_ADD_ERR_NOT_ENOUGH_VALID_SIGN",
+    [DAP_LEDGER_TOKEN_ADD_ERR_TOTAL_SIGNS_EXCEED_UNIQUE_SIGNS] = "DAP_LEDGER_TOKEN_ADD_ERR_TOTAL_SIGNS_EXCEED_UNIQUE_SIGNS"
 };
 
 char *dap_ledger_tx_check_err_str(int a_code) {
-    return (a_code >= DAP_LEDGER_TX_CHECK_OK) && (a_code < DAP_LEDGER_TX_CHECK_UNKNOWN)
+    return (a_code >= DAP_LEDGER_CHECK_OK) && (a_code < DAP_LEDGER_TX_CHECK_UNKNOWN)
             ? (char*)s_ledger_tx_check_err_str[(dap_ledger_tx_check_t)a_code]
             : dap_itoa(a_code);
 }
@@ -641,71 +641,6 @@ struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_
  */
 static bool s_ledger_token_update_check(dap_ledger_token_item_t *a_cur_token_item, dap_chain_datum_token_t *a_token_update, size_t a_token_update_size)
 {
-    dap_sign_t								**l_signs_upd_token;
-    size_t									auth_signs_total = 0;
-    size_t									auth_signs_valid = 0;
-    dap_ledger_token_update_item_t	*l_token_update_item;
-    dap_hash_fast_t							l_hash_token_update;
-
-    dap_hash_fast(a_token_update, a_token_update_size, &l_hash_token_update);
-    pthread_rwlock_rdlock(&a_cur_token_item->token_ts_updated_rwlock);
-    HASH_FIND(hh, a_cur_token_item->token_ts_updated, &l_hash_token_update, sizeof(dap_hash_fast_t),
-              l_token_update_item);
-    pthread_rwlock_unlock(&a_cur_token_item->token_ts_updated_rwlock);
-    if (l_token_update_item
-    &&	a_cur_token_item->last_update_token_time == l_token_update_item->updated_time) {
-        if (s_debug_more)
-            log_it(L_WARNING,"This update for token '%s' was already applied", a_token_update->ticker);
-        return false;
-    }
-
-    /*if (a_cur_token_item->auth_signs_total != a_token_update->signs_total
-    ||	a_cur_token_item->auth_signs_valid != a_token_update->signs_valid) {
-        if(s_debug_more)
-            log_it(L_WARNING,"Can't update token with ticker '%s' because: "
-                             "l_token_item auth signs total/valid == %lu/%lu | "
-                             "token_update auth signs total/valid == %hu/%hu",
-                   a_token_update->ticker,
-                   a_cur_token_item->auth_signs_total, a_cur_token_item->auth_signs_valid,
-                   a_token_update->signs_total, a_token_update->signs_valid);
-        return false;
-    }*/
-
-    l_signs_upd_token = dap_chain_datum_token_signs_parse(a_token_update, a_token_update_size,
-                                                          &auth_signs_total, &auth_signs_valid);
-    if (a_cur_token_item->auth_signs_valid > auth_signs_total) {
-        DAP_DEL_Z(l_signs_upd_token);
-        if(s_debug_more)
-            log_it(L_WARNING,"Can't update token with ticker '%s' because: "
-                             "l_token_item auth signs total/valid == %lu/%lu | "
-                             "token_update auth signs total/valid == %lu/%lu",
-                   a_token_update->ticker,
-                   a_cur_token_item->auth_signs_total, a_cur_token_item->auth_signs_valid,
-                   auth_signs_total, auth_signs_valid);
-        return false;
-    }
-    if(auth_signs_total) {
-        size_t l_valid_pkeys = 0;
-        for(uint16_t i = 0; i < auth_signs_total; i++){
-            dap_pkey_t *l_pkey_upd_token = dap_pkey_get_from_sign(l_signs_upd_token[i]);
-            for (size_t j = 0; j < a_cur_token_item->auth_signs_total; j++) {
-                if (dap_pkey_match(a_cur_token_item->auth_pkeys[j], l_pkey_upd_token)) {
-                    l_valid_pkeys++;
-                    break;
-                }
-            }
-            DAP_DELETE(l_pkey_upd_token);
-        }
-        if (a_cur_token_item->auth_signs_valid > l_valid_pkeys) {
-            DAP_DEL_Z(l_signs_upd_token);
-            if (s_debug_more)
-                log_it(L_WARNING, "Can't update token with ticker '%s' because: Insufficient number of valid signatures "
-                                  "for an token update. Verified %zu needs %zu.", a_token_update->ticker, l_valid_pkeys,
-                                  a_cur_token_item->auth_signs_valid);
-            return false;
-        }
-    }
-    DAP_DEL_Z(l_signs_upd_token);
     if (!IS_ZERO_256(a_token_update->total_supply)){
         if (compare256(a_token_update->total_supply, a_cur_token_item->total_supply) < 0) {//compare old 'total_supply' to updated
             if(s_debug_more)
@@ -726,7 +661,7 @@ static bool s_ledger_token_update_check(dap_ledger_token_item_t *a_cur_token_ite
     dap_list_t *l_tsd_list_remote_pkeys = NULL, *l_tsd_list_added_pkeys = NULL;
     int l_quantity_tsd_remote_pkeys = 0, l_quantity_tsd_add_pkeys = 0;
     for (size_t l_tsd_offset = 0; l_tsd_offset < l_tsd_total_size; ) {
-        dap_tsd_t *l_tsd = (dap_tsd_t*)((byte_t*)a_token_update->data_n_tsd + l_tsd_offset);
+        dap_tsd_t *l_tsd = (dap_tsd_t*)((byte_t*)a_token_update->tsd_n_signs + l_tsd_offset);
         size_t l_tsd_size = dap_tsd_size(l_tsd);
         if (l_tsd_size == 0) {
             if (s_debug_more)
@@ -882,75 +817,121 @@ inline static dap_ledger_token_item_t *s_ledger_find_token(dap_ledger_t *a_ledge
  * @param a_token_size
  * @return
  */
-int dap_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size)
+int dap_ledger_token_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size)
 {
-    if ( !a_ledger){
-        if(s_debug_more)
-            log_it(L_ERROR, "NULL ledger, can't add datum with token declaration!");
-        return  DAP_LEDGER_TOKEN_DECL_ADD_ERR_LEDGER_IS_NULL;
-    }
+    dap_return_val_if_fail(a_ledger, DAP_LEDGER_TOKEN_ADD_UNKNOWN);
 
+    if (a_token_size < sizeof(dap_chain_datum_token_t)) {
+        log_it(L_WARNING, "Too small size %zu of datum token, less than minimum", a_token_size);
+        return DAP_LEDGER_TOKEN_ADD_ERR_TOKEN_SIZE;
+    }
+    if (a_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE && a_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_DECL) {
+        log_it(L_WARNING, "Unknown token type %hu", a_token->type);
+        return DAP_LEDGER_TOKEN_ADD_ERR_TOKEN_TYPE;
+    }
+    if (a_token->signs_total < a_token->signs_valid) {
+        log_it(L_WARNING, "Datum token has only %zu signatures out of %hu", a_token->signs_total, a_token->signs_valid);
+        return DAP_LEDGER_TOKEN_ADD_ERR_NOT_ENOUGH_VALID_SIGN;
+    }
     bool l_update_token = a_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
     dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, a_token->ticker);
-    if	(l_token_item != NULL) {
+    if (l_token_item) {
         if (!l_update_token) {
             log_it(L_WARNING, "Duplicate token declaration for ticker '%s'", a_token->ticker);
-            return DAP_LEDGER_TOKEN_DECL_ADD_ERR_DECL_DUPLICATE;
-        } else if (!s_ledger_token_update_check(l_token_item, a_token, a_token_size))
-            return DAP_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_CHECK;
-    } else if (!l_token_item && l_update_token) {
+            return DAP_LEDGER_TOKEN_ADD_ERR_DECL_DUPLICATE;
+        }
+        dap_hash_fast_t l_hash_token_update;
+        dap_hash_fast(a_token, a_token, &l_hash_token_update);
+        dap_ledger_token_update_item_t *l_token_update_item;
+        pthread_rwlock_rdlock(&a_cur_token_item->token_ts_updated_rwlock);
+        HASH_FIND(hh, a_cur_token_item->token_ts_updated, &l_hash_token_update, sizeof(dap_hash_fast_t), l_token_update_item);
+        pthread_rwlock_unlock(&a_cur_token_item->token_ts_updated_rwlock);
+        if (l_token_update_item) {
+            log_it(L_WARNING, "This update for token '%s' was already applied", a_token->ticker);
+            return DAP_LEDGER_TOKEN_ADD_ERR_UPDATE_DUPLICATE;
+        }
+    } else if (l_update_token) {
         log_it(L_WARNING, "Can't update token that doesn't exist for ticker '%s'", a_token->ticker);
-        return DAP_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_ABSENT_TOKEN;
+        return DAP_LEDGER_TOKEN_ADD_ERR_UPDATE_ABSENT_TOKEN;
     }
-    // Check signs
-    size_t l_signs_unique = 0;
+    // Check TSD
     size_t l_size_tsd_section = 0;
-    switch (a_token->type) {
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL: {
-            switch (a_token->subtype) {
-                case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
-                    l_size_tsd_section = a_token->header_private_decl.tsd_total_size; break;
-                case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
-                    l_size_tsd_section = a_token->header_native_decl.tsd_total_size; break;
-            }
-        }break;
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE: {
-            switch (a_token->subtype) {
-                case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
-                    l_size_tsd_section = a_token->header_private_update.tsd_total_size; break;
-                case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
-                    l_size_tsd_section = a_token->header_native_update.tsd_total_size; break;
-            }
-        } break;
-    }
-    size_t l_signs_size = a_token_size - sizeof(dap_chain_datum_token_t) - l_size_tsd_section;
-    dap_sign_t **l_signs = dap_sign_get_unique_signs(a_token->data_n_tsd + l_size_tsd_section, l_signs_size, &l_signs_unique);
-    if (l_signs_unique == a_token->signs_total){
-        size_t l_signs_approve = 0;
-        uint16_t l_tmp_auth_signs = a_token->signs_total;
-        if (a_token->version == 2) a_token->signs_total = 0;
-        for (size_t i=0; i < l_signs_unique; i++)
-            if (!dap_sign_verify_all(l_signs[i], l_signs_size, a_token, sizeof(dap_chain_datum_token_t)+l_size_tsd_section))
-                l_signs_approve++;
-        a_token->signs_total = l_tmp_auth_signs;
-        if (l_signs_approve == a_token->signs_total){
-            return DAP_LEDGER_TOKEN_DECL_ADD_OK;
-        } else {
-            log_it(L_WARNING, "The token declaration has %zu valid signatures out of %hu.", l_signs_approve, a_token->signs_total);
-            return DAP_LEDGER_TOKEN_DECL_ADD_ERR_NOT_ENOUGH_VALID_SIGN;
+    if (l_update_token) {
+        switch (a_token->subtype) {
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+            l_size_tsd_section = a_token->header_private_decl.tsd_total_size; break;
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
+            l_size_tsd_section = a_token->header_native_decl.tsd_total_size; break;
+        default: break;
         }
     } else {
+        switch (a_token->subtype) {
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+            l_size_tsd_section = a_token->header_private_update.tsd_total_size; break;
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
+            l_size_tsd_section = a_token->header_native_update.tsd_total_size; break;
+        default: break;
+        }
+    }
+    if (a_token_size < sizeof(dap_chain_datum_token_t) + l_size_tsd_section) {
+        log_it(L_WARNING, "Incorrect size %zu of datum token, expected at least %zu", a_token_size,
+                                                sizeof(dap_chain_datum_token_t) + l_size_tsd_section);
+        return DAP_LEDGER_TOKEN_ADD_ERR_TOKEN_SIZE;
+    }
+    // Check signs
+    byte_t *l_signs_ptr = a_token->tsd_n_signs + l_size_tsd_section;
+    size_t l_signs_size = 0, l_signs_offset = sizeof(dap_chain_datum_token_t) + l_size_tsd_section;
+    for (uint16_t l_signs_passed = 0; l_signs_passed < a_token->signs_total; l_signs_passed++) {
+        dap_sign_t *l_sign = (dap_sign_t *)(l_signs_ptr + l_signs_size);
+        if (a_token_size < l_signs_offset + l_signs_size + sizeof(dap_sign_t)) {
+            log_it(L_WARNING, "Incorrect size %zu of datum token, expected at least %zu", a_token_size,
+                                                    l_signs_offset + l_signs_size + sizeof(dap_sign_t));
+            return DAP_LEDGER_TOKEN_ADD_ERR_TOKEN_SIZE;
+        }
+        l_signs_size += dap_sign_get_size(l_sign);
+    }
+    if (a_token_size != l_signs_offset + l_signs_size) {
+        log_it(L_WARNING, "Incorrect size %zu of datum token, expected %zu", a_token_size, l_signs_offset + l_signs_size);
+        return DAP_LEDGER_TOKEN_ADD_ERR_TOKEN_SIZE;
+    }
+    size_t l_signs_unique = a_token->signs_total;
+    dap_sign_t **l_signs = dap_sign_get_unique_signs(l_signs_offset, l_signs_size, &l_signs_unique);
+    if (l_signs_unique != a_token->signs_total) {
+        DAP_DEL_Z(l_signs);
         log_it(L_WARNING, "The number of unique token signs %zu is less than total token signs set to %hu.",
                l_signs_unique, a_token->signs_total);
-        return DAP_LEDGER_TOKEN_DECL_ADD_ERR_TOTAL_SIGNS_EXCEED_UNIQUE_SIGNS;
+        return DAP_LEDGER_TOKEN_ADD_ERR_TOTAL_SIGNS_EXCEED_UNIQUE_SIGNS;
+    }
+    size_t l_signs_approve = 0;
+    uint16_t l_tmp_auth_signs = a_token->signs_total;
+    if (a_token->version >= 2)
+        a_token->signs_total = 0;
+    for (size_t i = 0; i < l_signs_unique; i++)
+        if (!dap_sign_verify(l_signs[i], l_signs_size, a_token)) {
+            if (l_update_token) {
+                for (size_t j = 0; j < l_token_item->auth_signs_total; j++) {
+                    if (dap_pkey_match_sign(l_token_item->auth_pkeys[j], l_signs[i])) {
+                        l_signs_approve++;
+                        break;
+                    }
+                }
+            } else
+                l_signs_approve++;
+        }
+    DAP_DELETE(l_signs);
+    a_token->signs_total = l_tmp_auth_signs;
+    if (l_signs_approve != a_token->signs_total) {
+        log_it(L_WARNING, "Datum token has only %zu valid signatures out of %hu.", l_signs_approve, a_token->signs_total);
+        return DAP_LEDGER_TOKEN_ADD_ERR_NOT_ENOUGH_VALID_SIGN;
     }
     // Checks passed
-    return DAP_LEDGER_TOKEN_DECL_ADD_OK;
+    return l_update_token ? s_ledger_token_update_check(l_token_item, a_token->tsd_n_signs, l_size_tsd_section)
+                          : s_ledger_token_decl_check(a_token->tsd_n_signs, l_size_tsd_section);
 }
 
-char *dap_ledger_token_decl_add_err_code_to_str(int a_code) {
-    return (a_code >= DAP_LEDGER_TOKEN_DECL_ADD_OK) && (a_code < DAP_LEDGER_TOKEN_DECL_ADD_UNKNOWN)
-            ? (char*)s_ledger_token_decl_err_str[(dap_ledger_token_decl_add_err_t)a_code]
+char *dap_ledger_token_add_err_code_to_str(int a_code) {
+    return (a_code >= DAP_LEDGER_TOKEN_ADD_OK) && (a_code < DAP_LEDGER_TOKEN_ADD_UNKNOWN)
+            ? (char*)s_ledger_token_decl_err_str[(dap_ledger_token_add_err_t)a_code]
             : dap_itoa(a_code);
 }
 
@@ -2313,7 +2294,7 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
             json_object_object_add(json_obj_datum, "TSD and Signs", json_object_new_string(""));
             dap_datum_token_dump_tsd_to_json(json_obj_datum, l_token_item->datum_token, l_token_item->datum_token_size, "hex");
             size_t l_certs_field_size = l_token_item->datum_token_size - sizeof(*l_token_item->datum_token) - l_token_item->datum_token->header_native_decl.tsd_total_size;
-            dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_token_item->datum_token->data_n_tsd + l_token_item->datum_token->header_native_decl.tsd_total_size,
+            dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_token_item->datum_token->tsd_n_signs + l_token_item->datum_token->header_native_decl.tsd_total_size,
                                                     l_certs_field_size, "hex");
             json_object_object_add(json_obj_datum, "and TSD and Signs", json_object_new_string(""));
             json_object_object_add(json_obj_datum, "Total emissions", json_object_new_int(HASH_COUNT(l_token_item->token_emissions)));
@@ -2331,7 +2312,7 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
                 json_object_object_add(json_obj_datum, "Auth signs total", json_object_new_int(l_token_item->auth_signs_total));
                 json_object_object_add(json_obj_datum, "Signs", json_object_new_string(""));
                 size_t l_certs_field_size = l_token_item->datum_token_size - sizeof(*l_token_item->datum_token);
-                dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_token_item->datum_token->data_n_tsd,
+                dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_token_item->datum_token->tsd_n_signs,
                                                          l_certs_field_size, "hex");
                 json_object_object_add(json_obj_datum, "Total emissions", json_object_new_int(HASH_COUNT(l_token_item->token_emissions)));
                 json_object_array_add(json_arr_out, json_obj_datum);
@@ -2787,16 +2768,16 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
 int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_chain_hash_fast_t *a_emission_hash)
 {
     if (!a_token_emission || !a_token_emission_size)
-        return DAP_LEDGER_EMISSION_ADD_CHECK_EMS_IS_NULL;
+        return DAP_LEDGER_EMISSION_CHECK_EMS_IS_NULL;
 
-    int l_ret = DAP_LEDGER_EMISSION_ADD_OK;
+    int l_ret = DAP_LEDGER_EMISSION_CHECK_OK;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
 
     const char *l_token_ticker = ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.ticker;
     dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_token_ticker);
     if (!l_token_item) {
         log_it(L_ERROR, "Check emission: token %s was not found", l_token_ticker);
-        return DAP_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN;
+        return DAP_LEDGER_EMISSION_CHECK_CANT_FIND_DECLARATION_TOKEN;
     }
 
     dap_ledger_token_emission_item_t * l_token_emission_item = NULL;
@@ -2820,11 +2801,11 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
                 log_it(L_ERROR, "Can't add token emission datum of %"DAP_UINT64_FORMAT_U" %s ( %s ): already present in cache",
                     l_token_emission_item->datum_token_emission->hdr.value64, l_token_ticker, l_token_hash_str);
         }
-        l_ret = DAP_LEDGER_EMISSION_ADD_CHECK_EMS_ALREADY_CACHED;
+        l_ret = DAP_LEDGER_EMISSION_CHECK_EMS_ALREADY_CACHED;
     }else if ( (! l_token_item) && ( l_threshold_emissions_count >= s_threshold_emissions_max)) {
         if(s_debug_more)
             log_it(L_WARNING,"Emissions threshold overflow, max %zu items", s_threshold_emissions_max);
-        l_ret = DAP_LEDGER_EMISSION_ADD_CHECK_THRESHOLD_OVERFLOW;
+        l_ret = DAP_LEDGER_EMISSION_CHECK_THRESHOLD_OVERFLOW;
     }
     if (l_ret || !PVT(a_ledger)->check_token_emission)
         return l_ret;
@@ -2847,11 +2828,11 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
     if (IS_ZERO_256((l_emission->hdr.value))) {
         log_it(L_ERROR, "Emission check: zero %s emission value", l_token_item->ticker);
         DAP_DELETE(l_emission);
-        return DAP_LEDGER_EMISSION_ADD_CHECK_ZERO_VALUE;
+        return DAP_LEDGER_EMISSION_CHECK_ZERO_VALUE;
     }
 
     if (!s_ledger_token_supply_check(l_token_item, l_emission->hdr.value))
-        return DAP_LEDGER_EMISSION_ADD_CHECK_VALUE_EXEEDS_CURRENT_SUPPLY;
+        return DAP_LEDGER_EMISSION_CHECK_VALUE_EXEEDS_CURRENT_SUPPLY;
 
     //additional check for private tokens
     if ((l_token_item->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)
@@ -2906,7 +2887,7 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
                     debug_if(s_debug_more, L_WARNING, "Emission of %s datoshi of %s:%s is wrong: only %u valid aproves when %u need",
                                 dap_uint256_to_char(l_emission->hdr.value, NULL), a_ledger->net->pub.name, l_emission->hdr.ticker,
                                 l_aproves, l_aproves_valid);
-                    l_ret = DAP_LEDGER_EMISSION_ADD_CHECK_NOT_ENOUGH_VALID_SIGNS;
+                    l_ret = DAP_LEDGER_EMISSION_CHECK_NOT_ENOUGH_VALID_SIGNS;
                     char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
                     dap_chain_hash_fast_to_str(a_emission_hash, l_hash_str, sizeof(l_hash_str));
                     log_it(L_MSG, "!!! Datum hash for HAL: %s", l_hash_str);
@@ -2915,7 +2896,7 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
                 debug_if(s_debug_more, L_WARNING,"Can't find token declaration %s:%s thats pointed in token emission datum",
                     a_ledger->net->pub.name, l_emission->hdr.ticker);
                     
-                l_ret = DAP_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN;
+                l_ret = DAP_LEDGER_EMISSION_CHECK_CANT_FIND_DECLARATION_TOKEN;
             }
         }break;
         default:{}
@@ -3006,13 +2987,13 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
                 l_token_emission_item = DAP_NEW_Z(dap_ledger_token_emission_item_t);
                 if ( !l_token_emission_item ) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                    return DAP_LEDGER_EMISSION_ADD_MEMORY_PROBLEM;
+                    return DAP_LEDGER_EMISSION_CHECK_MEMORY_PROBLEM;
                 }
                 l_token_emission_item->datum_token_emission = DAP_DUP_SIZE(a_token_emission, a_token_emission_size);
                 if ( !l_token_emission_item->datum_token_emission ) {
                     DAP_DELETE(l_token_emission_item);
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                    return DAP_LEDGER_EMISSION_ADD_MEMORY_PROBLEM;
+                    return DAP_LEDGER_EMISSION_CHECK_MEMORY_PROBLEM;
                 }
                 l_token_emission_item->datum_token_emission_size = a_token_emission_size;
                 dap_hash_fast_t l_emi_hash = {0};
@@ -3034,7 +3015,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
     const char *c_token_ticker = ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.ticker;
     dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, c_token_ticker);
     if (!l_token_item && a_from_threshold)
-        return DAP_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN;
+        return DAP_LEDGER_EMISSION_CHECK_CANT_FIND_DECLARATION_TOKEN;
 
     // check if such emission is already present in table
     pthread_rwlock_rdlock( l_token_item ? &l_token_item->token_emissions_rwlock
@@ -3047,7 +3028,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
         l_token_emission_item = DAP_NEW_Z(dap_ledger_token_emission_item_t);
         if ( !l_token_emission_item ) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            return DAP_LEDGER_EMISSION_ADD_MEMORY_PROBLEM;
+            return DAP_LEDGER_EMISSION_CHECK_MEMORY_PROBLEM;
         }
         l_token_emission_item->datum_token_emission_size = a_token_emission_size;
         l_token_emission_item->datum_token_emission_hash = *a_emission_hash;
@@ -3061,7 +3042,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
                 if (!s_ledger_token_tsd_check(l_token_item, (dap_chain_datum_token_emission_t *)a_token_emission)) {
                     DAP_DELETE(l_token_emission_item->datum_token_emission);
                     DAP_DELETE(l_token_emission_item);
-                    return DAP_LEDGER_EMISSION_ADD_TSD_CHECK_FAILED;
+                    return DAP_LEDGER_EMISSION_CHECK_TSD_CHECK_FAILED;
                 }
             }
             //Update value in ledger memory object
@@ -3069,7 +3050,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
                                                     l_token_emission_item->datum_token_emission->hdr.value, false)) {
                 DAP_DELETE(l_token_emission_item->datum_token_emission);
                 DAP_DELETE(l_token_emission_item);
-                return DAP_LEDGER_EMISSION_ADD_CHECK_VALUE_EXEEDS_CURRENT_SUPPLY;
+                return DAP_LEDGER_EMISSION_CHECK_VALUE_EXEEDS_CURRENT_SUPPLY;
             }
 
             pthread_rwlock_wrlock(&l_token_item->token_emissions_rwlock);
@@ -3111,7 +3092,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
             if(s_debug_more)
                 log_it(L_WARNING,"threshold for emissions is overfulled (%zu max), dropping down new data, added nothing",
                    s_threshold_emissions_max);
-            l_ret = DAP_LEDGER_EMISSION_ADD_CHECK_THRESHOLD_OVERFLOW;
+            l_ret = DAP_LEDGER_EMISSION_CHECK_THRESHOLD_OVERFLOW;
         }
     } else {
         if (l_token_item) {
@@ -3127,7 +3108,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
                             ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.value64, c_token_ticker, l_hash_str);
             }
         }
-        l_ret = DAP_LEDGER_EMISSION_ADD_CHECK_EMS_ALREADY_CACHED;
+        l_ret = DAP_LEDGER_EMISSION_CHECK_EMS_ALREADY_CACHED;
     }
     return l_ret;
 }
@@ -3215,7 +3196,7 @@ int dap_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emiss
 }
 
 char *dap_ledger_token_emission_err_code_to_str(int a_code) {
-    return (a_code >= DAP_LEDGER_EMISSION_ADD_OK && a_code < DAP_LEDGER_EMISSION_ADD_UNKNOWN)
+    return (a_code >= DAP_LEDGER_EMISSION_CHECK_OK && a_code < DAP_LEDGER_EMISSION_CHECK_UNKNOWN)
             ? (char*)s_ledger_emission_add_err_str[(dap_ledger_emission_err_code_t)a_code]
             : dap_itoa(a_code);
 }
@@ -3876,7 +3857,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger,
                                  *l_value_cur = NULL, *l_tmp = NULL, *l_res = NULL;
     const char *l_token = NULL, *l_main_ticker = NULL;
 
-    int l_err_num = DAP_LEDGER_TX_CHECK_OK;
+    int l_err_num = DAP_LEDGER_CHECK_OK;
     int l_prev_tx_count = 0;
 
     // 1. Verify signature in current transaction
@@ -3977,7 +3958,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger,
                 }
                 dap_chain_datum_token_t *l_datum_token = l_delegated_item->datum_token;
                 if (l_datum_token->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE ||
-                        !(l_tsd = dap_tsd_find(l_datum_token->data_n_tsd,
+                        !(l_tsd = dap_tsd_find(l_datum_token->tsd_n_signs,
                                                   l_datum_token->header_native_decl.tsd_total_size,
                                                   DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
                     debug_if(s_debug_more, L_WARNING, "Token [%s] not valid for stake_lock transaction", l_token);

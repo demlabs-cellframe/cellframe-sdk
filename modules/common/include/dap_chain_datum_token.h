@@ -77,7 +77,7 @@ typedef struct dap_chain_datum_token_old{
         byte_t header[256]; // For future changes
     };
     uint16_t signs_total; // Emission auth signs
-    byte_t data_n_tsd[]; // Signs and/or types-size-data sections
+    byte_t tsd_n_signs[]; // Signs and/or types-size-data sections
 } DAP_ALIGN_PACKED dap_chain_datum_token_old_t;
 
 // Token declaration
@@ -126,7 +126,7 @@ typedef struct dap_chain_datum_token{
         } DAP_ALIGN_PACKED header_public;
         byte_t header[256]; // For future changes
     };
-    byte_t data_n_tsd[]; // Signs and/or types-size-data sections
+    byte_t tsd_n_signs[]; // Signs and/or types-size-data sections
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 
 typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
@@ -522,9 +522,8 @@ extern const char *c_dap_chain_datum_token_emission_type_str[];
 dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token,  size_t a_token_size);
 void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags);
 void dap_chain_datum_token_flags_dump_to_json(json_object * json_obj_out, uint16_t a_flags);
-void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size, const char *a_hash_out_type);
-void dap_chain_datum_token_certs_dump_to_json(json_object *a_json_obj_out, byte_t * a_data_n_tsd, size_t a_certs_size, const char *a_hash_out_type);
-dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_count, size_t * a_signs_valid);
+void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_tsd_n_signs, size_t a_certs_size, const char *a_hash_out_type);
+void dap_chain_datum_token_certs_dump_to_json(json_object *a_json_obj_out, byte_t * a_tsd_n_signs, size_t a_certs_size, const char *a_hash_out_type);
 dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial, size_t *a_token_size);
 
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_create(uint256_t a_value, const char *a_ticker, dap_chain_addr_t *a_addr);
