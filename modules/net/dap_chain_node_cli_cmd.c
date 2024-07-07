@@ -474,10 +474,11 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
     }
     case CMD_FLUSH:
     {
-        json_object* json_obj_flush = json_object_new_object();
+        json_object* json_obj_flush = NULL;
         int res_flush = dap_global_db_flush_sync();
         switch (res_flush) {
-        case 0:            
+        case 0:
+            json_obj_flush = json_object_new_object();
             json_object_object_add(json_obj_flush, "command status", json_object_new_string("Commit data base and filesystem caches to disk completed.\n\n"));
             json_object_array_add(*json_arr_reply, json_obj_flush);
             break;
@@ -502,7 +503,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                                                         "Reboot the node.\n\n");
             break;
         }
-        return 0;
+        return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
     case CMD_RECORD:
     {
@@ -541,7 +542,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         size_t l_value_len = 0;
         bool l_is_pinned = false;
         dap_nanotime_t l_ts =0;
-        uint8_t *l_value =dap_global_db_get_sync(l_group, l_key, &l_value_len, &l_is_pinned, &l_ts);
+        uint8_t *l_value = dap_global_db_get_sync(l_group, l_key, &l_value_len, &l_is_pinned, &l_ts);
         if(!l_value || !l_value_len) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_RECORD_NOT_FOUND,
                                             "Record not found\n\n");
@@ -557,7 +558,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_get_data_hash_str_static(l_value, l_value_len, l_hash_str);
                 char *l_value_str = DAP_NEW_Z_SIZE(char, l_value_len * 2 + 2);
                 if(!l_value_str) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     DAP_DELETE(l_value);
                     json_object_put(json_obj_rec);
                     return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
@@ -604,9 +605,9 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     l_ret = -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_RECORD_NOT_UNPINED;
                 }
                 break;
-            }
-            json_object_array_add(*json_arr_reply, json_obj_rec);
+            }            
         }
+        json_object_array_add(*json_arr_reply, json_obj_rec);
         DAP_DELETE(l_value);
         return l_ret;
     }
@@ -614,27 +615,26 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
     {
         const char *l_group_str = NULL;
         const char *l_key_str = NULL;
-        const char *l_value_str = NULL;
-        json_object* json_obj_write = json_object_new_object();
+        const char *l_value_str = NULL;        
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-key", &l_key_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &l_value_str);
 
-        if(!l_group_str) {
+        if (!l_group_str) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR,
                                             "%s requires parameter 'group' to be valid", a_argv[0]);
 
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
         }
 
-        if(!l_key_str) {
+        if (!l_key_str) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR,
                                             "%s requires parameter 'key' to be valid", a_argv[0]);
 
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
         }
 
-        if(!l_value_str) {
+        if (!l_value_str) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR,
                                             "%s requires parameter 'value' to be valid", a_argv[0]);
 
@@ -642,8 +642,10 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         }
 
         if (!dap_global_db_set_sync(l_group_str, l_key_str, l_value_str, strlen(l_value_str) +1 , false)) {
-            json_object_object_add(json_obj_write, "write status", json_object_new_string("Data has been successfully written to the database"));            
-            return 0;
+            json_object* json_obj_write = json_object_new_object();
+            json_object_object_add(json_obj_write, "write status", json_object_new_string("Data has been successfully written to the database"));
+            json_object_array_add(*json_arr_reply, json_obj_write);
+            return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         } else {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_WRITING_FILED,
                                             "Data writing is failed");
@@ -652,8 +654,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
     case CMD_READ:
     {
         const char *l_group_str = NULL;
-        const char *l_key_str = NULL;
-        json_object* json_obj_read = json_object_new_object();
+        const char *l_key_str = NULL;        
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-key", &l_key_str);
 
@@ -682,11 +683,13 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             dap_nanotime_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_ts);
             char *l_value_hexdump = dap_dump_hex(l_value_out, l_out_len);
             if (l_value_hexdump) {
+                json_object* json_obj_read = json_object_new_object();
                 json_object_object_add(json_obj_read, "group", json_object_new_string(l_group_str));
                 json_object_object_add(json_obj_read, "key", json_object_new_string(l_key_str));
                 json_object_object_add(json_obj_read, "time", json_object_new_string(l_ts_str));
                 json_object_object_add(json_obj_read, "value len", json_object_new_uint64(l_out_len));
                 json_object_object_add(json_obj_read, "value hex", json_object_new_string(l_value_hexdump));
+                json_object_array_add(*json_arr_reply, json_obj_read);
                 DAP_DELETE(l_value_hexdump);
             } else {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_TIME_NO_VALUE,
@@ -699,9 +702,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                                             "\nRecord \"%s : %s\" not found\n",
                                               l_group_str, l_key_str);
         }
-
-
-        return 0;
+        return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
     case CMD_DELETE:
     {
@@ -739,15 +740,21 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                 }
             }
             dap_global_db_objs_delete(l_obj, l_objs_count);
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Removed %lu of %lu records in table %s", j, i, l_group_str);
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_KEY_PROVIDED,
-                                            "No key provided, entire table %s will be altered", l_group_str);
-            return 0;
+            json_object* json_obj_del = json_object_new_object();
+            json_object_object_add(json_obj_del, "Removed records", json_object_new_uint64(j));
+            json_object_object_add(json_obj_del, "of records", json_object_new_uint64(i));
+            json_object_object_add(json_obj_del, "in table", json_object_new_string(l_group_str));
+            json_object_array_add(*json_arr_reply, json_obj_del);
+            return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         }
 
         if (!dap_global_db_del(l_group_str, l_key_str, NULL, NULL)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Record with key %s in group %s was deleted successfuly", l_key_str, l_group_str);
-            return 0;
+            json_object* json_obj_del = json_object_new_object();
+            json_object_object_add(json_obj_del, "Record key", json_object_new_string(l_key_str));
+            json_object_object_add(json_obj_del, "Group name", json_object_new_string(l_group_str));
+            json_object_object_add(json_obj_del, "status", json_object_new_string("deleted"));
+            json_object_array_add(*json_arr_reply, json_obj_del);
+            return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         } else {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_DELETE_FAILD,
                                             "Record with key %s in group %s deleting failed", l_group_str, l_key_str);
@@ -766,8 +773,10 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
 
         if (!dap_global_db_del_sync(l_group_str, NULL))
         {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Dropped table %s", l_group_str);
-            return 0;
+            json_object* json_obj_drop = json_object_new_object();
+            json_object_object_add(json_obj_drop, "Dropped table", json_object_new_string(l_group_str));
+            json_object_array_add(*json_arr_reply, json_obj_drop);
+            return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         } else {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_DROP_FAILED,"Failed to drop table %s", l_group_str);            
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_DROP_FAILED;
@@ -792,26 +801,42 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_DATA_IN_GROUP;
         }
 
+        json_object* json_arr_keys = json_object_new_array();
+        json_object* json_obj_keys = NULL;
         dap_string_t *l_ret_str = dap_string_new(NULL);
         for(size_t i = 0; i < l_objs_count; i++) {
             char l_ts[64] = { '\0' };
             dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_obj[i].timestamp);
-            dap_string_append_printf(l_ret_str, "\t%s, %s\n", l_obj[i].key, l_ts);
+            json_obj_keys = json_object_new_object();
+            json_object_object_add(json_obj_keys, "key", json_object_new_string(l_obj[i].key));
+            json_object_object_add(json_obj_keys, "time", json_object_new_string(l_ts));
+            json_object_array_add(json_arr_keys, json_obj_keys);
         }
         dap_global_db_objs_delete(l_obj, l_objs_count);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Keys list for group \"%s:\n\n%s\n", l_group_str, l_ret_str->str);
+
+        json_object* json_keys_list = json_object_new_object();
+        json_object_object_add(json_keys_list, "group name", json_object_new_string(l_group_str));
+        json_object_object_add(json_keys_list, "keys list", json_arr_keys);
+        json_object_array_add(*json_arr_reply, json_keys_list);
+
         dap_string_free(l_ret_str, true);
-        return 0;
+        return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
     case CMD_GROUP_LIST: {
+        json_object* json_group_list = json_object_new_object();
         dap_string_t *l_ret_str = dap_string_new(NULL);
         dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*");
         size_t l_count = 0;
+        json_object* json_arr_group = json_object_new_array();
+        json_object* json_obj_list = NULL;
         for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list), ++l_count) {
-            dap_string_append_printf(l_ret_str, "\t%-40s : %zu records\n", (char*)l_list->data,
-                                     dap_global_db_driver_count((char*)l_list->data, c_dap_global_db_driver_hash_blank, false));
+            json_obj_list = json_object_new_object();
+            json_object_object_add(json_obj_list, (char*)l_list->data,
+                                   json_object_new_uint64(dap_global_db_driver_count((char*)l_list->data, c_dap_global_db_driver_hash_blank, false)));
+            json_object_array_add(json_arr_group, json_obj_list);
         }
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Group list:\n%sTotal count: %zu\n", l_ret_str->str, l_count);
+        json_object_object_add(json_group_list, "group list", json_arr_group);
+        json_object_object_add(json_group_list, "total count", json_object_new_uint64(l_count));
         dap_string_free(l_ret_str, true);
         dap_list_free(l_group_list);
         return 0;
