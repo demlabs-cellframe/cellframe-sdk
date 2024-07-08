@@ -58,25 +58,11 @@ static bool s_debug_cli = false;
  */
 int dap_chain_node_cli_init(dap_config_t * g_config)
 {
-    s_debug_cli = dap_config_get_item_bool_default(g_config,"conserver","debug_cli",false);
-
-    bool l_conserver_enabled = dap_config_get_item_bool_default( g_config, "conserver", "enabled", true );
-
-    if ( !l_conserver_enabled ) {
-
-        log_it( L_WARNING, "Console Server is dissabled." );
-        return 0;
-    }
-
-    uint16_t l_listen_port = dap_config_get_item_uint16_default( g_config, "conserver", "listen_port_tcp",0); // For backward compatibility
-    if(l_listen_port == 0)
-        l_listen_port = dap_config_get_item_uint16_default( g_config, "conserver", "listen_port",0);
-
-    dap_cli_server_init( s_debug_cli,
-                         l_listen_port ? dap_config_get_item_str(g_config, "conserver", "listen_address")
-                                       : dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_path"),
-                         l_listen_port, dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_permissions")
-                        );
+    if ( !dap_config_get_item_bool_default(g_config, "conserver", "enabled", true) )
+        return log_it( L_WARNING, "CLI server is disabled" ), 0;
+    s_debug_cli = dap_config_get_item_bool_default(g_config, "conserver", "debug_cli", false);
+    if ( dap_cli_server_init(s_debug_cli, "cli-server") )
+        return log_it(L_ERROR, "Couldb't init CLI server!"), -1;
 
     dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database",
             "global_db cells add -cell <cell id> \n"
