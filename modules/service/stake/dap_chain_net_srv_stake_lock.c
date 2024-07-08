@@ -105,7 +105,8 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
                                                dap_hash_fast_t *a_stake_tx_hash, uint32_t a_prev_cond_idx,
                                                const char *a_main_ticker, uint256_t a_value,
                                                uint256_t a_value_fee,
-                                               const char *a_delegated_ticker_str, uint256_t a_delegated_value,int *res);
+                                               const char *a_delegated_ticker_str, uint256_t a_delegated_value,
+                                               const char **a_msg,int *res);
 // Callbacks
 static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_out_item);
 static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
@@ -622,11 +623,13 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
         return NOT_ENOUGH_TIME;
     }
     int res = 0;
+    const char *l_msg = "";
     l_datum = s_stake_unlock_datum_create(l_net, l_owner_key, &l_tx_hash, l_prev_cond_idx,
                                           l_ticker_str, l_tx_out_cond->header.value, l_value_fee,
-                                          l_delegated_ticker_str, l_value_delegated,&res);
-    if(res == -3)
-        dap_string_append_printf(output_line, "Total fee more than stake\n");
+                                          l_delegated_ticker_str, l_value_delegated, &l_msg, &res);
+    if (res != 0) {
+        dap_string_append_printf(output_line, "Error code: %d\nError message: %s\n", res, l_msg);
+    }
 
     dap_enc_key_delete(l_owner_key);  // need wallet close??
     // Processing will be made according to autoprocess policy
@@ -1310,11 +1313,16 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
                                                dap_hash_fast_t *a_stake_tx_hash, uint32_t a_prev_cond_idx,
                                                const char *a_main_ticker, uint256_t a_value,
                                                uint256_t a_value_fee,
-                                               const char *a_delegated_ticker_str, uint256_t a_delegated_value,int *result)
+                                               const char *a_delegated_ticker_str, uint256_t a_delegated_value,
+                                               const char **a_msg_ret, int *result)
 {
     // check valid param
-    if (!a_net | !a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || dap_hash_fast_is_blank(a_stake_tx_hash))
+    if (!a_net | !a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || dap_hash_fast_is_blank(a_stake_tx_hash)) {
+        log_it(L_ERROR, "Function s_stake_unlock_datum_create without specifying the corresponding arguments.");
+        *a_msg_ret = "Function s_stake_unlock_datum_create without specifying the corresponding arguments.";
         *result = -1;
+
+    }
 
     const char *l_native_ticker = a_net->pub.native_ticker;
     bool l_main_native = !dap_strcmp(a_main_ticker, l_native_ticker);
@@ -1333,10 +1341,12 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
                                                                     &l_addr, l_total_fee, &l_fee_transfer);
             if (!l_list_fee_out) {
                 log_it(L_WARNING, "Not enough funds to pay fee");
+                *a_msg_ret = "Not enough funds to pay fee";
                 *result = -2;
             }
         } else if (compare256(a_value, l_total_fee) == -1) {
             log_it(L_WARNING, "Total fee more than stake");
+            *a_msg_ret = "Total fee more than stake";
             *result = -3;
         }
     }
@@ -1345,6 +1355,7 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
                                                                                  &l_addr, a_delegated_value, &l_value_transfer);
         if(!l_list_used_out) {
             log_it( L_ERROR, "Nothing to transfer (not enough delegated tokens)");
+            *a_msg_ret = "Nothing to transfer (not enough delegated tokens)";
             *result = -4;
         }
     }
@@ -1375,32 +1386,37 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
         if(l_net_fee_used){
             if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker)){
                 dap_chain_datum_tx_delete(l_tx);
+                log_it(L_ERROR, "Failed to add an out item for network fee to the transaction.");
+                *a_msg_ret = "Failed to add an out item for network fee to the transaction.";
                 *result = -5;
             }
             SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
         }
         // Validator's fee
         if (!IS_ZERO_256(a_value_fee)) {
-            if (dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee) == 1)
-            {
-                SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
-            }
-            else {
+            if (!dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee)) {
                 dap_chain_datum_tx_delete(l_tx);
+                log_it(L_ERROR, "Failed to add an out item for fee to the transaction.");
+                *a_msg_ret = "Failed to add an out item for fee to the transaction.";
                 *result = -6;
             }
+            SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
         }
         // coin back
         //SUBTRACT_256_256(l_fee_transfer, l_value_pack, &l_value_back);
         if(l_main_native){
             if (SUBTRACT_256_256(a_value, l_value_pack, &l_value_back)) {
                 dap_chain_datum_tx_delete(l_tx);
+                log_it(L_ERROR, "There was an overflow on subtraction, the transaction amount is less than the fee.");
+                *a_msg_ret = "There was an overflow on subtraction, the transaction amount is less than the fee.";
                 *result = -13;
                 return NULL;
             }
             if(!IS_ZERO_256(l_value_back)) {
                 if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, l_value_back, a_main_ticker)!=1) {
                     dap_chain_datum_tx_delete(l_tx);
+                    log_it(L_ERROR, "Failed to add an out item for value_back to the transaction.");
+                    *a_msg_ret = "Failed to add an out item for value_back to the transaction.";
                     *result = -7;
                 }
             }
@@ -1408,6 +1424,8 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
             SUBTRACT_256_256(l_fee_transfer, l_value_pack, &l_value_back);
             if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, a_value, a_main_ticker)!=1) {
                 dap_chain_datum_tx_delete(l_tx);
+                log_it(L_ERROR, "Failed to add the transaction output.");
+                *a_msg_ret = "Failed to add the transaction output.";
                 *result = -8;
                 return NULL;
             }
@@ -1415,6 +1433,8 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
             {
                 if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, l_value_back, l_native_ticker)!=1) {
                     dap_chain_datum_tx_delete(l_tx);
+                    log_it(L_ERROR, "Failed to add a refund transaction output.");
+                    *a_msg_ret = "Failed to add a refund transaction output.";
                     *result = -9;
                     return NULL;
                 }
@@ -1427,6 +1447,8 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
         if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &c_dap_chain_addr_blank,
                                                a_delegated_value, a_delegated_ticker_str) != 1) {
             dap_chain_datum_tx_delete(l_tx);
+            log_it(L_ERROR, "Failed to add a transaction output with a delegated value.");
+            *a_msg_ret = "Failed to add a transaction output with a delegated value.";
             *result = -10;
         }
         // delegated token coin back
@@ -1434,6 +1456,8 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
         if (!IS_ZERO_256(l_value_back)) {
             if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, l_value_back, a_delegated_ticker_str) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
+                log_it(L_ERROR, "Failed to add a refund transaction output.");
+                *a_msg_ret = "Failed to add a refund transaction output.";
                 *result = -11;
             }
         }
@@ -1442,6 +1466,8 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
     // add 'sign' items
     if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
         dap_chain_datum_tx_delete(l_tx);
+        log_it(L_ERROR, "Failed to add a signature item for the transaction.");
+        *a_msg_ret = "Failed to add a signature item for the transaction.";
         *result = -12;
     }
 
