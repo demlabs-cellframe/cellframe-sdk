@@ -1396,6 +1396,7 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
             if (SUBTRACT_256_256(a_value, l_value_pack, &l_value_back)) {
                 dap_chain_datum_tx_delete(l_tx);
                 *result = -13;
+                return NULL;
             }
             if(!IS_ZERO_256(l_value_back)) {
                 if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, l_value_back, a_main_ticker)!=1) {
