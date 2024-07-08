@@ -683,7 +683,7 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
         //log_it(ERROR,"raw socket ring buffer overflowed");
         ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
         if (!pkt_out) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             if(in_daddr_str)
                 DAP_DELETE(in_daddr_str);
             if(in_saddr_str)

@@ -449,7 +449,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
         }
         dap_chain_node_states_info_t *l_item = DAP_NEW_Z(dap_chain_node_states_info_t);
         if(!l_item) {
-            log_it(L_ERROR, "%s", g_error_memory_alloc);
+            log_it(L_ERROR, "%s", c_error_memory_alloc);
             break;
         }
         dap_nanotime_t l_state_timestamp = 0;

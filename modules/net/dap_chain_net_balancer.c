@@ -235,7 +235,7 @@ static dap_chain_net_links_t *s_get_node_addrs(dap_chain_net_t *a_net, uint16_t 
 // memory alloc
     dap_chain_net_links_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_links_t, sizeof(dap_chain_net_links_t) + l_nodes_count * sizeof(dap_link_info_t));
     if (!l_ret) {
-        log_it(L_ERROR, "%s", g_error_memory_alloc);
+        log_it(L_ERROR, "%s", c_error_memory_alloc);
         dap_list_free_full(l_nodes_list, NULL);
         return NULL;
     }
@@ -272,7 +272,7 @@ static dap_chain_net_links_t *s_get_node_addrs_old(dap_chain_net_t *a_net, uint1
 // memory alloc
     dap_chain_net_links_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_links_t, sizeof(dap_chain_net_links_t) + l_nodes_count * sizeof(dap_chain_node_info_old_t));
     if (!l_ret) {
-        log_it(L_ERROR, "%s", g_error_memory_alloc);
+        log_it(L_ERROR, "%s", c_error_memory_alloc);
         dap_list_free_full(l_nodes_list, NULL);
         return NULL;
     }

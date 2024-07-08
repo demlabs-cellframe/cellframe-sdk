@@ -270,7 +270,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     else {
         l_tx_data = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
         if (!l_tx_data) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return;
         }
         l_tx_data->hash = *a_tx_hash;
@@ -332,7 +332,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
 {
     json_object* json_obj_datum = json_object_new_array();
     if (!json_obj_datum){
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         dap_json_rpc_error_add(-44, "Memory allocation error");
         return NULL;
     }
@@ -773,7 +773,7 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
                         bool accepted_tx;
                         json_object* json_obj_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, l_chain, l_hash_out_type, l_net, 0, &accepted_tx, out_brief);
                         if (!json_obj_datum) {
-                            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                             return NULL;
                         }
                         if (accepted_tx) {
@@ -896,7 +896,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
     }
     dap_string_t *l_str_out = dap_string_new(NULL);
     if (!l_str_out) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     // list all transactions
@@ -982,7 +982,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                     }
                     l_sht = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
                     if (!l_sht) {
-                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         return NULL;
                     }
                     l_sht->hash = l_tx_hash;
@@ -1603,7 +1603,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t);
                     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
                     if (!l_tsd) {
-                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         dap_list_free_full(l_tsd_list, NULL);
                         return -1;
                     }
@@ -1617,7 +1617,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint256_t);
                 l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
                 if (!l_tsd) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     dap_list_free_full(l_tsd_list, NULL);
                     return -1;
                 }
@@ -1674,7 +1674,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
                 l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
                 if (!l_tsd) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     dap_list_free_full(l_tsd_list, NULL);
                     return -1;
                 }

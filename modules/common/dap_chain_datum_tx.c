@@ -41,7 +41,7 @@ dap_chain_datum_tx_t* dap_chain_datum_tx_create(void)
 {
     dap_chain_datum_tx_t *tx = DAP_NEW_Z(dap_chain_datum_tx_t);
     if (!tx) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return 0;
     }
     tx->header.ts_created = time(NULL);

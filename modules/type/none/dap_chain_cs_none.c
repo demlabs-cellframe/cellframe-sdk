@@ -149,12 +149,12 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
 {
     dap_nonconsensus_t *l_nochain = DAP_NEW_Z(dap_nonconsensus_t);
     if (!l_nochain) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
     dap_nonconsensus_private_t *l_nochain_priv = DAP_NEW_Z(dap_nonconsensus_private_t);
     if (!l_nochain_priv) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         DAP_DELETE(l_nochain);
         return -2;
     }
@@ -322,7 +322,7 @@ static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t 
 
     dap_nonconsensus_datum_hash_item_t * l_hash_item = DAP_NEW_Z(dap_nonconsensus_datum_hash_item_t);
     if (!l_hash_item) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return ATOM_REJECT;
     }
     size_t l_datum_size = dap_chain_datum_size(l_datum);
@@ -379,7 +379,7 @@ static dap_chain_atom_iter_t* s_nonconsensus_callback_atom_iter_create(dap_chain
 {
     dap_chain_atom_iter_t * l_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     if (!l_iter) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     l_iter->chain = a_chain;
@@ -508,7 +508,7 @@ static dap_chain_datum_t **s_nonconsensus_callback_atom_get_datum(dap_chain_atom
         if (l_datum){
             dap_chain_datum_t **l_datums = DAP_NEW(dap_chain_datum_t *);
             if (!l_datums) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return NULL;
             }
             if (a_datums_count)
@@ -525,7 +525,7 @@ static dap_chain_datum_iter_t *s_nonconsensus_callback_datum_iter_create(dap_cha
 {
     dap_chain_datum_iter_t *l_ret = DAP_NEW_Z(dap_chain_datum_iter_t);
     if (!l_ret) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     l_ret->chain = a_chain;
