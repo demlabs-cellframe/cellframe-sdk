@@ -2100,7 +2100,9 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             }
                             if (!l_sign_count) {
                                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
-                                                   "Unknown signature type, please use:\n sig_dil\n sig_falcon\n sig_multi\n sig_multi2\n",l_wallet_name);
+                                                      "Unknown signature type, please use:\n sig_dil\n sig_falcon\n"
+                                                      "sig_sphincs\n sig_ecdsa\n sig_shipovnik\n"
+                                                      "sig_multi_chained\n", l_wallet_name);
                                 json_object_put(json_arr_out);
                                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR;
                             }
