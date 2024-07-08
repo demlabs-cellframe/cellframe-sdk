@@ -291,17 +291,17 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     if (!a_force && !l_net->pub.mempool_autoproc)
         return;
 #ifdef DAP_TPS_TEST
-    FILE *l_mempool_file = fopen("/opt/cellframe-node/share/ca/mempool_start.txt", "r");
-    if (l_mempool_file) {
-        fclose(l_mempool_file);
-        l_mempool_file = fopen("/opt/cellframe-node/share/ca/mempool_finish.txt", "r");
-        if(!l_mempool_file) {
+    FILE *l_file = fopen("/opt/cellframe-node/share/ca/mempool_start.txt", "r");
+    if (l_file) {
+        fclose(l_file);
+        l_file = fopen("/opt/cellframe-node/share/ca/mempool_finish.txt", "r");
+        if(!l_file) {
             log_it(L_TPS, "Wait mempool");
             return;
         }
         log_it(L_TPS, "Mempool ready");
-        fclose(l_mempool_file);
-        FILE *l_file = fopen("/opt/cellframe-node/share/ca/tps_start.txt", "r");
+        fclose(l_file);
+        l_file = fopen("/opt/cellframe-node/share/ca/tps_start.txt", "r");
         if (!l_file) {
             l_file = fopen("/opt/cellframe-node/share/ca/tps_start.txt", "w");
             char l_from_str[50];

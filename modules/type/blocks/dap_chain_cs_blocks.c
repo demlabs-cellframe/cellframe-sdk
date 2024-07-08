@@ -2242,13 +2242,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
     size_t l_datum_processed = 0;
     pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
 #ifdef DAP_TPS_TEST
-    char l_from_str[50];
-    const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
-    struct tm l_from_tm = {};
-    time_t l_ts_now = time(NULL);
-    localtime_r(&l_ts_now, &l_from_tm);
-    strftime(l_from_str, sizeof(l_from_str), c_time_fmt, &l_from_tm);
-    log_it(L_INFO, "Start tps %zu datums add %s", a_datums_count, l_from_str);
+    log_it(L_TPS, "Start tps %zu datums add", a_datums_count);
 #endif
     for (size_t i = 0; i < a_datums_count; ++i) {
         dap_chain_datum_t *l_datum = a_datums[i];
@@ -2272,10 +2266,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
         l_datum_processed++;
     }
 #ifdef DAP_TPS_TEST
-    l_ts_now = time(NULL);
-    localtime_r(&l_ts_now, &l_from_tm);
-    strftime(l_from_str, sizeof(l_from_str), c_time_fmt, &l_from_tm);
-    log_it(L_INFO, "Finish tps %zu datums add %s", a_datums_count, l_from_str);
+    log_it(L_TPS, "Finish tps %zu datums add", a_datums_count);
 #endif
     pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
     return l_datum_processed;
