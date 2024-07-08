@@ -1199,8 +1199,6 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 time_t l_from_ts = mktime(&l_from_tm);
                 time_t l_to_ts = mktime(&l_to_tm);
                 // Produce strings
-                char l_from_str_new[50];
-                char l_to_str_new[50];
                 strftime(l_from_str_new, sizeof(l_from_str_new), c_time_fmt,&l_from_tm );
                 strftime(l_to_str_new, sizeof(l_to_str_new), c_time_fmt,&l_to_tm );
                 json_object *l_jobj_stats = json_object_new_object();
@@ -1222,7 +1220,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 json_object_object_add(l_jobj_stats, "from", l_jobj_from);
                 json_object_object_add(l_jobj_stats, "to", l_jobj_to);
                 log_it(L_INFO, "Calc TPS from %s to %s", l_from_str_new, l_to_str_new);
-                uint64_t l_tx_count = dap_ledger_count_from_to ( l_net->pub.ledger, l_from_ts, l_to_ts);
+                uint64_t l_tx_count = dap_ledger_count_from_to ( l_net->pub.ledger, l_from_ts * 1000000000, l_to_ts * 1000000000);
                 long double l_tpd = l_to_ts == l_from_ts ? 0 :
                                                      (long double) l_tx_count / (long double) ((long double)(l_to_ts - l_from_ts) / 86400);
                 char *l_tpd_str = dap_strdup_printf("%.3Lf", l_tpd);
