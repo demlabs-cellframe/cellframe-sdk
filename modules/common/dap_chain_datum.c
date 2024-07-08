@@ -91,11 +91,12 @@ void dap_chain_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_tok
     size_t l_tsd_size = 0;
     for (size_t l_offset = 0; l_offset < l_tsd_total_size; l_offset += l_tsd_size) {
         l_tsd = (dap_tsd_t *) (((byte_t*)l_tsd) + l_tsd_size);
-        l_tsd_size = l_tsd ? dap_tsd_size(l_tsd) : 0;
-        if (l_tsd_size == 0) {
-            log_it(L_ERROR,"Wrong zero TSD size, exiting dap_chain_datum_token_dump_tsd()");
+        if (sizeof(dap_tsd_t) + l_offset) {
+            log_it(L_ERROR,"Wrong TSD size, less than header");
             return;
-        } else if (l_tsd_size+l_offset > l_tsd_total_size) {
+        }
+        l_tsd_size = l_tsd ? dap_tsd_size(l_tsd) : 0;
+        if (l_tsd_size+l_offset > l_tsd_total_size) {
             log_it(L_WARNING, "<CORRUPTED TSD> too big size %u when left maximum %zu",
                    l_tsd->size, l_tsd_total_size - l_offset);
             return;
@@ -117,12 +118,6 @@ void dap_chain_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_tok
             uint256_t l_t = uint256_0;
             dap_string_append_printf( a_str_out, "total_supply: %s\n",
                                      dap_uint256_to_char(_dap_tsd_get_scalar(l_tsd, &l_t), NULL) );
-            continue;
-        }
-        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD: { // 128
-            uint128_t l_t = uint128_0;
-            dap_string_append_printf( a_str_out, "total_supply: %s\n",
-                                     dap_uint256_to_char(GET_256_FROM_128(_dap_tsd_get_scalar(l_tsd, &l_t)), NULL) );
             continue;
         }
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID: {

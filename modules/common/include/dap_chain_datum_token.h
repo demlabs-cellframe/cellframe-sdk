@@ -81,7 +81,7 @@ typedef struct dap_chain_datum_token_old{
 } DAP_ALIGN_PACKED dap_chain_datum_token_old_t;
 
 // Token declaration
-typedef struct dap_chain_datum_token{
+typedef struct dap_chain_datum_token {
     uint16_t type;
     uint16_t version;
     uint16_t subtype;
@@ -131,7 +131,6 @@ typedef struct dap_chain_datum_token{
 
 typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
     byte_t			ticker_token_from[DAP_CHAIN_TICKER_SIZE_MAX];
-    //	dap_hash_fast_t	hash_token_from;//TODO: ???
     uint256_t		emission_rate;	// In "coins", 1^18 == 1.0
     uint32_t		flags;			// Some emission flags for future
     byte_t			padding[256];	// Some free space for future
@@ -251,9 +250,8 @@ extern const char *c_dap_chain_datum_token_flag_str[];
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS                            0x0001
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS                          0x0002
 
-// Total supply limits
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD                     0x0003 // 128
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY                         0x0026 // 256
+// Total supply limit
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY                         0x0026
 
 // Set total signs count value to set to be valid
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID                    0x0004
