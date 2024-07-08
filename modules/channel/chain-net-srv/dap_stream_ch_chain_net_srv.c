@@ -891,8 +891,8 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
         if (error) { \
             l_err.code = error ; \
             s_grace_error(l_grace, l_err); \
-        } \
-        DAP_DELETE(l_grace); \
+        } else\
+            DAP_DELETE(l_grace); \
         DAP_DELETE(a_grace_item); \
         return false; \
     } \
