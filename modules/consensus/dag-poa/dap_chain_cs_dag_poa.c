@@ -186,22 +186,21 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type, "hex") && dap_strcmp(l_hash_out_type, "base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_POA_PARAM_ERR, "invalid parameter -H, valid values: -H <hex | base58>");
+        return -DAP_CHAIN_NODE_CLI_COM_DAG_POA_PARAM_ERR;
     }
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net,
-                                                      CHAIN_TYPE_TOKEN)) {
-        return -3;
+    if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, argc, argv, &l_chain, &l_chain_net,CHAIN_TYPE_TOKEN)){
+        return -DAP_CHAIN_NODE_CLI_COM_DAG_POA_PARAM_ERR;
     }
 
     const char *l_chain_type = dap_chain_get_cs_type(l_chain);
 
     if (strcmp(l_chain_type, "dag_poa")){
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "Type of chain %s is not dag_poa. This chain with type %s is not supported by this command",
-                        l_chain->name, l_chain_type);
-            return -42;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_POA_CHAIN_TYPE_ERR,
+                                   "Type of chain %s is not dag_poa. This chain with type %s is not supported by this command",
+                                   l_chain->name, l_chain_type);
+            return -DAP_CHAIN_NODE_CLI_COM_DAG_POA_CHAIN_TYPE_ERR;
     }
 
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(l_chain);
@@ -210,15 +209,17 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
     const char * l_event_cmd_str = NULL;
     const char * l_event_hash_str = NULL;
     if ( l_poa_pvt->events_sign_cert == NULL) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "No certificate to sign events\n");
-        return -2;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_POA_CERT_ERR,
+                               "No certificate to sign events\n");
+        return -DAP_CHAIN_NODE_CLI_COM_DAG_POA_CERT_ERR;
     }
 
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "event", &l_event_cmd_str);
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-event", &l_event_hash_str);
     if (!l_event_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command dag_poa requires parameter '-event' <event hash>");
-        return -4;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_POA_PARAM_ERR,
+                               "Command dag_poa requires parameter '-event' <event hash>");
+        return -DAP_CHAIN_NODE_CLI_COM_DAG_POA_PARAM_ERR;
     }
 
     // event hash may be in hex or base58 format
@@ -230,9 +231,10 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
         l_event_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_event_hash_str);
 
         if (!l_event_hash_base58_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid hex hash format");
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_POA_HEX_FORMAT_ERR,
+                                   "Invalid hex hash format");
             DAP_DELETE(l_event_hash_hex_str);
-            return -5;
+            return -DAP_CHAIN_NODE_CLI_COM_DAG_POA_HEX_FORMAT_ERR;
         }
     }
     else {
@@ -241,15 +243,15 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
 
         if (!l_event_hash_hex_str) {
             DAP_DELETE(l_event_hash_base58_str);
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid base58 hash format");
-            return -6;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_POA_BASE58_FORMAT_ERR,
+                                   "Invalid base58 hash format");
+            return -DAP_CHAIN_NODE_CLI_COM_DAG_POA_BASE58_FORMAT_ERR;
         }
 
         DAP_DELETE(l_event_hash_hex_str);
         DAP_DELETE(l_event_hash_base58_str);
-        return -6;
+        return -DAP_CHAIN_NODE_CLI_COM_DAG_POA_BASE58_ERR;
     }
-
 
     if ( l_event_cmd_str != NULL ){
         if (l_poa_pvt->events_sign_cert )
@@ -261,10 +263,10 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
                                 (dap_chain_cs_dag_event_round_item_t *)dap_global_db_get_sync(l_gdb_group_events,
                                                     l_event_hash_hex_str, &l_round_item_size, NULL, NULL );
             if ( l_round_item == NULL ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Can't find event %s in round.new - only place where could be signed the new event\n",
-                                                  l_event_hash_str);
-                ret = -30;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_POA_EVENT_ERR,
+                                       "Can't find event %s in round.new - only place where could be signed the new event\n",
+                                       l_event_hash_str);
+                ret = -DAP_CHAIN_NODE_CLI_COM_DAG_POA_EVENT_ERR;
             } else {
                 size_t l_event_size = l_round_item->event_size;
                 dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
@@ -290,36 +292,38 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
                                     "Added new sign with cert \"%s\", event %s placed back in round.new\n",
                                     l_poa_pvt->events_sign_cert->name, l_event_new_hash_base58_str);
                         }
-                        ret = 0;
+                        ret = DAP_CHAIN_NODE_CLI_COM_DAG_POA_OK;
                         if (l_event_is_ready && l_poa_pvt->auto_round_complete) // cs done (minimum signs & verify passed)
                             s_round_event_cs_done(l_dag, l_event->header.round_id);
                     } else {
                         if(!dap_strcmp(l_hash_out_type, "hex")) {
-                            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                    "GDB Error: Can't place event %s with new sign back in round.new\n",
-                                    l_event_new_hash_hex_str);
+                            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_POA_PLACE_EVENT_ERR,
+                                                   "GDB Error: Can't place event %s with new sign back in round.new\n",
+                                                   l_event_new_hash_hex_str);
                         }
                         else {
-                            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                    "GDB Error: Can't place event %s with new sign back in round.new\n",
-                                    l_event_new_hash_base58_str);
+                            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_POA_PLACE_EVENT_ERR,
+                                                   "GDB Error: Can't place event %s with new sign back in round.new\n",
+                                                   l_event_new_hash_base58_str);
                         }
-                        ret=-31;
+                        ret=-DAP_CHAIN_NODE_CLI_COM_DAG_POA_PLACE_EVENT_ERR;
 
                     }
                 } else {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Can't sign event %s in round.new\n",
-                                                  l_event_hash_str);
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_POA_SIGN_EVENT_ERR,
+                                           "Can't sign event %s in round.new\n",
+                                           l_event_hash_str);
                 }
                 DAP_DELETE(l_event);
                 DAP_DELETE(l_round_item);
             }
         } else {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command dag_poa requires subcommand 'sign'");
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_POA_SUBCOM_ERR,
+                                            "Command dag_poa requires subcommand 'sign'");
         }
     } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command dag_poa requires subcommand 'event'");
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_POA_SUBCOM_ERR,
+                                        "Command dag_poa requires subcommand 'event'");
     }
 
     DAP_DELETE(l_event_hash_hex_str);
