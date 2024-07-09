@@ -45,6 +45,8 @@ typedef struct dap_chain_wallet{
     void        *_inheritor;
 } dap_chain_wallet_t;
 
+static const char *g_str_valid_type_sign_for_wallet  = "sig_dil\nsig_falcon\nsig_sphincs\nsig_shipovnik\nsig_multi_chained\n";
+
 
 int dap_chain_wallet_init();
 void dap_chain_wallet_deinit(void);
