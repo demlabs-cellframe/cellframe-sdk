@@ -90,47 +90,9 @@ bool dap_chain_cs_dag_event_sign_exists(dap_chain_cs_dag_event_t *a_event, size_
 bool dap_chain_cs_dag_event_round_sign_exists(dap_chain_cs_dag_event_round_item_t *a_round_item, dap_enc_key_t * a_key);
 dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, size_t a_event_size, uint16_t a_sign_number);
 
-/**
- * @brief dap_chain_cs_dag_event_calc_size_excl_signs
- * @param a_event
- * @return
- */
-static inline size_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_dag_event_t *a_event, size_t a_event_size)
-{
-    if (a_event_size < sizeof(a_event->header))
-        return 0;
-    size_t l_hashes_size = a_event->header.hash_count*sizeof(dap_chain_hash_fast_t);
-    if (a_event_size < l_hashes_size + sizeof(a_event->header))
-        return 0;
-    dap_chain_datum_t *l_datum = (dap_chain_datum_t*) (a_event->hashes_n_datum_n_signs + l_hashes_size);
-    size_t l_ret = dap_chain_datum_size(l_datum) + l_hashes_size + sizeof(a_event->header);
-    if (a_event_size < l_ret)
-        return 0;
-    return l_ret;
-}
+size_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_dag_event_t *a_event, size_t a_limit_size);
+size_t dap_chain_cs_dag_event_calc_size(dap_chain_cs_dag_event_t *a_event, size_t a_limit_size);
 
-/**
- * @brief dap_chain_cs_dag_event_calc_size
- * @param a_event
- * @return
- */
-static inline size_t dap_chain_cs_dag_event_calc_size(dap_chain_cs_dag_event_t *a_event, size_t a_limit_size)
-{
-    if (!a_event || !a_limit_size)
-        return 0;
-    size_t l_signs_offset = dap_chain_cs_dag_event_calc_size_excl_signs(a_event, a_limit_size);
-    if (!l_signs_offset)
-        return 0;
-    byte_t *l_signs = (byte_t *)a_event + l_signs_offset;
-    size_t l_signs_size = 0;
-    for (uint16_t l_signs_passed = 0; l_signs_passed < a_event->header.signs_count; l_signs_passed++) {
-        dap_sign_t *l_sign = (dap_sign_t *)(l_signs + l_signs_size);
-        l_signs_size += dap_sign_get_size(l_sign);
-        if (a_limit_size < l_signs_offset + l_signs_size)
-            return 0;
-    }
-    return l_signs_offset + l_signs_size;
-}
 
 /**
  * @brief dap_chain_cs_dag_event_calc_hash

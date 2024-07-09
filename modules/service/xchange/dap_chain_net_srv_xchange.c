@@ -151,9 +151,9 @@ int dap_chain_net_srv_xchange_init()
         "\tCreate a new order and tx with specified amount of datoshi to exchange with specified rate (buy / sell)\n"
     "srv_xchange order remove -net <net_name> -order <order_hash> -w <wallet_name> -fee <value_datoshi>\n"
          "\tRemove order with specified order hash in specified net name\n"
-    "srv_xchange order history -net <net_name> {-order <order_hash> | -addr <wallet_addr>}"
+    "srv_xchange order history -net <net_name> {-order <order_hash> | -addr <wallet_addr>}\n"
          "\tShows transaction history for the selected order\n"
-    "srv_xchange order status -net <net_name> -order <order_hash>"
+    "srv_xchange order status -net <net_name> -order <order_hash>\n"
          "\tShows current amount of unselled coins from the selected order and percentage of its completion\n"
     "srv_xchange orders -net <net_name> [-status {opened|closed|all}] [-token_from <token_ticker>] [-token_to <token_ticker>] [-limit <limit>] [-offset <offset>]\n"
          "\tGet the exchange orders list within specified net name\n"
@@ -161,7 +161,7 @@ int dap_chain_net_srv_xchange_init()
     "srv_xchange purchase -order <order hash> -net <net_name> -w <wallet_name> -value <value> -fee <value>\n"
          "\tExchange tokens with specified order within specified net name. Specify how many datoshies to sell with rate specified by order\n"
 
-    "srv_xchange tx_list -net <net_name> [-time_from <From time>] [-time_to <To time>]"
+    "srv_xchange tx_list -net <net_name> [-time_from <From_time>] [-time_to <To_time>]"
         "[[-addr <wallet_addr>  [-status {inactive|active|all}] ]\n"                /* @RRL:  #6294  */
         "\tList of exchange transactions\n"
         "\tAll times are in RFC822. For example: \"Thu, 7 Dec 2023 21:18:04\"\n"

@@ -261,29 +261,29 @@ int dap_chain_net_init()
     dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
     dap_cli_server_cmd_add ("net", s_cli_net, "Network commands",
-        "net list [chains -net <chain net name>]\n"
+        "net list [chains -net <net_name>]\n"
             "\tList all networks or list all chains in selected network\n"
-        "net -net <chain net name> [-mode {update | all}] go {online | offline | sync}\n"
+        "net -net <net_name> [-mode {update | all}] go {online | offline | sync}\n"
             "\tFind and establish links and stay online. \n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <chain net name> get {status | fee | id}\n"
+        "net -net <net_name> get {status | fee | id}\n"
             "\tDisplays the current current status, current fee or net id.\n"
-        "net -net <chain net name> stats {tx | tps} [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
+        "net -net <net_name> stats {tx | tps} [-from <from_time>] [-to <to_time>] [-prev_sec <seconds>] \n"
             "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
-        "net -net <chain net name> [-mode {update | all}] sync {all | gdb | chains}\n"
+        "net -net <net_name> [-mode {update | all}] sync {all | gdb | chains}\n"
             "\tSyncronyze gdb, chains or everything\n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <chain net name> link {list | add | del | info [-addr] | disconnect_all}\n"
+        "net -net <net_name> link {list | add | del | info [-addr]| disconnect_all}\n"
             "\tList, add, del, dump or establish links\n"
-        "net -net <chain net name> ca add {-cert <cert name> | -hash <cert hash>}\n"
+        "net -net <net_name> ca add {-cert <cert_name> | -hash <cert_hash>}\n"
             "\tAdd certificate to list of authority cetificates in GDB group\n"
-        "net -net <chain net name> ca list\n"
+        "net -net <net_name> ca list\n"
             "\tPrint list of authority cetificates from GDB group\n"
-        "net -net <chain net name> ca del -hash <cert hash> [-H {hex | base58(default)}]\n"
+        "net -net <net_name> ca del -hash <cert_hash> [-H {hex | base58(default)}]\n"
             "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
-        "net -net <chain net name> ledger reload\n"
+        "net -net <net_name> ledger reload\n"
             "\tPurge the cache of chain net ledger and recalculate it from chain file\n"
-        "net -net <chain net name> poa_certs list\n"
+        "net -net <net_name> poa_certs list\n"
             "\tPrint list of PoA cerificates for this network\n");
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
@@ -1199,8 +1199,6 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 time_t l_from_ts = mktime(&l_from_tm);
                 time_t l_to_ts = mktime(&l_to_tm);
                 // Produce strings
-                char l_from_str_new[50];
-                char l_to_str_new[50];
                 strftime(l_from_str_new, sizeof(l_from_str_new), c_time_fmt,&l_from_tm );
                 strftime(l_to_str_new, sizeof(l_to_str_new), c_time_fmt,&l_to_tm );
                 json_object *l_jobj_stats = json_object_new_object();
@@ -1222,7 +1220,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 json_object_object_add(l_jobj_stats, "from", l_jobj_from);
                 json_object_object_add(l_jobj_stats, "to", l_jobj_to);
                 log_it(L_INFO, "Calc TPS from %s to %s", l_from_str_new, l_to_str_new);
-                uint64_t l_tx_count = dap_ledger_count_from_to ( l_net->pub.ledger, l_from_ts, l_to_ts);
+                uint64_t l_tx_count = dap_ledger_count_from_to ( l_net->pub.ledger, l_from_ts * 1000000000, l_to_ts * 1000000000);
                 long double l_tpd = l_to_ts == l_from_ts ? 0 :
                                                      (long double) l_tx_count / (long double) ((long double)(l_to_ts - l_from_ts) / 86400);
                 char *l_tpd_str = dap_strdup_printf("%.3Lf", l_tpd);

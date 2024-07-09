@@ -154,19 +154,19 @@ int dap_chain_cs_dag_init()
         "dag event sign -net <net_name> [-chain <chain_name>] -event <event_hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
-        "dag event dump -net <net_name> [-chain <chain_name>] -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round id in hex>} [-H {hex | base58(default)}]\n"
+        "dag event dump -net <net_name> [-chain <chain_name>] -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round_id_in_hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
-        "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round id in hex>} [-limit] [-offset]\n\n"
+        "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round_id_in_hex>} [-limit] [-offset]\n\n"
             "\tShow event list \n\n"
         "dag event count -net <net_name> [-chain <chain_name>]\n"
             "\tShow count event \n\n"
         "dag round complete -net <net_name> [-chain <chain_name>] \n"
-                                        "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n"
+            "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n"
         "dag round find -net <net_name> [-chain <chain_name>] -datum <datum_hash> \n"
             "\tSearches for rounds that have events that contain the specified datum.\n\n"
-        "dag event last -net <net_name> -chain <chain_name> \n"
+        "dag event last -net <net_name> [-chain <chain_name>] \n"
             "\tShow last event in chain\n\n"
-        "dag event find -net <net_name> -chain <chain_name> -datum <datum_hash>\n"
+        "dag event find -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
             "\tSearches for events that contain the specified datum.\n\n"
                                         );
     log_it(L_NOTICE,"Initialized DAG chain items organization class");
@@ -456,19 +456,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
 
-    dap_chain_cs_dag_event_item_t * l_event_item = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
-    if (!l_event_item) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return ATOM_REJECT;
-    }
-    pthread_mutex_t *l_events_mutex = &PVT(l_dag)->events_mutex;
-    l_event_item->event = l_event;
-    l_event_item->event_size = a_atom_size;
-    l_event_item->ts_added = dap_time_now();
-
     dap_chain_hash_fast_t l_event_hash = *a_atom_hash;
-    l_event_item->hash = l_event_hash;
-
     if(s_debug_more) {
         char l_event_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
         dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_str, sizeof(l_event_hash_str));
@@ -496,8 +484,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     default:
         break;
     }
-
-    if ( !(l_event_item = DAP_NEW_Z(dap_chain_cs_dag_event_item_t)) ) {
+    dap_chain_cs_dag_event_item_t *l_event_item = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
+    if ( !l_event_item ) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
         return ATOM_REJECT;
@@ -751,48 +739,28 @@ dap_chain_cs_dag_event_t* dap_chain_cs_dag_find_event_by_hash(dap_chain_cs_dag_t
     return l_event;
 }
 
-static bool s_event_verify_size(dap_chain_cs_dag_event_t *a_event, size_t a_event_size)
-{
-    if (sizeof(a_event->header) >= a_event_size) {
-        log_it(L_WARNING, "Size of atom is %zd that is equal or less then header %zd", a_event_size, sizeof(a_event->header));
-        return false;
-    }
-    size_t l_sign_offset = dap_chain_cs_dag_event_calc_size_excl_signs(a_event, a_event_size);
-    if (l_sign_offset >= a_event_size)
-        return false;
-    if (a_event->header.signs_count > UINT8_MAX)
-        return false;
-    uint8_t i;
-    for (i = 0; i < a_event->header.signs_count && l_sign_offset < a_event_size; ++i) {
-        dap_sign_t *l_sign = (dap_sign_t*)((uint8_t*)a_event + l_sign_offset);
-        l_sign_offset += dap_sign_get_size(l_sign);
-    }
-    if (i != a_event->header.signs_count) {
-        log_it(L_WARNING, "Malformed event! Only %d of claimed %d signs fit data size%s",
-               i, a_event->header.signs_count, l_sign_offset == a_event_size ? "" : ", incomplete sequence");
-
-    }
-    return l_sign_offset == a_event_size;
-}
-
 /**
  * @brief s_chain_callback_atom_verify Verify atomic element
  * @param a_chain
  * @param a_atom
  * @return
  */
-static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t  a_atom,size_t a_atom_size, dap_chain_hash_fast_t *a_atom_hash)
+static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_chain_hash_fast_t *a_atom_hash)
 {
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
     dap_chain_atom_verify_res_t res = ATOM_ACCEPT;
     pthread_mutex_t *l_events_mutex = &PVT(l_dag)->events_mutex;
+    if (a_atom_size < sizeof(dap_chain_cs_dag_event_t)) {
+        log_it(L_WARNING, "Too small event size %zu, less than event header", a_atom_size);
+        return ATOM_REJECT;
+    }
     if (l_event->header.version) {
-        debug_if(s_debug_more, L_WARNING, "Unsupported event version, possible corrupted event");
+        log_it(L_WARNING, "Unsupported event version, possible corrupted event");
         return ATOM_REJECT;
     }
     if (l_event->header.chain_id.uint64 != a_chain->id.uint64) {
-        debug_if(s_debug_more, L_WARNING, "Event from another chain, possible corrupted event");
+        log_it(L_WARNING, "Event from another chain, possible corrupted event");
         return ATOM_REJECT;
     }
     dap_chain_hash_fast_t l_event_hash = *a_atom_hash;
@@ -806,8 +774,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
             return ATOM_ACCEPT;
         }
     }
-    if (!s_event_verify_size(l_event, a_atom_size)) {
-        debug_if(s_debug_more, L_WARNING,"Event size not equal to expected");
+    if (dap_chain_cs_dag_event_calc_size(l_event, a_atom_size) != a_atom_size) {
+        debug_if(s_debug_more, L_WARNING, "Event size not equal to expected");
         return  ATOM_REJECT;
     }
 
@@ -860,9 +828,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
     }
 
     //consensus
-    if(res == ATOM_ACCEPT)
-        if(l_dag->callback_cs_verify ( l_dag, l_event,a_atom_size ))
-            res = ATOM_REJECT;
+    if (res == ATOM_ACCEPT && l_dag->callback_cs_verify(l_dag, l_event, a_atom_hash))
+        res = ATOM_REJECT;
 
     return res;
 }
@@ -1417,7 +1384,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 size_t l_event_size = l_round_item->event_size;
                 dap_hash_fast(l_event, l_event_size, &l_event_hash);
                 int l_ret_event_verify;
-                if ( ( l_ret_event_verify = l_dag->callback_cs_verify (l_dag,l_event,l_event_size) ) !=0 ){// if consensus accept the event
+                if ( ( l_ret_event_verify = l_dag->callback_cs_verify(l_dag, l_event, &l_event_hash) ) !=0 ) {// if consensus accept the event
                     dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_EVENT_ERR,"Error! Event %s is not passing consensus verification, ret code %d\n",
                                               l_objs[i].key, l_ret_event_verify );
                     ret = -DAP_CHAIN_NODE_CLI_COM_DAG_EVENT_ERR;
