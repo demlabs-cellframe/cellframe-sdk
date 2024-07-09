@@ -1187,22 +1187,20 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
     }
 
 //    l_remain_service.remain_units_type.enm = l_srv_session->limits_units_type.enm;
-    switch(l_srv_session->limits_units_type.enm){
-        case SERV_UNIT_SEC:
-            l_remain_service.limits_ts = l_srv_session->limits_ts >= 0 ? l_srv_session->limits_ts : 0;
-            if(l_receipt_sign)
-                l_remain_service.limits_ts += l_srv_session->usage_active->receipt_next->receipt_info.units;
-            break;
-        case SERV_UNIT_B:
-            l_remain_service.limits_bytes = l_srv_session->limits_bytes >= 0 ? l_srv_session->limits_bytes : 0;            
-            if (l_receipt_sign)
-                l_remain_service.limits_bytes += l_srv_session->usage_active->receipt_next->receipt_info.units;
-            break;
-    }
+    l_remain_service.limits_ts = l_srv_session->limits_ts >= 0 ? l_srv_session->limits_ts : 0;
+    if(l_receipt_sign && l_srv_session->limits_units_type.enm == SERV_UNIT_SEC)
+        l_remain_service.limits_ts += l_srv_session->usage_active->receipt_next->receipt_info.units;
 
-    if(dap_global_db_set_sync(l_remain_limits_gdb_group, l_user_key, &l_remain_service, sizeof(l_remain_service), false))
+    l_remain_service.limits_bytes = l_srv_session->limits_bytes >= 0 ? l_srv_session->limits_bytes : 0;            
+    if (l_receipt_sign && l_srv_session->limits_units_type.enm == SERV_UNIT_B)
+        l_remain_service.limits_bytes += l_srv_session->usage_active->receipt_next->receipt_info.units;
+
+
+
+    int l_ret = dap_global_db_set_sync(l_remain_limits_gdb_group, l_user_key, &l_remain_service, sizeof(l_remain_service), false);
+    if(l_ret)
     {
-        log_it(L_DEBUG, "Can't save remain limits into GDB.");
+        log_it(L_DEBUG, "Can't save remain limits into GDB. Error code: %d", l_ret);
         DAP_DELETE(l_remain_limits_gdb_group);
         DAP_DELETE(l_user_key);
         return -102;
