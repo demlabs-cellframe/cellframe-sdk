@@ -94,8 +94,7 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH,
-    /* MAX */
-    DAP_LEDGER_CHECK_UNKNOWN
+    DAP_LEDGER_TOKEN_ADD_CHECK_PKEY_MISMATCH
 } dap_ledger_check_error_t;
 
 typedef enum dap_chan_ledger_notify_opcodes{

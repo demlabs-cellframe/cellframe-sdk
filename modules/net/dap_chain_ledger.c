@@ -132,7 +132,7 @@ typedef struct dap_ledger_token_item {
 
     // for auth operations
     dap_pkey_t ** auth_pkeys;
-    dap_chain_hash_fast_t *auth_pkeys_hash;
+    dap_chain_hash_fast_t *auth_pkey_hashes;
     size_t auth_signs_total;
     size_t auth_signs_valid;
     uint16_t           flags;
@@ -145,7 +145,6 @@ typedef struct dap_ledger_token_item {
     dap_chain_addr_t * tx_send_block;
     size_t             tx_send_block_size;
     char *description_token;
-    size_t description_token_size;
     UT_hash_handle hh;
 } dap_ledger_token_item_t;
 
@@ -582,24 +581,43 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_token_item, byte_t *a_ts
         log_it(L_NOTICE, "No TSD sections in datum token");
         return DAP_LEDGER_CHECK_OK;
     }
+    size_t l_new_signs_valid = a_token_item->auth_signs_valid;
+    size_t l_new_signs_total = a_token_item->auth_signs_total;
+    dap_pkey_t **l_new_pkeys = NULL;
+    dap_hash_fast_t *l_new_pkey_hashes = NULL;
+    bool l_was_pkeys_copied = false;
+    size_t l_new_tx_recv_allow_size = a_token_item->tx_recv_allow_size;
+    size_t l_new_tx_recv_block_size = a_token_item->tx_recv_block_size;
+    size_t l_new_tx_send_allow_size = a_token_item->tx_send_allow_size;
+    size_t l_new_tx_send_block_size = a_token_item->tx_send_block_size;
+    dap_chain_addr_t *l_new_tx_recv_allow = NULL, *l_new_tx_recv_block = NULL,
+                     *l_new_tx_send_allow = NULL, *l_new_tx_send_block = NULL;
+    bool l_was_tx_recv_allow_copied = false, l_was_tx_recv_block_copied = false,
+         l_was_tx_send_allow_copied = false, l_was_tx_send_block_copied = false;
+
+    int ret = DAP_LEDGER_CHECK_OK;
     size_t l_tsd_size = 0;
+    dap_tsd_t *l_tsd = (dap_tsd_t *)a_tsd;
     for (size_t l_offset = 0; l_offset < a_tsd_total_size; l_offset += l_tsd_size) {
         if (l_offset + sizeof(dap_tsd_t) > a_tsd_total_size) {
             log_it(L_WARNING, "Incorrect TSD section size, less than header");
-            return DAP_LEDGER_CHECK_INVALID_SIZE;
+            ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+            goto ret_n_clear;
         }
-        dap_tsd_t *l_tsd = (dap_tsd_t *)((byte_t *)l_tsd + l_tsd_size);
+        l_tsd = (dap_tsd_t *)((byte_t *)l_tsd + l_tsd_size);
         l_tsd_size = dap_tsd_size(l_tsd);
         if (l_offset + l_tsd_size > a_tsd_total_size) {
-            log_it(L_WARNING, "Wrong %zd TSD size, exiting TSD parse", l_tsd_size);
-            return DAP_LEDGER_CHECK_INVALID_SIZE;
+            log_it(L_WARNING, "Wrong TSD size %zu, exiting TSD parse", l_tsd_size);
+            ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+            goto ret_n_clear;
         }
         switch (l_tsd->type) {
         // set flags
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS: {
             if (l_tsd->size != sizeof(uint16_t)) {
-                log_it(L_WARNING, "Wrong %zd SET_FLAGS TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong SET_FLAGS TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
             if (!a_apply)
                 break;
@@ -609,8 +627,9 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_token_item, byte_t *a_ts
         // unset flags
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS: {
             if (l_tsd->size != sizeof(uint16_t)) {
-                log_it(L_WARNING, "Wrong %zd UNSET_FLAGS TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong UNSET_FLAGS TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
             if (!a_apply)
                 break;
@@ -620,14 +639,16 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_token_item, byte_t *a_ts
         // set total supply
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: { // 256
             if (l_tsd->size != sizeof(uint256_t)) {
-                log_it(L_WARNING, "Wrong %zd TOTAL_SUPPLY TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong TOTAL_SUPPLY TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
             uint256_t l_new_supply = dap_tsd_get_scalar(l_tsd, uint256_t);
             if (!IS_ZERO_256(a_token_item->total_supply) && !IS_ZERO_256(l_new_supply) &&
                     compare256(a_token_item->total_supply, l_new_supply) < 0) { //compare old 'total_supply' can be updated
                 log_it(L_WARNING, "Can't update token with ticker '%s' because the new 'total_supply' can't be smaller than the old one", a_token_item->ticker);
-                return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY;
+                ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY;
+                goto ret_n_clear;
             }
             if (!a_apply)
                 break;
@@ -637,550 +658,618 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_token_item, byte_t *a_ts
         // Allowed tx receiver addres list add, remove or clear
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong %zd TX_RECEIVER_ALLOWED_ADD TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong TX_RECEIVER_ALLOWED_ADD TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
             // Check if its correct
             dap_chain_addr_t *l_add_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
             if (dap_chain_addr_check_sum(l_add_addr)) {
                 log_it(L_WARNING, "Wrong address checksum in TSD param TX_RECEIVER_ALLOWED_ADD");
-                return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                goto ret_n_clear;
+            }
+            if (!l_new_tx_recv_allow && l_new_tx_recv_allow_size && !l_was_tx_recv_allow_copied) {
+                assert(a_token_item->tx_recv_allow);
+                // Deep copy addrs to sandbox
+                l_new_tx_recv_allow = DAP_DUP_SIZE(a_token_item->tx_recv_allow, l_new_tx_recv_allow_size * sizeof(dap_chain_addr_t));
+                if (!l_new_tx_recv_allow) {
+                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                    goto ret_n_clear;
+                }
+                l_was_tx_recv_allow_copied = true;
             }
             // Check if its already present
-            for (size_t i = 0; i < a_token_item->tx_recv_allow_size; i++) { // Check for all the list
-                if (dap_chain_addr_compare(a_token_item->tx_recv_allow + i, l_add_addr)) { // Found
+            for (size_t i = 0; i < l_new_tx_recv_allow_size; i++) { // Check for all the list
+                if (dap_chain_addr_compare(l_new_tx_recv_allow + i, l_add_addr)) { // Found
                     log_it(L_WARNING, "TSD param TX_RECEIVER_ALLOWED_ADD has address %s thats already present in list",
                                                                     dap_chain_addr_to_str(l_add_addr));
-                    return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                    ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                    goto ret_n_clear;
                 }
             }
-            if (!a_apply)
-                break;
-            a_token_item->tx_recv_allow = a_token_item->tx_recv_allow
-                    ? DAP_REALLOC(a_token_item->tx_recv_allow, (a_token_item->tx_recv_allow_size + 1) * sizeof(dap_chain_addr_t))
+            l_new_tx_recv_allow = l_new_tx_recv_allow
+                    ? DAP_REALLOC(l_new_tx_recv_allow, (l_new_tx_recv_allow_size + 1) * sizeof(dap_chain_addr_t))
                     : DAP_NEW_Z(dap_chain_addr_t);
-            if (!a_token_item->tx_recv_allow) {
+            if (!l_new_tx_recv_allow) {
                 log_it(L_CRITICAL, c_error_memory_alloc);
-                return DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                goto ret_n_clear;
             }
-            a_token_item->tx_recv_allow[a_token_item->tx_recv_allow_size++] = *l_add_addr;
+            l_new_tx_recv_allow[l_new_tx_recv_allow_size++] = *l_add_addr;
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong %zd TX_RECEIVER_ALLOWED_REMOVE TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong TX_RECEIVER_ALLOWED_REMOVE TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
             // Check if its correct
             dap_chain_addr_t *l_add_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
             if (dap_chain_addr_check_sum(l_add_addr)) {
                 log_it(L_WARNING, "Wrong address checksum in TSD param TX_RECEIVER_ALLOWED_REMOVE");
-                return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                goto ret_n_clear;
+            }
+            if (!l_new_tx_recv_allow && l_new_tx_recv_allow_size && !l_was_tx_recv_allow_copied) {
+                assert(a_token_item->tx_recv_allow);
+                // Deep copy addrs to sandbox
+                l_new_tx_recv_allow = DAP_DUP_SIZE(a_token_item->tx_recv_allow, l_new_tx_recv_allow_size * sizeof(dap_chain_addr_t));
+                if (!l_new_tx_recv_allow) {
+                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                    goto ret_n_clear;
+                }
+                l_was_tx_recv_allow_copied = true;
             }
             // Check if its already present
             size_t i = 0;
-            for ( ; i < a_token_item->tx_recv_allow_size; i++) // Check for all the list
-                if (dap_chain_addr_compare(&a_token_item->tx_recv_allow[i], l_add_addr))
+            for ( ; i < l_new_tx_recv_allow_size; i++) // Check for all the list
+                if (dap_chain_addr_compare(l_new_tx_recv_allow + i, l_add_addr))
                     break;
-            if (i == a_token_item->tx_recv_allow_size) {
+            if (i == l_new_tx_recv_allow_size) {
                 log_it(L_WARNING, "TSD param TX_RECEIVER_ALLOWED_REMOVE has address %s thats not present in list",
                         dap_chain_addr_to_str(l_add_addr));
-                return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                goto ret_n_clear;
             }
-            if (!a_apply)
-                break;
             // Addr removing
-            if (--a_token_item->tx_recv_allow_size > i)
-                memmove(a_token_item->tx_recv_allow + i, a_token_item->tx_recv_allow + i + 1,
-                        (a_token_item->tx_recv_allow_size - i - 1) * sizeof(dap_chain_addr_t));
+            if (--l_new_tx_recv_allow_size > i)
+                memmove(l_new_tx_recv_allow + i, l_new_tx_recv_allow + i + 1,
+                        (l_new_tx_recv_allow_size - i - 1) * sizeof(dap_chain_addr_t));
             // Memory clearing
-            if (a_token_item->tx_recv_allow_size)
-                a_token_item->tx_recv_allow = DAP_REALLOC(a_token_item->tx_recv_allow,
-                                                          a_token_item->tx_recv_allow_size * sizeof(dap_chain_addr_t));
+            if (l_new_tx_recv_allow_size)
+                l_new_tx_recv_allow = DAP_REALLOC(l_new_tx_recv_allow,
+                                                          l_new_tx_recv_allow_size * sizeof(dap_chain_addr_t));
             else
-                DAP_DEL_Z(a_token_item->tx_recv_allow);
+                DAP_DEL_Z(l_new_tx_recv_allow);
         } break;
 
-        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_CLEAR:{
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_CLEAR: {
             if (l_tsd->size != 0) {
-                log_it(L_WARNING, "Wrong %zd TX_RECEIVER_ALLOWED_CLEAR TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong TX_RECEIVER_ALLOWED_CLEAR TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
-            DAP_DEL_Z(a_token_item->tx_recv_allow);
-            a_token_item->tx_recv_allow_size = 0;
+            DAP_DEL_Z(l_new_tx_recv_allow);
+            l_new_tx_recv_allow_size = 0;
+            l_was_tx_recv_block_copied = true;
         } break;
 
         // Blocked tx receiver addres list add, remove or clear
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong %zd TX_RECEIVER_BLOCKED_ADD TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong TX_RECEIVER_BLOCKED_ADD TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
             // Check if its correct
             dap_chain_addr_t *l_add_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
             if (dap_chain_addr_check_sum(l_add_addr)) {
                 log_it(L_WARNING, "Wrong address checksum in TSD param TX_RECEIVER_BLOCKED_ADD");
-                return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                goto ret_n_clear;
+            }
+            if (!l_new_tx_recv_block && l_new_tx_recv_block_size && !l_was_tx_recv_block_copied) {
+                assert(a_token_item->tx_recv_block);
+                // Deep copy addrs to sandbox
+                l_new_tx_recv_block = DAP_DUP_SIZE(a_token_item->tx_recv_block, l_new_tx_recv_block_size * sizeof(dap_chain_addr_t));
+                if (!l_new_tx_recv_block) {
+                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                    goto ret_n_clear;
+                }
+                l_was_tx_recv_block_copied = true;
             }
             // Check if its already present
-            for (size_t i = 0; i < a_token_item->tx_recv_block_size; i++) { // Check for all the list
-                if (dap_chain_addr_compare(a_token_item->tx_recv_block + i, l_add_addr)) { // Found
+            for (size_t i = 0; i < l_new_tx_recv_block_size; i++) { // Check for all the list
+                if (dap_chain_addr_compare(l_new_tx_recv_block + i, l_add_addr)) { // Found
                     log_it(L_WARNING, "TSD param TX_RECEIVER_BLOCKED_ADD has address %s thats already present in list",
                                                                     dap_chain_addr_to_str(l_add_addr));
-                    return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                    ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                    goto ret_n_clear;
                 }
             }
-            if (!a_apply)
-                break;
-            a_token_item->tx_recv_block = a_token_item->tx_recv_block
-                    ? DAP_REALLOC(a_token_item->tx_recv_block, (a_token_item->tx_recv_block_size + 1) * sizeof(dap_chain_addr_t))
+            l_new_tx_recv_block = l_new_tx_recv_block
+                    ? DAP_REALLOC(l_new_tx_recv_block, (l_new_tx_recv_block_size + 1) * sizeof(dap_chain_addr_t))
                     : DAP_NEW_Z(dap_chain_addr_t);
-            if (!a_token_item->tx_recv_block) {
+            if (!l_new_tx_recv_block) {
                 log_it(L_CRITICAL, c_error_memory_alloc);
-                return DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                goto ret_n_clear;
             }
-            a_token_item->tx_recv_block[a_token_item->tx_recv_block_size++] = *l_add_addr;
+            l_new_tx_recv_block[l_new_tx_recv_block_size++] = *l_add_addr;
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong %zd TX_RECEIVER_BLOCKED_REMOVE TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong TX_RECEIVER_BLOCKED_REMOVE TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
             // Check if its correct
             dap_chain_addr_t *l_add_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
             if (dap_chain_addr_check_sum(l_add_addr)) {
                 log_it(L_WARNING, "Wrong address checksum in TSD param TX_RECEIVER_BLOCKED_REMOVE");
-                return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                goto ret_n_clear;
+            }
+            if (!l_new_tx_recv_block && l_new_tx_recv_block_size && !l_was_tx_recv_block_copied) {
+                assert(a_token_item->tx_recv_block);
+                // Deep copy addrs to sandbox
+                l_new_tx_recv_block = DAP_DUP_SIZE(a_token_item->tx_recv_block, l_new_tx_recv_block_size * sizeof(dap_chain_addr_t));
+                if (!l_new_tx_recv_block) {
+                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                    goto ret_n_clear;
+                }
+                l_was_tx_recv_block_copied = true;
             }
             // Check if its already present
             size_t i = 0;
-            for ( ; i < a_token_item->tx_recv_block_size; i++) // Check for all the list
-                if (dap_chain_addr_compare(&a_token_item->tx_recv_block[i], l_add_addr))
+            for ( ; i < l_new_tx_recv_block_size; i++) // Check for all the list
+                if (dap_chain_addr_compare(l_new_tx_recv_block + i, l_add_addr))
                     break;
-            if (i == a_token_item->tx_recv_block_size) {
+            if (i == l_new_tx_recv_block_size) {
                 log_it(L_WARNING, "TSD param TX_RECEIVER_BLOCKED_REMOVE has address %s thats not present in list",
                         dap_chain_addr_to_str(l_add_addr));
-                return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                goto ret_n_clear;
             }
-            if (!a_apply)
-                break;
             // Addr removing
-            if (--a_token_item->tx_recv_block_size > i)
-                memmove(a_token_item->tx_recv_block + i, a_token_item->tx_recv_block + i + 1,
-                        (a_token_item->tx_recv_block_size - i - 1) * sizeof(dap_chain_addr_t));
+            if (--l_new_tx_recv_block_size > i)
+                memmove(l_new_tx_recv_block + i, l_new_tx_recv_block + i + 1,
+                        (l_new_tx_recv_block_size - i - 1) * sizeof(dap_chain_addr_t));
             // Memory clearing
-            if (a_token_item->tx_recv_block_size)
-                a_token_item->tx_recv_block = DAP_REALLOC(a_token_item->tx_recv_block,
-                                                          a_token_item->tx_recv_block_size * sizeof(dap_chain_addr_t));
+            if (l_new_tx_recv_block_size)
+                l_new_tx_recv_block = DAP_REALLOC(l_new_tx_recv_block,
+                                                          l_new_tx_recv_block_size * sizeof(dap_chain_addr_t));
             else
-                DAP_DEL_Z(a_token_item->tx_recv_block);
+                DAP_DEL_Z(l_new_tx_recv_block);
         } break;
 
-        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_CLEAR:{
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_CLEAR: {
             if (l_tsd->size != 0) {
-                log_it(L_WARNING, "Wrong %zd TX_RECEIVER_BLOCKED_CLEAR TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong TX_RECEIVER_BLOCKED_CLEAR TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
-            DAP_DEL_Z(a_token_item->tx_recv_block);
-            a_token_item->tx_recv_block_size = 0;
+            DAP_DEL_Z(l_new_tx_recv_block);
+            l_new_tx_recv_block_size = 0;
+            l_was_tx_recv_block_copied = true;
         } break;
 
         // Blocked tx sender addres list add, remove or clear
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong %zd TX_SENDER_ALLOWED_ADD TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong TX_SENDER_ALLOWED_ADD TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
             // Check if its correct
             dap_chain_addr_t *l_add_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
             if (dap_chain_addr_check_sum(l_add_addr)) {
                 log_it(L_WARNING, "Wrong address checksum in TSD param TX_SENDER_ALLOWED_ADD");
-                return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                goto ret_n_clear;
+            }
+            if (!l_new_tx_send_allow && l_new_tx_send_allow_size && !l_was_tx_send_allow_copied) {
+                assert(a_token_item->tx_send_allow);
+                // Deep copy addrs to sandbox
+                l_new_tx_send_allow = DAP_DUP_SIZE(a_token_item->tx_send_allow, l_new_tx_send_allow_size * sizeof(dap_chain_addr_t));
+                if (!l_new_tx_send_allow) {
+                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                    goto ret_n_clear;
+                }
+                l_was_tx_send_allow_copied = true;
             }
             // Check if its already present
-            for (size_t i = 0; i < a_token_item->tx_send_allow_size; i++) { // Check for all the list
-                if (dap_chain_addr_compare(a_token_item->tx_send_allow + i, l_add_addr)) { // Found
+            for (size_t i = 0; i < l_new_tx_send_allow_size; i++) { // Check for all the list
+                if (dap_chain_addr_compare(l_new_tx_send_allow + i, l_add_addr)) { // Found
                     log_it(L_WARNING, "TSD param TX_SENDER_ALLOWED_ADD has address %s thats already present in list",
                                                                     dap_chain_addr_to_str(l_add_addr));
-                    return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                    ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                    goto ret_n_clear;
                 }
             }
-            if (!a_apply)
-                break;
-            a_token_item->tx_send_allow = a_token_item->tx_send_allow
-                    ? DAP_REALLOC(a_token_item->tx_send_allow, (a_token_item->tx_send_allow_size + 1) * sizeof(dap_chain_addr_t))
+            l_new_tx_send_allow = l_new_tx_send_allow
+                    ? DAP_REALLOC(l_new_tx_send_allow, (l_new_tx_send_allow_size + 1) * sizeof(dap_chain_addr_t))
                     : DAP_NEW_Z(dap_chain_addr_t);
-            if (!a_token_item->tx_send_allow) {
+            if (!l_new_tx_send_allow) {
                 log_it(L_CRITICAL, c_error_memory_alloc);
-                return DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                goto ret_n_clear;
             }
-            a_token_item->tx_send_allow[a_token_item->tx_send_allow_size++] = *l_add_addr;
+            l_new_tx_send_allow[l_new_tx_send_allow_size++] = *l_add_addr;
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong %zd TX_SENDER_ALLOWED_REMOVE TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong TX_SENDER_ALLOWED_REMOVE TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
             // Check if its correct
             dap_chain_addr_t *l_add_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
             if (dap_chain_addr_check_sum(l_add_addr)) {
                 log_it(L_WARNING, "Wrong address checksum in TSD param TX_SENDER_ALLOWED_REMOVE");
-                return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                goto ret_n_clear;
+
+            }
+            if (!l_new_tx_send_allow && l_new_tx_send_allow_size && !l_was_tx_send_allow_copied) {
+                assert(a_token_item->tx_send_allow);
+                // Deep copy addrs to sandbox
+                l_new_tx_send_allow = DAP_DUP_SIZE(a_token_item->tx_send_allow, l_new_tx_send_allow_size * sizeof(dap_chain_addr_t));
+                if (!l_new_tx_send_allow) {
+                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                    goto ret_n_clear;
+                }
+                l_was_tx_send_allow_copied = true;
             }
             // Check if its already present
             size_t i = 0;
-            for ( ; i < a_token_item->tx_send_allow_size; i++) // Check for all the list
-                if (dap_chain_addr_compare(&a_token_item->tx_send_allow[i], l_add_addr))
+            for ( ; i < l_new_tx_send_allow_size; i++) // Check for all the list
+                if (dap_chain_addr_compare(l_new_tx_send_allow + i, l_add_addr))
                     break;
-            if (i == a_token_item->tx_send_allow_size) {
+            if (i == l_new_tx_send_allow_size) {
                 log_it(L_WARNING, "TSD param TX_SENDER_ALLOWED_REMOVE has address %s thats not present in list",
                         dap_chain_addr_to_str(l_add_addr));
-                return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                goto ret_n_clear;
             }
-            if (!a_apply)
-                break;
             // Addr removing
-            if (--a_token_item->tx_send_allow_size > i)
-                memmove(a_token_item->tx_send_allow + i, a_token_item->tx_send_allow + i + 1,
-                        (a_token_item->tx_send_allow_size - i - 1) * sizeof(dap_chain_addr_t));
+            if (--l_new_tx_send_allow_size > i)
+                memmove(l_new_tx_send_allow + i, l_new_tx_send_allow + i + 1,
+                        (l_new_tx_send_allow_size - i - 1) * sizeof(dap_chain_addr_t));
             // Memory clearing
-            if (a_token_item->tx_send_allow_size)
-                a_token_item->tx_send_allow = DAP_REALLOC(a_token_item->tx_send_allow,
-                                                          a_token_item->tx_send_allow_size * sizeof(dap_chain_addr_t));
+            if (l_new_tx_send_allow_size)
+                l_new_tx_send_allow = DAP_REALLOC(l_new_tx_send_allow,
+                                                          l_new_tx_send_allow_size * sizeof(dap_chain_addr_t));
             else
-                DAP_DEL_Z(a_token_item->tx_send_allow);
+                DAP_DEL_Z(l_new_tx_send_allow);
         } break;
 
-        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_CLEAR:{
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_CLEAR: {
             if (l_tsd->size != 0) {
-                log_it(L_WARNING, "Wrong %zd TX_SENDER_ALLOWED_CLEAR TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong TX_SENDER_ALLOWED_CLEAR TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
-            DAP_DEL_Z(a_token_item->tx_send_allow);
-            a_token_item->tx_send_allow_size = 0;
+            DAP_DEL_Z(l_new_tx_send_allow);
+            l_new_tx_send_allow_size = 0;
+            l_was_tx_send_allow_copied = true;
         } break;
-
 
         // Blocked tx sender addres list add, remove or clear
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong %zd TX_SENDER_BLOCKED_ADD TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong TX_SENDER_BLOCKED_ADD TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
             // Check if its correct
             dap_chain_addr_t *l_add_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
             if (dap_chain_addr_check_sum(l_add_addr)) {
                 log_it(L_WARNING, "Wrong address checksum in TSD param TX_SENDER_BLOCKED_ADD");
-                return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                goto ret_n_clear;
+            }
+            if (!l_new_tx_send_block && l_new_tx_send_block_size && !l_was_tx_send_block_copied) {
+                assert(a_token_item->tx_send_block);
+                // Deep copy addrs to sandbox
+                l_new_tx_send_block = DAP_DUP_SIZE(a_token_item->tx_send_block, l_new_tx_send_block_size * sizeof(dap_chain_addr_t));
+                if (!l_new_tx_send_block) {
+                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                    goto ret_n_clear;
+                }
+                l_was_tx_send_block_copied = true;
             }
             // Check if its already present
-            for (size_t i = 0; i < a_token_item->tx_send_block_size; i++) { // Check for all the list
-                if (dap_chain_addr_compare(a_token_item->tx_send_block + i, l_add_addr)) { // Found
+            for (size_t i = 0; i < l_new_tx_send_block_size; i++) { // Check for all the list
+                if (dap_chain_addr_compare(l_new_tx_send_block + i, l_add_addr)) { // Found
                     log_it(L_WARNING, "TSD param TX_SENDER_BLOCKED_ADD has address %s thats already present in list",
                                                                     dap_chain_addr_to_str(l_add_addr));
-                    return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                    ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                    goto ret_n_clear;
                 }
             }
             if (!a_apply)
                 break;
-            a_token_item->tx_send_block = a_token_item->tx_send_block
-                    ? DAP_REALLOC(a_token_item->tx_send_block, (a_token_item->tx_send_block_size + 1) * sizeof(dap_chain_addr_t))
+            l_new_tx_send_block = l_new_tx_send_block
+                    ? DAP_REALLOC(l_new_tx_send_block, (l_new_tx_send_block_size + 1) * sizeof(dap_chain_addr_t))
                     : DAP_NEW_Z(dap_chain_addr_t);
-            if (!a_token_item->tx_send_block) {
+            if (!l_new_tx_send_block) {
                 log_it(L_CRITICAL, c_error_memory_alloc);
-                return DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                goto ret_n_clear;
             }
-            a_token_item->tx_send_block[a_token_item->tx_send_block_size++] = *l_add_addr;
+            l_new_tx_send_block[l_new_tx_send_block_size++] = *l_add_addr;
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong %zd TX_SENDER_BLOCKED_REMOVE TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong TX_SENDER_BLOCKED_REMOVE TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
             // Check if its correct
             dap_chain_addr_t *l_add_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
             if (dap_chain_addr_check_sum(l_add_addr)) {
                 log_it(L_WARNING, "Wrong address checksum in TSD param TX_SENDER_BLOCKED_REMOVE");
-                return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR;
+                goto ret_n_clear;
+            }
+            if (!l_new_tx_send_block && l_new_tx_send_block_size && !l_was_tx_send_block_copied) {
+                assert(a_token_item->tx_send_block);
+                // Deep copy addrs to sandbox
+                l_new_tx_send_block = DAP_DUP_SIZE(a_token_item->tx_send_block, l_new_tx_send_block_size * sizeof(dap_chain_addr_t));
+                if (!l_new_tx_send_block) {
+                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                    goto ret_n_clear;
+                }
+                l_was_tx_send_block_copied = true;
             }
             // Check if its already present
             size_t i = 0;
-            for ( ; i < a_token_item->tx_send_block_size; i++) // Check for all the list
-                if (dap_chain_addr_compare(&a_token_item->tx_send_block[i], l_add_addr))
+            for ( ; i < l_new_tx_send_block_size; i++) // Check for all the list
+                if (dap_chain_addr_compare(l_new_tx_send_block + i, l_add_addr))
                     break;
-            if (i == a_token_item->tx_send_block_size) {
+            if (i == l_new_tx_send_block_size) {
                 log_it(L_WARNING, "TSD param TX_SENDER_BLOCKED_REMOVE has address %s thats not present in list",
                         dap_chain_addr_to_str(l_add_addr));
-                return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
+                goto ret_n_clear;
             }
-            if (!a_apply)
-                break;
             // Addr removing
-            if (--a_token_item->tx_send_block_size > i)
-                memmove(a_token_item->tx_send_block + i, a_token_item->tx_send_block + i + 1,
-                        (a_token_item->tx_send_block_size - i - 1) * sizeof(dap_chain_addr_t));
+            if (--l_new_tx_send_block_size > i)
+                memmove(l_new_tx_send_block + i, l_new_tx_send_block + i + 1,
+                        (l_new_tx_send_block_size - i - 1) * sizeof(dap_chain_addr_t));
             // Memory clearing
-            if (a_token_item->tx_send_block_size)
-                a_token_item->tx_send_block = DAP_REALLOC(a_token_item->tx_send_block,
-                                                          a_token_item->tx_send_block_size * sizeof(dap_chain_addr_t));
+            if (l_new_tx_send_block_size)
+                l_new_tx_send_block = DAP_REALLOC(l_new_tx_send_block,
+                                                          l_new_tx_send_block_size * sizeof(dap_chain_addr_t));
             else
-                DAP_DEL_Z(a_token_item->tx_send_block);
+                DAP_DEL_Z(l_new_tx_send_block);
         } break;
 
-        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_CLEAR:{
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_CLEAR: {
             if (l_tsd->size != 0) {
-                log_it(L_WARNING, "Wrong %zd TX_SENDER_BLOCKED_CLEAR TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong TX_SENDER_BLOCKED_CLEAR TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
-            DAP_DEL_Z(a_token_item->tx_send_block);
-            a_token_item->tx_send_block_size = 0;
+            DAP_DEL_Z(l_new_tx_send_block);
+            l_new_tx_send_block_size = 0;
+            l_was_tx_send_block_copied = true;
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION: {
-            if (l_tsd->size == 0){
-                if (s_debug_more)
-                    log_it(L_ERROR, "TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION expected to "
-                                    "have 0 bytes data length");
-                return  -10;
+            if (l_tsd->size == 0 || l_tsd->data[l_tsd->size - 1] != 0) {
+                log_it(L_ERROR, "Wrong TOKEN_DESCRIPTION TSD format or size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
-            if (a_token_item->description_token_size != 0)
-                DAP_DELETE(a_token_item->description_token);
-            a_token_item->description_token_size = l_tsd->size;
-            a_token_item->description_token = DAP_NEW_Z_SIZE(char, l_tsd->size);
-            memcpy(a_token_item->description_token, l_tsd->data, l_tsd->size);
+            DAP_DEL_Z(a_token_item->description_token);
+            a_token_item->description_token = strdup((char *)l_tsd->data);
         } break;
 
-        // Set total signs count value to set to be valid
+        // Set signs count value need to emission be valid
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID: {
             if (l_tsd->size != sizeof(uint16_t)) {
-                log_it(L_WARNING, "Wrong %zd SIGNS_VALID TSD size, exiting TSD parse", l_tsd_size);
-                return DAP_LEDGER_CHECK_INVALID_SIZE;
+                log_it(L_WARNING, "Wrong SIGNS_VALID TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
             }
-            if (!a_apply)
-                break;
-            a_token_item->auth_signs_valid = dap_tsd_get_scalar(l_tsd, uint16_t);
+            l_new_signs_valid = dap_tsd_get_scalar(l_tsd, uint16_t);
         } break;
-        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
-            if (l_quantity_tsd_section_edit_signs_emission > 1) {
-                if (s_debug_more) {
-                    log_it(L_ERROR, "Datum contains %ud TSD sections of type DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID which is not true. "
-                                    "There can be at most one such TSD section.", l_quantity_tsd_section_edit_signs_emission);
-            l_quantity_tsd_section_edit_signs_emission++;
-            l_tsd_signs_valid = l_tsd;
-            //Check new count signs
-            size_t l_new_signs_total = auth_signs_total + l_quantity_tsd_add_pkeys - l_quantity_tsd_remote_pkeys;
-            if (l_tsd_signs_valid) {
-                uint16_t l_signs_valid_from_tsd = 0;
-                _dap_tsd_get_scalar(l_tsd_signs_valid, &l_signs_valid_from_tsd);
-                if (l_new_signs_total < (size_t)l_signs_valid_from_tsd || l_signs_valid_from_tsd < 1) {
-                    dap_list_free(l_tsd_list_added_pkeys);
-                    dap_list_free(l_tsd_list_remote_pkeys);
-                    return false;
+
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD: {
+            if (l_tsd->size < sizeof(dap_pkey_t) || l_tsd->size != dap_pkey_get_size((dap_pkey_t *)l_tsd->data)) {
+                log_it(L_WARNING, "Wrong TOTAL_PKEYS_ADD TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
+            }
+            if (!l_new_pkeys && l_new_signs_total && !l_was_pkeys_copied) {
+                assert(a_token_item->auth_pkeys);
+                assert(a_token_item->auth_pkey_hashes);
+                // Deep copy pkeys & its hashes to sandbox
+                l_new_pkeys = DAP_NEW_SIZE(dap_pkey_t *, l_new_signs_total * sizeof(dap_pkey_t *));
+                if (!l_new_pkeys) {
+                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                    goto ret_n_clear;
                 }
-            } else {
-                if (l_new_signs_total < auth_signs_valid){
-                    dap_list_free(l_tsd_list_added_pkeys);
-                    dap_list_free(l_tsd_list_remote_pkeys);
-                    return false;
+                for (size_t i = 0; i < l_new_signs_total; i++) {
+                    l_new_pkeys[i] = DAP_DUP_SIZE(a_token_item->auth_pkeys[i], dap_pkey_get_size(a_token_item->auth_pkeys[i]));
+                    if (!l_new_pkeys[i]) {
+                        log_it(L_CRITICAL, c_error_memory_alloc);
+                        ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                        goto ret_n_clear;
+                    }
+                }
+                assert(!l_new_pkey_hashes);
+                l_new_pkey_hashes = DAP_DUP_SIZE(a_token_item->auth_pkey_hashes, l_new_signs_total * sizeof(dap_hash_t));
+                if (!l_new_pkey_hashes) {
+                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                    goto ret_n_clear;
+                }
+                l_was_pkeys_copied = true;
+            }
+            dap_pkey_t *l_new_auth_pkey = dap_tsd_get_object(l_tsd, dap_pkey_t);
+            // Check if its already present
+            dap_hash_t l_new_auth_pkey_hash;
+            dap_pkey_get_hash(l_new_auth_pkey, &l_new_auth_pkey_hash);
+            for (size_t i = 0; i < l_new_signs_total; i++) {
+                if (dap_pkey_compare(l_new_auth_pkey, l_new_pkeys[i])) {
+                    log_it(L_WARNING, "TSD param TOTAL_PKEYS_ADD has pkey %s thats already present in list",
+                                                                    dap_hash_fast_to_str_static(&l_new_auth_pkey_hash));
+                    ret = DAP_LEDGER_TOKEN_ADD_CHECK_PKEY_MISMATCH;
+                    goto ret_n_clear;
                 }
             }
-            break;
-        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE:
-            l_quantity_tsd_remote_pkeys++;
-            l_tsd_list_remote_pkeys = dap_list_append(l_tsd_list_remote_pkeys, l_tsd);
-            break;
-        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD:
-            l_quantity_tsd_add_pkeys++;
-            l_tsd_list_added_pkeys = dap_list_append(l_tsd_list_added_pkeys, l_tsd);
-            break;
+            l_new_pkeys = l_new_pkeys ? DAP_REALLOC(l_new_pkeys, l_new_signs_total * sizeof(dap_pkey_t *))
+                                      : DAP_NEW_Z(dap_pkey_t *);
+            if (!l_new_pkeys) {
+                log_it(L_CRITICAL, c_error_memory_alloc);
+                ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                goto ret_n_clear;
+            }
+            // Pkey adding
+            l_new_pkeys[l_new_signs_total++] = DAP_DUP_SIZE(l_new_auth_pkey, dap_pkey_get_size(l_new_auth_pkey));
+            if (!l_new_pkeys[l_new_signs_total]) {
+                log_it(L_CRITICAL, c_error_memory_alloc);
+                ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                goto ret_n_clear;
+            }
+            l_new_pkey_hashes = l_new_pkey_hashes ? DAP_REALLOC(l_new_pkey_hashes, l_new_signs_total * sizeof(dap_hash_t))
+                                                  : DAP_NEW_Z(dap_hash_t);
+            if (!l_new_pkey_hashes) {
+                log_it(L_CRITICAL, c_error_memory_alloc);
+                ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                goto ret_n_clear;
+            }
+            l_new_pkey_hashes[l_new_signs_total++] = l_new_auth_pkey_hash;
+        } break;
+
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE: {
+            if (l_tsd->size != sizeof(dap_hash_t)) {
+                log_it(L_WARNING, "Wrong TOTAL_PKEYS_REMOVE TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
+            }
+            if (!l_new_pkeys && l_new_signs_total && !l_was_pkeys_copied) {
+                assert(a_token_item->auth_pkeys);
+                assert(a_token_item->auth_pkey_hashes);
+                // Deep copy pkeys & its hashes to sandbox
+                l_new_pkeys = DAP_NEW_SIZE(dap_pkey_t *, l_new_signs_total * sizeof(dap_pkey_t *));
+                if (!l_new_pkeys) {
+                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                    goto ret_n_clear;
+                }
+                for (size_t i = 0; i < l_new_signs_total; i++) {
+                    l_new_pkeys[i] = DAP_DUP_SIZE(a_token_item->auth_pkeys[i], dap_pkey_get_size(a_token_item->auth_pkeys[i]));
+                    if (!l_new_pkeys[i]) {
+                        log_it(L_CRITICAL, c_error_memory_alloc);
+                        ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                        goto ret_n_clear;
+                    }
+                }
+                assert(!l_new_pkey_hashes);
+                l_new_pkey_hashes = DAP_DUP_SIZE(a_token_item->auth_pkey_hashes, l_new_signs_total * sizeof(dap_hash_t));
+                if (!l_new_pkey_hashes) {
+                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                    goto ret_n_clear;
+                }
+                l_was_pkeys_copied = true;
+            }
+            dap_hash_t l_new_auth_pkey_hash = dap_tsd_get_scalar(l_tsd, dap_hash_t);
+            // Check if its already present
+            size_t i = 0;
+            for ( ; i < l_new_signs_total; i++) // Check for all the list
+                if (dap_hash_fast_compare(l_new_pkey_hashes + i, &l_new_auth_pkey_hash))
+                    break;
+            if (i == l_new_signs_total) {
+                log_it(L_WARNING, "TSD param TOTAL_PKEYS_REMOVE has public key hash %s thats not present in list",
+                                                    dap_hash_fast_to_str_static(&l_new_auth_pkey_hash));
+                ret = DAP_LEDGER_TOKEN_ADD_CHECK_PKEY_MISMATCH;
+                goto ret_n_clear;
+            }
+            // Pkey removing
+            DAP_DELETE(l_new_pkeys[i]);
+            if (--l_new_signs_total > i) {
+                memmove(l_new_pkeys + i, l_new_pkeys + i + 1, (l_new_signs_total - i - 1) * sizeof(dap_pkey_t *));
+                memmove(l_new_pkey_hashes + i, l_new_pkey_hashes + i + 1, (l_new_signs_total - i - 1) * sizeof(dap_hash_t));
+            }
+            // Memory clearing
+            if (l_new_signs_total) {
+                l_new_pkeys = DAP_REALLOC(l_new_pkeys, l_new_signs_total * sizeof(dap_pkey_t *));
+                l_new_pkey_hashes = DAP_REALLOC(l_new_pkey_hashes, l_new_signs_total * sizeof(dap_hash_t));
+            } else
+                DAP_DEL_MULTY(l_new_pkeys, l_new_pkey_hashes);
+        } break;
+
 
         default:
             log_it(L_ERROR, "Unexpected TSD type %hu", l_tsd->type);
-            return DAP_LEDGER_CHECK_PARSE_ERROR;
+            ret = DAP_LEDGER_CHECK_PARSE_ERROR;
+            goto ret_n_clear;
         }
+    }
+    if (l_new_signs_total < l_new_signs_valid) {
+        ret = DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
+        goto ret_n_clear;
+    }
+    if (a_apply) {
+        if (l_was_tx_recv_allow_copied) {
+            a_token_item->tx_recv_allow_size = l_new_tx_recv_allow_size;
+            DAP_DEL_Z(a_token_item->tx_recv_allow);
+            a_token_item->tx_recv_allow = l_new_tx_recv_block;
+        }
+        if (l_was_tx_recv_block_copied) {
+            a_token_item->tx_recv_block_size = l_new_tx_recv_block_size;
+            DAP_DEL_Z(a_token_item->tx_recv_block);
+            a_token_item->tx_recv_block = l_new_tx_recv_block;
+        }
+        if (l_was_tx_send_allow_copied) {
+            a_token_item->tx_send_allow_size = l_new_tx_send_allow_size;
+            DAP_DEL_Z(a_token_item->tx_send_allow);
+            a_token_item->tx_send_allow = l_new_tx_send_block;
+        }
+        if (l_was_tx_send_block_copied) {
+            a_token_item->tx_send_block_size = l_new_tx_send_block_size;
+            DAP_DEL_Z(a_token_item->tx_send_block);
+            a_token_item->tx_send_block = l_new_tx_send_block;
+        }
+        a_token_item->auth_signs_valid = l_new_signs_valid;
+        if (l_was_pkeys_copied) {
+            a_token_item->auth_signs_total = l_new_signs_total;
+            for (size_t i = 0; i < l_new_signs_total; i++)
+                DAP_DELETE(a_token_item->auth_pkeys[i]);
+            DAP_DEL_Z(a_token_item->auth_pkeys);
+            DAP_DEL_Z(a_token_item->auth_pkey_hashes);
+            a_token_item->auth_pkeys = l_new_pkeys;
+            a_token_item->auth_pkey_hashes = l_new_pkey_hashes;
+        }
+        return DAP_LEDGER_CHECK_OK;
     }
     // Checks passed
-    return DAP_LEDGER_CHECK_OK;
+ret_n_clear:
+    if (l_was_pkeys_copied)
+        for (size_t i = 0; i < l_new_signs_total; i++)
+            DAP_DELETE(l_new_pkeys[i]);
+    DAP_DEL_MULTY(l_new_tx_recv_allow, l_new_tx_recv_block, l_new_tx_send_allow, l_new_tx_send_block, l_new_pkeys, l_new_pkey_hashes);
+    return ret;
 }
-
-
-
-static int s_tsd_sign_apply(dap_ledger_t *a_ledger, dap_ledger_token_item_t *a_token_item , dap_chain_datum_token_t *a_token, size_t a_token_size){
-    dap_tsd_t * l_tsd= dap_chain_datum_token_tsd_get(a_token,a_token_size);
-    size_t l_tsd_size=0;
-    size_t l_tsd_total_size = a_token->header_native_decl.tsd_total_size;
-    dap_tsd_t *l_new_signs_valid = NULL;
-    dap_list_t *l_remove_pkeys = NULL;
-    dap_list_t *l_added_pkeys = NULL;
-
-    for( size_t l_offset=0; l_offset < l_tsd_total_size;  l_offset += l_tsd_size ){
-        l_tsd = (dap_tsd_t *) (((byte_t*)l_tsd) + l_tsd_size);
-        l_tsd_size =  l_tsd? dap_tsd_size(l_tsd): 0;
-        if( l_tsd_size==0 ){
-            if(s_debug_more)
-                log_it(L_ERROR,"Wrong zero TSD size, exiting TSD parse");
-            break;
-        }else if (l_tsd_size + l_offset > l_tsd_total_size ){
-            if(s_debug_more)
-                log_it(L_ERROR,"Wrong %zd TSD size, exiting TSD parse", l_tsd_size);
-            break;
-        }
-        switch (l_tsd->type) {
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
-                l_new_signs_valid = l_tsd;
-                break;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD:
-                l_added_pkeys = dap_list_append(l_added_pkeys, l_tsd->data);
-                break;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE:
-                l_remove_pkeys = dap_list_append(l_remove_pkeys, l_tsd);
-                break;
-        }
-    }
-    for (dap_list_t *l_ptr = l_remove_pkeys; l_ptr; l_ptr = dap_list_next(l_ptr)) {
-        dap_tsd_t *l_tsd = l_ptr->data;
-        dap_hash_fast_t l_hash = { };
-        _dap_tsd_get_scalar(l_tsd, &l_hash);
-        for( size_t i=0; i<a_token_item->auth_signs_total; i++){
-            if (dap_hash_fast_compare(&l_hash, &a_token_item->auth_pkeys_hash[i] )){
-                if (i+1 != a_token_item->auth_signs_total){
-                    memmove(a_token_item->auth_pkeys+i,a_token_item->auth_pkeys+i+1,
-                            (a_token_item->auth_signs_total-i-1)*sizeof (void*));
-                    memmove(a_token_item->auth_pkeys_hash+i,a_token_item->auth_pkeys_hash+i+1,
-                            (a_token_item->auth_signs_total-i-1)*sizeof(dap_chain_hash_fast_t));
-                }
-                a_token_item->auth_signs_total--;
-                if(a_token_item->auth_signs_total) {
-                    // Type sizeof's misunderstanding in realloc?
-                    a_token_item->auth_pkeys = DAP_REALLOC(a_token_item->auth_pkeys,a_token_item->auth_signs_total*sizeof (dap_pkey_t*) );
-                    a_token_item->auth_pkeys_hash = DAP_REALLOC(a_token_item->auth_pkeys_hash,a_token_item->auth_signs_total*sizeof(dap_chain_hash_fast_t));
-                } else {
-                    DAP_DEL_Z(a_token_item->auth_pkeys);
-                    DAP_DEL_Z(a_token_item->auth_pkeys_hash);
-                }
-                break;
-            }
-        }
-    }
-    for (dap_list_t *l_ptr = l_added_pkeys; l_ptr; l_ptr = dap_list_next(l_ptr)) {
-        dap_pkey_t *l_pkey = (dap_pkey_t*)l_ptr->data;
-        a_token_item->auth_signs_total++;
-        // Type sizeof's misunderstanding in realloc?
-        a_token_item->auth_pkeys = DAP_REALLOC(a_token_item->auth_pkeys,a_token_item->auth_signs_total*sizeof (dap_pkey_t*) );
-        a_token_item->auth_pkeys_hash = DAP_REALLOC(a_token_item->auth_pkeys_hash,a_token_item->auth_signs_total*sizeof (dap_chain_hash_fast_t));
-        a_token_item->auth_pkeys[a_token_item->auth_signs_total-1] = DAP_NEW_SIZE(dap_pkey_t, sizeof(dap_pkey_t)+l_pkey->header.size);
-        memcpy(a_token_item->auth_pkeys[a_token_item->auth_signs_total-1], l_pkey, sizeof(dap_pkey_t)+l_pkey->header.size);
-        dap_pkey_get_hash(l_pkey, &a_token_item->auth_pkeys_hash[a_token_item->auth_signs_total-1]);
-    }
-    if (l_new_signs_valid) {
-        uint16_t l_tmp = 0;
-        a_token_item->auth_signs_valid = _dap_tsd_get_scalar(l_new_signs_valid, &l_tmp);
-    }
-
-    if (l_added_pkeys) dap_list_free(l_added_pkeys);
-    if (l_remove_pkeys) dap_list_free(l_remove_pkeys);
-    return 0;
-}
-
-/**
- * @brief s_ledger_token_update_check
- * @param a_cur_token_item
- * @param a_token_update
- * @param a_token_update_size
- * @return true or false
- */
-static int s_ledger_token_update_check(dap_ledger_token_item_t *a_cur_token_item, byte_t *a_tsd, size_t a_tsd_total_size)
-{
-
-
-    //Check valid remove_signs
-    bool isAccepted = false;
-    if (!l_tsd_list_remote_pkeys)
-        isAccepted = true;
-    else {
-        for (dap_list_t *l_ptr = l_tsd_list_remote_pkeys; l_ptr; l_ptr = dap_list_next(l_ptr)) {
-            dap_tsd_t *l_tsd = (dap_tsd_t *) l_ptr->data;
-            dap_hash_fast_t l_hash = { };
-            _dap_tsd_get_scalar(l_tsd, &l_hash);
-            bool accepted = false;
-            for (size_t i = 0; i < auth_signs_total; i++) {
-                if (dap_hash_fast_compare(&a_cur_token_item->auth_pkeys_hash[i], &l_hash)) {
-                    accepted = true;
-                    break;
-                }
-            }
-            if (!accepted) {
-                if (s_debug_more) {
-                    char *l_hash_str = dap_hash_fast_to_str_new(&l_hash);
-                    log_it(L_ERROR,
-                           "It is expected that the TSD parameter DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE will contain only "
-                           "the hashes of the public keys of the signatures with which the given token was previously signed. But not %s",
-                           l_hash_str);
-                    DAP_DELETE(l_hash_str);
-                }
-            }
-            isAccepted = accepted;
-        }
-    }
-    if (!isAccepted) {
-        dap_list_free(l_tsd_list_added_pkeys);
-        dap_list_free(l_tsd_list_remote_pkeys);
-        return false;
-    }
-    //Check added signs
-    dap_chain_datum_token_t *l_token_tmp = DAP_DUP_SIZE(a_token_update, a_token_update_size);
-    if (!l_token_tmp) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        dap_list_free(l_tsd_list_added_pkeys);
-        dap_list_free(l_tsd_list_remote_pkeys);
-        return false;
-    }
-
-    l_token_tmp->header_native_update.tsd_total_size = 0;
-    isAccepted = true;
-    for (dap_list_t *l_ptr = l_tsd_list_added_pkeys; l_ptr; l_ptr = dap_list_next(l_ptr)) {
-        dap_tsd_t *l_tsd = (dap_tsd_t*)l_ptr->data;
-        if (l_tsd->size >= sizeof(dap_pkey_t)) {
-            dap_pkey_t *l_pkey = (dap_pkey_t *) l_tsd->data;
-            dap_hash_fast_t l_hf_pkey = {0};
-            if (!dap_pkey_get_hash(l_pkey, &l_hf_pkey)) {
-                if (s_debug_more)
-                    log_it(L_ERROR, "Failed to calculate the hash for the public key located in the "
-                                    "DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD section of the TSD");
-                isAccepted = false;
-                break;
-            }
-            for (size_t i = 0; i < a_cur_token_item->auth_signs_total; i++) {
-                if (dap_hash_fast_compare(&l_hf_pkey, &a_cur_token_item->auth_pkeys_hash[i])) {
-                    if (s_debug_more) {
-                        char *l_hf_str = dap_hash_fast_to_str_new(&l_hf_pkey);
-                        log_it(L_ERROR, "The public key with hash %s from the TSD section of the type "
-                                        "DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD cannot be added, because such "
-                                        "a key already exists in the ledger.", l_hf_str);
-                        DAP_DELETE(l_hf_str);
-                    }
-                    isAccepted = false;
-                    break;
-                }
-            }
-        } else {
-            if (s_debug_more)
-                log_it(L_ERROR, "It is expected that the size %zu of information from the TSD section of type "
-                                "DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD will be greater than or equal to %zu.",
-                       dap_tsd_size(l_tsd), sizeof(dap_pkey_t));
-            isAccepted = false;
-            break;
-        }
-    }
-    dap_list_free(l_tsd_list_added_pkeys);
-    dap_list_free(l_tsd_list_remote_pkeys);
-    DAP_DELETE(l_token_tmp);
-    return isAccepted;
-}
-
 
 inline static dap_ledger_token_item_t *s_ledger_find_token(dap_ledger_t *a_ledger, const char *a_token_ticker)
 {
@@ -1198,97 +1287,104 @@ inline static dap_ledger_token_item_t *s_ledger_find_token(dap_ledger_t *a_ledge
  * @param a_token_size
  * @return
  */
-int dap_ledger_token_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size)
+int s_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size, dap_ledger_token_item_t **a_token_item, dap_chain_datum_token_t *a_token_out, size_t *a_tsd_total_size)
 {
-    dap_return_val_if_fail(a_ledger, DAP_LEDGER_CHECK_INVALID_ARGS);
-
-    if (a_token_size < sizeof(dap_chain_datum_token_t)) {
-        log_it(L_WARNING, "Too small size %zu of datum token, less than minimum", a_token_size);
+    dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(a_token, a_token_size);
+    if (!l_token)
         return DAP_LEDGER_CHECK_INVALID_SIZE;
-    }
-    if (a_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE && a_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_DECL) {
-        log_it(L_WARNING, "Unknown token type %hu", a_token->type);
+
+    if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE && l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_DECL) {
+        log_it(L_WARNING, "Unknown token type %hu", l_token->type);
+        DAP_DELETE(l_token);
         return DAP_LEDGER_CHECK_PARSE_ERROR;
     }
-    if (a_token->signs_total < a_token->signs_valid) {
-        log_it(L_WARNING, "Datum token has only %zu signatures out of %hu", a_token->signs_total, a_token->signs_valid);
+    if (l_token->signs_total < l_token->signs_valid) {
+        log_it(L_WARNING, "Datum token has only %hu signatures out of %hu", l_token->signs_total, l_token->signs_valid);
+        DAP_DELETE(l_token);
         return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
     }
-    bool l_update_token = a_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
-    dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, a_token->ticker);
+    bool l_update_token = l_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
+    dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_token->ticker);
     if (l_token_item) {
         if (!l_update_token) {
-            log_it(L_WARNING, "Duplicate token declaration for ticker '%s'", a_token->ticker);
+            log_it(L_WARNING, "Duplicate token declaration for ticker '%s'", l_token->ticker);
+            DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_ALREADY_CACHED;
         }
         dap_hash_fast_t l_hash_token_update;
-        dap_hash_fast(a_token, a_token, &l_hash_token_update);
+        dap_hash_fast(l_token, l_token_size, &l_hash_token_update);
         dap_ledger_token_update_item_t *l_token_update_item;
-        pthread_rwlock_rdlock(&a_cur_token_item->token_ts_updated_rwlock);
-        HASH_FIND(hh, a_cur_token_item->token_ts_updated, &l_hash_token_update, sizeof(dap_hash_fast_t), l_token_update_item);
-        pthread_rwlock_unlock(&a_cur_token_item->token_ts_updated_rwlock);
+        pthread_rwlock_rdlock(&l_token_item->token_ts_updated_rwlock);
+        HASH_FIND(hh, l_token_item->token_ts_updated, &l_hash_token_update, sizeof(dap_hash_fast_t), l_token_update_item);
+        pthread_rwlock_unlock(&l_token_item->token_ts_updated_rwlock);
         if (l_token_update_item) {
-            log_it(L_WARNING, "This update for token '%s' was already applied", a_token->ticker);
+            log_it(L_WARNING, "This update for token '%s' was already applied", l_token->ticker);
+            DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_ALREADY_CACHED;
         }
     } else if (l_update_token) {
-        log_it(L_WARNING, "Can't update token that doesn't exist for ticker '%s'", a_token->ticker);
+        log_it(L_WARNING, "Can't update token that doesn't exist for ticker '%s'", l_token->ticker);
+        DAP_DELETE(l_token);
         return DAP_LEDGER_TOKEN_ADD_CHECK_UPDATE_ABSENT_TOKEN;
     }
     // Check TSD
     size_t l_size_tsd_section = 0;
     if (l_update_token) {
-        switch (a_token->subtype) {
+        switch (l_token->subtype) {
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
-            l_size_tsd_section = a_token->header_private_decl.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_private_decl.tsd_total_size; break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
-            l_size_tsd_section = a_token->header_native_decl.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_native_decl.tsd_total_size; break;
         default: break;
         }
     } else {
-        switch (a_token->subtype) {
+        switch (l_token->subtype) {
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
-            l_size_tsd_section = a_token->header_private_update.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_private_update.tsd_total_size; break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
-            l_size_tsd_section = a_token->header_native_update.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_native_update.tsd_total_size; break;
         default: break;
         }
     }
-    if (a_token_size < sizeof(dap_chain_datum_token_t) + l_size_tsd_section) {
-        log_it(L_WARNING, "Incorrect size %zu of datum token, expected at least %zu", a_token_size,
+    if (l_token_size < sizeof(dap_chain_datum_token_t) + l_size_tsd_section) {
+        log_it(L_WARNING, "Incorrect size %zu of datum token, expected at least %zu", l_token_size,
                                                 sizeof(dap_chain_datum_token_t) + l_size_tsd_section);
+        DAP_DELETE(l_token);
         return DAP_LEDGER_CHECK_INVALID_SIZE;
     }
     // Check signs
-    byte_t *l_signs_ptr = a_token->tsd_n_signs + l_size_tsd_section;
+    byte_t *l_signs_ptr = l_token->tsd_n_signs + l_size_tsd_section;
     size_t l_signs_size = 0, l_signs_offset = sizeof(dap_chain_datum_token_t) + l_size_tsd_section;
-    for (uint16_t l_signs_passed = 0; l_signs_passed < a_token->signs_total; l_signs_passed++) {
+    for (uint16_t l_signs_passed = 0; l_signs_passed < l_token->signs_total; l_signs_passed++) {
         dap_sign_t *l_sign = (dap_sign_t *)(l_signs_ptr + l_signs_size);
-        if (a_token_size < l_signs_offset + l_signs_size + sizeof(dap_sign_t)) {
-            log_it(L_WARNING, "Incorrect size %zu of datum token, expected at least %zu", a_token_size,
+        if (l_token_size < l_signs_offset + l_signs_size + sizeof(dap_sign_t)) {
+            log_it(L_WARNING, "Incorrect size %zu of datum token, expected at least %zu", l_token_size,
                                                     l_signs_offset + l_signs_size + sizeof(dap_sign_t));
+            DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_INVALID_SIZE;
         }
         l_signs_size += dap_sign_get_size(l_sign);
     }
-    if (a_token_size != l_signs_offset + l_signs_size) {
-        log_it(L_WARNING, "Incorrect size %zu of datum token, expected %zu", a_token_size, l_signs_offset + l_signs_size);
+    if (l_token_size != l_signs_offset + l_signs_size) {
+        log_it(L_WARNING, "Incorrect size %zu of datum token, expected %zu", l_token_size, l_signs_offset + l_signs_size);
+        DAP_DELETE(l_token);
         return DAP_LEDGER_CHECK_INVALID_SIZE;
     }
-    size_t l_signs_unique = a_token->signs_total;
-    dap_sign_t **l_signs = dap_sign_get_unique_signs(l_signs_offset, l_signs_size, &l_signs_unique);
-    if (l_signs_unique != a_token->signs_total) {
+    size_t l_signs_unique = l_token->signs_total;
+    dap_sign_t **l_signs = dap_sign_get_unique_signs(l_signs_ptr, l_signs_size, &l_signs_unique);
+    if (l_signs_unique != l_token->signs_total) {
         DAP_DEL_Z(l_signs);
         log_it(L_WARNING, "The number of unique token signs %zu is less than total token signs set to %hu.",
-               l_signs_unique, a_token->signs_total);
+               l_signs_unique, l_token->signs_total);
+        DAP_DELETE(l_token);
         return DAP_LEDGER_TOKEN_ADD_CHECK_TOTAL_SIGNS_EXCEED_UNIQUE_SIGNS;
     }
     size_t l_signs_approve = 0;
-    uint16_t l_tmp_auth_signs = a_token->signs_total;
-    if (a_token->version >= 2)
-        a_token->signs_total = 0;
-    for (size_t i = 0; i < l_signs_unique; i++)
-        if (!dap_sign_verify(l_signs[i], l_signs_size, a_token)) {
+    uint16_t l_tmp_auth_signs = l_token->signs_total;
+    if (l_token->version >= 2)
+        l_token->signs_total = 0;
+    for (size_t i = 0; i < l_signs_unique; i++) {
+        if (!dap_sign_verify(l_signs[i], l_token, l_signs_offset)) {
             if (l_update_token) {
                 for (size_t j = 0; j < l_token_item->auth_signs_total; j++) {
                     if (dap_pkey_match_sign(l_token_item->auth_pkeys[j], l_signs[i])) {
@@ -1299,14 +1395,29 @@ int dap_ledger_token_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
             } else
                 l_signs_approve++;
         }
+    }
     DAP_DELETE(l_signs);
-    a_token->signs_total = l_tmp_auth_signs;
-    if (l_signs_approve != a_token->signs_total) {
-        log_it(L_WARNING, "Datum token has only %zu valid signatures out of %hu.", l_signs_approve, a_token->signs_total);
+    l_token->signs_total = l_tmp_auth_signs;
+    size_t l_signs_need = l_update_token ? l_token->signs_valid : l_token->signs_total;
+    if (l_signs_approve < l_signs_need) {
+        DAP_DELETE(l_token);
+        log_it(L_WARNING, "Datum token has only %zu valid signatures out of %hu.", l_signs_approve, l_signs_need);
         return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
     }
     // Check content & size of enclosed TSD sections
-    return s_token_tsd_parse(l_token_item, a_token->tsd_n_signs, l_size_tsd_section, false);
+    int ret = s_token_tsd_parse(l_token_item, l_token->tsd_n_signs, l_size_tsd_section, false);
+    if (ret != DAP_LEDGER_CHECK_OK)
+        return ret;
+    if (a_token_item)
+        *a_token_item = l_token_item;
+    if (a_tsd_total_size)
+        *a_tsd_total_size = l_size_tsd_section;
+}
+
+int dap_ledger_token_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size)
+{
+    dap_return_val_if_fail(a_ledger && a_token && a_token_size, DAP_LEDGER_CHECK_INVALID_ARGS);
+    return s_token_check(a_ledger, a_token, a_token_size, NULL, NULL, NULL, NULL);
 }
 
 /**
@@ -1447,49 +1558,19 @@ static bool s_ledger_update_token_add_in_hash_table(dap_ledger_token_item_t *a_c
  */
 int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size)
 {
-    if (!a_ledger || !a_token) {
-        debug_if(s_debug_more, L_ERROR, "NULL ledger, can't add datum with token declaration!");
-        return -1;
-    }
-
-    dap_chain_datum_token_t *l_token = a_token;
-    dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_token->ticker);
-    if (l_token_item) {
-        if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE
-                && l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE
-                && l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE) {
-            log_it(L_ERROR, "Duplicate token declaration for ticker '%s'", l_token->ticker);
-            DAP_DELETE(l_token);
-            return -3;
-        }
-        if (s_ledger_token_update_check(l_token_item, l_token, a_token_size)) {
-            if (!s_ledger_update_token_add_in_hash_table(l_token_item, l_token, a_token_size)) {
-                log_it(L_ERROR, "Failed to update token with ticker '%s' in ledger", l_token->ticker);
-                DAP_DELETE(l_token);
-                return -5;
-            }
-            if (!IS_ZERO_256(l_token->total_supply)) {
-                SUBTRACT_256_256(l_token_item->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
-                SUBTRACT_256_256(l_token->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
-            } else {
-                l_token_item->current_supply = l_token->total_supply;
-            }
-            l_token_item->total_supply = l_token->total_supply;
-            DAP_DELETE(l_token_item->datum_token);
-        } else {
-            log_it(L_ERROR, "Token with ticker '%s' update check failed", l_token->ticker);
-            DAP_DELETE(l_token);
-            return -2;
-        }
-    } else if (l_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE) {
-        log_it(L_WARNING, "Token with ticker '%s' does not yet exist, declare it first", l_token->ticker);
-        DAP_DELETE(l_token);
-        return -6;
-    }
+    dap_return_val_if_fail(a_ledger && a_token && a_token_size, DAP_LEDGER_CHECK_INVALID_ARGS);
+    dap_ledger_token_item_t *l_token_item = NULL;
+    dap_chain_datum_token_t *l_token = NULL;
+    size_t l_tsd_total_size = 0;
+    int ret = s_token_add_check(a_ledger, a_token, a_token_size, &l_token_item, &l_token, &l_tsd_total_size);
+    if (ret != DAP_LEDGER_CHECK_OK)
+        return ret;
 
     if (!l_token_item) {
-        size_t l_auth_signs_total, l_auth_signs_valid;
-        dap_sign_t **l_signs = dap_chain_datum_token_signs_parse(l_token, a_token_size, &l_auth_signs_total, &l_auth_signs_valid);
+        size_t l_auth_signs_total = a_token->signs_total;
+        dap_sign_t **l_signs = dap_sign_get_unique_signs(l_token->tsd_n_signs + l_tsd_total_size,
+                                                         a_token_size - l_tsd_total_size - sizeof(dap_chain_datum_token_t),
+                                                         &l_auth_signs_total);
         if (!l_signs || !l_auth_signs_total) {
             log_it(L_ERROR, "No auth signs in token '%s' datum!", l_token->ticker);
             DAP_DELETE(l_token);
@@ -1510,10 +1591,9 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
                 .token_emissions_rwlock     = PTHREAD_RWLOCK_INITIALIZER,
                 .token_ts_updated_rwlock    = PTHREAD_RWLOCK_INITIALIZER,
                 .auth_pkeys         = DAP_NEW_Z_SIZE(dap_pkey_t*, sizeof(dap_pkey_t*) * l_token->signs_total),
-                .auth_pkeys_hash    = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, sizeof(dap_chain_hash_fast_t) * l_token->signs_total),
+                .auth_pkey_hashes    = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, sizeof(dap_chain_hash_fast_t) * l_token->signs_total),
                 .auth_signs_total   = l_auth_signs_total,
-                .auth_signs_valid   = l_auth_signs_valid,
-                .description_token_size = 0
+                .auth_signs_valid   = l_auth_signs_valid
         };
         if ( !l_token_item->auth_pkeys ) {
             DAP_DELETE(l_token);
@@ -1531,7 +1611,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
         dap_stpcpy(l_token_item->ticker, l_token->ticker);
         for (uint16_t k = 0; k < l_token_item->auth_signs_total; k++) {
             l_token_item->auth_pkeys[k] = dap_pkey_get_from_sign(l_signs[k]);
-            dap_pkey_get_hash(l_token_item->auth_pkeys[k], &l_token_item->auth_pkeys_hash[k]);
+            dap_pkey_get_hash(l_token_item->auth_pkeys[k], &l_token_item->auth_pkey_hashes[k]);
         }
         DAP_DELETE(l_signs);
     }
@@ -1554,7 +1634,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
     if (s_debug_more)
         dap_uint256_to_char(l_token->total_supply, &l_balance_dbg);
 
-#define CLEAN_UP DAP_DEL_MULTY(l_token, l_token_item->auth_pkeys, l_token_item->auth_pkeys_hash, l_token_item)
+#define CLEAN_UP DAP_DEL_MULTY(l_token, l_token_item->auth_pkeys, l_token_item->auth_pkey_hashes, l_token_item)
 
     switch (l_token->type) {
     case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
@@ -2077,7 +2157,7 @@ size_t dap_ledger_token_auth_signs_total(dap_ledger_t *a_ledger, const char * a_
  * @param a_token_ticker
  * @return
  */
-dap_list_t * dap_ledger_token_auth_pkeys_hashes(dap_ledger_t *a_ledger, const char * a_token_ticker)
+dap_list_t * dap_ledger_token_auth_pkey_hasheses(dap_ledger_t *a_ledger, const char * a_token_ticker)
 {
     dap_list_t * l_ret = NULL;
     dap_ledger_token_item_t *l_token_item, *l_tmp_item;
@@ -2086,7 +2166,7 @@ dap_list_t * dap_ledger_token_auth_pkeys_hashes(dap_ledger_t *a_ledger, const ch
         if (!dap_strcmp(l_token_item->ticker, a_token_ticker)) {
             debug_if(s_debug_more, L_INFO, " ! Token %s : total %lu auth signs", a_token_ticker, l_token_item->auth_signs_total);
             for (size_t i = 0; i < l_token_item->auth_signs_total; i++) {
-                l_ret = dap_list_append(l_ret, (dap_chain_hash_fast_t*)(&l_token_item->auth_pkeys_hash[i]));
+                l_ret = dap_list_append(l_ret, (dap_chain_hash_fast_t*)(&l_token_item->auth_pkey_hashes[i]));
             }
             break;
         }
@@ -2167,7 +2247,7 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
             json_object_object_add(json_obj_datum, "-->Token name", json_object_new_string(l_token_item->ticker));
             json_object_object_add(json_obj_datum, "type", json_object_new_string(l_type_str));
             json_object_object_add(json_obj_datum, "flags", json_object_new_string(s_flag_str_from_code(l_token_item->datum_token->header_native_decl.flags)));
-            json_object_object_add(json_obj_datum, "description", l_token_item->description_token_size != 0 ?
+            json_object_object_add(json_obj_datum, "description", l_token_item->description_token ?
                                    json_object_new_string(l_token_item->description_token) :
                                    json_object_new_string("The token description is not set"));
             json_object_object_add(json_obj_datum, "Supply current", json_object_new_string(l_balance_cur));
@@ -2749,7 +2829,7 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
                         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
                         // Find pkey in auth hashes
                         for (uint16_t k=0; k< l_token_item->auth_signs_total; k++) {
-                            if (dap_hash_fast_compare(&l_sign_pkey_hash, &l_token_item->auth_pkeys_hash[k])) {
+                            if (dap_hash_fast_compare(&l_sign_pkey_hash, &l_token_item->auth_pkey_hashes[k])) {
                                 // Verify if its token emission header signed
                                 if (!dap_sign_verify(l_sign, l_emi_ptr_check_size, l_sign_data_check_size)) {
                                     l_aproves++;
@@ -5395,7 +5475,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
         pthread_rwlock_unlock(&l_token_current->token_emissions_rwlock);
         DAP_DELETE(l_token_current->datum_token);
         DAP_DELETE(l_token_current->auth_pkeys);
-        DAP_DELETE(l_token_current->auth_pkeys_hash);
+        DAP_DELETE(l_token_current->auth_pkey_hashes);
         DAP_DEL_Z(l_token_current->tx_recv_allow);
         DAP_DEL_Z(l_token_current->tx_recv_block);
         DAP_DEL_Z(l_token_current->tx_send_allow);

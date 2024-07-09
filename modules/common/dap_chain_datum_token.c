@@ -75,10 +75,16 @@ dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t *a_token, size_
 
 dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial, size_t *a_token_size)
 {
-    dap_chain_datum_token_old_t *l_token_old = (dap_chain_datum_token_old_t*)a_token_serial;
+    dap_return_val_if_fail(a_token_serial && a_token_size, NULL);
+    if (*a_token_size < sizeof(dap_chain_datum_token_old_t)) {
+        log_it(L_WARNING, "Too small token size %zu", *a_token_size);
+        return NULL;
+    }
+    dap_chain_datum_token_old_t *l_token_old = (dap_chain_datum_token_old_t *)a_token_serial;
     size_t l_token_tsd_n_signs_size = *a_token_size - sizeof(dap_chain_datum_token_old_t);
     size_t l_token_size = l_token_tsd_n_signs_size + sizeof(dap_chain_datum_token_t);
-    switch (((dap_chain_datum_token_t*)a_token_serial)->type) {
+    switch (l_token_old->type) {
+
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE: {
         dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
         if (!l_token) {
@@ -93,12 +99,9 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
                 .signs_total    = l_token_old->signs_total,
                 .total_supply   = l_token_old->total_supply,
                 .header_simple.decimals = l_token_old->header_simple.decimals,
-        };
-        dap_stpcpy(l_token->ticker, l_token_old->ticker);
-        memcpy(l_token->tsd_n_signs, l_token_old->tsd_n_signs, (uint32_t)l_token_tsd_n_signs_size);
-        *a_token_size = l_token_size;
-        return l_token;
-    }
+        };    
+    } break;
+
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL: {
         dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
         if (!l_token) {
@@ -116,11 +119,8 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
                 .header_private_decl.tsd_total_size = l_token_old->header_private_decl.tsd_total_size,
                 .header_private_decl.decimals       = l_token_old->header_private_decl.decimals
         };
-        dap_stpcpy(l_token->ticker, l_token_old->ticker);
-        memcpy(l_token->tsd_n_signs, l_token_old->tsd_n_signs, (uint32_t)l_token_tsd_n_signs_size);
-        *a_token_size = l_token_size;
-        return l_token;
-    }
+    } break;
+
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE: {
         dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
         if (!l_token) {
@@ -138,11 +138,8 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
                 .header_private_update.tsd_total_size   = l_token_old->header_private_update.tsd_total_size,
                 .header_private_update.decimals         = l_token_old->header_private_update.decimals
         };
-        dap_stpcpy(l_token->ticker, l_token_old->ticker);
-        memcpy(l_token->tsd_n_signs, l_token_old->tsd_n_signs, (uint32_t)l_token_tsd_n_signs_size);
-        *a_token_size = l_token_size;
-        return l_token;
-    }
+    } break;
+
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_DECL: {
         dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
         if (!l_token) {
@@ -160,11 +157,8 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
                 .header_native_decl.tsd_total_size  = l_token_old->header_native_decl.tsd_total_size,
                 .header_native_decl.decimals        = l_token_old->header_native_decl.decimals
         };
-        dap_stpcpy(l_token->ticker, l_token_old->ticker);
-        memcpy(l_token->tsd_n_signs, l_token_old->tsd_n_signs, (uint32_t)l_token_tsd_n_signs_size);
-        *a_token_size = l_token_size;
-        return l_token;
-    }
+    } break;
+
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE: {
         dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
         if (!l_token) {
@@ -182,11 +176,8 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
                 .header_native_update.tsd_total_size    = l_token_old->header_native_update.tsd_total_size,
                 .header_native_update.decimals          = l_token_old->header_native_update.decimals
         };
-        dap_stpcpy(l_token->ticker, l_token_old->ticker);
-        memcpy(l_token->tsd_n_signs, l_token_old->tsd_n_signs, (uint32_t)l_token_tsd_n_signs_size);
-        *a_token_size = l_token_size;
-        return l_token;
-    }
+    } break;
+
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC: {
         dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
         if (!l_token) {
@@ -204,18 +195,26 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
                 .header_public.premine_supply   = l_token_old->header_public.premine_supply,
                 .header_public.premine_address  = l_token_old->header_public.premine_address
         };
-        dap_stpcpy(l_token->ticker, l_token_old->ticker);
-        memcpy(l_token->tsd_n_signs, l_token_old->tsd_n_signs, (uint32_t)l_token_tsd_n_signs_size);
-        *a_token_size = l_token_size;
-        return l_token;
-    }
+    } break;
+
     case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
     case DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE:
+        if (*a_token_size < sizeof(dap_chain_datum_token_t)) {
+            log_it(L_WARNING, "Tooo small token size %zu", *a_token_size);
+            return NULL;
+        }
         return DAP_DUP_SIZE(a_token_serial, *a_token_size);
+
     default:
         log_it(L_NOTICE, "Unknown token type '%d' read", ((dap_chain_datum_token_t*)a_token_serial)->type);
         return NULL;
     }
+
+    strcpy(l_token->ticker, l_token_old->ticker);
+    if (l_token_tsd_n_signs_size)
+        memcpy(l_token->tsd_n_signs, l_token_old->tsd_n_signs, l_token_tsd_n_signs_size);
+    *a_token_size = l_token_size;
+    return l_token;
 }
 
 /**
