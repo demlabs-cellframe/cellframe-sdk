@@ -45,10 +45,6 @@ typedef struct dap_chain_wallet{
     void        *_inheritor;
 } dap_chain_wallet_t;
 
-DAP_STATIC_INLINE const char *dap_chain_wallet_get_recommended_signature_types(){
-    return "sig_dil\nsig_falcon\nsig_sphincs\nsig_shipovnik\nsig_multi_chained\n";
-}
-
 
 int dap_chain_wallet_init();
 void dap_chain_wallet_deinit(void);

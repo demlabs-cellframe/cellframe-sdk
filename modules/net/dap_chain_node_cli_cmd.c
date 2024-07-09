@@ -2083,7 +2083,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         if (l_sign_types[0].type == SIG_TYPE_NULL){
                             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
                                                    "Unknown signature type, please use:\n%s",
-                                                   l_wallet_name, dap_chain_wallet_get_recommended_signature_types());
+                                                   l_wallet_name, dap_sign_get_str_recommended_types());
                             json_object_put(json_arr_out);
                             return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR;
                         }
@@ -2100,7 +2100,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             if (!l_sign_count) {
                                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
                                                       "Unknown signature type, please use:\n%s",
-                                                      l_wallet_name, dap_chain_wallet_get_recommended_signature_types());
+                                                      l_wallet_name, dap_sign_get_str_recommended_types());
                                 json_object_put(json_arr_out);
                                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR;
                             }
