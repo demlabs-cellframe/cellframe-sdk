@@ -2083,7 +2083,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         if (l_sign_types[0].type == SIG_TYPE_NULL){
                             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
                                                    "Unknown signature type, please use:\n%s",
-                                                   l_wallet_name, g_str_valid_type_sign_for_wallet);
+                                                   l_wallet_name, dap_chain_wallet_get_recommended_signature_types());
                             json_object_put(json_arr_out);
                             return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR;
                         }
@@ -2100,7 +2100,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             if (!l_sign_count) {
                                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
                                                       "Unknown signature type, please use:\n%s",
-                                                      l_wallet_name, g_str_valid_type_sign_for_wallet);
+                                                      l_wallet_name, dap_chain_wallet_get_recommended_signature_types());
                                 json_object_put(json_arr_out);
                                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR;
                             }
@@ -2111,7 +2111,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     // Check unsupported tesla and bliss algorithm
 
                     for (size_t i = 0; i < l_sign_count; ++i) {
-                        if (l_sign_types[i].type == SIG_TYPE_TESLA || l_sign_types[i].type == SIG_TYPE_BLISS|| l_sign_types[i].type == SIG_TYPE_PICNIC) {
+                        if (dap_sign_type_is_depricated(l_sign_types[i])) {
                             if (l_restore_opt || l_restore_legacy_opt) {
                                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
                                                    "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss, Tesla and Picnic signatures are deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");
