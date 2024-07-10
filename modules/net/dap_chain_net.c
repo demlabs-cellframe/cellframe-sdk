@@ -601,6 +601,10 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net) {
     json_object_object_add(l_ret, "current", l_jobj_current);
     json_object_object_add(l_ret, "total", l_jobj_total);
     json_object_object_add(l_ret, "percent", l_jobj_percent);
+    if (PVT(a_net)->state == NET_STATE_SYNC_CHAINS) {
+        json_object *l_jobj_sync_chain = json_object_new_string(PVT(a_net)->sync_context.cur_chain->name);
+        json_object_object_add(l_ret, "sync_chain", l_jobj_sync_chain);
+    }
     return l_ret;
 }
 
