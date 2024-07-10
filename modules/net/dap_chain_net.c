@@ -581,31 +581,81 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net) {
 // sanity check
     dap_return_val_if_pass(!a_net, NULL);
 // func work
-    json_object *l_ret = json_object_new_object();
-    size_t
-        l_count_el = 0,
-        l_count_el_all = 0,
-        l_node_link_nodes = 0;
+//    json_object *l_ret = json_object_new_object();
+    size_t l_count_atoms = 0;
+    dap_chain_net_pvt_t *l_pvt = PVT(a_net);
+//    size_t
+//        l_count_el = 0,
+//        l_count_el_all = 0,
+//        l_node_link_nodes = 0;
 
+    json_object *l_jobj_chains_array = json_object_new_object();
+
+    // Get count atom in all chains
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(a_net->pub.chains, l_chain){
-        l_count_el += l_chain->callback_count_atom(l_chain);
-        l_count_el_all += l_chain->atom_num_last;
+        l_count_atoms += l_chain->callback_count_atom(l_chain);
+//        l_count_el += l_chain->callback_count_atom(l_chain);
+//        l_count_el_all += l_chain->atom_num_last;
     }
-    double l_percent = l_count_el_all ? (double)(l_count_el * 100) / l_count_el_all : 0;
-    char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
-    json_object *l_jobj_percent = json_object_new_string(l_percent_str);
-    DAP_DELETE(l_percent_str);
-    json_object *l_jobj_total = json_object_new_uint64(l_count_el_all);
-    json_object *l_jobj_current  = json_object_new_uint64(l_count_el);
-    json_object_object_add(l_ret, "current", l_jobj_current);
-    json_object_object_add(l_ret, "total", l_jobj_total);
-    json_object_object_add(l_ret, "percent", l_jobj_percent);
-    if (PVT(a_net)->state == NET_STATE_SYNC_CHAINS) {
-        json_object *l_jobj_sync_chain = json_object_new_string(PVT(a_net)->sync_context.cur_chain->name);
-        json_object_object_add(l_ret, "sync_chain", l_jobj_sync_chain);
+
+    DL_FOREACH(a_net->pub.chains, l_chain) {
+//        double l_percent = l_chain->callback_count_atom(l_chain) ? (double)(l_count_el * 100) / l_count_el_all : 0;
+        json_object *l_jobj_chain = json_object_new_object();
+        json_object *l_jobj_chain_status = NULL;
+        json_object *l_jobj_percent = NULL;
+        if (PVT(a_net)->state == NET_STATE_OFFLINE) {
+            l_jobj_chain_status = json_object_new_string("not synced");
+        } else if (PVT(a_net)->state == NET_STATE_ONLINE) {
+            l_jobj_chain_status = json_object_new_string("synced");
+        } else {
+            if (l_pvt->sync_context.cur_chain) {
+                if (PVT(a_net)->sync_context.cur_chain->id.uint64 == l_chain->id.uint64) {
+                    l_jobj_chain_status = json_object_new_string("sync in process");
+                    double l_percent = l_chain->callback_count_atom(l_chain) ?
+                                       (double) (l_chain->callback_count_atom(l_chain) * 100) / l_chain->atom_num_last
+                                                                             : 0;
+                    char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
+                    l_jobj_percent = json_object_new_string(l_percent_str);
+                    DAP_DELETE(l_percent_str);
+                } else {
+                    l_jobj_chain_status = json_object_new_string("not synced");
+                    l_jobj_percent = json_object_new_string(" - %");
+                }
+            } else {
+                l_jobj_chain_status = json_object_new_string("not synced");
+                l_jobj_percent = json_object_new_string(" - %");
+            }
+        }
+        ///json_object_new_string("not synced");
+        json_object *l_jobj_current = json_object_new_uint64(l_chain->callback_count_atom(l_chain));
+        json_object *l_jobj_total = json_object_new_uint64(l_chain->atom_num_last);
+//        char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
+//        json_object *l_jobj_percent = json_object_new_string("0%");
+        json_object_object_add(l_jobj_chain, "status", l_jobj_chain_status);
+        json_object_object_add(l_jobj_chain, "current", l_jobj_current);
+        json_object_object_add(l_jobj_chain, "total", l_jobj_total);
+        json_object_object_add(l_jobj_chain, "percent", l_jobj_percent);
+        json_object_object_add(l_jobj_chains_array, l_chain->name, l_jobj_chain);
+//        size_t l_count_current = l_chain->atom_num_last;
+//        size_t l_count_
+//        json_object *l_jobj_status = NULL;
+
     }
-    return l_ret;
+//    double l_percent = l_count_el_all ? (double)(l_count_el * 100) / l_count_el_all : 0;
+//    char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
+//    json_object *l_jobj_percent = json_object_new_string(l_percent_str);
+//    DAP_DELETE(l_percent_str);
+//    json_object *l_jobj_total = json_object_new_uint64(l_count_el_all);
+//    json_object *l_jobj_current  = json_object_new_uint64(l_count_el);
+//    json_object_object_add(l_ret, "current", l_jobj_current);
+//    json_object_object_add(l_ret, "total", l_jobj_total);
+//    json_object_object_add(l_ret, "percent", l_jobj_percent);
+//    if (PVT(a_net)->state == NET_STATE_SYNC_CHAINS) {
+//        json_object *l_jobj_sync_chain = json_object_new_string(PVT(a_net)->sync_context.cur_chain->name);
+//        json_object_object_add(l_ret, "sync_chain", l_jobj_sync_chain);
+//    }
+    return l_jobj_chains_array;
 }
 
 struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t *a_net) {
