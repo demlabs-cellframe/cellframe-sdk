@@ -273,7 +273,7 @@ struct legacy_sync_context *s_legacy_sync_context_create(dap_chain_ch_pkt_t *a_c
     *l_context = (struct legacy_sync_context) {
             .worker         = a_ch->stream_worker,
             .ch_uuid        = a_ch->uuid,
-            .remote_addr    = a_chain_pkt->hdr.data_size != sizeof(dap_stream_node_addr_t) ? *(dap_stream_node_addr_t *)a_chain_pkt->data : (dap_stream_node_addr_t){0},
+            .remote_addr    = a_chain_pkt->hdr.data_size == sizeof(dap_stream_node_addr_t) ? *(dap_stream_node_addr_t *)a_chain_pkt->data : (dap_stream_node_addr_t){0},
             .request_hdr    = a_chain_pkt->hdr,
             .state          = DAP_CHAIN_CH_STATE_IDLE,
             .last_activity  = dap_time_now()
