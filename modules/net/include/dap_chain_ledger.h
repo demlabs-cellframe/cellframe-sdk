@@ -54,11 +54,13 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_CHECK_INVALID_SIZE,
     DAP_LEDGER_CHECK_ALREADY_CACHED,
     DAP_LEDGER_CHECK_PARSE_ERROR,
+    DAP_LEDGER_CHECK_APPLY_ERROR,
     DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY,
     DAP_LEDGER_CHECK_INTEGER_OVERFLOW,
     DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS,
     DAP_LEDGER_CHECK_TICKER_NOT_FOUND,
-    DAP_LEDGER_CHECK_TSD_CHECK_FAILED,
+    DAP_LEDGER_CHECK_ZERO_VALUE,
+    DAP_LEDGER_CHECK_ADDR_FORBIDDEN,
     /* TX check return codes */
     DAP_LEDGER_TX_CHECK_IN_EMS_ALREADY_USED,
     DAP_LEDGER_TX_CHECK_STAKE_LOCK_IN_EMS_ALREADY_USED,
@@ -84,12 +86,16 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS,
     DAP_LEDGER_TX_CHECK_REWARD_ITEM_ALREADY_USED,
     DAP_LEDGER_TX_CHECK_REWARD_ITEM_ILLEGAL,
+    DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER,
+    DAP_LEDGER_TX_CHECK_UNEXPECTED_TOKENIZED_OUT,
+    DAP_LEDGER_TX_CHECK_NOT_ENOUGH_FEE,
+    DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX,
     /* Emisssion check return codes */
+    DAP_LEDGER_EMISSION_CHECK_THRESHOLDED,
     DAP_LEDGER_EMISSION_CHECK_THRESHOLD_OVERFLOW,
     DAP_LEDGER_EMISSION_CHECK_VALUE_EXEEDS_CURRENT_SUPPLY,
-    DAP_LEDGER_EMISSION_CHECK_CANT_FIND_DECLARATION_TOKEN,
     /* Token declaration/update return codes */
-    DAP_LEDGER_TOKEN_ADD_CHECK_TOTAL_SIGNS_EXCEED_UNIQUE_SIGNS,
+    DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS,
     DAP_LEDGER_TOKEN_ADD_CHECK_UPDATE_ABSENT_TOKEN,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR,
@@ -131,7 +137,7 @@ typedef struct dap_ledger_datum_iter {
     void *cur_ledger_tx_item;
 } dap_ledger_datum_iter_t;
 
-typedef bool (*dap_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+typedef int (*dap_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chan_ledger_notify_opcodes_t a_opcode);
 typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg, dap_chan_ledger_notify_opcodes_t a_opcode);
@@ -239,9 +245,9 @@ dap_chain_datum_token_t *dap_ledger_token_ticker_check(dap_ledger_t * a_ledger, 
  *
  */
 
-int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
+int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
 int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
-int dap_ledger_token_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
+int dap_ledger_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
 char *dap_ledger_token_add_err_code_to_str(int a_code);
 json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset);
 
@@ -264,7 +270,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
 int dap_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_hash_fast_t *a_token_emission_hash);
 char *dap_ledger_token_emission_err_code_to_str(int a_code);
 
-// Check if it addable
+// Checking a new transaction before adding to the cache
 int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_chain_hash_fast_t *a_emission_hash);
 
 /* Add stake-lock item */
@@ -294,18 +300,6 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
 
 
 int dap_ledger_service_add(dap_chain_net_srv_uid_t a_uid, char *tag_str, dap_ledger_tag_check_callback_t a_callback);
-
-
-// Checking a new transaction before adding to the cache
-int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, 
-                                        dap_chain_datum_tx_t *a_tx, 
-                                        dap_hash_fast_t *a_tx_hash,
-                                        bool a_from_threshold, 
-                                        dap_list_t **a_list_bound_items, 
-                                        dap_list_t **a_list_tx_out, 
-                                        char **a_main_ticker,
-                                        dap_chain_net_srv_uid_t *a_tag,
-                                        dap_chain_tx_tag_action_type_t *a_action, bool a_check_for_removing);
 
 const char *dap_ledger_tx_calculate_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc);
 

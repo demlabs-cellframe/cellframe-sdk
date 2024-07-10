@@ -822,7 +822,7 @@ static json_object* dap_db_chain_history_token_list(dap_chain_t * a_chain, const
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
     for (dap_chain_datum_t *l_datum = a_chain->callback_datum_iter_get_first(l_datum_iter);
             l_datum; l_datum = a_chain->callback_datum_iter_get_next(l_datum_iter)) {
-        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_DECL)
+        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN)
             continue;
         if (a_token_name) {
             size_t l_token_size = l_datum->header.data_size;
@@ -924,7 +924,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                     l_time_str[0] = '\0';
                 switch (l_datum->header.type_id) {
                 // token
-                case DAP_CHAIN_DATUM_TOKEN_DECL: {
+                case DAP_CHAIN_DATUM_TOKEN: {
                     // no token necessary for addr
                     if(a_filtr_addr_base58)
                         break;

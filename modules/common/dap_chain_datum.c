@@ -1004,7 +1004,7 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
  * @brief dap_chain_net_dump_datum
  * process datum verification process. Can be:
  * if DAP_CHAIN_DATUM_TX, called dap_ledger_tx_add_check
- * if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_ledger_token_add_check
+ * if DAP_CHAIN_DATUM_TOKEN, called dap_ledger_token_add_check
  * if DAP_CHAIN_DATUM_TOKEN_EMISSION, called dap_ledger_token_emission_add_check
  * @param a_str_out
  * @param a_datum
@@ -1021,7 +1021,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
             ? dap_enc_base58_encode_hash_to_str_static(&l_datum_hash)
             : dap_chain_hash_fast_to_str_static(&l_datum_hash);
     switch (a_datum->header.type_id) {
-        case DAP_CHAIN_DATUM_TOKEN_DECL: {
+        case DAP_CHAIN_DATUM_TOKEN: {
             size_t l_token_size = a_datum->header.data_size;
             dap_chain_datum_token_t * l_token = dap_chain_datum_token_read(a_datum->data, &l_token_size);
             if(l_token_size < sizeof(dap_chain_datum_token_t)){
@@ -1198,7 +1198,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
  * @brief dap_chain_net_dump_datum
  * process datum verification process. Can be:
  * if DAP_CHAIN_DATUM_TX, called dap_ledger_tx_add_check
- * if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_ledger_token_add_check
+ * if DAP_CHAIN_DATUM_TOKEN, called dap_ledger_token_add_check
  * if DAP_CHAIN_DATUM_TOKEN_EMISSION, called dap_ledger_token_emission_add_check
  * @param a_obj_out
  * @param a_datum
@@ -1216,7 +1216,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
             ? dap_enc_base58_encode_hash_to_str_static(&l_datum_hash)
             : dap_chain_hash_fast_to_str_static(&l_datum_hash);
     switch (a_datum->header.type_id) {
-        case DAP_CHAIN_DATUM_TOKEN_DECL: {
+        case DAP_CHAIN_DATUM_TOKEN: {
             size_t l_token_size = a_datum->header.data_size;
             dap_chain_datum_token_t * l_token = dap_chain_datum_token_read(a_datum->data, &l_token_size);
             if(l_token_size < sizeof(dap_chain_datum_token_t)){

@@ -34,7 +34,7 @@
 
 
 // Token declaration
-typedef struct dap_chain_datum_token_old{
+typedef struct dap_chain_datum_token_old {
     uint16_t type;
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint16_t signs_valid; // Emission auth signs
@@ -136,45 +136,35 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
     byte_t			padding[256];	// Some free space for future
 } DAP_ALIGN_PACKED dap_chain_datum_token_tsd_delegate_from_stake_lock_t;
 
-// Token declaration type
-// Simple private token decl
-//#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE           0x0001
-// Extended declaration of privatetoken with in-time control
-//#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL     0x0002
-// Token update
-//#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE   0x0003
-// Open token with now ownership
-//#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC           0x0004
-
-// 256
+// Old token declaration & update types
 // Simple private token decl
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE               0x0005
 // Extended declaration of privatetoken with in-time control
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL         0x0006
 // Token update
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE       0x0007
-// Open token with now ownership
+// Open token with no ownership
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC               0x0008
 // Native token type
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_DECL          0x0009
 // Token update
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE        0x000A
-// Open token with now ownership
+
 
 // New datum types with versioning and subtypes.
 // Declaration token
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_DECL                      0x0010
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_DECL                     0x0010
 // Updated token
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE                    0x0011
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE                   0x0011
 // Subtypes
 // Simple private token decl
-#define DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE                 0x0001
+#define DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE                0x0001
 // Extended declaration of privatetoken with in-time control
-#define DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE              0x0002
+#define DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE               0x0002
 // Native token
-#define DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE               0x0003
-// Open token with now ownership
-#define DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC               0x0004
+#define DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE                0x0003
+// Open token with no ownership
+#define DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC                0x0004
 
 
 // Macros for token flags

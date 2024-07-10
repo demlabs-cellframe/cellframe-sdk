@@ -257,14 +257,14 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
 
 /**
  * @brief s_datum_type_from_str
- * get datum type (DAP_CHAIN_DATUM_TOKEN_DECL, DAP_CHAIN_DATUM_TOKEN_EMISSION, DAP_CHAIN_DATUM_TX) by str value
+ * get datum type (DAP_CHAIN_DATUM_TOKEN, DAP_CHAIN_DATUM_TOKEN_EMISSION, DAP_CHAIN_DATUM_TX) by str value
  * @param a_type_str datum type in string value (token,emission,transaction)
  * @return uint16_t 
  */
 static uint16_t s_datum_type_from_str(const char *a_type_str)
 {
     if(!dap_strcmp(a_type_str, "token")) {
-        return DAP_CHAIN_DATUM_TOKEN_DECL;
+        return DAP_CHAIN_DATUM_TOKEN;
     }
     if(!dap_strcmp(a_type_str, "emission")) {
         return DAP_CHAIN_DATUM_TOKEN_EMISSION;
@@ -295,7 +295,7 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
 {
     switch (a_type) {
     case CHAIN_TYPE_TOKEN: 
-        return DAP_CHAIN_DATUM_TOKEN_DECL;
+        return DAP_CHAIN_DATUM_TOKEN;
     case CHAIN_TYPE_EMISSION:
         return DAP_CHAIN_DATUM_TOKEN_EMISSION;
     case CHAIN_TYPE_TX:

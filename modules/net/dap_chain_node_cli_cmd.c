@@ -2481,8 +2481,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                 l_datum_hash_hex_str, &l_datum_size, NULL, NULL )) != NULL) {
 
             // Check if its token declaration
-            if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL ||
-                l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE) {
+            if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN) {
                 dap_chain_datum_token_t *l_datum_token = DAP_DUP_SIZE(l_datum->data, l_datum->header.data_size);    // for realloc
                 DAP_DELETE(l_datum);
                 if ((l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)
@@ -2518,7 +2517,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                                                             &l_sign_counter);
                 l_datum_token->signs_total += l_sign_counter;
                 size_t l_token_size = sizeof(*l_datum_token) + l_data_size;
-                dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL,
+                dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN,
                                                                      l_datum_token, l_token_size);
                 DAP_DELETE(l_datum_token);
                 // Calc datum's hash
@@ -4566,7 +4565,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
             return -9;
     }
 
-    dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL,
+    dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN,
                                                          l_datum_token,
                                                          sizeof(*l_datum_token) + l_datum_data_offset);
     DAP_DELETE(l_datum_token);
@@ -4771,7 +4770,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
         return -9;
     }
 
-    dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL,
+    dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN,
                                                          l_datum_token,
                                                          sizeof(*l_datum_token) + l_datum_data_offset);
     DAP_DELETE(l_datum_token);

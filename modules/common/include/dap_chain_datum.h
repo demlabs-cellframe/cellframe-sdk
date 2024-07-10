@@ -46,9 +46,9 @@
 #define DAP_CHAIN_DATUM_TX_REQUEST          0x0300
 
 /// Smart contract: DVM code section
-#define DAP_CHAIN_DATUM_WASM_CODE            0x0900
+#define DAP_CHAIN_DATUM_WASM_CODE           0x0900
 /// Smart contract: DVM code section
-#define DAP_CHAIN_DATUM_WASM_DATA            0x0901
+#define DAP_CHAIN_DATUM_WASM_DATA           0x0901
 
 /// Smart contract: EVM code section
 #define DAP_CHAIN_DATUM_EVM_CODE            0x0910
@@ -62,13 +62,13 @@
 
 /// Token
 /// Simple token decl
-#define DAP_CHAIN_DATUM_TOKEN_DECL           0xf000
-#define DAP_CHAIN_DATUM_TOKEN_EMISSION       0xf100
-#define DAP_CHAIN_DATUM_TOKEN_DISMISSAL      0xf200
+#define DAP_CHAIN_DATUM_TOKEN               0xf000
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION      0xf100
+#define DAP_CHAIN_DATUM_TOKEN_DISMISSAL     0xf200
 
-#define DAP_CHAIN_DATUM_ANCHOR               0x0a00
+#define DAP_CHAIN_DATUM_ANCHOR              0x0a00
 
-#define DAP_CHAIN_DATUM_CUSTOM               0xffff
+#define DAP_CHAIN_DATUM_CUSTOM              0xffff
 
 #define DAP_DATUM_TYPE_STR(t, s)        \
     switch (t) {                        \
@@ -90,8 +90,8 @@
         s = "DATUM_SIGNER"; break;      \
     case DAP_CHAIN_DATUM_CUSTOM:        \
         s = "DATUM_CUSTOM"; break;      \
-    case DAP_CHAIN_DATUM_TOKEN_DECL:    \
-        s = "DATUM_TOKEN_DECL"; break;  \
+    case DAP_CHAIN_DATUM_TOKEN:    \
+        s = "DATUM_TOKEN"; break;  \
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:\
         s = "DATUM_TOKEN_EMISSION"; break;\
     case DAP_CHAIN_DATUM_DECREE:        \
