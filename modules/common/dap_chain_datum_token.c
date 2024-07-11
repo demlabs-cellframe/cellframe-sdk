@@ -82,15 +82,16 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     }
     dap_chain_datum_token_old_t *l_token_old = (dap_chain_datum_token_old_t *)a_token_serial;
     size_t l_token_tsd_n_signs_size = *a_token_size - sizeof(dap_chain_datum_token_old_t);
-    size_t l_token_size = l_token_tsd_n_signs_size + sizeof(dap_chain_datum_token_t);
+    size_t l_token_size = dap_chain_datum_token_is_old(l_token_old->type) ? l_token_tsd_n_signs_size + sizeof(dap_chain_datum_token_t)
+                                                                         : *a_token_size;
+    dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
+    if (!l_token) {
+        log_it(L_CRITICAL, c_error_memory_alloc);
+        return NULL;
+    }
     switch (l_token_old->type) {
 
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE: {
-        dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
-        if (!l_token) {
-            log_it(L_CRITICAL, c_error_memory_alloc);
-            return NULL;
-        }
         *l_token = (dap_chain_datum_token_t) {
                 .type       = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL,
                 .subtype    = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE,
@@ -99,11 +100,6 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     } break;
 
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL: {
-        dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
-        if (!l_token) {
-            log_it(L_CRITICAL, c_error_memory_alloc);
-            return NULL;
-        }
         *l_token = (dap_chain_datum_token_t) {
                 .type       = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL,
                 .subtype    = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE,
@@ -114,11 +110,6 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     } break;
 
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE: {
-        dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
-        if (!l_token) {
-            log_it(L_CRITICAL, c_error_memory_alloc);
-            return NULL;
-        }
         *l_token = (dap_chain_datum_token_t) {
                 .type       = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE,
                 .subtype    = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE,
@@ -129,11 +120,6 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     } break;
 
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_DECL: {
-        dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
-        if (!l_token) {
-            log_it(L_CRITICAL, c_error_memory_alloc);
-            return NULL;
-        }
         *l_token = (dap_chain_datum_token_t) {
                 .type       = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL,
                 .subtype    = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE,
@@ -144,11 +130,6 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     } break;
 
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE: {
-        dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
-        if (!l_token) {
-            log_it(L_CRITICAL, c_error_memory_alloc);
-            return NULL;
-        }
         *l_token = (dap_chain_datum_token_t) {
                 .type       = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE,
                 .subtype    = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE,
@@ -159,11 +140,6 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     } break;
 
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC: {
-        dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
-        if (!l_token) {
-            log_it(L_CRITICAL, c_error_memory_alloc);
-            return NULL;
-        }
         *l_token = (dap_chain_datum_token_t) {
                 .type       = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL,
                 .subtype    = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC,
@@ -176,13 +152,15 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
     case DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE:
         if (*a_token_size < sizeof(dap_chain_datum_token_t)) {
-            log_it(L_WARNING, "Tooo small token size %zu", *a_token_size);
+            log_it(L_WARNING, "Too small token size %zu", *a_token_size);
+            DAP_DELETE(l_token);
             return NULL;
         }
-        return DAP_DUP_SIZE(a_token_serial, *a_token_size);
+        return memcpy(l_token, a_token_serial, l_token_size);
 
     default:
         log_it(L_NOTICE, "Unknown token type '%d' read", ((dap_chain_datum_token_t*)a_token_serial)->type);
+        DAP_DELETE(l_token);
         return NULL;
     }
 

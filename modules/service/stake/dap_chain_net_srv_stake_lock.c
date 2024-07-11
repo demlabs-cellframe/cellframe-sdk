@@ -108,7 +108,7 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
                                                const char *a_delegated_ticker_str, uint256_t a_delegated_value,int *res);
 // Callbacks
 static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_out_item);
-static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 
 static inline int s_tsd_str_cmp(const byte_t *a_tsdata, size_t a_tsdsize,  const char *str ) {
     size_t l_strlen = (size_t)strlen(str);
@@ -1019,7 +1019,7 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  * @param a_owner
  * @return
  */
-static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     dap_chain_datum_tx_t									*l_burning_tx       = NULL;
     dap_chain_datum_tx_receipt_t							*l_receipt          = NULL;
@@ -1033,20 +1033,20 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
     char 													l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX];
 
     if (!a_owner)
-        return false;
+        return -1;
 
     if (a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME) {
         if (a_cond->subtype.srv_stake_lock.time_unlock > dap_time_now())
-            return false;
+            return -2;
     }
     if (NULL == (l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(
                                                             a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0)))
-        return false;
+        return -3;
     if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
         return false;
     if (NULL == (l_prev_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(
                                                             a_ledger, &l_tx_in_cond->header.tx_prev_hash)))
-        return false;
+        return -4;
 
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_prev_tx_ticker);
 
@@ -1058,7 +1058,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
             ||	NULL == (l_tsd = dap_tsd_find(l_delegated_token->tsd_n_signs,
                                               l_delegated_token->header_native_decl.tsd_total_size,
                                               DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
-            return false;
+            return -5;
         }
 
         l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
@@ -1066,18 +1066,18 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
         if (!IS_ZERO_256(l_tsd_section->emission_rate)) {
             MULT_256_COIN(a_cond->header.value, l_tsd_section->emission_rate, &l_value_delegated);
             if (IS_ZERO_256(l_value_delegated))
-                return false;
+                return -6;
         }
 
         l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_RECEIPT, 0);
         if (l_receipt) {
             if (!dap_chain_net_srv_uid_compare_scalar(l_receipt->receipt_info.srv_uid, DAP_CHAIN_NET_SRV_STAKE_LOCK_ID))
-                return false;
+                return -7;
             if (!l_receipt->exts_size)
-                return false;
+                return -8;
             l_burning_tx_hash = *(dap_hash_fast_t*)l_receipt->exts_n_signs;
             if (dap_hash_fast_is_blank(&l_burning_tx_hash))
-                return false;
+                return -9;
             l_burning_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_burning_tx_hash);
             if (!l_burning_tx) {
                 char l_burning_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
@@ -1086,7 +1086,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
                 dap_get_data_hash_str_static(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in), l_take_tx_hash_str);
                 debug_if(s_debug_more, L_ERROR, "[Legacy] Can't find burning tx with hash %s, obtained from the receipt of take tx %s",
                        l_burning_tx_hash_str, l_take_tx_hash_str);
-                return false;
+                return -10;
             }
         } else
             l_burning_tx = a_tx_in;
@@ -1113,7 +1113,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
         dap_list_free(l_outs_list);
         if (IS_ZERO_256(l_blank_out_value)) {
             log_it(L_ERROR, "Can't find OUT with BLANK addr in burning TX");
-            return false;
+            return -11;
         }
 
         if (s_debug_more) {
@@ -1131,12 +1131,12 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
             SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated);
             if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
                 log_it(L_ERROR, "Burning and delegated value mismatch");
-                return false;
+                return -12;
             }
         }
     }
 
-    return true;
+    return 0;
 }
 
 /**

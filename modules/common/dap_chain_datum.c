@@ -273,13 +273,6 @@ void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datu
             DAP_DELETE(l_balance);
             continue;
         }
-        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD: { // 128
-            uint128_t l_t = uint128_0;
-            char *l_balance = dap_chain_balance_print(GET_256_FROM_128(_dap_tsd_get_scalar(l_tsd, &l_t)));
-            json_object_object_add(json_obj_out, "total_supply", json_object_new_string(l_balance));
-            DAP_DELETE(l_balance);
-            continue;
-        }
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID: {
             uint16_t l_t = 0;
             json_object_object_add(json_obj_out, "total_signs_valid", json_object_new_int(_dap_tsd_get_scalar(l_tsd, &l_t)));

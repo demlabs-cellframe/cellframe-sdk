@@ -2741,10 +2741,10 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         dap_chain_addr_t l_addr_from;
                         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *) l_datum->data;
 
-                        int l_ledger_rc = DAP_LEDGER_TX_CHECK_NULL_TX;
+                        int l_ledger_rc = DAP_LEDGER_CHECK_INVALID_ARGS;
                         const char *l_main_ticker = dap_ledger_tx_calculate_main_ticker(a_net->pub.ledger, l_tx,
                                                                                   &l_ledger_rc);
-                        char *l_ledger_rc_str = dap_ledger_tx_check_err_str(l_ledger_rc);
+                        const char *l_ledger_rc_str = dap_ledger_check_error_str(l_ledger_rc);
 
                         json_object *l_jobj_main_ticker = json_object_new_string(
                                 l_main_ticker ? l_main_ticker : "UNKNOWN");
@@ -3344,7 +3344,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             dap_chain_hash_fast_to_str(&l_atom_hash, l_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
             json_object *l_obj_atom = json_object_new_object();
             json_object *l_jobj_atom_hash = json_object_new_string(l_atom_hash_str);
-            json_object *l_jobj_atom_err = json_object_new_string(dap_ledger_tx_check_err_str(l_ret_code));
+            json_object *l_jobj_atom_err = json_object_new_string(dap_ledger_check_error_str(l_ret_code));
             if (!l_obj_atom || !l_jobj_atom_hash || !l_jobj_atom_err) {
                 json_object_put(l_jobj_datum);
                 json_object_put(l_obj_atom);
@@ -7062,7 +7062,7 @@ int com_tx_verify(int a_argc, char **a_argv, void **reply)
     if (l_ret) {
         l_jobj_verfiy = json_object_new_boolean(false);
         l_jobj_error = json_object_new_object();
-        json_object *l_jobj_err_str = json_object_new_string(dap_ledger_tx_check_err_str(l_ret));
+        json_object *l_jobj_err_str = json_object_new_string(dap_ledger_check_error_str(l_ret));
         json_object *l_jobj_err_code = json_object_new_int64(l_ret);
         json_object_object_add(l_jobj_error, "code", l_jobj_err_code);
         json_object_object_add(l_jobj_error, "message", l_jobj_err_str);
