@@ -1925,9 +1925,6 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
             log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config"
                             "or check internet connection and restart node",
                             a_net_name, l_permanent_links_hosts[i]);
-            //dap_chain_net_delete(l_net);
-            //dap_config_close(l_cfg);
-            //return -16;
             ++e;
             continue;
         }
@@ -1978,9 +1975,6 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
             log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config"
                             "or check internet connection and restart node",
                             a_net_name, l_seed_nodes_hosts[i]);
-            //dap_chain_net_delete(l_net);
-            //dap_config_close(l_cfg);
-            //return -16;
             ++e;
             continue;
         }
