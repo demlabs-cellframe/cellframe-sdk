@@ -702,7 +702,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     int l_tun_fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
     if( l_tun_fd < 0){
         log_it(L_ERROR, "Opening utun device control (SYSPROTO_CONTROL) error %d: \"%s\"",
-                        errno, dap_strerror(l_errno));
+                        errno, dap_strerror(errno));
         l_err = -101;
         goto lb_err;
     }
@@ -712,7 +712,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     // Pass control structure to the utun socket
     if( ioctl(l_tun_fd, CTLIOCGINFO, &l_ctl_info ) < 0 ){
         log_it(L_ERROR, "Can't execute ioctl(CTLIOCGINFO), error %d: \"%s\"", 
-                        errno, dap_strerror(l_errno));
+                        errno, dap_strerror(errno));
         l_err = -102;
         goto lb_err;
 
@@ -736,7 +736,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     }
     if (l_ret < 0){
         log_it(L_ERROR, "Can't create utun device, error %d: \"%s\"", 
-                        errno, dap_strerror(l_errno));
+                        errno, dap_strerror(errno));
         l_err = -103;
         goto lb_err;
 
@@ -748,7 +748,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     socklen_t l_utunname_len = sizeof(l_utunname);
     if (getsockopt(l_tun_fd, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, l_utunname, &l_utunname_len) ){
         log_it(L_ERROR, "Can't get utun device name, error %d: \"%s\"",
-                        errno, dap_strerror(l_errno));
+                        errno, dap_strerror(errno));
         l_err = -104;
         goto lb_err;
     }
