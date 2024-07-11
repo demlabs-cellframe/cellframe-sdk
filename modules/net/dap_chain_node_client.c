@@ -415,10 +415,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
             ret = -1;
             break;
         }else if (l_ret_wait != 0 ){
-            char l_errbuf[128];
-            l_errbuf[0] = '\0';
-            strerror_r(l_ret_wait,l_errbuf,sizeof (l_errbuf));
-            log_it(L_ERROR, "Pthread condition timed wait returned \"%s\"(code %d)", l_errbuf, l_ret_wait);
+            log_it(L_CRITICAL, "pthread_cond_timedwait() error %d:\"%s\"", l_ret_wait, dap_strerror(l_ret_wait));
         }
     }
     pthread_mutex_unlock(&a_client->wait_mutex);
