@@ -870,8 +870,6 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
         DAP_DEL_Z(l_order);
         return NULL;
     }
-
-    uint64_t l_max_price_cfg = dap_config_get_item_uint64_default(g_config, a_config_section, "max_price", 0xFFFFFFFFFFFFFFF);
     if (l_order->node_addr.uint64 != g_node_addr.uint64 &&
         l_order->srv_uid.uint64 != a_srv->uid.uint64) {
         DAP_DELETE(l_price);
@@ -881,7 +879,6 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
 
     l_price->net = l_net;
     l_price->net_name = dap_strdup(l_net->pub.name);
-    uint256_t l_max_price = GET_256_FROM_64(l_max_price_cfg); // Change this value when max price wil be calculated
     if ((IS_ZERO_256(l_order->price) || l_order->units == 0 ) && !a_srv->allow_free_srv){
         log_it(L_ERROR, "Invalid order: units count or price unspecified");
         DAP_DELETE(l_price);
@@ -892,19 +889,6 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
     dap_stpcpy(l_price->token, l_order->price_ticker);
     l_price->units = l_order->units;
     l_price->units_uid = l_order->price_unit;
-    if (!IS_ZERO_256(l_max_price)){
-        uint256_t l_price_unit = uint256_0;
-        DIV_256(l_price->value_datoshi,  GET_256_FROM_64(l_order->units), &l_price_unit);
-        if (compare256(l_price_unit, l_max_price)>0){
-            char *l_price_unit_str = dap_chain_balance_print(l_price_unit), *l_max_price_str = dap_chain_balance_print(l_max_price);
-            log_it(L_ERROR, "Unit price exeeds max permitted value: %s > %s", l_price_unit_str, l_max_price_str);
-            DAP_DELETE(l_price_unit_str);
-            DAP_DELETE(l_max_price_str);
-            DAP_DELETE(l_price);
-            DAP_DEL_Z(l_order);
-            return NULL;
-        }
-    }
 
     l_price->wallet_addr = dap_chain_addr_from_str(l_wallet_addr);
     if(!l_price->wallet_addr){
