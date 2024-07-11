@@ -667,7 +667,7 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
     if((ret = /*sendto(ch_sf->raw_l3_sock, pkt_data, pkt_data_size, 0, (struct sockaddr *) &sin, sizeof(sin))*/-1  )
             < 0) {
         //    if((ret = write(raw_server->tun_fd, sf_pkt->data, sf_pkt->header.op_data.data_size))<0){
-        log_it(L_ERROR, "write() returned error %d : \"%s\"", ret, dap_strerror(errno));
+        log_it(L_ERROR, "write() error %d : \"%s\"", errno, dap_strerror(errno));
         //log_it(ERROR,"raw socket ring buffer overflowed");
         ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
         if (!pkt_out) {

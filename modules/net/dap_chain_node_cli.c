@@ -58,11 +58,11 @@ static bool s_debug_cli = false;
  */
 int dap_chain_node_cli_init(dap_config_t * g_config)
 {
-    if ( !dap_config_get_item_bool_default(g_config, "conserver", "enabled", true) )
+    if ( !dap_config_get_item_bool_default(g_config, "cli-server", "enabled", true) )
         return log_it( L_WARNING, "CLI server is disabled" ), 0;
-    s_debug_cli = dap_config_get_item_bool_default(g_config, "conserver", "debug_cli", false);
+    s_debug_cli = dap_config_get_item_bool_default(g_config, "cli-server", "debug-cli", false);
     if ( dap_cli_server_init(s_debug_cli, "cli-server") )
-        return log_it(L_ERROR, "Couldb't init CLI server!"), -1;
+        return log_it(L_ERROR, "Can't init CLI server!"), -1;
 
     dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database",
             "global_db cells add -cell <cell_id> \n"
