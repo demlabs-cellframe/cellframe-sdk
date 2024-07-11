@@ -1068,8 +1068,6 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         l_context->is_type_of_gdb = true;
         l_context->db_list = l_db_list;
-        l_context->remote_addr = *(dap_stream_node_addr_t *)l_chain_pkt->data;
-        l_context->request_hdr = l_chain_pkt->hdr;
         l_ch_chain->legacy_sync_context = l_context;
         l_context->state = DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB;
         debug_if(s_debug_legacy, L_DEBUG, "Sync out gdb proc, requested %" DAP_UINT64_FORMAT_U " records from address " NODE_ADDR_FP_STR " (unverified)",
@@ -1320,8 +1318,6 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         l_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, NULL);
         l_context->atom_iter = l_atom_iter;
-        l_context->remote_addr = *(dap_stream_node_addr_t *)l_chain_pkt->data;
-        l_context->request_hdr = l_chain_pkt->hdr;
         l_ch_chain->legacy_sync_context = l_context;
         l_context->state = DAP_CHAIN_CH_STATE_UPDATE_CHAINS;
         debug_if(s_debug_legacy, L_DEBUG, "Sync out chains proc, requested chain %s for net %s from address " NODE_ADDR_FP_STR " (unverified)",
