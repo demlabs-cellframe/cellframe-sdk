@@ -172,6 +172,9 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
                         a_cell->file_storage_path, a_cell->id.uint64, errno);
         return -1;
     }
+#ifdef DAP_OS_DARWIN
+    a_cell->cur_vol_start = l_volume_start;
+#endif
 #endif
     a_cell->map_pos = a_cell->map + l_offset;
     a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map);
@@ -523,6 +526,16 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
     debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG, "After writing an atom of size %lu, stream pos of %s is %lu and map shift is %lu", 
                                             a_atom_size, a_cell->file_storage_path, ftell(a_cell->file_storage),
                                             (size_t)(a_cell->map_pos - a_cell->map));
+#ifdef DAP_OS_DARWIN
+    if (a_cell->chain->is_mapped) {
+        if ( MAP_FAILED == (a_cell->map = mmap(a_cell->map, dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT), PROT_READ|PROT_WRITE,
+                                            MAP_PRIVATE|MAP_FIXED, fileno(a_cell->file_storage), a_cell->cur_vol_start)) ) {
+            log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be remapped, errno %d",
+                            a_cell->file_storage_path, a_cell->id.uint64, errno);
+            return -1;
+        }
+    }
+#endif
     return 0;
 }
 
@@ -602,7 +615,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
         ++l_count;
         l_total_res = a_atom_size + sizeof(uint64_t);
     }
-
+    
     if (l_total_res) {
         fflush(a_cell->file_storage);
 #ifdef DAP_OS_WINDOWS

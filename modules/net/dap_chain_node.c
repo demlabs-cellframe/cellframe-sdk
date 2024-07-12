@@ -290,10 +290,38 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     if (!a_force && !l_net->pub.mempool_autoproc)
         return;
+#ifdef DAP_TPS_TEST
+    FILE *l_file = fopen("/opt/cellframe-node/share/ca/mempool_start.txt", "r");
+    if (l_file) {
+        fclose(l_file);
+        l_file = fopen("/opt/cellframe-node/share/ca/mempool_finish.txt", "r");
+        if(!l_file) {
+            log_it(L_TPS, "Wait mempool");
+            return;
+        }
+        log_it(L_TPS, "Mempool ready");
+        fclose(l_file);
+        l_file = fopen("/opt/cellframe-node/share/ca/tps_start.txt", "r");
+        if (!l_file) {
+            l_file = fopen("/opt/cellframe-node/share/ca/tps_start.txt", "w");
+            char l_from_str[50];
+            const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
+            struct tm l_from_tm = {};
+            time_t l_ts_now = time(NULL);
+            localtime_r(&l_ts_now, &l_from_tm);
+            strftime(l_from_str, sizeof(l_from_str), c_time_fmt, &l_from_tm);
+            fputs(l_from_str, l_file);
+        }
+        fclose(l_file);
+    }
+#endif
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     size_t l_objs_size = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_size);
     if (l_objs_size) {
+#ifdef DAP_TPS_TEST
+        log_it(L_TPS, "Get %zu datums from mempool", l_objs_size);
+#endif
         for (size_t i = 0; i < l_objs_size; i++) {
             if (!l_objs[i].value_len)
                 continue;
@@ -421,7 +449,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
         }
         dap_chain_node_states_info_t *l_item = DAP_NEW_Z(dap_chain_node_states_info_t);
         if(!l_item) {
-            log_it(L_ERROR, "%s", g_error_memory_alloc);
+            log_it(L_ERROR, "%s", c_error_memory_alloc);
             break;
         }
         dap_nanotime_t l_state_timestamp = 0;

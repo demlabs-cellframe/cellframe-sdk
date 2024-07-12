@@ -38,6 +38,9 @@ typedef struct dap_chain_cell {
     FILE *file_storage;
     uint8_t file_storage_type;
     dap_list_t *map_range_bounds;
+#ifdef DAP_OS_DARWIN
+    size_t cur_vol_start;
+#endif
     pthread_rwlock_t storage_rwlock;
     UT_hash_handle hh;
 } dap_chain_cell_t;

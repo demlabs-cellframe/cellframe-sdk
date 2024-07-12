@@ -294,7 +294,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
     assert(a_data_size > sizeof (dap_os_iphdr_t));
     ch_vpn_pkt_t *l_pkt_out             = DAP_NEW_Z_SIZE(ch_vpn_pkt_t, sizeof(l_pkt_out->header) + a_data_size);
     if (!l_pkt_out) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return false;
     }
     l_pkt_out->header.op_code           = VPN_PACKET_OP_CODE_VPN_RECV;
@@ -335,7 +335,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
         /* Shift it to other worker context */
         tun_socket_msg_t* l_msg = DAP_NEW_Z(tun_socket_msg_t);
         if (!l_msg) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             DAP_DEL_Z(l_pkt_out);
             return false;
         }
@@ -417,7 +417,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
             }else{
                 l_new_info                      = DAP_NEW_Z(dap_chain_net_srv_ch_vpn_info_t);
                 if (!l_new_info) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     DAP_DELETE(l_msg);
                     return;
                 }
@@ -495,7 +495,7 @@ static void s_tun_send_msg_ip_assigned(uint32_t a_worker_own_id, uint32_t a_work
 {
     struct tun_socket_msg * l_msg = DAP_NEW_Z(struct tun_socket_msg);
     if (!l_msg) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     }
     l_msg->type = TUN_SOCKET_MSG_IP_ASSIGNED;
@@ -536,7 +536,7 @@ static void s_tun_send_msg_ip_unassigned(uint32_t a_worker_own_id, uint32_t a_wo
 {
     struct tun_socket_msg * l_msg = DAP_NEW_Z(struct tun_socket_msg);
     if (!l_msg) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     }
     l_msg->type = TUN_SOCKET_MSG_IP_UNASSIGNED;
@@ -585,7 +585,7 @@ static void s_tun_send_msg_esocket_reassigned_inter(uint32_t a_worker_own_id, da
 {
     struct tun_socket_msg * l_msg = DAP_NEW_Z(struct tun_socket_msg);
     if (!l_msg) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     }
     l_msg->type = TUN_SOCKET_MSG_ESOCKET_REASSIGNED ;
@@ -843,7 +843,7 @@ static int s_vpn_tun_init()
 {
     s_raw_server=DAP_NEW_Z(vpn_local_network_t);
     if (!s_raw_server) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
     pthread_rwlock_init(&s_raw_server->rwlock, NULL);
@@ -879,7 +879,7 @@ static int s_vpn_service_create(dap_config_t * g_config)
 
     dap_chain_net_srv_vpn_t* l_srv_vpn  = DAP_NEW_Z( dap_chain_net_srv_vpn_t);
     if(!l_srv_vpn) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
     l_srv->_internal = l_srv_vpn;
@@ -1247,7 +1247,7 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
 
     a_ch->internal = DAP_NEW_Z(dap_chain_net_srv_ch_vpn_t);
     if (!a_ch->internal) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     }
     dap_chain_net_srv_ch_vpn_t * l_srv_vpn = CH_VPN(a_ch);
@@ -1310,7 +1310,7 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
         log_it(L_DEBUG, "Unlease address %s and store in treshold", inet_ntoa(l_ch_vpn->addr_ipv4));
         dap_chain_net_srv_vpn_item_ipv4_t * l_item_unleased = DAP_NEW_Z(dap_chain_net_srv_vpn_item_ipv4_t);
         if (!l_item_unleased) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             pthread_rwlock_unlock(&s_clients_rwlock);
             return;
         }
@@ -1475,7 +1475,7 @@ static void send_pong_pkt(dap_stream_ch_t* a_ch)
 //    log_it(L_DEBUG,"---------------------------------- PONG!");
     ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
     if (!pkt_out) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     }
     pkt_out->header.op_code = VPN_PACKET_OP_CODE_PONG;
@@ -1504,7 +1504,7 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t *a_ch, dap_chain_
         log_it(L_WARNING, "IP address is already leased");
         ch_vpn_pkt_t* pkt_out           = DAP_NEW_STACK_SIZE(ch_vpn_pkt_t, sizeof(pkt_out->header));
         if (!pkt_out) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return;
         }
         pkt_out->header.op_code         = VPN_PACKET_OP_CODE_PROBLEM;

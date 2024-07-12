@@ -270,7 +270,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     else {
         l_tx_data = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
         if (!l_tx_data) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return;
         }
         l_tx_data->hash = *a_tx_hash;
@@ -332,7 +332,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
 {
     json_object* json_obj_datum = json_object_new_array();
     if (!json_obj_datum){
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         dap_json_rpc_error_add(-44, "Memory allocation error");
         return NULL;
     }
@@ -773,7 +773,7 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
                         bool accepted_tx;
                         json_object* json_obj_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, l_chain, l_hash_out_type, l_net, 0, &accepted_tx, out_brief);
                         if (!json_obj_datum) {
-                            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                             return NULL;
                         }
                         if (accepted_tx) {
@@ -802,6 +802,15 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
         return json_arr_out;
 }
 
+json_object *s_get_ticker(json_object *a_jobj_tickers, const char *a_token_ticker) {
+    json_object_object_foreach(a_jobj_tickers, key, value){
+        if (dap_strcmp(a_token_ticker, key) == 0) {
+            return value;
+        }
+    }
+    return NULL;
+}
+
 /**
  * @brief show all tokens in chain
  *
@@ -813,37 +822,68 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
  */
 static json_object* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *a_token_name, const char *a_hash_out_type, size_t *a_token_num)
 {
+    json_object *l_jobj_tickers = json_object_new_object();
     if (!a_chain->callback_datum_iter_create) {
         log_it(L_WARNING, "Not defined datum iterators for chain \"%s\"", a_chain->name);
         return NULL;
     }    
     size_t l_token_num  = 0;
-    json_object* json_arr_history_token_out = json_object_new_array();    
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
     for (dap_chain_datum_t *l_datum = a_chain->callback_datum_iter_get_first(l_datum_iter);
             l_datum; l_datum = a_chain->callback_datum_iter_get_next(l_datum_iter)) {
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_DECL)
             continue;
+        size_t l_token_size = l_datum->header.data_size;
+        dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(l_datum->data, &l_token_size);
         if (a_token_name) {
-            size_t l_token_size = l_datum->header.data_size;
-            dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(l_datum->data, &l_token_size);
-            int l_cmp = dap_strcmp(l_token->ticker, a_token_name);
-            DAP_DELETE(l_token);
-            if (l_cmp)
+            if (dap_strcmp(a_token_name, l_token->ticker) != 0) {
+                DAP_DELETE(l_token);
                 continue;
+            }
+        }
+        json_object *l_jobj_ticker = s_get_ticker(l_jobj_tickers, l_token->ticker);
+        json_object *l_jobj_decls = NULL;
+        json_object *l_jobj_updates = NULL;
+        if (!l_jobj_ticker) {
+            l_jobj_ticker = json_object_new_object();
+            dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+            json_object *l_current_state = dap_ledger_token_info_by_name(l_ledger, l_token->ticker);
+            json_object_object_add(l_jobj_ticker, "current state", l_current_state);
+            l_jobj_decls = json_object_new_array();
+            l_jobj_updates = json_object_new_array();
+            json_object_object_add(l_jobj_ticker, "declarations", l_jobj_decls);
+            json_object_object_add(l_jobj_ticker, "updates", l_jobj_updates);
+            json_object_object_add(l_jobj_tickers, l_token->ticker, l_jobj_ticker);
+        } else {
+            l_jobj_decls = json_object_object_get(l_jobj_ticker, "declarations");
+            l_jobj_updates = json_object_object_get(l_jobj_ticker, "updates");
         }
         int l_ret_code = l_datum_iter->ret_code;
         json_object* json_history_token = json_object_new_object();
         json_object_object_add(json_history_token, "status", json_object_new_string(l_ret_code ? "DECLINED" : "ACCEPTED"));
         json_object_object_add(json_history_token, "Ledger return code", json_object_new_int(l_ret_code));
         dap_chain_datum_dump_json(json_history_token, l_datum, a_hash_out_type, a_chain->net_id);
-        json_object_array_add(json_arr_history_token_out, json_history_token);
+        switch (l_token->type) {
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC:
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL:
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_DECL:
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
+                json_object_array_add(l_jobj_decls, json_history_token);
+                break;
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE:
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE:
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE:
+                json_object_array_add(l_jobj_updates, json_history_token);
+                break;
+        }
+        DAP_DELETE(l_token);
         l_token_num++;
     }
     a_chain->callback_datum_iter_delete(l_datum_iter);
     if (a_token_num)
         *a_token_num = l_token_num;
-    return json_arr_history_token_out;
+    return l_jobj_tickers;
 }
 
 /**
@@ -896,7 +936,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
     }
     dap_string_t *l_str_out = dap_string_new(NULL);
     if (!l_str_out) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     // list all transactions
@@ -982,7 +1022,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                     }
                     l_sht = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
                     if (!l_sht) {
-                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         return NULL;
                     }
                     l_sht->hash = l_tx_hash;
@@ -1603,7 +1643,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t);
                     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
                     if (!l_tsd) {
-                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         dap_list_free_full(l_tsd_list, NULL);
                         return -1;
                     }
@@ -1617,7 +1657,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint256_t);
                 l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
                 if (!l_tsd) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     dap_list_free_full(l_tsd_list, NULL);
                     return -1;
                 }
@@ -1674,7 +1714,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
                 l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
                 if (!l_tsd) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     dap_list_free_full(l_tsd_list, NULL);
                     return -1;
                 }

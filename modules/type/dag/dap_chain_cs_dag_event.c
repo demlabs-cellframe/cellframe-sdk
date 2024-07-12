@@ -96,6 +96,49 @@ dap_chain_cs_dag_event_t *dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, 
 }
 
 /**
+ * @brief dap_chain_cs_dag_event_calc_size_excl_signs
+ * @param a_event
+ * @return
+ */
+size_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_dag_event_t *a_event, size_t a_limit_size)
+{
+    dap_return_val_if_fail(a_event, 0);
+    if (a_limit_size && a_limit_size < sizeof(a_event->header))
+        return 0;
+    size_t l_hashes_size = a_event->header.hash_count * sizeof(dap_chain_hash_fast_t);
+    if (a_limit_size && a_limit_size < l_hashes_size + sizeof(a_event->header) + sizeof(dap_chain_datum_t))
+        return 0;
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t*) (a_event->hashes_n_datum_n_signs + l_hashes_size);
+    size_t l_ret = dap_chain_datum_size(l_datum) + l_hashes_size + sizeof(a_event->header);
+    if (a_limit_size && a_limit_size < l_ret)
+        return 0;
+    return l_ret;
+}
+
+/**
+ * @brief dap_chain_cs_dag_event_calc_size
+ * @param a_event
+ * @return
+ */
+size_t dap_chain_cs_dag_event_calc_size(dap_chain_cs_dag_event_t *a_event, size_t a_limit_size)
+{
+    dap_return_val_if_fail(a_event, 0);
+    size_t l_signs_offset = dap_chain_cs_dag_event_calc_size_excl_signs(a_event, a_limit_size);
+    if (!l_signs_offset)
+        return 0;
+    byte_t *l_signs = (byte_t *)a_event + l_signs_offset;
+    size_t l_signs_size = 0;
+    for (uint16_t l_signs_passed = 0; l_signs_passed < a_event->header.signs_count; l_signs_passed++) {
+        dap_sign_t *l_sign = (dap_sign_t *)(l_signs + l_signs_size);
+        if (a_limit_size && a_limit_size < l_signs_offset + l_signs_size + sizeof(dap_sign_t))
+            return 0;
+        l_signs_size += dap_sign_get_size(l_sign);
+    }
+    size_t l_total_size = l_signs_offset + l_signs_size;
+    return a_limit_size && l_total_size > a_limit_size ? 0 : l_total_size;
+}
+
+/**
  * @brief dap_chain_cs_dag_event_sign_add
  * @param a_event
  * @param l_key
