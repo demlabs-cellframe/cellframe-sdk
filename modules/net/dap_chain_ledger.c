@@ -1264,8 +1264,9 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_token_item, byte_t *a_ts
     }
     // Checks passed
 ret_n_clear:
-    for (size_t i = 0; i < l_new_signs_total; i++)
-        DAP_DELETE(l_new_pkeys[i]);
+    if (l_new_pkeys)
+        for (size_t i = 0; i < l_new_signs_total; i++)
+            DAP_DELETE(l_new_pkeys[i]);
     DAP_DEL_MULTY(l_new_tx_recv_allow, l_new_tx_recv_block, l_new_tx_send_allow, l_new_tx_send_block, l_new_pkeys, l_new_pkey_hashes);
     return ret;
 }
@@ -1320,7 +1321,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         DAP_DELETE(l_token);
         return DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS;
     }
-    if (l_token->signs_total) {
+    if (!l_token->signs_total) {
         log_it(L_WARNING, "No auth signs in token '%s' datum!", l_token->ticker);
         DAP_DELETE(l_token);
         return DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS;
@@ -1435,7 +1436,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         l_token->signs_total = 0;
     }
     for (size_t i = 0; i < l_signs_unique; i++) {
-        if (!dap_sign_verify(l_signs[i], l_legacy_type ? (void *)l_token : a_token, l_verify_size)) {
+        if (!dap_sign_verify(l_signs[i], l_legacy_type ? a_token : (void *)l_token, l_verify_size)) {
             if (l_update_token) {
                 for (size_t j = 0; j < l_token_item->auth_signs_total; j++) {
                     if (dap_pkey_match_sign(l_token_item->auth_pkeys[j], l_signs[i])) {
@@ -2175,7 +2176,7 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item) {
         json_object_object_add(json_obj_datum, "-->Token name", json_object_new_string(a_token_item->ticker));
         json_object_object_add(json_obj_datum, "type", json_object_new_string(l_type_str));
         json_object_object_add(json_obj_datum, "flags", json_object_new_string(s_flag_str_from_code(a_token_item->datum_token->header_native_decl.flags)));
-        json_object_object_add(json_obj_datum, "description", a_token_item->description_token_size != 0 ?
+        json_object_object_add(json_obj_datum, "description", a_token_item->description_token ?
                                json_object_new_string(a_token_item->description_token) :
                                json_object_new_string("The token description is not set"));
         json_object_object_add(json_obj_datum, "Supply current", json_object_new_string(l_balance_cur));
@@ -2186,7 +2187,7 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item) {
         json_object_object_add(json_obj_datum, "TSD and Signs", json_object_new_string(""));
         dap_datum_token_dump_tsd_to_json(json_obj_datum, a_token_item->datum_token, a_token_item->datum_token_size, "hex");
         size_t l_certs_field_size = a_token_item->datum_token_size - sizeof(*a_token_item->datum_token) - a_token_item->datum_token->header_native_decl.tsd_total_size;
-        dap_chain_datum_token_certs_dump_to_json(json_obj_datum, a_token_item->datum_token->data_n_tsd + a_token_item->datum_token->header_native_decl.tsd_total_size,
+        dap_chain_datum_token_certs_dump_to_json(json_obj_datum, a_token_item->datum_token->tsd_n_signs + a_token_item->datum_token->header_native_decl.tsd_total_size,
                                                 l_certs_field_size, "hex");
         json_object_object_add(json_obj_datum, "and TSD and Signs", json_object_new_string(""));
         json_object_object_add(json_obj_datum, "Total emissions", json_object_new_int(HASH_COUNT(a_token_item->token_emissions)));
@@ -2203,7 +2204,7 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item) {
             json_object_object_add(json_obj_datum, "Auth signs total", json_object_new_int(a_token_item->auth_signs_total));
             json_object_object_add(json_obj_datum, "Signs", json_object_new_string(""));
             size_t l_certs_field_size = a_token_item->datum_token_size - sizeof(*a_token_item->datum_token);
-            dap_chain_datum_token_certs_dump_to_json(json_obj_datum, a_token_item->datum_token->data_n_tsd,
+            dap_chain_datum_token_certs_dump_to_json(json_obj_datum, a_token_item->datum_token->tsd_n_signs,
                                                      l_certs_field_size, "hex");
             json_object_object_add(json_obj_datum, "Total emissions", json_object_new_int(HASH_COUNT(a_token_item->token_emissions)));
             DAP_DEL_Z(l_balance_cur);

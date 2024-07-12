@@ -91,7 +91,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     dap_return_val_if_pass(!a_datum, NULL);
 
     dap_chain_hash_fast_t l_key_hash;
-    dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_key_hash);
+    dap_chain_datum_calc_hash(a_datum, &l_key_hash);
     char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     const char *l_key_str_out = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash)

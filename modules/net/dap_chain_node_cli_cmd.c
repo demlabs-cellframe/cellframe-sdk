@@ -2663,7 +2663,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             const char *l_datum_type = dap_chain_datum_type_id_to_str(l_datum->header.type_id);
             dap_hash_fast_t l_datum_real_hash = {0};
             dap_hash_fast_t l_datum_hash_from_key = {0};
-            dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_real_hash);
+            dap_chain_datum_calc_hash(l_datum, &l_datum_real_hash);
             dap_chain_hash_fast_from_str(l_objs[i].key, &l_datum_hash_from_key);
             char buff_time[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(buff_time, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
@@ -3453,7 +3453,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
         DAP_DELETE(l_gdb_group_mempool);
         return DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_CONVERT_DATUM_HASH_TO_DIGITAL_FORM;
     }
-    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_real_hash);
+    dap_chain_datum_calc_hash(l_datum, &l_real_hash);
     if (!dap_hash_fast_compare(&l_datum_hash, &l_real_hash)) {
         dap_json_rpc_error_add(DAP_COM_MEMPOOL_PROC_LIST_ERROR_REAL_HASH_DATUM_DOES_NOT_MATCH_HASH_DATA_STRING,
                                "Error! Datum's real hash doesn't match datum's hash string %s",
@@ -4575,7 +4575,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
 
     // Calc datum's hash
     dap_chain_hash_fast_t l_key_hash;
-    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
+    dap_chain_datum_calc_hash(l_datum, &l_key_hash);
     char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     const char *l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
                            dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str;
@@ -4780,7 +4780,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
 
     // Calc datum's hash
     dap_chain_hash_fast_t l_key_hash;
-    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
+    dap_chain_datum_calc_hash(l_datum, &l_key_hash);
     char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     const char *l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
                            dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str;
@@ -4796,7 +4796,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
     }
     bool l_placed = !dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, (uint8_t *)l_datum, l_datum_size, false);
     DAP_DELETE(l_gdb_group_mempool);
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s with token update datum for ticker %s is%s placed in datum pool",
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s with token update for ticker %s is%s placed in datum pool",
                                       l_key_str_out, l_ticker, l_placed ? "" : " not");
     DAP_DELETE(l_key_str);
     DAP_DELETE(l_datum);
@@ -7941,7 +7941,7 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, void **a_str_
             goto end;
         }
 
-        dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_hash_tmp);
+        dap_chain_datum_calc_hash(l_datum, &l_hash_tmp);
     }
 
     dap_chain_atom_iter_t *l_iter = NULL;
@@ -7956,7 +7956,7 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, void **a_str_
         for (size_t i = 0; i < l_datums_count; i++) {
             dap_chain_datum_t *l_datum = l_datums[i];
             dap_hash_fast_t l_hash;
-            dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_hash);
+            dap_chain_datum_calc_hash(l_datum, &l_hash);
             if (!memcmp(l_hash_tmp.raw, l_hash.raw, DAP_CHAIN_HASH_FAST_SIZE)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "found!");
                 found = 1;

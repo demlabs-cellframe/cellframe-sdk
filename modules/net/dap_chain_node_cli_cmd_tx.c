@@ -1291,13 +1291,13 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply)
         const char *l_token_name_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-name", &l_token_name_str);
         if(!l_token_name_str) {
-                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR, "command requires parameter '-name' <token name>");
-                return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR, "command requires parameter '-name' <token name>");
+            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
         }
-        json_object* json_obj_tx = json_object_new_object();
-        if(!dap_db_net_history_token_list(l_net, l_token_name_str, l_hash_out_type, json_obj_tx)){
-            json_object_put(json_obj_tx);
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_FOUND_ERR, "token '%s' not found\n", l_token_name_str);               
+        json_object *json_obj_tx = json_object_new_object();
+        if (!dap_db_net_history_token_list(l_net, l_token_name_str, l_hash_out_type, json_obj_tx)) {
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_FOUND_ERR, "token '%s' not found\n", l_token_name_str);\
+            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN;
         }
         json_object_array_add(*json_arr_reply, json_obj_tx);
         return DAP_CHAIN_NODE_CLI_COM_TOKEN_OK;

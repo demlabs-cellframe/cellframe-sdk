@@ -404,7 +404,7 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
         return -1;
     }
     dap_hash_fast_t l_datum_hash;
-    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_hash);
+    dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
     int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash);
     if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)  // && l_ret == 0
         PVT(a_dag)->tx_count++;
@@ -611,7 +611,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     /* If datum passes thru rounds, let's check if it wasn't added before */
     dap_chain_hash_fast_t l_datum_hash;
-    dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_datum_hash);
+    dap_chain_datum_calc_hash(a_datum, &l_datum_hash);
     if (!l_dag->is_add_directly) {
         bool l_dup_found = false;
         size_t l_objs_count = 0;
