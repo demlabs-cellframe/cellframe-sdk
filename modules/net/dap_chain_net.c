@@ -2335,11 +2335,11 @@ bool s_net_load(void *a_arg)
                 }
             }
             if ( !l_net_pvt->node_info->ext_port ) {
-                char **l_listening = dap_config_get_array_str(g_config, "server", "listen_address", NULL);
+                char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
                 l_net_pvt->node_info->ext_port =
-                    ( l_listening
-                    && dap_net_parse_config_address(*l_listening, NULL, &l_ext_port, NULL, NULL) > 0
-                    && l_ext_port ) ? l_ext_port : 8079; // TODO: default port?
+                    ( l_listening && dap_net_parse_config_address(*l_listening, NULL, &l_ext_port, NULL, NULL) > 0 && l_ext_port )
+                        ? l_ext_port
+                        : dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079); // TODO: default port?
             }
         } // otherwise, we're in seed list - seed config predominates server config thus disambiguating the settings
         
