@@ -923,7 +923,8 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         if (l_addr_str && dap_chain_net_is_my_node_authorized(l_net)) {
             // We're in authorized list, add directly
             uint16_t l_port = 0;
-            if (dap_net_parse_hostname(l_hostname, l_node_info->ext_host, &l_port)) {
+            struct sockaddr_storage l_verifier = { };
+            if ( 0 > dap_net_parse_config_address(l_hostname, l_node_info->ext_host, &l_port, &l_verifier, NULL) ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't parse host string %s", l_hostname);
                 return -6;
             }
