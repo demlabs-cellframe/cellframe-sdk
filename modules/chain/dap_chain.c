@@ -109,6 +109,11 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
             .net_id     = a_chain_net_id,
             .name       = dap_strdup(a_chain_name),
             .net_name   = dap_strdup(a_chain_net_name),
+#ifdef DAP_OS_WINDOWS
+            .is_mapped  = false,
+#else
+            .is_mapped  = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true),
+#endif
             .cell_rwlock    = PTHREAD_RWLOCK_INITIALIZER,
             .atom_notifiers = NULL
     };
@@ -239,7 +244,30 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
         return CHAIN_TYPE_DECREE;
     if (!dap_strcmp(a_type_str, "anchor"))
         return CHAIN_TYPE_ANCHOR;
-    return CHAIN_TYPE_LAST;
+    return CHAIN_TYPE_INVALID;
+}
+
+const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type) {
+    switch (a_default_chain_type)
+    {
+        case CHAIN_TYPE_INVALID:
+            return "invalid";
+        case CHAIN_TYPE_TOKEN:
+            return "token";
+        case CHAIN_TYPE_EMISSION:
+            return "emission";
+        case CHAIN_TYPE_TX:
+            return "transaction";
+        case CHAIN_TYPE_CA:
+            return "ca";
+        case CHAIN_TYPE_SIGNER:
+            return "signer";
+        case CHAIN_TYPE_DECREE:
+            return "decree";
+        case CHAIN_TYPE_ANCHOR:
+            return "anchor";
+    }
+    return "invalid";
 }
 
 /**
@@ -384,6 +412,9 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
                 if ( dap_config_get_item_str_default(l_cfg, "files","storage_dir", NULL) )
 				{
                     DAP_CHAIN_PVT(l_chain)->file_storage_dir = (char*)dap_config_get_item_path( l_cfg , "files","storage_dir" );
+                    if (!dap_dir_test(DAP_CHAIN_PVT(l_chain)->file_storage_dir)) {
+                        dap_mkdir_with_parents(DAP_CHAIN_PVT(l_chain)->file_storage_dir);
+                    }
                 } else
                     log_it (L_INFO, "Not set file storage path, will not stored in files");
 
@@ -436,7 +467,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 					for (uint16_t i = 0; i < l_datum_types_count; i++)
 					{
 						dap_chain_type_t l_chain_type = s_chain_type_from_str(l_datum_types[i]);
-						if (l_chain_type != CHAIN_TYPE_LAST)
+						if (l_chain_type != CHAIN_TYPE_INVALID)
 						{
 							l_chain->datum_types[l_count_recognized] = l_chain_type;
 							l_count_recognized++;
@@ -461,7 +492,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 					for (uint16_t i = 0; i < l_default_datum_types_count; i++)
 					{
 						dap_chain_type_t l_chain_type = s_chain_type_from_str(l_default_datum_types[i]);
-						if (l_chain_type != CHAIN_TYPE_LAST
+						if (l_chain_type != CHAIN_TYPE_INVALID
 						&& s_chain_in_chain_types(l_chain_type, l_chain->datum_types, l_chain->datum_types_count))// <<--- check this chain_type in readed datum_types
 						{
 							l_chain->default_datum_types[l_count_recognized] = l_chain_type;
@@ -568,9 +599,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
     char *l_storage_dir = DAP_CHAIN_PVT(a_chain)->file_storage_dir;
     if (!l_storage_dir)
         return 0;
-    if (!dap_dir_test(l_storage_dir)) {
-        dap_mkdir_with_parents(l_storage_dir);
-    }
+    
     DIR *l_dir = opendir(l_storage_dir);
     if (!l_dir) {
         log_it(L_ERROR, "Cannot open directory %s", DAP_CHAIN_PVT(a_chain)->file_storage_dir);
@@ -591,6 +620,9 @@ int dap_chain_load_all(dap_chain_t *a_chain)
                 if (rename(l_cell->file_storage_path, l_filename_backup)) {
                     log_it(L_ERROR, "Couldn't rename %s to %s", l_cell->file_storage_path, l_filename_backup);
                 }
+                /*fclose(l_cell->file_storage);
+                strcat(l_cell->file_storage_path, ".sorted");
+                l_cell->file_storage = fopen(l_cell->file_storage_path, "w+b");*/
                 DAP_DELETE(l_filename_backup);
             }
         }
@@ -707,28 +739,7 @@ ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t 
             return -7;
         }
     }
-    ssize_t l_res = dap_chain_cell_file_append(l_cell, a_atom, a_atom_size);
-    if (a_chain->atom_notifiers) {
-        dap_list_t *l_iter;
-        DL_FOREACH(a_chain->atom_notifiers, l_iter) {
-            dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
-            l_notifier->callback(l_notifier->arg, a_chain, l_cell->id, (void*)a_atom, a_atom_size);
-        }
-    }
-    if (a_chain->callback_atom_add_from_treshold) {
-        dap_chain_atom_ptr_t l_atom_treshold;
-        do {
-            size_t l_atom_treshold_size;
-            l_atom_treshold = a_chain->callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size);
-            if (l_atom_treshold) {
-                if (dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size) > 0)
-                    log_it(L_INFO, "Added atom from treshold");
-                else
-                    log_it(L_ERROR, "Can't add atom from treshold");
-            }
-        } while(l_atom_treshold);
-    }
-    return l_res;
+    return dap_chain_cell_file_append(l_cell, a_atom, a_atom_size);
 }
 
 /**

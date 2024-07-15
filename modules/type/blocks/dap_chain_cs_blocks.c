@@ -561,7 +561,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
     const char* l_subcmd_str_args[l_subcmd_str_count];
 	for(size_t i=0;i<l_subcmd_str_count;i++)
         l_subcmd_str_args[i]=NULL;
-    const char* l_subcmd_str_arg;
+    const char* l_subcmd_str_arg = NULL;
     const char* l_subcmd_str = NULL;
 
     int arg_index = 1;
@@ -571,7 +571,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
     dap_chain_net_t * l_net = NULL;
 
     // Parse default values
-    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
+    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net,
+                                                     CHAIN_TYPE_INVALID) < 0)
         return -11;
 
     const char *l_chain_type = dap_chain_net_get_type(l_chain);
@@ -1076,11 +1077,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
                 l_addr = dap_chain_addr_from_str(l_addr_str);
                 if(!l_cert_name) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-cert'", l_subcmd_str);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-cert'");
                     return -20;
                 }
                 if (!l_addr_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-addr'", l_addr_str);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect renew' requires parameter '-addr'");
                     return -20;
                 }
                 dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
@@ -1095,8 +1096,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                     return -20;
                 }
                 dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
-                        .collectiong_level = l_chain->callback_get_collectiong_level,
-                        .minimum_fee = l_chain->callback_get_minimum_fee,
+                        .collectiong_level = l_chain->callback_get_collectiong_level(l_chain),
+                        .minimum_fee = l_chain->callback_get_minimum_fee(l_chain),
                         .chain = l_chain,
                         .blocks_sign_key = l_cert->enc_key,
                         .block_sign_pkey = l_pub_key,
@@ -1435,42 +1436,63 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     dap_chain_hash_fast_t l_block_hash;
     dap_hash_fast(l_block, l_block_size, &l_block_hash);
 
-    dap_chain_block_cache_t * l_block_cache = NULL;
+    dap_chain_block_cache_t *l_block_cache = NULL;
     pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);
     HASH_FIND(hh, PVT(l_blocks)->blocks, &l_block_hash, sizeof(l_block_hash), l_block_cache);
     if (l_block_cache) {
         debug_if(s_debug_more, L_DEBUG, "... %s is already present", l_block_cache->block_hash_str);
         pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
         return ATOM_PASS;
-    } else {
-        l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, l_block_size, PVT(l_blocks)->blocks_count + 1);
-        if (!l_block_cache) {
-            log_it(L_DEBUG, "... corrupted block");
-            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-            return ATOM_REJECT;
-        }
-        debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
     }
 
     dap_chain_atom_verify_res_t ret = s_callback_atom_verify(a_chain, a_atom, a_atom_size);
     switch (ret) {
     case ATOM_ACCEPT:
+        if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
+            if ( (ret = dap_chain_atom_save(a_chain, a_atom, a_atom_size, l_block->hdr.cell_id)) < 0 ) {
+                log_it(L_ERROR, "Can't save atom to file, code %d", ret);
+                pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+                return ATOM_REJECT;
+            } else if (a_chain->is_mapped) {
+                dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
+                l_block = (dap_chain_block_t*)( l_cell->map_pos += sizeof(uint64_t) );  // Switching to mapped area
+                l_cell->map_pos += a_atom_size;
+            }
+        }         
+        if ( !(l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, l_block_size, PVT(l_blocks)->blocks_count + 1)) ) {
+            log_it(L_DEBUG, "... corrupted block");
+            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+            return ATOM_REJECT;
+        }
+        debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
         HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
         ++PVT(l_blocks)->blocks_count;
         pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
         s_add_atom_datums(l_blocks, l_block_cache);
-        return ret;
+
+        if (a_chain->atom_notifiers) {
+            dap_list_t *l_iter;
+            DL_FOREACH(a_chain->atom_notifiers, l_iter) {
+                dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
+                l_notifier->callback(l_notifier->arg, a_chain, l_block->hdr.cell_id, l_block, l_block_size);
+            }
+        }
+        if (a_chain->callback_atom_add_from_treshold) {
+            size_t l_atom_treshold_size = 0;
+            while ( a_chain->callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size) ) {
+                log_it(L_DEBUG, "Added atom with size %lu from threshold", l_atom_treshold_size);
+            }
+        }
+        return ATOM_ACCEPT;
     case ATOM_MOVE_TO_THRESHOLD:
         // TODO: reimplement and enable threshold for blocks
-/*      {
+        /*{
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: THRESHOLDED", a_atom);
             break;
-        }
-*/
+        }*/
         ret = ATOM_REJECT;
     case ATOM_REJECT:
-        dap_chain_block_cache_delete(l_block_cache);
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: REJECTED", a_atom);
         break;
     default:
@@ -2083,7 +2105,8 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     assert(l_block_cache);
     l_block = l_block_cache->block;
     assert(l_block);
-    dap_time_t l_time_diff = l_block_time - dap_max(l_block->hdr.ts_created, DAP_REWARD_INIT_TIMESTAMP);
+    dap_time_t l_cur_time = dap_max(l_block->hdr.ts_created, DAP_REWARD_INIT_TIMESTAMP);
+    dap_time_t l_time_diff = l_block_time > l_cur_time ? l_block_time - l_cur_time : 1;
     MULT_256_256(l_ret, GET_256_FROM_64(l_time_diff), &l_ret);
     DIV_256(l_ret, GET_256_FROM_64(s_block_timediff_unit_size * l_signs_count), &l_ret);
     return l_ret;

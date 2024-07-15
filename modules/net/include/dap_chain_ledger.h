@@ -292,14 +292,20 @@ void dap_ledger_addr_get_token_ticker_all_depricated(dap_ledger_t *a_ledger, dap
 void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
         char *** a_tickers, size_t * a_tickers_size);
 
+const char *dap_ledger_get_description_by_ticker(dap_ledger_t *a_ledger, const char *a_token_ticker);
+
 bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
 
 bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_net_srv_uid_t *uid, dap_chain_tx_tag_action_type_t *action);
 char * dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag);
-dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(char *str);
+dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *str);
 
 bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, 
                                 dap_chain_net_srv_uid_t *a_uid, char **a_service_name,  dap_chain_tx_tag_action_type_t *a_action);
+
+
+int dap_ledger_service_add(dap_chain_net_srv_uid_t a_uid, char *tag_str, dap_ledger_tag_check_callback_t a_callback);
+
 
 // Checking a new transaction before adding to the cache
 int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, 

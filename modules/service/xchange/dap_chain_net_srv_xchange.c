@@ -125,10 +125,11 @@ static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
             }
 
             case TX_TYPE_INVALIDATE:
+            case TX_TYPE_UNDEFINED:
             { 
                 if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_CLOSE;
                 return true;
-            } 
+            }
         }
     }
 
@@ -471,7 +472,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_sell,
                                                                        &l_seller_addr, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
-        log_it(L_WARNING, "Nothing to change from % (not enough funds in %s (%s))",
+        log_it(L_WARNING, "Nothing to change from %s (not enough funds in %s (%s))",
                            dap_chain_addr_to_str( &l_seller_addr), a_price->token_sell, dap_chain_balance_print(l_value_need));
         return NULL;
     }
@@ -1542,7 +1543,9 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             dap_ctime_r(&l_ts_create, l_tmp_buf);
             l_tmp_buf[strlen(l_tmp_buf) - 1] = '\0';
 
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "orderHash: %s\n ts_created: %s (%"DAP_UINT64_FORMAT_U")\n Status: %s, amount: %s (%s) %s, filled: %u%%, rate (%s/%s): %s, net: %s\n\n", l_tx_hash_str,
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "orderHash: %s\n "
+                                                           "ts_created: %s (%"DAP_UINT64_FORMAT_U")\n "
+                                                           "Status: %s, amount: %s (%s) %s, filled: %lu%%, rate (%s/%s): %s, net: %s\n\n", l_tx_hash_str,
                                      l_tmp_buf, l_ts_create, l_status_order,
                                      l_amount_coins_str ? l_amount_coins_str : "0.0",
                                      l_amount_datoshi_str ? l_amount_datoshi_str : "0",
@@ -1618,7 +1621,7 @@ static bool s_filter_tx_list(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, v
     int l_item_idx = 0;
     byte_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL);
     dap_chain_tx_in_cond_t * l_in_cond = l_tx_item ? (dap_chain_tx_in_cond_t *) l_tx_item : NULL;
-    uint32_t l_prev_cond_idx = 0;
+    int l_prev_cond_idx = 0;
     dap_chain_datum_tx_t * l_prev_tx = l_in_cond ? dap_ledger_tx_find_by_hash(a_ledger, &l_in_cond->header.tx_prev_hash) : NULL;
     dap_chain_tx_out_cond_t *l_out_prev_cond_item = l_prev_tx ? dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
                                                                                                 &l_prev_cond_idx) : NULL;
@@ -1626,7 +1629,7 @@ static bool s_filter_tx_list(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, v
     if(l_out_prev_cond_item && l_out_prev_cond_item->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE)
         return l_tx_type;
     
-    if (l_in_cond && l_prev_cond_idx != l_in_cond->header.tx_out_prev_idx)
+    if (l_in_cond && (uint32_t)l_prev_cond_idx != l_in_cond->header.tx_out_prev_idx)
         return l_tx_type;
     
     if (l_out_cond_item && !l_out_prev_cond_item)
@@ -2098,7 +2101,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply)
                 l_tmp_buf[strlen(l_tmp_buf) - 1] = '\0';
 
                 l_printed_orders_count++;
-                dap_string_append_printf(l_reply_str, "orderHash: %s\n ts_created: %s (%"DAP_UINT64_FORMAT_U")\n Status: %s, amount: %s (%s) %s, filled: %u%%, rate (%s/%s): %s, net: %s\n\n", l_tx_hash_str,
+                dap_string_append_printf(l_reply_str, "orderHash: %s\n "
+                                                      "ts_created: %s (%"DAP_UINT64_FORMAT_U")\n"
+                                                      "Status: %s, amount: %s (%s) %s, filled: %"DAP_UINT64_FORMAT_U"%%, rate (%s/%s): %s, net: %s\n\n", l_tx_hash_str,
                                          l_tmp_buf, l_ts_create, l_status_order,
                                          l_amount_coins_str ? l_amount_coins_str : "0.0",
                                          l_amount_datoshi_str ? l_amount_datoshi_str : "0",
@@ -2374,7 +2379,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply)
                             int l_cond_idx = 0;
                             dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
 
-                            if (dap_chain_net_srv_xchange_tx_get_type(l_net, l_tx, &l_out_cond_item, &l_cond_idx, NULL) != TX_TYPE_ORDER){
+                            if (dap_chain_net_srv_xchange_tx_get_type(l_net->pub.ledger, l_tx, &l_out_cond_item, &l_cond_idx, NULL) != TX_TYPE_ORDER){
                                 l_cur = dap_list_next(l_cur);
                                 continue;
                             }

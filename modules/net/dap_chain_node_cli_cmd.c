@@ -810,7 +810,8 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
         dap_chain_t * l_chain = NULL;
         dap_chain_net_t * l_net = NULL;
 
-        if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
+        if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net,
+                                                         CHAIN_TYPE_INVALID) < 0)
             return -11;
 
         const char *l_cell_str = NULL, *l_chain_str = NULL;
@@ -1231,7 +1232,8 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
     // find net
     dap_chain_net_t *l_net = NULL;
 
-    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net) < 0)
+    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net,
+                                                     CHAIN_TYPE_INVALID) < 0)
         return -11;
 
     // find addr, alias
@@ -1385,243 +1387,8 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
         break;
         // make connect
     case CMD_CONNECT: {
-        // get address from alias if addr not defined
-        if(alias_str && !l_node_addr.uint64) {
-            dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(l_net, alias_str);
-            if(address_tmp) {
-                l_node_addr = *address_tmp;
-                DAP_DELETE(address_tmp);
-            }
-            else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "no address found by alias");
-                return -1;
-            }
-        }
-        // for auto mode
-        int l_is_auto = 0;
-        // list of dap_chain_node_addr_t struct
-        unsigned int l_nodes_count = 0;
-        dap_list_t *l_node_list = NULL;
-        dap_chain_node_addr_t *l_remote_node_addr = NULL;
-        if(!l_node_addr.uint64) {
-            // check whether auto mode
-            l_is_auto = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "auto", NULL);
-            if(!l_is_auto) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "addr not found");
-                return -1;
-            }
-            // if auto mode, then looking for the node address
-
-            // get cur node links
-            bool a_is_only_cur_cell = false;
-            dap_list_t *l_node_link_list = dap_chain_net_get_link_node_list(l_net, a_is_only_cur_cell);
-            // get all nodes list if no links
-            if(!l_node_link_list)
-                l_node_list = dap_chain_net_get_node_list(l_net);
-            else
-                l_node_list = dap_list_concat(l_node_link_list, l_node_list);
-
-            // select random node from the list
-            l_nodes_count = dap_list_length(l_node_list);
-            if(l_nodes_count > 0) {
-                unsigned int l_node_pos = rand() % l_nodes_count;
-                dap_list_t *l_tmp = dap_list_nth(l_node_list, l_node_pos);
-                l_remote_node_addr = l_tmp->data;
-                l_node_addr.uint64 = l_remote_node_addr->uint64;
-            }
-
-            if(!l_node_addr.uint64) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "no node is available");
-                return -1;
-            }
-        }
-        dap_chain_node_info_t *l_remote_node_info;
-        dap_chain_node_client_t *l_node_client;
-        int res;
-        do {
-            l_remote_node_info = node_info_read_and_reply(l_net, &l_node_addr, a_str_reply);
-            if(!l_remote_node_info) {
-                return -1;
-            }
-            // start connect
-            l_node_client = dap_chain_node_client_connect_default_channels(l_net,l_remote_node_info);
-            if(!l_node_client) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "can't connect");
-                DAP_DELETE(l_remote_node_info);
-                return -1;
-            }
-            // wait connected
-            int timeout_ms = 7000; // 7 sec = 7000 ms
-            res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
-            // select new node addr
-            if(l_is_auto && res){
-                if(l_remote_node_addr && l_nodes_count>1){
-                    l_nodes_count--;
-                    l_node_list = dap_list_remove(l_node_list, l_remote_node_addr);
-                    DAP_DELETE(l_remote_node_addr);
-                    unsigned int l_node_pos = rand() % l_nodes_count;
-                    dap_list_t *l_tmp = dap_list_nth(l_node_list, l_node_pos);
-                    l_remote_node_addr = l_tmp->data;
-                    l_node_addr.uint64 = l_remote_node_addr->uint64;
-
-                    // clean client struct
-                    dap_chain_node_client_close_mt(l_node_client);
-                    DAP_DELETE(l_remote_node_info);
-                    //return -1;
-                    continue;
-                }
-            }
-            break;
-        }
-        while(1);
-        // for auto mode only
-        if(l_is_auto) {
-            //start background thread for testing connect to the nodes
-            dap_chain_node_ping_background_start(l_net, l_node_list);
-            dap_list_free_full(l_node_list, NULL);
-        }
-
-
-
-        if(res) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "no response from remote node(s)");
-            log_it(L_WARNING, "No response from remote node(s): err code %d", res);
-            // clean client struct
-            dap_chain_node_client_close_mt(l_node_client);
-            //DAP_DELETE(l_remote_node_info);
-            return -1;
-        }
-
-        log_it(L_NOTICE, "Stream connection established");
-        dap_stream_ch_chain_sync_request_t l_sync_request = {};
-         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_STREAM_CH_ID);
-         // fill begin id
-         l_sync_request.id_start = 1;
-         // fill current node address
-         l_sync_request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-
-        // if need to get current node address (feature-2630)
-        if(!l_sync_request.node_addr.uint64 )
-        {
-            log_it(L_NOTICE, "Now get node addr");
-            uint8_t l_ch_id = DAP_STREAM_CH_ID_NET;
-            dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
-
-            size_t res = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
-            DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE_REQUEST,
-            //DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
-            l_net->pub.id,
-            NULL, 0);
-            if(res == 0) {
-                log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST packet");
-                dap_chain_node_client_close_mt(l_node_client);
-                DAP_DELETE(l_remote_node_info);
-                return -1;
-            }
-            int timeout_ms = 15000; // 15 sec = 15 000 ms
-            int l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_NODE_ADDR_LEASED, timeout_ms);
-            switch (l_res) {
-            case 0:
-                if(l_node_client->cur_node_addr.uint64 != 0) {
-                    log_it(L_INFO, "Node address leased");
-                    l_sync_request.node_addr.uint64 = l_node_client->cur_node_addr.uint64;
-                    
-                    // save cur address
-                    // already saved
-                    // dap_db_set_cur_node_addr_exp(l_sync_request.node_addr.uint64, l_net->pub.name);
-                }
-                else
-                    log_it(L_WARNING, "Node address leased wrong!");
-                break;
-            case -1:
-                log_it(L_WARNING, "Timeout with addr leasing");
-            default:
-                if(l_res != -1)
-                    log_it(L_WARNING, "Node address request error %d", l_res);
-                /*dap_chain_node_client_close(l_node_client);
-                DAP_DELETE(l_remote_node_info);
-                return -1;*/
-            }
-        }
-        log_it(L_NOTICE, "Now lets sync all");
-
-        log_it(L_INFO, "Requested GLOBAL_DB syncronizatoin, %"DAP_UINT64_FORMAT_U":%"DAP_UINT64_FORMAT_U" period", l_sync_request.id_start,
-                l_sync_request.id_end);
-        // copy l_sync_request to current
-        //dap_stream_ch_chain_t * l_s_ch_chain = DAP_STREAM_CH_CHAIN(l_ch_chain);
-        //l_s_ch_chain->request_net_id.uint64 = l_net->pub.id.uint64;
-        //l_s_ch_chain->request_cell_id.uint64 = l_chain_cell_id_null.uint64;
-        //memcpy(&l_s_ch_chain->request, &l_sync_request, sizeof(l_sync_request));
-
-        if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
-                l_net->pub.id.uint64, 0, 0, &l_sync_request,
-                sizeof(l_sync_request))) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
-            // clean client struct
-            dap_chain_node_client_close_mt(l_node_client);
-            DAP_DELETE(l_remote_node_info);
-            return -1;
-        }
-        dap_stream_ch_set_ready_to_write_unsafe(l_ch_chain, true);
-        // wait for finishing of request
-        int timeout_ms = 420000; // 7 min = 420 sec = 420 000 ms
-        // TODO add progress info to console
-        res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
-        if(res < 0) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: can't sync with node "NODE_ADDR_FP_STR,
-                                            NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
-            dap_chain_node_client_close_mt(l_node_client);
-            DAP_DELETE(l_remote_node_info);
-            log_it(L_WARNING, "Gdb synced err -2");
-            return -2;
-
-        }
-        // flush global_db
-        dap_global_db_flush_sync();
-        log_it(L_INFO, "Gdb synced Ok");
-
-        // Requesting chains
-        dap_chain_t *l_chain = NULL;
-        DL_FOREACH(l_net->pub.chains, l_chain)
-        {
-            // reset state NODE_CLIENT_STATE_SYNCED
-            dap_chain_node_client_reset(l_node_client);
-            // send request
-            dap_stream_ch_chain_sync_request_t l_sync_request = {};
-            dap_chain_hash_fast_t *l_hash = dap_chain_db_get_last_hash_remote(l_node_client->remote_node_addr.uint64, l_chain);
-            if (l_hash) {
-                l_sync_request.hash_from = *l_hash;
-                DAP_DELETE(l_hash);
-            }
-            if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
-                    l_net->pub.id.uint64, l_chain->id.uint64, l_remote_node_info->hdr.cell_id.uint64, &l_sync_request,
-                    sizeof(l_sync_request))) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
-                // clean client struct
-                dap_chain_node_client_close_mt(l_node_client);
-                DAP_DELETE(l_remote_node_info);
-                log_it(L_INFO, "Chain '%s' synced error: Can't send sync chains request", l_chain->name);
-                return -3;
-            }
-            log_it(L_NOTICE, "Requested syncronization for chain \"%s\"", l_chain->name);
-            dap_stream_ch_set_ready_to_write_unsafe(l_ch_chain, true);
-
-            // wait for finishing of request
-            timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
-            // TODO add progress info to console
-            res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
-            if(res < 0) {
-                log_it(L_ERROR, "Error: Can't sync chain %s", l_chain->name);
-            }
-        }
-        log_it(L_INFO, "Chains and gdb are synced");
-        DAP_DELETE(l_remote_node_info);
-        //dap_client_disconnect(l_node_client->client);
-        //l_node_client->client = NULL;
-        dap_chain_node_client_close_mt(l_node_client);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Node sync completed: Chains and gdb are synced");
-        return 0;
-
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Not implemented.");
+        return -1;
     }
         // make handshake
     case CMD_HANDSHAKE: {
@@ -2224,10 +1991,15 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     uint256_t l_balance = dap_ledger_calc_balance(l_ledger, l_addr, l_l_addr_tokens[i]);
                     char *l_balance_coins = dap_chain_balance_to_coins(l_balance);
                     char *l_balance_datoshi = dap_chain_balance_print(l_balance);
+                    const char *l_token_description = dap_ledger_get_description_by_ticker(l_ledger, l_l_addr_tokens[i]);
+                    json_object *j_token = json_object_new_object();
+                    json_object_object_add(j_token, "ticker", json_object_new_string(l_l_addr_tokens[i]));
+                    json_object_object_add(j_token, "description", l_token_description ? json_object_new_string(l_token_description)
+                                                                                       : json_object_new_null());
                     json_object_object_add(j_balance_data, "balance", json_object_new_string(""));
                     json_object_object_add(j_balance_data, "coins", json_object_new_string(l_balance_coins));
                     json_object_object_add(j_balance_data, "datoshi", json_object_new_string(l_balance_datoshi));
-                    json_object_object_add(j_balance_data, "token", json_object_new_string(l_l_addr_tokens[i]));
+                    json_object_object_add(j_balance_data, "token", j_token);
                     DAP_DELETE(l_balance_coins);
                     DAP_DELETE(l_balance_datoshi);
                     json_object_array_add(j_arr_balance, j_balance_data);
@@ -2462,11 +2234,13 @@ typedef enum dap_chain_node_cli_cmd_values_parse_net_chain_err_to_json {
     DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_STR_IS_NULL = 105,
     DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CONFIG_DEFAULT_DATUM = 106,
     DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CONVERT_BASE58_TO_ADDR_WALLET = 107,
-    DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_FAST_AND_BASE58_ADDR
+    DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_FAST_AND_BASE58_ADDR,
+    DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE
 } dap_chain_node_cli_cmd_values_parse_net_chain_err_to_json;
 int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int a_argc,
                                                            char **a_argv,
-                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net) {
+                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net,
+                                                           dap_chain_type_t a_default_chain_type) {
     const char * l_chain_str = NULL;
     const char * l_net_str = NULL;
 
@@ -2492,7 +2266,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
         l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
         dap_string_t* l_net_str = dap_cli_list_net();
         l_str_to_reply = dap_strcat2(l_str_to_reply,l_net_str->str);
-        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND, "%s can't find network \"%s\"\n%s", a_argv[0], l_net_str->str, l_str_to_reply);
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND, "%s", l_str_to_reply);
         DAP_DELETE(l_str_to_reply);
         dap_string_free(l_net_str, true);
         return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND;
@@ -2522,13 +2296,15 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
                 DAP_DELETE(l_str_to_reply);
                 return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND;
             }
-        }
-        else if (!strcmp(a_argv[0], "token_decl")  || !strcmp(a_argv[0], "token_decl_sign")) {
-            if (	(*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, CHAIN_TYPE_TOKEN)) == NULL )
-            {
-                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CONFIG_DEFAULT_DATUM, "%s requires parameter '-chain' or set default datum "
-                                             "type in chain configuration file");
-                return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CONFIG_DEFAULT_DATUM;
+        } else if (a_default_chain_type != CHAIN_TYPE_INVALID) {
+            if ((*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type)) != NULL) {
+                return 0;
+            } else {
+                dap_json_rpc_error_add(
+                        DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE,
+                        "Unable to get the default chain of type %s for the network.", dap_chain_type_to_str(a_default_chain_type));
+                return DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE;
+
             }
         }
     }
@@ -2546,7 +2322,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
  * @return
  */
 int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, char **a_argv, char ** a_str_reply,
-        dap_chain_t **a_chain, dap_chain_net_t **a_net)
+        dap_chain_t **a_chain, dap_chain_net_t **a_net, dap_chain_type_t a_default_chain_type)
 {
     const char * l_chain_str = NULL;
     const char * l_net_str = NULL;
@@ -2601,15 +2377,14 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                 DAP_DELETE(l_str_to_reply);
                 return -103;
             }
-        }
-        else if (	!strcmp(a_argv[0], "token_decl")
-        ||			!strcmp(a_argv[0], "token_decl_sign")) {
-            if (	(*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, CHAIN_TYPE_TOKEN)) == NULL )
-            {
+        } else if (a_default_chain_type != CHAIN_TYPE_INVALID) {
+            if ((*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type)) != NULL) {
+                return 0;
+            } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "%s requires parameter '-chain' or set default datum type in chain configuration file",
-                                                  a_argv[0]);
-                return -105;
+                                                  "Unable to get the default chain of type %s for the network.",
+                                                  dap_chain_type_to_str(a_default_chain_type));
+                return -104;
             }
         } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-chain'", a_argv[0]);
@@ -2702,7 +2477,8 @@ int com_token_decl_sign(int a_argc, char **a_argv, void ** reply)
         dap_chain_t * l_chain = NULL;
         dap_chain_net_t * l_net = NULL;
 
-        dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
+        dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net,
+                                                      CHAIN_TYPE_TOKEN);
         if(!l_net)
             return -1;
         else {
@@ -4079,7 +3855,8 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
             return -2;
         }
     }
-    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net,
+                                                           CHAIN_TYPE_INVALID);
     if (!l_net) {
         return -3;
     }
@@ -4334,7 +4111,8 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_s
     }
 
     int l_arg_index = 0;
-    int l_res = dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &a_params->chain, &a_params->net);
+    int l_res = dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &a_params->chain,
+                                                              &a_params->net, CHAIN_TYPE_TOKEN);
 
     if(!a_params->net || !a_params->chain)
         return l_res;
@@ -4515,8 +4293,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
         DAP_DEL_Z(l_new_certs);
     }
     if (l_description_token) {
-        dap_tsd_t *l_desc_token = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description_token,
-                                                 dap_strlen(l_description_token));//dap_tsd_create_string(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description_token);
+        dap_tsd_t *l_desc_token = dap_tsd_create_string(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description_token);
         l_tsd_list = dap_list_append(l_tsd_list, l_desc_token);
         l_tsd_total_size += dap_tsd_size(l_desc_token);
         a_params->ext.parsed_tsd_size += dap_tsd_size(l_desc_token);
@@ -4721,6 +4498,11 @@ int com_token_decl(int a_argc, char ** a_argv, void ** reply)
                     DAP_DEL_Z(l_params);
 					return -91;
 				}
+                if (!dap_strcmp(l_ticker, l_params->ext.delegated_token_from)) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Delegated token ticker cannot match the original ticker");
+                    DAP_DEL_Z(l_params);
+                    return -92;
+                }
 				dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
                 strcpy((char *)l_tsd_section.ticker_token_from, l_params->ext.delegated_token_from);
 //				l_tsd_section.token_from = dap_hash_fast();
@@ -5183,7 +4965,7 @@ int com_token_emit(int a_argc, char **a_argv, void ** reply)
         return -1;
     }
 
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc,a_argv,a_str_reply,NULL, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc,a_argv,a_str_reply,NULL, &l_net, CHAIN_TYPE_INVALID);
     if( ! l_net) { // Can't find such network
         return -43;
     }
@@ -6107,7 +5889,8 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, void ** reply)
     dap_chain_t * l_chain = NULL;
 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc, a_argv, a_str_reply, &l_chain, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc, a_argv, a_str_reply, &l_chain, &l_net,
+                                                  CHAIN_TYPE_CA);
 
     dap_cert_t * l_cert = dap_cert_find_by_name( l_ca_name );
     if( l_cert == NULL ){
@@ -7138,6 +6921,7 @@ int com_tx_create(int a_argc, char **a_argv, void ** reply)
 
     if(!l_wallet) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_from_wallet_name);
+        DAP_DELETE(l_addr_to);
         return -9;
     } else
         dap_string_append(l_string_ret, dap_chain_wallet_check_sign(l_wallet));
@@ -7145,8 +6929,17 @@ int com_tx_create(int a_argc, char **a_argv, void ** reply)
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
     if(!addr_from) {
+        dap_chain_wallet_close(l_wallet);
+        DAP_DELETE(l_addr_to);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "source address is invalid");
         return -10;
+    }
+
+    if (addr_from && dap_chain_addr_compare(l_addr_to, addr_from)) {
+        dap_chain_wallet_close(l_wallet);
+        DAP_DELETE(l_addr_to);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "The transaction cannot be directed to the same address as the source.");
+        return -16;
     }
 
     if (l_addr_to->net_id.uint64 != l_net->pub.id.uint64 && !dap_chain_addr_is_blank(l_addr_to)) {
@@ -7220,7 +7013,7 @@ int com_tx_verify(int a_argc, char **a_argv, void ** reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_verify requires parameter '-tx'");
         return -1;
     }
-    dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net, CHAIN_TYPE_TX);
     if (!l_net || !l_chain) {
         return -2;
     } else if (a_str_reply && *a_str_reply) {
@@ -7299,6 +7092,8 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
     const char *l_tx_srv_str = NULL;
     const char *l_tx_act_str = NULL;
     const char *l_tx_action_str = NULL;
+    const char *l_limit_str = NULL;
+    const char *l_offset_str = NULL;
 
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
@@ -7379,12 +7174,12 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
         } else
             l_net = dap_chain_net_by_id(l_addr->net_id);
     }
-    const char* l_sign_str = "";
+//    const char* l_sign_str = "";
     if (l_wallet_name) {
         const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
         dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path,NULL);
         if (l_wallet) {
-            l_sign_str = dap_chain_wallet_check_sign(l_wallet);
+//            l_sign_str = dap_chain_wallet_check_sign(l_wallet);
             dap_chain_addr_t *l_addr_tmp = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             if (l_addr) {
                 if (!dap_chain_addr_compare(l_addr, l_addr_tmp)) {
@@ -7449,8 +7244,13 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
         if (!json_obj_summary) {
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;
         }
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
+        size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
+        size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
+        json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_brief, l_hash_out_type, json_obj_summary, 
+                                                                    l_tx_srv_str,l_limit, l_offset, l_action);
 
-        json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_brief, l_hash_out_type, json_obj_summary, l_tx_srv_str, l_action);
         if (!json_arr_history_all) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ALL_ERR,
                                     "something went wrong in tx_history");
