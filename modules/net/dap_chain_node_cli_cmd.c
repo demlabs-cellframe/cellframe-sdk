@@ -4140,8 +4140,8 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
     const char* l_remove_signs = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-new_certs", &l_new_certs_str);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-remove_certs", &l_remove_signs);
-    const char *l_description_token  = NULL;
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-description", &l_description_token);
+    const char *l_description  = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-description", &l_description);
 
     //Added remove signs
     if (l_remove_signs) {
@@ -4181,8 +4181,8 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
         }
         DAP_DEL_Z(l_new_certs);
     }
-    if (l_description_token) {
-        dap_tsd_t *l_desc_token = dap_tsd_create_string(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description_token);
+    if (l_description) {
+        dap_tsd_t *l_desc_token = dap_tsd_create_string(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description);
         l_tsd_list = dap_list_append(l_tsd_list, l_desc_token);
         l_tsd_total_size += dap_tsd_size(l_desc_token);
         a_params->ext.parsed_tsd_size += dap_tsd_size(l_desc_token);

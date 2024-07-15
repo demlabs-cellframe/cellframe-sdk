@@ -114,11 +114,9 @@ typedef struct dap_ledger_token_update_item {
 } dap_ledger_token_update_item_t;
 
 typedef struct dap_ledger_token_item {
-    uint16_t version;
-    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint16_t type;
+    const char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint16_t subtype;
-    dap_chain_datum_token_t * datum_token;
+    dap_chain_datum_token_t *datum_token;
     uint64_t datum_token_size;
 
     uint256_t total_supply;
@@ -145,7 +143,12 @@ typedef struct dap_ledger_token_item {
     size_t             tx_send_allow_size;
     dap_chain_addr_t * tx_send_block;
     size_t             tx_send_block_size;
-    char *description_token;
+    char *description;
+    // For delegated tokens
+    bool is_delegated;
+    const char delegated_from[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint256_t emission_rate;
+
     UT_hash_handle hh;
 } dap_ledger_token_item_t;
 
@@ -1081,8 +1084,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_token_item, byte_t *a_ts
                 ret = DAP_LEDGER_CHECK_INVALID_SIZE;
                 goto ret_n_clear;
             }
-            DAP_DEL_Z(a_token_item->description_token);
-            a_token_item->description_token = strdup((char *)l_tsd->data);
+            DAP_DEL_Z(a_token_item->description);
+            a_token_item->description = strdup((char *)l_tsd->data);
         } break;
 
         // Set signs count value need to emission be valid
@@ -1223,6 +1226,37 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_token_item, byte_t *a_ts
                 DAP_DEL_MULTY(l_new_pkeys, l_new_pkey_hashes);
         } break;
 
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK: {
+            if (l_tsd->size != sizeof(dap_chain_datum_token_tsd_delegate_from_stake_lock_t) &&
+                    l_tsd->size != sizeof(dap_chain_datum_token_tsd_delegate_from_stake_lock_t) + 256 /* Legacy size */) {
+                log_it(L_WARNING, "Wrong DELEGATE_EMISSION_FROM_STAKE_LOCK TSD size %zu, exiting TSD parse", l_tsd_size);
+                ret = DAP_LEDGER_CHECK_INVALID_SIZE;
+                goto ret_n_clear;
+            }
+            const char *l_based_token_ticker = (char*)l_tsd_section->ticker_token_from;
+
+            if (dap_strcmp(dap_chain_datum_token_get_delegated_ticker(l_tpken, l_ticker_str);
+
+            if (NULL == (l_delegated_token = dap_ledger_token_ticker_check(l_ledger, l_delegated_ticker_str))
+                ||	(l_delegated_token->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE)
+                ||	!l_delegated_token->header_native_decl.tsd_total_size
+                ||	NULL == (l_tsd = dap_tsd_find(l_delegated_token->tsd_n_signs,
+                                                  l_delegated_token->header_native_decl.tsd_total_size,
+                                                  DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
+                dap_string_append_printf(output_line, "'%s'", l_delegated_ticker_str);
+                return NO_DELEGATED_TOKEN_ERROR;
+            }
+
+            l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+            if (!l_tsd_section || strcmp(l_ticker_str, (char*)l_tsd_section->ticker_token_from))
+                return TOKEN_ERROR;
+
+            if (!IS_ZERO_256(l_tsd_section->emission_rate)) {
+                MULT_256_COIN(l_tx_out_cond->header.value, l_tsd_section->emission_rate, &l_value_delegated);
+                if (IS_ZERO_256(l_value_delegated))
+                    return COINS_FORMAT_ERROR;
+            }
+        } break;
 
         default:
             log_it(L_ERROR, "Unexpected TSD type %hu", l_tsd->type);
@@ -2115,12 +2149,12 @@ json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, siz
 }
 
 /**
- * @breif dap_ledger_token_auth_signs_valid
+ * @breif dap_ledger_token_get_auth_signs_valid
  * @param a_ledger
  * @param a_token_ticker
  * @return 0 if no ticker found
  */
-size_t dap_ledger_token_auth_signs_valid(dap_ledger_t *a_ledger, const char * a_token_ticker)
+size_t dap_ledger_token_get_auth_signs_valid(dap_ledger_t *a_ledger, const char *a_token_ticker)
 {
     dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, a_token_ticker);
     if (!l_token_item)
@@ -2129,12 +2163,12 @@ size_t dap_ledger_token_auth_signs_valid(dap_ledger_t *a_ledger, const char * a_
 }
 
 /**
- * @breif dap_ledger_token_auth_signs_total
+ * @breif dap_ledger_token_get_auth_signs_total
  * @param a_ledger
  * @param a_token_ticker
  * @return
  */
-size_t dap_ledger_token_auth_signs_total(dap_ledger_t *a_ledger, const char *a_token_ticker)
+size_t dap_ledger_token_get_auth_signs_total(dap_ledger_t *a_ledger, const char *a_token_ticker)
 {
     dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, a_token_ticker);
     if (!l_token_item)
@@ -2148,7 +2182,7 @@ size_t dap_ledger_token_auth_signs_total(dap_ledger_t *a_ledger, const char *a_t
  * @param a_token_ticker
  * @return
  */
-dap_list_t * dap_ledger_token_auth_pkeys_hashes(dap_ledger_t *a_ledger, const char *a_token_ticker)
+dap_list_t *dap_ledger_token_get_auth_pkeys_hashes(dap_ledger_t *a_ledger, const char *a_token_ticker)
 {
     dap_list_t *l_ret = NULL;
     dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, a_token_ticker);
@@ -2158,6 +2192,14 @@ dap_list_t * dap_ledger_token_auth_pkeys_hashes(dap_ledger_t *a_ledger, const ch
     for (size_t i = 0; i < l_token_item->auth_signs_total; i++)
         l_ret = dap_list_append(l_ret, l_token_item->auth_pkey_hashes + i);
     return l_ret;
+}
+
+uint256_t dap_ledger_token_get_emission_rate(dap_ledger_t *a_ledger, const char *a_token_ticker)
+{
+    dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, a_token_ticker);
+    if (!l_token_item || !l_token_item->is_delegated)
+        return uint256_0;
+    return l_token_item->emission_rate;
 }
 
 json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item) {
@@ -2198,8 +2240,8 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item) {
         json_object_object_add(json_obj_datum, "-->Token name", json_object_new_string(a_token_item->ticker));
         json_object_object_add(json_obj_datum, "type", json_object_new_string(l_type_str));
         json_object_object_add(json_obj_datum, "flags", json_object_new_string(s_flag_str_from_code(a_token_item->datum_token->header_native_decl.flags)));
-        json_object_object_add(json_obj_datum, "description", a_token_item->description_token ?
-                               json_object_new_string(a_token_item->description_token) :
+        json_object_object_add(json_obj_datum, "description", a_token_item->description ?
+                               json_object_new_string(a_token_item->description) :
                                json_object_new_string("The token description is not set"));
         json_object_object_add(json_obj_datum, "Supply current", json_object_new_string(l_balance_cur));
         json_object_object_add(json_obj_datum, "Supply total", json_object_new_string(l_balance_total));
@@ -2880,7 +2922,6 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
         case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:{
             dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_emission->hdr.ticker);
             if (l_token_item) {
-                assert(l_token_item->datum_token);
                 dap_sign_t *l_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
                 size_t l_offset = (byte_t *)l_sign - (byte_t *)l_emission;
                 uint16_t l_aproves = 0, l_aproves_valid = l_token_item->auth_signs_valid;
@@ -3306,7 +3347,7 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
 const char *dap_ledger_get_description_by_ticker(dap_ledger_t *a_ledger, const char *a_token_ticker){
     if (!a_ledger || !a_token_ticker)
         return NULL;
-    return s_ledger_find_token(a_ledger, a_token_ticker)->description_token;
+    return s_ledger_find_token(a_ledger, a_token_ticker)->description;
 }
 
 /**
@@ -3760,31 +3801,26 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
                     break;
                 }
-                dap_tsd_t *l_tsd;
+
                 dap_ledger_token_item_t *l_delegated_item = s_ledger_find_token(a_ledger, l_token);
                 if (!l_delegated_item) {
                     debug_if(s_debug_more, L_WARNING, "Token [%s] not found", l_token);
                     l_err_num = DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
                     break;
                 }
-                dap_chain_datum_token_t *l_datum_token = l_delegated_item->datum_token;
-                if (l_datum_token->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE ||
-                        !(l_tsd = dap_tsd_find(l_datum_token->tsd_n_signs,
-                                                  l_datum_token->header_native_decl.tsd_total_size,
-                                                  DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
+                if (!l_delegated_item->is_delegated) {
                     debug_if(s_debug_more, L_WARNING, "Token [%s] not valid for stake_lock transaction", l_token);
                     l_err_num = DAP_LEDGER_TX_CHECK_STAKE_LOCK_INVALID_TOKEN;
                     break;
                 }
-                dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
-                if (!dap_ledger_token_ticker_check(a_ledger, (char*)l_tsd_section->ticker_token_from)) {
-                    debug_if(s_debug_more, L_WARNING, "Token [%s] not found", l_tsd_section->ticker_token_from);
+                if (!dap_ledger_token_ticker_check(a_ledger, l_delegated_item->delegated_from)) {
+                    debug_if(s_debug_more, L_WARNING, "Token [%s] not found", l_delegated_item->delegated_from);
                     l_err_num = DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
                     break;
                 }
 
                 if (l_girdled_ems)
-                    l_main_ticker = (const char *)l_tsd_section->ticker_token_from;
+                    l_main_ticker = l_delegated_item->delegated_from;
 
                 dap_chain_tx_out_cond_t *l_tx_stake_lock_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_stake_lock, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, NULL);
                 if (!l_tx_stake_lock_out_cond) {
@@ -3793,14 +3829,13 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     break;
                 }
                 uint256_t l_value_expected ={};
-                if (MULT_256_COIN(l_tx_stake_lock_out_cond->header.value, l_tsd_section->emission_rate, &l_value_expected)!=0){
-                    if(s_debug_more){
-                        char * l_emission_rate_str = dap_chain_balance_print(l_tsd_section->emission_rate);
-                        char * l_locked_value_str = dap_chain_balance_print(l_tx_stake_lock_out_cond->header.value);
-                        log_it( L_WARNING, "Multiplication overflow for %s emission: locked value %s emission rate %s"
-                        , l_tx_in_ems->header.ticker, l_locked_value_str, l_emission_rate_str);
+                if (MULT_256_COIN(l_tx_stake_lock_out_cond->header.value, l_delegated_item->emission_rate, &l_value_expected)) {
+                    if (s_debug_more) {
+                        char *l_emission_rate_str = dap_chain_balance_to_coins(l_delegated_item->emission_rate);
+                        const char *l_locked_value_str; dap_uint256_to_char(l_tx_stake_lock_out_cond->header.value, &l_locked_value_str);
+                        log_it( L_WARNING, "Multiplication overflow for %s emission: locked value %s emission rate %s",
+                                                                l_tx_in_ems->header.ticker, l_locked_value_str, l_emission_rate_str);
                         DAP_DEL_Z(l_emission_rate_str);
-                        DAP_DEL_Z(l_locked_value_str);
                     }
                     l_err_num = DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
                     break;
@@ -3857,7 +3892,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                         l_err_num = DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
                         break;
                     }
-                    if (strcmp(l_tx_ticker, (char *)l_tsd_section->ticker_token_from)) {
+                    if (strcmp(l_tx_ticker, l_delegated_item->delegated_from)) {
                         debug_if(s_debug_more, L_WARNING, "Ticker '%s' != expected '%s'", l_tx_ticker, l_tx_in_ems->header.ticker);
                         l_err_num = DAP_LEDGER_TX_CHECK_STAKE_LOCK_OTHER_TICKER_EXPECTED;
                         break;

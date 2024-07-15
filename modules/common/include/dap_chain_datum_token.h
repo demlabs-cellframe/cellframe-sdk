@@ -130,10 +130,9 @@ typedef struct dap_chain_datum_token {
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 
 typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
-    byte_t			ticker_token_from[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint256_t		emission_rate;	// In "coins", 1^18 == 1.0
-    uint32_t		flags;			// Some emission flags for future
-    byte_t			padding[256];	// Some free space for future
+    byte_t      ticker_token_from[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint256_t   emission_rate;  // In "coins", 1^18 == 1.0
+    byte_t      padding[4];     // Some free space for future
 } DAP_ALIGN_PACKED dap_chain_datum_token_tsd_delegate_from_stake_lock_t;
 
 // Old token declaration & update types
