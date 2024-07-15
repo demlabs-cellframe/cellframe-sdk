@@ -919,10 +919,12 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     switch (cmd_num)
     {    
     case CMD_ADD: {
+        int l_res = -10;
         if (l_addr_str && dap_chain_net_is_my_node_authorized(l_net)) {
             // We're in authorized list, add directly
             uint16_t l_port = 0;
-            if (dap_net_parse_hostname(l_hostname, l_node_info->ext_host, &l_port)) {
+            struct sockaddr_storage l_verifier = { };
+            if ( 0 > dap_net_parse_config_address(l_hostname, l_node_info->ext_host, &l_port, &l_verifier, NULL) ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't parse host string %s", l_hostname);
                 return -6;
             }
@@ -935,27 +937,31 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                 }
             }
             l_node_info->ext_host_len = dap_strlen(l_node_info->ext_host);
-            int l_res = dap_chain_node_info_save(l_net, l_node_info);
+            l_res = dap_chain_node_info_save(l_net, l_node_info);
             if (l_res)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add node %s, error %d", l_addr_str, l_res);
             else
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully added node %s", l_addr_str);
-            return l_res;
-        }
-        // Synchronous request, wait for reply
-        int l_res = dap_chain_net_node_list_request(l_net,
-            l_port_str ? strtoul(l_port_str, NULL, 10) : dap_chain_net_get_my_node_info(l_net)->ext_port,
-            true, 'a');
-        switch (l_res)
-        {
-            case 1: dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully added"); return 0;
-            case 2: dap_cli_server_cmd_set_reply_text(a_str_reply, "No server"); break;
-            case 3: dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your address node to node list"); break;
-            case 4: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr"); break;
-            case 5: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node"); break;
-            case 6: dap_cli_server_cmd_set_reply_text(a_str_reply, "The node already exists"); break;
-            case 7: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request"); break;
-            default:dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res); break;
+        } else if (l_hostname) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
+        } else if (l_addr_str) {
+            // Synchronous request, wait for reply
+            l_res = dap_chain_net_node_list_request(l_net,
+                l_port_str ? strtoul(l_port_str, NULL, 10) : dap_chain_net_get_my_node_info(l_net)->ext_port,
+                true, 'a');
+            switch (l_res)
+            {
+                case 1: dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully added"); return 0;
+                case 2: dap_cli_server_cmd_set_reply_text(a_str_reply, "No server"); break;
+                case 3: dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your address node to node list"); break;
+                case 4: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr"); break;
+                case 5: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node"); break;
+                case 6: dap_cli_server_cmd_set_reply_text(a_str_reply, "The node already exists"); break;
+                case 7: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request"); break;
+                default:dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res); break;
+            }
+        } else {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "node add requires parameter '-addr'");
         }
         return l_res;
     }
@@ -2082,7 +2088,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         l_sign_types[0] = dap_sign_type_from_str(l_sign_type_str);
                         if (l_sign_types[0].type == SIG_TYPE_NULL){
                             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
-                                                   "Unknown signature type, please use:\n sig_picnic\n sig_dil\n sig_falcon\n sig_multi\n sig_multi2\n",l_wallet_name);
+                                                   "'%s' unknown signature type, please use:\n%s",
+                                                   l_sign_type_str, dap_sign_get_str_recommended_types());
                             json_object_put(json_arr_out);
                             return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR;
                         }
@@ -2098,7 +2105,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             }
                             if (!l_sign_count) {
                                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
-                                                   "Unknown signature type, please use:\n sig_picnic\n sig_dil\n sig_falcon\n sig_multi\n sig_multi2\n",l_wallet_name);
+                                                      "'%s' unknown signature type, please use:\n%s",
+                                                      l_sign_type_str, dap_sign_get_str_recommended_types());
                                 json_object_put(json_arr_out);
                                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR;
                             }
@@ -2109,7 +2117,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     // Check unsupported tesla and bliss algorithm
 
                     for (size_t i = 0; i < l_sign_count; ++i) {
-                        if (l_sign_types[i].type == SIG_TYPE_TESLA || l_sign_types[i].type == SIG_TYPE_BLISS|| l_sign_types[i].type == SIG_TYPE_PICNIC) {
+                        if (dap_sign_type_is_depricated(l_sign_types[i])) {
                             if (l_restore_opt || l_restore_legacy_opt) {
                                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
                                                    "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss, Tesla and Picnic signatures are deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");

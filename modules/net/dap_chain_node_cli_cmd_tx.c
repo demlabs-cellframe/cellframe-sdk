@@ -659,6 +659,9 @@ size_t datums = 0;
         if (json_object_array_length(j_arr_data) > 0) {
             json_object_object_add(j_obj_tx, "data", j_arr_data);
             json_object_array_add(json_obj_datum, j_obj_tx);
+        } else {
+            json_object_put(j_arr_data);
+            json_object_put(j_obj_tx);
         }
         dap_list_free(l_list_out_items);
         if (l_is_need_correction && l_corr_object) {
