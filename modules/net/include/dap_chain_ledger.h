@@ -61,6 +61,7 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_CHECK_TICKER_NOT_FOUND,
     DAP_LEDGER_CHECK_ZERO_VALUE,
     DAP_LEDGER_CHECK_ADDR_FORBIDDEN,
+    DAP_LEDGER_CHECK_WHITELISTED,
     /* TX check return codes */
     DAP_LEDGER_TX_CHECK_IN_EMS_ALREADY_USED,
     DAP_LEDGER_TX_CHECK_STAKE_LOCK_IN_EMS_ALREADY_USED,
@@ -96,7 +97,8 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH,
-    DAP_LEDGER_TOKEN_ADD_CHECK_PKEY_MISMATCH
+    DAP_LEDGER_TOKEN_ADD_CHECK_TSD_PKEY_MISMATCH,
+    DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN
 } dap_ledger_check_error_t;
 
 DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_t a_error)
@@ -114,6 +116,7 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_CHECK_TICKER_NOT_FOUND: return "Can't find specified token ticker";
     case DAP_LEDGER_CHECK_ZERO_VALUE: return "Unacceptable zero value";
     case DAP_LEDGER_CHECK_ADDR_FORBIDDEN: return "Specified address is forbidden";
+    case DAP_LEDGER_CHECK_WHITELISTED: return "Datum is in hard accept list";
     /* TX check return codes */
     case DAP_LEDGER_TX_CHECK_IN_EMS_ALREADY_USED: return "Double spend attempt for emission";
     case DAP_LEDGER_TX_CHECK_STAKE_LOCK_IN_EMS_ALREADY_USED: return "Double spend attempt for stake-lock emission";
@@ -149,7 +152,8 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY: return "Specified supply must be greater than current one";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR: return "Specified address has invalid format";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH: return "Specified address can't be processed cause double (for adding) or absent (for removing)";
-    case DAP_LEDGER_TOKEN_ADD_CHECK_PKEY_MISMATCH: return "Specified public key or its hash can't be processed cause double (for adding) or absent (for removing)";
+    case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_PKEY_MISMATCH: return "Specified public key or its hash can't be processed cause double (for adding) or absent (for removing)";
+    case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN: return "Specified TSD section type is not allowed in token decalration datum";
     default: return "Unknown error";
     }
 }
