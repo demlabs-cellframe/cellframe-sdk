@@ -585,27 +585,30 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net) {
         json_object *l_jobj_chain = json_object_new_object();
         json_object *l_jobj_chain_status = NULL;
         json_object *l_jobj_percent = NULL;
-        if (PVT(a_net)->state == NET_STATE_OFFLINE) {
-            l_jobj_chain_status = json_object_new_string("not synced");
-            l_jobj_percent = json_object_new_string(" - %");
-        } else if (PVT(a_net)->state == NET_STATE_ONLINE) {
-            l_jobj_chain_status = json_object_new_string("synced");
-            l_jobj_percent = json_object_new_string(" - %");
-        } else {
-            if (PVT(a_net)->sync_context.cur_chain && PVT(a_net)->sync_context.cur_chain->id.uint64 == l_chain->id.uint64) {
-                l_jobj_chain_status = json_object_new_string("sync in process");
-                double l_percent = l_chain->callback_count_atom(l_chain) ?
+        double l_percent = l_chain->callback_count_atom(l_chain) ?
                                    (double) (l_chain->callback_count_atom(l_chain) * 100) / l_chain->atom_num_last : 0;
-                if (l_percent > 100)
-                    l_percent = 100;
-                char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
-                l_jobj_percent = json_object_new_string(l_percent_str);
-                DAP_DELETE(l_percent_str);
-            } else {
+        if (l_percent > 100)
+            l_percent = 100;
+        char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
+        switch (PVT(a_net)->state) {
+            case NET_STATE_OFFLINE:
+            case NET_STATE_LINKS_PREPARE:
+            case NET_STATE_LINKS_ESTABLISHED:
+            case NET_STATE_LINKS_CONNECTING:
                 l_jobj_chain_status = json_object_new_string("not synced");
                 l_jobj_percent = json_object_new_string(" - %");
-            }
+                break;
+            case NET_STATE_SYNC_CHAINS:
+                l_jobj_chain_status = PVT(a_net)->sync_context.cur_chain->id.uint64 == l_chain->id.uint64 ?
+                        json_object_new_string("sync in process") : json_object_new_string("not synced");
+                l_jobj_percent = json_object_new_string(l_percent_str);
+                break;
+            case NET_STATE_ONLINE:
+                l_jobj_chain_status = json_object_new_string("synced");
+                l_jobj_percent = json_object_new_string(l_percent_str);
+                break;
         }
+        DAP_DELETE(l_percent_str);
         json_object *l_jobj_current = json_object_new_uint64(l_chain->callback_count_atom(l_chain));
         json_object *l_jobj_total = json_object_new_uint64(l_chain->atom_num_last);
         json_object_object_add(l_jobj_chain, "status", l_jobj_chain_status);
@@ -2396,6 +2399,8 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                                            a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
     dap_chain_net_t *l_net = a_arg;
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    if (l_net_pvt->state == NET_STATE_LINKS_ESTABLISHED)
+        l_net_pvt->state = NET_STATE_SYNC_CHAINS;
 
     switch (a_type) {
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY:
