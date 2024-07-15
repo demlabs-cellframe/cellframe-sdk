@@ -256,15 +256,14 @@ cleanup:
     return;
 }
 
-void dap_dns_server_start(char *a_port)
+void dap_dns_server_start(const char *a_cfg_section)
 {
-// memory alloc
     DAP_NEW_Z_RET(s_dns_server, dap_dns_server_t, NULL);
-    dap_events_socket_callbacks_t l_cb = {};
-    l_cb.read_callback = dap_dns_client_read;
-    s_dns_server->instance = dap_server_new(&a_port, 1, DAP_SERVER_UDP, &l_cb);
+    dap_events_socket_callbacks_t l_cb = { .read_callback = dap_dns_client_read };
+    s_dns_server->instance = dap_server_new(a_cfg_section, NULL, &l_cb);
     if (!s_dns_server->instance) {
         log_it(L_ERROR, "Can't start DNS server");
+        DAP_DELETE(s_dns_server);
         return;
     }
     dap_dns_zone_register(&s_root_alias[0], dap_chain_net_balancer_dns_issue_link);  // root resolver
