@@ -590,8 +590,8 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
         if (l_percent > 100)
             l_percent = 100;
         char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
-        dap_chain_net_state_t l_state_current = PVT(a_net)->state;
-        switch (l_state_current) {
+        dap_chain_net_state_t l_state = PVT(a_net)->state;
+        switch (l_state) {
             case NET_STATE_OFFLINE:
             case NET_STATE_LINKS_PREPARE:
             case NET_STATE_LINKS_ESTABLISHED:
@@ -599,14 +599,23 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
                 l_jobj_chain_status = json_object_new_string("not synced");
                 l_jobj_percent = json_object_new_string(" - %");
                 break;
-            case NET_STATE_SYNC_CHAINS:
-                l_jobj_chain_status = PVT(a_net)->sync_context.cur_chain->id.uint64 == l_chain->id.uint64 ?
-                        json_object_new_string("sync in process") : json_object_new_string("not synced");
-                l_jobj_percent = json_object_new_string(l_percent_str);
-                break;
             case NET_STATE_ONLINE:
                 l_jobj_chain_status = json_object_new_string("synced");
                 l_jobj_percent = json_object_new_string(l_percent_str);
+                break;
+            case NET_STATE_SYNC_CHAINS:
+                if (PVT(a_net)->sync_context.cur_chain && PVT(a_net)->sync_context.cur_chain->id.uint64 == l_chain->id.uint64) {
+                    l_jobj_chain_status = json_object_new_string("sync in process");
+                    l_jobj_percent = json_object_new_string(l_percent_str);
+                } else {
+                    if (l_chain->atom_num_last == l_chain->callback_count_atom(l_chain)) {
+                        l_jobj_chain_status = json_object_new_string("synced");
+                        l_jobj_percent = json_object_new_string(l_percent_str);
+                    } else {
+                        l_jobj_chain_status = json_object_new_string("not synced");
+                        l_jobj_percent = json_object_new_string(" - %");
+                    }
+                }
                 break;
         }
         DAP_DELETE(l_percent_str);
@@ -614,7 +623,7 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
         json_object *l_jobj_total = json_object_new_uint64(l_chain->atom_num_last);
         json_object_object_add(l_jobj_chain, "status", l_jobj_chain_status);
         json_object_object_add(l_jobj_chain, "current", l_jobj_current);
-        json_object_object_add(l_jobj_chain, "total", l_jobj_total);
+        json_object_object_add(l_jobj_chain, "in network", l_jobj_total);
         json_object_object_add(l_jobj_chain, "percent", l_jobj_percent);
         json_object_object_add(l_jobj_chains_array, l_chain->name, l_jobj_chain);
 
@@ -1937,8 +1946,8 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     char **l_permanent_links_hosts = dap_config_get_array_str(l_cfg, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
     for (i = 0, e = 0; i < dap_min(l_permalink_hosts_count, l_net_pvt->permanent_links_count); ++i) {
         char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' }; uint16_t l_port = 0;
-        struct sockaddr_storage l_saddr;        
-        if ( dap_net_parse_config_address(l_permanent_links_hosts[i], l_host, &l_port, NULL, NULL) < 0 
+        struct sockaddr_storage l_saddr;
+        if ( dap_net_parse_config_address(l_permanent_links_hosts[i], l_host, &l_port, NULL, NULL) < 0
             || dap_net_resolve_host(l_host, dap_itoa(l_port), false, &l_saddr, NULL) < 0 )
         {
             log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config"
@@ -1951,8 +1960,8 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         dap_strncpy(l_net_pvt->permanent_links[i]->uplink_addr, l_host, DAP_HOSTADDR_STRLEN);
     }
     if ( i && (e == i) ) {
-        log_it(L_ERROR, "%d / %d permanent links are invalid or can't be accessed, fix \"%s\"" 
-                        "network config or check internet connection and restart node", 
+        log_it(L_ERROR, "%d / %d permanent links are invalid or can't be accessed, fix \"%s\""
+                        "network config or check internet connection and restart node",
                         e, i, a_net_name);
         dap_chain_net_delete(l_net);
         dap_config_close(l_cfg);
@@ -1988,7 +1997,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     for (i = 0, e = 0; i < l_net_pvt->seed_nodes_count; ++i) {
         char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' }; uint16_t l_port = 0;
         struct sockaddr_storage l_saddr;
-        if ( dap_net_parse_config_address(l_seed_nodes_hosts[i], l_host, &l_port, NULL, NULL) < 0 
+        if ( dap_net_parse_config_address(l_seed_nodes_hosts[i], l_host, &l_port, NULL, NULL) < 0
             || dap_net_resolve_host(l_host, dap_itoa(l_port), false, &l_saddr, NULL) < 0)
         {
             log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config"
@@ -2008,8 +2017,8 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         dap_strncpy(l_net_pvt->seed_nodes_info[i]->addr, l_host, DAP_HOSTADDR_STRLEN);
     }
     if ( i && (e == i) ) {
-        log_it(L_ERROR, "%d / %d seed links are invalid or can't be accessed, fix \"%s\"" 
-                        "network config or check internet connection and restart node", 
+        log_it(L_ERROR, "%d / %d seed links are invalid or can't be accessed, fix \"%s\""
+                        "network config or check internet connection and restart node",
                         e, i, a_net_name);
         dap_chain_net_delete(l_net);
         dap_config_close(l_cfg);
@@ -2188,7 +2197,7 @@ bool s_net_load(void *a_arg)
             //dap_chain_save_all( l_chain );
             log_it (L_NOTICE, "Initialized chain files");
         }
-        l_chain->atom_num_last = l_chain->callback_count_atom(l_chain);
+        l_chain->atom_num_last = 0;
         l_chain = l_chain->next;
     }
     // Process thresholds if any
