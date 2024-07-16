@@ -50,7 +50,7 @@ if (CELLFRAME_MODULES MATCHES "cs-dag-poa")
 endif()
 
 # Consensus type blocks
-if (CELLFRAME_MODULES MATCHES "cs-block-")
+if (CELLFRAME_MODULES MATCHES "cs-block-" OR CELLFRAME_MODULES MATCHES "cs-esbocs")
     add_subdirectory(type/blocks)
 endif()
 
