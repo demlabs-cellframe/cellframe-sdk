@@ -970,6 +970,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN: {
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
+        l_chain->atom_num_last = l_chain->callback_count_atom(l_chain);
         log_it(L_INFO, "In: SYNCED_CHAIN %s for net %s from source " NODE_ADDR_FP_STR,
                     l_chain ? l_chain->name : "(null)",
                                 l_chain ? l_chain->net_name : "(null)",
