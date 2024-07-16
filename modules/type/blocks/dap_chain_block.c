@@ -371,7 +371,7 @@ bool dap_chain_block_sign_match_pkey(const dap_chain_block_t *a_block, size_t a_
             log_it(L_WARNING, "Empty or corrupted sign");
             return false;
         }
-        if (dap_pkey_match_sign(a_sign_pkey, l_sign))
+        if (dap_pkey_compare_with_sign(a_sign_pkey, l_sign))
             return true;
         l_offset += l_sign_size;
     }

@@ -316,7 +316,7 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     size_t l_data_size = dap_chain_datum_decree_get_size(a_decree);
 
     if ((ret_val = s_decree_verify(l_net, a_decree, l_data_size, a_decree_hash, true)) != 0) {
-        log_it(L_ERROR, "Decree verification failed!");
+        //log_it(L_ERROR, "Decree verification failed!");
         return ret_val;
     }
 
