@@ -54,17 +54,7 @@ if (CELLFRAME_MODULES MATCHES "cs-block-")
     add_subdirectory(type/blocks)
 endif()
 
-# Block PoA
-if (CELLFRAME_MODULES MATCHES "cs-block-poa")
-    add_subdirectory(consensus/block-poa)
-endif()
-
-# Block PoS
-if (CELLFRAME_MODULES MATCHES "cs-block-pos")
-    add_subdirectory(consensus/block-pos)
-endif()
-
-# Block TON
+# ESBOCS
 if (CELLFRAME_MODULES MATCHES "cs-esbocs")
     add_subdirectory(consensus/esbocs)
 endif()
