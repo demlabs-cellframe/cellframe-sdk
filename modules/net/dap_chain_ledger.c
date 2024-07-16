@@ -1341,6 +1341,8 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     if (!l_token)
         return DAP_LEDGER_CHECK_INVALID_SIZE;
 
+    if (!dap_strcmp(l_token->ticker, "CELL"))
+        log_it(L_ATT, "Wonna na!");
     if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE && l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_DECL) {
         log_it(L_WARNING, "Unknown token type %hu", l_token->type);
         DAP_DELETE(l_token);
@@ -2723,7 +2725,6 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
                         return NULL;
                     }
                     dap_chain_hash_fast_from_str(l_whitelist[i], &l_hal_item->hash);
-                    debug_if(s_debug_more, L_ATT, "Added hash %s to ledger HAL", l_whitelist[i]);
                     HASH_ADD(hh, s_hal_items, hash, sizeof(l_hal_item->hash), l_hal_item);
                 }
                 dap_config_close(l_cfg);
@@ -2835,21 +2836,15 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
     pthread_rwlock_unlock(l_token_item ? &l_token_item->token_emissions_rwlock
                                        : &l_ledger_pvt->threshold_emissions_rwlock);
     if (l_token_emission_item) {
-        if(s_debug_more) {
-            char l_token_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-            dap_chain_hash_fast_to_str(a_emission_hash, l_token_hash_str, sizeof(l_token_hash_str));
-            if ( l_token_emission_item->datum_token_emission->hdr.version >= 2 ) {
-                log_it(L_ERROR, "Can't add token emission datum of %s %s ( %s ): already present in cache",
-                        dap_uint256_to_char(l_token_emission_item->datum_token_emission->hdr.value, NULL),
-                         l_token_ticker, l_token_hash_str);
-            } else
-                log_it(L_ERROR, "Can't add token emission datum of %"DAP_UINT64_FORMAT_U" %s ( %s ): already present in cache",
-                    l_token_emission_item->datum_token_emission->hdr.value64, l_token_ticker, l_token_hash_str);
-        }
+        debug_if(s_debug_more, L_ERROR, "Can't add token emission datum of %s %s ( %s ): already present in cache",
+                                    dap_uint256_to_char(l_token_emission_item->datum_token_emission->hdr.version >= 2
+                                                        ? l_token_emission_item->datum_token_emission->hdr.value
+                                                        : GET_256_FROM_64(l_token_emission_item->datum_token_emission->hdr.value64),
+                                                        NULL),
+                                    l_token_ticker, dap_chain_hash_fast_to_str_static(a_emission_hash));
         l_ret = DAP_LEDGER_CHECK_ALREADY_CACHED;
-    }else if ( (! l_token_item) && ( l_threshold_emissions_count >= s_threshold_emissions_max)) {
-        if(s_debug_more)
-            log_it(L_WARNING,"Emissions threshold overflow, max %zu items", s_threshold_emissions_max);
+    } else if ( (! l_token_item) && ( l_threshold_emissions_count >= s_threshold_emissions_max)) {
+        debug_if(s_debug_more, L_WARNING, "Emissions threshold overflow, max %zu items", s_threshold_emissions_max);
         l_ret = DAP_LEDGER_EMISSION_CHECK_THRESHOLD_OVERFLOW;
     }
     if (l_ret || !PVT(a_ledger)->check_token_emission)
@@ -2889,6 +2884,10 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
     }
     switch (l_emission->hdr.type){
         case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:{
+            dap_hash_fast_t l_hash_need;
+            dap_chain_hash_fast_from_hex_str("0x88A8537B6FC85D43BE1142C06C85D68BB80B8F978346443F77CA1BFD211435C5", &l_hash_need);
+            if (dap_hash_fast_compare(&l_hash_need, a_emission_hash))
+                log_it(L_ATT, "Wonna na!");
             dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_emission->hdr.ticker);
             if (l_token_item) {
                 dap_sign_t *l_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
@@ -2911,7 +2910,7 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
                         // Find pkey in auth hashes
                         for (uint16_t k=0; k< l_token_item->auth_signs_total; k++) {
                             if (dap_hash_fast_compare(&l_sign_pkey_hash, &l_token_item->auth_pkey_hashes[k])) {
-                                // Verify if its token emission header signed
+                                // Verify if token emission header is signed
                                 if (!dap_sign_verify(l_sign, l_emi_ptr_check_size, l_sign_data_check_size)) {
                                     l_aproves++;
                                     break;
