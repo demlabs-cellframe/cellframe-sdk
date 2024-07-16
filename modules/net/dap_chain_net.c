@@ -590,7 +590,8 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net) {
         if (l_percent > 100)
             l_percent = 100;
         char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
-        switch (PVT(a_net)->state) {
+        dap_chain_net_state_t l_state = PVT(a_net)->state;
+        switch (l_state) {
             case NET_STATE_OFFLINE:
             case NET_STATE_LINKS_PREPARE:
             case NET_STATE_LINKS_ESTABLISHED:
