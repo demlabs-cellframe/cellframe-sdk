@@ -98,7 +98,8 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_PKEY_MISMATCH,
-    DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN
+    DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN,
+    DAP_LEDGER_TOKEN_ADD_CHECK_TSD_OTHER_TICKER_EXPECTED
 } dap_ledger_check_error_t;
 
 DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_t a_error)
@@ -153,7 +154,8 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR: return "Specified address has invalid format";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH: return "Specified address can't be processed cause double (for adding) or absent (for removing)";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_PKEY_MISMATCH: return "Specified public key or its hash can't be processed cause double (for adding) or absent (for removing)";
-    case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN: return "Specified TSD section type is not allowed in token decalration datum";
+    case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN: return "Specified TSD section type is not allowed in datum token of specified type";
+    case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_OTHER_TICKER_EXPECTED: return "Incorrect token ticker for delegated token";
     default: return "Unknown error";
     }
 }
