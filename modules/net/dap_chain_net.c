@@ -317,12 +317,9 @@ int dap_chain_net_init()
             s_net_init(l_dir_entry->d_name, l_acl_idx++);
         }
         closedir(l_net_dir);
-    }else{
-        int l_errno = errno;
-        char l_errbuf[128];
-        l_errbuf[0] = 0;
-        strerror_r(l_errno,l_errbuf,sizeof (l_errbuf));
-        log_it(L_WARNING,"Can't open entries on path %s: \"%s\" (code %d)", l_net_dir_str, l_errbuf, l_errno);
+    } else {
+        log_it(L_WARNING, "Can't open entries on path %s, error %d: \"%s\"",
+                           l_net_dir_str, errno, dap_strerror(errno));
     }
     DAP_DELETE (l_net_dir_str);
 
@@ -588,27 +585,31 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
         json_object *l_jobj_chain = json_object_new_object();
         json_object *l_jobj_chain_status = NULL;
         json_object *l_jobj_percent = NULL;
-        if (PVT(a_net)->state == NET_STATE_OFFLINE) {
-            l_jobj_chain_status = json_object_new_string("not synced");
-            l_jobj_percent = json_object_new_string(" - %");
-        } else if (PVT(a_net)->state == NET_STATE_ONLINE) {
-            l_jobj_chain_status = json_object_new_string("synced");
-            l_jobj_percent = json_object_new_string(" - %");
-        } else {
-            if (PVT(a_net)->sync_context.cur_chain && PVT(a_net)->sync_context.cur_chain->id.uint64 == l_chain->id.uint64) {
-                l_jobj_chain_status = json_object_new_string("sync in process");
-                double l_percent = l_chain->callback_count_atom(l_chain) ?
+        double l_percent = l_chain->callback_count_atom(l_chain) ?
                                    (double) (l_chain->callback_count_atom(l_chain) * 100) / l_chain->atom_num_last : 0;
-                if (l_percent > 100)
-                    l_percent = 100;
-                char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
-                l_jobj_percent = json_object_new_string(l_percent_str);
-                DAP_DELETE(l_percent_str);
-            } else {
+        if (l_percent > 100)
+            l_percent = 100;
+        char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
+        dap_chain_net_state_t l_state_current = PVT(a_net)->state;
+        switch (l_state_current) {
+            case NET_STATE_OFFLINE:
+            case NET_STATE_LINKS_PREPARE:
+            case NET_STATE_LINKS_ESTABLISHED:
+            case NET_STATE_LINKS_CONNECTING:
                 l_jobj_chain_status = json_object_new_string("not synced");
                 l_jobj_percent = json_object_new_string(" - %");
-            }
+                break;
+            case NET_STATE_SYNC_CHAINS:
+                l_jobj_chain_status = PVT(a_net)->sync_context.cur_chain->id.uint64 == l_chain->id.uint64 ?
+                        json_object_new_string("sync in process") : json_object_new_string("not synced");
+                l_jobj_percent = json_object_new_string(l_percent_str);
+                break;
+            case NET_STATE_ONLINE:
+                l_jobj_chain_status = json_object_new_string("synced");
+                l_jobj_percent = json_object_new_string(l_percent_str);
+                break;
         }
+        DAP_DELETE(l_percent_str);
         json_object *l_jobj_current = json_object_new_uint64(l_chain->callback_count_atom(l_chain));
         json_object *l_jobj_total = json_object_new_uint64(l_chain->atom_num_last);
         json_object_object_add(l_jobj_chain, "status", l_jobj_chain_status);
@@ -1932,20 +1933,30 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
             return -16;
         }
     }
-    uint16_t l_permalink_hosts_count = 0;
+    uint16_t l_permalink_hosts_count = 0, i, e;
     char **l_permanent_links_hosts = dap_config_get_array_str(l_cfg, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
-    for (uint16_t i = 0; i < dap_min(l_permalink_hosts_count, l_net_pvt->permanent_links_count); ++i) {
-        uint16_t l_port = 0;
-        char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
-        if (dap_net_parse_hostname(l_permanent_links_hosts[i], l_host, &l_port) || !l_port) {
-            log_it(L_ERROR, "Incorrect format of host \"%s\", fix net config or recheck internet connection, and restart node",
-                            l_permanent_links_hosts[i]);
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -16;
+    for (i = 0, e = 0; i < dap_min(l_permalink_hosts_count, l_net_pvt->permanent_links_count); ++i) {
+        char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' }; uint16_t l_port = 0;
+        struct sockaddr_storage l_saddr;        
+        if ( dap_net_parse_config_address(l_permanent_links_hosts[i], l_host, &l_port, NULL, NULL) < 0 
+            || dap_net_resolve_host(l_host, dap_itoa(l_port), false, &l_saddr, NULL) < 0 )
+        {
+            log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config"
+                            "or check internet connection and restart node",
+                            a_net_name, l_permanent_links_hosts[i]);
+            ++e;
+            continue;
         }
         l_net_pvt->permanent_links[i]->uplink_port = l_port;
         dap_strncpy(l_net_pvt->permanent_links[i]->uplink_addr, l_host, DAP_HOSTADDR_STRLEN);
+    }
+    if ( i && (e == i) ) {
+        log_it(L_ERROR, "%d / %d permanent links are invalid or can't be accessed, fix \"%s\"" 
+                        "network config or check internet connection and restart node", 
+                        e, i, a_net_name);
+        dap_chain_net_delete(l_net);
+        dap_config_close(l_cfg);
+        return -16;
     }
 
     char **l_authorized_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "authorized_nodes_addrs", &l_net_pvt->authorized_nodes_count);
@@ -1953,7 +1964,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         log_it(L_WARNING, "Can't read PoA nodes addresses");
     else
         l_net_pvt->authorized_nodes_addrs = DAP_NEW_Z_COUNT(dap_chain_node_addr_t, l_net_pvt->authorized_nodes_count);
-    for (uint16_t i = 0; i < l_net_pvt->authorized_nodes_count; ++i) {
+    for (i = 0; i < l_net_pvt->authorized_nodes_count; ++i) {
         dap_chain_node_addr_t l_addr;
         if (dap_stream_node_addr_from_str(&l_addr, l_authorized_nodes_addrs[i])) {
             log_it(L_ERROR, "Incorrect format of node address \"%s\", fix net config and restart node", l_authorized_nodes_addrs[i]);
@@ -1974,15 +1985,17 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         dap_config_close(l_cfg);
         return -4;
     }
-    for (uint16_t i = 0; i < l_net_pvt->seed_nodes_count; ++i) {
-        uint16_t l_port = 0;
-        char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
-        if (dap_net_parse_hostname(l_seed_nodes_hosts[i], l_host, &l_port) || !l_port) {
-            log_it(L_ERROR, "Incorrect format of host \"%s\", fix net config or recheck internet connection, and restart node",
-                            l_seed_nodes_hosts[i]);
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -16;
+    for (i = 0, e = 0; i < l_net_pvt->seed_nodes_count; ++i) {
+        char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' }; uint16_t l_port = 0;
+        struct sockaddr_storage l_saddr;
+        if ( dap_net_parse_config_address(l_seed_nodes_hosts[i], l_host, &l_port, NULL, NULL) < 0 
+            || dap_net_resolve_host(l_host, dap_itoa(l_port), false, &l_saddr, NULL) < 0)
+        {
+            log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config"
+                            "or check internet connection and restart node",
+                            a_net_name, l_seed_nodes_hosts[i]);
+            ++e;
+            continue;
         }
         l_net_pvt->seed_nodes_info[i] = DAP_NEW_Z(struct request_link_info);
         if (!l_net_pvt->seed_nodes_info[i]) {
@@ -1993,6 +2006,14 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         }
         l_net_pvt->seed_nodes_info[i]->port = l_port;
         dap_strncpy(l_net_pvt->seed_nodes_info[i]->addr, l_host, DAP_HOSTADDR_STRLEN);
+    }
+    if ( i && (e == i) ) {
+        log_it(L_ERROR, "%d / %d seed links are invalid or can't be accessed, fix \"%s\"" 
+                        "network config or check internet connection and restart node", 
+                        e, i, a_net_name);
+        dap_chain_net_delete(l_net);
+        dap_config_close(l_cfg);
+        return -16;
     }
 
     /* *** Chains init by configs *** */
@@ -2308,7 +2329,8 @@ bool s_net_load(void *a_arg)
             if (!l_ext_addr) {
                 log_it(L_INFO, "External address is not set, will be detected automatically");
             } else {
-                if ( dap_net_parse_hostname(l_ext_addr, l_host, &l_ext_port) )
+                struct sockaddr_storage l_saddr = { };
+                if ( 0 > dap_net_parse_config_address(l_ext_addr, l_host, &l_ext_port, &l_saddr, NULL) )
                     log_it(L_ERROR, "Invalid server address \"%s\", fix config and restart node", l_ext_addr);
                 else {
                     uint8_t l_hostlen = dap_strlen(l_host);
@@ -2317,9 +2339,11 @@ bool s_net_load(void *a_arg)
                 }
             }
             if ( !l_net_pvt->node_info->ext_port ) {
-                char **l_listening = dap_config_get_array_str(g_config, "server", "listen_address", NULL);
-                l_net_pvt->node_info->ext_port = l_listening && !dap_net_parse_hostname(*l_listening, NULL, &l_ext_port) && l_ext_port
-                    ? l_ext_port : 8079; // TODO: default port?
+                char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
+                l_net_pvt->node_info->ext_port =
+                    ( l_listening && dap_net_parse_config_address(*l_listening, NULL, &l_ext_port, NULL, NULL) > 0 && l_ext_port )
+                        ? l_ext_port
+                        : dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079); // TODO: default port?
             }
         } // otherwise, we're in seed list - seed config predominates server config thus disambiguating the settings
         
@@ -2376,6 +2400,8 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                                            a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
     dap_chain_net_t *l_net = a_arg;
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    if (l_net_pvt->state == NET_STATE_LINKS_ESTABLISHED)
+        l_net_pvt->state = NET_STATE_SYNC_CHAINS;
 
     switch (a_type) {
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY:

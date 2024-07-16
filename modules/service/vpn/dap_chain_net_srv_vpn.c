@@ -701,10 +701,8 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     // Create utun socket
     int l_tun_fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
     if( l_tun_fd < 0){
-        int l_errno = errno;
-        char l_errbuf[256];
-        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
-        log_it(L_ERROR,"Opening utun device control (SYSPROTO_CONTROL) error: '%s' (code %d)", l_errbuf, l_errno);
+        log_it(L_ERROR, "Opening utun device control (SYSPROTO_CONTROL) error %d: \"%s\"",
+                        errno, dap_strerror(errno));
         l_err = -101;
         goto lb_err;
     }
@@ -713,10 +711,8 @@ static int s_vpn_tun_create(dap_config_t * g_config)
 
     // Pass control structure to the utun socket
     if( ioctl(l_tun_fd, CTLIOCGINFO, &l_ctl_info ) < 0 ){
-        int l_errno = errno;
-        char l_errbuf[256];
-        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
-        log_it(L_ERROR,"Can't execute ioctl(CTLIOCGINFO): '%s' (code %d)", l_errbuf, l_errno);
+        log_it(L_ERROR, "Can't execute ioctl(CTLIOCGINFO), error %d: \"%s\"", 
+                        errno, dap_strerror(errno));
         l_err = -102;
         goto lb_err;
 
@@ -739,10 +735,8 @@ static int s_vpn_tun_create(dap_config_t * g_config)
             break;
     }
     if (l_ret < 0){
-        int l_errno = errno;
-        char l_errbuf[256];
-        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
-        log_it(L_ERROR,"Can't create utun device: '%s' (code %d)", l_errbuf, l_errno);
+        log_it(L_ERROR, "Can't create utun device, error %d: \"%s\"", 
+                        errno, dap_strerror(errno));
         l_err = -103;
         goto lb_err;
 
@@ -753,10 +747,8 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     char l_utunname[20];
     socklen_t l_utunname_len = sizeof(l_utunname);
     if (getsockopt(l_tun_fd, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, l_utunname, &l_utunname_len) ){
-        int l_errno = errno;
-        char l_errbuf[256];
-        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
-        log_it(L_ERROR,"Can't get utun device name: '%s' (code %d)", l_errbuf, l_errno);
+        log_it(L_ERROR, "Can't get utun device name, error %d: \"%s\"",
+                        errno, dap_strerror(errno));
         l_err = -104;
         goto lb_err;
     }
@@ -771,13 +763,14 @@ static int s_vpn_tun_create(dap_config_t * g_config)
 #if !defined(DAP_OS_DARWIN) &&( defined (DAP_OS_LINUX) || defined (DAP_OS_BSD))
         int l_tun_fd;
         if( (l_tun_fd = open("/dev/net/tun", O_RDWR | O_NONBLOCK)) < 0 ) {
-            log_it(L_ERROR,"Opening /dev/net/tun error: '%s'", strerror(errno));
+            log_it(L_ERROR, "Opening /dev/net/tun error %d: \"%s\"",
+                            errno, dap_strerror(errno));
             l_err = -100;
             break;
         }
         log_it(L_DEBUG,"Opening /dev/net/tun:%u", i);
         if( (l_err = ioctl(l_tun_fd, TUNSETIFF, (void *)& s_raw_server->ifr)) < 0 ) {
-            log_it(L_CRITICAL, "ioctl(TUNSETIFF) error: '%s' ",strerror(errno));
+            log_it(L_CRITICAL, "ioctl(TUNSETIFF) error %d: \"%s\"", errno, dap_strerror(errno));
             close(l_tun_fd);
             break;
         }
@@ -1916,12 +1909,11 @@ static bool s_es_tun_write(dap_events_socket_t *a_es, void *arg)
                 l_tun->es->buf_out_size -= l_pkt_size;
                 l_shift += l_pkt_size;
                 break;
-            default: {
-                char l_errbuf[128];
-                strerror_r(l_errno, l_errbuf, sizeof(l_errbuf));
-                log_it(L_ERROR, "Error on writing to tun: \"%s\" code %d", l_errbuf, errno);
+            default:
+                log_it(L_ERROR, "Write to tun error %d: \"%s\"",
+                                errno, dap_strerror(errno));
                 break;
-            }}
+            }
             break; // Finish the buffer processing immediately
         }
     }
