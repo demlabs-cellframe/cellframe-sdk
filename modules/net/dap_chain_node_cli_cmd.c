@@ -803,7 +803,6 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
 
         json_object* json_arr_keys = json_object_new_array();
         json_object* json_obj_keys = NULL;
-        dap_string_t *l_ret_str = dap_string_new(NULL);
         for(size_t i = 0; i < l_objs_count; i++) {
             char l_ts[64] = { '\0' };
             dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_obj[i].timestamp);
@@ -818,13 +817,10 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         json_object_object_add(json_keys_list, "group name", json_object_new_string(l_group_str));
         json_object_object_add(json_keys_list, "keys list", json_arr_keys);
         json_object_array_add(*json_arr_reply, json_keys_list);
-
-        dap_string_free(l_ret_str, true);
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
     case CMD_GROUP_LIST: {
         json_object* json_group_list = json_object_new_object();
-        dap_string_t *l_ret_str = dap_string_new(NULL);
         dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*");
         size_t l_count = 0;
         json_object* json_arr_group = json_object_new_array();
@@ -837,9 +833,9 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         }
         json_object_object_add(json_group_list, "group list", json_arr_group);
         json_object_object_add(json_group_list, "total count", json_object_new_uint64(l_count));
-        dap_string_free(l_ret_str, true);
+        json_object_array_add(*json_arr_reply, json_group_list);
         dap_list_free(l_group_list);
-        return 0;
+        return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
     default:
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR,"parameters are not valid");           
