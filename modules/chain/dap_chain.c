@@ -607,6 +607,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
     if (!a_chain)
         return -2;
     if (a_chain->callback_load_from_gdb) {
+        a_chain->is_mapped = false;
         a_chain->callback_load_from_gdb(a_chain);
         return 0;
     }

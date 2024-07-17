@@ -209,15 +209,17 @@ typedef bool (*dap_ledger_tag_check_callback_t)(dap_ledger_t *a_ledger, dap_chai
 #define DAP_LEDGER_CACHE_RELOAD_ONCE_UUID "0c92b759-a565-448f-b8bd-99103dacf7fc"
 
 // Checks the emission of the token, usualy on zero chain
-#define DAP_LEDGER_CHECK_TOKEN_EMISSION    0x0001
+#define DAP_LEDGER_CHECK_TOKEN_EMISSION     0x0001
 
 // Check double spending in local cell
-#define DAP_LEDGER_CHECK_LOCAL_DS          0x0002
+#define DAP_LEDGER_CHECK_LOCAL_DS           0x0002
 
 // Check the double spending in all cells
-#define DAP_LEDGER_CHECK_CELLS_DS          0x0100
+#define DAP_LEDGER_CHECK_CELLS_DS           0x0100
 
-#define DAP_LEDGER_CACHE_ENABLED           0x0200
+#define DAP_LEDGER_CACHE_ENABLED            0x0200
+
+#define DAP_LEDGER_MAPPED                   0x0400
 
 // Error code for no previous transaction (for stay in mempool)
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS     DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND

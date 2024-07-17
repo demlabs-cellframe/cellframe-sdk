@@ -2127,10 +2127,14 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     default:
         l_ledger_flags |= DAP_LEDGER_CHECK_CELLS_DS | DAP_LEDGER_CHECK_TOKEN_EMISSION;
     }
-    // init LEDGER model
-    l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
+    if (dap_config_get_item_bool_default(g_config, "ledger", "mapped", true))
+        l_ledger_flags |= DAP_LEDGER_MAPPED;
 
     for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+        if (l_chain->callback_load_from_gdb) {
+            l_ledger_flags &= ~DAP_LEDGER_MAPPED;
+            continue;
+        }
         if (!l_chain->callback_get_poa_certs)
             continue;
         l_net->pub.keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
@@ -2140,6 +2144,8 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     if (!l_net->pub.keys)
         log_it(L_WARNING, "PoA certificates for net %s not found", l_net->pub.name);
 
+    // init LEDGER model
+    l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
     // Decrees initializing
     dap_chain_net_decree_init(l_net);
 

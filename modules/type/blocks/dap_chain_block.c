@@ -66,7 +66,7 @@ dap_chain_block_t *dap_chain_block_new(dap_chain_hash_fast_t *a_prev_block, size
         return NULL;
     }
     l_block->hdr.signature = DAP_CHAIN_BLOCK_SIGNATURE;
-    l_block->hdr.version = 1;
+    l_block->hdr.version = 2;
     l_block->hdr.ts_created = time(NULL);
 
     size_t l_block_size = sizeof(l_block->hdr);

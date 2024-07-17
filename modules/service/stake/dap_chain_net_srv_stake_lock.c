@@ -397,7 +397,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     dap_time_t l_time_now = dap_time_now();
     if (l_time_staking < l_time_now)
         return TIME_ERROR;
-    l_time_staking  -= l_time_now;
+    l_time_staking -= l_time_now;
 
     if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-reinvest", &l_reinvest_percent_str)
     && NULL != l_reinvest_percent_str) {

@@ -489,7 +489,7 @@ void dap_ledger_deinit()
  * Create empty dap_ledger_t structure
  * @return dap_ledger_t*
  */
-static dap_ledger_t * dap_ledger_handle_new(void)
+static dap_ledger_t *dap_ledger_handle_new(void)
 {
     dap_ledger_t *l_ledger = DAP_NEW_Z(dap_ledger_t);
     if ( !l_ledger ) {
@@ -515,7 +515,6 @@ static dap_ledger_t * dap_ledger_handle_new(void)
                                                                       (dap_timer_callback_t)s_threshold_txs_free, l_ledger);
     l_ledger_pvt->threshold_emissions_free_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
                                                                             (dap_timer_callback_t) s_threshold_emission_free, l_ledger);                                                                          
-    l_ledger_pvt->mapped = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true);
     return l_ledger;
 }
 
@@ -1284,6 +1283,12 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 ret = DAP_LEDGER_CHECK_ZERO_VALUE;
                 goto ret_n_clear;
             }
+            if (!a_apply)
+                break;
+            assert(a_item_apply_to);
+            a_item_apply_to->is_delegated = true;
+            strcpy(a_item_apply_to->delegated_from, l_basic_token->ticker);
+            a_item_apply_to->emission_rate = l_delegate->emission_rate;
         } break;
 
         default:
@@ -2704,6 +2709,7 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
     l_ledger_pvt->check_cells_ds = a_flags & DAP_LEDGER_CHECK_CELLS_DS;
     l_ledger_pvt->check_token_emission = a_flags & DAP_LEDGER_CHECK_TOKEN_EMISSION;
     l_ledger_pvt->cached = a_flags & DAP_LEDGER_CACHE_ENABLED;
+    l_ledger_pvt->mapped = a_flags & DAP_LEDGER_MAPPED;
     pthread_cond_init(&l_ledger_pvt->load_cond, NULL);
     pthread_mutex_init(&l_ledger_pvt->load_mutex, NULL);
 
