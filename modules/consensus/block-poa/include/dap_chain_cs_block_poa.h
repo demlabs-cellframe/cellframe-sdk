@@ -31,6 +31,26 @@ typedef struct dap_chain_cs_block_poa {
     void * _inheritor;
 } dap_chain_cs_block_poa_t;
 
+typedef enum s_com_block_poa_err{
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_HEX_FORMAT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_CHAIN_TYPE_ERR,
+
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_CERT_ERR,
+
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_BASE58_FORMAT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_BASE58_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_EVENT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_PLACE_EVENT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_SIGN_EVENT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_SUBCOM_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_UNKNOWN /* MAX */
+} s_com_block_poa_err_t;
+
 #define DAP_CHAIN_CS_BLOCK_POA(a) ( (dap_chain_cs_block_poa_t *) (a)->_inheritor)
 
 

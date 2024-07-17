@@ -176,6 +176,7 @@ void dap_chain_cs_dag_poa_presign_callback_set(dap_chain_t *a_chain, dap_chain_c
  */
 static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
 {
+    json_object **json_arr_reply = (json_object **)a_str_reply;
     int ret = -666;
     int arg_index = 1;
     dap_chain_net_t * l_chain_net = NULL;
@@ -283,14 +284,15 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
                                                                         l_event_new_hash_hex_str);
 
                     if (dap_chain_cs_dag_event_gdb_set(l_dag, l_event_new_hash_hex_str, l_event, l_event_size_new, l_round_item)) {
+                        json_object* json_obj_dag = json_object_new_object();
                         if(!dap_strcmp(l_hash_out_type, "hex")) {
-                            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                    "Added new sign with cert \"%s\", event %s placed back in round.new\n",
-                                    l_poa_pvt->events_sign_cert->name, l_event_new_hash_hex_str);
+                            json_object_object_add(json_obj_dag, "Added new sign with sert", json_object_new_string(l_poa_pvt->events_sign_cert->name));
+                            json_object_object_add(json_obj_dag, "event hash hex", json_object_new_string(l_event_new_hash_hex_str));
+                            json_object_array_add(*json_arr_reply, json_obj_dag);
                         } else {
-                            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                    "Added new sign with cert \"%s\", event %s placed back in round.new\n",
-                                    l_poa_pvt->events_sign_cert->name, l_event_new_hash_base58_str);
+                            json_object_object_add(json_obj_dag, "Added new sign with sert", json_object_new_string(l_poa_pvt->events_sign_cert->name));
+                            json_object_object_add(json_obj_dag, "event hash base58", json_object_new_string(l_event_new_hash_base58_str));
+                            json_object_array_add(*json_arr_reply, json_obj_dag);
                         }
                         ret = DAP_CHAIN_NODE_CLI_COM_DAG_POA_OK;
                         if (l_event_is_ready && l_poa_pvt->auto_round_complete) // cs done (minimum signs & verify passed)

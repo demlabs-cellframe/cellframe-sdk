@@ -108,21 +108,21 @@ static int s_cli_block_poa(int argc, char ** argv, void **a_str_reply)
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type, "hex") && dap_strcmp(l_hash_out_type, "base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_HEX_FORMAT_ERR,
+                               "invalid parameter -H, valid values: -H <hex | base58>");
+        return -DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_HEX_FORMAT_ERR;
     }
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net,
-                                                      CHAIN_TYPE_INVALID)){
-        return -3;
+    if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, argc, argv, &l_chain, &l_chain_net, CHAIN_TYPE_INVALID)){
+        return -DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_PARAM_ERR;
     }
 
     const char *l_chain_type = dap_chain_get_cs_type(l_chain);
     if (strcmp(l_chain_type, "block_poa")){
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "Type of chain %s is not block_poa. This chain with type %s is not supported by this command",
-                        l_chain->name, l_chain_type);
-            return -42;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_CHAIN_TYPE_ERR,
+                                   "Type of chain %s is not block_poa. This chain with type %s is not supported by this command",
+                                   l_chain->name, l_chain_type);
+            return -DAP_CHAIN_NODE_CLI_COM_BLOCK_POA_CHAIN_TYPE_ERR;
     }
 
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
