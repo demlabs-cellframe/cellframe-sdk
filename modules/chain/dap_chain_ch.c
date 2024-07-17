@@ -225,7 +225,7 @@ void s_stream_ch_new(dap_stream_ch_t *a_ch, void *a_arg)
 {
     UNUSED(a_arg);
     if (!(a_ch->internal = DAP_NEW_Z(dap_chain_ch_t))) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     };
     dap_chain_ch_t *l_ch_chain = DAP_CHAIN_CH(a_ch);
@@ -262,7 +262,7 @@ static void s_stream_ch_delete(dap_stream_ch_t *a_ch, void *a_arg)
  * @param a_ch_chain
  * @param a_net
  */
-struct legacy_sync_context *s_legacy_sync_context_create(dap_chain_ch_pkt_t *a_chain_pkt, dap_stream_ch_t *a_ch)
+struct legacy_sync_context *s_legacy_sync_context_create(dap_stream_ch_t *a_ch)
 {
     dap_chain_ch_t * l_ch_chain = DAP_CHAIN_CH(a_ch);
     dap_return_val_if_fail(l_ch_chain, NULL);
@@ -273,14 +273,12 @@ struct legacy_sync_context *s_legacy_sync_context_create(dap_chain_ch_pkt_t *a_c
     *l_context = (struct legacy_sync_context) {
             .worker         = a_ch->stream_worker,
             .ch_uuid        = a_ch->uuid,
-            .remote_addr    = *(dap_stream_node_addr_t *)a_chain_pkt->data,
-            .request_hdr    = a_chain_pkt->hdr,
             .state          = DAP_CHAIN_CH_STATE_IDLE,
             .last_activity  = dap_time_now()
         };
     dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&a_ch->uuid);
     if (!l_uuid) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         DAP_DELETE(l_context);
         return NULL;
     }
@@ -373,7 +371,7 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
         l_data_size = dap_list_length(l_list_out) * sizeof(dap_chain_ch_update_element_t);
         l_data = DAP_NEW_Z_SIZE(dap_chain_ch_update_element_t, l_data_size);
         if (!l_data) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             l_context->state = DAP_CHAIN_CH_STATE_ERROR;
             goto context_delete;
         }
@@ -411,7 +409,7 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
                 }
                 l_pkt_pack = dap_global_db_pkt_pack_old(l_pkt_pack, l_pkt);
                 if (!l_pkt_pack || l_cur_size == l_pkt_pack->data_size) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     l_context->state = DAP_CHAIN_CH_STATE_ERROR;
                     goto context_delete;
                 }
@@ -502,7 +500,7 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
     if (l_cur_state == DAP_CHAIN_CH_STATE_UPDATE_CHAINS) {
         l_hashes = DAP_NEW_Z_SIZE(dap_chain_ch_update_element_t, s_update_pack_size * sizeof(dap_chain_ch_update_element_t));
         if (!l_hashes) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             l_context->state = DAP_CHAIN_CH_STATE_ERROR;
             goto context_delete;
         }
@@ -675,7 +673,7 @@ static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, da
     }
     struct atom_processing_args *l_args = DAP_NEW_SIZE(struct atom_processing_args, a_payload_size + sizeof(struct atom_processing_args));
     if (!l_args) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     }
     l_args->addr = a_sender_addr;
@@ -768,7 +766,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         struct atom_processing_args *l_args = DAP_NEW_SIZE(struct atom_processing_args, l_ch_pkt->hdr.data_size + sizeof(struct atom_processing_args));
         if (!l_args) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             break;
         }
         l_args->addr = a_ch->stream->node;
@@ -856,7 +854,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 atomic_store(&l_context->allowed_num, l_sum.num_cur + s_sync_ack_window_size);
                 dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&a_ch->uuid);
                 if (!l_uuid) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     DAP_DELETE(l_context);
                     break;
                 }
@@ -970,6 +968,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN: {
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
+        l_chain->atom_num_last = l_chain->callback_count_atom(l_chain);
         log_it(L_INFO, "In: SYNCED_CHAIN %s for net %s from source " NODE_ADDR_FP_STR,
                     l_chain ? l_chain->name : "(null)",
                                 l_chain ? l_chain->net_name : "(null)",
@@ -1055,7 +1054,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
             break;
         }
-        struct legacy_sync_context *l_context = s_legacy_sync_context_create(l_chain_pkt, a_ch);
+        struct legacy_sync_context *l_context = s_legacy_sync_context_create(a_ch);
         if (!l_context) {
             log_it(L_ERROR, "Can't create sychronization context");
             dap_global_db_legacy_list_delete(l_db_list);
@@ -1128,7 +1127,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             if (!l_hash_item) {
                 l_hash_item = DAP_NEW_Z(dap_chain_ch_hash_item_t);
                 if (!l_hash_item) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
@@ -1232,7 +1231,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         DAP_NEW_Z_RET_VAL(l_args, struct record_processing_args, true, NULL);
         l_args->pkt = DAP_DUP_SIZE(l_pkt, l_chain_pkt_data_size);
         if (!l_args->pkt) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             DAP_DEL_Z(l_args);
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
@@ -1307,7 +1306,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
             break;
         }
-        struct legacy_sync_context *l_context = s_legacy_sync_context_create(l_chain_pkt, a_ch);
+        struct legacy_sync_context *l_context = s_legacy_sync_context_create(a_ch);
         if (!l_context) {
             log_it(L_ERROR, "Can't create sychronization context");
             l_chain->callback_atom_iter_delete(l_atom_iter);
@@ -1318,7 +1317,6 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         l_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, NULL);
         l_context->atom_iter = l_atom_iter;
-        l_context->remote_addr = *(dap_stream_node_addr_t *)l_chain_pkt->data;
         l_context->request_hdr = l_chain_pkt->hdr;
         l_ch_chain->legacy_sync_context = l_context;
         l_context->state = DAP_CHAIN_CH_STATE_UPDATE_CHAINS;
@@ -1384,7 +1382,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             if (!l_hash_item) {
                 l_hash_item = DAP_NEW_Z(dap_chain_ch_hash_item_t);
                 if (!l_hash_item) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
@@ -1487,7 +1485,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         debug_if(s_debug_legacy, L_INFO, "In: CHAIN_OLD data_size=%zu", l_chain_pkt_data_size);
         struct atom_processing_args *l_args = DAP_NEW_Z_SIZE(struct atom_processing_args, l_ch_pkt->hdr.data_size + sizeof(struct atom_processing_args));
         if (!l_args) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);

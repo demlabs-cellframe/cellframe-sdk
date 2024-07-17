@@ -65,7 +65,7 @@ void dap_chain_cs_type_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t
 {
     dap_chain_callback_new_cfg_item_t *l_item = DAP_NEW_Z ( dap_chain_callback_new_cfg_item_t );
     if ( !l_item ) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     }
     strncpy(l_item->name, a_cs_str, sizeof (l_item->name) - 1);
@@ -100,7 +100,7 @@ void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_ca
 {
     dap_chain_callback_new_cfg_item_t *l_item = DAP_NEW_Z ( dap_chain_callback_new_cfg_item_t );
     if ( !l_item ) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
     }
     strncpy(l_item->name, a_cs_str, sizeof (l_item->name) - 1);

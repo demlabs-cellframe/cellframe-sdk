@@ -172,6 +172,9 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
                         a_cell->file_storage_path, a_cell->id.uint64, errno);
         return -1;
     }
+#ifdef DAP_OS_DARWIN
+    a_cell->cur_vol_start = l_volume_start;
+#endif
 #endif
     a_cell->map_pos = a_cell->map + l_offset;
     a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map);
@@ -213,13 +216,15 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
         pthread_rwlock_unlock(&a_chain->cell_rwlock);
         return l_cell;
     }
-#define CLEANUP_AND_RET return ({ fclose(l_file); DAP_DELETE(l_cell); pthread_rwlock_unlock(&a_chain->cell_rwlock); NULL; })
     char file_storage_path[MAX_PATH];
     snprintf(file_storage_path, MAX_PATH, "%s/%0"DAP_UINT64_FORMAT_x".dchaincell",
              DAP_CHAIN_PVT(a_chain)->file_storage_dir, a_cell_id.uint64);
-    
-    FILE *l_file = fopen(file_storage_path, "a+b");
-    if ( !l_file ) {
+    FILE *l_file = NULL;
+#define CLEANUP_AND_RET return ({ if (l_file) fclose(l_file); \
+    DAP_DELETE(l_cell); \
+    pthread_rwlock_unlock(&a_chain->cell_rwlock); \
+    NULL; })
+    if ( !(l_file = fopen(file_storage_path, "a+b")) ) {
         log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be opened, error %d",
                         file_storage_path, a_cell_id.uint64, errno);
         CLEANUP_AND_RET;
@@ -439,7 +444,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     uint64_t q = 0;
     if (a_chain->is_mapped) {
         a_cell->map_pos = a_cell->map + sizeof(dap_chain_cell_file_header_t);
-        for ( uint64_t l_el_size = 0; l_pos < l_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
+        for ( uint64_t l_el_size = 0; l_pos < l_size; ++q, l_pos += l_el_size + sizeof(uint64_t), a_chain->load_progress =  (int)((double)l_pos/l_size * 100 + 0.5)) {
             size_t space_left = (size_t)( a_cell->map_end - a_cell->map_pos );
             if ( space_left < sizeof(uint64_t) || (space_left - sizeof(uint64_t)) < *(uint64_t*)a_cell->map_pos )
                 if ( s_cell_map_new_volume(a_cell, l_pos) )
@@ -468,6 +473,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
                 break;
             }
             l_pos += sizeof(uint64_t) + ( l_read = fread((void*)l_element, 1, l_el_size, a_cell->file_storage) );
+            a_chain->load_progress =  (int)((double)l_pos/l_size * 100 + 0.5);
             if (l_read != l_el_size) {
                 log_it(L_ERROR, "Read only %lu of %zu bytes, stop cell loading", l_read, l_el_size);
                 DAP_DELETE(l_element);
@@ -522,6 +528,16 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
     debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG, "After writing an atom of size %lu, stream pos of %s is %lu and map shift is %lu", 
                                             a_atom_size, a_cell->file_storage_path, ftell(a_cell->file_storage),
                                             (size_t)(a_cell->map_pos - a_cell->map));
+#ifdef DAP_OS_DARWIN
+    if (a_cell->chain->is_mapped) {
+        if ( MAP_FAILED == (a_cell->map = mmap(a_cell->map, dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT), PROT_READ|PROT_WRITE,
+                                            MAP_PRIVATE|MAP_FIXED, fileno(a_cell->file_storage), a_cell->cur_vol_start)) ) {
+            log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be remapped, errno %d",
+                            a_cell->file_storage_path, a_cell->id.uint64, errno);
+            return -1;
+        }
+    }
+#endif
     return 0;
 }
 
@@ -601,7 +617,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
         ++l_count;
         l_total_res = a_atom_size + sizeof(uint64_t);
     }
-
+    
     if (l_total_res) {
         fflush(a_cell->file_storage);
 #ifdef DAP_OS_WINDOWS

@@ -260,7 +260,7 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
     }
     dap_chain_node_client_t *l_node_client = DAP_NEW_Z(dap_chain_node_client_t);
     if (!l_node_client) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
 
@@ -297,8 +297,9 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
-    const char *l_cert_node_name = dap_config_get_item_str(a_node_client->net->pub.config, "general", "auth_cert");
-    dap_client_set_auth_cert(a_node_client->client, l_cert_node_name);
+    const char *l_auth_cert_name = dap_config_get_item_str(a_node_client->net->pub.config, "general", "auth_cert");
+    if (l_auth_cert_name)
+        dap_client_set_auth_cert(a_node_client->client, l_auth_cert_name);
     char *l_host_addr = a_node_client->info->ext_host;
     
     if ( !*l_host_addr || !strcmp(l_host_addr, "::") || !a_node_client->info->ext_port ) {
@@ -320,7 +321,7 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
  */
 void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
 {
-    log_it(L_INFO, "Closing node client to uplink"NODE_ADDR_FP_STR" [ %s : %u ]",
+    log_it(L_INFO, "Closing node client to uplink "NODE_ADDR_FP_STR" [ %s : %u ]",
                     NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr),
                     a_node_client->info->ext_host,
                     a_node_client->info->ext_port);
@@ -396,8 +397,8 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
 
     // prepare for signal waiting
     struct timespec l_cond_timeout;
-    clock_gettime( CLOCK_MONOTONIC, &l_cond_timeout);
-    l_cond_timeout.tv_sec += a_timeout_ms/1000;
+    clock_gettime(CLOCK_REALTIME, &l_cond_timeout);
+    l_cond_timeout.tv_sec += a_timeout_ms;//1000;
     // signal waiting
     dap_chain_node_client_state_t l_clinet_state = a_client->state;
     while (a_client->state == l_clinet_state) {
@@ -410,14 +411,11 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
             break;
         }
         else if(l_ret_wait == ETIMEDOUT) { // 110 260
-            //log_it(L_NOTICE,"Wait for status is stopped by timeout");
+            log_it(L_NOTICE, "Wait for status is stopped by timeout");
             ret = -1;
             break;
         }else if (l_ret_wait != 0 ){
-            char l_errbuf[128];
-            l_errbuf[0] = '\0';
-            strerror_r(l_ret_wait,l_errbuf,sizeof (l_errbuf));
-            log_it(L_ERROR, "Pthread condition timed wait returned \"%s\"(code %d)", l_errbuf, l_ret_wait);
+            log_it(L_CRITICAL, "pthread_cond_timedwait() error %d:\"%s\"", l_ret_wait, dap_strerror(l_ret_wait));
         }
     }
     pthread_mutex_unlock(&a_client->wait_mutex);

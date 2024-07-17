@@ -147,20 +147,14 @@ int tun_device_create(char *dev)
     // Create utun socket
     int l_tun_fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
     if( l_tun_fd < 0){
-        l_errno = errno;
-        char l_errbuf[256];
-        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
-        log_it(L_ERROR,"Opening utun device control (SYSPROTO_CONTROL) error: '%s' (code %d)", l_errbuf, l_errno);
+        log_it(L_ERROR,"Opening utun device control (SYSPROTO_CONTROL) error %d: \"%s\"", errno, dap_strerror(errno));
         goto lb_err;
     }
     log_it(L_INFO, "Utun SYSPROTO_CONTROL descriptor obtained");
 
     // Pass control structure to the utun socket
     if( ioctl(l_tun_fd, CTLIOCGINFO, &l_ctl_info ) < 0 ){
-        l_errno = errno;
-        char l_errbuf[256];
-        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
-        log_it(L_ERROR,"Can't execute ioctl(CTLIOCGINFO): '%s' (code %d)", l_errbuf, l_errno);
+        log_it(L_ERROR,"Can't execute ioctl(CTLIOCGINFO) %d: \"%s\"", errno, dap_strerror(errno));
         goto lb_err;
 
     }
@@ -181,11 +175,8 @@ int tun_device_create(char *dev)
         if(l_ret == 0)
             break;
     }
-    if (l_ret < 0){
-        l_errno = errno;
-        char l_errbuf[256];
-        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
-        log_it(L_ERROR,"Can't create utun device: '%s' (code %d)", l_errbuf, l_errno);
+    if (l_ret < 0) {
+        log_it(L_ERROR,"Can't create utun device %d: \"%s\"", errno, dap_strerror(errno));
         goto lb_err;
 
     }
@@ -194,11 +185,8 @@ int tun_device_create(char *dev)
     log_it(L_NOTICE, "Utun device created");
     char l_utunname[20];
     socklen_t l_utunname_len = sizeof(l_utunname);
-    if (getsockopt(l_tun_fd, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, l_utunname, &l_utunname_len) ){
-        l_errno = errno;
-        char l_errbuf[256];
-        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
-        log_it(L_ERROR,"Can't get utun device name: '%s' (code %d)", l_errbuf, l_errno);
+    if (getsockopt(l_tun_fd, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, l_utunname, &l_utunname_len) ) {
+        log_it(L_ERROR,"Can't get utun device name %d: \"%s\"", errno, dap_strerror(errno));
         goto lb_err;
     }
     log_it(L_NOTICE, "Utun device name \"%s\"", l_utunname);
@@ -679,11 +667,11 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
     if((ret = /*sendto(ch_sf->raw_l3_sock, pkt_data, pkt_data_size, 0, (struct sockaddr *) &sin, sizeof(sin))*/-1  )
             < 0) {
         //    if((ret = write(raw_server->tun_fd, sf_pkt->data, sf_pkt->header.op_data.data_size))<0){
-        log_it(L_ERROR, "write() returned error %d : '%s'", ret, strerror(errno));
+        log_it(L_ERROR, "write() error %d : \"%s\"", errno, dap_strerror(errno));
         //log_it(ERROR,"raw socket ring buffer overflowed");
         ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
         if (!pkt_out) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             if(in_daddr_str)
                 DAP_DELETE(in_daddr_str);
             if(in_saddr_str)

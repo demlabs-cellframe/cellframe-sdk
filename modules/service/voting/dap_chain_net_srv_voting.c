@@ -158,7 +158,7 @@ uint64_t* dap_chain_net_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash
 
     l_voting_results = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t)*dap_list_length(l_voting->voting_params.option_offsets_list));
     if (!l_voting_results){
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
 

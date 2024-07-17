@@ -82,7 +82,7 @@ static bool s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 
 static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item);
 
-static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_pkt_request_t * a_request, size_t a_request_size);
+static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_pkt_request_t *a_request, size_t a_request_size);
 static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace);
 static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace);
 static void s_set_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage);
@@ -129,7 +129,7 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_
             else {
                 l_item = DAP_NEW_Z(dap_chain_net_srv_banlist_item_t);
                 if (!l_item) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     pthread_mutex_unlock(&a_grace->usage->service->banlist_mutex);
                     DAP_DEL_Z(a_grace->request);
                     DAP_DEL_Z(a_grace);
@@ -309,7 +309,7 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
     }
 }
 
-static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_pkt_request_t * a_request, size_t a_request_size)
+static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_pkt_request_t *a_request, size_t a_request_size)
 {
     assert(a_ch);
     dap_stream_ch_chain_net_srv_pkt_error_t l_err;
@@ -382,7 +382,7 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
     // Create one client
     l_usage->client = DAP_NEW_Z( dap_chain_net_srv_client_remote_t);
     if (!l_usage->client) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -441,7 +441,7 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
 
         dap_chain_net_srv_grace_t *l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
         if (!l_grace) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
             if(a_ch)
                 dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -453,7 +453,7 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
         }
         l_grace->request = DAP_DUP_SIZE(a_request, a_request_size);
         if (!l_grace->request) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
             if(a_ch)
                 dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -478,7 +478,7 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                               l_success_size);
         if(!l_success) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
             if(a_ch)
                 dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -564,7 +564,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             }
             dap_chain_net_srv_grace_usage_t *l_item = DAP_NEW_Z(dap_chain_net_srv_grace_usage_t);
             if (!l_item) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 s_grace_error(a_grace, l_err);
                 return false;
             }
@@ -580,7 +580,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         } else { // Else if first grace at service start
             dap_chain_net_srv_grace_usage_t *l_item = DAP_NEW_Z(dap_chain_net_srv_grace_usage_t);
             if (!l_item) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 s_grace_error(a_grace, l_err);
                 return false;
             }
@@ -592,7 +592,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                                   l_success_size);
             if(!l_success) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 DAP_DEL_Z(l_item);
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
                 if(l_ch)
@@ -1111,13 +1111,13 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
 
                 dap_chain_net_srv_grace_t* l_grace_new = DAP_NEW_Z(dap_chain_net_srv_grace_t);
                 if (!l_grace_new) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     RET_WITH_DEL_A_GRACE(0);
                 }
                 // Parse the request
                 l_grace_new->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
                 if (!l_grace_new->request) {
-                    log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     DAP_DEL_Z(l_grace_new);
                     RET_WITH_DEL_A_GRACE(0);
                 }
@@ -1189,11 +1189,21 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     switch (l_ch_pkt->hdr.type) {
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST: {
         typedef dap_stream_ch_chain_net_srv_pkt_test_t pkt_test_t;
+        if (l_ch_pkt->hdr.data_size < sizeof(pkt_test_t)) {
+            log_it(L_WARNING, "Wrong CHECK_REQUEST size %u, must be at least %zu", l_ch_pkt->hdr.data_size, sizeof(pkt_test_t));
+            return false;
+        }
         pkt_test_t *l_request = (pkt_test_t*)l_ch_pkt->data;
         size_t l_request_size = l_request->data_size + sizeof(pkt_test_t);
         if (l_ch_pkt->hdr.data_size != l_request_size) {
-            log_it(L_WARNING, "Wrong request size %u, must be %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_ch_pkt->hdr.data_size, l_request_size, l_ch_pkt->hdr.seq_id);
+            log_it(L_WARNING, "Wrong CHECK_REQUEST size %u, must be %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_ch_pkt->hdr.data_size, l_request_size, l_ch_pkt->hdr.seq_id);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_SIZE;
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
+            return false;
+        }
+        if(l_request->data_size_recv > DAP_CHAIN_NET_SRV_CH_REQUEST_SIZE_MAX) {
+            log_it(L_WARNING, "Too large payload %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_request->data_size_recv, l_ch_pkt->hdr.seq_id);
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_BIG_SIZE;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             return false;
         }
@@ -1202,12 +1212,6 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         if (l_request->data_size > 0 && !dap_hash_fast_compare(&l_data_hash, &l_request->data_hash)) {
             log_it(L_WARNING, "Wrong hash [pkt seq %"DAP_UINT64_FORMAT_U"]", l_ch_pkt->hdr.seq_id);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH;
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
-            return false;
-        }
-        if(l_request->data_size_recv > UINT_MAX) {
-            log_it(L_WARNING, "Too large payload %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_request->data_size_recv, l_ch_pkt->hdr.seq_id);
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_BIG_SIZE;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             return false;
         }
@@ -1240,7 +1244,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
 
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST: { //Service request
         if (l_ch_pkt->hdr.data_size < sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t) ){
-            log_it( L_WARNING, "Wrong request size, less than minimum");
+            log_it( L_WARNING, "Wrong request size %u, less than minimum %zu", l_ch_pkt->hdr.data_size, sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t));
             return false;
         }
         dap_stream_ch_chain_net_srv_pkt_request_t *l_request = (dap_stream_ch_chain_net_srv_pkt_request_t*)l_ch_pkt->data;
@@ -1265,7 +1269,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             }else if (l_usage->receipt ){ // If we sign first receipt
                 DAP_DEL_Z(l_usage->receipt);
             }
-            break;
+            return false;
         }
         dap_chain_datum_tx_receipt_t * l_receipt = (dap_chain_datum_tx_receipt_t *) l_ch_pkt->data;
         size_t l_receipt_size = l_ch_pkt->hdr.data_size;
@@ -1343,7 +1347,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             DAP_DELETE(l_usage->receipt);
             l_usage->receipt = DAP_DUP_SIZE(l_receipt, l_receipt_size);
             if (!l_usage->receipt) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 break;
             }
             l_is_first_sign     = true;
@@ -1352,7 +1356,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             DAP_DELETE(l_usage->receipt_next);
             l_usage->receipt_next = DAP_DUP_SIZE(l_receipt, l_receipt_size);
             if (!l_usage->receipt_next) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 break;
             }
             l_usage->is_active = true;
@@ -1384,7 +1388,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                     log_it(L_ERROR, "Can't find tx cond. Start grace!");
                     l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
                     if (!l_grace) {
-                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         DAP_DELETE(l_tx_in_hash_str);
                         break;
                     }
@@ -1392,7 +1396,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                     // Parse the request
                     l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
                     if (!l_grace->request) {
-                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         DAP_DEL_Z(l_grace)
                         DAP_DELETE(l_tx_in_hash_str);
                         break;
@@ -1414,14 +1418,14 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                     l_usage->is_waiting_new_tx_cond = true;
                     l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
                     if (!l_grace) {
-                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         DAP_DELETE(l_tx_in_hash_str);
                         return true;
                     }
                     // Parse the request
                     l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
                     if (!l_grace->request) {
-                        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         DAP_DEL_Z(l_grace)
                         DAP_DELETE(l_tx_in_hash_str);
                         return true;
@@ -1504,15 +1508,19 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     } break;
 
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_DATA: {
-        if (l_ch_pkt->hdr.data_size < sizeof(dap_stream_ch_chain_net_srv_pkt_data_hdr_t) ){
-            log_it( L_WARNING, "Wrong request size, less than minimum");
-            break;
-        }
         typedef dap_stream_ch_chain_net_srv_pkt_data_t pkt_t;
+        if (l_ch_pkt->hdr.data_size < sizeof(pkt_t)) {
+            log_it( L_WARNING, "Wrong request size %u, less than minimum %zu", l_ch_pkt->hdr.data_size, sizeof(pkt_t));
+            return false;
+        }
         pkt_t * l_pkt =(pkt_t *) l_ch_pkt->data;
         size_t l_pkt_size = l_ch_pkt->hdr.data_size - sizeof(pkt_t);
+        if (l_pkt_size != l_pkt->hdr.data_size) {
+            log_it( L_WARNING, "Wrong request size %zu, expected %hu", l_pkt_size, l_pkt->hdr.data_size);
+            return false;
+        }
         dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get( l_pkt->hdr.srv_uid);
-        dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;//dap_chain_net_srv_usage_find_unsafe( l_srv_session, l_pkt->hdr.usage_id );
+        dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;
         // If service not found
         if ( l_srv == NULL){
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND ;
@@ -1549,6 +1557,11 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         }
     } break;
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NEW_TX_COND_RESPONSE:{
+        if (l_ch_pkt->hdr.data_size != sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t) ){
+            log_it( L_WARNING, "Wrong request size %u, expected %zu",
+                            l_ch_pkt->hdr.data_size, sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t));
+            return false;
+        }
         dap_chain_net_srv_usage_t * l_usage = NULL;
         l_usage = l_srv_session->usage_active;
         dap_stream_ch_chain_net_srv_pkt_request_t* l_responce = (dap_stream_ch_chain_net_srv_pkt_request_t*)l_ch_pkt->data;
@@ -1608,7 +1621,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                               l_success_size);
         if(!l_success) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             break;
         }
         l_success->hdr.usage_id = l_usage->id;

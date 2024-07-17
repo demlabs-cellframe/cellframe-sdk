@@ -53,7 +53,7 @@ int dap_chain_net_srv_datum_init()
             "\tLoad datum custum from file to mempool.\n\n");
     s_srv_datum = DAP_NEW_Z(dap_chain_net_srv_t);
     if (!s_srv_datum) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
     s_srv_datum->uid.uint64 = DAP_CHAIN_NET_SRV_DATUM_ID;
@@ -161,7 +161,8 @@ static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply)
                     return -4;
                 }
             }else{
-                log_it(L_ERROR, "Can't open file '%s' for write: %s", l_path, strerror(errno));
+                log_it(L_ERROR, "Can't open file '%s' for write, error %d: \"%s\"",
+                                l_path, errno, dap_strerror(errno));
                 return -2;
             }
         }
@@ -207,7 +208,7 @@ void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
     const char * a_obj_key_str = a_obj->key ? a_obj->key : "unknow";
 
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read((byte_t *)a_obj->value, a_obj->value_len);    // Old format comliance
+    const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(a_obj->key, a_obj->value, a_obj->value_len);    // Old format comliance
     if (!l_order) {
         log_it(L_NOTICE, "Order %s is corrupted", a_obj_key_str);
         if (dap_global_db_driver_delete(a_obj, 1) != 0)

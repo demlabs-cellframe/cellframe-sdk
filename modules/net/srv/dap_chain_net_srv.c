@@ -94,18 +94,18 @@ int dap_chain_net_srv_init()
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL);
 
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
-        "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
+        "net_srv -net <net_name> order find [-direction {sell|buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
         " [-price_token <token_ticker>] [-price_min <price_minimum>] [-price_max <price_maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
         "net_srv -net <net_name> order delete -hash <ip_addr>\n"
         "\tOrder delete\n"
         "net_srv -net <net_name> order dump -hash <ip_addr>\n"
         "\tOrder dump info\n"
-        "net_srv -net <net_name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>\n"
-        " -price_unit <Price Unit> -price_token <token_ticker> -units <units> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
-        " [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
-        " [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
-        "net_srv get_limits -net <net_name> -srv_uid <Service_UID> -provider_pkey_hash <Service_provider_public_key_hash> -client_pkey_hash <Client_public_key_hash>\n"
+        "net_srv -net <net_name> order create -direction {sell|buy} -srv_uid <service_UID> -price <price>\n"
+        " -price_unit <price_unit> -price_token <token_ticker> -units <units> [-node_addr <node_address>] [-tx_cond <TX_cond_hash>]\n"
+        " [-expires <unix_time_when_expires>] [-cert <cert_name_to_sign_order>]\n"
+        " [{-ext <extension_with_params>|-region <region_name> -continent <continent_name>}]\n"
+        "net_srv get_limits -net <net_name> -srv_uid <service_UID> -provider_pkey_hash <service_provider_public_key_hash> -client_pkey_hash <client_public_key_hash>\n"
         "net_srv report\n"
         "\tGet report about srv usage"
         );
@@ -206,13 +206,13 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
     int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net,
                                                                CHAIN_TYPE_INVALID);
     if ( l_net ) {
-        //char * l_orders_group = dap_chain_net_srv_order_get_gdb_group( l_net );
-
         dap_string_t *l_string_ret = dap_string_new("");
+
         const char *l_order_str = NULL;
-        int l_order_arg_pos = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "order", &l_order_str);
+        dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "order", &l_order_str);
+
         const char *l_get_limits_str = NULL;
-        int l_get_limits_arg_pos = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "get_limits", &l_get_limits_str);
+        dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "get_limits", &l_get_limits_str);
 
         // Order direction
         const char *l_direction_str = NULL;
@@ -857,7 +857,7 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
 
     dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
     if (!l_price) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         DAP_DEL_Z(l_order);
         return NULL;
     }
@@ -977,7 +977,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
     if(!l_sdata) {
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         if (!l_srv) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             pthread_mutex_unlock(&s_srv_list_mutex);
             return NULL;
         }
@@ -987,7 +987,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         if (!l_sdata) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             DAP_DEL_Z(l_srv);
             pthread_mutex_unlock(&s_srv_list_mutex);
             return NULL;
