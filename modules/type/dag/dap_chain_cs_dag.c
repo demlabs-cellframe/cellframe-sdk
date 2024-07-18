@@ -774,8 +774,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_c
             return ATOM_ACCEPT;
         }
     }
-    if (dap_chain_cs_dag_event_calc_size(l_event, a_atom_size) != a_atom_size) {
-        debug_if(s_debug_more, L_WARNING, "Event size not equal to expected");
+    size_t l_atom_size = dap_chain_cs_dag_event_calc_size(l_event, a_atom_size);
+    if (l_atom_size != a_atom_size) {
+        log_it(L_WARNING, "Event size %zu not equal to expected %zu", l_atom_size, a_atom_size);
         return  ATOM_REJECT;
     }
 
@@ -804,26 +805,24 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_c
     }
 
     //chain coherence
-    if (! PVT(l_dag)->events ){
-        res = ATOM_MOVE_TO_THRESHOLD;
-        //log_it(L_DEBUG, "*** event %p goes to threshold", l_event);
-    } else {
-        //log_it(L_DEBUG, "*** event %p hash count %d",l_event, l_event->header.hash_count);
-        for (size_t i = 0; i< l_event->header.hash_count; i++) {
-            dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) l_event->hashes_n_datum_n_signs) + i;
-            dap_chain_cs_dag_event_item_t * l_event_search = NULL;
-            pthread_mutex_lock(l_events_mutex);
-            HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
-            pthread_mutex_unlock(l_events_mutex);
-            if (l_event_search == NULL) {
-                if(s_debug_more) {
-                    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-                    dap_chain_hash_fast_to_str(l_hash, l_hash_str, sizeof(l_hash_str));
-                    log_it(L_WARNING, "Hash %s wasn't in hashtable of previously parsed", l_hash_str);
-                }
-                res = ATOM_MOVE_TO_THRESHOLD;
-                break;
+    if (! PVT(l_dag)->events )
+        return ATOM_MOVE_TO_THRESHOLD;
+
+    for (size_t i = 0; i< l_event->header.hash_count; i++) {
+        dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) l_event->hashes_n_datum_n_signs) + i;
+        dap_chain_cs_dag_event_item_t * l_event_search = NULL;
+        pthread_mutex_lock(l_events_mutex);
+        HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
+        pthread_mutex_unlock(l_events_mutex);
+        if (l_event_search == NULL) {
+            if(s_debug_more) {
+                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(l_hash, l_hash_str, sizeof(l_hash_str));
+                log_it(L_WARNING, "Hash %s wasn't in hashtable of previously parsed, event %s goes to threshold",
+                                        l_hash_str, dap_hash_fast_to_str_static(a_atom_hash));
             }
+            res = ATOM_MOVE_TO_THRESHOLD;
+            break;
         }
     }
 

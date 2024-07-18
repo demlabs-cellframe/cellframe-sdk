@@ -400,8 +400,7 @@ DAP_STATIC_INLINE int dap_chain_datum_token_get_delegated_ticker(char *a_buf, co
     if (!a_buf || !a_ticker)
         return -1;
     *a_buf = 'm';
-    strncpy(a_buf + 1, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 2);
-    a_buf[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
+    dap_strncpy(a_buf + 1, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
     return 0;
 }
 

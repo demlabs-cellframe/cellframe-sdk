@@ -2836,7 +2836,6 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
 
     int l_ret = DAP_LEDGER_CHECK_OK;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-
     const char *l_token_ticker = ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.ticker;
     dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_token_ticker);
     if (!l_token_item) {
@@ -2988,8 +2987,6 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_token_emission_item_t * l_token_emission_item = NULL;
-    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_chain_hash_fast_to_str(a_emission_hash, l_hash_str, sizeof(l_hash_str));
     int l_ret = dap_ledger_token_emission_add_check(a_ledger, a_token_emission, a_token_emission_size, a_emission_hash);
     if (l_ret) {
         if (l_ret == DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE) { // TODO remove emissions threshold
@@ -3065,6 +3062,8 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
                                c_dap_chain_datum_token_emission_type_str[l_token_emission_item->datum_token_emission->hdr.type],
                                l_balance, c_token_ticker,
                                dap_chain_addr_to_str(&(l_token_emission_item->datum_token_emission->hdr.address)));
+                if (!dap_strcmp(l_balance, "0.088603136359095494"))
+                    log_it(L_ATT, "Bingo!");
             }
             s_threshold_txs_proc(a_ledger);
         } else if (HASH_COUNT(l_ledger_pvt->threshold_emissions) < s_threshold_emissions_max) {
@@ -4520,7 +4519,6 @@ int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         log_it (L_WARNING, "Inconsistent datum TX: datum size %zu != tx size %zu", a_datum_size, l_tx_size);
         return DAP_LEDGER_CHECK_INVALID_SIZE;
     }
-
     int l_ret_check = s_tx_cache_check(a_ledger, a_tx, a_datum_hash, false, NULL, NULL, NULL, NULL, NULL, false);
     if(s_debug_more) {
         if (l_ret_check)
