@@ -102,6 +102,10 @@ typedef struct iphdr dap_os_iphdr_t;
 #include "dap_chain_ledger.h"
 #include "dap_events.h"
 
+#include "dap_http_simple.h"
+#include "http_status_code.h"
+#include "json-c/json.h"
+
 #define LOG_TAG "dap_chain_net_srv_vpn"
 
 #define SF_MAX_EVENTS 256
@@ -206,6 +210,7 @@ static bool s_ch_packet_out(dap_stream_ch_t* ch, void* arg);
 static void s_ch_vpn_esocket_assigned(dap_events_socket_t* a_es, dap_worker_t * l_worker);
 static void s_ch_vpn_esocket_unassigned(dap_events_socket_t* a_es, dap_worker_t * l_worker);
 
+static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *arg);
 
 //static int srv_ch_sf_raw_write(uint8_t op_code, const void * data, size_t data_size);
 //static void srv_stream_sf_disconnect(ch_vpn_socket_proxy_t * sf_sock);
@@ -918,6 +923,20 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
     dap_cli_server_cmd_add ("vpn_stat", com_vpn_statistics, "VPN statistics",
             "vpn_stat -net <net_name> [-full]\n"
             );
+
+
+    dap_server_t *l_server_default = dap_server_get_default();
+    if (!l_server_default) {
+        log_it(L_ERROR,"Server should be enabled, change in config file");
+        return -100;
+    }
+
+    dap_http_server_t * l_http = l_server_default->_inheritor;
+    if(!l_http){
+        return -100;
+    }
+
+    dap_http_simple_proc_add(l_http, "/remain_limits_vpn",24000, s_callback_remain_limits);
 
     // add groups with limits into clusters
 
@@ -2100,3 +2119,127 @@ static int s_tun_deattach_queue(int fd)
 }
 
 #endif
+
+
+static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_arg)
+{
+    http_status_code_t * l_return_code = (http_status_code_t*)a_arg;
+    *l_return_code = Http_Status_OK;
+    strcpy(a_http_simple->reply_mime, "text/text");
+
+    const char* l_query = a_http_simple->http_client->in_query_string;
+    uint32_t l_query_length = a_http_simple->http_client->in_query_string_len;
+
+    const char *l_net_id_str = NULL;
+    const char *l_user_pkey_hash_str = NULL;
+    dap_chain_net_id_t l_net_id = {};
+    // request parsing
+    // example: net_id=id&user_pkey_hash=pkeyhash
+    char *l_first_param = DAP_DUP_SIZE(l_query, l_query_length);
+    char *l_second_param = strchr(l_first_param, '&');
+    if (!l_second_param || strlen(l_second_param) == 1){
+        dap_http_simple_reply_f(a_http_simple, "Wrong parameters!");
+        *l_return_code = Http_Status_OK;
+        return;
+    }
+    *l_second_param++ = '\0';
+
+    if (strstr(l_first_param, "net_id")){
+        if (*(l_first_param + strlen("net_id")) == '='){
+            l_net_id_str = l_first_param + strlen("net_id") + 1;
+        }
+    } else if (strstr(l_first_param, "user_pkey_hash")) {
+        if (*(l_first_param + strlen("user_pkey_hash")) == '='){
+            l_user_pkey_hash_str = l_first_param + strlen("user_pkey_hash") + 1;
+        }
+    }
+
+    if (strstr(l_second_param, "net_id")){
+        if (*(l_second_param + strlen("net_id")) == '='){
+            l_net_id_str = l_second_param + strlen("net_id") + 1;
+        }
+    } else if (strstr(l_second_param, "user_pkey_hash")) {
+        if (*(l_second_param + strlen("user_pkey_hash")) == '='){
+            l_user_pkey_hash_str = l_second_param + strlen("user_pkey_hash") + 1;
+        }
+    }
+
+    if (!l_net_id_str || !l_user_pkey_hash_str){
+        dap_http_simple_reply_f(a_http_simple, "Wrong parameters!");
+        *l_return_code = Http_Status_OK;
+        return;
+    }
+
+    l_net_id.uint64 = strtoul(l_net_id_str, NULL, 10);
+
+    dap_stream_ch_chain_net_srv_remain_service_store_t *l_remain_service = NULL;
+    const char *l_cert_name = dap_config_get_item_str_default(g_config, "srv_vpn", "receipt_sign_cert", NULL);
+    if (l_cert_name){
+        dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
+        dap_hash_fast_t price_pkey_hash = {};
+        size_t l_key_size = 0;
+        uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_key_size);
+        if (!l_pub_key || !l_key_size)
+        {
+            log_it(L_ERROR, "Can't get pkey from cert %s.", l_cert_name);
+            dap_http_simple_reply_f(a_http_simple, "Internal error!");
+            *l_return_code = Http_Status_OK;
+            return;
+        }
+
+        dap_hash_fast(l_pub_key, l_key_size, &price_pkey_hash);
+        DAP_DELETE(l_pub_key);
+        char* l_server_pkey_hash = dap_chain_hash_fast_to_str_new(&price_pkey_hash);
+        if (!l_server_pkey_hash){
+            log_it(L_DEBUG, "Can't get server pkey hash.");
+            dap_http_simple_reply_f(a_http_simple, "Internal error!");
+            *l_return_code = Http_Status_OK;
+            return;
+        }
+
+        dap_chain_net_t *l_net = dap_chain_net_by_id(l_net_id);
+        if(!l_net){
+            log_it(L_DEBUG, "Can't find net with id %"DAP_UINT64_FORMAT_U, l_net_id.uint64);
+            dap_http_simple_reply_f(a_http_simple, "Can't find net with id %"DAP_UINT64_FORMAT_U"!", l_net_id.uint64);
+            DAP_DEL_Z(l_server_pkey_hash);
+            *l_return_code = Http_Status_OK;
+            return;
+        }
+        char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s", l_net->pub.gdb_groups_prefix, (uint64_t)DAP_CHAIN_NET_SRV_VPN_ID, l_server_pkey_hash);
+        log_it(L_DEBUG, "Checkout user %s in group %s", l_user_pkey_hash_str, l_remain_limits_gdb_group);
+        size_t l_remain_service_size = 0;
+        l_remain_service = (dap_stream_ch_chain_net_srv_remain_service_store_t*) dap_global_db_get_sync(l_remain_limits_gdb_group, l_user_pkey_hash_str, &l_remain_service_size, NULL, NULL);
+        DAP_DELETE(l_remain_limits_gdb_group);
+
+        // Create JSON responce
+        json_object *l_json_response = json_object_new_object();
+
+        json_object *l_new_data = json_object_new_uint64(l_net_id.uint64);
+        json_object_object_add(l_json_response, "netId", l_new_data);
+
+        l_new_data = json_object_new_uint64((uint64_t)DAP_CHAIN_NET_SRV_VPN_ID);
+        json_object_object_add(l_json_response, "srvUid", l_new_data);
+
+        l_new_data = json_object_new_string(l_user_pkey_hash_str ? l_user_pkey_hash_str : "");
+        json_object_object_add(l_json_response, "userPkeyHash", l_new_data);
+
+        l_new_data = json_object_new_string(l_server_pkey_hash ? l_server_pkey_hash : "");
+        json_object_object_add(l_json_response, "serverPkeyHash", l_new_data);
+
+        l_new_data = json_object_new_uint64(l_remain_service ? l_remain_service->limits_bytes : 0);
+        json_object_object_add(l_json_response, "limitsBytes", l_new_data);
+
+        l_new_data = json_object_new_uint64(l_remain_service ? l_remain_service->limits_ts : 0);
+        json_object_object_add(l_json_response, "limitsSec", l_new_data);
+
+        const char *output_string = json_object_to_json_string(l_json_response);
+        dap_http_simple_reply(a_http_simple, (void*)output_string, strlen(output_string));
+        strcpy(a_http_simple->reply_mime, "application/json");
+        json_object_put(l_json_response);
+        DAP_DEL_Z(l_server_pkey_hash);
+        DAP_DEL_Z(l_first_param);
+    } else {
+        dap_http_simple_reply_f(a_http_simple, "Internal error!");
+        *l_return_code = Http_Status_InternalServerError;
+    }
+}
