@@ -69,7 +69,7 @@ int dap_chain_datum_decree_get_fee_addr(dap_chain_datum_decree_t *a_decree, dap_
 }
 
 static void *s_cb_copy_pkeys(const void *a_pkey, UNUSED_ARG void *a_data) {
-    return DAP_DUP((dap_pkey_t*)a_pkey);
+    return ({ dap_pkey_t *l_pkey = (dap_pkey_t*)a_pkey; DAP_DUP_SIZE(l_pkey, dap_pkey_get_size(l_pkey)); });
 }
 
 dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree, uint16_t *a_owners_num)
