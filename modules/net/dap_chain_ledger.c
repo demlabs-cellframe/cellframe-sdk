@@ -134,7 +134,7 @@ typedef struct dap_ledger_token_item {
     dap_chain_hash_fast_t *auth_pkey_hashes;
     size_t auth_signs_total;
     size_t auth_signs_valid;
-    uint16_t           flags;
+    uint32_t           flags;
     dap_chain_addr_t * tx_recv_allow;
     size_t             tx_recv_allow_size;
     dap_chain_addr_t * tx_recv_block;
@@ -697,8 +697,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
-                l_was_tx_recv_allow_copied = true;
             }
+            l_was_tx_recv_allow_copied = true;
             // Check if its already present
             for (size_t i = 0; i < l_new_tx_recv_allow_size; i++) { // Check for all the list
                 if (dap_chain_addr_compare(l_new_tx_recv_allow + i, l_add_addr)) { // Found
@@ -741,8 +741,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
-                l_was_tx_recv_allow_copied = true;
             }
+            l_was_tx_recv_allow_copied = true;
             // Check if its already present
             size_t i = 0;
             for ( ; i < l_new_tx_recv_allow_size; i++) // Check for all the list
@@ -800,8 +800,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
-                l_was_tx_recv_block_copied = true;
             }
+            l_was_tx_recv_block_copied = true;
             // Check if its already present
             for (size_t i = 0; i < l_new_tx_recv_block_size; i++) { // Check for all the list
                 if (dap_chain_addr_compare(l_new_tx_recv_block + i, l_add_addr)) { // Found
@@ -844,8 +844,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
-                l_was_tx_recv_block_copied = true;
             }
+            l_was_tx_recv_block_copied = true;
             // Check if its already present
             size_t i = 0;
             for ( ; i < l_new_tx_recv_block_size; i++) // Check for all the list
@@ -903,8 +903,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
-                l_was_tx_send_allow_copied = true;
             }
+            l_was_tx_send_allow_copied = true;
             // Check if its already present
             for (size_t i = 0; i < l_new_tx_send_allow_size; i++) { // Check for all the list
                 if (dap_chain_addr_compare(l_new_tx_send_allow + i, l_add_addr)) { // Found
@@ -948,8 +948,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
-                l_was_tx_send_allow_copied = true;
             }
+            l_was_tx_send_allow_copied = true;
             // Check if its already present
             size_t i = 0;
             for ( ; i < l_new_tx_send_allow_size; i++) // Check for all the list
@@ -1007,8 +1007,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
-                l_was_tx_send_block_copied = true;
             }
+            l_was_tx_send_block_copied = true;
             // Check if its already present
             for (size_t i = 0; i < l_new_tx_send_block_size; i++) { // Check for all the list
                 if (dap_chain_addr_compare(l_new_tx_send_block + i, l_add_addr)) { // Found
@@ -1053,8 +1053,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
-                l_was_tx_send_block_copied = true;
             }
+            l_was_tx_send_block_copied = true;
             // Check if its already present
             size_t i = 0;
             for ( ; i < l_new_tx_send_block_size; i++) // Check for all the list
@@ -1140,8 +1140,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
-                l_was_pkeys_copied = true;
             }
+            l_was_pkeys_copied = true;
             dap_pkey_t *l_new_auth_pkey = dap_tsd_get_object(l_tsd, dap_pkey_t);
             dap_pkey_type_t l_pkey_type_correction = { .type = DAP_PKEY_TYPE_NULL };
             if (dap_pkey_type_to_enc_key_type(l_new_auth_pkey->header.type) == DAP_ENC_KEY_TYPE_INVALID) {
@@ -1222,8 +1222,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
-                l_was_pkeys_copied = true;
             }
+            l_was_pkeys_copied = true;
             dap_hash_t l_new_auth_pkey_hash = dap_tsd_get_scalar(l_tsd, dap_hash_t);
             // Check if its already present
             size_t i = 0;
@@ -1305,7 +1305,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
         if (l_was_tx_recv_allow_copied) {
             a_item_apply_to->tx_recv_allow_size = l_new_tx_recv_allow_size;
             DAP_DEL_Z(a_item_apply_to->tx_recv_allow);
-            a_item_apply_to->tx_recv_allow = l_new_tx_recv_block;
+            a_item_apply_to->tx_recv_allow = l_new_tx_recv_allow;
         }
         if (l_was_tx_recv_block_copied) {
             a_item_apply_to->tx_recv_block_size = l_new_tx_recv_block_size;
@@ -1315,7 +1315,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
         if (l_was_tx_send_allow_copied) {
             a_item_apply_to->tx_send_allow_size = l_new_tx_send_allow_size;
             DAP_DEL_Z(a_item_apply_to->tx_send_allow);
-            a_item_apply_to->tx_send_allow = l_new_tx_send_block;
+            a_item_apply_to->tx_send_allow = l_new_tx_send_allow;
         }
         if (l_was_tx_send_block_copied) {
             a_item_apply_to->tx_send_block_size = l_new_tx_send_block_size;
@@ -1676,6 +1676,16 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
                 .auth_pkeys         = DAP_NEW_Z_SIZE(dap_pkey_t*, sizeof(dap_pkey_t*) * l_token->signs_total),
                 .auth_pkey_hashes   = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, sizeof(dap_chain_hash_fast_t) * l_token->signs_total)
         };
+        switch (l_token->subtype) {
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+            l_token_item->flags = l_token->header_private_decl.flags; break;
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
+            l_token_item->flags = l_token->header_native_decl.flags; break;
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC:
+            l_token_item->flags = l_token->header_public.flags; break;
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE:
+        default:;
+        }
         if ( !l_token_item->auth_pkeys ) {
             DAP_DEL_MULTY(l_token, l_token_item);
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -2804,29 +2814,36 @@ static bool s_ledger_permissions_check(dap_ledger_token_item_t *a_token_item, en
     return false;
 }
 
-int s_ledger_addr_check(dap_ledger_token_item_t *a_token_item, dap_chain_addr_t *a_addr)
+int s_ledger_addr_check(dap_ledger_token_item_t *a_token_item, dap_chain_addr_t *a_addr, bool a_receive)
 {
     dap_return_val_if_fail(a_token_item && a_addr, DAP_LEDGER_CHECK_INVALID_ARGS);
-    // tsd section was parsed in s_token_tsd_parse
-    if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED) ||
-        (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN)) { // in white list
-
-        if (!s_ledger_permissions_check(a_token_item, LEDGER_PERMISSION_RECEIVER_ALLOWED, a_addr)) {
-            log_it(L_WARNING, "Address %s is not in tx_recv_allow for emission for token %s",
-                   dap_chain_addr_to_str(a_addr), a_token_item->ticker);
-            return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
-        }
+    if (dap_chain_addr_is_blank(a_addr))
         return DAP_LEDGER_CHECK_OK;
-    }
-
-    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED) {
-        if (s_ledger_permissions_check(a_token_item, LEDGER_PERMISSION_RECEIVER_BLOCKED, a_addr)) {
-            log_it(L_WARNING, "Address %s is in tx_recv_block for emission for token %s",
-                   dap_chain_addr_to_str(a_addr), a_token_item->ticker);
-            return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
+    if (a_receive) {
+        if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED) ||
+                (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN)) {
+            // Check we are in white list
+            if (!s_ledger_permissions_check(a_token_item, LEDGER_PERMISSION_RECEIVER_ALLOWED, a_addr))
+                return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
+        } else if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED) ||
+                (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN)) {
+            // Check we are in black list
+            if (s_ledger_permissions_check(a_token_item, LEDGER_PERMISSION_RECEIVER_BLOCKED, a_addr))
+                return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
+        }
+    } else {
+        if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED) ||
+                (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN)) {
+            // Check we are in white list
+            if (!s_ledger_permissions_check(a_token_item, LEDGER_PERMISSION_SENDER_ALLOWED, a_addr))
+                return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
+        } else if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED) ||
+                (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN)) {
+            // Check we are in black list
+            if (s_ledger_permissions_check(a_token_item, LEDGER_PERMISSION_SENDER_BLOCKED, a_addr))
+                return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
         }
     }
-
     return DAP_LEDGER_CHECK_OK;
 }
 
@@ -2894,7 +2911,9 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
     //additional check for private tokens
     if((l_token_item->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)
         ||  (l_token_item->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE)) {
-        if ((l_ret = s_ledger_addr_check(l_token_item, &((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.address))) {
+        if ((l_ret = s_ledger_addr_check(l_token_item, &((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.address, true))) {
+            log_it(L_WARNING, "Address %s is not in allowed to receive for emission of token %s",
+                   dap_chain_addr_to_str(&((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.address), l_token_item->ticker);
             DAP_DELETE(l_emission);
             return l_ret;
         }
@@ -3062,8 +3081,6 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
                                c_dap_chain_datum_token_emission_type_str[l_token_emission_item->datum_token_emission->hdr.type],
                                l_balance, c_token_ticker,
                                dap_chain_addr_to_str(&(l_token_emission_item->datum_token_emission->hdr.address)));
-                if (!dap_strcmp(l_balance, "0.088603136359095494"))
-                    log_it(L_ATT, "Bingo!");
             }
             s_threshold_txs_proc(a_ledger);
         } else if (HASH_COUNT(l_ledger_pvt->threshold_emissions) < s_threshold_emissions_max) {
@@ -4112,25 +4129,10 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     break;
                 }
                 // Check permissions
-                if ( (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED ) ||  // If all is blocked - check if we're
-                     (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN) ){ // in white list
-
-                    if (!dap_chain_addr_is_blank(l_addr_from) &&
-                            s_ledger_permissions_check(l_token_item, LEDGER_PERMISSION_SENDER_ALLOWED, l_addr_from) != 0) {
-                        const char *l_tmp_tx_in_from = dap_chain_addr_to_str(l_addr_from);
-                        debug_if(s_debug_more, L_WARNING, "No permission for addr %s", l_tmp_tx_in_from ? l_tmp_tx_in_from : "(null)");
-                        l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
-                        break;
-                    }
-                }
-                if ((l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED ) || // If all is allowed - check if we're
-                    (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN ) ){ // in black list
-                    if (s_ledger_permissions_check(l_token_item, LEDGER_PERMISSION_SENDER_BLOCKED, l_addr_from) == 0) {
-                        const char *l_tmp_tx_in_from = dap_chain_addr_to_str(l_addr_from);
-                        debug_if(s_debug_more, L_WARNING, "No permission for addr %s", l_tmp_tx_in_from ? l_tmp_tx_in_from : "(null)");
-                        l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
-                        break;
-                    }
+                if (s_ledger_addr_check(l_token_item, l_addr_from, false) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
+                    debug_if(s_debug_more, L_WARNING, "No permission to send for addr %s", dap_chain_addr_to_str(l_addr_from));
+                    l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
+                    break;
                 }
             } else { // l_cond_type == TX_ITEM_TYPE_IN_COND
                 if(*(uint8_t *)l_tx_prev_out != TX_ITEM_TYPE_OUT_COND) {
@@ -4359,7 +4361,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             break;
         }
 
-        // Get permissions for token
+        // Find token item
         dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_token);
         if (!l_token_item) {
             debug_if(s_debug_more, L_WARNING, "Token with ticker %s not found", l_token);
@@ -4367,28 +4369,11 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             break;
         }
         // Check permissions
-
-        if ( (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED )||   //  If all is blocked or frozen
-             (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN) ){ //  check if we're in white list
-            if (!dap_chain_addr_is_blank(&l_tx_out_to) &&
-                    s_ledger_permissions_check(l_token_item, LEDGER_PERMISSION_RECEIVER_ALLOWED, &l_tx_out_to) != 0) {
-                const char *l_tmp_tx_out_to = dap_chain_addr_to_str(&l_tx_out_to);
-                debug_if(s_debug_more, L_WARNING, "No permission for addr %s", l_tmp_tx_out_to?l_tmp_tx_out_to:"(null)");
-                l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
-                break;
-            }
+        if (s_ledger_addr_check(l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
+            debug_if(s_debug_more, L_WARNING, "No permission to receive for addr %s", dap_chain_addr_to_str(&l_tx_out_to));
+            l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
+            break;
         }
-        if ( (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED )||
-             (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN )
-             ){ // If all is allowed - check if we're in black list
-            if (s_ledger_permissions_check(l_token_item, LEDGER_PERMISSION_RECEIVER_BLOCKED, &l_tx_out_to) == 0) {
-                const char *l_tmp_tx_out_to = dap_chain_addr_to_str(&l_tx_out_to);
-                debug_if(s_debug_more, L_WARNING, "No permission for addr %s", l_tmp_tx_out_to?l_tmp_tx_out_to:"(null)");
-                l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
-                break;
-            }
-        }
-
         if (l_fee_check && dap_chain_addr_compare(&l_tx_out_to, &a_ledger->net->pub.fee_addr) &&
                 !dap_strcmp(l_value_cur->token_ticker, a_ledger->net->pub.native_ticker))
             SUM_256_256(l_fee_sum, l_value, &l_fee_sum);

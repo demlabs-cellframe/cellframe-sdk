@@ -643,7 +643,7 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     
     dap_chain_datum_tx_t *l_unstake_cond_tx = dap_ledger_test_create_unstake_tx_cond(a_from_key, &l_stake_cond_tx_hash, dap_chain_uint256_from(20U), a_ledger);
     dap_hash_fast_t l_unstake_cond_tx_hash = {};
-    dap_hash_fast(l_unstake_cond_tx, dap_chain_datum_tx_get_size(l_stake_cond_tx), &l_unstake_cond_tx_hash);
+    dap_hash_fast(l_unstake_cond_tx, dap_chain_datum_tx_get_size(l_unstake_cond_tx), &l_unstake_cond_tx_hash);
     err_code = dap_ledger_tx_add(a_ledger, l_unstake_cond_tx, &l_unstake_cond_tx_hash, false);
     printf("err_code = %s\n", dap_ledger_check_error_str(err_code));
     dap_assert(!err_code, "Adding of unstake cond transaction to ledger is");
