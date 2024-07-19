@@ -245,20 +245,22 @@ static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)
 
 static bool s_receipt_timeout_handler(dap_chain_net_srv_usage_t *a_usage)
 {
+    log_it(L_WARNING, "Waiting receipt signing from client timeout!");
     if (a_usage->receipt_sign_req_cnt < RECEIPT_SIGN_MAX_ATTEMPT - 1){
         // New attempt
+        a_usage->receipt_sign_req_cnt++;
+        log_it(L_WARNING, "Try to send receipt again. Attempt %d", a_usage->receipt_sign_req_cnt+1);
         if (a_usage->is_waiting_first_receipt_sign ){
-            a_usage->receipt_sign_req_cnt++;
             dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                        a_usage->receipt, a_usage->receipt->size);
             return true;
         } else if (a_usage->is_waiting_next_receipt_sign ){
-            a_usage->receipt_sign_req_cnt++;
             dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                        a_usage->receipt_next, a_usage->receipt_next->size);
             return true;
         }
     }
+    log_it(L_WARNING, "Receipt signing by client max attempt is reached!");
     a_usage->receipt_sign_req_cnt = 0;
     a_usage->is_waiting_first_receipt_sign = false;
     a_usage->is_waiting_next_receipt_sign = false;
