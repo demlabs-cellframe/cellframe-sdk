@@ -3016,22 +3016,22 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             const char *l_cert_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
             if (!l_cert_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' requires parameter -cert");
-                return -3;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command 'min_validators_count' requires parameter -cert");
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR;
             }
             l_poa_cert = dap_cert_find_by_name(l_cert_str);
             if (!l_poa_cert) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate not found");
-                return -25;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_CERT_ERR,"Specified certificate not found");
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CERT_ERR;
             }
             if (!l_poa_cert->enc_key || !l_poa_cert->enc_key->priv_key_data) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate doesn't contain a private key");
-                return -26;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_PVT_KEY_ERR,"Specified certificate doesn't contain a private key");
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PVT_KEY_ERR;
             }
         } else if (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "show") > 0)
             l_subcommand_show = true;
         else
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized subcommand '%s'", a_argv[l_arg_index]);
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNKNOWN,"Unrecognized subcommand '%s'", a_argv[l_arg_index]);
     }
 
     int ret = 0;
@@ -3043,13 +3043,13 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             const char *l_value_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-val_count", &l_value_str);
             if (!l_value_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command '%s' requires parameter -val_count", l_subcmd_strs[l_subcmd]);
-                return -9;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -val_count", l_subcmd_strs[l_subcmd]);
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR;
             }
             uint256_t l_value = dap_chain_balance_scan(l_value_str);
             if (IS_ZERO_256(l_value)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized number in '-val_count' param");
-                return -10;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR,"Unrecognized number in '-val_count' param");
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR;
             }
             dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_min_validators_count(
                                                     l_chain_net, l_chain, l_value, l_poa_cert);
@@ -3059,9 +3059,9 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                                                                " Decree hash %s", l_decree_hash_str);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count setting failed");
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_MINVALSET_ERR,"Minimum validators count setting failed");
                 DAP_DEL_Z(l_decree);
-                return -21;
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_MINVALSET_ERR;
             }
         } else
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count is %d", l_esbocs_pvt->min_validators_count);
@@ -3076,9 +3076,9 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                                                                 l_subcommand_add ? "enabled" : "disabled", l_decree_hash_str);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Checking signs structure setting failed");
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,"Checking signs structure setting failed");
                 DAP_DEL_Z(l_decree);
-                return -21;
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
             }
         } else
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Checking signs structure is %s", l_esbocs_pvt->check_signs_structure ?
@@ -3090,13 +3090,13 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             const char *l_hash_str = NULL, *l_type_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-pkey_hash", &l_hash_str);
             if (!l_hash_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command '%s' requires parameter -pkey_hash", l_subcmd_strs[l_subcmd]);
-                return -9;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_ERR,"Command '%s' requires parameter -pkey_hash", l_subcmd_strs[l_subcmd]);
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_ERR;
             }
             dap_hash_fast_t l_pkey_hash;
             if (dap_chain_hash_fast_from_str(l_hash_str, &l_pkey_hash)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid hash format in 'pkey_hash' param");
-                return -10;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_FORMAT_ERR,"Invalid hash format in 'pkey_hash' param");
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_FORMAT_ERR;
             }
             dap_sign_type_t l_sig_type = { .type = SIG_TYPE_DILITHIUM };
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-sig_type", &l_type_str);
@@ -3110,9 +3110,10 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                                                         l_subcommand_add ? "added" : "deleted", l_decree_hash_str);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Emergency validator %s failed", l_subcommand_add ? "adding" : "deleting");
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_ADD_DEL_ERR,
+                                        "Emergency validator %s failed", l_subcommand_add ? "adding" : "deleting");
                 DAP_DEL_Z(l_decree);
-                return -21;
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_ADD_DEL_ERR;
             }
         } else
             s_print_emergency_validators((char **)a_str_reply, l_esbocs_pvt->emergency_validator_addrs);
