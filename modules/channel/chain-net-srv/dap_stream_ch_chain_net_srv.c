@@ -75,8 +75,15 @@ typedef struct client_statistic_value{
     } grace;
 } client_statistic_value_t;
 
+typedef struct receipt_sign_waiting_args {
+    dap_stream_worker_t *worker;
+    dap_stream_ch_uuid_t uuid;
+    dap_chain_net_srv_usage_t *usage;
+} receipt_sign_waiting_args_t;
+
 static void s_stream_ch_new(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
+static void s_start_receipt_timeout_timer(dap_chain_net_srv_usage_t *a_usage);
 static bool s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
 static bool s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 
@@ -236,6 +243,33 @@ static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)
     return false;
 }
 
+static bool s_receipt_timeout_handler(dap_chain_net_srv_usage_t *a_usage)
+{
+    if (a_usage->receipt_sign_req_cnt < RECEIPT_SIGN_MAX_ATTEMPT - 1){
+        // New attempt
+        if (a_usage->is_waiting_first_receipt_sign ){
+            a_usage->receipt_sign_req_cnt++;
+            dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+                                       a_usage->receipt, a_usage->receipt->size);
+            return true;
+        } else if (a_usage->is_waiting_next_receipt_sign ){
+            a_usage->receipt_sign_req_cnt++;
+            dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+                                       a_usage->receipt_next, a_usage->receipt_next->size);
+            return true;
+        }
+    }
+    a_usage->receipt_sign_req_cnt = 0;
+    a_usage->is_waiting_first_receipt_sign = false;
+    a_usage->is_waiting_next_receipt_sign = false;
+    return false;
+}
+
+static void s_start_receipt_timeout_timer(dap_chain_net_srv_usage_t *a_usage)
+{
+    a_usage->receipts_timeout_timer = dap_timerfd_start_on_worker(a_usage->client->stream_worker->worker, 10000,
+                                                             (dap_timerfd_callback_t)s_receipt_timeout_handler, a_usage);
+}
 /**
  * @brief create string with usage service statistic
  * @return string with staticstic
@@ -410,6 +444,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
     l_usage->net = l_net;
     l_usage->service = l_srv;
     l_usage->client_pkey_hash = a_request->hdr.client_pkey_hash;
+    l_usage->receipt_timeout_timer_start_callback = s_start_receipt_timeout_timer;
 
     dap_chain_net_srv_price_t * l_price = NULL;
     bool l_specific_order_free = false;
@@ -790,11 +825,15 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             DAP_DEL_Z(a_grace->usage->receipt_next);
             a_grace->usage->receipt_next = dap_chain_net_srv_issue_receipt(a_grace->usage->service, a_grace->usage->price, NULL, 0);
             a_grace->usage->is_waiting_next_receipt_sign = true;
+            //start timeout timer
+            a_grace->usage->receipt_timeout_timer_start_callback(a_grace->usage);
         }else{
             a_grace->usage->receipt = dap_chain_net_srv_issue_receipt(a_grace->usage->service, a_grace->usage->price, NULL, 0);
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                        a_grace->usage->receipt, a_grace->usage->receipt->size);
             a_grace->usage->is_waiting_first_receipt_sign = true;
+            //start timeout timer
+            a_grace->usage->receipt_timeout_timer_start_callback(a_grace->usage);
         }
         DAP_DELETE(a_grace->request);
         DAP_DELETE(a_grace);
@@ -1077,6 +1116,8 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
             log_it(L_INFO, "Send first receipt to sign");
             l_grace->usage->receipt = dap_chain_net_srv_issue_receipt(l_grace->usage->service, l_grace->usage->price, NULL, 0);
             l_grace->usage->is_waiting_first_receipt_sign = true;
+            // start timeout timer
+            l_grace->usage->receipt_timeout_timer_start_callback(l_grace->usage);
             if (l_grace->usage->receipt )
                 dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                        l_grace->usage->receipt, l_grace->usage->receipt->size);
@@ -1368,10 +1409,16 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         }
 
         if (!l_usage->is_waiting_first_receipt_sign && l_usage->is_waiting_next_receipt_sign){
+            //delete timeout timer
+            if (l_usage->receipts_timeout_timer)
+                dap_timerfd_delete_mt(l_usage->receipts_timeout_timer->worker, l_usage->receipts_timeout_timer->esocket_uuid);
             l_usage->is_waiting_next_receipt_sign = false;
         }
 
         if (l_usage->is_grace && l_usage->is_waiting_first_receipt_sign){
+            //delete timeout timer
+            if(l_usage->receipts_timeout_timer)
+                dap_timerfd_delete_mt(l_usage->receipts_timeout_timer->worker, l_usage->receipts_timeout_timer->esocket_uuid);
             l_usage->is_waiting_first_receipt_sign = false;
             l_usage->is_grace = false;
         }

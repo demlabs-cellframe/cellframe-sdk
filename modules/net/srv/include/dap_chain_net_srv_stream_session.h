@@ -33,6 +33,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_wallet.h"
 
+
+#define RECEIPT_SIGN_MAX_ATTEMPT 3
 typedef struct dap_chain_net_srv dap_chain_net_srv_t;
 typedef struct dap_chain_net_srv_client_remote dap_chain_net_srv_client_remote_t;
 typedef struct dap_chain_net_srv_price dap_chain_net_srv_price_t;
@@ -53,6 +55,9 @@ typedef struct dap_chain_net_srv_usage{
     dap_chain_hash_fast_t client_pkey_hash;
     dap_chain_hash_fast_t static_order_hash;
     dap_timerfd_t *save_limits_timer;
+    dap_timerfd_t *receipts_timeout_timer;
+    void (*receipt_timeout_timer_start_callback)(struct dap_chain_net_srv_usage *a_usage);
+    int receipt_sign_req_cnt;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     bool is_active;
     bool is_free;
