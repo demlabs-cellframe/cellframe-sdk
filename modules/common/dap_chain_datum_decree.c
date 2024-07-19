@@ -51,32 +51,33 @@ int dap_chain_datum_decree_get_fee(dap_chain_datum_decree_t *a_decree, uint256_t
 {
     dap_return_val_if_fail(a_decree && a_fee_value, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE);
-    return l_tsd && l_tsd->size == sizeof(uint256_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_fee_value); 0; }) : 1;
+    return l_tsd && l_tsd->size == sizeof(uint256_t) ? ( _dap_tsd_get_scalar(l_tsd, a_fee_value), 0 ) : 1;
 }
 
 int dap_chain_datum_decree_get_value(dap_chain_datum_decree_t *a_decree, uint256_t *a_value)
 {
     dap_return_val_if_fail(a_decree && a_value, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE);
-    return l_tsd && l_tsd->size == sizeof(uint256_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_value); 0; }) : 1;
+    return l_tsd && l_tsd->size == sizeof(uint256_t) ? ( _dap_tsd_get_scalar(l_tsd, a_value), 0 ) : 1;
 }
 
 int dap_chain_datum_decree_get_fee_addr(dap_chain_datum_decree_t *a_decree, dap_chain_addr_t *a_fee_wallet)
 {
     dap_return_val_if_fail(a_decree && a_fee_wallet, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET);
-    return l_tsd && l_tsd->size == sizeof(dap_chain_addr_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_fee_wallet); 0; }) : 1;
+    return l_tsd && l_tsd->size == sizeof(dap_chain_addr_t) ? ( _dap_tsd_get_scalar(l_tsd, a_fee_wallet), 0 ) : 1;
 }
 
 static void *s_cb_copy_pkeys(const void *a_pkey, UNUSED_ARG void *a_data) {
-    return ({ dap_pkey_t *l_pkey = (dap_pkey_t*)a_pkey; DAP_DUP_SIZE(l_pkey, dap_pkey_get_size(l_pkey)); });
+    return DAP_DUP_SIZE(a_pkey, dap_pkey_get_size(a_pkey));
 }
 
 dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree, uint16_t *a_owners_num)
 {
     dap_return_val_if_fail(a_decree && a_owners_num, NULL);
     dap_list_t *l_tsd_list = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER);
-    *a_owners_num = (uint16_t)dap_list_length(l_tsd_list);
+    if ( !(*a_owners_num = (uint16_t)dap_list_length(l_tsd_list)) )
+        return NULL;
     dap_list_t *l_ret = dap_list_copy_deep(l_tsd_list, s_cb_copy_pkeys, NULL);
     dap_list_free(l_tsd_list);
     return l_ret;
@@ -86,63 +87,63 @@ int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, ui
 {
     dap_return_val_if_fail(a_decree && a_min_owners_num, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER);
-    return l_tsd && l_tsd->size == sizeof(uint256_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_min_owners_num); 0; }) : 1;
+    return l_tsd && l_tsd->size == sizeof(uint256_t) ? ( _dap_tsd_get_scalar(l_tsd, a_min_owners_num), 0 ) : 1;
 }
 
 int dap_chain_datum_decree_get_hash(dap_chain_datum_decree_t *a_decree, dap_hash_fast_t *a_tx_hash)
 {
     dap_return_val_if_fail(a_decree && a_tx_hash, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH);
-    return l_tsd && l_tsd->size == sizeof(dap_hash_fast_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_tx_hash); 0; }) : 1;
+    return l_tsd && l_tsd->size == sizeof(dap_hash_fast_t) ? ( _dap_tsd_get_scalar(l_tsd, a_tx_hash), 0 ) : 1;
 }
 
 int dap_chain_datum_decree_get_stake_value(dap_chain_datum_decree_t *a_decree, uint256_t *a_stake_value)
 {
     dap_return_val_if_fail(a_decree && a_stake_value, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE);
-    return l_tsd && l_tsd->size == sizeof(uint256_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_stake_value); 0; }) : 1;
+    return l_tsd && l_tsd->size == sizeof(uint256_t) ? ( _dap_tsd_get_scalar(l_tsd, a_stake_value), 0 ) : 1;
 }
 
 int dap_chain_datum_decree_get_stake_signing_addr(dap_chain_datum_decree_t *a_decree, dap_chain_addr_t *a_signing_addr)
 {
     dap_return_val_if_fail(a_decree && a_signing_addr, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR);
-    return l_tsd && l_tsd->size == sizeof(dap_chain_addr_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_signing_addr); 0; }) : 1;
+    return l_tsd && l_tsd->size == sizeof(dap_chain_addr_t) ? ( _dap_tsd_get_scalar(l_tsd, a_signing_addr), 0 ) : 1;
 }
 
 int dap_chain_datum_decree_get_stake_signer_node_addr(dap_chain_datum_decree_t *a_decree, dap_chain_node_addr_t *a_node_addr)
 {
     dap_return_val_if_fail(a_decree && a_node_addr, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR);
-    return l_tsd && l_tsd->size == sizeof(dap_chain_node_addr_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_node_addr); 0; }) : 1;
+    return l_tsd && l_tsd->size == sizeof(dap_chain_node_addr_t) ? ( _dap_tsd_get_scalar(l_tsd, a_node_addr), 0 ) : 1;
 }
 
 int dap_chain_datum_decree_get_stake_min_value(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_value)
 {
     dap_return_val_if_fail(a_decree && a_min_value, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE);
-    return l_tsd && l_tsd->size == sizeof(uint256_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_min_value); 0; }) : 1;
+    return l_tsd && l_tsd->size == sizeof(uint256_t) ? ( _dap_tsd_get_scalar(l_tsd, a_min_value), 0 ) : 1;
 }
 
 int dap_chain_datum_decree_get_stake_min_signers_count(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_signers_count)
 {
     dap_return_val_if_fail(a_decree && a_min_signers_count, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT);
-    return l_tsd && l_tsd->size == sizeof(uint256_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_min_signers_count); 0; }) : 1;
+    return l_tsd && l_tsd->size == sizeof(uint256_t) ? ( _dap_tsd_get_scalar(l_tsd, a_min_signers_count), 0 ) : 1;
 }
 
 int dap_chain_datum_decree_get_action(dap_chain_datum_decree_t *a_decree, uint8_t *a_action)
 {
     dap_return_val_if_fail(a_decree && a_action, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION);
-    return l_tsd && l_tsd->size == sizeof(uint8_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_action); 0; }) : 1;
+    return l_tsd && l_tsd->size == sizeof(uint8_t) ? ( _dap_tsd_get_scalar(l_tsd, a_action), 0 ) : 1;
 }
 
 int dap_chain_datum_decree_get_signature_type(dap_chain_datum_decree_t *a_decree, uint32_t *a_signature_type)
 {
     dap_return_val_if_fail(a_decree && a_signature_type, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE);
-    return l_tsd && l_tsd->size == sizeof(uint32_t) ? ({ _dap_tsd_get_scalar(l_tsd, a_signature_type); 0; }) : 1;
+    return l_tsd && l_tsd->size == sizeof(uint32_t) ? ( _dap_tsd_get_scalar(l_tsd, a_signature_type), 0 ) : 1;
 }
 
 int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, const char **a_addr)
@@ -151,7 +152,7 @@ int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, cons
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST);
     if (!l_tsd)
         l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING);
-    return l_tsd ? ({ *a_addr = dap_tsd_get_string_const(l_tsd); !dap_strcmp(*a_addr, DAP_TSD_CORRUPTED_STRING); }) : 1;
+    return l_tsd ? ( *a_addr = dap_tsd_get_string_const(l_tsd), !dap_strcmp(*a_addr, DAP_TSD_CORRUPTED_STRING) ) : 1;
 }
 
 void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type)
