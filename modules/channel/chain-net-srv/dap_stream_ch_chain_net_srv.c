@@ -269,7 +269,7 @@ static bool s_receipt_timeout_handler(dap_chain_net_srv_usage_t *a_usage)
 
 static void s_start_receipt_timeout_timer(dap_chain_net_srv_usage_t *a_usage)
 {
-    a_usage->receipts_timeout_timer = dap_timerfd_start_on_worker(a_usage->client->stream_worker->worker, 10000,
+    a_usage->receipts_timeout_timer = dap_timerfd_start_on_worker(dap_worker_get_current(), 10000,
                                                              (dap_timerfd_callback_t)s_receipt_timeout_handler, a_usage);
 }
 /**
@@ -1412,15 +1412,21 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
 
         if (!l_usage->is_waiting_first_receipt_sign && l_usage->is_waiting_next_receipt_sign){
             //delete timeout timer
-            if (l_usage->receipts_timeout_timer)
-                dap_timerfd_delete_mt(l_usage->receipts_timeout_timer->worker, l_usage->receipts_timeout_timer->esocket_uuid);
+            if (l_usage->receipts_timeout_timer){
+                log_it(L_INFO, "Delete receipt timeout timer.");
+                dap_timerfd_delete_unsafe(l_usage->receipts_timeout_timer);
+                l_usage->receipts_timeout_timer = NULL;
+            }  
             l_usage->is_waiting_next_receipt_sign = false;
         }
 
         if (l_usage->is_grace && l_usage->is_waiting_first_receipt_sign){
             //delete timeout timer
-            if(l_usage->receipts_timeout_timer)
-                dap_timerfd_delete_mt(l_usage->receipts_timeout_timer->worker, l_usage->receipts_timeout_timer->esocket_uuid);
+            if (l_usage->receipts_timeout_timer){
+                log_it(L_INFO, "Delete receipt timeout timer.");
+                dap_timerfd_delete_unsafe(l_usage->receipts_timeout_timer);
+                l_usage->receipts_timeout_timer = NULL;
+            } 
             l_usage->is_waiting_first_receipt_sign = false;
             l_usage->is_grace = false;
         }
