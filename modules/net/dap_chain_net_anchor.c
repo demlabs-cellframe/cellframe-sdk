@@ -52,36 +52,26 @@ static inline dap_sign_t *s_concate_all_signs_in_array(dap_sign_t *a_in_signs, s
 
 static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_anchor, size_t a_data_size, bool a_load_mode)
 {
-    if (a_data_size < sizeof(dap_chain_datum_anchor_t)) {
-        log_it(L_WARNING, "Anchor size is too small");
-        return -120;
-    }
-    if (dap_chain_datum_anchor_get_size(a_anchor) != a_data_size) {
-        log_it(L_WARNING, "Anchor size is invalid");
-        return -121;
-    }
+    if (a_data_size < sizeof(dap_chain_datum_anchor_t))
+        return log_it(L_WARNING, "Anchor size is too small"), -120;
+
+    if (dap_chain_datum_anchor_get_size(a_anchor) != a_data_size)
+        return log_it(L_WARNING, "Anchor size is invalid, %lu != %lu", dap_chain_datum_anchor_get_size(a_anchor), a_data_size), -121;
+
     int ret_val = 0;
     size_t l_signs_size = a_anchor->header.signs_size;
     //multiple signs reading from datum
-    dap_sign_t *l_signs_block = (dap_sign_t *)((byte_t*)a_anchor->data_n_sign + a_anchor->header.data_size);
+    dap_sign_t *l_signs_block = (dap_sign_t*)(a_anchor->data_n_sign + a_anchor->header.data_size);
 
-    if (!l_signs_size || !l_signs_block) {
-        log_it(L_WARNING, "Anchor data sign not found");
-        return -100;
-    }
-
-    size_t l_signs_count = 0;
-    size_t l_signs_arr_size = 0;
-    dap_sign_t *l_signs_arr = s_concate_all_signs_in_array(l_signs_block, l_signs_size, &l_signs_count, &l_signs_arr_size);
+    if (!l_signs_size || !l_signs_block)
+        return log_it(L_WARNING, "Anchor data sign not found"), -100;
 
     // Find unique pkeys in pkeys set from previous step and check that number of signs > min
     size_t l_num_of_unique_signs = 0;
-    dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_arr, l_signs_arr_size, &l_num_of_unique_signs);
+    dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_block, l_signs_size, &l_num_of_unique_signs);
 
-    if (!l_num_of_unique_signs) {
-        log_it(L_WARNING, "Not enough unique signatures");
-        return -106;
-    }
+    if (!l_num_of_unique_signs || !l_unique_signs)
+        return log_it(L_WARNING, "No unique signatures!"), -106;
     bool l_sign_authorized = false;
     size_t l_signs_size_original = a_anchor->header.signs_size;
     a_anchor->header.signs_size = 0;
@@ -101,7 +91,6 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
         if (l_sign_authorized)
             break;
     }
-    DAP_DELETE(l_signs_arr);
     DAP_DELETE(l_unique_signs);
     a_anchor->header.signs_size = l_signs_size_original;
 
