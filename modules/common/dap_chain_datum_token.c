@@ -32,30 +32,31 @@
 
 #define LOG_TAG "dap_chain_datum_token"
 
-const char *c_dap_chain_datum_token_emission_type_str[]={
-    [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED] = "UNDEFINED",
-    [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH] = "AUTH",
-    [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO] = "ALGO",
-    [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER] = "OWNER",
-    [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT] = "SMART_CONTRACT"
+struct datum_token_flag_struct {
+    const char *key;
+    uint32_t val;
 };
 
-const char *c_dap_chain_datum_token_flag_str[] = {
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_NONE] = "NONE",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED] = "ALL_SENDER_BLOCKED",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED] = "ALL_SENDER_ALLOWED",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN] = "ALL_SENDER_FROZEN",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN] = "ALL_SENDER_UNFROZEN",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED] = "ALL_RECEIVER_BLOCKED",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED] = "ALL_RECEIVER_ALLOWED",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN] = "ALL_RECEIVER_FROZEN",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN] = "ALL_RECEIVER_UNFROZEN",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_ALL] = "STATIC_ALL",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_FLAGS] = "STATIC_FLAGS",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_ALL] = "STATIC_PERMISSIONS_ALL",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_DATUM_TYPE] = "STATIC_PERMISSIONS_DATUM_TYPE",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_SENDER] = "TATIC_PERMISSIONS_TX_SENDER",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_RECEIVER] = "STATIC_PERMISSIONS_TX_RECEIVER",
+static const struct datum_token_flag_struct s_flags_table[] = {
+    { "NO_FLAGS",                       DAP_CHAIN_DATUM_TOKEN_FLAG_NONE },
+    { "ALL_BLOCKED",                    DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED },
+    { "ALL_FROZEN",                     DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN },
+    { "ALL_ALLOWED",                    DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED },
+    { "ALL_UNFROZEN",                   DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN },
+    { "STATIC_ALL",                     DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_ALL },
+    { "STATIC_FLAGS",                   DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_FLAGS },
+    { "STATIC_PERMISSIONS_ALL",         DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_ALL },
+    { "STATIC_PERMISSIONS_DATUM_TYPE",  DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_DATUM_TYPE },
+    { "STATIC_PERMISSIONS_TX_SENDER",   DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_SENDER },
+    { "STATIC_PERMISSIONS_TX_RECEIVER", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_RECEIVER },
+    { "ALL_SENDER_BLOCKED",             DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED },
+    { "ALL_SENDER_FROZEN",              DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN },
+    { "ALL_SENDER_ALLOWED",             DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED },
+    { "ALL_SENDER_UNFROZEN",            DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN },
+    { "ALL_RECEIVER_BLOCKED",           DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED },
+    { "ALL_RECEIVER_FROZEN",            DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN },
+    { "ALL_RECEIVER_ALLOWED",           DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED },
+    { "ALL_RECEIVER_UNFROZEN",          DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN }
 };
 
 /**
@@ -176,6 +177,21 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
 }
 
 /**
+ * @brief dap_chain_datum_token_flag_from_str
+ * @param a_str
+ * @return
+ */
+uint32_t dap_chain_datum_token_flag_from_str(const char *a_str)
+{
+    if (a_str == NULL)
+        return DAP_CHAIN_DATUM_TOKEN_FLAG_NONE;
+    for (uint16_t i = 0; i < sizeof(s_flags_table) / sizeof(struct datum_token_flag_struct); i++)
+        if (strcmp(s_flags_table[i].key, key) == 0)
+            return s_flags_table[i].val;
+    return DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED;
+}
+
+/**
  * @brief dap_chain_datum_token_flags_dump
  * @param a_str_out
  * @param a_flags
@@ -184,7 +200,7 @@ void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags
 {
     if(!a_flags){
         dap_string_append_printf(a_str_out, "%s\n",
-                c_dap_chain_datum_token_flag_str[DAP_CHAIN_DATUM_TOKEN_FLAG_NONE]);
+                ap_chain_datum_token_flag_to_str[DAP_CHAIN_DATUM_TOKEN_FLAG_NONE]);
         return;
     }
     bool is_first = true;
@@ -194,7 +210,7 @@ void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags
                 is_first = false;
             else
                 dap_string_append_printf(a_str_out,", ");
-            dap_string_append_printf(a_str_out,"%s", c_dap_chain_datum_token_flag_str[BIT(i)]);
+            dap_string_append_printf(a_str_out,"%s", ap_chain_datum_token_flag_to_str[BIT(i)]);
         }
         if(i == DAP_CHAIN_DATUM_TOKEN_FLAG_MAX)
             dap_string_append_printf(a_str_out, "\n");
@@ -208,24 +224,14 @@ void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags
  */
 void dap_chain_datum_token_flags_dump_to_json(json_object * json_obj_out, uint16_t a_flags)
 {
-    if(!a_flags){
-        json_object_object_add(json_obj_out, "flags:", json_object_new_string(c_dap_chain_datum_token_flag_str[DAP_CHAIN_DATUM_TOKEN_FLAG_NONE]));
-
+    if (!a_flags) {
+        json_object_object_add(json_obj_out, "flags:", json_object_new_string(ap_chain_datum_token_flag_to_str(DAP_CHAIN_DATUM_TOKEN_FLAG_NONE)));
         return;
     }
-    bool is_first = true;
-    for ( uint16_t i = 0;  BIT(i) <= DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++){
-        if(   a_flags &  (1 << i) ){
-            if(is_first)
-                is_first = false;
-
-            json_object_object_add(json_obj_out, "flags:", json_object_new_string(c_dap_chain_datum_token_flag_str[BIT(i)]));
-
-        }
-    }
+    for (uint16_t i = 0; BIT(i) <= DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++)
+        if (a_flags & BIT(i))
+            json_object_object_add(json_obj_out, "flags:", json_object_new_string(ap_chain_datum_token_flag_to_str(BIT(i))));
 }
-
-
 
 /**
  * @brief dap_chain_datum_token_certs_dump
@@ -361,16 +367,12 @@ size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial)
 
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emission_serial, size_t *a_emission_size)
 {
-    assert(a_emission_serial);
-    assert(a_emission_size);
-    if(!a_emission_serial || !a_emission_size || *a_emission_size < sizeof(struct dap_chain_emission_header_v0)) {
-        log_it(L_ERROR, "Invalid params in dap_chain_datum_emission_read");
-        return NULL;
-    }
+    const size_t l_old_hdr_size = sizeof(struct dap_chain_emission_header_v0);
+    dap_return_val_if_fail(a_emission_serial && a_emission_size && *a_emission_size >= l_old_hdr_size, NULL);
+
     dap_chain_datum_token_emission_t *l_emission = NULL;
     if (((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.version == 0) {
         size_t l_emission_size = *a_emission_size;
-        size_t l_old_hdr_size = sizeof(struct dap_chain_emission_header_v0);
         size_t l_add_size = sizeof(l_emission->hdr) - l_old_hdr_size;
         l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size + l_add_size);
         if (!l_emission) {
@@ -387,6 +389,11 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
         l_emission_size += l_add_size;
         (*a_emission_size) = l_emission_size;
     } else {
+        if (*a_emission_size < sizeof(dap_chain_datum_token_emission_t)) {
+            log_it(L_WARNING, "Size of emission is %zu, less than header size %zu",
+                                        *a_emission_size, sizeof(dap_chain_datum_token_emission_t));
+            return NULL;
+        }
         l_emission = DAP_DUP_SIZE(a_emission_serial, *a_emission_size);
         if (!l_emission) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);

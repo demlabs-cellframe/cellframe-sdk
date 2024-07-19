@@ -239,47 +239,41 @@ typedef struct dap_ledger_bridged_tx_notifier {
     void *arg;
 } dap_ledger_bridged_tx_notifier_t;
 
-// dap_ledget_t private section
+// dap_ledger_t private section
 typedef struct dap_ledger_private {
-    // List of ledger - unspent transactions cache
-    dap_ledger_tx_item_t *threshold_txs;
-    dap_ledger_token_emission_item_t * threshold_emissions;
-
-    dap_ledger_tx_item_t *ledger_items;
-    dap_ledger_token_item_t *tokens;
-    dap_ledger_stake_lock_item_t *emissions_for_stake_lock;
-    dap_ledger_reward_item_t *rewards;
-    dap_ledger_wallet_balance_t *balance_accounts;
-
-    // for separate access to transactions
+    // separate access to transactions
     pthread_rwlock_t ledger_rwlock;
-    // for separate access to tokens
+    dap_ledger_tx_item_t *ledger_items;
+    // separate access to tokens
     pthread_rwlock_t tokens_rwlock;
+    dap_ledger_token_item_t *tokens;
+    // separate acces to stake items
     pthread_rwlock_t stake_lock_rwlock;
-    pthread_rwlock_t threshold_txs_rwlock;
-    pthread_rwlock_t threshold_emissions_rwlock;
-    pthread_rwlock_t balance_accounts_rwlock;
+    dap_ledger_stake_lock_item_t *emissions_for_stake_lock;
+    // separate access to rewards
     pthread_rwlock_t rewards_rwlock;
-
+    dap_ledger_reward_item_t *rewards;
+    // separate access to balances
+    pthread_rwlock_t balance_accounts_rwlock;
+    dap_ledger_wallet_balance_t *balance_accounts;
+    // separate access to threshold
+    dap_ledger_tx_item_t *threshold_txs;
+    pthread_rwlock_t threshold_txs_rwlock;
+    dap_interval_timer_t threshold_txs_free_timer;
     // Save/load operations condition
     pthread_mutex_t load_mutex;
     pthread_cond_t load_cond;
     bool load_end;
-
     // Ledger flags
-    bool check_ds, check_cells_ds, check_token_emission, cached, mapped;
-
+    bool check_ds, check_cells_ds, check_token_emission, cached, mapped, threshold_enabled;
     dap_chain_cell_id_t local_cell_id;
-
     //notifiers
     dap_list_t *bridged_tx_notifiers;
     dap_list_t *tx_add_notifiers;
-
     dap_ledger_cache_tx_check_callback_t cache_tx_check_callback;
-    // Threshold fee
-    dap_interval_timer_t threshold_txs_free_timer, threshold_emissions_free_timer;
 } dap_ledger_private_t;
-#define PVT(a) ( (dap_ledger_private_t* ) a->_internal )
+
+#define PVT(a) ( (dap_ledger_private_t *) a->_internal )
 
 typedef struct dap_ledger_hal_item {
     dap_chain_hash_fast_t hash;
@@ -386,13 +380,11 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
         }   
     }
 
-
     //regular transfers 
     //have no other ins except regular in
     //have no OUT_COND except fee
     //have no vote
     //no TSD!
-
 
     //have any of those -> not regular transfer
     if (a_items_grp->items_in_cond ||
@@ -2850,63 +2842,45 @@ int s_ledger_addr_check(dap_ledger_token_item_t *a_token_item, dap_chain_addr_t 
 int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_chain_hash_fast_t *a_emission_hash)
 {
     dap_return_val_if_fail(a_token_emission && a_token_emission_size, DAP_LEDGER_CHECK_INVALID_ARGS);
-
-    int l_ret = DAP_LEDGER_CHECK_OK;
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    const char *l_token_ticker = ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.ticker;
-    dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_token_ticker);
-    if (!l_token_item) {
-        log_it(L_ERROR, "Check emission: token %s was not found", l_token_ticker);
-        return DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
-    }
-
-    dap_ledger_token_emission_item_t * l_token_emission_item = NULL;
-    // check if such emission is already present in table
-    pthread_rwlock_rdlock(l_token_item ? &l_token_item->token_emissions_rwlock
-                                       : &l_ledger_pvt->threshold_emissions_rwlock);
-    HASH_FIND(hh,l_token_item ? l_token_item->token_emissions : l_ledger_pvt->threshold_emissions,
-              a_emission_hash, sizeof(*a_emission_hash), l_token_emission_item);
-    unsigned long long l_threshold_emissions_count = HASH_COUNT( l_ledger_pvt->threshold_emissions);
-    pthread_rwlock_unlock(l_token_item ? &l_token_item->token_emissions_rwlock
-                                       : &l_ledger_pvt->threshold_emissions_rwlock);
-    if (l_token_emission_item) {
-        debug_if(s_debug_more, L_ERROR, "Can't add token emission datum of %s %s ( %s ): already present in cache",
-                                    dap_uint256_to_char(l_token_emission_item->datum_token_emission->hdr.version >= 2
-                                                        ? l_token_emission_item->datum_token_emission->hdr.value
-                                                        : GET_256_FROM_64(l_token_emission_item->datum_token_emission->hdr.value64),
-                                                        NULL),
-                                    l_token_ticker, dap_chain_hash_fast_to_str_static(a_emission_hash));
-        l_ret = DAP_LEDGER_CHECK_ALREADY_CACHED;
-    } else if ( (! l_token_item) && ( l_threshold_emissions_count >= s_threshold_emissions_max)) {
-        debug_if(s_debug_more, L_WARNING, "Emissions threshold overflow, max %zu items", s_threshold_emissions_max);
-        l_ret = DAP_LEDGER_EMISSION_CHECK_THRESHOLD_OVERFLOW;
-    }
-    if (l_ret || !PVT(a_ledger)->check_token_emission)
-        return l_ret;
-
-    if (s_hal_items) {
-        dap_ledger_hal_item_t *l_hash_found = NULL;
-        HASH_FIND(hh, s_hal_items, a_emission_hash, sizeof(*a_emission_hash), l_hash_found);
-        if (l_hash_found) {
-            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
-            dap_chain_hash_fast_to_str(a_emission_hash, l_hash_str, sizeof(l_hash_str));
-            debug_if(s_debug_more, L_MSG, "Datum %s is whitelisted", l_hash_str);
-            return l_ret;
-        }
-    }
-
-    // Check emission correctness
     size_t l_emission_size = a_token_emission_size;
     dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_token_emission, &l_emission_size);
+    if (!l_emission)
+        return DAP_LEDGER_CHECK_INVALID_SIZE;
 
+    dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_emission->hdr.ticker);
+    if (!l_token_item) {
+        log_it(L_ERROR, "Check emission: token %s was not found", l_token_ticker);
+        DAP_DELETE(l_emission);
+        return DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
+    }
+    dap_ledger_token_emission_item_t *l_token_emission_item = NULL;
+    // check if such emission is already present in table
+    pthread_rwlock_rdlock(&l_token_item->token_emissions_rwlock);
+    HASH_FIND(hh, l_token_item->token_emissions, a_emission_hash, sizeof(*a_emission_hash), l_token_emission_item);
+    pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
+    if (l_token_emission_item) {
+        debug_if(s_debug_more, L_ERROR, "Can't add token emission datum of %s %s ( %s ): already present in cache",
+                                    dap_uint256_to_char(l_emission->hdr.value, NULL), l_token_ticker, dap_chain_hash_fast_to_str_static(a_emission_hash));
+        DAP_DELETE(l_emission);
+        return DAP_LEDGER_CHECK_ALREADY_CACHED;
+    }
+
+    // Add tsd size control here
+
+    if (!PVT(a_ledger)->check_token_emission)
+        goto ret_success;
+
+    // Check emission correctness
     if (IS_ZERO_256((l_emission->hdr.value))) {
         log_it(L_ERROR, "Emission check: zero %s emission value", l_token_item->ticker);
         DAP_DELETE(l_emission);
         return DAP_LEDGER_CHECK_ZERO_VALUE;
     }
 
-    if (!s_ledger_token_supply_check(l_token_item, l_emission->hdr.value))
+    if (!s_ledger_token_supply_check(l_token_item, l_emission->hdr.value)) {
+        DAP_DELETE(l_emission);
         return DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY;
+    }
 
     //additional check for private tokens
     if((l_token_item->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)
@@ -2918,63 +2892,74 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
             return l_ret;
         }
     }
-    switch (l_emission->hdr.type){
-        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:{     
-            dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_emission->hdr.ticker);
-            if (l_token_item) {
-                dap_sign_t *l_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
-                size_t l_offset = (byte_t *)l_sign - (byte_t *)l_emission;
-                uint16_t l_aproves = 0, l_aproves_valid = l_token_item->auth_signs_valid;
-                size_t l_sign_data_check_size = sizeof(l_emission->hdr);
-                size_t l_sign_auth_count = l_emission->data.type_auth.signs_count;
-                size_t l_sign_auth_size = l_emission->data.type_auth.size;
-                void *l_emi_ptr_check_size = &l_emission->hdr;
-                if (l_emission->hdr.version == 3) {
-                    l_sign_data_check_size = sizeof(dap_chain_datum_token_emission_t) + l_emission->data.type_auth.tsd_total_size;
-                    l_emission->data.type_auth.signs_count = 0;
-                    l_emission->data.type_auth.size = 0;
-                    l_emi_ptr_check_size = l_emission;
-                }
-                for (uint16_t i = 0; i < l_sign_auth_count && l_offset < l_emission_size; i++) {
-                    if (dap_sign_verify_size(l_sign, l_emission_size - l_offset)) {
-                        // Find pkey in auth pkeys
-                        for (uint16_t k = 0; k < l_token_item->auth_signs_total; k++) {
-                            if (dap_pkey_compare_with_sign(l_token_item->auth_pkeys[k], l_sign)) {
-                                // Verify if token emission is signed
-                                if (!dap_sign_verify(l_sign, l_emi_ptr_check_size, l_sign_data_check_size))
-                                    l_aproves++;
-                                break;
-                            }
-                        }
-                        size_t l_sign_size = dap_sign_get_size(l_sign);
-                        l_offset += l_sign_size;
-                        l_sign = (dap_sign_t *)((byte_t *)l_emission + l_offset);
-                    } else
+    switch (l_emission->hdr.type) {
+
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH: {
+        dap_sign_t *l_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
+        size_t l_offset = (byte_t *)l_sign - (byte_t *)l_emission;
+        uint16_t l_aproves = 0, l_aproves_valid = l_token_item->auth_signs_valid;
+        size_t l_sign_data_check_size = sizeof(l_emission->hdr);
+        size_t l_sign_auth_count = l_emission->data.type_auth.signs_count;
+        size_t l_sign_auth_size = l_emission->data.type_auth.size;
+        void *l_emi_ptr_check_size = &l_emission->hdr;
+        if (l_emission->hdr.version == 3) {
+            l_sign_data_check_size = sizeof(dap_chain_datum_token_emission_t) + l_emission->data.type_auth.tsd_total_size;
+            l_emission->data.type_auth.signs_count = 0;
+            l_emission->data.type_auth.size = 0;
+            l_emi_ptr_check_size = l_emission;
+        }
+        for (uint16_t i = 0; i < l_sign_auth_count && l_offset < l_emission_size; i++) {
+            if (dap_sign_verify_size(l_sign, l_emission_size - l_offset)) {
+                // Find pkey in auth pkeys
+                for (uint16_t k = 0; k < l_token_item->auth_signs_total; k++) {
+                    if (dap_pkey_compare_with_sign(l_token_item->auth_pkeys[k], l_sign)) {
+                        // Verify if token emission is signed
+                        if (!dap_sign_verify(l_sign, l_emi_ptr_check_size, l_sign_data_check_size))
+                            l_aproves++;
                         break;
+                    }
                 }
-                if (l_emission->hdr.version == 3) {
-                    l_emission->data.type_auth.signs_count = l_sign_auth_count;
-                    l_emission->data.type_auth.size = l_sign_auth_size;
-                }
-                if (l_aproves < l_aproves_valid ){
-                    debug_if(s_debug_more, L_WARNING, "Emission of %s datoshi of %s:%s is wrong: only %u valid aproves when %u need",
-                                dap_uint256_to_char(l_emission->hdr.value, NULL), a_ledger->net->pub.name, l_emission->hdr.ticker,
-                                l_aproves, l_aproves_valid);
-                    l_ret = DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
+                size_t l_sign_size = dap_sign_get_size(l_sign);
+                l_offset += l_sign_size;
+                l_sign = (dap_sign_t *)((byte_t *)l_emission + l_offset);
+            } else
+                break;
+        }
+        if (l_emission->hdr.version == 3) {
+            l_emission->data.type_auth.signs_count = l_sign_auth_count;
+            l_emission->data.type_auth.size = l_sign_auth_size;
+        }
+        if (l_aproves < l_aproves_valid) {
+            if (s_hal_items) {
+                dap_ledger_hal_item_t *l_hash_found = NULL;
+                HASH_FIND(hh, s_hal_items, a_emission_hash, sizeof(*a_emission_hash), l_hash_found);
+                if (l_hash_found) {
                     char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
                     dap_chain_hash_fast_to_str(a_emission_hash, l_hash_str, sizeof(l_hash_str));
-                    log_it(L_MSG, "!!! Datum hash for HAL: %s", l_hash_str);
+                    debug_if(s_debug_more, L_MSG, "Datum %s is whitelisted", l_hash_str);
+                    return l_ret;
                 }
-            }else{
-                debug_if(s_debug_more, L_WARNING, "Can't find token declaration %s:%s thats pointed in token emission datum",
-                                                    a_ledger->net->pub.name, l_emission->hdr.ticker);
-                l_ret = DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
             }
-        }break;
-        default:{}
+            debug_if(s_debug_more, L_WARNING, "Emission of %s datoshi of %s:%s is wrong: only %u valid aproves when %u need",
+                        dap_uint256_to_char(l_emission->hdr.value, NULL), a_ledger->net->pub.name, l_emission->hdr.ticker,
+                        l_aproves, l_aproves_valid);
+            l_ret = DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+            dap_chain_hash_fast_to_str(a_emission_hash, l_hash_str, sizeof(l_hash_str));
+            log_it(L_MSG, "!!! Datum hash for HAL: %s", l_hash_str);
+        }
+
+    } break;
+
+    default:
+        log_it(L_ERROR, "Checking emission of type %s not implemented", dap_chain_datum_emission_type_str(l_emission->hdr.type));
+        DAP_DELETE(l_emission);
+        return DAP_LEDGER_CHECK_PARSE_ERROR;
     }
-    DAP_DELETE(l_emission);
-    return l_ret;
+
+ret_success:
+
+    return DAP_LEDGER_CHECK_OK;
 }
 
 static void s_ledger_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_emission_item_t *a_emission_item)
@@ -3078,7 +3063,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
             if (s_debug_more) {
                 const char *l_balance; dap_uint256_to_char(l_token_emission_item->datum_token_emission->hdr.value, &l_balance);
                 log_it(L_NOTICE, "Added token emission datum to emissions cache: type=%s value=%s token=%s to_addr=%s ",
-                               c_dap_chain_datum_token_emission_type_str[l_token_emission_item->datum_token_emission->hdr.type],
+                               dap_chain_datum_emission_type_str[l_token_emission_item->datum_token_emission->hdr.type],
                                l_balance, c_token_ticker,
                                dap_chain_addr_to_str(&(l_token_emission_item->datum_token_emission->hdr.address)));
             }
@@ -3098,7 +3083,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
             if (s_debug_more) {
                 const char *l_balance; dap_uint256_to_char(l_token_emission_item->datum_token_emission->hdr.value, &l_balance);
                 log_it(L_NOTICE, "Added token emission datum to emissions threshold: type=%s value=%s token=%s to_addr=%s ",
-                               c_dap_chain_datum_token_emission_type_str[l_token_emission_item->datum_token_emission->hdr.type],
+                               dap_chain_datum_emission_type_str[l_token_emission_item->datum_token_emission->hdr.type],
                                l_balance, c_token_ticker,
                                dap_chain_addr_to_str(&(l_token_emission_item->datum_token_emission->hdr.address)));
             }

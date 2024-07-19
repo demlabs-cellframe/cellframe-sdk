@@ -977,7 +977,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
             json_object_object_add(json_obj_datum,"coins", json_object_new_string(l_coins_str));
             json_object_object_add(json_obj_datum,"value", json_object_new_string(l_value_str));
             json_object_object_add(json_obj_datum,"ticker", json_object_new_string(l_emission->hdr.ticker));
-            json_object_object_add(json_obj_datum,"type", json_object_new_string(c_dap_chain_datum_token_emission_type_str[l_emission->hdr.type]));
+            json_object_object_add(json_obj_datum,"type", json_object_new_string(dap_chain_datum_emission_type_str[l_emission->hdr.type]));
             json_object_object_add(json_obj_datum,"version", json_object_new_uint64(l_emission->hdr.version));
             json_object_object_add(json_obj_datum,"to addr", json_object_new_string(dap_chain_addr_to_str(&(l_emission->hdr.address))));
 

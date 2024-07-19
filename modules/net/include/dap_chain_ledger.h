@@ -89,8 +89,6 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_NOT_ENOUGH_FEE,
     DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX,
     /* Emisssion check return codes */
-    DAP_LEDGER_EMISSION_CHECK_THRESHOLDED,
-    DAP_LEDGER_EMISSION_CHECK_THRESHOLD_OVERFLOW,
     DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY,
     /* Token declaration/update return codes */
     DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS,
@@ -145,8 +143,6 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_NOT_ENOUGH_FEE: return "Not enough network fee for transaction processing";
     case DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX: return "Not enough sovereign tax provided with current transaction";
     /* Emisssion check return codes */
-    case DAP_LEDGER_EMISSION_CHECK_THRESHOLDED: return "No token ticker found for emission, move it to the threshold";
-    case DAP_LEDGER_EMISSION_CHECK_THRESHOLD_OVERFLOW: return "Emissions threshold overfulled";
     case DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY: return "Value of emission execeeds current token supply";
     /* Token declaration/update return codes */
     case DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS: return "Not all token signs is unique";
