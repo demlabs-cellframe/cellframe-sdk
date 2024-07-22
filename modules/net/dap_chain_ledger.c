@@ -2250,7 +2250,6 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item)
             l_type_str = "PUBLIC"; break;
         default: l_type_str = "UNKNOWN"; break;
     }
-    size_t l_tsd_total_size = 0;
     json_object_object_add(json_obj_datum, "-->Token name", json_object_new_string(a_token_item->ticker));
     json_object_object_add(json_obj_datum, "type", json_object_new_string(l_type_str));
     if (a_token_item->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE && a_token_item->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC) {
@@ -2264,15 +2263,16 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item)
     json_object_object_add(json_obj_datum, "Decimals", json_object_new_string("18"));
     json_object_object_add(json_obj_datum, "Auth signs valid", json_object_new_int(a_token_item->auth_signs_valid));
     json_object_object_add(json_obj_datum, "Auth signs total", json_object_new_int(a_token_item->auth_signs_total));
-    if (a_token_item->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE && a_token_item->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC) {
-        json_object_object_add(json_obj_datum, "TSD", json_object_new_string(""));
-        dap_datum_token_dump_tsd_to_json(json_obj_datum, a_token_item->datum_token, a_token_item->datum_token_size, "hex");
-        l_tsd_total_size = a_token_item->datum_token->header_native_decl.tsd_total_size;
+    json_object *l_json_arr_pkeys = json_object_new_array();
+    for (uint16_t i = 0; i < a_token_item->auth_signs_total; i++) {
+        json_object *l_json_obj_out = json_object_new_object();
+        json_object_object_add(l_json_obj_out, "line", json_object_new_int(i));
+        json_object_object_add(l_json_obj_out, "hash", json_object_new_string(dap_hash_fast_to_str_static(a_token_item->auth_pkey_hashes + i)));
+        json_object_object_add(l_json_obj_out, "pkey_type", json_object_new_string(dap_pkey_type_to_str(a_token_item->auth_pkeys[i]->header.type)));
+        json_object_object_add(l_json_obj_out, "bytes", json_object_new_int(a_token_item->auth_pkeys[i]->header.size));
+        json_object_array_add(l_json_arr_pkeys, l_json_obj_out);
     }
-    size_t l_certs_field_size = a_token_item->datum_token_size - sizeof(*a_token_item->datum_token) - l_tsd_total_size;
-    dap_chain_datum_token_certs_dump_to_json(json_obj_datum, a_token_item->datum_token->tsd_n_signs + l_tsd_total_size,
-                                            l_certs_field_size, "hex");
-    json_object_object_add(json_obj_datum, "Signs", json_object_new_string(""));
+    json_object_object_add(json_obj_datum, "Signature public keys", l_json_arr_pkeys);
     json_object_object_add(json_obj_datum, "Total emissions", json_object_new_int(HASH_COUNT(a_token_item->token_emissions)));
     return json_obj_datum;
 }
