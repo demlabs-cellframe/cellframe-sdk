@@ -658,7 +658,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 goto ret_n_clear;
             }
             if (!a_item_apply_to) {
-                log_it(L_WARNING, "Unexpected TOTAL_SUUPLY TSD section in datum tocen declaration");
+                log_it(L_WARNING, "Unexpected TOTAL_SUUPLY TSD section in datum token declaration");
                 ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN;
                 goto ret_n_clear;
             }
@@ -1095,6 +1095,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 ret = DAP_LEDGER_CHECK_INVALID_SIZE;
                 goto ret_n_clear;
             }
+            if (!a_apply)
+                break;
             DAP_DEL_Z(a_item_apply_to->description);
             a_item_apply_to->description = strdup((char *)l_tsd->data);
         } break;
@@ -3569,7 +3571,6 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
 {
     //find tx
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    dap_chain_datum_tx_t *l_tx_ret = NULL;
     dap_ledger_tx_item_t *l_tx_item;
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     HASH_FIND(hh, l_ledger_pvt->ledger_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_tx_item);
@@ -4357,7 +4358,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         if (SUM_256_256(l_value_cur->sum, l_value, &l_value_cur->sum)) {
             debug_if(s_debug_more, L_WARNING, "Sum result overflow for tx_add_check with ticker %s",
                                     l_value_cur->token_ticker);
-            l_err_num = -77;
+            l_err_num = DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
             break;
         }
 
