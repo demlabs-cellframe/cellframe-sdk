@@ -2939,15 +2939,18 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_emergency_validator(dap_cha
     return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
 }
 
-static void s_print_emergency_validators(char **a_str_reply, dap_list_t *a_validator_addrs)
+static void s_print_emergency_validators(json_object *json_obj_out, dap_list_t *a_validator_addrs)
 {
+    json_object *json_arr_validators = json_object_new_array();
     dap_string_t *l_str_out = dap_string_new("Current emergency validators list:\n");
-    for (dap_list_t *it = a_validator_addrs; it; it = it->next) {
+    for (dap_list_t *it = a_validator_addrs, size_t i=1; it; it = it->next,i++) {
+        json_object *json_obj_validator = json_object_new_object();
         dap_chain_addr_t *l_addr = it->data;
-        dap_string_append_printf(l_str_out, "%s\n", dap_chain_hash_fast_to_str_static(&l_addr->data.hash_fast));
+        json_object_object_add(json_obj_validator,"#", json_object_new_uint64(i));
+        json_object_object_add(json_obj_validator,"addr hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_addr->data.hash_fast)));
+        json_object_array_add(json_arr_validators, json_obj_validator);
     }
-    *a_str_reply = l_str_out->str;
-    dap_string_free(l_str_out, false);
+    json_object_object_add(json_obj_out,"Current emergency validators list", json_arr_validators);
 }
 
 /**
@@ -2964,6 +2967,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
     int l_arg_index = 1;
     dap_chain_net_t *l_chain_net = NULL;
     dap_chain_t *l_chain = NULL;
+    json_object **json_arr_reply = (json_object **)a_str_reply;
         
     if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&l_arg_index, a_argc, a_argv, &l_chain, &l_chain_net,
                                                                 CHAIN_TYPE_ANCHOR))
@@ -3038,7 +3042,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
     // Do subcommand action
     switch (l_subcmd) {
 
-    case SUBCMD_MIN_VALIDATORS_COUNT: {
+    case SUBCMD_MIN_VALIDATORS_COUNT: {        
         if (!l_subcommand_show) {
             const char *l_value_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-val_count", &l_value_str);
@@ -3055,29 +3059,37 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                                                     l_chain_net, l_chain, l_value, l_poa_cert);
             char *l_decree_hash_str = NULL;
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count has been set."
-                                                               " Decree hash %s", l_decree_hash_str);
+                json_object * json_obj_out = json_object_new_object();
+                json_object_object_add(json_obj_out,"status", json_object_new_string("Minimum validators count has been set"));
+                json_object_object_add(json_obj_out,"decree hash", json_object_new_string(l_decree_hash_str));
+                json_object_array_add(*json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_MINVALSET_ERR,"Minimum validators count setting failed");
                 DAP_DEL_Z(l_decree);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_MINVALSET_ERR;
             }
-        } else
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count is %d", l_esbocs_pvt->min_validators_count);
+        } else{
+            json_object * json_obj_out = json_object_new_object();
+            json_object_object_add(json_obj_out,"Minimum validators count", json_object_new_uint64(l_esbocs_pvt->min_validators_count));
+            json_object_array_add(*json_arr_reply, json_obj_out);
+        }            
     } break;
 
     case SUBCMD_CHECK_SIGNS_STRUCTURE: {
+        json_object * json_obj_out = json_object_new_object();
         if (!l_subcommand_show) {
             dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_signs_check(l_chain_net, l_chain, l_subcommand_add, l_poa_cert);
             char *l_decree_hash_str = NULL;
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
+                
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Checking signs structure has been %s. Decree hash %s",
                                                                 l_subcommand_add ? "enabled" : "disabled", l_decree_hash_str);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,"Checking signs structure setting failed");
                 DAP_DEL_Z(l_decree);
+                json_object_put(json_obj_out);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
             }
         } else
@@ -3120,7 +3132,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
     } break;
 
     default:
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized subcommand '%s'", a_argv[l_arg_index - 1]);
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_SUB_ERR,"Unrecognized subcommand '%s'", a_argv[l_arg_index - 1]);
     }
     return ret;
 }
