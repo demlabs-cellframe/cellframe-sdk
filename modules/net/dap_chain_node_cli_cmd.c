@@ -2176,7 +2176,16 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     const char *l_addr_str = dap_chain_addr_to_str(l_addr);
                     json_object * json_obj_wall = json_object_new_object();
                     json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet->name));
-                    json_object_object_add(json_obj_wall, "Sign type", json_object_new_string(l_sign_type_str));
+                    if (l_sign_count > 1) {
+                        dap_string_t *l_signs_types_str = dap_string_new("sig_multi_chained, ");
+                        for (size_t i = 0; i < l_sign_count; i++) {
+                            dap_string_append_printf(l_signs_types_str, "%s%s",
+                                                     dap_sign_type_to_str(l_sign_types[i]), (i+1) == l_sign_count ? "": ", ");
+                        }
+                        json_object_object_add(json_obj_wall, "Sign type", json_object_new_string(l_signs_types_str->str));
+                        dap_string_free(l_signs_types_str, true);
+                    } else
+                        json_object_object_add(json_obj_wall, "Sign type", json_object_new_string(l_sign_type_str));
                     json_object_object_add(json_obj_wall, "Status", json_object_new_string("successfully created"));
                     if ( l_addr_str ) {
                         json_object_object_add(json_obj_wall, "new address", json_object_new_string(l_addr_str));
