@@ -2098,15 +2098,19 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             l_sign_index++;
                             for (;l_sign_index && l_sign_index < a_argc; ++l_sign_index) {
                                 l_sign_types[l_sign_count] = dap_sign_type_from_str(a_argv[l_sign_index]);
-                                if (l_sign_types[l_sign_count].type == SIG_TYPE_NULL) {
+                                if (l_sign_types[l_sign_count].type == SIG_TYPE_NULL ||
+                                    l_sign_types[l_sign_count].type == SIG_TYPE_MULTI_CHAINED) {
                                     break;
                                 }
                                 l_sign_count++;
                             }
-                            if (!l_sign_count) {
+                            if (l_sign_count < 2) {
                                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
-                                                      "'%s' unknown signature type, please use:\n%s",
-                                                      l_sign_type_str, dap_sign_get_str_recommended_types());
+                                                      "You did not specify an additional signature after "
+                                                      "sig_multi_chained. You must specify at least two more "
+                                                      "signatures other than sig_multi_chained.\n"
+                                                      "After sig_multi_chained, you must specify two more signatures "
+                                                      "from the list: %s", dap_cert_get_str_recommended_sign());
                                 json_object_put(json_arr_out);
                                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR;
                             }
