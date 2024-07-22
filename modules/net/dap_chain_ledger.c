@@ -4244,7 +4244,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger,
             l_tx_prev = s_find_datum_tx_by_hash(a_ledger, l_tx_prev_hash, &l_item_out, false);
             char l_tx_prev_hash_str[DAP_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(l_tx_prev_hash, l_tx_prev_hash_str, DAP_HASH_FAST_STR_SIZE);
-            if (!l_tx_prev && !a_check_for_removing) { // Unchained transaction or previous TX was already spent and removed from ledger
+            if (!l_tx_prev) { // Unchained transaction or previous TX was already spent and removed from ledger
                 debug_if(s_debug_more && !a_from_threshold, L_DEBUG, "No previous transaction was found for hash %s", l_tx_prev_hash_str);
                 l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
                 break;
