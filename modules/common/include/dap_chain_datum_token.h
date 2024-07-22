@@ -352,7 +352,7 @@ typedef struct dap_chain_datum_token_emission {
             char codename[32];
         } DAP_ALIGN_PACKED type_algo;
         struct {
-            uint64_t size;
+            uint64_t signs_size;
             uint64_t tsd_total_size;
             uint16_t signs_count;
         } DAP_ALIGN_PACKED type_auth;

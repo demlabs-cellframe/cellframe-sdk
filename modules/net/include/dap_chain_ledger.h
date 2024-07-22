@@ -92,6 +92,7 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY,
     /* Token declaration/update return codes */
     DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS,
+    DAP_LEDGER_TOKEN_ADD_CHECK_LEGACY_FORBIDDEN,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH,
@@ -146,6 +147,7 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY: return "Value of emission execeeds current token supply";
     /* Token declaration/update return codes */
     case DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS: return "Not all token signs is unique";
+    case DAP_LEDGER_TOKEN_ADD_CHECK_LEGACY_FORBIDDEN: return "Legacy type of tokens is present for old chains comliance only";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY: return "Specified supply must be greater than current one";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR: return "Specified address has invalid format";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH: return "Specified address can't be processed cause double (for adding) or absent (for removing)";
@@ -304,8 +306,7 @@ uint256_t dap_ledger_token_get_emission_rate(dap_ledger_t *a_ledger, const char 
 /**
  * Add token emission datum
  */
-int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size,
-                                        dap_hash_fast_t *a_emission_hash, bool a_from_threshold);
+int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_hash_fast_t *a_emission_hash);
 int dap_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_hash_fast_t *a_token_emission_hash);
 
 // Checking a new transaction before adding to the cache

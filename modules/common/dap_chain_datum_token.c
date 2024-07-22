@@ -387,6 +387,8 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
         l_emission->hdr.value = dap_chain_uint256_from(
                     ((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.value64);
         l_emission_size += l_add_size;
+        if (l_emission->hdr.type == DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH)
+            l_emission->data.type_auth.signs_size = l_emission_size - sizeof(dap_chain_datum_token_emission_t);
         (*a_emission_size) = l_emission_size;
     } else {
         if (*a_emission_size < sizeof(dap_chain_datum_token_emission_t)) {
