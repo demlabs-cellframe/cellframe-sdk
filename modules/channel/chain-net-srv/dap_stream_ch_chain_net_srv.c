@@ -1310,6 +1310,10 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE: { // Check receipt sign and make tx if success
         dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;
 
+        if (!l_usage->is_waiting_first_receipt_sign && !l_usage->is_waiting_next_receipt_sign){
+            break;
+        }
+
         if (l_usage->receipts_timeout_timer){
             log_it(L_INFO, "Delete receipt timeout timer.");
             dap_timerfd_delete_unsafe(l_usage->receipts_timeout_timer);
@@ -1417,24 +1421,10 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         }
 
         if (!l_usage->is_waiting_first_receipt_sign && l_usage->is_waiting_next_receipt_sign){
-            //delete timeout timer
-            // if (l_usage->receipts_timeout_timer){
-            //     log_it(L_INFO, "Delete receipt timeout timer.");
-            //     dap_timerfd_delete_unsafe(l_usage->receipts_timeout_timer);
-            //     l_usage->receipts_timeout_timer = NULL;
-            // }  
             l_usage->is_waiting_next_receipt_sign = false;
         }
 
-
-
         if (l_usage->is_grace && l_usage->is_waiting_first_receipt_sign){
-            //delete timeout timer
-            // if (l_usage->receipts_timeout_timer){
-            //     log_it(L_INFO, "Delete receipt timeout timer.");
-            //     dap_timerfd_delete_unsafe(l_usage->receipts_timeout_timer);
-            //     l_usage->receipts_timeout_timer = NULL;
-            // } 
             l_usage->is_waiting_first_receipt_sign = false;
             l_usage->is_grace = false;
         }
