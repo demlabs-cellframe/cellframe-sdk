@@ -2133,6 +2133,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
         if (l_chain->callback_load_from_gdb) {
             l_ledger_flags &= ~DAP_LEDGER_MAPPED;
+            l_ledger_flags |= DAP_LEDGER_THRESHOLD_ENABLED;
             continue;
         }
         if (!l_chain->callback_get_poa_certs)

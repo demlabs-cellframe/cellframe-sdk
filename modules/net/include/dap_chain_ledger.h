@@ -219,6 +219,8 @@ typedef bool (*dap_ledger_tag_check_callback_t)(dap_ledger_t *a_ledger, dap_chai
 
 #define DAP_LEDGER_MAPPED                   0x0400
 
+#define DAP_LEDGER_THRESHOLD_ENABLED        0x0800
+
 // Error code for no previous transaction (for stay in mempool)
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS     DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND
 // Error code for no emission for a transaction (for stay in mempool)
@@ -294,8 +296,7 @@ json_object *dap_ledger_token_info_by_name(dap_ledger_t *a_ledger, const char *a
 // Get all token-declarations
 dap_list_t* dap_ledger_token_decl_all(dap_ledger_t *a_ledger);
 
-json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset);
-json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_tx_treshold_hash, size_t a_limit, size_t a_offset);
+json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, dap_hash_fast_t *a_threshold_hash);
 json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset);
 
 size_t dap_ledger_token_get_auth_signs_valid(dap_ledger_t *a_ledger, const char *a_token_ticker);
