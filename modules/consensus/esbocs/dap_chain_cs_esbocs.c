@@ -3082,9 +3082,9 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_signs_check(l_chain_net, l_chain, l_subcommand_add, l_poa_cert);
             char *l_decree_hash_str = NULL;
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
-                
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Checking signs structure has been %s. Decree hash %s",
-                                                                l_subcommand_add ? "enabled" : "disabled", l_decree_hash_str);
+                json_object_object_add(json_obj_out,"Checking signs structure has been", l_subcommand_add ? json_object_new_string("enabled") : json_object_new_string("disabled"));
+                json_object_object_add(json_obj_out,"Decree hash", json_object_new_string(l_decree_hash_str));
+                json_object_array_add(*json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,"Checking signs structure setting failed");
@@ -3092,9 +3092,10 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                 json_object_put(json_obj_out);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
             }
-        } else
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Checking signs structure is %s", l_esbocs_pvt->check_signs_structure ?
-                                                                                "enabled" : "disabled");
+        } else{
+            json_object_object_add(json_obj_out,"Checking signs structure is", l_esbocs_pvt->check_signs_structure ? json_object_new_string("enabled") : json_object_new_string("disabled"));
+            json_object_array_add(*json_arr_reply, json_obj_out);
+        }            
     } break;
 
     case SUBCMD_EMERGENCY_VALIDATOR: {
@@ -3117,9 +3118,11 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_emergency_validator(l_chain_net, l_chain, &l_pkey_hash, l_sig_type, l_subcommand_add, l_poa_cert);
             char *l_decree_hash_str = NULL;
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Emergency validator %s has been %s. Decree hash %s",
-                                                        dap_chain_hash_fast_to_str_static(&l_pkey_hash),
-                                                        l_subcommand_add ? "added" : "deleted", l_decree_hash_str);
+                json_object * json_obj_out = json_object_new_object();
+                json_object_object_add(json_obj_out,"Emergency validator", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_pkey_hash)));
+                json_object_object_add(json_obj_out,"status", l_subcommand_add ? json_object_new_string("added") : json_object_new_string("deleted"));
+                json_object_object_add(json_obj_out,"Decree hash", json_object_new_string(l_decree_hash_str));
+                json_object_array_add(*json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_ADD_DEL_ERR,
@@ -3127,8 +3130,11 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                 DAP_DEL_Z(l_decree);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_ADD_DEL_ERR;
             }
-        } else
-            s_print_emergency_validators((char **)a_str_reply, l_esbocs_pvt->emergency_validator_addrs);
+        } else{
+            json_object * json_obj_out = json_object_new_object();
+            s_print_emergency_validators(json_obj_out, l_esbocs_pvt->emergency_validator_addrs);
+            json_object_array_add(*json_arr_reply, json_obj_out);
+        }            
     } break;
 
     default:
