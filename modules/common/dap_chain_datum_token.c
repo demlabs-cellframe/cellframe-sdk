@@ -252,20 +252,18 @@ void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags
 void dap_chain_datum_token_flags_dump_to_json(json_object * json_obj_out, uint16_t a_flags)
 {
     if(!a_flags){
-        json_object_object_add(json_obj_out, "flags:", json_object_new_string(c_dap_chain_datum_token_flag_str[DAP_CHAIN_DATUM_TOKEN_FLAG_NONE]));
+        json_object_object_add(json_obj_out, "flags", json_object_new_string(c_dap_chain_datum_token_flag_str[DAP_CHAIN_DATUM_TOKEN_FLAG_NONE]));
 
         return;
     }
-    bool is_first = true;
+    json_object *l_array_flags = json_object_new_array();
     for ( uint16_t i = 0;  BIT(i) <= DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++){
         if(   a_flags &  (1 << i) ){
-            if(is_first)
-                is_first = false;
-
-            json_object_object_add(json_obj_out, "flags:", json_object_new_string(c_dap_chain_datum_token_flag_str[BIT(i)]));
+            json_object_array_add(l_array_flags, json_object_new_string(c_dap_chain_datum_token_flag_str[BIT(i)]));
 
         }
     }
+    json_object_object_add(json_obj_out, "flags", l_array_flags);
 }
 
 
