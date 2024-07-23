@@ -25,7 +25,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <pthread.h>
-
+#include "uthash.h"
 #include "dap_cli_server.h"
 #include "dap_common.h"
 #include "dap_enc_base58.h"
@@ -34,7 +34,6 @@
 #include "dap_list.h"
 #include "dap_hash.h"
 #include "dap_time.h"
-
 #include "dap_chain_cell.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_token.h"
@@ -46,22 +45,10 @@
 #include "dap_chain_net_decree.h"
 #include "dap_chain_mempool.h"
 #include "dap_math_convert.h"
-
 #include "dap_json_rpc_errors.h"
 
 #define LOG_TAG "chain_node_cli_cmd_tx"
 
-#include "uthash.h"
-// for dap_db_history_filter()
-typedef struct dap_tx_data {
-    dap_chain_hash_fast_t tx_hash;
-    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    dap_chain_datum_t *datum;
-    UT_hash_handle hh;
-    //useless
-    char tx_hash_str[70];
-    dap_chain_addr_t addr;
-} dap_tx_data_t;
 
 
 /**
@@ -193,7 +180,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                                                                                        : json_object_new_null());
 
     json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(l_ret_code));
-    json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_tx_check_err_str(l_ret_code)));
+    json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_check_error_str(l_ret_code)));
 
     dap_chain_net_srv_uid_t uid;
     char *service_name;
@@ -291,7 +278,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
     json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(a_ret_code));
-    json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_tx_check_err_str(a_ret_code)));
+    json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_check_error_str(a_ret_code)));
 
 
     dap_chain_net_srv_uid_t uid;
@@ -834,7 +821,7 @@ static json_object* dap_db_chain_history_token_list(dap_chain_t * a_chain, const
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
     for (dap_chain_datum_t *l_datum = a_chain->callback_datum_iter_get_first(l_datum_iter);
             l_datum; l_datum = a_chain->callback_datum_iter_get_next(l_datum_iter)) {
-        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_DECL)
+        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN)
             continue;
         size_t l_token_size = l_datum->header.data_size;
         dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(l_datum->data, &l_token_size);
@@ -915,161 +902,6 @@ static size_t dap_db_net_history_token_list(dap_chain_net_t * l_net, const char 
     return l_token_num_total;
 }
 
-/**
- * @brief dap_db_history_filter
- * Get data according the history log
- *
- * return history string
- * @param a_chain
- * @param a_ledger
- * @param a_filter_token_name
- * @param a_filtr_addr_base58
- * @param a_hash_out_type
- * @param a_datum_start
- * @param a_datum_end
- * @param a_total_datums
- * @param a_tx_hash_processed
- * @return char*
- */
-static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger, const char *a_filter_token_name, const char *a_filtr_addr_base58, const char *a_hash_out_type, long a_datum_start, long a_datum_end, long *a_total_datums, dap_chain_tx_hash_processed_ht_t *a_tx_hash_processed)
-{
-    if (!a_chain->callback_atom_get_datums) {
-        log_it(L_WARNING, "Not defined callback_atom_get_datums for chain \"%s\"", a_chain->name);
-        return NULL;
-    }
-    dap_string_t *l_str_out = dap_string_new(NULL);
-    if (!l_str_out) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return NULL;
-    }
-    // list all transactions
-    dap_tx_data_t *l_tx_data_hash = NULL;
-    dap_chain_cell_t *l_cell = a_chain->cells;
-    do {
-        // load transactions
-        size_t l_atom_size = 0;
-        dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, NULL);
-        size_t l_datum_num = 0, l_token_num = 0, l_emission_num = 0, l_tx_num = 0;
-        size_t l_datum_num_global = a_total_datums ? *a_total_datums : 0;
-        for (dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
-                l_atom && l_atom_size; l_atom = a_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size)) {
-            size_t l_datums_count = 0;
-            dap_chain_datum_t **l_datums = a_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
-            if (!l_datums || !l_datums_count)
-                continue;
-            for(size_t l_datum_n = 0; l_datum_n < l_datums_count; l_datum_n++) {
-                dap_chain_datum_t *l_datum = l_datums[l_datum_n];
-                if(!l_datum)
-                    continue;
-                char l_time_str[DAP_TIME_STR_SIZE];
-                // get time of create datum
-                if(dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, l_datum->header.ts_create) < 1)
-                    l_time_str[0] = '\0';
-                switch (l_datum->header.type_id) {
-                // token
-                case DAP_CHAIN_DATUM_TOKEN_DECL: {
-                    // no token necessary for addr
-                    if(a_filtr_addr_base58)
-                        break;
-                    dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
-                    //if(a_datum_start < 0 || (l_datum_num >= a_datum_start && l_datum_num < a_datum_end))
-                    // datum out of page
-                    if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)){
-                        l_token_num++;
-                        break;
-                    }
-                    if(!a_filter_token_name || !dap_strcmp(l_token->ticker, a_filter_token_name)) {
-                        dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type, a_chain->net_id);
-                        dap_string_append(l_str_out, "\n");
-                        l_token_num++;
-                    }
-                } break;
-
-                // emission
-                case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-                    // datum out of page
-                    if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
-                         l_emission_num++;
-                         break;
-                    }
-                    dap_chain_datum_token_emission_t *l_token_em =  (dap_chain_datum_token_emission_t *)l_datum->data;
-                    if(!a_filter_token_name || !dap_strcmp(l_token_em->hdr.ticker, a_filter_token_name)) {
-                        // filter for addr
-                        if (a_filtr_addr_base58 && dap_strcmp(a_filtr_addr_base58, dap_chain_addr_to_str(&(l_token_em->hdr.address)))) {
-                             break;
-                        }
-                        dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type, a_chain->net_id);
-                        dap_string_append(l_str_out, "\n");
-                        l_emission_num++;
-                    }
-                } break;
-
-                // transaction
-                case DAP_CHAIN_DATUM_TX:{
-                    // datum out of page
-                    if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
-                        l_tx_num++;
-                        break;
-                    }
-                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
-                    //calc tx hash
-                    dap_chain_hash_fast_t l_tx_hash;
-                    dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
-                    dap_chain_tx_hash_processed_ht_t *l_sht = NULL;
-                    HASH_FIND(hh, a_tx_hash_processed, &l_tx_hash, sizeof(dap_chain_hash_fast_t), l_sht);
-                    json_object * l_json_obj_datum = json_object_new_object();
-                    if (l_sht != NULL ||
-                            !s_dap_chain_datum_tx_out_data(l_tx, a_ledger, l_json_obj_datum, a_hash_out_type, &l_tx_hash)) {
-                        l_datum_num--;
-                        break;
-                    }
-                    l_sht = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
-                    if (!l_sht) {
-                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                        return NULL;
-                    }
-                    l_sht->hash = l_tx_hash;
-                    HASH_ADD(hh, a_tx_hash_processed, hash, sizeof(dap_chain_hash_fast_t), l_sht);
-                    l_tx_num++;
-                } break;
-
-                default: {
-                    const char *l_type_str;
-                    DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type_str);
-                    dap_string_append_printf(l_str_out, "datum type %s\n", l_type_str);
-                    } break;
-                }
-                l_datum_num++;
-            }
-        }
-        a_chain->callback_atom_iter_delete(l_atom_iter);
-        //total
-        dap_string_append_printf(l_str_out,
-                "---------------\ntokens: %zu\nemissions: %zu\ntransactions: %zu\ntotal datums: %zu", l_token_num,
-                l_emission_num, l_tx_num, l_datum_num);
-
-        // return total datums
-        if(a_total_datums)
-            *a_total_datums = l_datum_num;
-        // delete hashes
-        dap_tx_data_t *l_iter_current, *l_item_tmp;
-        HASH_ITER(hh, l_tx_data_hash , l_iter_current, l_item_tmp)
-        {
-            HASH_DEL(l_tx_data_hash, l_iter_current);
-            // delete datum
-            DAP_DELETE(l_iter_current->datum);
-            // delete struct
-            DAP_DELETE(l_iter_current);
-        }
-        l_cell = l_cell->hh.next;
-    } while (l_cell);
-
-    // if no history
-    if(!l_str_out->len)
-        dap_string_append(l_str_out, "empty");
-    char *l_ret_str = l_str_out ? dap_string_free(l_str_out, false) : NULL;
-    return l_ret_str;
-}
 
 /**
  * @brief com_ledger
@@ -1085,13 +917,10 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
     json_object ** json_arr_reply = (json_object **) reply;
     enum { CMD_NONE, CMD_LIST, CMD_TX_INFO };
     int arg_index = 1;
-    const char *l_addr_base58 = NULL;
-    const char *l_wallet_name = NULL;
     const char *l_net_str = NULL;
     const char *l_tx_hash_str = NULL;
     const char *l_hash_out_type = NULL;
 
-    dap_chain_net_t * l_net = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
@@ -1294,13 +1123,13 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply)
         const char *l_token_name_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-name", &l_token_name_str);
         if(!l_token_name_str) {
-                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR, "command requires parameter '-name' <token name>");
-                return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR, "command requires parameter '-name' <token name>");
+            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
         }
-        json_object* json_obj_tx = json_object_new_object();
-        if(!dap_db_net_history_token_list(l_net, l_token_name_str, l_hash_out_type, json_obj_tx)){
-            json_object_put(json_obj_tx);
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_FOUND_ERR, "token '%s' not found\n", l_token_name_str);               
+        json_object *json_obj_tx = json_object_new_object();
+        if (!dap_db_net_history_token_list(l_net, l_token_name_str, l_hash_out_type, json_obj_tx)) {
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TOKEN_FOUND_ERR, "token '%s' not found\n", l_token_name_str);\
+            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN;
         }
         json_object_array_add(*json_arr_reply, json_obj_tx);
         return DAP_CHAIN_NODE_CLI_COM_TOKEN_OK;
