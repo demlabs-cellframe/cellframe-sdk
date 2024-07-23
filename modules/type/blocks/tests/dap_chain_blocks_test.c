@@ -36,7 +36,7 @@ bool dap_chain_block_test_compare_chain_hash_lists(dap_chain_t* a_chain, dap_lis
     dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size_from_iter);
     for (dap_list_t *l_branch_temp = a_atoms_hash_list; l_branch_temp && l_atom; 
         l_branch_temp = l_branch_temp->next, l_atom = a_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size_from_iter)){
-        dap_test_msg("Check block %s : num %d and %s", dap_chain_hash_fast_to_str_static(l_iter->cur_hash), l_iter->cur_num,
+        dap_test_msg("Check block %s : num %" DAP_UINT64_FORMAT_U " and %s", dap_chain_hash_fast_to_str_static(l_iter->cur_hash), l_iter->cur_num,
                                             dap_chain_hash_fast_to_str_static((dap_hash_fast_t*)l_branch_temp->data));
         if (!dap_hash_fast_compare(l_iter->cur_hash, (dap_hash_fast_t*)l_branch_temp->data)){
             a_chain->callback_atom_iter_delete(l_iter);

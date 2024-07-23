@@ -91,7 +91,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     dap_return_val_if_pass(!a_datum, NULL);
 
     dap_chain_hash_fast_t l_key_hash;
-    dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_key_hash);
+    dap_chain_datum_calc_hash(a_datum, &l_key_hash);
     char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     const char *l_key_str_out = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash)
@@ -99,7 +99,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 
     const char *l_type_str;
     switch (a_datum->header.type_id) {
-    case DAP_CHAIN_DATUM_TOKEN_DECL:
+    case DAP_CHAIN_DATUM_TOKEN:
         l_type_str = "token";
         break;
     case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
@@ -1205,13 +1205,13 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_c
     dap_chain_datum_token_t *l_token = dap_ledger_token_ticker_check(l_net->pub.ledger, l_ticker);
     if (!l_token)
         return NULL;
-    if (l_token->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE && l_token->type == DAP_CHAIN_DATUM_TOKEN_DECL)
+    if (l_token->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE && l_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_DECL)
         return NULL;
     /*int l_signs_valid = 0;
     dap_sign_t *l_ems_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
     for (int i = 0; i < l_emission->data.type_auth.signs_count; i++) {
         uint32_t l_ems_pkey_size = l_ems_sign->header.sign_pkey_size;
-        dap_sign_t *l_token_sign = (dap_sign_t *)(l_token->data_n_tsd + l_token->header_native_decl.tsd_total_size);
+        dap_sign_t *l_token_sign = (dap_sign_t *)(l_token->tsd_n_signs + l_token->header_native_decl.tsd_total_size);
         for (int j = 0; j < l_token->signs_total; j++) {
             if (l_ems_pkey_size == l_ems_sign->header.sign_pkey_size &&
                     !memcmp(l_token_sign->pkey_n_sign, l_ems_sign->pkey_n_sign, l_ems_pkey_size)) {
