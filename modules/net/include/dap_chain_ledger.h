@@ -90,6 +90,7 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX,
     /* Emisssion check return codes */
     DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY,
+    DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN,
     /* Token declaration/update return codes */
     DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS,
     DAP_LEDGER_TOKEN_ADD_CHECK_LEGACY_FORBIDDEN,
@@ -145,9 +146,10 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX: return "Not enough sovereign tax provided with current transaction";
     /* Emisssion check return codes */
     case DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY: return "Value of emission execeeds current token supply";
+    case DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN: return "Legacy type of emissions are present for old chains comliance only";
     /* Token declaration/update return codes */
     case DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS: return "Not all token signs is unique";
-    case DAP_LEDGER_TOKEN_ADD_CHECK_LEGACY_FORBIDDEN: return "Legacy type of tokens is present for old chains comliance only";
+    case DAP_LEDGER_TOKEN_ADD_CHECK_LEGACY_FORBIDDEN: return "Legacy type of tokens are present for old chains comliance only";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY: return "Specified supply must be greater than current one";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR: return "Specified address has invalid format";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH: return "Specified address can't be processed cause double (for adding) or absent (for removing)";

@@ -229,7 +229,7 @@ void dap_chain_net_srv_xchange_deinit()
     if(!s_srv_xchange)
         return;
     dap_chain_net_srv_del(s_srv_xchange->parent);
-    DAP_DELETE(s_srv_xchange);
+    DAP_DEL_Z(s_srv_xchange);
 }
 
 /**
@@ -1363,7 +1363,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
 
                 if (l_tx_list){
                     dap_list_t *l_tx_list_temp = l_tx_list;
-                    dap_string_append_printf(l_str_reply, "Wallet %s hisrory:\n\n", l_addr_hash_str);
+                    dap_string_append_printf(l_str_reply, "Wallet %s history:\n\n", l_addr_hash_str);
                     while(l_tx_list_temp ){
                     dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
                     s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur, TX_STATUS_ALL, true, true, false);
@@ -1393,7 +1393,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                             dap_cli_server_cmd_set_reply_text(a_str_reply, "WRONG TX %s", l_tx_hash);
                         }else{
                             dap_string_t * l_str_reply = dap_string_new("");
-                            dap_string_append_printf(l_str_reply, "Order %s hisrory:\n\n", l_order_hash_str);
+                            dap_string_append_printf(l_str_reply, "Order %s history:\n\n", l_order_hash_str);
                             dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net, &l_order_tx_hash, c_dap_chain_net_srv_xchange_uid );
                             dap_list_t *l_tx_list_temp = l_tx_list;
                             while(l_tx_list_temp ){
