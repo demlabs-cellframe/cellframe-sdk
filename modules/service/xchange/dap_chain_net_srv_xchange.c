@@ -229,7 +229,7 @@ void dap_chain_net_srv_xchange_deinit()
     if(!s_srv_xchange)
         return;
     dap_chain_net_srv_del(s_srv_xchange->parent);
-    DAP_DELETE(s_srv_xchange);
+    DAP_DEL_Z(s_srv_xchange);
 }
 
 /**
