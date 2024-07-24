@@ -179,6 +179,9 @@ typedef enum dap_chain_tx_tag_action_type {
     DAP_CHAIN_TX_TAG_ACTION_EXTEND =                1 << 8,
     DAP_CHAIN_TX_TAG_ACTION_CHANGE =                1 << 9,
     DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 10,
+
+    DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
+    DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
     
     
     DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
@@ -443,3 +446,4 @@ void dap_ledger_bridged_tx_notify_add(dap_ledger_t *a_ledger, dap_ledger_bridged
 bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger);
 void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_cache_tx_check_callback_t a_callback);
 dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond);
+void dap_leger_load_end(dap_ledger_t *a_ledger);
