@@ -108,13 +108,13 @@ typedef struct dap_chain_datum_token {
         } DAP_ALIGN_PACKED header_native_decl;
         // Private token update
         struct {
-            uint16_t flags; // Token declaration flags
+            uint16_t padding; // OLD token declaration flags
             uint64_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
             uint16_t decimals;
         } DAP_ALIGN_PACKED header_private_update;
         // native token update
         struct {
-            uint16_t flags; // Token declaration flags
+            uint16_t padding; // OLD Token declaration flags
             uint64_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
             uint16_t decimals;
         } DAP_ALIGN_PACKED header_native_update;

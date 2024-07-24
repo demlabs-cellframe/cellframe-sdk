@@ -114,7 +114,6 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
         *l_token = (dap_chain_datum_token_t) {
                 .type       = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE,
                 .subtype    = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE,
-                .header_private_update.flags            = l_token_old->header_private_update.flags,
                 .header_private_update.tsd_total_size   = l_token_old->header_private_update.tsd_total_size,
                 .header_private_update.decimals         = l_token_old->header_private_update.decimals
         };
@@ -134,7 +133,6 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
         *l_token = (dap_chain_datum_token_t) {
                 .type       = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE,
                 .subtype    = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE,
-                .header_native_update.flags             = l_token_old->header_native_update.flags,
                 .header_native_update.tsd_total_size    = l_token_old->header_native_update.tsd_total_size,
                 .header_native_update.decimals          = l_token_old->header_native_update.decimals
         };

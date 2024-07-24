@@ -3471,7 +3471,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                             bool a_from_threshold,
                             dap_list_t **a_list_bound_items,
                             dap_list_t **a_list_tx_out,
-                            char **a_main_ticker,
+                            char *a_main_ticker,
                             dap_chain_net_srv_uid_t *a_tag,
                             dap_chain_tx_tag_action_type_t *a_action,
                             bool a_check_for_removing)
@@ -3855,7 +3855,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             l_tx_prev = s_find_datum_tx_by_hash(a_ledger, l_tx_prev_hash, &l_item_out, false);
             char l_tx_prev_hash_str[DAP_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(l_tx_prev_hash, l_tx_prev_hash_str, DAP_HASH_FAST_STR_SIZE);
-            if (!l_tx_prev && !a_check_for_removing) { // Unchained transaction or previous TX was already spent and removed from ledger
+            if (!l_tx_prev) { // Unchained transaction or previous TX was already spent and removed from ledger
                 debug_if(s_debug_more && !a_from_threshold, L_DEBUG, "No previous transaction was found for hash %s", l_tx_prev_hash_str);
                 l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
                 break;
@@ -3920,7 +3920,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 if (l_err_num)
                     break;
                 l_bound_item->in.addr_from = *l_addr_from;
-                dap_strncpy(l_bound_item->in.token_ticker, l_token, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+                dap_strncpy(l_bound_item->in.token_ticker, l_token, DAP_CHAIN_TICKER_SIZE_MAX);
                 // 4. compare public key hashes in the signature of the current transaction and in the 'out' item of the previous transaction
                 if (l_addr_from->net_id.uint64 != a_ledger->net->pub.id.uint64 ||
                         !dap_hash_fast_compare(&l_tx_first_sign_pkey_hash, &l_addr_from->data.hash_fast)) {
@@ -4282,7 +4282,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     }
 
     if (a_main_ticker && !l_err_num)
-        *a_main_ticker = dap_strdup(l_main_ticker);
+        dap_strncpy(a_main_ticker, l_main_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
 
     HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
         HASH_DEL(l_values_from_prev_tx, l_value_cur);
@@ -4387,7 +4387,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     dap_list_t *l_list_bound_items = NULL;
     dap_list_t *l_list_tx_out = NULL;
     dap_ledger_tx_item_t *l_item_tmp = NULL;
-    char *l_main_token_ticker = NULL;
+    char l_main_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX] = { '\0' };
 
     bool l_from_threshold = a_from_threshold;
     char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -4399,7 +4399,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
 
     if( (l_ret_check = s_tx_cache_check(a_ledger, a_tx, a_tx_hash, a_from_threshold,
                                                        &l_list_bound_items, &l_list_tx_out,
-                                                       &l_main_token_ticker, &l_tag, &l_action, false))) {
+                                                       l_main_token_ticker, &l_tag, &l_action, false))) {
         if ((l_ret_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS ||
                 l_ret_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION) &&
                 l_ledger_pvt->threshold_enabled && !dap_chain_net_get_load_mode(a_ledger->net)) {
@@ -4738,7 +4738,6 @@ FIN:
         dap_list_free_full(l_list_bound_items, NULL);
     if (l_list_tx_out)
         dap_list_free(l_list_tx_out);
-    DAP_DEL_Z(l_main_token_ticker);
     if (PVT(a_ledger)->cached) {
         if (l_cache_used_outs) {
             for (size_t i = 1; i <= l_outs_used; i++) {
@@ -4773,8 +4772,9 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_list_t *l_list_bound_items = NULL;
     dap_list_t *l_list_tx_out = NULL;
-    char *l_main_token_ticker = NULL;
     dap_chain_net_srv_uid_t l_tag =  { .uint64 = 0 };
+    char l_main_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX] = { '\0' };
+
     char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_to_str(a_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
 
@@ -4783,7 +4783,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     int l_ret_check;
     if( (l_ret_check = s_tx_cache_check(a_ledger, a_tx, a_tx_hash, false,
                                                        &l_list_bound_items, &l_list_tx_out,
-                                                       &l_main_token_ticker, &l_tag, NULL, true))) {
+                                                       l_main_token_ticker, &l_tag, NULL, true))) {
         debug_if(s_debug_more, L_WARNING, "dap_ledger_tx_remove() tx %s not passed the check: %s ", l_tx_hash_str,
                     dap_ledger_check_error_str(l_ret_check));
         return l_ret_check;
@@ -5036,7 +5036,6 @@ FIN:
         dap_list_free_full(l_list_bound_items, NULL);
     if (l_list_tx_out)
         dap_list_free(l_list_tx_out);
-    DAP_DEL_Z(l_main_token_ticker);
     if (PVT(a_ledger)->cached) {
         if (l_cache_used_outs) {
             for (size_t i = 1; i < l_outs_used; i++) {
@@ -6125,15 +6124,13 @@ void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_c
 
 const char *dap_ledger_tx_calculate_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc)
 {
-    char *l_main_ticker = NULL;
+    static _Thread_local char s_main_ticker[DAP_CHAIN_TICKER_SIZE_MAX] = { '\0' };
     dap_chain_hash_fast_t *l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
-    int l_rc = s_tx_cache_check(a_ledger, a_tx, l_tx_hash, false, NULL, NULL, &l_main_ticker, NULL, NULL, false);
+    int l_rc = s_tx_cache_check(a_ledger, a_tx, l_tx_hash, false, NULL, NULL, s_main_ticker, NULL, NULL, false);
     if (l_rc == DAP_LEDGER_CHECK_ALREADY_CACHED)
-        l_main_ticker = (char *)dap_ledger_tx_get_token_ticker_by_hash(a_ledger, l_tx_hash);
+        dap_strncpy( s_main_ticker, dap_ledger_tx_get_token_ticker_by_hash(a_ledger, l_tx_hash), DAP_CHAIN_TICKER_SIZE_MAX );
     DAP_DEL_Z(l_tx_hash);
-
     if (a_ledger_rc)
         *a_ledger_rc = l_rc;
-    
-    return l_main_ticker;
+    return s_main_ticker;
 }
