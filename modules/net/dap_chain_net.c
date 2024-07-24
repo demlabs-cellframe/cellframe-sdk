@@ -1795,7 +1795,7 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     // Synchronously going to offline state
     PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
     s_net_states_proc(a_net);
-    dap_chain_net_item_t *l_net_item;
+    dap_chain_net_item_t *l_net_item = NULL;
     HASH_FIND(hh, s_net_items, a_net->pub.name, strlen(a_net->pub.name), l_net_item);
     if (l_net_item) {
         HASH_DEL(s_net_items, l_net_item);
@@ -2133,6 +2133,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
         if (l_chain->callback_load_from_gdb) {
             l_ledger_flags &= ~DAP_LEDGER_MAPPED;
+            l_ledger_flags |= DAP_LEDGER_THRESHOLD_ENABLED;
             continue;
         }
         if (!l_chain->callback_get_poa_certs)
@@ -2199,6 +2200,10 @@ bool s_net_load(void *a_arg)
                 } else
                     log_it(L_WARNING, "No purge callback for chain %s, can't reload it with correct order", l_chain->name);
             }
+            if (l_chain->callback_atom_add_from_treshold) {
+                while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
+                    log_it(L_DEBUG, "Added atom from treshold");
+            }
         } else {
             //dap_chain_save_all( l_chain );
             log_it (L_NOTICE, "Initialized chain files");
@@ -2206,23 +2211,11 @@ bool s_net_load(void *a_arg)
         l_chain->atom_num_last = 0;
         l_chain = l_chain->next;
     }
-    // Process thresholds if any
-    bool l_processed;
-    do {
-        l_processed = false;
-        DL_FOREACH(l_net->pub.chains, l_chain) {
-            if (l_chain->callback_atom_add_from_treshold) {
-                while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
-                    log_it(L_DEBUG, "Added atom from treshold");
-                    l_processed = true;
-                }
-            }
-        }
-    } while (l_processed);
+    l_net_pvt->load_mode = false;
+    dap_leger_load_end(l_net->pub.ledger);
 
     // Do specific role actions post-chain created
     l_net_pvt->state_target = NET_STATE_OFFLINE;
-
     switch ( l_net_pvt->node_role.enums ) {
         case NODE_ROLE_ROOT_MASTER:{
             // Set to process everything in datum pool
@@ -2263,8 +2256,6 @@ bool s_net_load(void *a_arg)
             log_it(L_INFO,"Light node role established");
 
     }
-    
-    l_net_pvt->load_mode = false;
 
     l_net_pvt->balancer_type = dap_config_get_item_bool_default(l_net->pub.config, "general", "use_dns_links", false);
 
