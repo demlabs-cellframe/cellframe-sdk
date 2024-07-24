@@ -4361,9 +4361,9 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
 
 static int s_sort_ledger_tx_item(dap_ledger_tx_item_t *a, dap_ledger_tx_item_t *b)
 {
-    if (likely(a->cache_data.ts_created < b->cache_data.ts_created))
+    if (a->cache_data.ts_created < b->cache_data.ts_created)
         return -1;
-    if (unlikely(a->cache_data.ts_created == b->cache_data.ts_created))
+    if (a->cache_data.ts_created == b->cache_data.ts_created)
         return 0;
     return 1;
 }
