@@ -943,7 +943,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
     if(l_cmd == CMD_LIST){
         enum {SUBCMD_NONE, SUBCMD_LIST_COIN, SUB_CMD_LIST_LEDGER_THRESHOLD, SUB_CMD_LIST_LEDGER_BALANCE, SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH};
         int l_sub_cmd = SUBCMD_NONE;
-        dap_chain_hash_fast_t l_tx_threshold_hash;
+        dap_chain_hash_fast_t l_tx_threshold_hash = {};
         const char *l_limit_str = NULL;
         const char *l_offset_str = NULL;
         if (dap_cli_server_cmd_find_option_val(a_argv, 2, 3, "coins", NULL ))
@@ -981,21 +981,21 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_LACK_ERR, "Can't get ledger for net %s", l_net_str);
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_LACK_ERR;
         }
-        if (l_sub_cmd == SUB_CMD_LIST_LEDGER_THRESHOLD){
-            json_object* json_obj_out = dap_ledger_threshold_info(l_ledger, l_limit, l_offset);
+        if (l_sub_cmd == SUB_CMD_LIST_LEDGER_THRESHOLD) {
+            json_object* json_obj_out = dap_ledger_threshold_info(l_ledger, l_limit, l_offset, NULL);
             if (json_obj_out){
                 json_object_array_add(*json_arr_reply, json_obj_out);
             }
             return 0;
         }
-        if (l_sub_cmd == SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH){
-            json_object *json_obj_out = dap_ledger_threshold_hash_info(l_ledger, &l_tx_threshold_hash, l_limit, l_offset);
+        if (l_sub_cmd == SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH) {
+            json_object *json_obj_out = dap_ledger_threshold_info(l_ledger, 0, 0, &l_tx_threshold_hash);
             if (json_obj_out){
                 json_object_array_add(*json_arr_reply, json_obj_out);
             }
             return 0;
         }
-        if (l_sub_cmd == SUB_CMD_LIST_LEDGER_BALANCE){
+        if (l_sub_cmd == SUB_CMD_LIST_LEDGER_BALANCE) {
             json_object *json_obj_out = dap_ledger_balance_info(l_ledger, l_limit, l_offset);
             if (json_obj_out){
                 json_object_array_add(*json_arr_reply, json_obj_out);
