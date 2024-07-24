@@ -2942,8 +2942,8 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_emergency_validator(dap_cha
 static void s_print_emergency_validators(json_object *json_obj_out, dap_list_t *a_validator_addrs)
 {
     json_object *json_arr_validators = json_object_new_array();
-    dap_string_t *l_str_out = dap_string_new("Current emergency validators list:\n");
-    for (dap_list_t *it = a_validator_addrs, size_t i=1; it; it = it->next,i++) {
+    size_t i=1;
+    for (dap_list_t *it = a_validator_addrs; it; it = it->next, i++) {
         json_object *json_obj_validator = json_object_new_object();
         dap_chain_addr_t *l_addr = it->data;
         json_object_object_add(json_obj_validator,"#", json_object_new_uint64(i));
