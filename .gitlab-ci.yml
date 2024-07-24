@@ -60,7 +60,7 @@ linux-arm64v8-tests:
 
 linux-arm64v8-tests-clang:
     extends: .tests
-    image: demlabs/arm64v8/debian-bullseye:linuxbuilder
+    image: demlabs/arm64v8/debian-bookworm:linuxbuilder
     before_script: /opt/buildtools/prepare_environment.sh arm64-linux
     script:
       - mkdir build
