@@ -2176,6 +2176,8 @@ bool s_net_load(void *a_arg)
 
     // load chains
     dap_chain_t *l_chain = l_net->pub.chains;
+    clock_t l_chain_load_start_time; 
+    l_chain_load_start_time = clock(); 
     while (l_chain) {
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
@@ -2204,6 +2206,9 @@ bool s_net_load(void *a_arg)
             log_it (L_NOTICE, "Initialized chain files");
         }
         l_chain->atom_num_last = 0;
+        time_t l_chain_load_time_taken = clock() - l_chain_load_start_time; 
+        double time_taken = ((double)l_chain_load_time_taken)/CLOCKS_PER_SEC; // in seconds 
+        log_it(L_NOTICE, "[%s] Chain [%s] processing took %f seconds", l_chain->net_name, l_chain->name, time_taken);
         l_chain = l_chain->next;
     }
     // Process thresholds if any
