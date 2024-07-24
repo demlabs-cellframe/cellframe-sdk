@@ -193,7 +193,7 @@ int dap_chain_cs_blocks_init()
 
             "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset]"
             " [-from_hash <block_hash>] [-to_hash <block_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]"
-            " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>} [-unspent]]\n"
+            " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>}] [-unspent]]\n"
                 "\t\t List blocks\n\n"
 
             "block -net <net_name> [-chain <chain_name>] count\n"

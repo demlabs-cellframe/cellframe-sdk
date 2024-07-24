@@ -574,10 +574,10 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
     return 0;
 }
 
-json_object *s_net_sync_status(dap_chain_net_t *a_net) {
-// sanity check
+json_object *s_net_sync_status(dap_chain_net_t *a_net)
+{
+    // sanity check
     dap_return_val_if_pass(!a_net, NULL);
-    size_t l_count_atoms = 0;
 
     json_object *l_jobj_chains_array = json_object_new_object();
     dap_chain_t *l_chain = NULL;
@@ -2127,10 +2127,14 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     default:
         l_ledger_flags |= DAP_LEDGER_CHECK_CELLS_DS | DAP_LEDGER_CHECK_TOKEN_EMISSION;
     }
-    // init LEDGER model
-    l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
+    if (dap_config_get_item_bool_default(g_config, "ledger", "mapped", true))
+        l_ledger_flags |= DAP_LEDGER_MAPPED;
 
     for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+        if (l_chain->callback_load_from_gdb) {
+            l_ledger_flags &= ~DAP_LEDGER_MAPPED;
+            continue;
+        }
         if (!l_chain->callback_get_poa_certs)
             continue;
         l_net->pub.keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
@@ -2140,6 +2144,8 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     if (!l_net->pub.keys)
         log_it(L_WARNING, "PoA certificates for net %s not found", l_net->pub.name);
 
+    // init LEDGER model
+    l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
     // Decrees initializing
     dap_chain_net_decree_init(l_net);
 
@@ -2977,7 +2983,7 @@ void dap_chain_net_proc_mempool(dap_chain_net_t *a_net)
  * @brief dap_chain_net_verify_datum_for_add
  * process datum verification process. Can be:
  *   if DAP_CHAIN_DATUM_TX, called dap_ledger_tx_add_check
- *   if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_ledger_token_decl_add_check
+ *   if DAP_CHAIN_DATUM_TOKEN, called dap_ledger_token_add_check
  *   if DAP_CHAIN_DATUM_TOKEN_EMISSION, called dap_ledger_token_emission_add_check
  *   if DAP_CHAIN_DATUM_DECREE
  * @param a_net
@@ -2994,8 +3000,8 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
     switch (a_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TX:
         return dap_ledger_tx_add_check(l_net->pub.ledger, (dap_chain_datum_tx_t *)a_datum->data, a_datum->header.data_size, a_datum_hash);
-    case DAP_CHAIN_DATUM_TOKEN_DECL:
-        return dap_ledger_token_decl_add_check(l_net->pub.ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
+    case DAP_CHAIN_DATUM_TOKEN:
+        return dap_ledger_token_add_check(l_net->pub.ledger, a_datum->data, a_datum->header.data_size);
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
         return dap_ledger_token_emission_add_check(l_net->pub.ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_DECREE:
@@ -3013,14 +3019,12 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
     return 0;
 }
 
-char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code){
+const char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code){
     switch (a_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TX:
-        return dap_ledger_tx_check_err_str(a_code);
-    case DAP_CHAIN_DATUM_TOKEN_DECL:
-        return dap_ledger_token_decl_add_err_code_to_str(a_code);
+    case DAP_CHAIN_DATUM_TOKEN:
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-        return dap_ledger_token_emission_err_code_to_str(a_code);
+        return dap_ledger_check_error_str(a_code);
     default:
         return !a_code ? "DAP_CHAIN_DATUM_VERIFY_OK" : dap_itoa(a_code);
 
@@ -3211,7 +3215,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             }
             return dap_chain_net_anchor_load(l_anchor, a_chain, a_datum_hash);
         }
-        case DAP_CHAIN_DATUM_TOKEN_DECL:
+        case DAP_CHAIN_DATUM_TOKEN:
             return dap_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size);
 
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
@@ -3267,7 +3271,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
             }
             return dap_chain_net_anchor_unload(l_anchor, a_chain, a_datum_hash);
         }
-        case DAP_CHAIN_DATUM_TOKEN_DECL:
+        case DAP_CHAIN_DATUM_TOKEN:
             return 0;
 
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
