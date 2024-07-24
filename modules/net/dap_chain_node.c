@@ -262,7 +262,7 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
         log_it(L_WARNING, "Can't get datum hash from hash string");
         return false;
     }
-    dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_real_hash);
+    dap_chain_datum_calc_hash(a_datum, &l_real_hash);
     if (!dap_hash_fast_compare(&l_datum_hash, &l_real_hash)) {
         log_it(L_WARNING, "Datum hash from mempool key and real datum hash are different");
         return false;

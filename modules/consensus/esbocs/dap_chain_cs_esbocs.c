@@ -379,7 +379,7 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
     dap_chain_t *l_chain = a_block_collect_params->chain;
     if (a_type == DAP_CHAIN_BLOCK_COLLECT_BOTH || a_type == DAP_CHAIN_BLOCK_COLLECT_FEES) {
         dap_sign_t *l_sign = dap_chain_block_sign_get(a_block_cache->block, a_block_cache->block_size, 0);
-        if (dap_pkey_match_sign(a_block_collect_params->block_sign_pkey, l_sign)) {
+        if (dap_pkey_compare_with_sign(a_block_collect_params->block_sign_pkey, l_sign)) {
             dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
             assert(l_net);
             uint256_t l_value_fee = uint256_0;
@@ -559,7 +559,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
             continue;
         dap_sign_t *l_order_sign = (dap_sign_t*)(l_order->ext_n_sign + l_order->ext_size);
-        if (!dap_pkey_match_sign(l_esbocs_pvt->block_sign_pkey, l_order_sign))
+        if (!dap_pkey_compare_with_sign(l_esbocs_pvt->block_sign_pkey, l_order_sign))
             continue;
         if (!l_order_service)
             l_order_service = l_order;
@@ -2768,8 +2768,12 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         log_it(L_WARNING, "Incorrect header size with block %p on chain %s", a_block, a_blocks->chain->name);
         return  -7;
     }
-
-    if (a_block->hdr.meta_n_datum_n_signs_size &&
+    size_t l_offset = dap_chain_block_get_sign_offset(a_block, a_block_size);
+    if (!l_offset) {
+        log_it(L_WARNING, "Block with size %zu parsing error", a_block_size);
+        return -5;
+    }
+    if ((a_block->hdr.meta_n_datum_n_signs_size > l_offset || a_block->hdr.version == 2) &&
             a_block->hdr.meta_n_datum_n_signs_size != a_block_size - sizeof(a_block->hdr)) {
         log_it(L_WARNING, "Incorrect size with block %p on chain %s", a_block, a_blocks->chain->name);
         return -8;
@@ -2779,11 +2783,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         // It's a block candidate, don't check signs
         return 0;
 
-    size_t l_offset = dap_chain_block_get_sign_offset(a_block, a_block_size);
-    if (!l_offset) {
-        log_it(L_WARNING, "Block with size %zu parsing error", a_block_size);
-        return -5;
-    }
+
     size_t l_signs_count = 0;
     dap_sign_t **l_signs = dap_sign_get_unique_signs(a_block->meta_n_datum_n_sign+l_offset,
                                             a_block_size-sizeof(a_block->hdr)-l_offset, &l_signs_count);
