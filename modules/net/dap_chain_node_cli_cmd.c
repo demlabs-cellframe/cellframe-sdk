@@ -2817,7 +2817,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         dap_list_free(l_list_sig_item);
                         dap_list_t *l_list_in_reward = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_REWARD, NULL);
                         if (l_list_in_reward) {
-                            json_object *l_obj_in_reward_arary = json_object_new_array();
+                            /*json_object *l_obj_in_reward_arary = json_object_new_array();
                             if (!l_obj_in_reward_arary) {
                                 dap_list_free(l_list_in_reward);
                                 json_object_put(l_jobj_datum);
@@ -2844,7 +2844,8 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                 }
                                 json_object_array_add(l_obj_in_reward_arary, l_jobj_block_hash);
                                 DAP_DELETE(l_block_hash);
-                            }
+                            }*/
+                           dap_list_free(l_list_in_reward);
                         } else {
                             json_object *l_jobj_addr_from = json_object_new_string(dap_chain_addr_to_str(&l_addr_from));
                             if (!l_jobj_addr_from) {
@@ -2987,20 +2988,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             }
 
                             if (l_dist_addr) {
-                                json_object *l_jobj_addr = json_object_new_string(dap_chain_addr_to_str(l_dist_addr));
-                                if (!l_jobj_addr) {
-                                    json_object_put(l_jobj_to_list);
-                                    json_object_put(l_jobj_change_list);
-                                    json_object_put(l_jobj_to_from_emi);
-                                    json_object_put(l_jobj_fee_list);
-                                    json_object_put(l_jobj_money);
-                                    json_object_put(l_jobj_datum);
-                                    json_object_put(l_jobj_datums);
-                                    json_object_put(l_obj_chain);
-                                    dap_global_db_objs_delete(l_objs, l_objs_count);
-                                    dap_json_rpc_allocation_error;
-                                    return;
-                                }
                                 if (!datum_is_accepted_addr && l_wallet_addr) {
                                     datum_is_accepted_addr = dap_chain_addr_compare(l_wallet_addr, l_dist_addr);
                                 }
@@ -3010,7 +2997,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                     json_object_put(l_jobj_change_list);
                                     json_object_put(l_jobj_to_from_emi);
                                     json_object_put(l_jobj_fee_list);
-                                    json_object_put(l_jobj_addr);
                                     json_object_put(l_jobj_money);
                                     json_object_put(l_jobj_datum);
                                     json_object_put(l_jobj_datums);
@@ -3036,7 +3022,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                                 json_object_put(l_jobj_change_list);
                                                 json_object_put(l_jobj_to_from_emi);
                                                 json_object_put(l_jobj_fee_list);
-                                                json_object_put(l_jobj_addr);
                                                 json_object_put(l_jobj_money);
                                                 json_object_put(l_jobj_datum);
                                                 json_object_put(l_jobj_datums);
@@ -3055,7 +3040,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                     else
                                         json_object_array_add(l_jobj_change_list, l_jobj_f);
                                 } else {
-                                    json_object_object_add(l_jobj_f, "addr", l_jobj_addr);
+                                    json_object_object_add(l_jobj_f, "addr", json_object_new_string(dap_chain_addr_to_str(l_dist_addr)));
                                     json_object_array_add(l_jobj_to_list, l_jobj_f);
                                 }
                             } else {
