@@ -1704,7 +1704,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                                             ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
                             char buf[DAP_TIME_STR_SIZE];
                             dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
-                            json_object_object_add(json_obj_event_i, "#", json_object_new_string(dap_itoa(i-1)));
+                            json_object_object_add(json_obj_event_i, "event", json_object_new_string(dap_itoa(i-1)));
                             json_object_object_add(json_obj_event_i, "obj key", json_object_new_string(l_objs[i].key));
                             json_object_object_add(json_obj_event_i, "ts_create", json_object_new_string(buf));
                             json_object_array_add(json_arr_obj_event, json_obj_event_i);
@@ -1741,7 +1741,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                             i_tmp++;
                             char buf[DAP_TIME_STR_SIZE];
                             dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
-                            json_object_object_add(json_obj_event_i, "#", json_object_new_string(dap_itoa(i_tmp)));
+                            json_object_object_add(json_obj_event_i, "event", json_object_new_string(dap_itoa(i_tmp)));
                             json_object_object_add(json_obj_event_i, "hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_event_item->hash)));
                             json_object_object_add(json_obj_event_i, "ts_create", json_object_new_string(buf));
                             json_object_array_add(json_arr_obj_event, json_obj_event_i);
@@ -1779,7 +1779,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         json_object * json_obj_event_i = json_object_new_object();
                         char buf[DAP_TIME_STR_SIZE];
                         dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
-                        json_object_object_add(json_obj_event_i, "#", json_object_new_string(dap_itoa(i_tmp)));
+                        json_object_object_add(json_obj_event_i, "event", json_object_new_string(dap_itoa(i_tmp)));
                         json_object_object_add(json_obj_event_i, "hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_event_item->hash)));
                         json_object_object_add(json_obj_event_i, "ts_create", json_object_new_string(buf));
                         json_object_array_add(json_arr_obj_event, json_obj_event_i);
@@ -1850,10 +1850,13 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 // dap_chain_cs_dag_event_item_t *l_curr_event = PVT(l_dag)->events;
                 dap_chain_cs_dag_event_item_t *l_curr_event = NULL, *l_temp;
                 json_object* json_arr_bl_cache_out = json_object_new_array();
+                json_object* json_obj_event = NULL;
                 // for (;l_curr_event;l_curr_event = l_curr_event->hh.next)
-                HASH_ITER(hh, PVT(l_dag)->events, l_curr_event, l_temp){
+                HASH_ITER(hh, PVT(l_dag)->events, l_curr_event, l_temp){                                        
                     if (l_curr_event && dap_hash_fast_compare(&l_datum_hash, &l_curr_event->datum_hash)){
-                        json_object_array_add(json_arr_bl_cache_out, json_object_new_string(dap_hash_fast_to_str_static(&l_curr_event->hash)));
+                        json_obj_event = json_object_new_object();
+                        json_object_object_add(json_obj_event, "event hash", json_object_new_string(dap_hash_fast_to_str_static(&l_curr_event->hash)));
+                        json_object_array_add(json_arr_bl_cache_out, json_obj_event);
                         l_atoms_cnt++;
                     }
                 }

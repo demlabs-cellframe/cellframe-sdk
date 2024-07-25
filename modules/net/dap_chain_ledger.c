@@ -1970,6 +1970,24 @@ int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_toke
     }
     return dap_ledger_token_add(a_ledger, l_token, a_token_size);
 }
+static void set_offset_limit_json(json_object * json_obj_out, size_t *start, size_t * and, size_t a_limit, size_t a_offset, size_t and_count)
+{
+    if (a_limit = 0)
+        return;
+    json_object* json_obj_lim = json_object_new_object();
+    if (a_offset > 1) {
+        *start = a_offset;
+        json_object_object_add(json_obj_lim, "offset", json_object_new_int(*start));                
+    }
+    *and = and_count;
+    if (a_limit > 0) {
+        *and = *start + a_limit;
+        json_object_object_add(json_obj_lim, "limit", json_object_new_int(*and - *start));
+    }
+    else if (a_limit == -1)
+                json_object_object_add(json_obj_lim, "limit", json_object_new_string("unlimit"));
+    json_object_array_add(json_obj_out, json_obj_lim);
+}
 
 json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset)
 {
@@ -1979,22 +1997,9 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
     uint32_t l_counter = 0;
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     size_t l_arr_start = 0;
-    if (a_offset > 0) {
-        l_arr_start = a_offset;
-        json_object* json_obj_tx = json_object_new_object();
-        json_object_object_add(json_obj_tx, "offset", json_object_new_int(l_arr_start));
-        json_object_array_add(json_arr_out, json_obj_tx);
-    }
-    size_t l_arr_end = HASH_COUNT(l_ledger_pvt->threshold_txs);
-    if (a_limit) {
-        json_object* json_obj_tx = json_object_new_object();
-        json_object_object_add(json_obj_tx, "limit", json_object_new_int(a_limit));
-        json_object_array_add(json_arr_out, json_obj_tx);
-        l_arr_end = l_arr_start + a_limit;
-        if (l_arr_end > HASH_COUNT(l_ledger_pvt->threshold_txs)) {
-            l_arr_end = HASH_COUNT(l_ledger_pvt->threshold_txs);
-        }
-    }
+    size_t l_arr_end = 0;
+    set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, HASH_COUNT(l_ledger_pvt->threshold_txs));
+    
     size_t i_tmp = 0;
     HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp){
         if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
