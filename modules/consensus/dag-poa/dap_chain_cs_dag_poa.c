@@ -872,7 +872,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
         return -1;
     }
     if (l_event->header.round_id < a_dag->round_completed) {
-        struct round_timer_arg *l_round_active;
+        struct round_timer_arg *l_round_active = NULL;
         uint64_t l_round_id = l_event->header.round_id;
         pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
         HASH_FIND(hh, l_poa_pvt->active_rounds, &l_round_id, sizeof(uint64_t), l_round_active);

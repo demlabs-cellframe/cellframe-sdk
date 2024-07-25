@@ -89,11 +89,11 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_NOT_ENOUGH_FEE,
     DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX,
     /* Emisssion check return codes */
-    DAP_LEDGER_EMISSION_CHECK_THRESHOLDED,
-    DAP_LEDGER_EMISSION_CHECK_THRESHOLD_OVERFLOW,
     DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY,
+    DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN,
     /* Token declaration/update return codes */
     DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS,
+    DAP_LEDGER_TOKEN_ADD_CHECK_LEGACY_FORBIDDEN,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH,
@@ -145,11 +145,11 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_NOT_ENOUGH_FEE: return "Not enough network fee for transaction processing";
     case DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX: return "Not enough sovereign tax provided with current transaction";
     /* Emisssion check return codes */
-    case DAP_LEDGER_EMISSION_CHECK_THRESHOLDED: return "No token ticker found for emission, move it to the threshold";
-    case DAP_LEDGER_EMISSION_CHECK_THRESHOLD_OVERFLOW: return "Emissions threshold overfulled";
     case DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY: return "Value of emission execeeds current token supply";
+    case DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN: return "Legacy type of emissions are present for old chains comliance only";
     /* Token declaration/update return codes */
     case DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS: return "Not all token signs is unique";
+    case DAP_LEDGER_TOKEN_ADD_CHECK_LEGACY_FORBIDDEN: return "Legacy type of tokens are present for old chains comliance only";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY: return "Specified supply must be greater than current one";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR: return "Specified address has invalid format";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH: return "Specified address can't be processed cause double (for adding) or absent (for removing)";
@@ -179,6 +179,9 @@ typedef enum dap_chain_tx_tag_action_type {
     DAP_CHAIN_TX_TAG_ACTION_EXTEND =                1 << 8,
     DAP_CHAIN_TX_TAG_ACTION_CHANGE =                1 << 9,
     DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 10,
+
+    DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
+    DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
     
     
     DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
@@ -220,6 +223,8 @@ typedef bool (*dap_ledger_tag_check_callback_t)(dap_ledger_t *a_ledger, dap_chai
 #define DAP_LEDGER_CACHE_ENABLED            0x0200
 
 #define DAP_LEDGER_MAPPED                   0x0400
+
+#define DAP_LEDGER_THRESHOLD_ENABLED        0x0800
 
 // Error code for no previous transaction (for stay in mempool)
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS     DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND
@@ -296,8 +301,7 @@ json_object *dap_ledger_token_info_by_name(dap_ledger_t *a_ledger, const char *a
 // Get all token-declarations
 dap_list_t* dap_ledger_token_decl_all(dap_ledger_t *a_ledger);
 
-json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset);
-json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_tx_treshold_hash, size_t a_limit, size_t a_offset);
+json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, dap_hash_fast_t *a_threshold_hash);
 json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset);
 
 size_t dap_ledger_token_get_auth_signs_valid(dap_ledger_t *a_ledger, const char *a_token_ticker);
@@ -308,8 +312,7 @@ uint256_t dap_ledger_token_get_emission_rate(dap_ledger_t *a_ledger, const char 
 /**
  * Add token emission datum
  */
-int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size,
-                                        dap_hash_fast_t *a_emission_hash, bool a_from_threshold);
+int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_hash_fast_t *a_emission_hash);
 int dap_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_hash_fast_t *a_token_emission_hash);
 
 // Checking a new transaction before adding to the cache
@@ -443,3 +446,4 @@ void dap_ledger_bridged_tx_notify_add(dap_ledger_t *a_ledger, dap_ledger_bridged
 bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger);
 void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_cache_tx_check_callback_t a_callback);
 dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond);
+void dap_leger_load_end(dap_ledger_t *a_ledger);
