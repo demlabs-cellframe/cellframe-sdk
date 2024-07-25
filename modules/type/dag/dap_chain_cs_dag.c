@@ -529,10 +529,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         case 0:
             debug_if(s_debug_more, L_DEBUG, "... added");
             break;
-        case DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS:
-        case DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION:
-            debug_if(s_debug_more, L_DEBUG, "... ledger tresholded");
-            break;
         case DAP_CHAIN_DATUM_CA:
             debug_if(s_debug_more, L_DEBUG, "... DATUM_CA");
             break;

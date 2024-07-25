@@ -1012,7 +1012,7 @@ void dap_chain_net_srv_del(dap_chain_net_srv_t *a_srv)
 // sanity check
     dap_return_if_pass(!a_srv);
 // func work
-    service_list_t *l_sdata;
+    service_list_t *l_sdata = NULL;
     // delete srv from hash table
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_FIND(hh, s_srv_list, a_srv, sizeof(dap_chain_net_srv_uid_t), l_sdata);
