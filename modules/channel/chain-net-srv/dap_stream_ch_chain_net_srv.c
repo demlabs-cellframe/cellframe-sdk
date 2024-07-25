@@ -1673,6 +1673,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             }
         }else{
             if (l_curr_grace_item){
+                log_it(L_INFO, "Can't find tx in ledger. Waiting...");
                 l_curr_grace_item->grace->usage->tx_cond_hash = l_responce->hdr.tx_cond;
                 l_curr_grace_item->grace->request->hdr.tx_cond = l_responce->hdr.tx_cond;
                 pthread_mutex_lock(&l_srv->grace_mutex);
