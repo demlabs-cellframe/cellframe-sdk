@@ -363,7 +363,9 @@ const char* dap_chain_wallet_get_path(dap_config_t * a_config)
         return  log_it(L_WARNING, "No path to wallet's store has been defined"), l_cp;
 
 
-    return  strncpy(s_wallets_path, l_cp, sizeof(s_wallets_path) - 1 );     /* Make local copy , return it to caller */
+    strncpy(s_wallets_path, l_cp, sizeof(s_wallets_path) - 1 );     /* Make local copy , return it to caller */
+    DAP_DEL_Z(l_cp);
+    return s_wallets_path;
 }
 
 /**
