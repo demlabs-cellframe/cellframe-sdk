@@ -1478,10 +1478,9 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 a_srv_session->limits_units_type.uint32 = a_usage->receipt->receipt_info.units_type.uint32;
                 switch( a_usage->receipt->receipt_info.units_type.enm){
                 case SERV_UNIT_B:{
-                    a_srv_session->limits_bytes +=  (uintmax_t) a_usage->receipt->receipt_info.units;
-                    char *l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage for user", a_usage->receipt->receipt_info.units, l_user_key);
-                    DAP_DELETE(l_user_key);
+                    a_srv_session->limits_bytes +=  (uintmax_t) a_usage->receipt->receipt_info.units;   
+                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage for user %s", a_usage->receipt->receipt_info.units,
+                                                    dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash));
                 } break;
                 default: {
                     log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X for limits_bytes", a_usage->receipt->receipt_info.units_type.uint32 );

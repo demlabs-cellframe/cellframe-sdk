@@ -181,6 +181,8 @@ typedef struct dap_chain_net_pvt{
     dap_global_db_cluster_t *mempool_clusters; // List of chains mempools
     dap_global_db_cluster_t *orders_cluster;
     dap_global_db_cluster_t *nodes_cluster;
+    dap_global_db_cluster_t *nodes_states;
+    dap_global_db_cluster_t *common_orders;
 
     // Block sign rewards history
     struct block_reward *rewards;
@@ -1796,6 +1798,17 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     // Synchronously going to offline state
     PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
     s_net_states_proc(a_net);
+    dap_global_db_cluster_t *l_mempool = PVT(a_net)->mempool_clusters;
+    while (l_mempool) {
+        dap_global_db_cluster_t *l_next = l_mempool->next;
+        dap_global_db_cluster_delete(l_mempool);
+        l_mempool = l_next;
+    }
+    dap_global_db_cluster_delete(PVT(a_net)->orders_cluster);
+    dap_global_db_cluster_delete(PVT(a_net)->nodes_cluster);
+    dap_global_db_cluster_delete(PVT(a_net)->nodes_states);
+    dap_global_db_cluster_delete(PVT(a_net)->common_orders);
+
     dap_chain_net_item_t *l_net_item = NULL;
     HASH_FIND(hh, s_net_items, a_net->pub.name, strlen(a_net->pub.name), l_net_item);
     if (l_net_item) {
@@ -2274,7 +2287,7 @@ bool s_net_load(void *a_arg)
                                                     dap_global_db_instance_get_default(),
                                                     l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                     l_gdb_groups_mask, DAP_CHAIN_NET_MEMPOOL_TTL, true,
-                                                    DAP_GDB_MEMBER_ROLE_USER,
+                                                    l_chain == l_net->pub.chains ? DAP_GDB_MEMBER_ROLE_GUEST : DAP_GDB_MEMBER_ROLE_USER,
                                                     DAP_CLUSTER_TYPE_EMBEDDED);
         if (!l_cluster) {
             log_it(L_ERROR, "Can't initialize mempool cluster for network %s", l_net->pub.name);
@@ -2299,9 +2312,22 @@ bool s_net_load(void *a_arg)
     }
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->orders_cluster);
     DAP_DELETE(l_gdb_groups_mask);
-    // node states cluster
+    // Common orders cluster
+    l_gdb_groups_mask = dap_strdup_printf("%s.orders", l_net->pub.gdb_groups_prefix);
+    l_net_pvt->common_orders = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
+                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
+                                                          l_gdb_groups_mask, 72, true,
+                                                          DAP_GDB_MEMBER_ROLE_USER,
+                                                          DAP_CLUSTER_TYPE_EMBEDDED);
+    if (!l_net_pvt->common_orders) {
+        log_it(L_ERROR, "Can't initialize orders cluster for network %s", l_net->pub.name);
+        goto ret;
+    }
+    dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->common_orders);
+    DAP_DELETE(l_gdb_groups_mask);
+    // Node states cluster
     l_gdb_groups_mask = dap_strdup_printf("%s.nodes.states", l_net->pub.gdb_groups_prefix);
-    dap_global_db_cluster_add(
+    l_net_pvt->nodes_states = dap_global_db_cluster_add(
         dap_global_db_instance_get_default(),
         l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
         l_gdb_groups_mask, 0, true,
