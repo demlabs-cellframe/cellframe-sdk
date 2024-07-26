@@ -219,6 +219,25 @@ typedef struct dap_chain_esbocs_block_collect{
     dap_chain_cell_id_t cell_id;
 }dap_chain_esbocs_block_collect_t;
 
+typedef enum s_com_esbocs_err{
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHAIN_TYPE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_CERT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_PVT_KEY_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_MINVALSET_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_FORMAT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_ADD_DEL_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_SUB_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNKNOWN /* MAX */
+} s_com_esbocs_err_t;
+
 #define DAP_CHAIN_ESBOCS(a) ((dap_chain_esbocs_t *)(a)->_inheritor)
 
 typedef enum dap_chain_block_autocollect_type {
