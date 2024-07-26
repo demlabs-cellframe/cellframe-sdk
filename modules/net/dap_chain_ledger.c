@@ -501,7 +501,6 @@ static dap_ledger_t *dap_ledger_handle_new(void)
     pthread_rwlock_init(&l_ledger_pvt->balance_accounts_rwlock , NULL);
     pthread_rwlock_init(&l_ledger_pvt->stake_lock_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->rewards_rwlock, NULL);
-
     return l_ledger;
 }
 
