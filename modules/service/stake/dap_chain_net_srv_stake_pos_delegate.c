@@ -274,11 +274,7 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
     }
     if (a_tx_in->header.ts_created < 1706227200) // Jan 26 2024 00:00:00 GMT, old policy rules
         return 0;
-<<<<<<< HEAD
-    dap_chain_net_srv_stake_item_t *l_stake;
-=======
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
->>>>>>> 9b03aca879c4f30ed14fc74b3dc282aad7eb658f
     HASH_FIND(ht, l_srv_stake->tx_itemlist, l_prev_hash, sizeof(dap_hash_t), l_stake);
     if (l_stake) {
         log_it(L_WARNING, "Key is active with delegation decree, need to revoke it first");

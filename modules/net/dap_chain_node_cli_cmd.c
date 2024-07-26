@@ -2130,11 +2130,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                                                       "sig_multi_chained. You must specify at least two more "
                                                       "signatures other than sig_multi_chained.\n"
                                                       "After sig_multi_chained, you must specify two more signatures "
-<<<<<<< HEAD
-                                                      "from the list: %s", dap_cert_get_str_recommended_sign());
-=======
                                                       "from the list:\n%s", dap_cert_get_str_recommended_sign());
->>>>>>> 9b03aca879c4f30ed14fc74b3dc282aad7eb658f
                                 json_object_put(json_arr_out);
                                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR;
                             }
