@@ -3220,7 +3220,7 @@ dap_hash_fast_t *dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_
             break;      // Not found in ledger
         }
         int l_out_num = 0;
-        if (dap_hash_fast_is_blank(&l_item->cache_data.tx_hash_spent_fast[l_out_num]) || !dap_chain_datum_tx_out_cond_get(l_item->tx, a_cond_type, &l_out_num))
+        if (!dap_chain_datum_tx_out_cond_get(l_item->tx, a_cond_type, &l_out_num) || dap_hash_fast_is_blank(&l_item->cache_data.tx_hash_spent_fast[l_out_num]))
             break;      // Unused conditional output found, that's what we need
         else {
             l_tx_hash = &l_item->cache_data.tx_hash_spent_fast[l_out_num];
