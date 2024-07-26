@@ -1983,7 +1983,7 @@ json_object *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_ad
     }
     return json_arr_out;
 }
-static void set_offset_limit_json(json_object * json_obj_out, size_t *start, size_t * and, size_t a_limit, size_t a_offset, size_t and_count)
+static void set_offset_limit_json(json_object * json_obj_out, size_t *start, size_t * and, int a_limit, size_t a_offset, size_t and_count)
 {
     if (a_limit = 0)
         return;
@@ -2002,7 +2002,7 @@ static void set_offset_limit_json(json_object * json_obj_out, size_t *start, siz
     json_object_array_add(json_obj_out, json_obj_lim);
 }
 
-json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, dap_chain_hash_fast_t *a_threshold_hash)
+json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, int a_limit, size_t a_offset, dap_chain_hash_fast_t *a_threshold_hash)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_tx_item_t *l_tx_item = NULL, *l_tx_tmp;
@@ -2013,7 +2013,7 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
     size_t l_arr_start = 0;
     size_t l_arr_end = 0;
     set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, HASH_COUNT(l_ledger_pvt->threshold_txs));
-    
+
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     if (a_threshold_hash) {
         json_object *json_obj_tx = json_object_new_object();
@@ -2062,7 +2062,7 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
     return json_arr_out;
 }
 
-json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset)
+json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, int a_limit, size_t a_offset)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     json_object * json_arr_out = json_object_new_array();
