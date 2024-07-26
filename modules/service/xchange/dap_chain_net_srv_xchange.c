@@ -60,7 +60,7 @@ static dap_chain_net_srv_fee_item_t *s_service_fees = NULL; // Governance statem
 static pthread_rwlock_t s_service_fees_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
-static bool s_xchange_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
+static int s_xchange_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                             dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid = {.uint64= DAP_CHAIN_NET_SRV_XCHANGE_ID};
 
@@ -229,7 +229,7 @@ void dap_chain_net_srv_xchange_deinit()
     if(!s_srv_xchange)
         return;
     dap_chain_net_srv_del(s_srv_xchange->parent);
-    DAP_DELETE(s_srv_xchange);
+    DAP_DEL_Z(s_srv_xchange);
 }
 
 /**
@@ -241,22 +241,22 @@ void dap_chain_net_srv_xchange_deinit()
  * @param a_owner
  * @return
  */
-static bool s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond,
+static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond,
                                            dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     if (a_owner)
-        return true;
+        return 0;
     if(!a_tx_in || !a_tx_out_cond)
-        return false;
+        return -1;
 
     dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
     if (!l_tx_in_cond)
-        return false;
+        return -2;
     if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
-        return false;
+        return -3;
     const char *l_sell_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_in_cond->header.tx_prev_hash);
     if (!l_sell_ticker)
-        return false;
+        return -4;
     const char *l_buy_ticker = a_tx_out_cond->subtype.srv_xchange.buy_token;
 
     uint256_t l_buy_val = {}, l_fee_val = {},
@@ -318,11 +318,11 @@ static bool s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_
 
     uint256_t l_sell_val, l_buyer_val_expected;
     if (compare256(l_sell_again_val, a_tx_out_cond->header.value) >= 0)
-        return false;
+        return -5;
     SUBTRACT_256_256(a_tx_out_cond->header.value, l_sell_again_val, &l_sell_val);
     MULT_256_COIN(l_sell_val, a_tx_out_cond->subtype.srv_xchange.rate, &l_buyer_val_expected);
     if (compare256(l_buyer_val_expected, l_buy_val) > 0)
-        return false;
+        return -6;
 
     /* Check the condition for fee verification success
      * out_ext.fee_addr(fee_ticker).value >= fee_value
@@ -331,9 +331,9 @@ static bool s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_
         if (l_service_fee_type == SERIVCE_FEE_NATIVE_PERCENT || l_service_fee_type == SERVICE_FEE_OWN_PERCENT)
             MULT_256_COIN(l_service_fee_val, l_sell_val, &l_service_fee_val);
         if (compare256(l_fee_val, l_service_fee_val) < 0)
-            return false;
+            return -7;
     }
-    return true;
+    return 0;
 }
 
 /**
@@ -1351,12 +1351,18 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
             if(l_addr_hash_str){
                 dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_hash_str);
                 if (!l_addr) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Incorrect chain address");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Cannot convert "
+                                                                   "string '%s' to binary address.", l_addr_hash_str);
                     return -14;
                 }
-                if (dap_chain_addr_check_sum(l_addr) != 1 ) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Incorrect chain address");
+                if (dap_chain_addr_check_sum(l_addr) != 0 ) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Incorrect address wallet");
                     return -15;
+                }
+                if (l_addr->net_id.uint64 != l_net->pub.id.uint64) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Address %s does not belong to the %s network.",
+                                                      l_addr_hash_str, l_net->pub.name);
+                    return -16;
                 }
                 dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_all_for_addr(l_net,l_addr, c_dap_chain_net_srv_xchange_uid );
                 dap_string_t * l_str_reply = dap_string_new("");

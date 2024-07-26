@@ -107,7 +107,7 @@ int     dap_chain_wallet_activate   (
                                     )
 {
 int     l_rc, l_rc2;
-dap_chain_wallet_n_pass_t   l_rec = {0}, *l_prec;
+dap_chain_wallet_n_pass_t   l_rec = {0}, *l_prec = NULL;
 dap_chain_wallet_t  *l_wallet;
 char *c_wallets_path;
 
@@ -204,7 +204,7 @@ int     s_dap_chain_wallet_pass   (
                                     )
 {
 int     l_rc;
-dap_chain_wallet_n_pass_t   *l_prec;
+dap_chain_wallet_n_pass_t   *l_prec = NULL;
 struct timespec l_now;
 
     /* Sanity checks ... */
@@ -263,7 +263,7 @@ struct timespec l_now;
 int dap_chain_wallet_deactivate (const char *a_name, ssize_t a_name_len)
 {
 int     l_rc, l_rc2;
-dap_chain_wallet_n_pass_t   *l_prec;
+dap_chain_wallet_n_pass_t   *l_prec = NULL;
 
     if ( a_name_len > DAP_WALLET$SZ_NAME )
         return  log_it(L_ERROR, "Wallet's name is too long (%d > %d)",  (int) a_name_len, DAP_WALLET$SZ_NAME), -EINVAL;
