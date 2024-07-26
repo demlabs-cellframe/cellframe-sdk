@@ -938,6 +938,9 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
     uint256_t l_value_transfer = {}; // how many coins to transfer
     uint256_t l_value_need = {};
     SUM_256_256(a_value, a_value_fee, &l_value_need);
+    if (l_net_fee_used) {
+        SUM_256_256(l_value_need, l_net_fee, &l_value_need);
+    }
     // where to take coins for service
     dap_chain_addr_t l_addr_from;
     dap_chain_addr_fill_from_key(&l_addr_from, a_key_from, a_net->pub.id);

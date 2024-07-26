@@ -276,6 +276,8 @@ struct legacy_sync_context *s_legacy_sync_context_create(dap_stream_ch_t *a_ch)
             .state          = DAP_CHAIN_CH_STATE_IDLE,
             .last_activity  = dap_time_now()
         };
+
+    
     dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&a_ch->uuid);
     if (!l_uuid) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -1065,8 +1067,6 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         l_context->is_type_of_gdb = true;
         l_context->db_list = l_db_list;
-        l_context->remote_addr = *(dap_stream_node_addr_t *)l_chain_pkt->data;
-        l_context->request_hdr = l_chain_pkt->hdr;
         l_ch_chain->legacy_sync_context = l_context;
         l_context->state = DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB;
         debug_if(s_debug_legacy, L_DEBUG, "Sync out gdb proc, requested %" DAP_UINT64_FORMAT_U " records from address " NODE_ADDR_FP_STR " (unverified)",
