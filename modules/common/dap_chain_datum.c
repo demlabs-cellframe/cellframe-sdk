@@ -899,7 +899,6 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
                             json_object_object_add(json_obj_datum,"auth signs valid",json_object_new_uint64(l_token->signs_valid));
                             json_object_object_add(json_obj_datum,"auth signs total",json_object_new_uint64(l_token->signs_total));
                             json_object_object_add(json_obj_datum,"total_supply",json_object_new_string(dap_uint256_to_char(l_token->total_supply, NULL)));
-
                             dap_chain_datum_token_flags_dump_to_json(json_obj_datum, l_token->header_native_decl.flags);
                             dap_datum_token_dump_tsd_to_json(json_obj_datum, l_token, l_token_size, a_hash_out_type);
                             size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_decl.tsd_total_size;
