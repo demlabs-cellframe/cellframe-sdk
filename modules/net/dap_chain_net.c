@@ -385,6 +385,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
                 log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_permalink_info->node_addr));
                 continue;
             }
+            PVT(a_net)->state = NET_STATE_LINKS_CONNECTING;
         }
         if (a_new_state == NET_STATE_ONLINE)
             dap_chain_esbocs_start_timer(a_net->pub.id);
@@ -472,7 +473,7 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
                                    &l_announce, sizeof(l_announce));
 }
 
-static bool s_net_check_link_is_premanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
+static bool s_net_check_link_is_permanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     for (uint16_t i = 0; i < l_net_pvt->permanent_links_count; i++) {
@@ -495,7 +496,7 @@ static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_
 // func work
     dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
-    bool l_link_is_permanent = s_net_check_link_is_premanent(l_net, a_link->addr);
+    bool l_link_is_permanent = s_net_check_link_is_permanent(l_net, a_link->addr);
     log_it(L_INFO, "%s."NODE_ADDR_FP_STR" can't connect for now. %s", l_net ? l_net->pub.name : "(unknown)" ,
             NODE_ADDR_FP_ARGS_S(a_link->addr),
             l_link_is_permanent ? "Setting reconnection pause for it." : "Dropping it.");
