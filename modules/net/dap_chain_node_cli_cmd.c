@@ -1944,6 +1944,9 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     dap_string_free(l_str_signs, true);
                 }
                 json_object_object_add(json_obj_wall, "signs", l_jobj_sings);
+            } else {
+                json_object_object_add(json_obj_wall, "signs",
+                                       json_object_new_string(dap_sign_type_to_str(l_addr->sig_type)));
             }
             if(l_l_addr_tokens_size <= 0)
                 json_object_object_add(json_obj_wall, "balance", json_object_new_string("0"));
