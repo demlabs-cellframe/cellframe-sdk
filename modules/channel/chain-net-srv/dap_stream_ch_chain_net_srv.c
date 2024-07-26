@@ -800,9 +800,9 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                         break;
                 }
                 char *l_user_key = dap_chain_hash_fast_to_str_new(&a_grace->usage->client_pkey_hash);
-                log_it(L_INFO, "User %s has %ld %s remain service. Start service without paying.", 
+                log_it(L_INFO, "User %s has %ld %s remain service. Start service without paying.", l_user_key, 
                                 l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, 
-                                dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm), l_user_key);
+                                dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
                 DAP_DELETE(l_user_key);
                 size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
                 dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
@@ -1088,9 +1088,9 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                         break;
                 }
                 char *l_user_key = dap_chain_hash_fast_to_str_new(&l_grace->usage->client_pkey_hash);
-                log_it(L_INFO, "User %s has %ld %s remain service. Start service without paying.", 
+                log_it(L_INFO, "User %s has %ld %s remain service. Start service without paying.", l_user_key,
                             l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, 
-                            dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm), l_user_key);
+                            dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
                 DAP_DELETE(l_user_key);
                 size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
                 dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
@@ -1574,7 +1574,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         } else {
             dap_hash_fast_to_str(&l_usage->tx_cond_hash, (char*)l_success->custom_data, DAP_CHAIN_HASH_FAST_STR_SIZE);
             char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
-            log_it(L_NOTICE, "Receipt with client %s sign is accepted, start service providing");
+            log_it(L_NOTICE, "Receipt with client %s sign is accepted, start service providing", l_user_key);
             DAP_DELETE(l_user_key);
         }
 
