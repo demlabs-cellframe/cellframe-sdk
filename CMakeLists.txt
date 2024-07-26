@@ -18,8 +18,7 @@ endif()
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
 
-    set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-esbocs cs-none
-                          srv-app srv-app-db srv-datum srv-stake srv-voting srv-bridge srv-xchange")
+    set(CELLFRAME_MODULES "core chains mining network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")

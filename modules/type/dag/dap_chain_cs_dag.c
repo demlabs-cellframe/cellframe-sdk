@@ -404,7 +404,7 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
         return -1;
     }
     dap_hash_fast_t l_datum_hash;
-    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_hash);
+    dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
     int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash);
     if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)  // && l_ret == 0
         PVT(a_dag)->tx_count++;
@@ -529,10 +529,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         case 0:
             debug_if(s_debug_more, L_DEBUG, "... added");
             break;
-        case DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS:
-        case DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION:
-            debug_if(s_debug_more, L_DEBUG, "... ledger tresholded");
-            break;
         case DAP_CHAIN_DATUM_CA:
             debug_if(s_debug_more, L_DEBUG, "... DATUM_CA");
             break;
@@ -611,7 +607,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     /* If datum passes thru rounds, let's check if it wasn't added before */
     dap_chain_hash_fast_t l_datum_hash;
-    dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_datum_hash);
+    dap_chain_datum_calc_hash(a_datum, &l_datum_hash);
     if (!l_dag->is_add_directly) {
         bool l_dup_found = false;
         size_t l_objs_count = 0;
@@ -774,8 +770,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_c
             return ATOM_ACCEPT;
         }
     }
-    if (dap_chain_cs_dag_event_calc_size(l_event, a_atom_size) != a_atom_size) {
-        debug_if(s_debug_more, L_WARNING, "Event size not equal to expected");
+    size_t l_atom_size = dap_chain_cs_dag_event_calc_size(l_event, a_atom_size);
+    if (l_atom_size != a_atom_size) {
+        log_it(L_WARNING, "Event size %zu not equal to expected %zu", l_atom_size, a_atom_size);
         return  ATOM_REJECT;
     }
 
@@ -804,26 +801,24 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_c
     }
 
     //chain coherence
-    if (! PVT(l_dag)->events ){
-        res = ATOM_MOVE_TO_THRESHOLD;
-        //log_it(L_DEBUG, "*** event %p goes to threshold", l_event);
-    } else {
-        //log_it(L_DEBUG, "*** event %p hash count %d",l_event, l_event->header.hash_count);
-        for (size_t i = 0; i< l_event->header.hash_count; i++) {
-            dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) l_event->hashes_n_datum_n_signs) + i;
-            dap_chain_cs_dag_event_item_t * l_event_search = NULL;
-            pthread_mutex_lock(l_events_mutex);
-            HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
-            pthread_mutex_unlock(l_events_mutex);
-            if (l_event_search == NULL) {
-                if(s_debug_more) {
-                    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-                    dap_chain_hash_fast_to_str(l_hash, l_hash_str, sizeof(l_hash_str));
-                    log_it(L_WARNING, "Hash %s wasn't in hashtable of previously parsed", l_hash_str);
-                }
-                res = ATOM_MOVE_TO_THRESHOLD;
-                break;
+    if (! PVT(l_dag)->events )
+        return ATOM_MOVE_TO_THRESHOLD;
+
+    for (size_t i = 0; i< l_event->header.hash_count; i++) {
+        dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) l_event->hashes_n_datum_n_signs) + i;
+        dap_chain_cs_dag_event_item_t * l_event_search = NULL;
+        pthread_mutex_lock(l_events_mutex);
+        HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
+        pthread_mutex_unlock(l_events_mutex);
+        if (l_event_search == NULL) {
+            if(s_debug_more) {
+                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(l_hash, l_hash_str, sizeof(l_hash_str));
+                log_it(L_WARNING, "Hash %s wasn't in hashtable of previously parsed, event %s goes to threshold",
+                                        l_hash_str, dap_hash_fast_to_str_static(a_atom_hash));
             }
+            res = ATOM_MOVE_TO_THRESHOLD;
+            break;
         }
     }
 
@@ -938,7 +933,7 @@ dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
     dap_chain_cs_dag_event_item_t * l_event_item = NULL, * l_event_item_tmp = NULL;
     pthread_mutex_lock(&PVT(a_dag)->events_mutex);
     int l_count = HASH_COUNT(PVT(a_dag)->events_treshold);
-    log_it(L_DEBUG, "*** %d events in threshold", l_count);
+    debug_if(s_debug_more, L_DEBUG, "*** %d events in threshold", l_count);
     HASH_ITER(hh, PVT(a_dag)->events_treshold, l_event_item, l_event_item_tmp) {
         dap_dag_threshold_verification_res_t ret = dap_chain_cs_dag_event_verify_hashes_with_treshold(a_dag, l_event_item->event);
         if (ret == DAP_THRESHOLD_OK) {
