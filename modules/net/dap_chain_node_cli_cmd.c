@@ -1800,7 +1800,6 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
     }
 
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
-    //dap_string_t *l_string_ret = dap_string_new(NULL);
     dap_chain_wallet_t *l_wallet = NULL;
     dap_chain_addr_t *l_addr = NULL;
 
@@ -1928,6 +1927,27 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             size_t l_l_addr_tokens_size = 0;
             char **l_l_addr_tokens = NULL;
             dap_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_l_addr_tokens, &l_l_addr_tokens_size);
+            if (l_wallet) {
+                //Get sign for wallet
+                json_object *l_jobj_sings = NULL;
+                dap_chain_wallet_internal_t *l_w_internal = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
+                if (l_w_internal->certs_count == 1) {
+                    l_jobj_sings = json_object_new_string(dap_enc_get_type_name(l_w_internal->certs[0]->enc_key->type));
+                } else {
+                    dap_string_t *l_str_signs = dap_string_new("");
+                    for (size_t i = 0; i < l_w_internal->certs_count; i++) {
+                        dap_string_append_printf(l_str_signs, "%s%s",
+                                                 dap_enc_get_type_name(l_w_internal->certs[i]->enc_key->type),
+                                                 ((i + 1) == l_w_internal->certs_count) ? "" : ", ");
+                    }
+                    l_jobj_sings = json_object_new_string(l_str_signs->str);
+                    dap_string_free(l_str_signs, true);
+                }
+                json_object_object_add(json_obj_wall, "signs", l_jobj_sings);
+            } else {
+                json_object_object_add(json_obj_wall, "signs",
+                                       json_object_new_string(dap_sign_type_to_str(l_addr->sig_type)));
+            }
             if(l_l_addr_tokens_size <= 0)
                 json_object_object_add(json_obj_wall, "balance", json_object_new_string("0"));
             json_object * j_arr_balance= json_object_new_array();
@@ -2110,7 +2130,11 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                                                       "sig_multi_chained. You must specify at least two more "
                                                       "signatures other than sig_multi_chained.\n"
                                                       "After sig_multi_chained, you must specify two more signatures "
+<<<<<<< HEAD
                                                       "from the list: %s", dap_cert_get_str_recommended_sign());
+=======
+                                                      "from the list:\n%s", dap_cert_get_str_recommended_sign());
+>>>>>>> 9b03aca879c4f30ed14fc74b3dc282aad7eb658f
                                 json_object_put(json_arr_out);
                                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR;
                             }
@@ -2817,7 +2841,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         dap_list_free(l_list_sig_item);
                         dap_list_t *l_list_in_reward = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_REWARD, NULL);
                         if (l_list_in_reward) {
-                            json_object *l_obj_in_reward_arary = json_object_new_array();
+                            /*json_object *l_obj_in_reward_arary = json_object_new_array();
                             if (!l_obj_in_reward_arary) {
                                 dap_list_free(l_list_in_reward);
                                 json_object_put(l_jobj_datum);
@@ -2844,7 +2868,8 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                 }
                                 json_object_array_add(l_obj_in_reward_arary, l_jobj_block_hash);
                                 DAP_DELETE(l_block_hash);
-                            }
+                            }*/
+                           dap_list_free(l_list_in_reward);
                         } else {
                             json_object *l_jobj_addr_from = json_object_new_string(dap_chain_addr_to_str(&l_addr_from));
                             if (!l_jobj_addr_from) {
@@ -2987,20 +3012,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             }
 
                             if (l_dist_addr) {
-                                json_object *l_jobj_addr = json_object_new_string(dap_chain_addr_to_str(l_dist_addr));
-                                if (!l_jobj_addr) {
-                                    json_object_put(l_jobj_to_list);
-                                    json_object_put(l_jobj_change_list);
-                                    json_object_put(l_jobj_to_from_emi);
-                                    json_object_put(l_jobj_fee_list);
-                                    json_object_put(l_jobj_money);
-                                    json_object_put(l_jobj_datum);
-                                    json_object_put(l_jobj_datums);
-                                    json_object_put(l_obj_chain);
-                                    dap_global_db_objs_delete(l_objs, l_objs_count);
-                                    dap_json_rpc_allocation_error;
-                                    return;
-                                }
                                 if (!datum_is_accepted_addr && l_wallet_addr) {
                                     datum_is_accepted_addr = dap_chain_addr_compare(l_wallet_addr, l_dist_addr);
                                 }
@@ -3010,7 +3021,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                     json_object_put(l_jobj_change_list);
                                     json_object_put(l_jobj_to_from_emi);
                                     json_object_put(l_jobj_fee_list);
-                                    json_object_put(l_jobj_addr);
                                     json_object_put(l_jobj_money);
                                     json_object_put(l_jobj_datum);
                                     json_object_put(l_jobj_datums);
@@ -3036,7 +3046,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                                 json_object_put(l_jobj_change_list);
                                                 json_object_put(l_jobj_to_from_emi);
                                                 json_object_put(l_jobj_fee_list);
-                                                json_object_put(l_jobj_addr);
                                                 json_object_put(l_jobj_money);
                                                 json_object_put(l_jobj_datum);
                                                 json_object_put(l_jobj_datums);
@@ -3055,7 +3064,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                     else
                                         json_object_array_add(l_jobj_change_list, l_jobj_f);
                                 } else {
-                                    json_object_object_add(l_jobj_f, "addr", l_jobj_addr);
+                                    json_object_object_add(l_jobj_f, "addr", json_object_new_string(dap_chain_addr_to_str(l_dist_addr)));
                                     json_object_array_add(l_jobj_to_list, l_jobj_f);
                                 }
                             } else {
@@ -4119,7 +4128,7 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, void **a_st
     return 0;
 }
 
-static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **a_str_reply, dap_sdk_cli_params* a_params)
+static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **a_str_reply, dap_sdk_cli_params* a_params, bool a_update_token)
 {
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flags", &a_params->ext.flags);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_signs_valid", &a_params->ext.total_signs_valid);
@@ -4141,19 +4150,58 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
     char ** l_str_flags = NULL;
     a_params->ext.parsed_tsd_size = 0;
 
-    if (a_params->ext.flags){   // Flags
-         l_str_flags = dap_strsplit(a_params->ext.flags,",",0xffff );
-         while (l_str_flags && *l_str_flags){
-             uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
-             if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
-                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
-                 return -20;
-             }
-             l_flags |= l_flag; // if we have multiple flags
-             l_str_flags++;
+    if (!a_update_token) {
+        if (a_params->ext.flags){   // Flags
+            l_str_flags = dap_strsplit(a_params->ext.flags,",",0xffff );
+            while (l_str_flags && *l_str_flags){
+                uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
+                if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
+                    return -20;
+                }
+                l_flags |= l_flag; // if we have multiple flags
+                l_str_flags++;
+            }
+        }
+        a_params->ext.parsed_flags = l_flags;
+    } else {
+        const char *l_set_flags = NULL;
+        const char *l_unset_flags = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flag_set", &l_set_flags);
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flag_unset", &l_unset_flags);
+        if (l_set_flags) {
+            l_str_flags = dap_strsplit(l_set_flags,",",0xffff );
+            while (l_str_flags && *l_str_flags){
+                uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
+                if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
+                    return -20;
+                }
+                l_flags |= l_flag; // if we have multiple flags
+                l_str_flags++;
+            }
+            dap_tsd_t *l_flag_set_tsd = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS, l_flags);
+            l_flags = 0;
+            l_tsd_list = dap_list_append(l_tsd_list, l_flag_set_tsd);
+            l_tsd_total_size += dap_tsd_size(l_flag_set_tsd);
+        }
+        if (l_unset_flags) {
+            l_str_flags = dap_strsplit(l_unset_flags,",",0xffff );
+            while (l_str_flags && *l_str_flags){
+                uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
+                if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
+                    return -20;
+                }
+                l_flags |= l_flag; // if we have multiple flags
+                l_str_flags++;
+            }
+            dap_tsd_t *l_flag_unset_tsd = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS, l_flags);
+            l_flags = 0;
+            l_tsd_list = dap_list_append(l_tsd_list, l_flag_unset_tsd);
+            l_tsd_total_size += dap_tsd_size(l_flag_unset_tsd);
         }
     }
-    a_params->ext.parsed_flags = l_flags;
 
     const char* l_new_certs_str = NULL;
     const char* l_remove_signs = NULL;
@@ -4233,7 +4281,7 @@ static int s_token_decl_check_params(int a_argc, char **a_argv, void **a_str_rep
     if (l_parse_params)
         return l_parse_params;
 
-    l_parse_params = s_parse_additional_token_decl_arg(a_argc,a_argv,a_str_reply,a_params);
+    l_parse_params = s_parse_additional_token_decl_arg(a_argc,a_argv,a_str_reply,a_params, a_update_token);
     if (l_parse_params)
         return l_parse_params;
 
@@ -4730,7 +4778,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
             if (l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE) {
                 log_it(L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_params->ext.tsd_total_size);
                 snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
-                l_datum_token->header_native_update.flags = l_params->ext.parsed_flags;
+                // l_datum_token->header_native_update.flags = l_params->ext.parsed_flags;
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
                 l_datum_token->header_native_update.tsd_total_size = l_params->ext.tsd_total_size;
@@ -4739,7 +4787,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
             } else { // if (l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) {
                 log_it(L_DEBUG,"Prepared TSD sections for private token on %zd total size", l_params->ext.tsd_total_size);
                 snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
-                l_datum_token->header_private_update.flags = l_params->ext.parsed_flags;
+                // l_datum_token->header_private_update.flags = l_params->ext.parsed_flags;
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
                 l_datum_token->header_private_update.tsd_total_size = l_params->ext.tsd_total_size;

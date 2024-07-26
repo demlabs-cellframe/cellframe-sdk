@@ -887,7 +887,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
                             json_object_object_add(json_obj_datum,"auth signs total",json_object_new_uint64(l_token->signs_total));
                             json_object_object_add(json_obj_datum,"total_supply",json_object_new_string(dap_uint256_to_char(l_token->total_supply, NULL)));
 
-                            dap_chain_datum_token_flags_dump_to_json(json_obj_datum,l_token->header_private_update.flags);
+                            dap_chain_datum_token_flags_dump_to_json(json_obj_datum,l_token->header_private_decl.flags);
                             dap_datum_token_dump_tsd_to_json(json_obj_datum,l_token, l_token_size, a_hash_out_type);               
                             size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_update.tsd_total_size;
                             dap_chain_datum_token_certs_dump_to_json(json_obj_datum,l_token->tsd_n_signs + l_token->header_private_update.tsd_total_size,
@@ -926,7 +926,10 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
                             json_object_object_add(json_obj_datum,"auth signs total",json_object_new_uint64(l_token->signs_total));
                             json_object_object_add(json_obj_datum,"total_supply",json_object_new_string(dap_uint256_to_char(l_token->total_supply, NULL)));
                             
+<<<<<<< HEAD
                             dap_chain_datum_token_flags_dump_to_json(json_obj_datum, l_token->header_private_update.flags);
+=======
+>>>>>>> 9b03aca879c4f30ed14fc74b3dc282aad7eb658f
                             dap_datum_token_dump_tsd_to_json(json_obj_datum, l_token, l_token_size, a_hash_out_type);
                             size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_update.tsd_total_size;
                             dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_token->tsd_n_signs + l_token->header_private_update.tsd_total_size,
@@ -939,7 +942,10 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
                             json_object_object_add(json_obj_datum,"auth signs total",json_object_new_uint64(l_token->signs_total));
                             json_object_object_add(json_obj_datum,"total_supply",json_object_new_string(dap_uint256_to_char(l_token->total_supply, NULL)));
                             
+<<<<<<< HEAD
                             dap_chain_datum_token_flags_dump_to_json(json_obj_datum, l_token->header_native_update.flags);
+=======
+>>>>>>> 9b03aca879c4f30ed14fc74b3dc282aad7eb658f
                             dap_datum_token_dump_tsd_to_json(json_obj_datum, l_token, l_token_size, a_hash_out_type);
                             size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_update.tsd_total_size;
                             dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_token->tsd_n_signs + l_token->header_native_update.tsd_total_size,
@@ -972,7 +978,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
             json_object_object_add(json_obj_datum,"coins", json_object_new_string(l_coins_str));
             json_object_object_add(json_obj_datum,"value", json_object_new_string(l_value_str));
             json_object_object_add(json_obj_datum,"ticker", json_object_new_string(l_emission->hdr.ticker));
-            json_object_object_add(json_obj_datum,"type", json_object_new_string(c_dap_chain_datum_token_emission_type_str[l_emission->hdr.type]));
+            json_object_object_add(json_obj_datum,"type", json_object_new_string(dap_chain_datum_emission_type_str(l_emission->hdr.type)));
             json_object_object_add(json_obj_datum,"version", json_object_new_uint64(l_emission->hdr.version));
             json_object_object_add(json_obj_datum,"to addr", json_object_new_string(dap_chain_addr_to_str(&(l_emission->hdr.address))));
 
@@ -990,7 +996,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
                     break;
                 }
                 dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size,
-                                                l_emission->data.type_auth.size - l_emission->data.type_auth.tsd_total_size, a_hash_out_type);
+                                                l_emission->data.type_auth.tsd_n_signs_size - l_emission->data.type_auth.tsd_total_size, a_hash_out_type);
                 break;
             case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
                 json_object_object_add(json_obj_datum,"codename",json_object_new_string(l_emission->data.type_algo.codename));

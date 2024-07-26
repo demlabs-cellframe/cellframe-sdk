@@ -274,7 +274,11 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
     }
     if (a_tx_in->header.ts_created < 1706227200) // Jan 26 2024 00:00:00 GMT, old policy rules
         return 0;
+<<<<<<< HEAD
     dap_chain_net_srv_stake_item_t *l_stake;
+=======
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+>>>>>>> 9b03aca879c4f30ed14fc74b3dc282aad7eb658f
     HASH_FIND(ht, l_srv_stake->tx_itemlist, l_prev_hash, sizeof(dap_hash_t), l_stake);
     if (l_stake) {
         log_it(L_WARNING, "Key is active with delegation decree, need to revoke it first");
@@ -576,7 +580,7 @@ static bool s_stake_cache_check_tx(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx
 {
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_ledger->net->pub.id);
     dap_return_val_if_fail(l_srv_stake, false);
-    dap_chain_net_srv_stake_cache_item_t *l_stake;
+    dap_chain_net_srv_stake_cache_item_t *l_stake = NULL;
     HASH_FIND(hh, l_srv_stake->cache, a_tx_hash, sizeof(*a_tx_hash), l_stake);
     if (l_stake) {
         dap_chain_net_srv_stake_key_invalidate(&l_stake->signing_addr);
@@ -2043,7 +2047,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified net have no stake service activated");
             return -25;
         }
-        dap_chain_net_srv_stake_item_t *l_stake;
+        dap_chain_net_srv_stake_item_t *l_stake = NULL;
         HASH_FIND(hh, l_srv_stake->itemlist, &l_signing_addr.data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
         if (!l_stake) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate/pkey hash is not delegated nor this delegating is approved."
@@ -2080,7 +2084,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified net have no stake service activated");
             return -25;
         }
-        dap_chain_net_srv_stake_item_t *l_stake;
+        dap_chain_net_srv_stake_item_t *l_stake = NULL;
         HASH_FIND(ht, l_srv_stake->tx_itemlist, &l_tx_hash, sizeof(dap_hash_t), l_stake);
         if (l_stake) {
             char l_pkey_hash_str[DAP_HASH_FAST_STR_SIZE]; 
