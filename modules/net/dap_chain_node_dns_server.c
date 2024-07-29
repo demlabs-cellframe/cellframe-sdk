@@ -49,7 +49,7 @@ static char s_root_alias[] = "dnsroot";
  * @return 0 if success, else return error code
  */
 int dap_dns_zone_register(char *zone, dap_dns_zone_callback_t callback) {
-    dap_dns_zone_hash_t *new_zone;
+    dap_dns_zone_hash_t *new_zone = NULL;
     HASH_FIND_STR(s_dns_server->hash_table, zone, new_zone);
     if (new_zone == NULL) {      // zone is not present
       DAP_NEW_Z_RET_VAL(new_zone, dap_dns_zone_hash_t, DNS_ERROR_FAILURE, NULL);
@@ -66,7 +66,7 @@ int dap_dns_zone_register(char *zone, dap_dns_zone_callback_t callback) {
  * @return 0 if success, else return error code
  */
 int dap_dns_zone_unregister(char *zone) {
-    dap_dns_zone_hash_t *asked_zone;
+    dap_dns_zone_hash_t *asked_zone = NULL;
     HASH_FIND_STR(s_dns_server->hash_table, zone, asked_zone);
     if (asked_zone == NULL) {
         return DNS_ERROR_NAME;
@@ -83,7 +83,7 @@ int dap_dns_zone_unregister(char *zone) {
  * @return Callback for registered DNS zone, else return NULL
  */
 dap_dns_zone_callback_t dap_dns_zone_find(char *hostname) {
-    dap_dns_zone_hash_t *asked_zone;
+    dap_dns_zone_hash_t *asked_zone = NULL;
     HASH_FIND_STR(s_dns_server->hash_table, hostname, asked_zone);
     if (asked_zone == NULL) {
         if (!strcmp(hostname, &s_root_alias[0])) {

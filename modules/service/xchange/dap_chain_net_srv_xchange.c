@@ -1351,12 +1351,18 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
             if(l_addr_hash_str){
                 dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_hash_str);
                 if (!l_addr) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Incorrect chain address");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Cannot convert "
+                                                                   "string '%s' to binary address.", l_addr_hash_str);
                     return -14;
                 }
-                if (dap_chain_addr_check_sum(l_addr) != 1 ) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Incorrect chain address");
+                if (dap_chain_addr_check_sum(l_addr) != 0 ) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Incorrect address wallet");
                     return -15;
+                }
+                if (l_addr->net_id.uint64 != l_net->pub.id.uint64) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Address %s does not belong to the %s network.",
+                                                      l_addr_hash_str, l_net->pub.name);
+                    return -16;
                 }
                 dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_all_for_addr(l_net,l_addr, c_dap_chain_net_srv_xchange_uid );
                 dap_string_t * l_str_reply = dap_string_new("");

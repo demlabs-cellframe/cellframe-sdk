@@ -276,6 +276,8 @@ struct legacy_sync_context *s_legacy_sync_context_create(dap_stream_ch_t *a_ch)
             .state          = DAP_CHAIN_CH_STATE_IDLE,
             .last_activity  = dap_time_now()
         };
+
+    
     dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&a_ch->uuid);
     if (!l_uuid) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);

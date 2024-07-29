@@ -721,7 +721,7 @@ void dap_ledger_test_excess_supply(dap_ledger_t *a_ledger, dap_cert_t *a_cert, d
     dap_hash_fast(l_femi, dap_chain_datum_emission_get_size((byte_t*)l_femi), &l_femi_hash);
     dap_assert_PIF(!dap_ledger_token_emission_add(a_ledger, (byte_t*)l_femi,
                                                         dap_chain_datum_emission_get_size((byte_t*)l_femi),
-                                                        &l_femi_hash, false), "Added first emission in ledger");
+                                                        &l_femi_hash), "Added first emission in ledger");
     //Second emi
     dap_chain_datum_token_emission_t *l_semi = dap_chain_datum_emission_create(l_value_second_emi, l_token_ticker, a_addr);
     l_semi = dap_chain_datum_emission_add_sign(a_cert->enc_key, l_semi);
@@ -729,7 +729,7 @@ void dap_ledger_test_excess_supply(dap_ledger_t *a_ledger, dap_cert_t *a_cert, d
     dap_hash_fast(l_semi, dap_chain_datum_emission_get_size((byte_t*)l_semi), &l_semi_hash);
     int res =dap_ledger_token_emission_add(a_ledger, (byte_t*)l_semi,
                                                         dap_chain_datum_emission_get_size((byte_t*)l_semi),
-                                                        &l_semi_hash, false);
+                                                        &l_semi_hash);
     if (!res){
         dap_fail("The total supply test failed because the second emission exceeded the total supply.");
     } else {
@@ -816,7 +816,7 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
         dap_chain_hash_fast_t l_emi_hash = {0};
         dap_hash_fast(l_emi, dap_chain_datum_emission_get_size((uint8_t*)l_emi), &l_emi_hash);
         dap_assert(dap_ledger_token_emission_add(a_ledger, (byte_t*)l_emi, dap_chain_datum_emission_get_size((byte_t*)l_emi),
-                                                            &l_emi_hash, false) != 0,
+                                                            &l_emi_hash) != 0,
                        "Checking the impossibility of emission to an address not from the white list.");
         //Emission in white list
         dap_chain_datum_token_emission_t *l_emi_whi = dap_chain_datum_emission_create(
@@ -825,7 +825,7 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
         dap_chain_hash_fast_t l_emi_whi_hash = {0};
         dap_hash_fast(l_emi_whi, dap_chain_datum_emission_get_size((uint8_t*)l_emi_whi), &l_emi_whi_hash);
         dap_assert_PIF(!dap_ledger_token_emission_add(a_ledger, (byte_t*)l_emi_whi, dap_chain_datum_emission_get_size((byte_t*)l_emi_whi),
-                                            &l_emi_whi_hash, false),
+                                            &l_emi_whi_hash),
                        "Can't add emission in white address");
         dap_chain_datum_tx_t *l_btx_addr1 = dap_ledger_test_create_datum_base_tx(l_emi_whi, &l_emi_whi_hash,
                                                                                       *l_addr_1->addr, a_cert);
@@ -930,7 +930,7 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
         dap_chain_hash_fast_t l_emi_block_hash = {0};
         dap_hash_fast(l_emi_block, dap_chain_datum_emission_get_size((uint8_t*)l_emi_block), &l_emi_block_hash);
         dap_assert(dap_ledger_token_emission_add(a_ledger, (byte_t*)l_emi_block, dap_chain_datum_emission_get_size((byte_t*)l_emi_block),
-                                                            &l_emi_block_hash, false),
+                                                            &l_emi_block_hash),
                        "Test for emission rejection to an address from the prohibited list.");
         //Check emission at addr
         dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_create(
@@ -939,7 +939,7 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
         dap_chain_hash_fast_t l_emi_hash = {0};
         dap_hash_fast(l_emi, dap_chain_datum_emission_get_size((uint8_t*)l_emi), &l_emi_hash);
         dap_assert(!dap_ledger_token_emission_add(a_ledger, (byte_t*)l_emi, dap_chain_datum_emission_get_size((byte_t*)l_emi),
-                                                           &l_emi_hash, false),
+                                                           &l_emi_hash),
                        "Emission test for a non-blacklisted address.");
         dap_chain_datum_tx_t *l_btx_addr2 = dap_ledger_test_create_datum_base_tx(l_emi, &l_emi_hash,
                                                                                        *l_addr_2->addr, a_cert);
@@ -1020,7 +1020,7 @@ void dap_ledger_test_run(void){
     dap_hash_fast(l_emi, l_emi_size, &l_emi_hash);
     int l_emi_check = dap_ledger_token_emission_add_check(l_ledger, (byte_t*)l_emi_sign, l_emi_size, &l_emi_hash);
     dap_assert_PIF(l_emi_check == 0, "check emission for add in ledger");
-    dap_assert_PIF(!dap_ledger_token_emission_add(l_ledger, (byte_t*)l_emi_sign, l_emi_size, &l_emi_hash, false), "Added emission in ledger");
+    dap_assert_PIF(!dap_ledger_token_emission_add(l_ledger, (byte_t*)l_emi_sign, l_emi_size, &l_emi_hash), "Added emission in ledger");
 
     // Declarate delegated token
     dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
