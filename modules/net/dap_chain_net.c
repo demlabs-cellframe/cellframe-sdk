@@ -1556,6 +1556,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     }
                     dap_chain_hash_fast_t l_pkey_hash;
                     dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
+                    DAP_DELETE(l_pub_key);
                     l_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
                     //l_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
                 } else {
