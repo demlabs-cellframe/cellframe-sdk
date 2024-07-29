@@ -256,6 +256,7 @@ int dap_chain_net_init()
 {
     dap_ledger_init();
     dap_chain_ch_init();
+    dap_chain_net_anchor_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
     dap_chain_net_srv_voting_init();
