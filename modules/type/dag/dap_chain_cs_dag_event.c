@@ -154,7 +154,7 @@ size_t dap_chain_cs_dag_event_sign_add(dap_chain_cs_dag_event_t **a_event_ptr, s
         uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_key, &l_pub_key_size);
         dap_hash_fast_t l_pkey_hash = {};
         dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
-        DAP_DEL_Z(l_pub_key);
+        DAP_DELETE(l_pub_key);
         char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_hash_fast_to_str(&l_pkey_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
         log_it(L_DEBUG, "Sign from this key exists: %s", l_hash_str);
