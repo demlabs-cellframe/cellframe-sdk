@@ -4177,6 +4177,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
             l_flags = 0;
             l_tsd_list = dap_list_append(l_tsd_list, l_flag_set_tsd);
             l_tsd_total_size += dap_tsd_size(l_flag_set_tsd);
+            a_params->ext.parsed_tsd_size += dap_tsd_size(l_flag_set_tsd);
         }
         if (l_unset_flags) {
             l_str_flags = dap_strsplit(l_unset_flags,",",0xffff );
@@ -4193,6 +4194,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
             l_flags = 0;
             l_tsd_list = dap_list_append(l_tsd_list, l_flag_unset_tsd);
             l_tsd_total_size += dap_tsd_size(l_flag_unset_tsd);
+            a_params->ext.parsed_tsd_size += dap_tsd_size(l_flag_unset_tsd);
         }
     }
 
