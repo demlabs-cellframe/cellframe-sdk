@@ -579,9 +579,10 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
             memcmp(l_owner_sign->pkey_n_sign, l_owner_pkey, l_owner_pkey_size)) {
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_owner_key);
+        DAP_DELETE(l_owner_pkey);
         return OWNER_KEY_ERROR;
     }
-
+    DAP_DELETE(l_owner_pkey);
     if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME &&
             l_tx_out_cond->subtype.srv_stake_lock.time_unlock > dap_time_now()) {
         dap_chain_wallet_close(l_wallet);

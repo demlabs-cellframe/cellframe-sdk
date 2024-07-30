@@ -1448,6 +1448,7 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
             dap_hash_fast_t l_pkey_hash = {0};
 
             dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
+            DAP_DELETE(l_pub_key);
             if (!dap_chain_net_srv_stake_check_pkey_hash(a_net->pub.id, &l_pkey_hash)) {
                 return DAP_CHAIN_NET_VOTE_VOTING_KEY_IS_NOT_DELEGATED;
             }
