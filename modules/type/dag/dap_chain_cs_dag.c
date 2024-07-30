@@ -61,6 +61,7 @@ typedef struct dap_chain_cs_dag_event_item {
     dap_chain_hash_fast_t hash;
     dap_chain_hash_fast_t datum_hash;
     dap_nanotime_t ts_added;
+    dap_time_t ts_created;
     dap_chain_cs_dag_event_t *event;
     size_t event_size;
     uint64_t event_number;
@@ -440,8 +441,7 @@ static bool s_dap_chain_check_if_event_is_present(dap_chain_cs_dag_event_item_t 
 
 static int s_sort_event_item(dap_chain_cs_dag_event_item_t* a, dap_chain_cs_dag_event_item_t* b)
 {
-    return a->event->header.ts_created == b->event->header.ts_created ? 0 :
-                a->event->header.ts_created < b->event->header.ts_created ? -1 : 1;
+    return a->ts_created < b->ts_created ? -1 : a->ts_created == b->ts_created ? 0 : 1;
 }
 
 /**
@@ -494,7 +494,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         .hash       = l_event_hash,
         .ts_added   = dap_time_now(),
         .event      = a_chain->is_mapped ? l_event : DAP_DUP_SIZE(l_event, a_atom_size),
-        .event_size = a_atom_size
+        .event_size = a_atom_size,
+        .ts_created = l_event->header.ts_created
     };
 
     switch (ret) {
@@ -540,7 +541,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             break;
         }
         dap_chain_cs_dag_event_item_t *l_tail = HASH_LAST(PVT(l_dag)->events);
-        if (l_tail && l_tail->event->header.ts_created > l_event->header.ts_created) {
+        if (l_tail && l_tail->ts_created > l_event->header.ts_created) {
             DAP_CHAIN_PVT(a_chain)->need_reorder = true;
             HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
             dap_chain_cs_dag_event_item_t *it = PVT(l_dag)->events;
@@ -1735,7 +1736,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                             json_object * json_obj_event_i = json_object_new_object();
                             i_tmp++;
                             char buf[DAP_TIME_STR_SIZE];
-                            dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
+                            dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->ts_created);
                             json_object_object_add(json_obj_event_i, "#", json_object_new_string(dap_itoa(i_tmp)));
                             json_object_object_add(json_obj_event_i, "hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_event_item->hash)));
                             json_object_object_add(json_obj_event_i, "ts_create", json_object_new_string(buf));
@@ -1773,7 +1774,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         i_tmp++;
                         json_object * json_obj_event_i = json_object_new_object();
                         char buf[DAP_TIME_STR_SIZE];
-                        dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
+                        dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->ts_created);
                         json_object_object_add(json_obj_event_i, "#", json_object_new_string(dap_itoa(i_tmp)));
                         json_object_object_add(json_obj_event_i, "hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_event_item->hash)));
                         json_object_object_add(json_obj_event_i, "ts_create", json_object_new_string(buf));
@@ -1818,7 +1819,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
                 char l_buf[DAP_TIME_STR_SIZE];
                 if (l_last_item)
-                    dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_item->event->header.ts_created);
+                    dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_item->ts_created);
                  json_object_object_add(json_obj_out, "Last event num", json_object_new_uint64(l_last_item ? l_last_item->event_number : 0));
                 json_object_object_add(json_obj_out, "Last event hash", json_object_new_string(l_last_item ?
                                                                                 dap_hash_fast_to_str_static(&l_last_item->hash) : "empty"));

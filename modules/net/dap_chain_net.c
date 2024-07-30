@@ -181,6 +181,8 @@ typedef struct dap_chain_net_pvt{
     dap_global_db_cluster_t *mempool_clusters; // List of chains mempools
     dap_global_db_cluster_t *orders_cluster;
     dap_global_db_cluster_t *nodes_cluster;
+    dap_global_db_cluster_t *nodes_states;
+    dap_global_db_cluster_t *common_orders;
 
     // Block sign rewards history
     struct block_reward *rewards;
@@ -385,6 +387,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
                 log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_permalink_info->node_addr));
                 continue;
             }
+            PVT(a_net)->state = NET_STATE_LINKS_CONNECTING;
         }
         if (a_new_state == NET_STATE_ONLINE)
             dap_chain_esbocs_start_timer(a_net->pub.id);
@@ -472,7 +475,7 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
                                    &l_announce, sizeof(l_announce));
 }
 
-static bool s_net_check_link_is_premanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
+static bool s_net_check_link_is_permanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     for (uint16_t i = 0; i < l_net_pvt->permanent_links_count; i++) {
@@ -495,7 +498,7 @@ static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_
 // func work
     dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
-    bool l_link_is_permanent = s_net_check_link_is_premanent(l_net, a_link->addr);
+    bool l_link_is_permanent = s_net_check_link_is_permanent(l_net, a_link->addr);
     log_it(L_INFO, "%s."NODE_ADDR_FP_STR" can't connect for now. %s", l_net ? l_net->pub.name : "(unknown)" ,
             NODE_ADDR_FP_ARGS_S(a_link->addr),
             l_link_is_permanent ? "Setting reconnection pause for it." : "Dropping it.");
@@ -1553,6 +1556,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     }
                     dap_chain_hash_fast_t l_pkey_hash;
                     dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
+                    DAP_DELETE(l_pub_key);
                     l_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
                     //l_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
                 } else {
@@ -1795,6 +1799,17 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     // Synchronously going to offline state
     PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
     s_net_states_proc(a_net);
+    dap_global_db_cluster_t *l_mempool = PVT(a_net)->mempool_clusters;
+    while (l_mempool) {
+        dap_global_db_cluster_t *l_next = l_mempool->next;
+        dap_global_db_cluster_delete(l_mempool);
+        l_mempool = l_next;
+    }
+    dap_global_db_cluster_delete(PVT(a_net)->orders_cluster);
+    dap_global_db_cluster_delete(PVT(a_net)->nodes_cluster);
+    dap_global_db_cluster_delete(PVT(a_net)->nodes_states);
+    dap_global_db_cluster_delete(PVT(a_net)->common_orders);
+
     dap_chain_net_item_t *l_net_item = NULL;
     HASH_FIND(hh, s_net_items, a_net->pub.name, strlen(a_net->pub.name), l_net_item);
     if (l_net_item) {
@@ -2298,9 +2313,22 @@ bool s_net_load(void *a_arg)
     }
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->orders_cluster);
     DAP_DELETE(l_gdb_groups_mask);
-    // node states cluster
+    // Common orders cluster
+    l_gdb_groups_mask = dap_strdup_printf("%s.orders", l_net->pub.gdb_groups_prefix);
+    l_net_pvt->common_orders = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
+                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
+                                                          l_gdb_groups_mask, 72, true,
+                                                          DAP_GDB_MEMBER_ROLE_USER,
+                                                          DAP_CLUSTER_TYPE_EMBEDDED);
+    if (!l_net_pvt->common_orders) {
+        log_it(L_ERROR, "Can't initialize orders cluster for network %s", l_net->pub.name);
+        goto ret;
+    }
+    dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->common_orders);
+    DAP_DELETE(l_gdb_groups_mask);
+    // Node states cluster
     l_gdb_groups_mask = dap_strdup_printf("%s.nodes.states", l_net->pub.gdb_groups_prefix);
-    dap_global_db_cluster_add(
+    l_net_pvt->nodes_states = dap_global_db_cluster_add(
         dap_global_db_instance_get_default(),
         l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
         l_gdb_groups_mask, 0, true,

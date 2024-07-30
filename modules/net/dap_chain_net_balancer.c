@@ -489,7 +489,7 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, const char *a_host_ad
         .host_addr = a_host_addr,
         .host_port = a_host_port,
         .net = a_net,
-        .worker = dap_events_worker_get_auto(),
+        .worker = dap_worker_get_current(),
         .required_links_count = l_required_links_count,
         .request_info = l_item
     };
