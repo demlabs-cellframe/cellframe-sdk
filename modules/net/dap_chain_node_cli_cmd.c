@@ -1992,7 +1992,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     for (size_t i = 0; i < l_w_internal->certs_count; i++) {
                         dap_string_append_printf(l_str_signs, "%s%s",
                                                  dap_sign_type_to_str(dap_sign_type_from_key_type(
-                                                     l_w_internal->certs[0]->enc_key->type)),
+                                                     l_w_internal->certs[i]->enc_key->type)),
                                                  ((i + 1) == l_w_internal->certs_count) ? "" : ", ");
                     }
                     l_jobj_sings = json_object_new_string(l_str_signs->str);
