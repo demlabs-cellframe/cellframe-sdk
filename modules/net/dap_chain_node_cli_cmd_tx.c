@@ -946,6 +946,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         dap_chain_hash_fast_t l_tx_threshold_hash = {};
         const char *l_limit_str = NULL;
         const char *l_offset_str = NULL;
+        const char *l_head_str = NULL;
         if (dap_cli_server_cmd_find_option_val(a_argv, 2, 3, "coins", NULL ))
             l_sub_cmd = SUBCMD_LIST_COIN;
         if (dap_cli_server_cmd_find_option_val(a_argv, 2, 3, "balance", NULL ))
@@ -970,7 +971,8 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-net", &l_net_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
-        int l_limit = l_limit_str ? strtol(l_limit_str, NULL, 10) : 1000;
+        bool l_head = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-head", &l_head_str) ? true : false;
+        size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
         size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
         if (l_net_str == NULL){
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_PARAM_ERR, "Command 'list' requires key -net");
@@ -982,21 +984,21 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_LACK_ERR;
         }
         if (l_sub_cmd == SUB_CMD_LIST_LEDGER_THRESHOLD) {
-            json_object* json_obj_out = dap_ledger_threshold_info(l_ledger, l_limit, l_offset, NULL);
+            json_object* json_obj_out = dap_ledger_threshold_info(l_ledger, l_limit, l_offset, NULL, l_head);
             if (json_obj_out){
                 json_object_array_add(*json_arr_reply, json_obj_out);
             }
             return 0;
         }
         if (l_sub_cmd == SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH) {
-            json_object *json_obj_out = dap_ledger_threshold_info(l_ledger, 0, 0, &l_tx_threshold_hash);
+            json_object *json_obj_out = dap_ledger_threshold_info(l_ledger, 0, 0, &l_tx_threshold_hash, l_head);
             if (json_obj_out){
                 json_object_array_add(*json_arr_reply, json_obj_out);
             }
             return 0;
         }
         if (l_sub_cmd == SUB_CMD_LIST_LEDGER_BALANCE) {
-            json_object *json_obj_out = dap_ledger_balance_info(l_ledger, l_limit, l_offset);
+            json_object *json_obj_out = dap_ledger_balance_info(l_ledger, l_limit, l_offset, l_head);
             if (json_obj_out){
                 json_object_array_add(*json_arr_reply, json_obj_out);
             }
