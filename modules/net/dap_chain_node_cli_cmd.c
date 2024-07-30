@@ -1983,12 +1983,16 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 json_object *l_jobj_sings = NULL;
                 dap_chain_wallet_internal_t *l_w_internal = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
                 if (l_w_internal->certs_count == 1) {
-                    l_jobj_sings = json_object_new_string(dap_enc_get_type_name(l_w_internal->certs[0]->enc_key->type));
+                    dap_sign_type_t l_sign_type = dap_sign_type_from_key_type(l_w_internal->certs[0]->enc_key->type);
+                    l_jobj_sings = json_object_new_string(
+                        dap_sign_type_to_str(
+                            dap_sign_type_from_key_type(l_w_internal->certs[0]->enc_key->type)));
                 } else {
                     dap_string_t *l_str_signs = dap_string_new("");
                     for (size_t i = 0; i < l_w_internal->certs_count; i++) {
                         dap_string_append_printf(l_str_signs, "%s%s",
-                                                 dap_enc_get_type_name(l_w_internal->certs[i]->enc_key->type),
+                                                 dap_sign_type_to_str(dap_sign_type_from_key_type(
+                                                     l_w_internal->certs[0]->enc_key->type)),
                                                  ((i + 1) == l_w_internal->certs_count) ? "" : ", ");
                     }
                     l_jobj_sings = json_object_new_string(l_str_signs->str);
