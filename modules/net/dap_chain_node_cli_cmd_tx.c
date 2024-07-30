@@ -707,19 +707,10 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
         dap_chain_cell_t    *l_cell = NULL,
                             *l_cell_tmp = NULL;
         dap_chain_atom_iter_t *l_iter = NULL;
-        json_object * json_arr_out = json_object_new_array();
-        json_object* json_obj_lim = json_object_new_object();
+        json_object * json_arr_out = json_object_new_array();        
         size_t l_arr_start = 0;
-        if (a_offset) {
-            l_arr_start = a_offset;
-            json_object_object_add(json_obj_lim, "offset", json_object_new_int(l_arr_start));            
-        }
-        size_t l_arr_end =  l_chain->callback_count_atom(l_chain);
-        l_arr_end = a_limit ? l_arr_start + a_limit : 0;
-        l_arr_end ? json_object_object_add(json_obj_lim, "limit", json_object_new_int(l_arr_end - l_arr_start)):
-                    json_object_object_add(json_obj_lim, "limit", json_object_new_string("unlimit"));
-        json_object_array_add(json_arr_out, json_obj_lim);
-        
+        size_t l_arr_end = 0;
+        s_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, l_chain->callback_count_atom(l_chain));
         
         bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
         HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {            
@@ -797,6 +788,8 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
         json_object_object_add(json_obj_summary, "rejected_tx", json_object_new_int(l_tx_ledger_rejected));
         return json_arr_out;
 }
+
+(dap_chain_datum_t * a_datum,  dap_ledger_t * a_ledger, dap_chain_tx_tag_action_type_t a_action)
 
 json_object *s_get_ticker(json_object *a_jobj_tickers, const char *a_token_ticker) {
     json_object_object_foreach(a_jobj_tickers, key, value){
