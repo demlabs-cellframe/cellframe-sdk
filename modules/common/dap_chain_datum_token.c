@@ -87,7 +87,7 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
                                                                          : *a_token_size;
     dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
     if (!l_token) {
-        log_it(L_CRITICAL, c_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     switch (l_token_old->type) {
