@@ -302,6 +302,23 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     DAP_DELETE(l_atom_hash_str);
 }
 
+static void s_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count)
+{
+    json_object* json_obj_lim = json_object_new_object();
+    if (a_offset > 0) {
+        *a_start = a_offset;
+        json_object_object_add(json_obj_lim, "offset", json_object_new_int(*a_start));                
+    }
+    *a_and = a_and_count;
+    if (a_limit > 0) {
+        *a_and = *a_start + a_limit;
+        json_object_object_add(json_obj_lim, "limit", json_object_new_int(*a_and - *a_start));
+    }
+    else
+        json_object_object_add(json_obj_lim, "limit", json_object_new_string("unlimit"));
+    json_object_array_add(a_json_obj_out, json_obj_lim);
+}
+
 
 /**
  * @brief dap_db_history_addr
@@ -352,21 +369,10 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     uint256_t l_corr_value = {}, l_unstake_value = {};    
     bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
 
-    json_object* json_obj_lim = json_object_new_object();
     size_t l_arr_start = 0;
-    if (a_offset){
-        l_arr_start = a_offset;
-        json_object_object_add(json_obj_lim, "offset", json_object_new_int(l_arr_start));
-    }        
-    size_t l_arr_end = a_chain->callback_count_atom(a_chain);
-    if (a_limit) {
-        json_object_object_add(json_obj_lim, "limit", json_object_new_int(a_limit));        
-        l_arr_end = l_arr_start + a_limit;
-        size_t l_length = a_chain->callback_count_atom(a_chain);
-        if (l_arr_end > l_length)
-            l_arr_end = l_length;
-    }
-    json_object_array_add(json_obj_datum, json_obj_lim);
+    size_t l_arr_end = 0;
+    s_set_offset_limit_json(json_obj_datum, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_atom(a_chain));
+    
     size_t i_tmp = 0;
     size_t
             l_tx_ledger_accepted = 0,

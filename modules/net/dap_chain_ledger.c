@@ -1985,7 +1985,7 @@ json_object *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_ad
 static void s_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count)
 {
     json_object* json_obj_lim = json_object_new_object();
-    if (a_offset > 1) {
+    if (a_offset > 0) {
         *a_start = a_offset;
         json_object_object_add(json_obj_lim, "offset", json_object_new_int(*a_start));                
     }
@@ -2057,8 +2057,12 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
         size_t i_tmp = 0;
         if (a_head)
         HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp) {
-            if (i_tmp < l_arr_start || i_tmp++ >= l_arr_end)
+            if (i_tmp < l_arr_start || i_tmp >= l_arr_end)
+            {
+                i_tmp++;                
                 continue;
+            }
+            i_tmp++;
             if (s_pack_ledger_threshold_info_json(json_arr_out, l_tx_item)) {
                 pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
                 json_object_put(json_arr_out);
@@ -2069,8 +2073,8 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
         else
         {
             l_tx_item = HASH_LAST(l_ledger_pvt->threshold_txs);
-            for(; l_tx_item; l_tx_item = l_tx_item->hh.prev){
-                if (i_tmp < l_arr_start || i_tmp++ >= l_arr_end)
+            for(; l_tx_item; l_tx_item = l_tx_item->hh.prev, i_tmp++){
+                if (i_tmp < l_arr_start || i_tmp >= l_arr_end)
                     continue;
                 if (s_pack_ledger_threshold_info_json(json_arr_out, l_tx_item)) {
                     pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
@@ -2105,16 +2109,18 @@ json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, siz
     size_t i_tmp = 0;
     if (a_head)
         HASH_ITER(hh, l_ledger_pvt->balance_accounts, l_balance_item, l_balance_tmp) {
-            if (i_tmp < l_arr_start || i_tmp++ >= l_arr_end) {
+            if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
+                i_tmp++;
                 continue;
             }
+            i_tmp++;
             s_pack_ledger_balance_info_json(json_arr_out, l_balance_item);
             l_counter +=1;
         }
     else {
         l_balance_item = HASH_LAST(l_ledger_pvt->balance_accounts);
-            for(; l_balance_item; l_balance_item = l_balance_item->hh.prev){
-                if (i_tmp < l_arr_start || i_tmp++ >= l_arr_end)
+            for(; l_balance_item; l_balance_item = l_balance_item->hh.prev, i_tmp++){
+                if (i_tmp < l_arr_start || i_tmp >= l_arr_end)
                     continue;
                 s_pack_ledger_balance_info_json(json_arr_out, l_balance_item);
                 l_counter++;
