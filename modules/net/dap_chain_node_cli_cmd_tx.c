@@ -789,8 +789,54 @@ json_object *dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t *l_net,
         return json_arr_out;
 }
 
-(dap_chain_datum_t * a_datum,  dap_ledger_t * a_ledger, dap_chain_tx_tag_action_type_t a_action)
+static int s_json_tx_history_pack(json_object* a_json_obj_datum, dap_chain_datum_t * a_datum,  dap_chain_net_t *a_net,
+                                  dap_chain_t *a_chain, dap_chain_tx_tag_action_type_t a_action,
+                                  const char *a_hash_out_type, bool a_out_brief, size_t* a_accepted,
+                                  size_t* a_rejected, bool a_look_for_unknown_service, const char *a_srv)
+{
+    dap_ledger_t *l_ledger = a_net->pub.ledger;
+    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)a_datum->data;
+    dap_hash_fast_t l_ttx_hash = {0};
+    dap_hash_fast(l_tx, a_datum->header.data_size, &l_ttx_hash);
 
+    char *service_name = NULL;
+    dap_chain_tx_tag_action_type_t l_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
+
+    bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_ttx_hash, NULL, &service_name, &l_action);
+
+    if (!(l_action & a_action))
+        return 1;
+
+    if (a_srv)
+    {
+        char *service_name = NULL;
+        bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_ttx_hash, NULL, &service_name, NULL);
+        //skip if looking for UNKNOWN + it is known
+        if (a_look_for_unknown_service && srv_found) {
+            return 1;
+        }
+
+        //skip if search condition provided, it not UNKNOWN and found name not match
+        if (!a_look_for_unknown_service && (!srv_found || strcmp(service_name, a_srv) != 0))
+        {
+            return 1;
+        }
+    }
+
+    bool accepted_tx;
+    a_json_obj_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, a_chain, a_hash_out_type, a_net, 0, &accepted_tx, a_out_brief);
+    if (!a_json_obj_datum) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return 2;
+    }
+    if (accepted_tx) {
+        ++*a_accepted;
+    } else {
+        ++*a_rejected;
+    }
+    return 0;
+
+}
 json_object *s_get_ticker(json_object *a_jobj_tickers, const char *a_token_ticker) {
     json_object_object_foreach(a_jobj_tickers, key, value){
         if (dap_strcmp(a_token_ticker, key) == 0) {
