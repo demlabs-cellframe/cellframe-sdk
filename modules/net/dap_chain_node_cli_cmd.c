@@ -4318,7 +4318,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
         l_tsd_offset += l_tsd_size;
     }
     a_params->ext.tsd_total_size = l_tsd_total_size;
-
+    dap_list_free_full(l_tsd_list, NULL);
     return 0;
 }
 
@@ -4639,6 +4639,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
                 l_datum_data_offset += l_params->ext.tsd_total_size;
                 DAP_DELETE(l_params->ext.parsed_tsd);
             }
+            dap_list_free_full(l_tsd_list, NULL);
             log_it(L_DEBUG, "%s token declaration '%s' initialized", l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE ?
                             "Private" : "CF20", l_datum_token->ticker);
         }break;//end
@@ -8336,7 +8337,6 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
     l_shift = 1;
     dap_list_t *l_std_list = NULL;
 
-
     for (int i = 0; i < l_count_meta; i++) {
         if (l_shift | a_flags) {
             dap_tsd_t *l_item = s_alloc_metadata(a_filename, l_shift & a_flags);
@@ -8347,20 +8347,21 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
         l_shift <<= 1;
     }
 
-    dap_cert_t *l_cert = dap_cert_find_by_name(a_cert_name);
-    if (!l_cert) {
-        DAP_DELETE(l_buffer);
-        return 0;
-    }
-
     if (!dap_hash_fast(l_buffer, l_file_content_size, a_hash)) {
+        dap_list_free_full(l_std_list, NULL);
         DAP_DELETE(l_buffer);
         return 0;
     }
 
     size_t l_full_size_for_sign;
     uint8_t *l_data = s_concat_hash_and_mimetypes(a_hash, l_std_list, &l_full_size_for_sign);
+    dap_list_free_full(l_std_list, NULL);
     if (!l_data) {
+        DAP_DELETE(l_buffer);
+        return 0;
+    }
+    dap_cert_t *l_cert = dap_cert_find_by_name(a_cert_name);
+    if (!l_cert) {
         DAP_DELETE(l_buffer);
         return 0;
     }

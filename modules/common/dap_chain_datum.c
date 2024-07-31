@@ -62,8 +62,8 @@ dap_chain_datum_t *dap_chain_datum_create(uint16_t a_type_id, const void *a_data
 }
 void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type)
 {
-    dap_tsd_t *l_tsd = dap_chain_datum_token_tsd_get(a_token, a_token_size);
-    if (l_tsd == NULL) {
+    dap_tsd_t *l_tsd_begin = dap_chain_datum_token_tsd_get(a_token, a_token_size);
+    if (!l_tsd_begin) {
         json_object_object_add(json_obj_out, "status", json_object_new_string("<CORRUPTED TSD SECTION>"));
         return;
     }
@@ -87,18 +87,8 @@ void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datu
         } break;
     default: break;
     }
-    size_t l_tsd_size = 0;
-    for (size_t l_offset = 0; l_offset < l_tsd_total_size; l_offset += l_tsd_size) {
-        l_tsd = (dap_tsd_t *) (((byte_t*)l_tsd) + l_tsd_size);
-        l_tsd_size = l_tsd ? dap_tsd_size(l_tsd) : 0;
-        if (l_tsd_size == 0) {
-            log_it(L_ERROR,"Wrong zero TSD size, exiting s_datum_token_dump_tsd()");
-            return;
-        } else if (l_tsd_size+l_offset > l_tsd_total_size) {
-            log_it(L_WARNING, "<CORRUPTED TSD> too big size %u when left maximum %zu",
-                   l_tsd->size, l_tsd_total_size - l_offset);
-            return;
-        }
+    dap_tsd_t *l_tsd; size_t l_tsd_size;
+    dap_tsd_iter(l_tsd, l_tsd_size, l_tsd_begin, l_tsd_total_size) {
         switch(l_tsd->type) {
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS: {
             uint16_t l_t = 0;
