@@ -401,16 +401,16 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_tsd(dap_chain_dat
 
 byte_t *dap_chain_emission_get_tsd(dap_chain_datum_token_emission_t *a_emission, int a_type, size_t *a_size)
 {
+    if (a_size)
+        *a_size = 0;
     if (!a_emission || a_emission->hdr.type != DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH ||
             a_emission->data.type_auth.tsd_total_size == 0)
         return NULL;
-    dap_tsd_t *l_tsd = NULL;
-    if (!(l_tsd = dap_tsd_find(a_emission->tsd_n_signs, a_emission->data.type_auth.tsd_total_size, a_type))) {
+    dap_tsd_t *l_tsd = dap_tsd_find(a_emission->tsd_n_signs, a_emission->data.type_auth.tsd_total_size, a_type);
+    if (!l_tsd)
         return NULL;
-    } else {
-        if (a_size)
-            *a_size = l_tsd->size;
-    }
+    else if (a_size)
+        *a_size = l_tsd->size;
     return l_tsd->data;
 }
 

@@ -45,6 +45,7 @@ int dap_chain_datum_anchor_get_hash_from_data(dap_chain_datum_anchor_t* a_anchor
             return 0;
         }
     }
+    return -2;
 }
 
 void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type)

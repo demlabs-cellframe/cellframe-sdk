@@ -68,18 +68,17 @@ int dap_chain_datum_decree_get_fee_addr(dap_chain_datum_decree_t *a_decree, dap_
     return l_tsd && l_tsd->size == sizeof(dap_chain_addr_t) ? ( _dap_tsd_get_scalar(l_tsd, a_fee_wallet), 0 ) : 1;
 }
 
-static void *s_cb_copy_pkeys(const void *a_pkey, UNUSED_ARG void *a_data) {
-    return DAP_DUP_SIZE(a_pkey, dap_pkey_get_size(a_pkey));
-}
-
 dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree, uint16_t *a_owners_num)
 {
     dap_return_val_if_fail(a_decree && a_owners_num, NULL);
-    dap_list_t *l_tsd_list = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER);
-    if ( !(*a_owners_num = (uint16_t)dap_list_length(l_tsd_list)) )
-        return NULL;
-    dap_list_t *l_ret = dap_list_copy_deep(l_tsd_list, s_cb_copy_pkeys, NULL);
-    dap_list_free(l_tsd_list);
+    dap_list_t *l_ret = NULL;
+    dap_tsd_t *l_tsd; size_t l_tsd_size;
+    dap_tsd_iter(l_tsd, l_tsd_size, a_decree->data_n_signs, a_decree->header.data_size) {
+        if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER)
+            l_ret = dap_list_append( l_ret, DAP_DUP_SIZE(l_tsd->data, dap_pkey_get_size((dap_pkey_t*)l_tsd->data)) );
+    }
+    if (a_owners_num)
+        *a_owners_num = (uint16_t)dap_list_length(l_ret);
     return l_ret;
 }
 

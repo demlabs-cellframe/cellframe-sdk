@@ -40,6 +40,14 @@ typedef struct dap_chain_datum_tx{
     } DAP_ALIGN_PACKED header;
     uint8_t tx_items[];
 } DAP_ALIGN_PACKED dap_chain_datum_tx_t;
+
+#define dap_chain_datum_tx_item_iter(item, item_size, data, size)                                                               \
+    for (   byte_t *l_pos = (byte_t*)(data), *l_end = l_pos + (size) > l_pos ? l_pos + (size) : l_pos;                          \
+            !!(item = l_pos < l_end && (item_size = dap_chain_datum_item_tx_get_size(l_pos)) > 0 && l_pos <= l_end - item_size  \
+                ? l_pos : NULL);                                                                                                \
+            l_pos += iter_size                                                                                                  \
+        )
+
 /**
  * Create empty transaction
  *
