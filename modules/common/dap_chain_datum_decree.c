@@ -376,8 +376,8 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
     const char *l_subtype_str = dap_chain_datum_decree_subtype_to_str(a_decree->header.sub_type);
     json_object_object_add(a_json_out, "subtype", json_object_new_string(l_subtype_str));
     json_object_object_add(a_json_out, "TSD", json_object_new_string(""));
-    dap_tsd_t *l_tsd;
-    dap_tsd_iter(l_tsd, a_decree->data_n_signs, a_decree->header.data_size) {
+    dap_tsd_t *l_tsd; size_t l_tsd_size;
+    dap_tsd_iter(l_tsd, l_tsd_size, a_decree->data_n_signs, a_decree->header.data_size) {
         switch(l_tsd->type) {
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE:
             if (l_tsd->size > sizeof(uint256_t)){

@@ -150,7 +150,6 @@ dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_create(void)
 }
 
 const char *s_tx_voting_get_answer_text_by_idx(dap_chain_datum_tx_t *a_tx, uint64_t a_idx) {
-    dap_list_t *l_answers_list = NULL;
     size_t l_anwers_count = 0;
     dap_list_t *l_answers_list = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_TSD, NULL);
     for (dap_list_t* l_elem = l_answers_list; l_elem; l_elem = l_elem->next) {
