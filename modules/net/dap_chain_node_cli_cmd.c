@@ -969,11 +969,15 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             dap_digit_from_string(l_link_str, l_link.raw, sizeof(l_link.raw));
         }
     }
-    switch (cmd_num)
-    {    
+    switch (cmd_num) {
+
     case CMD_ADD: {
         int l_res = -10;
-        if (l_addr_str && dap_chain_net_is_my_node_authorized(l_net)) {
+        if (l_addr_str || l_hostname) {
+            if (!dap_chain_net_is_my_node_authorized(l_net)) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
+                return l_res;
+            }
             // We're in authorized list, add directly
             uint16_t l_port = 0;
             struct sockaddr_storage l_verifier = { };
@@ -995,33 +999,33 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add node %s, error %d", l_addr_str, l_res);
             else
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully added node %s", l_addr_str);
-        } else if (l_hostname) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
-        } else if (l_addr_str) {
-            // Synchronous request, wait for reply
-            l_res = dap_chain_net_node_list_request(l_net,
-                l_port_str ? strtoul(l_port_str, NULL, 10) : dap_chain_net_get_my_node_info(l_net)->ext_port,
-                true, 'a');
-            switch (l_res)
-            {
-                case 1: dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully added"); return 0;
-                case 2: dap_cli_server_cmd_set_reply_text(a_str_reply, "No server"); break;
-                case 3: dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your address node to node list"); break;
-                case 4: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr"); break;
-                case 5: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node"); break;
-                case 6: dap_cli_server_cmd_set_reply_text(a_str_reply, "The node already exists"); break;
-                case 7: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request"); break;
-                default:dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res); break;
-            }
-        } else {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "node add requires parameter '-addr'");
+            return l_res;
+        }
+        // Synchronous request, wait for reply
+        l_res = dap_chain_net_node_list_request(l_net,
+            l_port_str ? strtoul(l_port_str, NULL, 10) : dap_chain_net_get_my_node_info(l_net)->ext_port,
+            true, 'a');
+        switch (l_res)
+        {
+            case 1: dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully added"); return 0;
+            case 2: dap_cli_server_cmd_set_reply_text(a_str_reply, "No server"); break;
+            case 3: dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your address node to node list"); break;
+            case 4: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr"); break;
+            case 5: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node"); break;
+            case 6: dap_cli_server_cmd_set_reply_text(a_str_reply, "The node already exists"); break;
+            case 7: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request"); break;
+            default:dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res); break;
         }
         return l_res;
     }
-        //break;
+
     case CMD_DEL: {
         // handler of command 'node del'
-        if (l_addr_str && dap_chain_net_is_my_node_authorized(l_net)) {
+        if (l_addr_str) {
+            if (!dap_chain_net_is_my_node_authorized(l_net)) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
+                return -10;
+            }
             int l_res = dap_chain_node_info_del(l_net, l_node_info);
             if (l_res)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't delete node %s, error %d", l_addr_str, l_res);
