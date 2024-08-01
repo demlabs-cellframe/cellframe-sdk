@@ -991,7 +991,6 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             }
             l_node_info->ext_host_len = dap_strlen(l_node_info->ext_host);
             l_res = dap_chain_node_info_save(l_net, l_node_info);
-            l_res = dap_chain_node_info_save(l_net, l_node_info);
             if (l_res)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add node %s, error %d", l_addr_str, l_res);
             else
