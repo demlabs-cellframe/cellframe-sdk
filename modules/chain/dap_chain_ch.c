@@ -140,7 +140,7 @@ static bool s_sync_timer_callback(void *a_arg);
 static bool s_debug_more = false, s_debug_legacy = false;
 static uint32_t s_sync_timeout = 30;
 static uint32_t s_sync_packets_per_thread_call = 10;
-static uint32_t s_sync_ack_window_size = 100; // atoms
+static uint32_t s_sync_ack_window_size = 512; // atoms
 
 // Legacy
 static uint_fast16_t s_update_pack_size = 100; // Number of hashes packed into the one packet
@@ -262,7 +262,7 @@ static void s_stream_ch_delete(dap_stream_ch_t *a_ch, void *a_arg)
  * @param a_ch_chain
  * @param a_net
  */
-struct legacy_sync_context *s_legacy_sync_context_create(dap_chain_ch_pkt_t *a_chain_pkt, dap_stream_ch_t *a_ch)
+struct legacy_sync_context *s_legacy_sync_context_create(dap_stream_ch_t *a_ch)
 {
     dap_chain_ch_t * l_ch_chain = DAP_CHAIN_CH(a_ch);
     dap_return_val_if_fail(l_ch_chain, NULL);
@@ -273,11 +273,11 @@ struct legacy_sync_context *s_legacy_sync_context_create(dap_chain_ch_pkt_t *a_c
     *l_context = (struct legacy_sync_context) {
             .worker         = a_ch->stream_worker,
             .ch_uuid        = a_ch->uuid,
-            .remote_addr    = *(dap_stream_node_addr_t *)a_chain_pkt->data,
-            .request_hdr    = a_chain_pkt->hdr,
             .state          = DAP_CHAIN_CH_STATE_IDLE,
             .last_activity  = dap_time_now()
         };
+
+    
     dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&a_ch->uuid);
     if (!l_uuid) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -970,6 +970,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN: {
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
+        l_chain->atom_num_last = l_chain->callback_count_atom(l_chain);
         log_it(L_INFO, "In: SYNCED_CHAIN %s for net %s from source " NODE_ADDR_FP_STR,
                     l_chain ? l_chain->name : "(null)",
                                 l_chain ? l_chain->net_name : "(null)",
@@ -1055,7 +1056,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
             break;
         }
-        struct legacy_sync_context *l_context = s_legacy_sync_context_create(l_chain_pkt, a_ch);
+        struct legacy_sync_context *l_context = s_legacy_sync_context_create(a_ch);
         if (!l_context) {
             log_it(L_ERROR, "Can't create sychronization context");
             dap_global_db_legacy_list_delete(l_db_list);
@@ -1307,7 +1308,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                             DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
             break;
         }
-        struct legacy_sync_context *l_context = s_legacy_sync_context_create(l_chain_pkt, a_ch);
+        struct legacy_sync_context *l_context = s_legacy_sync_context_create(a_ch);
         if (!l_context) {
             log_it(L_ERROR, "Can't create sychronization context");
             l_chain->callback_atom_iter_delete(l_atom_iter);
@@ -1318,7 +1319,6 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         l_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, NULL);
         l_context->atom_iter = l_atom_iter;
-        l_context->remote_addr = *(dap_stream_node_addr_t *)l_chain_pkt->data;
         l_context->request_hdr = l_chain_pkt->hdr;
         l_ch_chain->legacy_sync_context = l_context;
         l_context->state = DAP_CHAIN_CH_STATE_UPDATE_CHAINS;

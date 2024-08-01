@@ -88,7 +88,7 @@ static dap_chain_datum_t *s_nonconsensus_callback_datum_iter_get_first(dap_chain
 static dap_chain_datum_t *s_nonconsensus_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter);
 static dap_chain_datum_t *s_nonconsensus_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
                                                                    dap_chain_hash_fast_t *a_atom_hash, int *a_ret_code);
-
+static uint64_t s_nonconsensus_callback_get_count_atom(dap_chain_t *a_chain);
 static int s_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 static void s_nonconsensus_delete(dap_chain_t *a_chain);
 
@@ -123,12 +123,12 @@ static void s_nonconsensus_callback_mempool_notify(dap_store_obj_t *a_obj, void 
 
 static void s_changes_callback_notify(dap_store_obj_t *a_obj, void *a_arg)
 {
-    dap_return_if_fail(dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_ADD && a_obj->value_len && a_obj->value);
+    dap_return_if_fail(a_obj->value_len && a_obj->value);
     dap_chain_t *l_chain = a_arg;
     if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL)
         return;
     dap_hash_fast_t l_hash = {};
-    dap_hash_fast(a_obj->value, a_obj->value_len, &l_hash);
+    dap_chain_hash_fast_from_hex_str(a_obj->key, &l_hash);
     s_nonconsensus_callback_atom_add(l_chain, (dap_chain_datum_t *)a_obj->value, a_obj->value_len, &l_hash);
 }
 
@@ -195,7 +195,8 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
 
     a_chain->callback_atom_get_datums = s_nonconsensus_callback_atom_get_datum;
     a_chain->callback_atom_get_timestamp = s_nonconsensus_callback_atom_get_timestamp;
-
+    // Get atom count in chain
+    a_chain->callback_count_atom = s_nonconsensus_callback_get_count_atom;
     // Datum callbacks
     a_chain->callback_datum_iter_create = s_nonconsensus_callback_datum_iter_create;
     a_chain->callback_datum_iter_delete = s_nonconsensus_callback_datum_iter_delete;
@@ -264,7 +265,7 @@ static void s_nonconsensus_ledger_load(dap_chain_t *a_chain)
         dap_global_db_obj_t *it = l_values + i;
         // load ledger
         dap_hash_fast_t l_hash = {};
-        dap_hash_fast(it->value, it->value_len, &l_hash);
+        dap_chain_hash_fast_from_hex_str(it->key, &l_hash);
         s_nonconsensus_callback_atom_add(a_chain, it->value, it->value_len, &l_hash);
         log_it(L_DEBUG,"Load mode, doesn't save item %s:%s", it->key, l_nochain_pvt->group_datums);
     }
@@ -286,7 +287,7 @@ static size_t s_nonconsensus_callback_datums_pool_proc(dap_chain_t * a_chain, da
         dap_chain_datum_t *l_datum = a_datums[i];
         dap_hash_fast_t l_datum_hash;
         char l_db_key[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_hash);
+        dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
         dap_chain_hash_fast_to_str(&l_datum_hash, l_db_key, sizeof(l_db_key));
         int l_rc = dap_chain_net_verify_datum_for_add(a_chain, l_datum, &l_datum_hash);
         if (l_rc != 0) {
@@ -519,6 +520,16 @@ static dap_chain_datum_t **s_nonconsensus_callback_atom_get_datum(dap_chain_atom
             return NULL;
     }else
         return NULL;
+}
+
+static uint64_t s_nonconsensus_callback_get_count_atom(dap_chain_t *a_chain)
+{
+    dap_return_val_if_fail(a_chain, 0);
+    dap_nonconsensus_datum_hash_item_t *l_head = PVT(DAP_NONCONSENSUS(a_chain))->hash_items;
+    dap_nonconsensus_datum_hash_item_t *tmp;
+    uint64_t l_counter;
+    DL_COUNT(l_head, tmp, l_counter);
+    return l_counter;
 }
 
 static dap_chain_datum_iter_t *s_nonconsensus_callback_datum_iter_create(dap_chain_t *a_chain)

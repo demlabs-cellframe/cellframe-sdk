@@ -155,3 +155,18 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx);
 
 
 int dap_chain_datum_tx_get_fee_value (dap_chain_datum_tx_t *a_tx, uint256_t *a_value);
+
+/**
+ * @brief dap_chain_node_datum_tx_calc_hash
+ * @param a_tx
+ * @return
+ */
+DAP_STATIC_INLINE dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_chain_datum_tx_t *a_tx)
+{
+    dap_chain_hash_fast_t *tx_hash = DAP_NEW_Z(dap_chain_hash_fast_t);
+    if (!tx_hash) {
+        return NULL;
+    }
+    dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), tx_hash);
+    return tx_hash;
+}

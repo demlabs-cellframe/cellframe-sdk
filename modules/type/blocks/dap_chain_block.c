@@ -30,6 +30,7 @@
 #define LOG_TAG "dap_chain_block"
 
 bool s_seed_mode = false;
+bool s_dap_block_debug_more = false;
 
 /**
  * @brief dap_chain_block_init
@@ -38,7 +39,7 @@ bool s_seed_mode = false;
 int dap_chain_block_init()
 {
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
-
+    s_dap_block_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     return 0;
 }
 
@@ -66,7 +67,7 @@ dap_chain_block_t *dap_chain_block_new(dap_chain_hash_fast_t *a_prev_block, size
         return NULL;
     }
     l_block->hdr.signature = DAP_CHAIN_BLOCK_SIGNATURE;
-    l_block->hdr.version = 1;
+    l_block->hdr.version = 2;
     l_block->hdr.ts_created = time(NULL);
 
     size_t l_block_size = sizeof(l_block->hdr);
@@ -371,7 +372,7 @@ bool dap_chain_block_sign_match_pkey(const dap_chain_block_t *a_block, size_t a_
             log_it(L_WARNING, "Empty or corrupted sign");
             return false;
         }
-        if (dap_pkey_match_sign(a_sign_pkey, l_sign))
+        if (dap_pkey_compare_with_sign(a_sign_pkey, l_sign))
             return true;
         l_offset += l_sign_size;
     }
