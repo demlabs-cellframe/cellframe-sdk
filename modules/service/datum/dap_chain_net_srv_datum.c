@@ -161,7 +161,8 @@ static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply)
                     return -4;
                 }
             }else{
-                log_it(L_ERROR, "Can't open file '%s' for write: %s", l_path, strerror(errno));
+                log_it(L_ERROR, "Can't open file '%s' for write, error %d: \"%s\"",
+                                l_path, errno, dap_strerror(errno));
                 return -2;
             }
         }

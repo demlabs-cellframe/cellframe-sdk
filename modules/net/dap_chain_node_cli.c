@@ -58,25 +58,11 @@ static bool s_debug_cli = false;
  */
 int dap_chain_node_cli_init(dap_config_t * g_config)
 {
-    s_debug_cli = dap_config_get_item_bool_default(g_config,"conserver","debug_cli",false);
-
-    bool l_conserver_enabled = dap_config_get_item_bool_default( g_config, "conserver", "enabled", true );
-
-    if ( !l_conserver_enabled ) {
-
-        log_it( L_WARNING, "Console Server is dissabled." );
-        return 0;
-    }
-
-    uint16_t l_listen_port = dap_config_get_item_uint16_default( g_config, "conserver", "listen_port_tcp",0); // For backward compatibility
-    if(l_listen_port == 0)
-        l_listen_port = dap_config_get_item_uint16_default( g_config, "conserver", "listen_port",0);
-
-    dap_cli_server_init( s_debug_cli,
-                         l_listen_port ? dap_config_get_item_str(g_config, "conserver", "listen_address")
-                                       : dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_path"),
-                         l_listen_port, dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_permissions")
-                        );
+    if ( !dap_config_get_item_bool_default(g_config, "cli-server", "enabled", true) )
+        return log_it( L_WARNING, "CLI server is disabled" ), 0;
+    s_debug_cli = dap_config_get_item_bool_default(g_config, "cli-server", "debug-cli", false);
+    if ( dap_cli_server_init(s_debug_cli, "cli-server") )
+        return log_it(L_ERROR, "Can't init CLI server!"), -1;
 
     dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database",
             "global_db cells add -cell <cell_id> \n"
@@ -145,14 +131,16 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "\nPrivate token update\n"
                             "token_update -net <net_name> [-chain <chain_name>] -token <existing token_ticker> -type private -total_supply <the same or more> -decimals <18>\n"
                             "-signs_total <the same total as the token you are updating> -signs_emission <the same total as the token you are updating> -certs <use the certificates of the token you are update>\n"
-                            "-flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
+                            "-flags_set [<Flag_1>][,<Flag_2>]...[,<Flag_N>]...\n"
+                            "-flag_unset [<Flag_1>][,<Flag_2>]...[,<Flag_N>]...\n"
                             "\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
                             "\t   Update token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
                             "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
                             "\nCF20 token update\n"
                             "token_update -net <net_name> [-chain <chain_name>] -token <existing token_ticker> -type CF20 -total_supply <the same or more/if 0 = endless> -decimals <18>\n"
                             "-signs_total <the same total as the token you are updating> -signs_emission <the same total as the token you are updating> -certs <use the certificates of the token you are update>\n"
-                            "\t -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
+                            "-flags_set [<Flag_1>][,<Flag_2>]...[,<Flag_N>]...\n"
+                            "-flag_unset [<Flag_1>][,<Flag_2>]...[,<Flag_N>]...\n"
                             "\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
                             "\t   Update token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
                             "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"

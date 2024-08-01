@@ -61,6 +61,7 @@ typedef struct dap_chain_cs_dag_event_item {
     dap_chain_hash_fast_t hash;
     dap_chain_hash_fast_t datum_hash;
     dap_nanotime_t ts_added;
+    dap_time_t ts_created;
     dap_chain_cs_dag_event_t *event;
     size_t event_size;
     uint64_t event_number;
@@ -404,7 +405,7 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
         return -1;
     }
     dap_hash_fast_t l_datum_hash;
-    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_hash);
+    dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
     int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash);
     if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)  // && l_ret == 0
         PVT(a_dag)->tx_count++;
@@ -440,8 +441,7 @@ static bool s_dap_chain_check_if_event_is_present(dap_chain_cs_dag_event_item_t 
 
 static int s_sort_event_item(dap_chain_cs_dag_event_item_t* a, dap_chain_cs_dag_event_item_t* b)
 {
-    return a->event->header.ts_created == b->event->header.ts_created ? 0 :
-                a->event->header.ts_created < b->event->header.ts_created ? -1 : 1;
+    return a->ts_created < b->ts_created ? -1 : a->ts_created == b->ts_created ? 0 : 1;
 }
 
 /**
@@ -494,7 +494,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         .hash       = l_event_hash,
         .ts_added   = dap_time_now(),
         .event      = a_chain->is_mapped ? l_event : DAP_DUP_SIZE(l_event, a_atom_size),
-        .event_size = a_atom_size
+        .event_size = a_atom_size,
+        .ts_created = l_event->header.ts_created
     };
 
     switch (ret) {
@@ -529,10 +530,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         case 0:
             debug_if(s_debug_more, L_DEBUG, "... added");
             break;
-        case DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS:
-        case DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION:
-            debug_if(s_debug_more, L_DEBUG, "... ledger tresholded");
-            break;
         case DAP_CHAIN_DATUM_CA:
             debug_if(s_debug_more, L_DEBUG, "... DATUM_CA");
             break;
@@ -544,7 +541,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             break;
         }
         dap_chain_cs_dag_event_item_t *l_tail = HASH_LAST(PVT(l_dag)->events);
-        if (l_tail && l_tail->event->header.ts_created > l_event->header.ts_created) {
+        if (l_tail && l_tail->ts_created > l_event->header.ts_created) {
             DAP_CHAIN_PVT(a_chain)->need_reorder = true;
             HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
             dap_chain_cs_dag_event_item_t *it = PVT(l_dag)->events;
@@ -611,7 +608,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     /* If datum passes thru rounds, let's check if it wasn't added before */
     dap_chain_hash_fast_t l_datum_hash;
-    dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_datum_hash);
+    dap_chain_datum_calc_hash(a_datum, &l_datum_hash);
     if (!l_dag->is_add_directly) {
         bool l_dup_found = false;
         size_t l_objs_count = 0;
@@ -774,8 +771,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_c
             return ATOM_ACCEPT;
         }
     }
-    if (dap_chain_cs_dag_event_calc_size(l_event, a_atom_size) != a_atom_size) {
-        debug_if(s_debug_more, L_WARNING, "Event size not equal to expected");
+    size_t l_atom_size = dap_chain_cs_dag_event_calc_size(l_event, a_atom_size);
+    if (l_atom_size != a_atom_size) {
+        log_it(L_WARNING, "Event size %zu not equal to expected %zu", l_atom_size, a_atom_size);
         return  ATOM_REJECT;
     }
 
@@ -804,26 +802,24 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_c
     }
 
     //chain coherence
-    if (! PVT(l_dag)->events ){
-        res = ATOM_MOVE_TO_THRESHOLD;
-        //log_it(L_DEBUG, "*** event %p goes to threshold", l_event);
-    } else {
-        //log_it(L_DEBUG, "*** event %p hash count %d",l_event, l_event->header.hash_count);
-        for (size_t i = 0; i< l_event->header.hash_count; i++) {
-            dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) l_event->hashes_n_datum_n_signs) + i;
-            dap_chain_cs_dag_event_item_t * l_event_search = NULL;
-            pthread_mutex_lock(l_events_mutex);
-            HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
-            pthread_mutex_unlock(l_events_mutex);
-            if (l_event_search == NULL) {
-                if(s_debug_more) {
-                    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-                    dap_chain_hash_fast_to_str(l_hash, l_hash_str, sizeof(l_hash_str));
-                    log_it(L_WARNING, "Hash %s wasn't in hashtable of previously parsed", l_hash_str);
-                }
-                res = ATOM_MOVE_TO_THRESHOLD;
-                break;
+    if (! PVT(l_dag)->events )
+        return ATOM_MOVE_TO_THRESHOLD;
+
+    for (size_t i = 0; i< l_event->header.hash_count; i++) {
+        dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) l_event->hashes_n_datum_n_signs) + i;
+        dap_chain_cs_dag_event_item_t * l_event_search = NULL;
+        pthread_mutex_lock(l_events_mutex);
+        HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
+        pthread_mutex_unlock(l_events_mutex);
+        if (l_event_search == NULL) {
+            if(s_debug_more) {
+                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(l_hash, l_hash_str, sizeof(l_hash_str));
+                log_it(L_WARNING, "Hash %s wasn't in hashtable of previously parsed, event %s goes to threshold",
+                                        l_hash_str, dap_hash_fast_to_str_static(a_atom_hash));
             }
+            res = ATOM_MOVE_TO_THRESHOLD;
+            break;
         }
     }
 
@@ -938,7 +934,7 @@ dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
     dap_chain_cs_dag_event_item_t * l_event_item = NULL, * l_event_item_tmp = NULL;
     pthread_mutex_lock(&PVT(a_dag)->events_mutex);
     int l_count = HASH_COUNT(PVT(a_dag)->events_treshold);
-    log_it(L_DEBUG, "*** %d events in threshold", l_count);
+    debug_if(s_debug_more, L_DEBUG, "*** %d events in threshold", l_count);
     HASH_ITER(hh, PVT(a_dag)->events_treshold, l_event_item, l_event_item_tmp) {
         dap_dag_threshold_verification_res_t ret = dap_chain_cs_dag_event_verify_hashes_with_treshold(a_dag, l_event_item->event);
         if (ret == DAP_THRESHOLD_OK) {
@@ -1740,7 +1736,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                             json_object * json_obj_event_i = json_object_new_object();
                             i_tmp++;
                             char buf[DAP_TIME_STR_SIZE];
-                            dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
+                            dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->ts_created);
                             json_object_object_add(json_obj_event_i, "#", json_object_new_string(dap_itoa(i_tmp)));
                             json_object_object_add(json_obj_event_i, "hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_event_item->hash)));
                             json_object_object_add(json_obj_event_i, "ts_create", json_object_new_string(buf));
@@ -1778,7 +1774,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         i_tmp++;
                         json_object * json_obj_event_i = json_object_new_object();
                         char buf[DAP_TIME_STR_SIZE];
-                        dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->event->header.ts_created);
+                        dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event_item->ts_created);
                         json_object_object_add(json_obj_event_i, "#", json_object_new_string(dap_itoa(i_tmp)));
                         json_object_object_add(json_obj_event_i, "hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_event_item->hash)));
                         json_object_object_add(json_obj_event_i, "ts_create", json_object_new_string(buf));
@@ -1823,7 +1819,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
                 char l_buf[DAP_TIME_STR_SIZE];
                 if (l_last_item)
-                    dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_item->event->header.ts_created);
+                    dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_item->ts_created);
                  json_object_object_add(json_obj_out, "Last event num", json_object_new_uint64(l_last_item ? l_last_item->event_number : 0));
                 json_object_object_add(json_obj_out, "Last event hash", json_object_new_string(l_last_item ?
                                                                                 dap_hash_fast_to_str_static(&l_last_item->hash) : "empty"));

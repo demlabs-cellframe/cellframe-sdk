@@ -181,6 +181,8 @@ typedef struct dap_chain_net_pvt{
     dap_global_db_cluster_t *mempool_clusters; // List of chains mempools
     dap_global_db_cluster_t *orders_cluster;
     dap_global_db_cluster_t *nodes_cluster;
+    dap_global_db_cluster_t *nodes_states;
+    dap_global_db_cluster_t *common_orders;
 
     // Block sign rewards history
     struct block_reward *rewards;
@@ -254,6 +256,7 @@ int dap_chain_net_init()
 {
     dap_ledger_init();
     dap_chain_ch_init();
+    dap_chain_net_anchor_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
     dap_chain_net_srv_voting_init();
@@ -317,12 +320,9 @@ int dap_chain_net_init()
             s_net_init(l_dir_entry->d_name, l_acl_idx++);
         }
         closedir(l_net_dir);
-    }else{
-        int l_errno = errno;
-        char l_errbuf[128];
-        l_errbuf[0] = 0;
-        strerror_r(l_errno,l_errbuf,sizeof (l_errbuf));
-        log_it(L_WARNING,"Can't open entries on path %s: \"%s\" (code %d)", l_net_dir_str, l_errbuf, l_errno);
+    } else {
+        log_it(L_WARNING, "Can't open entries on path %s, error %d: \"%s\"",
+                           l_net_dir_str, errno, dap_strerror(errno));
     }
     DAP_DELETE (l_net_dir_str);
 
@@ -388,6 +388,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
                 log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_permalink_info->node_addr));
                 continue;
             }
+            PVT(a_net)->state = NET_STATE_LINKS_CONNECTING;
         }
         if (a_new_state == NET_STATE_ONLINE)
             dap_chain_esbocs_start_timer(a_net->pub.id);
@@ -475,7 +476,7 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
                                    &l_announce, sizeof(l_announce));
 }
 
-static bool s_net_check_link_is_premanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
+static bool s_net_check_link_is_permanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     for (uint16_t i = 0; i < l_net_pvt->permanent_links_count; i++) {
@@ -498,7 +499,7 @@ static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_
 // func work
     dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
-    bool l_link_is_permanent = s_net_check_link_is_premanent(l_net, a_link->addr);
+    bool l_link_is_permanent = s_net_check_link_is_permanent(l_net, a_link->addr);
     log_it(L_INFO, "%s."NODE_ADDR_FP_STR" can't connect for now. %s", l_net ? l_net->pub.name : "(unknown)" ,
             NODE_ADDR_FP_ARGS_S(a_link->addr),
             l_link_is_permanent ? "Setting reconnection pause for it." : "Dropping it.");
@@ -577,10 +578,10 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
     return 0;
 }
 
-json_object *s_net_sync_status(dap_chain_net_t *a_net) {
-// sanity check
+json_object *s_net_sync_status(dap_chain_net_t *a_net)
+{
+    // sanity check
     dap_return_val_if_pass(!a_net, NULL);
-    size_t l_count_atoms = 0;
 
     json_object *l_jobj_chains_array = json_object_new_object();
     dap_chain_t *l_chain = NULL;
@@ -588,32 +589,45 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net) {
         json_object *l_jobj_chain = json_object_new_object();
         json_object *l_jobj_chain_status = NULL;
         json_object *l_jobj_percent = NULL;
-        if (PVT(a_net)->state == NET_STATE_OFFLINE) {
-            l_jobj_chain_status = json_object_new_string("not synced");
-            l_jobj_percent = json_object_new_string(" - %");
-        } else if (PVT(a_net)->state == NET_STATE_ONLINE) {
-            l_jobj_chain_status = json_object_new_string("synced");
-            l_jobj_percent = json_object_new_string(" - %");
-        } else {
-            if (PVT(a_net)->sync_context.cur_chain && PVT(a_net)->sync_context.cur_chain->id.uint64 == l_chain->id.uint64) {
-                l_jobj_chain_status = json_object_new_string("sync in process");
-                double l_percent = l_chain->callback_count_atom(l_chain) ?
+        double l_percent = l_chain->callback_count_atom(l_chain) ?
                                    (double) (l_chain->callback_count_atom(l_chain) * 100) / l_chain->atom_num_last : 0;
-                if (l_percent > 100)
-                    l_percent = 100;
-                char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
-                l_jobj_percent = json_object_new_string(l_percent_str);
-                DAP_DELETE(l_percent_str);
-            } else {
+        if (l_percent > 100)
+            l_percent = 100;
+        char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
+        dap_chain_net_state_t l_state = PVT(a_net)->state;
+        switch (l_state) {
+            case NET_STATE_OFFLINE:
+            case NET_STATE_LINKS_PREPARE:
+            case NET_STATE_LINKS_ESTABLISHED:
+            case NET_STATE_LINKS_CONNECTING:
                 l_jobj_chain_status = json_object_new_string("not synced");
                 l_jobj_percent = json_object_new_string(" - %");
-            }
+                break;
+            case NET_STATE_ONLINE:
+                l_jobj_chain_status = json_object_new_string("synced");
+                l_jobj_percent = json_object_new_string(l_percent_str);
+                break;
+            case NET_STATE_SYNC_CHAINS:
+                if (PVT(a_net)->sync_context.cur_chain && PVT(a_net)->sync_context.cur_chain->id.uint64 == l_chain->id.uint64) {
+                    l_jobj_chain_status = json_object_new_string("sync in process");
+                    l_jobj_percent = json_object_new_string(l_percent_str);
+                } else {
+                    if (l_chain->atom_num_last == l_chain->callback_count_atom(l_chain)) {
+                        l_jobj_chain_status = json_object_new_string("synced");
+                        l_jobj_percent = json_object_new_string(l_percent_str);
+                    } else {
+                        l_jobj_chain_status = json_object_new_string("not synced");
+                        l_jobj_percent = json_object_new_string(" - %");
+                    }
+                }
+                break;
         }
+        DAP_DELETE(l_percent_str);
         json_object *l_jobj_current = json_object_new_uint64(l_chain->callback_count_atom(l_chain));
         json_object *l_jobj_total = json_object_new_uint64(l_chain->atom_num_last);
         json_object_object_add(l_jobj_chain, "status", l_jobj_chain_status);
         json_object_object_add(l_jobj_chain, "current", l_jobj_current);
-        json_object_object_add(l_jobj_chain, "total", l_jobj_total);
+        json_object_object_add(l_jobj_chain, "in network", l_jobj_total);
         json_object_object_add(l_jobj_chain, "percent", l_jobj_percent);
         json_object_object_add(l_jobj_chains_array, l_chain->name, l_jobj_chain);
 
@@ -1543,6 +1557,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     }
                     dap_chain_hash_fast_t l_pkey_hash;
                     dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
+                    DAP_DELETE(l_pub_key);
                     l_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
                     //l_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
                 } else {
@@ -1785,7 +1800,18 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     // Synchronously going to offline state
     PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
     s_net_states_proc(a_net);
-    dap_chain_net_item_t *l_net_item;
+    dap_global_db_cluster_t *l_mempool = PVT(a_net)->mempool_clusters;
+    while (l_mempool) {
+        dap_global_db_cluster_t *l_next = l_mempool->next;
+        dap_global_db_cluster_delete(l_mempool);
+        l_mempool = l_next;
+    }
+    dap_global_db_cluster_delete(PVT(a_net)->orders_cluster);
+    dap_global_db_cluster_delete(PVT(a_net)->nodes_cluster);
+    dap_global_db_cluster_delete(PVT(a_net)->nodes_states);
+    dap_global_db_cluster_delete(PVT(a_net)->common_orders);
+
+    dap_chain_net_item_t *l_net_item = NULL;
     HASH_FIND(hh, s_net_items, a_net->pub.name, strlen(a_net->pub.name), l_net_item);
     if (l_net_item) {
         HASH_DEL(s_net_items, l_net_item);
@@ -1932,20 +1958,30 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
             return -16;
         }
     }
-    uint16_t l_permalink_hosts_count = 0;
+    uint16_t l_permalink_hosts_count = 0, i, e;
     char **l_permanent_links_hosts = dap_config_get_array_str(l_cfg, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
-    for (uint16_t i = 0; i < dap_min(l_permalink_hosts_count, l_net_pvt->permanent_links_count); ++i) {
-        uint16_t l_port = 0;
-        char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
-        if (dap_net_parse_hostname(l_permanent_links_hosts[i], l_host, &l_port) || !l_port) {
-            log_it(L_ERROR, "Incorrect format of host \"%s\", fix net config or recheck internet connection, and restart node",
-                            l_permanent_links_hosts[i]);
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -16;
+    for (i = 0, e = 0; i < dap_min(l_permalink_hosts_count, l_net_pvt->permanent_links_count); ++i) {
+        char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' }; uint16_t l_port = 0;
+        struct sockaddr_storage l_saddr;
+        if ( dap_net_parse_config_address(l_permanent_links_hosts[i], l_host, &l_port, NULL, NULL) < 0
+            || dap_net_resolve_host(l_host, dap_itoa(l_port), false, &l_saddr, NULL) < 0 )
+        {
+            log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config"
+                            "or check internet connection and restart node",
+                            a_net_name, l_permanent_links_hosts[i]);
+            ++e;
+            continue;
         }
         l_net_pvt->permanent_links[i]->uplink_port = l_port;
         dap_strncpy(l_net_pvt->permanent_links[i]->uplink_addr, l_host, DAP_HOSTADDR_STRLEN);
+    }
+    if ( i && (e == i) ) {
+        log_it(L_ERROR, "%d / %d permanent links are invalid or can't be accessed, fix \"%s\""
+                        "network config or check internet connection and restart node",
+                        e, i, a_net_name);
+        dap_chain_net_delete(l_net);
+        dap_config_close(l_cfg);
+        return -16;
     }
 
     char **l_authorized_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "authorized_nodes_addrs", &l_net_pvt->authorized_nodes_count);
@@ -1953,7 +1989,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         log_it(L_WARNING, "Can't read PoA nodes addresses");
     else
         l_net_pvt->authorized_nodes_addrs = DAP_NEW_Z_COUNT(dap_chain_node_addr_t, l_net_pvt->authorized_nodes_count);
-    for (uint16_t i = 0; i < l_net_pvt->authorized_nodes_count; ++i) {
+    for (i = 0; i < l_net_pvt->authorized_nodes_count; ++i) {
         dap_chain_node_addr_t l_addr;
         if (dap_stream_node_addr_from_str(&l_addr, l_authorized_nodes_addrs[i])) {
             log_it(L_ERROR, "Incorrect format of node address \"%s\", fix net config and restart node", l_authorized_nodes_addrs[i]);
@@ -1974,15 +2010,17 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         dap_config_close(l_cfg);
         return -4;
     }
-    for (uint16_t i = 0; i < l_net_pvt->seed_nodes_count; ++i) {
-        uint16_t l_port = 0;
-        char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
-        if (dap_net_parse_hostname(l_seed_nodes_hosts[i], l_host, &l_port) || !l_port) {
-            log_it(L_ERROR, "Incorrect format of host \"%s\", fix net config or recheck internet connection, and restart node",
-                            l_seed_nodes_hosts[i]);
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -16;
+    for (i = 0, e = 0; i < l_net_pvt->seed_nodes_count; ++i) {
+        char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' }; uint16_t l_port = 0;
+        struct sockaddr_storage l_saddr;
+        if ( dap_net_parse_config_address(l_seed_nodes_hosts[i], l_host, &l_port, NULL, NULL) < 0
+            || dap_net_resolve_host(l_host, dap_itoa(l_port), false, &l_saddr, NULL) < 0)
+        {
+            log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config"
+                            "or check internet connection and restart node",
+                            a_net_name, l_seed_nodes_hosts[i]);
+            ++e;
+            continue;
         }
         l_net_pvt->seed_nodes_info[i] = DAP_NEW_Z(struct request_link_info);
         if (!l_net_pvt->seed_nodes_info[i]) {
@@ -1993,6 +2031,14 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         }
         l_net_pvt->seed_nodes_info[i]->port = l_port;
         dap_strncpy(l_net_pvt->seed_nodes_info[i]->addr, l_host, DAP_HOSTADDR_STRLEN);
+    }
+    if ( i && (e == i) ) {
+        log_it(L_ERROR, "%d / %d seed links are invalid or can't be accessed, fix \"%s\""
+                        "network config or check internet connection and restart node",
+                        e, i, a_net_name);
+        dap_chain_net_delete(l_net);
+        dap_config_close(l_cfg);
+        return -16;
     }
 
     /* *** Chains init by configs *** */
@@ -2097,10 +2143,15 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     default:
         l_ledger_flags |= DAP_LEDGER_CHECK_CELLS_DS | DAP_LEDGER_CHECK_TOKEN_EMISSION;
     }
-    // init LEDGER model
-    l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
+    if (dap_config_get_item_bool_default(g_config, "ledger", "mapped", true))
+        l_ledger_flags |= DAP_LEDGER_MAPPED;
 
     for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+        if (l_chain->callback_load_from_gdb) {
+            l_ledger_flags &= ~DAP_LEDGER_MAPPED;
+            l_ledger_flags |= DAP_LEDGER_THRESHOLD_ENABLED;
+            continue;
+        }
         if (!l_chain->callback_get_poa_certs)
             continue;
         l_net->pub.keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
@@ -2110,6 +2161,8 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     if (!l_net->pub.keys)
         log_it(L_WARNING, "PoA certificates for net %s not found", l_net->pub.name);
 
+    // init LEDGER model
+    l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
     // Decrees initializing
     dap_chain_net_decree_init(l_net);
 
@@ -2140,6 +2193,8 @@ bool s_net_load(void *a_arg)
 
     // load chains
     dap_chain_t *l_chain = l_net->pub.chains;
+    clock_t l_chain_load_start_time; 
+    l_chain_load_start_time = clock(); 
     while (l_chain) {
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
@@ -2163,30 +2218,25 @@ bool s_net_load(void *a_arg)
                 } else
                     log_it(L_WARNING, "No purge callback for chain %s, can't reload it with correct order", l_chain->name);
             }
+            if (l_chain->callback_atom_add_from_treshold) {
+                while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
+                    log_it(L_DEBUG, "Added atom from treshold");
+            }
         } else {
             //dap_chain_save_all( l_chain );
             log_it (L_NOTICE, "Initialized chain files");
         }
-        l_chain->atom_num_last = l_chain->callback_count_atom(l_chain);
+        l_chain->atom_num_last = 0;
+        time_t l_chain_load_time_taken = clock() - l_chain_load_start_time; 
+        double time_taken = ((double)l_chain_load_time_taken)/CLOCKS_PER_SEC; // in seconds 
+        log_it(L_NOTICE, "[%s] Chain [%s] processing took %f seconds", l_chain->net_name, l_chain->name, time_taken);
         l_chain = l_chain->next;
     }
-    // Process thresholds if any
-    bool l_processed;
-    do {
-        l_processed = false;
-        DL_FOREACH(l_net->pub.chains, l_chain) {
-            if (l_chain->callback_atom_add_from_treshold) {
-                while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
-                    log_it(L_DEBUG, "Added atom from treshold");
-                    l_processed = true;
-                }
-            }
-        }
-    } while (l_processed);
+    l_net_pvt->load_mode = false;
+    dap_leger_load_end(l_net->pub.ledger);
 
     // Do specific role actions post-chain created
     l_net_pvt->state_target = NET_STATE_OFFLINE;
-
     switch ( l_net_pvt->node_role.enums ) {
         case NODE_ROLE_ROOT_MASTER:{
             // Set to process everything in datum pool
@@ -2227,8 +2277,6 @@ bool s_net_load(void *a_arg)
             log_it(L_INFO,"Light node role established");
 
     }
-    
-    l_net_pvt->load_mode = false;
 
     l_net_pvt->balancer_type = dap_config_get_item_bool_default(l_net->pub.config, "general", "use_dns_links", false);
 
@@ -2266,9 +2314,22 @@ bool s_net_load(void *a_arg)
     }
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->orders_cluster);
     DAP_DELETE(l_gdb_groups_mask);
-    // node states cluster
+    // Common orders cluster
+    l_gdb_groups_mask = dap_strdup_printf("%s.orders", l_net->pub.gdb_groups_prefix);
+    l_net_pvt->common_orders = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
+                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
+                                                          l_gdb_groups_mask, 72, true,
+                                                          DAP_GDB_MEMBER_ROLE_USER,
+                                                          DAP_CLUSTER_TYPE_EMBEDDED);
+    if (!l_net_pvt->common_orders) {
+        log_it(L_ERROR, "Can't initialize orders cluster for network %s", l_net->pub.name);
+        goto ret;
+    }
+    dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->common_orders);
+    DAP_DELETE(l_gdb_groups_mask);
+    // Node states cluster
     l_gdb_groups_mask = dap_strdup_printf("%s.nodes.states", l_net->pub.gdb_groups_prefix);
-    dap_global_db_cluster_add(
+    l_net_pvt->nodes_states = dap_global_db_cluster_add(
         dap_global_db_instance_get_default(),
         l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
         l_gdb_groups_mask, 0, true,
@@ -2308,7 +2369,8 @@ bool s_net_load(void *a_arg)
             if (!l_ext_addr) {
                 log_it(L_INFO, "External address is not set, will be detected automatically");
             } else {
-                if ( dap_net_parse_hostname(l_ext_addr, l_host, &l_ext_port) )
+                struct sockaddr_storage l_saddr = { };
+                if ( 0 > dap_net_parse_config_address(l_ext_addr, l_host, &l_ext_port, &l_saddr, NULL) )
                     log_it(L_ERROR, "Invalid server address \"%s\", fix config and restart node", l_ext_addr);
                 else {
                     uint8_t l_hostlen = dap_strlen(l_host);
@@ -2317,9 +2379,11 @@ bool s_net_load(void *a_arg)
                 }
             }
             if ( !l_net_pvt->node_info->ext_port ) {
-                char **l_listening = dap_config_get_array_str(g_config, "server", "listen_address", NULL);
-                l_net_pvt->node_info->ext_port = l_listening && !dap_net_parse_hostname(*l_listening, NULL, &l_ext_port) && l_ext_port
-                    ? l_ext_port : 8079; // TODO: default port?
+                char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
+                l_net_pvt->node_info->ext_port =
+                    ( l_listening && dap_net_parse_config_address(*l_listening, NULL, &l_ext_port, NULL, NULL) > 0 && l_ext_port )
+                        ? l_ext_port
+                        : dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079); // TODO: default port?
             }
         } // otherwise, we're in seed list - seed config predominates server config thus disambiguating the settings
         
@@ -2376,6 +2440,8 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                                            a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
     dap_chain_net_t *l_net = a_arg;
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    if (l_net_pvt->state == NET_STATE_LINKS_ESTABLISHED)
+        l_net_pvt->state = NET_STATE_SYNC_CHAINS;
 
     switch (a_type) {
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY:
@@ -2942,7 +3008,7 @@ void dap_chain_net_proc_mempool(dap_chain_net_t *a_net)
  * @brief dap_chain_net_verify_datum_for_add
  * process datum verification process. Can be:
  *   if DAP_CHAIN_DATUM_TX, called dap_ledger_tx_add_check
- *   if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_ledger_token_decl_add_check
+ *   if DAP_CHAIN_DATUM_TOKEN, called dap_ledger_token_add_check
  *   if DAP_CHAIN_DATUM_TOKEN_EMISSION, called dap_ledger_token_emission_add_check
  *   if DAP_CHAIN_DATUM_DECREE
  * @param a_net
@@ -2959,8 +3025,8 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
     switch (a_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TX:
         return dap_ledger_tx_add_check(l_net->pub.ledger, (dap_chain_datum_tx_t *)a_datum->data, a_datum->header.data_size, a_datum_hash);
-    case DAP_CHAIN_DATUM_TOKEN_DECL:
-        return dap_ledger_token_decl_add_check(l_net->pub.ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
+    case DAP_CHAIN_DATUM_TOKEN:
+        return dap_ledger_token_add_check(l_net->pub.ledger, a_datum->data, a_datum->header.data_size);
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
         return dap_ledger_token_emission_add_check(l_net->pub.ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_DECREE:
@@ -2978,14 +3044,12 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
     return 0;
 }
 
-char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code){
+const char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code){
     switch (a_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TX:
-        return dap_ledger_tx_check_err_str(a_code);
-    case DAP_CHAIN_DATUM_TOKEN_DECL:
-        return dap_ledger_token_decl_add_err_code_to_str(a_code);
+    case DAP_CHAIN_DATUM_TOKEN:
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-        return dap_ledger_token_emission_err_code_to_str(a_code);
+        return dap_ledger_check_error_str(a_code);
     default:
         return !a_code ? "DAP_CHAIN_DATUM_VERIFY_OK" : dap_itoa(a_code);
 
@@ -3176,7 +3240,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             }
             return dap_chain_net_anchor_load(l_anchor, a_chain, a_datum_hash);
         }
-        case DAP_CHAIN_DATUM_TOKEN_DECL:
+        case DAP_CHAIN_DATUM_TOKEN:
             return dap_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size);
 
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
@@ -3232,7 +3296,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
             }
             return dap_chain_net_anchor_unload(l_anchor, a_chain, a_datum_hash);
         }
-        case DAP_CHAIN_DATUM_TOKEN_DECL:
+        case DAP_CHAIN_DATUM_TOKEN:
             return 0;
 
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:

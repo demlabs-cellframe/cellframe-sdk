@@ -54,7 +54,7 @@ typedef enum dap_chain_net_state {
     NET_STATE_ONLINE
 } dap_chain_net_state_t;
 
-typedef struct dap_chain_net{
+typedef struct dap_chain_net {
     struct {
         dap_chain_net_id_t id;
         char * name;
@@ -181,7 +181,7 @@ dap_chain_net_t *dap_chain_net_iter_start();
 dap_chain_net_t *dap_chain_net_iter_next(dap_chain_net_t*);
 
 int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, dap_hash_fast_t *a_datum_hash);
-char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code);
+const char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code);
 
 void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
 void dap_chain_net_add_nodelist_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
