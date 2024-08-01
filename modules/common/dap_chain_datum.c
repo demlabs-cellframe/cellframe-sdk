@@ -92,14 +92,12 @@ void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datu
         switch(l_tsd->type) {
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS: {
             uint16_t l_t = 0;
-            dap_chain_datum_token_flags_dump_to_json(json_obj_out,_dap_tsd_get_scalar(l_tsd, &l_t));
-            json_object_object_add(json_obj_out, "flags_set", json_object_new_string("empty"));
+            dap_chain_datum_token_flags_dump_to_json(json_obj_out, "flags_set", _dap_tsd_get_scalar(l_tsd, &l_t));
             continue;
         }
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS: {
             uint16_t l_t = 0;
-            dap_chain_datum_token_flags_dump_to_json(json_obj_out,_dap_tsd_get_scalar(l_tsd, &l_t));
-            json_object_object_add(json_obj_out, "flags_unset", json_object_new_string("empty"));
+            dap_chain_datum_token_flags_dump_to_json(json_obj_out, "flags_unset", _dap_tsd_get_scalar(l_tsd, &l_t));
             continue;
         }
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: {     // 256
@@ -857,7 +855,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
                             json_object_object_add(json_obj_datum,"auth signs total",json_object_new_uint64(l_token->signs_total));
                             json_object_object_add(json_obj_datum,"total_supply",json_object_new_string(dap_uint256_to_char(l_token->total_supply, NULL)));
 
-                            dap_chain_datum_token_flags_dump_to_json(json_obj_datum,l_token->header_private_decl.flags);
+                            dap_chain_datum_token_flags_dump_to_json(json_obj_datum, "flags",l_token->header_private_decl.flags);
                             dap_datum_token_dump_tsd_to_json(json_obj_datum,l_token, l_token_size, a_hash_out_type);               
                             size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_update.tsd_total_size;
                             dap_chain_datum_token_certs_dump_to_json(json_obj_datum,l_token->tsd_n_signs + l_token->header_private_update.tsd_total_size,
@@ -869,7 +867,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
                             json_object_object_add(json_obj_datum,"auth signs valid",json_object_new_uint64(l_token->signs_valid));
                             json_object_object_add(json_obj_datum,"auth signs total",json_object_new_uint64(l_token->signs_total));
                             json_object_object_add(json_obj_datum,"total_supply",json_object_new_string(dap_uint256_to_char(l_token->total_supply, NULL)));
-                            dap_chain_datum_token_flags_dump_to_json(json_obj_datum, l_token->header_native_decl.flags);
+                            dap_chain_datum_token_flags_dump_to_json(json_obj_datum, "flags", l_token->header_native_decl.flags);
                             dap_datum_token_dump_tsd_to_json(json_obj_datum, l_token, l_token_size, a_hash_out_type);
                             size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_decl.tsd_total_size;
                             dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_token->tsd_n_signs + l_token->header_native_decl.tsd_total_size,
@@ -881,7 +879,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
                             json_object_object_add(json_obj_datum,"premine_supply", json_object_new_string(dap_uint256_to_char(l_token->header_public.premine_supply, NULL)));
                             json_object_object_add(json_obj_datum,"premine_address", json_object_new_string(dap_chain_addr_to_str(&l_premine_addr)));
 
-                            dap_chain_datum_token_flags_dump_to_json(json_obj_datum, l_token->header_public.flags);
+                            dap_chain_datum_token_flags_dump_to_json(json_obj_datum, "flags", l_token->header_public.flags);
                         } break;
                     }
                 } break;

@@ -681,7 +681,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_recv_allow = DAP_DUP_SIZE(a_item_apply_to->tx_recv_allow, l_new_tx_recv_allow_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_recv_allow) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     return clean_ret(ret);
                 }
@@ -700,7 +700,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ? DAP_REALLOC(l_new_tx_recv_allow, (l_new_tx_recv_allow_size + 1) * sizeof(dap_chain_addr_t))
                     : DAP_NEW_Z(dap_chain_addr_t);
             if (!l_new_tx_recv_allow) {
-                log_it(L_CRITICAL, c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 return clean_ret(ret);
             }
@@ -725,7 +725,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_recv_allow = DAP_DUP_SIZE(a_item_apply_to->tx_recv_allow, l_new_tx_recv_allow_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_recv_allow) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     return clean_ret(ret);
                 }
@@ -784,7 +784,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_recv_block = DAP_DUP_SIZE(a_item_apply_to->tx_recv_block, l_new_tx_recv_block_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_recv_block) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     return clean_ret(ret);
                 }
@@ -803,7 +803,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ? DAP_REALLOC(l_new_tx_recv_block, (l_new_tx_recv_block_size + 1) * sizeof(dap_chain_addr_t))
                     : DAP_NEW_Z(dap_chain_addr_t);
             if (!l_new_tx_recv_block) {
-                log_it(L_CRITICAL, c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 return clean_ret(ret);
             }
@@ -828,7 +828,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_recv_block = DAP_DUP_SIZE(a_item_apply_to->tx_recv_block, l_new_tx_recv_block_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_recv_block) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     return clean_ret(ret);
                 }
@@ -887,7 +887,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_send_allow = DAP_DUP_SIZE(a_item_apply_to->tx_send_allow, l_new_tx_send_allow_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_send_allow) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     return clean_ret(ret);
                 }
@@ -906,7 +906,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ? DAP_REALLOC(l_new_tx_send_allow, (l_new_tx_send_allow_size + 1) * sizeof(dap_chain_addr_t))
                     : DAP_NEW_Z(dap_chain_addr_t);
             if (!l_new_tx_send_allow) {
-                log_it(L_CRITICAL, c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 return clean_ret(ret);
             }
@@ -932,7 +932,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_send_allow = DAP_DUP_SIZE(a_item_apply_to->tx_send_allow, l_new_tx_send_allow_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_send_allow) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     return clean_ret(ret);
                 }
@@ -991,7 +991,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_send_block = DAP_DUP_SIZE(a_item_apply_to->tx_send_block, l_new_tx_send_block_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_send_block) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     return clean_ret(ret);
                 }
@@ -1012,7 +1012,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ? DAP_REALLOC(l_new_tx_send_block, (l_new_tx_send_block_size + 1) * sizeof(dap_chain_addr_t))
                     : DAP_NEW_Z(dap_chain_addr_t);
             if (!l_new_tx_send_block) {
-                log_it(L_CRITICAL, c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 return clean_ret(ret);
             }
@@ -1037,7 +1037,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_send_block = DAP_DUP_SIZE(a_item_apply_to->tx_send_block, l_new_tx_send_block_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_send_block) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     return clean_ret(ret);
                 }
@@ -1111,14 +1111,14 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy pkeys & its hashes to sandbox
                 l_new_pkeys = DAP_NEW_SIZE(dap_pkey_t *, l_new_signs_total * sizeof(dap_pkey_t *));
                 if (!l_new_pkeys) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     return clean_ret(ret);
                 }
                 for (size_t i = 0; i < l_new_signs_total; i++) {
                     l_new_pkeys[i] = DAP_DUP_SIZE(a_item_apply_to->auth_pkeys[i], dap_pkey_get_size(a_item_apply_to->auth_pkeys[i]));
                     if (!l_new_pkeys[i]) {
-                        log_it(L_CRITICAL, c_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                         return clean_ret(ret);
                     }
@@ -1126,7 +1126,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 assert(!l_new_pkey_hashes);
                 l_new_pkey_hashes = DAP_DUP_SIZE(a_item_apply_to->auth_pkey_hashes, l_new_signs_total * sizeof(dap_hash_t));
                 if (!l_new_pkey_hashes) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     return clean_ret(ret);
                 }
@@ -1157,14 +1157,14 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             l_new_pkeys = l_new_pkeys ? DAP_REALLOC(l_new_pkeys, (l_new_signs_total + 1) * sizeof(dap_pkey_t *))
                                       : DAP_NEW_Z(dap_pkey_t *);
             if (!l_new_pkeys) {
-                log_it(L_CRITICAL, c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 return clean_ret(ret);
             }
             // Pkey adding
             l_new_pkeys[l_new_signs_total] = DAP_DUP_SIZE(l_new_auth_pkey, dap_pkey_get_size(l_new_auth_pkey));
             if (!l_new_pkeys[l_new_signs_total]) {
-                log_it(L_CRITICAL, c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 return clean_ret(ret);
             }
@@ -1174,7 +1174,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             l_new_pkey_hashes = l_new_pkey_hashes ? DAP_REALLOC(l_new_pkey_hashes, (l_new_signs_total + 1) * sizeof(dap_hash_t))
                                                   : DAP_NEW_Z(dap_hash_t);
             if (!l_new_pkey_hashes) {
-                log_it(L_CRITICAL, c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 return clean_ret(ret);
             }
@@ -1193,14 +1193,14 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy pkeys & its hashes to sandbox
                 l_new_pkeys = DAP_NEW_SIZE(dap_pkey_t *, l_new_signs_total * sizeof(dap_pkey_t *));
                 if (!l_new_pkeys) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     return clean_ret(ret);
                 }
                 for (size_t i = 0; i < l_new_signs_total; i++) {
                     l_new_pkeys[i] = DAP_DUP_SIZE(a_item_apply_to->auth_pkeys[i], dap_pkey_get_size(a_item_apply_to->auth_pkeys[i]));
                     if (!l_new_pkeys[i]) {
-                        log_it(L_CRITICAL, c_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                         return clean_ret(ret);
                     }
@@ -1208,7 +1208,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 assert(!l_new_pkey_hashes);
                 l_new_pkey_hashes = DAP_DUP_SIZE(a_item_apply_to->auth_pkey_hashes, l_new_signs_total * sizeof(dap_hash_t));
                 if (!l_new_pkey_hashes) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     return clean_ret(ret);
                 }
@@ -1729,7 +1729,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
         if (!l_token_update_item) {
             pthread_rwlock_unlock(&l_token_item->token_ts_updated_rwlock);
             pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
-            log_it(L_CRITICAL, c_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
         }
@@ -2175,7 +2175,7 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item)
     json_object_object_add(json_obj_datum, "-->Token name", json_object_new_string(a_token_item->ticker));
     json_object_object_add(json_obj_datum, "type", json_object_new_string(l_type_str));
     if (a_token_item->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE && a_token_item->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC) {
-        dap_chain_datum_token_flags_dump_to_json(json_obj_datum, a_token_item->datum_token->header_native_decl.flags);
+        dap_chain_datum_token_flags_dump_to_json(json_obj_datum, "flags", a_token_item->flags);
         json_object_object_add(json_obj_datum, "description", a_token_item->description ?
                                json_object_new_string(a_token_item->description) :
                                json_object_new_string("The token description is not set"));

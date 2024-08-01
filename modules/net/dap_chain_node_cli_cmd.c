@@ -426,7 +426,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
     switch (cmd_name) {
     case CMD_NAME_CELL:
     {
-        
+
         if(!arg_index || a_argc < 3) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "parameters are not valid");
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
@@ -440,7 +440,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         const char *l_cell_str = NULL, *l_chain_str = NULL;
         // find cell and chain
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cell", &l_cell_str);
-        
+
         int arg_index_n = ++arg_index;
         // find command (add, delete, etc) as second parameter only
         int cmd_num = CMD_NONE;
@@ -473,7 +473,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     }
                     else
                         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_CAN_CREATE_CELL_ERR, "can't create file for cell 0x%016"DAP_UINT64_FORMAT_X" ( %s )",
-                                l_cell->id.uint64,l_cell->file_storage_path);                        
+                                l_cell->id.uint64,l_cell->file_storage_path);
                     dap_chain_cell_close(l_cell);
                     return l_ret;
 
@@ -497,7 +497,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         case -1:
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_CAN_NOT_OPEN_DIR,
                                                         "Couldn't open db directory. Can't init cdb\n"
-                                                        "Reboot the node.\n\n");            
+                                                        "Reboot the node.\n\n");
             break;
         case -2:
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_CAN_NOT_INIT_DB,
@@ -542,7 +542,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         }
         else{
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR,
-                                            "Subcommand '%s' not recognized, available subcommands are 'get', 'pin' or 'unpin'", a_argv[2]);            
+                                            "Subcommand '%s' not recognized, available subcommands are 'get', 'pin' or 'unpin'", a_argv[2]);
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
         }
         // read record from database
@@ -576,13 +576,13 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
                 }
                 json_object_object_add(json_obj_rec, "command status", json_object_new_string("Commit data base and filesystem caches to disk completed."));
-                
+
                 size_t ret = dap_bin2hex(l_value_str, l_value, l_value_len);
                 json_object_object_add(json_obj_rec, "command status", json_object_new_string("Record found"));
                 json_object_object_add(json_obj_rec, "lenght(byte)", json_object_new_uint64(l_value_len));
                 json_object_object_add(json_obj_rec, "hash", json_object_new_string(l_hash_str));
                 json_object_object_add(json_obj_rec, "pinned", l_is_pinned ? json_object_new_string("Yes") : json_object_new_string("No") );
-                json_object_object_add(json_obj_rec, "value", json_object_new_string(l_value_str));                
+                json_object_object_add(json_obj_rec, "value", json_object_new_string(l_value_str));
                 DAP_DELETE(l_value_str);
                 break;
             }
@@ -593,7 +593,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     break;
                 }
                 if(dap_global_db_set_sync( l_group, l_key, l_value, l_value_len, true) ==0 ){
-                    json_object_object_add(json_obj_rec, "pinned status", json_object_new_string("record successfully pinned"));                    
+                    json_object_object_add(json_obj_rec, "pinned status", json_object_new_string("record successfully pinned"));
                 }
                 else{
                     dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_RECORD_NOT_PINED,
@@ -603,7 +603,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                 break;
             }
             case SUMCMD_UNPIN: // Unpin record
-            {                
+            {
                 if(!l_is_pinned) {
                     json_object_object_add(json_obj_rec, "unpinned status", json_object_new_string("record already unpinned"));
                     break;
@@ -617,7 +617,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     l_ret = -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_RECORD_NOT_UNPINED;
                 }
                 break;
-            }            
+            }
         }
         json_object_array_add(*json_arr_reply, json_obj_rec);
         DAP_DELETE(l_value);
@@ -627,7 +627,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
     {
         const char *l_group_str = NULL;
         const char *l_key_str = NULL;
-        const char *l_value_str = NULL;        
+        const char *l_value_str = NULL;
+
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-key", &l_key_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &l_value_str);
@@ -666,7 +667,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
     case CMD_READ:
     {
         const char *l_group_str = NULL;
-        const char *l_key_str = NULL;        
+        const char *l_key_str = NULL;
+
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-key", &l_key_str);
 
@@ -790,7 +792,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             json_object_array_add(*json_arr_reply, json_obj_drop);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         } else {
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_DROP_FAILED,"Failed to drop table %s", l_group_str);            
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_DROP_FAILED,"Failed to drop table %s", l_group_str);
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_DROP_FAILED;
         }
     }
@@ -800,7 +802,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
 
         if(!l_group_str) {
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR,"%s requires parameter 'group' to be valid", a_argv[0]);            
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR,"%s requires parameter 'group' to be valid", a_argv[0]);
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
         }
 
@@ -809,7 +811,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
 
         if (!l_obj || !l_objs_count)
         {
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_DATA_IN_GROUP,"No data in group %s.", l_group_str);            
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_DATA_IN_GROUP,"No data in group %s.", l_group_str);
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_DATA_IN_GROUP;
         }
 
@@ -850,7 +852,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
     default:
-        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR,"parameters are not valid");           
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR,"parameters are not valid");
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
     }
 }
@@ -967,11 +969,15 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             dap_digit_from_string(l_link_str, l_link.raw, sizeof(l_link.raw));
         }
     }
-    switch (cmd_num)
-    {    
+    switch (cmd_num) {
+
     case CMD_ADD: {
         int l_res = -10;
-        if (l_addr_str && dap_chain_net_is_my_node_authorized(l_net)) {
+        if (l_addr_str || l_hostname) {
+            if (!dap_chain_net_is_my_node_authorized(l_net)) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
+                return l_res;
+            }
             // We're in authorized list, add directly
             uint16_t l_port = 0;
             struct sockaddr_storage l_verifier = { };
@@ -993,33 +999,33 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add node %s, error %d", l_addr_str, l_res);
             else
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully added node %s", l_addr_str);
-        } else if (l_hostname) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
-        } else if (l_addr_str) {
-            // Synchronous request, wait for reply
-            l_res = dap_chain_net_node_list_request(l_net,
-                l_port_str ? strtoul(l_port_str, NULL, 10) : dap_chain_net_get_my_node_info(l_net)->ext_port,
-                true, 'a');
-            switch (l_res)
-            {
-                case 1: dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully added"); return 0;
-                case 2: dap_cli_server_cmd_set_reply_text(a_str_reply, "No server"); break;
-                case 3: dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your address node to node list"); break;
-                case 4: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr"); break;
-                case 5: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node"); break;
-                case 6: dap_cli_server_cmd_set_reply_text(a_str_reply, "The node already exists"); break;
-                case 7: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request"); break;
-                default:dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res); break;
-            }
-        } else {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "node add requires parameter '-addr'");
+            return l_res;
+        }
+        // Synchronous request, wait for reply
+        l_res = dap_chain_net_node_list_request(l_net,
+            l_port_str ? strtoul(l_port_str, NULL, 10) : dap_chain_net_get_my_node_info(l_net)->ext_port,
+            true, 'a');
+        switch (l_res)
+        {
+            case 1: dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully added"); return 0;
+            case 2: dap_cli_server_cmd_set_reply_text(a_str_reply, "No server"); break;
+            case 3: dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your address node to node list"); break;
+            case 4: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr"); break;
+            case 5: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node"); break;
+            case 6: dap_cli_server_cmd_set_reply_text(a_str_reply, "The node already exists"); break;
+            case 7: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request"); break;
+            default:dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res); break;
         }
         return l_res;
     }
-        //break;
+
     case CMD_DEL: {
         // handler of command 'node del'
-        if (l_addr_str && dap_chain_net_is_my_node_authorized(l_net)) {
+        if (l_addr_str) {
+            if (!dap_chain_net_is_my_node_authorized(l_net)) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
+                return -10;
+            }
             int l_res = dap_chain_node_info_del(l_net, l_node_info);
             if (l_res)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't delete node %s, error %d", l_addr_str, l_res);
@@ -1983,12 +1989,16 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 json_object *l_jobj_sings = NULL;
                 dap_chain_wallet_internal_t *l_w_internal = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
                 if (l_w_internal->certs_count == 1) {
-                    l_jobj_sings = json_object_new_string(dap_enc_get_type_name(l_w_internal->certs[0]->enc_key->type));
+                    dap_sign_type_t l_sign_type = dap_sign_type_from_key_type(l_w_internal->certs[0]->enc_key->type);
+                    l_jobj_sings = json_object_new_string(
+                        dap_sign_type_to_str(
+                            dap_sign_type_from_key_type(l_w_internal->certs[0]->enc_key->type)));
                 } else {
                     dap_string_t *l_str_signs = dap_string_new("");
                     for (size_t i = 0; i < l_w_internal->certs_count; i++) {
                         dap_string_append_printf(l_str_signs, "%s%s",
-                                                 dap_enc_get_type_name(l_w_internal->certs[i]->enc_key->type),
+                                                 dap_sign_type_to_str(dap_sign_type_from_key_type(
+                                                     l_w_internal->certs[i]->enc_key->type)),
                                                  ((i + 1) == l_w_internal->certs_count) ? "" : ", ");
                     }
                     l_jobj_sings = json_object_new_string(l_str_signs->str);
@@ -2181,7 +2191,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                                                       "sig_multi_chained. You must specify at least two more "
                                                       "signatures other than sig_multi_chained.\n"
                                                       "After sig_multi_chained, you must specify two more signatures "
-                                                      "from the list:\n%s", dap_cert_get_str_recommended_sign());
+                                                      "from the list: %s", dap_cert_get_str_recommended_sign());
                                 json_object_put(json_arr_out);
                                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR;
                             }
@@ -4231,6 +4241,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
             l_flags = 0;
             l_tsd_list = dap_list_append(l_tsd_list, l_flag_set_tsd);
             l_tsd_total_size += dap_tsd_size(l_flag_set_tsd);
+            a_params->ext.parsed_tsd_size += dap_tsd_size(l_flag_set_tsd);
         }
         if (l_unset_flags) {
             l_str_flags = dap_strsplit(l_unset_flags,",",0xffff );
@@ -4247,6 +4258,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
             l_flags = 0;
             l_tsd_list = dap_list_append(l_tsd_list, l_flag_unset_tsd);
             l_tsd_total_size += dap_tsd_size(l_flag_unset_tsd);
+            a_params->ext.parsed_tsd_size += dap_tsd_size(l_flag_unset_tsd);
         }
     }
 

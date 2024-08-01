@@ -167,6 +167,7 @@ static bool s_debug_more = false;
  */
 int dap_chain_cs_blocks_init()
 {
+    dap_chain_block_init();
     dap_chain_cs_type_add("blocks", s_chain_cs_blocks_new);
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);

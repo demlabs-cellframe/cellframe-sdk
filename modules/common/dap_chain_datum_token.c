@@ -87,7 +87,7 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
                                                                          : *a_token_size;
     dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
     if (!l_token) {
-        log_it(L_CRITICAL, c_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     switch (l_token_old->type) {
@@ -194,17 +194,17 @@ uint32_t dap_chain_datum_token_flag_from_str(const char *a_str)
  * @param json_obj_out
  * @param a_flags
  */
-void dap_chain_datum_token_flags_dump_to_json(json_object * json_obj_out, uint16_t a_flags)
+void dap_chain_datum_token_flags_dump_to_json(json_object * json_obj_out, const char *a_key, uint16_t a_flags)
 {
     if (!a_flags) {
-        json_object_object_add(json_obj_out, "flags", json_object_new_string(dap_chain_datum_token_flag_to_str(DAP_CHAIN_DATUM_TOKEN_FLAG_NONE)));
+        json_object_object_add(json_obj_out, a_key, json_object_new_string(dap_chain_datum_token_flag_to_str(DAP_CHAIN_DATUM_TOKEN_FLAG_NONE)));
         return;
     }
     json_object *l_array_flags = json_object_new_array();
     for (uint16_t i = 0; BIT(i) <= DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++)
         if (a_flags & BIT(i))
             json_object_array_add(l_array_flags, json_object_new_string(dap_chain_datum_token_flag_to_str(BIT(i))));
-    json_object_object_add(json_obj_out, "flags", l_array_flags);
+    json_object_object_add(json_obj_out, a_key, l_array_flags);
 }
 
 /**
