@@ -476,6 +476,7 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
                 default:
                     break;
                 }
+                break;
             case TX_ITEM_TYPE_IN_ALL:
                 switch (l_type) {
                 case TX_ITEM_TYPE_IN: case TX_ITEM_TYPE_IN_COND: case TX_ITEM_TYPE_IN_EMS: case TX_ITEM_TYPE_IN_REWARD:
@@ -483,6 +484,7 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
                 default:
                     break; 
                 }
+                break;
             default:
                 if (a_type == l_type)
                     return found_ret(item);
