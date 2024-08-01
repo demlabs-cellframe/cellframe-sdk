@@ -325,7 +325,7 @@ dap_sign_t *dap_chain_block_sign_get(const dap_chain_block_t *a_block, size_t a_
     while (l_sign_cur < a_sign_num) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
         if (!l_sign_size){
-            log_it(L_ERROR, "Empty sign #%u",  l_sign_cur );
+             debug_if(s_dap_block_debug_more, L_ERROR, "Empty sign #%u",  l_sign_cur );
             return NULL;
         }
         if (l_sign_size >  a_block_size- l_offset - sizeof (a_block->hdr) ){
