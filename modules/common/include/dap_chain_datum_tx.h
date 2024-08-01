@@ -45,7 +45,7 @@ typedef struct dap_chain_datum_tx{
     for (   byte_t *l_pos = (byte_t*)(data), *l_end = l_pos + (size) > l_pos ? l_pos + (size) : l_pos;                          \
             !!(item = l_pos < l_end && (item_size = dap_chain_datum_item_tx_get_size(l_pos)) > 0 && l_pos <= l_end - item_size  \
                 ? l_pos : NULL);                                                                                                \
-            l_pos += iter_size                                                                                                  \
+            l_pos += item_size                                                                                                  \
         )
 
 /**

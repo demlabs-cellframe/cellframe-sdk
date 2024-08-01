@@ -79,14 +79,13 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
     size_t size = dap_chain_datum_item_tx_get_size(a_item);
     if(!size || !a_tx || !*a_tx)
         return -1;
-    dap_chain_datum_tx_t *tx_cur = *a_tx;
-    size_t l_new_size = dap_chain_datum_tx_get_size(tx_cur) + size;
-    tx_cur = (dap_chain_datum_tx_t*)DAP_REALLOC(tx_cur, l_new_size);
-    if (!tx_cur)
+    size_t l_new_size = dap_chain_datum_tx_get_size(*a_tx) + size;
+    dap_chain_datum_tx_t *tx_new = (dap_chain_datum_tx_t*)DAP_REALLOC(*a_tx, l_new_size);
+    if (!tx_new)
         return -1;
-    memcpy((uint8_t*) tx_cur->tx_items + tx_cur->header.tx_items_size, a_item, size);
-    tx_cur->header.tx_items_size += size;
-    *a_tx = tx_cur;
+    memcpy((uint8_t*) tx_new->tx_items + tx_new->header.tx_items_size, a_item, size);
+    tx_new->header.tx_items_size += size;
+    *a_tx = tx_new;
     return 1;
 }
 
@@ -300,32 +299,16 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx)
 {
     dap_return_val_if_pass(!a_tx, -1);
     int l_ret = 0;
-    uint32_t tx_items_pos = 0, tx_items_size = a_tx->header.tx_items_size;
-    while(tx_items_pos < tx_items_size) {
-        uint8_t *item = a_tx->tx_items + tx_items_pos;
-        size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
-        if(!l_item_tx_size || l_item_tx_size > tx_items_size)
-            return -2;
-        if(dap_chain_datum_tx_item_get_type(item) == TX_ITEM_TYPE_SIG) {
-            dap_chain_tx_sig_t *l_item_tx_sig = (dap_chain_tx_sig_t*) item;
-            dap_sign_t *l_sign = (dap_sign_t*) l_item_tx_sig->sig;
-            if ( ( l_sign->header.sign_size + l_sign->header.sign_pkey_size +sizeof (l_sign->header) )
-                  > l_item_tx_size ){
-                log_it(L_WARNING,"Incorrect signature's header, possible corrupted data");
-                return -3;
-            }
-            if ((l_ret = dap_sign_verify_all(l_sign, tx_items_size, a_tx->tx_items, tx_items_pos))) {
-                // invalid signature
-                tx_items_pos += l_item_tx_size;
+    byte_t *item; size_t l_tx_item_size;
+    dap_chain_datum_tx_item_iter(item, l_tx_item_size, a_tx->tx_items, a_tx->header.tx_items_size) {
+        if ( dap_chain_datum_tx_item_get_type(item) == TX_ITEM_TYPE_SIG ) {
+            dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*)item);
+            const size_t l_offset = (size_t)(item - a_tx->tx_items);
+            if (( l_ret = dap_sign_get_size(l_sign) > l_tx_item_size
+                    ? ( log_it(L_WARNING, "Incorrect signature header, possible corrupted data"), -3 )
+                    : dap_sign_verify_all(l_sign, a_tx->header.tx_items_size - l_offset, a_tx->tx_items, l_offset) ))
                 break;
-            }
         }
-        // sign item or items must be at the end, therefore ret will be changed later anyway
-        else
-            l_ret = -4;
-        // go to text item
-        tx_items_pos += l_item_tx_size;
     }
-    assert(tx_items_pos == tx_items_size);
     return l_ret;
 }

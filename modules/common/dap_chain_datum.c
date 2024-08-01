@@ -229,13 +229,10 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
     dap_string_append_printf(a_str_out, "transaction:%s hash %s\n TS Created: %s%s%s\n Items:\n",
                              l_is_first ? " (emit)" : "", l_hash_str, l_tmp_buf,
                              a_ticker ? " Token ticker: " : "", a_ticker ? a_ticker : "");
-    uint32_t l_tx_items_count = 0;
-    uint32_t l_tx_items_size = a_datum->header.tx_items_size;
     dap_hash_fast_t *l_hash_tmp = NULL;
-    while (l_tx_items_count < l_tx_items_size) {
-        uint8_t *item = a_datum->tx_items + l_tx_items_count;
-        size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
-        switch(dap_chain_datum_tx_item_get_type(item)){
+    byte_t *item; size_t l_tx_item_size;
+    dap_chain_datum_tx_item_iter(item, l_tx_item_size, a_datum->tx_items, a_datum->header.tx_items_size) {
+        switch(dap_chain_datum_tx_item_get_type(item)) {
         case TX_ITEM_TYPE_IN:
             l_hash_tmp = &((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
             if (dap_hash_fast_is_blank(l_hash_tmp)) {
@@ -508,13 +505,6 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             dap_string_append_printf(a_str_out, " This transaction have unknown item type \n");
             break;
         }
-        l_tx_items_count += l_item_tx_size;
-        // Freeze protection
-        if(!l_item_tx_size)
-        {
-            break;
-        }
-
     }
     dap_string_append_printf(a_str_out, "\n");
     return true;
@@ -555,14 +545,11 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
     json_object_object_add(json_obj_out, "TS Created", json_object_new_string(l_tmp_buf));
     json_object_object_add(json_obj_out, "Token ticker", a_ticker ? json_object_new_string(a_ticker) : json_object_new_string(""));
     //json_object_array_add(json_arr_items, json_obj_tx);
-    
-    uint32_t l_tx_items_count = 0;
-    uint32_t l_tx_items_size = a_datum->header.tx_items_size;
+
     dap_hash_fast_t *l_hash_tmp = NULL;
-    while (l_tx_items_count < l_tx_items_size) {
+    byte_t *item; size_t l_tx_item_size;
+    dap_chain_datum_tx_item_iter(item, l_tx_item_size, a_datum->tx_items, a_datum->header.tx_items_size) {
         json_object* json_obj_item = json_object_new_object();
-        uint8_t *item = a_datum->tx_items + l_tx_items_count;
-        size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
         switch(dap_chain_datum_tx_item_get_type(item)){
         case TX_ITEM_TYPE_IN:
             l_hash_tmp = &((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
@@ -817,13 +804,6 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
             break;
         }
         json_object_array_add(json_arr_items, json_obj_item);
-        l_tx_items_count += l_item_tx_size;
-        // Freeze protection
-        if(!l_item_tx_size)
-        {
-            break;
-        }
-
     }
     json_object_object_add(json_obj_out, "ITEMS", json_arr_items);
     return true;
