@@ -59,6 +59,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create( dap_chain_net_
         l_ret->exts_size = a_ext_size;
         memcpy(l_ret->exts_n_signs, a_ext, a_ext_size);
     }
+
     return  l_ret;
 }
 
@@ -68,6 +69,7 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
         log_it(L_ERROR, "NULL receipt, can't add sign");
         return NULL;
     }
+
     dap_sign_t *l_sign = dap_sign_create(a_key, &a_receipt->receipt_info, sizeof(a_receipt->receipt_info), 0);
     size_t l_sign_size = l_sign ? dap_sign_get_size(l_sign) : 0;
     if (!l_sign || !l_sign_size) {
@@ -84,6 +86,7 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
     memcpy((byte_t *)l_receipt + l_receipt->size, l_sign, l_sign_size);
     l_receipt->size += l_sign_size;
     DAP_DELETE(l_sign);
+
     return l_receipt;
 }
 

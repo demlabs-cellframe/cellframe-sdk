@@ -55,6 +55,7 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net);
 static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_load_mode);
 static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply);
 
+static bool s_debug_more = false;
 
 // Public functions
 int dap_chain_net_decree_init(dap_chain_net_t *a_net)
@@ -65,6 +66,8 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net)
         log_it(L_WARNING,"Invalid arguments. a_net must be not NULL");
         return -106;
     }
+
+    s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
 
     dap_list_t *l_net_keys = NULL;
     uint16_t l_count_verify = 0;
@@ -131,7 +134,7 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
         return -122;
     }
 
-    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree;
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree = NULL;
     HASH_FIND(hh, *l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
     if (l_sought_decree && l_sought_decree->decree) {
         log_it(L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
@@ -243,7 +246,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
         return -108;
     }
 
-    decree_table_t **l_decrees = dap_chain_net_get_decrees(l_net), *l_new_decree;
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(l_net), *l_new_decree = NULL;
     HASH_FIND(hh, *l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_new_decree);
     if (!l_new_decree) {
         l_new_decree = DAP_NEW_Z(decree_table_t);
@@ -293,7 +296,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
         l_new_decree->is_applied = true;
         l_new_decree->wait_for_apply = false;
     } else
-        log_it(L_ERROR,"Decree applying failed!");
+        debug_if(s_debug_more, L_ERROR,"Decree applying failed!");
 
     return ret_val;
 }
@@ -316,7 +319,7 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     size_t l_data_size = dap_chain_datum_decree_get_size(a_decree);
 
     if ((ret_val = s_decree_verify(l_net, a_decree, l_data_size, a_decree_hash, true)) != 0) {
-        log_it(L_ERROR, "Decree verification failed!");
+        //log_it(L_ERROR, "Decree verification failed!");
         return ret_val;
     }
 
@@ -327,7 +330,7 @@ int dap_chain_net_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fa
 {
     if (!a_net || !a_decree_hash)
         return -1;
-    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree;
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree = NULL;
     HASH_FIND(hh, *l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
     if (!l_sought_decree)
         return -2;
@@ -337,7 +340,7 @@ int dap_chain_net_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fa
 
 dap_chain_datum_decree_t *dap_chain_net_decree_get_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash, bool *is_applied)
 {
-    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree;
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree = NULL;
     HASH_FIND(hh, *l_decrees, a_hash, sizeof(dap_hash_fast_t), l_sought_decree);
     return ( !l_sought_decree || !l_sought_decree->decree )
         ? NULL
@@ -435,7 +438,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 break;
             }
             if (dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr)) {
-                log_it(L_WARNING, "Key and node verification error");
+                debug_if(s_debug_more, L_WARNING, "Key and node verification error");
                 return -109;
             }
             if (!a_apply)

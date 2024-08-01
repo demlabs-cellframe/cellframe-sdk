@@ -41,7 +41,7 @@
 #define DAP_CHAIN_CELL_FILE_SIGNATURE 0xfa340bef153eba48
 #define DAP_CHAIN_CELL_FILE_TYPE_RAW 0
 #define DAP_CHAIN_CELL_FILE_TYPE_COMPRESSED 1
-#define DAP_MAPPED_VOLUME_LIMIT ( 1 << 28 ) // 256 MB for now, may be should be configurable?
+#define DAP_MAPPED_VOLUME_LIMIT ( 1 << 20 ) // 256 MB for now, may be should be configurable?
 /**
   * @struct dap_chain_cell_file_header
   */
@@ -216,13 +216,15 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
         pthread_rwlock_unlock(&a_chain->cell_rwlock);
         return l_cell;
     }
-#define CLEANUP_AND_RET return ({ fclose(l_file); DAP_DELETE(l_cell); pthread_rwlock_unlock(&a_chain->cell_rwlock); NULL; })
     char file_storage_path[MAX_PATH];
     snprintf(file_storage_path, MAX_PATH, "%s/%0"DAP_UINT64_FORMAT_x".dchaincell",
              DAP_CHAIN_PVT(a_chain)->file_storage_dir, a_cell_id.uint64);
-    
-    FILE *l_file = fopen(file_storage_path, "a+b");
-    if ( !l_file ) {
+    FILE *l_file = NULL;
+#define CLEANUP_AND_RET return ({ if (l_file) fclose(l_file); \
+    DAP_DELETE(l_cell); \
+    pthread_rwlock_unlock(&a_chain->cell_rwlock); \
+    NULL; })
+    if ( !(l_file = fopen(file_storage_path, "a+b")) ) {
         log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be opened, error %d",
                         file_storage_path, a_cell_id.uint64, errno);
         CLEANUP_AND_RET;
