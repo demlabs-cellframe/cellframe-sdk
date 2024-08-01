@@ -2819,14 +2819,14 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         if (!l_esbocs_pvt->poa_mode) {
              // Compare signature with delegated keys
             if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr)) {
-                log_it(L_ATT, "Unknown PoS signer %s",
+                debug_if(l_esbocs_pvt->debug, L_ATT, "Unknown PoS signer %s",
                     dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
                 continue;
             }
         } else {
             // Compare signature with auth_certs
             if (!s_validator_check(&l_signing_addr, l_esbocs_pvt->poa_validators)) {
-                log_it(L_ATT, "Unknown PoA signer %s",
+                debug_if(l_esbocs_pvt->debug, L_ATT, "Unknown PoA signer %s",
                     dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
                 continue;
             }
@@ -2872,7 +2872,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         dap_hash_fast(a_block, a_block_size, &l_block_hash);
         char l_block_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_hash_fast_to_str(&l_block_hash, l_block_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        log_it(L_ERROR, "Corrupted block %s: not enough authorized signs: %u of %u",
+        debug_if(l_esbocs_pvt->debug, L_ERROR, "Corrupted block %s: not enough authorized signs: %u of %u",
                     l_block_hash_str, l_signs_verified_count, l_esbocs_pvt->min_validators_count);
         return l_ret ? l_ret : -4;
     }

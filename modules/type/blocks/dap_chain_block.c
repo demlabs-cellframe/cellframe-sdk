@@ -349,7 +349,7 @@ size_t dap_chain_block_get_signs_count(const dap_chain_block_t * a_block, size_t
         dap_sign_t *l_sign = (dap_sign_t *)(a_block->meta_n_datum_n_sign + l_offset);
         size_t l_sign_size = dap_sign_get_size(l_sign);
         if (!l_sign_size){
-            log_it(L_WARNING, "Empty sign #%hu", l_sign_count);
+            debug_if(s_dap_block_debug_more, L_WARNING, "Empty sign #%hu", l_sign_count);
             return l_sign_count;
         }
         if (l_sign_size > a_block_size - l_offset - sizeof(a_block->hdr)) {
