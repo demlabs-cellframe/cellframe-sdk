@@ -30,6 +30,7 @@
 #define LOG_TAG "dap_chain_block"
 
 bool s_seed_mode = false;
+bool s_dap_block_debug_more = false;
 
 /**
  * @brief dap_chain_block_init
@@ -38,7 +39,7 @@ bool s_seed_mode = false;
 int dap_chain_block_init()
 {
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
-
+    s_dap_block_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     return 0;
 }
 

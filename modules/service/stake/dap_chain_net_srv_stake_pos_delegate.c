@@ -59,6 +59,8 @@ static void s_uncache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
 
 static dap_list_t *s_srv_stake_list = NULL;
 
+static bool s_debug_more = false;
+
 static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
     // keydelegation open: have STAK_POS_DELEGATE out
@@ -553,7 +555,7 @@ int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t *a_signing_addr
             char l_key_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(&a_signing_addr->data.hash_fast,
                                        l_key_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-            log_it(L_WARNING, "Key %s already active for node "NODE_ADDR_FP_STR,
+            debug_if(s_debug_more, L_WARNING, "Key %s already active for node "NODE_ADDR_FP_STR,
                                 l_key_hash_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
             return -101;
         }
@@ -563,7 +565,7 @@ int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t *a_signing_addr
             char l_key_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(&l_stake->signing_addr.data.hash_fast,
                                        l_key_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-            log_it(L_WARNING, "Node "NODE_ADDR_FP_STR" already have active key %s",
+            debug_if(s_debug_more, L_WARNING, "Node "NODE_ADDR_FP_STR" already have active key %s",
                                 NODE_ADDR_FP_ARGS(a_node_addr), l_key_hash_str);
             return -102;
         }
