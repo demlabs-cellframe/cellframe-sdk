@@ -1982,6 +1982,7 @@ json_object *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_ad
     }
     return json_arr_out;
 }
+
 static void s_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count)
 {
     json_object* json_obj_lim = json_object_new_object();

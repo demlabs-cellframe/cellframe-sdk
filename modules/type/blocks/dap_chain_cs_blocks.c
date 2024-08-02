@@ -143,7 +143,9 @@ static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );  
 static dap_chain_datum_iter_t *s_chain_callback_datum_iter_create(dap_chain_t *a_chain);
 static void s_chain_callback_datum_iter_delete(dap_chain_datum_iter_t *a_datum_iter);
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter); // Get the fisrt datum from blocks
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_last(dap_chain_datum_iter_t *a_datum_iter); // Get the last datum from blocks
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter); // Get the next datum from blocks
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_prev(dap_chain_datum_iter_t *a_datum_iter); // Get the prev datum from blocks
 
 static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_count);
 
@@ -279,7 +281,9 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     a_chain->callback_datum_iter_create = s_chain_callback_datum_iter_create; // Datum iterator create
     a_chain->callback_datum_iter_delete = s_chain_callback_datum_iter_delete; // Datum iterator delete
     a_chain->callback_datum_iter_get_first = s_chain_callback_datum_iter_get_first; // Get the fisrt datum from chain
+    a_chain->callback_datum_iter_get_last = s_chain_callback_datum_iter_get_last; // Get the last datum from chain
     a_chain->callback_datum_iter_get_next = s_chain_callback_datum_iter_get_next; // Get the next datum from chain from the current one
+    a_chain->callback_datum_iter_get_prev = s_chain_callback_datum_iter_get_prev; // Get the next datum from chain from the current one
 
     a_chain->callback_atom_get_datums = s_callback_atom_get_datums;
     a_chain->callback_atom_get_timestamp = s_chain_callback_atom_get_timestamp;
@@ -2195,6 +2199,17 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_first(dap_chain_datum_
     return a_datum_iter->cur;
 }
 
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_last(dap_chain_datum_iter_t *a_datum_iter)
+{
+    dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
+    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
+    //dap_chain_block_datum_index_t *l_datum_index = PVT(l_cs_blocks)->datum_index;
+    dap_chain_block_datum_index_t *l_datum_index = HASH_LAST(PVT(l_cs_blocks)->datum_index);    
+    s_datum_iter_fill(a_datum_iter, l_datum_index);
+    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
+    return a_datum_iter->cur;
+}
+
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter)
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
@@ -2202,6 +2217,18 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_i
     dap_chain_block_datum_index_t *l_datum_index = a_datum_iter->cur_item;
     if (l_datum_index)
         l_datum_index = l_datum_index->hh.next;
+    s_datum_iter_fill(a_datum_iter, l_datum_index);
+    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
+    return a_datum_iter->cur;
+}
+
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_prev(dap_chain_datum_iter_t *a_datum_iter)
+{
+    dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
+    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
+    dap_chain_block_datum_index_t *l_datum_index = a_datum_iter->cur_item;
+    if (l_datum_index)
+        l_datum_index = l_datum_index->hh.prev;
     s_datum_iter_fill(a_datum_iter, l_datum_index);
     pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
     return a_datum_iter->cur;
