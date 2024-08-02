@@ -1822,7 +1822,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
     // 2nd level consensus
     if(l_blocks->callback_block_verify)
         if (l_blocks->callback_block_verify(l_blocks, l_block, a_atom_size)){
-            log_it(L_WARNING, "Block rejected by block verificator.");
+             debug_if(s_debug_more, L_WARNING, "Block rejected by block verificator.");
             return ATOM_REJECT;
         }   
 
