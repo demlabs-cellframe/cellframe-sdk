@@ -455,15 +455,35 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
 {
     if(!a_tx)
         return NULL;
-    byte_t *item, *l_ret; size_t l_tx_item_size;
+    static _Thread_local struct tx_items_cachet {
+        dap_chain_datum_tx_t *tx;
+        byte_t *item;
+        int idx;
+    } s_tx_items_cachet = { };
+    byte_t *item, *l_begin_pos;
+    size_t l_tx_item_size, l_size_left;
     int l_item_idx = 0;
+    if (a_item_idx && s_tx_items_cachet.tx == a_tx && s_tx_items_cachet.item >= a_tx->tx_items && *a_item_idx == s_tx_items_cachet.idx) {
+        if ( (l_size_left = a_tx->header.tx_items_size - (size_t)(s_tx_items_cachet.item - a_tx->tx_items)) > a_tx->header.tx_items_size )
+            return (*a_item_idx = -1), NULL;
+        l_begin_pos = s_tx_items_cachet.item;
+        l_item_idx = *a_item_idx;
+    } else {
+        l_size_left = a_tx->header.tx_items_size;
+        l_begin_pos = a_tx->tx_items;
+        l_item_idx = 0;
+        s_tx_items_cachet = (struct tx_items_cachet){ a_tx, 0, 0 };
+    }
 
-#define found_ret(a_item) ({                                  \
+#define found_ret(a_item) ({                                \
     if (a_item_idx) *a_item_idx = l_item_idx;               \
     if (a_item_out_size) *a_item_out_size = l_tx_item_size; \
-    a_item;                                                   \
+     s_tx_items_cachet = (struct tx_items_cachet) {         \
+        a_tx, item + l_tx_item_size, l_item_idx + 1         \
+    };                                                      \
+    a_item;                                                 \
 })
-    dap_chain_datum_tx_item_iter(item, l_tx_item_size, a_tx->tx_items, a_tx->header.tx_items_size) {
+    dap_chain_datum_tx_item_iter(item, l_tx_item_size, l_begin_pos, l_size_left) {
         if (!a_item_idx || l_item_idx >= *a_item_idx) {
             dap_chain_tx_item_type_t l_type = dap_chain_datum_tx_item_get_type(item);
             switch (a_type) {
@@ -545,26 +565,25 @@ uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_t
  * a_out_num[out] found index of item in transaction, -1 if not found
  * return tx_out_cond, or NULL
  */
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_cond_type, int *a_out_num)
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_subtype_t a_cond_subtype, int *a_out_num)
 {
-    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, NULL), *l_item;
-    int l_prev_cond_idx = 0;
-    dap_chain_tx_out_cond_t *l_res = NULL;
-    for (dap_list_t *l_item = l_list_out_items; l_item; l_item = l_item->next, ++l_prev_cond_idx) {
-        // Start from *a_out_num + 1 item if a_out_num != NULL
-        if (a_out_num && l_prev_cond_idx < *a_out_num)
-            continue;
-        if (*(byte_t*)l_item->data == TX_ITEM_TYPE_OUT_COND &&
-                ((dap_chain_tx_out_cond_t*)l_item->data)->header.subtype == a_cond_type) {
-            l_res = l_item->data;
-            break;
+    int l_idx = a_out_num && *a_out_num > 0 ? -*a_out_num : 0;
+    byte_t *item; size_t l_tx_item_size;
+    dap_chain_datum_tx_item_iter(item, l_tx_item_size, a_tx->tx_items, a_tx->header.tx_items_size) {
+        switch ( *(byte_t*)item ) {
+        case TX_ITEM_TYPE_OUT_COND:
+            if ( l_idx >= 0 && ((dap_chain_tx_out_cond_t*)item)->header.subtype == a_cond_subtype ) {
+                if (a_out_num) *a_out_num = l_idx;
+                return (dap_chain_tx_out_cond_t*)item;
+            }
+        case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_OLD: case TX_ITEM_TYPE_OUT_EXT:
+            ++l_idx;
+            break; // increasing index in these cases too
+        default: break;
         }
     }
-    dap_list_free(l_list_out_items);
-    if (a_out_num) {
-        *a_out_num = l_res ? l_prev_cond_idx : -1;
-    }
-    return l_res;
+    if (a_out_num) *a_out_num = -1;
+    return NULL;
 }
 
 uint8_t *dap_chain_datum_tx_out_get_by_out_idx(dap_chain_datum_tx_t *a_tx, int a_out_num)
