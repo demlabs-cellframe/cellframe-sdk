@@ -324,6 +324,7 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
                                         const size_t a_value_size, dap_nanotime_t UNUSED_ARG a_value_ts,
                                         bool UNUSED_ARG a_is_pinned, void *a_arg)
 {
+    static pthread_rwlock_t s_collecting_lock = PTHREAD_RWLOCK_INITIALIZER;
     bool l_fee_collect = strstr(a_group, "fee");
     if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS) {
         log_it(L_ERROR, "Can't add block with hash %s to autocollect %s list", a_key, l_fee_collect ? "fee" : "reward");
@@ -335,6 +336,7 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
     bool l_level_reached = false;
     uint256_t l_value_total = uint256_0;
     size_t l_objs_count = 0;
+    pthread_rwlock_wrlock(&s_collecting_lock);
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_group, &l_objs_count);
     if (l_objs_count >= 10) {
         for (size_t i = 0; i < l_objs_count; i++) {
@@ -365,8 +367,10 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
             DAP_DELETE(l_tx_hash_str);
         } else
             log_it(L_ERROR, "%s collect transaction creation error", l_fee_collect ? "Fee" : "Reward");
-        dap_global_db_del_sync(a_group, NULL);
+        for (size_t i = 0; i < l_objs_count; i++)
+            dap_global_db_del_sync(a_group, l_objs[i].key);
     }
+    pthread_rwlock_unlock(&s_collecting_lock);
     DAP_DELETE(l_block_collect_params);
     dap_global_db_objs_delete(l_objs, l_objs_count);
 }
@@ -445,7 +449,9 @@ bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id)
     dap_chain_esbocs_session_t *l_session;
     DL_FOREACH(s_session_items, l_session) {
         if (l_session->chain->net_id.uint64 == a_net_id.uint64) {
-            if (l_session->esbocs && l_session->esbocs->_pvt && PVT(l_session->esbocs)->collecting_addr &&
+            if (l_session->esbocs && l_session->esbocs->_pvt &&
+                    PVT(l_session->esbocs)->block_sign_pkey &&
+                    PVT(l_session->esbocs)->collecting_addr &&
                     !dap_chain_addr_is_blank(PVT(l_session->esbocs)->collecting_addr))
                 return true;
             else
@@ -462,8 +468,8 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
     l_esbocs_pvt->collecting_addr = dap_chain_addr_from_str(dap_config_get_item_str(a_chain_net_cfg, "esbocs", "fee_addr"));
-    l_esbocs_pvt->collecting_level = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "set_collect_fee", "10.0"));
-
+    l_esbocs_pvt->collecting_level = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "collecting_level",
+                                                                                                dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "set_collect_fee", "10.0")));
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
     for (dap_list_t *it = l_validators; it; it = it->next) {
         dap_stream_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
@@ -571,7 +577,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_global_db_objs_delete(l_orders, l_orders_count);
 
     if (IS_ZERO_256(l_esbocs_pvt->minimum_fee)) {
-        log_it(L_ERROR, "No valid order found was signed by this validator deledgated key. Switch off validator mode.");
+        log_it(L_ERROR, "No valid order found was signed by this validator delegated key. Switch off validator mode.");
         return -4;
     }
     l_esbocs_pvt->emergency_mode = dap_config_get_item_bool_default(a_chain_net_cfg, "esbocs", "emergency_mode", false);
