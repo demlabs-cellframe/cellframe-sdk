@@ -1202,26 +1202,15 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         }break;
 
         case SUBCMD_AUTOCOLLECT: {
-            const char * l_cert_name  = NULL, * l_addr_str = NULL;
-            dap_pkey_t * l_pub_key = NULL;
+            const char *l_cert_name = NULL, *l_addr_str = NULL;
             dap_hash_fast_t l_pkey_hash = {};
-            dap_chain_addr_t *l_addr = NULL;
             size_t l_block_count = 0;
             char l_tmp_buff[128]={0};
-            int fl_renew = dap_cli_server_cmd_check_option(a_argv, arg_index,a_argc, "renew");
-            if(fl_renew != -1)
-            {
+            if (dap_cli_server_cmd_check_option(a_argv, arg_index,a_argc, "renew") > 0) {
                 dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
-                dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
-                l_addr = dap_chain_addr_from_str(l_addr_str);
                 if(!l_cert_name) {
                     dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR,
                                             "Command 'block autocollect renew' requires parameter '-cert'", l_subcmd_str);
-                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
-                }
-                if (!l_addr_str) {
-                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR,
-                                            "Command 'block autocollect renew' requires parameter '-addr'", l_subcmd_str);
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
                 }
                 dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
@@ -1230,11 +1219,28 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                                             "Can't find \"%s\" certificate", l_cert_name);
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_CERT_ERR;
                 }
-                l_pub_key = dap_pkey_from_enc_key(l_cert->enc_key);
+                dap_pkey_t *l_pub_key = dap_pkey_from_enc_key(l_cert->enc_key);
                 if (!l_pub_key) {
                     dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PUB_KEY_ERR,
                                             "Corrupted certificate \"%s\" have no public key data", l_cert_name);
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_PUB_KEY_ERR;
+                }
+                dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
+                if (!l_addr_str) {
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR,
+                                            "Command 'block autocollect renew' requires parameter '-addr'", l_subcmd_str);
+                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
+                }
+                dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
+                if (!l_addr) {
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR,
+                                            "Can't convert sring %s to wallet address", l_addr_str);
+                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
+                }
+                if (l_addr->net_id.uint64 != l_net->pub.id.uint64) {
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_NET_ERR,
+                                            "Wallet address should be from the collecting network");
+                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_NET_ERR;
                 }
                 dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
                         .collecting_level = dap_chain_esbocs_get_collecting_level(l_chain),
