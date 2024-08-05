@@ -1983,23 +1983,6 @@ json_object *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_ad
     return json_arr_out;
 }
 
-static void s_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count)
-{
-    json_object* json_obj_lim = json_object_new_object();
-    if (a_offset > 0) {
-        *a_start = a_offset;
-        json_object_object_add(json_obj_lim, "offset", json_object_new_int(*a_start));                
-    }
-    *a_and = a_and_count;
-    if (a_limit > 0) {
-        *a_and = *a_start + a_limit;
-        json_object_object_add(json_obj_lim, "limit", json_object_new_int(*a_and - *a_start));
-    }
-    else
-        json_object_object_add(json_obj_lim, "limit", json_object_new_string("unlimit"));
-    json_object_array_add(a_json_obj_out, json_obj_lim);
-}
-
 static bool s_pack_ledger_threshold_info_json (json_object *a_json_arr_out, dap_ledger_tx_item_t *a_tx_item)
 {
     json_object *json_obj_tx = json_object_new_object();
