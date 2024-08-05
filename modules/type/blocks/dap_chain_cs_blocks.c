@@ -1334,6 +1334,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
                 }
                 json_object* json_obj_out = json_object_new_object();
+                json_object_array_add(*json_arr_reply, json_obj_out);
                 bool l_status = dap_chain_esbocs_get_autocollect_status(l_net->pub.id);
                 char l_tmp_buff[150]={0};
                 sprintf(l_tmp_buff, "for network %s is %s\n", l_net->pub.name,
@@ -1343,7 +1344,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     break;
                 s_print_autocollect_table(l_net, json_obj_out, "Fees");
                 s_print_autocollect_table(l_net, json_obj_out, "Rewards");
-                json_object_array_add(*json_arr_reply, json_obj_out);
             }            
         } break;
 
