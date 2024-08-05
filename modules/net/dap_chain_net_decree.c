@@ -265,7 +265,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
             return -110;
         }
         if (l_new_decree->is_applied) {
-            log_it(L_WARNING, "Decree already applied");
+            debug_if(s_debug_more, L_WARNING, "Decree already applied");
             return -111;
         }
     } else {            // Process decree itself

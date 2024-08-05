@@ -99,7 +99,7 @@ typedef struct dap_chain_cs_blocks_pvt
         log_it(L_DEBUG, "Unlocked rwqlock, %s, %d, thread_id=%u", __FUNCTION__, __LINE__, dap_gettid());
 
 static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, void **a_str_reply,const char * a_param, dap_chain_hash_fast_t * a_datum_hash);
-static void s_cli_meta_hash_print(  json_object* json_obj_a, const char * a_meta_title, dap_chain_block_meta_t * a_meta);
+static void s_cli_meta_hash_print(  json_object* a_json_obj_out, const char * a_meta_title, dap_chain_block_meta_t * a_meta);
 static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply);
 
 // Setup BFT consensus and select the longest chunk
@@ -455,14 +455,14 @@ static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, voi
  * @param a_meta_title
  * @param a_meta
  */
-static void s_cli_meta_hash_print(json_object* json_obj_a, const char *a_meta_title, dap_chain_block_meta_t *a_meta)
+static void s_cli_meta_hash_print(json_object* a_json_obj_out, const char *a_meta_title, dap_chain_block_meta_t *a_meta)
 {
     if (a_meta->hdr.data_size == sizeof (dap_chain_hash_fast_t)) {
         char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str((dap_chain_hash_fast_t *)a_meta->data, l_hash_str, sizeof(l_hash_str));
-        json_object_object_add(json_obj_a, a_meta_title, json_object_new_string(l_hash_str));
+        json_object_object_add(a_json_obj_out, a_meta_title, json_object_new_string(l_hash_str));
     } else
-        json_object_object_add(json_obj_a, a_meta_title, json_object_new_string("Error, hash size is incorrect"));
+        json_object_object_add(a_json_obj_out, a_meta_title, json_object_new_string("Error, hash size is incorrect"));
 }
 
 /**
@@ -471,27 +471,18 @@ static void s_cli_meta_hash_print(json_object* json_obj_a, const char *a_meta_ti
  * @param a_meta_title
  * @param a_meta
  */
-static void s_cli_meta_hex_print(json_object* json_obj_a, const char * a_meta_title, dap_chain_block_meta_t * a_meta)
+static void s_cli_meta_hex_print(json_object* a_json_obj_out, const char * a_meta_title, dap_chain_block_meta_t * a_meta)
 {
     char *l_data_hex = DAP_NEW_Z_SIZE(char, a_meta->hdr.data_size * 2 + 3);
     dap_bin2hex(l_data_hex, a_meta->data, a_meta->hdr.data_size);
     char l_tmp_buff[70]={0};
     sprintf(l_tmp_buff,"0x%s\n", l_data_hex);
-    json_object_object_add(json_obj_a, a_meta_title, json_object_new_string(l_tmp_buff));
+    json_object_object_add(a_json_obj_out, a_meta_title, json_object_new_string(l_tmp_buff));
     DAP_DELETE(l_data_hex);
 }
 
-static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object* json_obj_a, const char *a_table_name)
+static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object *a_json_obj_out, const char *a_table_name)
 {
-    bool l_status = dap_chain_esbocs_get_autocollect_status(a_net->pub.id);
-    char l_tmp_buff[150]={0};
-    sprintf(l_tmp_buff,"for %s in network %s is %s\n", a_table_name, a_net->pub.name,
-                                        l_status ? "active" : "inactive, cause the network config or consensus starting problems");
-    json_object_object_add(json_obj_a, "Autocollect status", json_object_new_string(l_tmp_buff));
-    if (!l_status)
-        return;
-    sprintf(l_tmp_buff,"\nAutocollect tables content for:\n=== %s ===\n", a_table_name);
-    json_object_object_add(json_obj_a, "Autocollect status", json_object_new_string(l_tmp_buff));
     size_t l_objs_count = 0;
     char *l_group = dap_strcmp(a_table_name, "Fees") ? dap_chain_cs_blocks_get_reward_group(a_net->pub.name)
                                                      : dap_chain_cs_blocks_get_fee_group(a_net->pub.name);
@@ -504,12 +495,14 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object* json_
         dap_global_db_obj_t *l_obj_cur = l_objs + i;
         uint256_t l_cur_value = *(uint256_t*)l_obj_cur->value;
         const char *l_value_str; dap_uint256_to_char(l_cur_value, &l_value_str);
-        json_object_object_add(json_obj_t, "obj_key",json_object_new_string(l_obj_cur->key));
-        json_object_object_add(json_obj_t, "obj_val",json_object_new_string(l_value_str));
+        json_object_object_add(json_obj_t, "obj_key", json_object_new_string(l_obj_cur->key));
+        json_object_object_add(json_obj_t, "obj_val", json_object_new_string(l_value_str));
         json_object_array_add(json_arr_out, json_obj_t);
         SUM_256_256(l_total_value, l_cur_value, &l_total_value);
     }
-    json_object_object_add(json_obj_a,"Autocollect tables",json_arr_out);
+    char l_tmp_buff[256];
+    sprintf(l_tmp_buff,"Autocollect tables content for === %s ===", a_table_name);
+    json_object_object_add(a_json_obj_out, l_tmp_buff, json_arr_out);
     if (l_objs_count) {
         dap_global_db_objs_delete(l_objs, l_objs_count);
         uint256_t l_collect_fee = dap_chain_esbocs_get_fee(a_net->pub.id);
@@ -531,12 +524,14 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object* json_
         char *l_profit_str = dap_chain_balance_to_coins(l_collect_value);
         char *l_tax_str = dap_chain_balance_to_coins(l_collect_tax);
         char *l_fee_str = dap_chain_balance_to_coins(l_collect_fee);
-        sprintf(l_tmp_buff,"\nTotal prepared value: %s %s, where\n\tprofit is %s, tax is %s, fee is %s\n",
+        sprintf(l_tmp_buff,"Total prepared value: %s %s, where profit is %s, tax is %s, fee is %s\n",
                                  l_total_str, a_net->pub.native_ticker, l_profit_str, l_tax_str, l_fee_str);
-        json_object_object_add(json_obj_a, "status",json_object_new_string(l_tmp_buff));
         DAP_DEL_MULTY(l_total_str, l_profit_str, l_tax_str, l_fee_str);
     } else
-        json_object_object_add(json_obj_a, "status",json_object_new_string("Empty\n"));
+        strcpy(l_tmp_buff, "Empty");
+    char l_status_buf[32];
+    sprintf(l_status_buf, "%s status", a_table_name);
+    json_object_object_add(a_json_obj_out, l_status_buf, json_object_new_string(l_tmp_buff));
 }
 
 /**
@@ -1333,6 +1328,13 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
                 }
                 json_object* json_obj_out = json_object_new_object();
+                bool l_status = dap_chain_esbocs_get_autocollect_status(l_net->pub.id);
+                char l_tmp_buff[150]={0};
+                sprintf(l_tmp_buff, "for network %s is %s\n", l_net->pub.name,
+                                                    l_status ? "active" : "inactive, cause the network config or consensus starting problems");
+                json_object_object_add(json_obj_out, "Autocollect status", json_object_new_string(l_tmp_buff));
+                if (!l_status)
+                    break;
                 s_print_autocollect_table(l_net, json_obj_out, "Fees");
                 s_print_autocollect_table(l_net, json_obj_out, "Rewards");
                 json_object_array_add(*json_arr_reply, json_obj_out);
@@ -1822,7 +1824,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
     // 2nd level consensus
     if(l_blocks->callback_block_verify)
         if (l_blocks->callback_block_verify(l_blocks, l_block, a_atom_size)){
-            log_it(L_WARNING, "Block rejected by block verificator.");
+             debug_if(s_debug_more, L_WARNING, "Block rejected by block verificator.");
             return ATOM_REJECT;
         }   
 
