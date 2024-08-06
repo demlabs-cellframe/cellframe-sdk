@@ -145,7 +145,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "\t   Update token for <netname>:<chain_name> with ticker <token_ticker>, flags <Flag_1>,<Flag_2>...<Flag_N>\n"
                             "\t   and custom parameters list <Param_1>, <Param_2>...<Param_N>.\n"
                             "\n"
-                            "==Flags=="
+                            "==Flags==\n"
                             "\t ALL_BLOCKED:\t Blocked all permissions, usefull add it first and then add allows what you want to allow\n"
                             "\t ALL_ALLOWED:\t Allowed all permissions if not blocked them. Be careful with this mode\n"
                             "\t ALL_FROZEN:\t All permissions are temprorary frozen\n"
