@@ -193,6 +193,7 @@ typedef struct dap_chain_esbocs_session {
     bool round_fast_forward;
     unsigned int listen_ensure;
     bool sync_failed;
+    bool new_round_enqueued;
 
     dap_time_t ts_round_sync_start; // time of start sync
     dap_time_t ts_stage_entry; // time of current stage entrance
