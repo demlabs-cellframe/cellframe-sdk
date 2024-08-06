@@ -663,11 +663,10 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             SUM_256_256(l_corr_value, l_fee_sum, &l_corr_value);
             const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_corr_value, &l_coins_str);
             json_object_object_add(l_corr_object, "recv_coins", json_object_new_string(l_coins_str));
-            json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));
-            if (!j_arr_data) {
-                j_arr_data = json_object_new_array();
-            }
-            json_object_array_add(j_arr_data, l_corr_object);
+            json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));            
+            json_object * j_arr_correct = json_object_new_object();            
+            json_object_object_add(j_arr_correct, "correction", l_corr_object);
+            json_object_array_add(json_obj_datum, j_arr_correct);
             l_is_need_correction = false;
         }
     }
@@ -676,7 +675,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     s_dap_chain_tx_hash_processed_ht_free(&l_tx_data_ht);
     
     // if no history
-    if (json_object_array_length(json_obj_datum) == 1) {
+    if (json_object_array_length(json_obj_datum) == 2) {
         json_object * json_empty_tx = json_object_new_object();
         if (!json_empty_tx) {
             dap_json_rpc_allocation_error;
