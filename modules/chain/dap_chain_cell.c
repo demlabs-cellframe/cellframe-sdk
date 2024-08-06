@@ -445,15 +445,14 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         dap_hash_fast_t l_atom_hash;
         for ( l_el_size = 0; l_pos < l_full_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
             l_vol_rest = (uint64_t)( a_cell->map_end - a_cell->map_pos );
-            if ( l_vol_rest <= sizeof(uint64_t) || l_vol_rest - sizeof(uint64_t) <= *(uint64_t*)a_cell->map_pos) {
+            if ( l_vol_rest <= sizeof(uint64_t) || l_vol_rest - sizeof(uint64_t) <= *(uint64_t*)a_cell->map_pos)
                 if ( s_cell_map_new_volume(a_cell, l_pos) )
                     break;
-                else if (*(uint64_t*)a_cell->map_pos > l_full_size - l_pos ) {
-                    log_it(L_ERROR, "Atom size exeeds file remainder: %zu > %zu. "
-                                    "Truncating chain \"%s\"", l_el_size, l_full_size - l_pos, a_cell->file_storage_path );
-                    ftruncate(fileno(a_cell->file_storage), l_pos);
-                    break;
-                }
+            if (*(uint64_t*)a_cell->map_pos > l_full_size - l_pos ) {
+                log_it(L_ERROR, "Atom size exeeds file remainder: %zu > %zu. "
+                                "Truncating chain \"%s\"", l_el_size, l_full_size - l_pos, a_cell->file_storage_path );
+                ftruncate(fileno(a_cell->file_storage), l_pos);
+                break;
             }
             l_el_size = *(uint64_t*)a_cell->map_pos;
             dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos += sizeof(uint64_t));
