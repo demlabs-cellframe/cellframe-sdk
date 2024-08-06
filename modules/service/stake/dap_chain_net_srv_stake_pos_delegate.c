@@ -1776,7 +1776,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
                 return -26;
             }
             l_prev_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_order->tx_cond_hash);
-            if (l_prev_tx) {
+            if (!l_prev_tx) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "The order's conditional transaction not found in ledger");
                 dap_enc_key_delete(l_enc_key);
                 DAP_DELETE(l_order);
