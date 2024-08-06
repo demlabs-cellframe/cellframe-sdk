@@ -79,6 +79,7 @@ typedef enum s_com_blocks_err{
     DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR,
     DAP_CHAIN_NODE_CLI_COM_BLOCK_PVT_KEY_ERR,
     DAP_CHAIN_NODE_CLI_COM_BLOCK_SIGN_ERR,
+    DAP_CHAIN_NODE_CLI_COM_BLOCK_NET_ERR,
 
     /* add custom codes here */
 
