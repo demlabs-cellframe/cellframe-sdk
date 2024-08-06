@@ -426,8 +426,11 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
     pthread_mutex_lock(&l_session->mutex);
     dap_chain_hash_fast_t l_last_block_hash;
     dap_chain_get_atom_last_hash(l_session->chain, a_id, &l_last_block_hash);
-    if (!dap_hash_fast_compare(&l_last_block_hash, &l_session->cur_round.last_block_hash))
+    if (!dap_hash_fast_compare(&l_last_block_hash, &l_session->cur_round.last_block_hash) &&
+            !l_session->new_round_enqueued) {
+        l_session->new_round_enqueued = true;
         s_session_round_new(l_session);
+    }
     pthread_mutex_unlock(&l_session->mutex);
     if (!PVT(l_session->esbocs)->collecting_addr)
         return;
@@ -1109,6 +1112,7 @@ static bool s_session_round_new(void *a_arg)
             s_session_send_startsync(a_session);
     }
     a_session->round_fast_forward = false;
+    a_session->new_round_enqueued = false;
     a_session->sync_failed = false;
     a_session->listen_ensure = 0;
     return false;
@@ -1396,8 +1400,11 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             s_session_state_change(a_session, a_session->old_state, a_time);
         else {
             log_it(L_ERROR, "No previous state registered, can't roll back");
-            dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-            dap_proc_thread_callback_add(l_thread, s_session_round_new, a_session);
+            if (!a_session->new_round_enqueued) {
+                a_session->new_round_enqueued = true;
+                dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
+                dap_proc_thread_callback_add(l_thread, s_session_round_new, a_session);
+            }
         }
     }
     default:
@@ -1427,8 +1434,11 @@ static void s_session_proc_state(void *a_arg)
                                                                 " Round finished by reason: attempts is out",
                                                                     l_session->chain->net_name, l_session->chain->name,
                                                                         l_session->cur_round.id);
-                dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-                dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                if (!l_session->new_round_enqueued) {
+                    l_session->new_round_enqueued = true;
+                    dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
+                    dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                }
                 break;
             }
             uint16_t l_min_validators_synced = PVT(l_session->esbocs)->emergency_mode ?
@@ -1447,8 +1457,11 @@ static void s_session_proc_state(void *a_arg)
                                                     l_session->cur_round.id, l_session->cur_round.attempt_num,
                                                         l_round_skip ? "skipped" : "can't synchronize minimum number of validators");
                 l_session->sync_failed = true;
-                dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-                dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                if (!l_session->new_round_enqueued) {
+                    l_session->new_round_enqueued = true;
+                    dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
+                    dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                }
             }
         }
     } break;
@@ -2335,8 +2348,11 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                     l_session->round_fast_forward = true;
                     l_session->cur_round.id = l_message->hdr.round_id - 1;
                     l_session->cur_round.sync_attempt = l_sync_attempt - 1;
-                    dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-                    dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                    if (!l_session->new_round_enqueued) {
+                        l_session->new_round_enqueued = true;
+                        dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
+                        dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                    }
                 }
             }
         } else // Send it immediatly, if was not sent yet
