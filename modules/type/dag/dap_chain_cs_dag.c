@@ -258,7 +258,7 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         }
     }
     uint16_t l_list_len = 0;
-    char **l_hard_accept_list = dap_config_get_array_str(a_chain_cfg, "dag-poa", "hard_accept_list", &l_list_len);
+    const char **l_hard_accept_list = dap_config_get_array_str(a_chain_cfg, "dag-poa", "hard_accept_list", &l_list_len);
     log_it(L_MSG, "HAL contains %d whitelisted events", l_list_len);
     for (uint16_t i = 0; i < l_list_len; i++) {
         dap_chain_cs_dag_hal_item_t *l_hal_item = DAP_NEW_Z(dap_chain_cs_dag_hal_item_t);
