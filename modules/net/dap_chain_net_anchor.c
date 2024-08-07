@@ -52,8 +52,10 @@ static inline dap_sign_t *s_concate_all_signs_in_array(dap_sign_t *a_in_signs, s
 
 static bool s_debug_more = false;
 
-int dap_chain_net_anchor_init() {
-    s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
+int dap_chain_net_anchor_init()
+{
+    s_debug_more = dap_config_get_item_bool_default(g_config, "chain_net", "debug_more", s_debug_more);
+    return 0;
 }
 
 static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_anchor, size_t a_data_size, bool a_load_mode)

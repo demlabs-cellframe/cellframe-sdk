@@ -41,7 +41,7 @@
 #define DAP_CHAIN_CELL_FILE_SIGNATURE 0xfa340bef153eba48
 #define DAP_CHAIN_CELL_FILE_TYPE_RAW 0
 #define DAP_CHAIN_CELL_FILE_TYPE_COMPRESSED 1
-#define DAP_MAPPED_VOLUME_LIMIT ( 1 << 28 ) // 256 MB for now, may be should be configurable?
+#define DAP_MAPPED_VOLUME_LIMIT ( 1 << 20 ) // 256 MB for now, may be should be configurable?
 /**
   * @struct dap_chain_cell_file_header
   */
