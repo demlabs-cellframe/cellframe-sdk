@@ -128,23 +128,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Token commands
     dap_cli_server_cmd_add ("token_update", com_token_update, "Token update",
                             "\nPrivate or CF20 token update\n"
-                            "\nPrivate token update\n"
-                            "token_update -net <net_name> [-chain <chain_name>] -token <existing_token_ticker> -type private -total_supply <the_same_or_more> -decimals <18>\n"
+                            "\nPrivate or CF20 token update\n"
+                            "token_update -net <net_name> [-chain <chain_name>] -token <existing_token_ticker> -type CF20|private -total_supply <any_positive_number_or_zero> -decimals <18>\n"
                             "-signs_total <the_same_total_as_the_token_you_are_updating> -signs_emission <the_same_total_as_the_token_you_are_updating> -certs <use_the_certificates_of_the_token_you_are_update>\n"
                             "-flag_set [<Flag_1>][,<Flag_2>]...[,<Flag_N>]...\n"
                             "-flag_unset [<Flag_1>][,<Flag_2>]...[,<Flag_N>]...\n"
                             "\t [-<Param_name_1> <Param_Value_1>] [-Param_name_2> <Param_Value_2>] ...[-<Param_Name_N> <Param_Value_N>]\n"
                             "\t   Update token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
                             "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
-                            "\nCF20 token update\n"
-                            "token_update -net <net_name> [-chain <chain_name>] -token <existing_token_ticker> -type CF20 -total_supply <the_same_or_more/if 0 = endless> -decimals <18>\n"
-                            "-signs_total <the_same_total_as_the_token_you_are_updating> -signs_emission <the_same_total_as_the_token_you_are_updating> -certs <use_the_certificates_of_the_token_you_are_update>\n"
-                            "-flag_set [<Flag_1>][,<Flag_2>]...[,<Flag_N>]...\n"
-                            "-flag_unset [<Flag_1>][,<Flag_2>]...[,<Flag_N>]...\n"
-                            "\t [-<Param_name_1> <Param_Value_1>] [-Param_name_2> <Param_Value_2>] ...[-<Param_Name_N> <Param_Value_N>]\n"
-                            "\t   Update token for <netname>:<chain_name> with ticker <token_ticker>, flags <Flag_1>,<Flag_2>...<Flag_N>\n"
-                            "\t   and custom parameters list <Param_1>, <Param_2>...<Param_N>.\n"
-                            "\n"
                             "==Flags==\n"
                             "\t ALL_BLOCKED:\t Blocked all permissions, usefull add it first and then add allows what you want to allow\n"
                             "\t ALL_ALLOWED:\t Allowed all permissions if not blocked them. Be careful with this mode\n"
@@ -159,7 +150,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "\n"
                             "==Params==\n"
                             "General:\n"
-                            "\t -flags <value>:\t List of flags from <value> to token declaration or update\n"
+                            "\t -flag_set <value>:\t List of flags from <value> to token declaration or update\n"
+                            "\t -flag_unset <value>:\t List of flags from <value> to token declaration or update\n"
                             "\t -total_supply <value>:\t Set total supply - emission's maximum - to the <value>\n"
                             "\t -total_signs_valid <value>:\t Set valid signatures count's minimum\n"
                             "\t -description <value>:\t Updated description for this token\n"
@@ -173,6 +165,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "\t -tx_sender_allowed <value>:\t Set allowed tx sender(s)\n"
                             "\t -tx_sender_blocked <value>:\t Set allowed tx sender(s)\n"
                             "\n"
+                            " -total_supply Sets the maximum size of supply token, If supply is not limited, it is set to 0.\n"
                             );
 
 
