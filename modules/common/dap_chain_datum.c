@@ -266,12 +266,12 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t Address: %s\n",
                                         l_value_str,
                                         ((dap_chain_tx_out_old_t*)item)->header.value,
-                                        dap_chain_addr_to_str(&((dap_chain_tx_out_old_t*)item)->addr));
+                                        dap_chain_addr_to_str_static(&((dap_chain_tx_out_old_t*)item)->addr));
         } break;
         case TX_ITEM_TYPE_OUT: { // 256
             const char *l_coins_str,
                     *l_value_str = dap_uint256_to_char(((dap_chain_tx_out_t*)item)->header.value, &l_coins_str),
-                    *l_addr_str = dap_chain_addr_to_str(&((dap_chain_tx_out_t*)item)->addr);
+                    *l_addr_str = dap_chain_addr_to_str_static(&((dap_chain_tx_out_t*)item)->addr);
             dap_string_append_printf(a_str_out, "\t OUT:\n"
                                                 "\t\t Value: %s (%s)\n"
                                                 "\t\t Address: %s\n",
@@ -329,7 +329,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             dap_sign_get_information(l_sign, a_str_out, a_hash_out_type);
             dap_chain_addr_t l_sender_addr;
             dap_chain_addr_fill_from_sign(&l_sender_addr, l_sign, a_net_id);
-            dap_string_append_printf(a_str_out, "\tSender addr: %s\n", dap_chain_addr_to_str(&l_sender_addr));
+            dap_string_append_printf(a_str_out, "\tSender addr: %s\n", dap_chain_addr_to_str_static(&l_sender_addr));
         } break;
         case TX_ITEM_TYPE_RECEIPT: {
             const char *l_coins_str, *l_value_str = dap_uint256_to_char(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi, &l_coins_str);
@@ -443,7 +443,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                     dap_string_append_printf(a_str_out, "\t\t\t signing_addr: %s\n"
                                                         "\t\t\t with pkey hash %s\n"
                                                         "\t\t\t signer_node_addr: "NODE_ADDR_FP_STR"\n",
-                                                        dap_chain_addr_to_str(l_signing_addr),
+                                                        dap_chain_addr_to_str_static(l_signing_addr),
                                                         l_hash_str,
                                                         NODE_ADDR_FP_ARGS(l_signer_node_addr));
                 } break;
@@ -471,7 +471,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t Addr: %s\n"
                                                 "\t\t Token: %s\n"
                                                 "\t\t Value: %s (%s)\n",
-                                     dap_chain_addr_to_str(&((dap_chain_tx_out_ext_t*)item)->addr),
+                                     dap_chain_addr_to_str_static(&((dap_chain_tx_out_ext_t*)item)->addr),
                                      ((dap_chain_tx_out_ext_t*)item)->token,
                                      l_coins_str,
                                      l_value_str);
@@ -590,12 +590,12 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
                 dap_chain_uint256_from(((dap_chain_tx_out_old_t*)item)->header.value), NULL );
             json_object_object_add(json_obj_item,"item type", json_object_new_string("OUT OLD"));
             json_object_object_add(json_obj_item,"Value", json_object_new_uint64(((dap_chain_tx_out_old_t*)item)->header.value));
-            json_object_object_add(json_obj_item,"Address", json_object_new_string(dap_chain_addr_to_str(&((dap_chain_tx_out_old_t*)item)->addr)));
+            json_object_object_add(json_obj_item,"Address", json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_old_t*)item)->addr)));
         } break;
         case TX_ITEM_TYPE_OUT: { // 256
             const char *l_coins_str,
                     *l_value_str = dap_uint256_to_char(((dap_chain_tx_out_t*)item)->header.value, &l_coins_str),
-                    *l_addr_str = dap_chain_addr_to_str(&((dap_chain_tx_out_t*)item)->addr);
+                    *l_addr_str = dap_chain_addr_to_str_static(&((dap_chain_tx_out_t*)item)->addr);
             json_object_object_add(json_obj_item,"item type", json_object_new_string("OUT"));
             json_object_object_add(json_obj_item,"Coins", json_object_new_string(l_coins_str));
             json_object_object_add(json_obj_item,"Value", json_object_new_string(l_value_str));
@@ -650,7 +650,7 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
             dap_sign_get_information_json(l_sign, json_obj_item, a_hash_out_type);
             dap_chain_addr_t l_sender_addr;
             dap_chain_addr_fill_from_sign(&l_sender_addr, l_sign, a_net_id);
-            json_object_object_add(json_obj_item,"Sender addr", json_object_new_string(dap_chain_addr_to_str(&l_sender_addr)));            
+            json_object_object_add(json_obj_item,"Sender addr", json_object_new_string(dap_chain_addr_to_str_static(&l_sender_addr)));            
         } break;
         case TX_ITEM_TYPE_RECEIPT: {
             const char *l_coins_str, *l_value_str = dap_uint256_to_char(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi, &l_coins_str);
@@ -747,7 +747,7 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
                     l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                             ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
                             : dap_chain_hash_fast_to_str_static(l_hash_tmp);
-                    json_object_object_add(json_obj_item,"signing_addr", json_object_new_string(dap_chain_addr_to_str(l_signing_addr)));
+                    json_object_object_add(json_obj_item,"signing_addr", json_object_new_string(dap_chain_addr_to_str_static(l_signing_addr)));
                     json_object_object_add(json_obj_item,"with pkey hash", json_object_new_string(l_hash_str));                    
                     sprintf(l_tmp_buff,""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS(l_signer_node_addr));
                     json_object_object_add(json_obj_item,"signer_node_addr", json_object_new_string(l_tmp_buff));
@@ -772,7 +772,7 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
         case TX_ITEM_TYPE_OUT_EXT: {
             const char *l_coins_str, *l_value_str = dap_uint256_to_char( ((dap_chain_tx_out_ext_t*)item)->header.value, &l_coins_str );
             json_object_object_add(json_obj_item,"item type", json_object_new_string("OUT EXT"));
-            json_object_object_add(json_obj_item,"Addr", json_object_new_string(dap_chain_addr_to_str(&((dap_chain_tx_out_ext_t*)item)->addr)));
+            json_object_object_add(json_obj_item,"Addr", json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_ext_t*)item)->addr)));
             json_object_object_add(json_obj_item,"Token", json_object_new_string(((dap_chain_tx_out_ext_t*)item)->token));
             json_object_object_add(json_obj_item,"Coins", json_object_new_string(l_coins_str));
             json_object_object_add(json_obj_item,"Value", json_object_new_string(l_value_str));
@@ -907,7 +907,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
                             dap_chain_addr_t l_premine_addr = l_token->header_public.premine_address;
                             json_object_object_add(json_obj_datum,"subtype",json_object_new_string("PUBLIC"));
                             json_object_object_add(json_obj_datum,"premine_supply", json_object_new_string(dap_uint256_to_char(l_token->header_public.premine_supply, NULL)));
-                            json_object_object_add(json_obj_datum,"premine_address", json_object_new_string(dap_chain_addr_to_str(&l_premine_addr)));
+                            json_object_object_add(json_obj_datum,"premine_address", json_object_new_string(dap_chain_addr_to_str_static(&l_premine_addr)));
 
                             dap_chain_datum_token_flags_dump_to_json(json_obj_datum, "flags", l_token->header_public.flags);
                         } break;
@@ -969,7 +969,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
             json_object_object_add(json_obj_datum,"ticker", json_object_new_string(l_emission->hdr.ticker));
             json_object_object_add(json_obj_datum,"type", json_object_new_string(dap_chain_datum_emission_type_str(l_emission->hdr.type)));
             json_object_object_add(json_obj_datum,"version", json_object_new_uint64(l_emission->hdr.version));
-            json_object_object_add(json_obj_datum,"to addr", json_object_new_string(dap_chain_addr_to_str(&(l_emission->hdr.address))));
+            json_object_object_add(json_obj_datum,"to addr", json_object_new_string(dap_chain_addr_to_str_static(&(l_emission->hdr.address))));
 
             switch (l_emission->hdr.type) {
             case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:
@@ -999,7 +999,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
                 snprintf(l_flags, 50, "0x%x", l_emission->data.type_presale.flags);
                 json_object_object_add(json_obj_datum,"flags", json_object_new_string(l_flags));
                 json_object_object_add(json_obj_datum,"lock_time", json_object_new_string(l_time_str));
-                json_object_object_add(json_obj_datum,"addr", json_object_new_string(dap_chain_addr_to_str(&l_emission->data.type_presale.addr)));                
+                json_object_object_add(json_obj_datum,"addr", json_object_new_string(dap_chain_addr_to_str_static(&l_emission->data.type_presale.addr)));                
             }
             case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
             case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED:

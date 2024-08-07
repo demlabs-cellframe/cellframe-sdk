@@ -1267,6 +1267,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
     a_session->ts_stage_entry = a_time;
 
     switch (a_new_state) {
+
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC: {
         dap_chain_esbocs_validator_t *l_validator = NULL;
         if (!a_session->cur_round.validators_list && PVT(a_session->esbocs)->emergency_mode) {
@@ -1331,9 +1332,10 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             }
         }
     } break;
+
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_VOTING: {
         if (a_session->old_state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC) {
-            // Clear mark of chosen to submit validator
+            // Clear mark of chosen to submit validator to allow it to submit candidate
             dap_list_t *l_list = s_validator_check(
                         &a_session->cur_round.attempt_submit_validator,
                         a_session->cur_round.validators_list
@@ -1345,7 +1347,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             }
             if (l_validator && l_validator->is_chosen)
                 l_validator->is_chosen = false;
-        } else
+        } else if (s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list))
             a_session->old_state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC;
     } break;
 
@@ -1395,6 +1397,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                             &l_store->precommit_candidate_hash, sizeof(dap_chain_hash_fast_t),
                                 a_session->cur_round.validators_list);
     } break;
+
     case DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS: {
         if (a_session->old_state != DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS)
             s_session_state_change(a_session, a_session->old_state, a_time);
@@ -1980,12 +1983,11 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
     case DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT: {
         dap_chain_addr_t *l_key_addr = (dap_chain_addr_t *)(((dap_tsd_t *)a_directive->tsd)->data);
         int l_status = dap_chain_net_srv_stake_key_delegated(l_key_addr);
-        const char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_addr->data.hash_fast);
+        const char *l_key_str = dap_chain_addr_to_str_static(l_key_addr);
         if (l_status == 0) {
             log_it(L_WARNING, "Invalid key %s with directive type %s applying",
                                     l_key_str, a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK ?
                                         "KICK" : "LIFT");
-            DAP_DEL_Z(l_key_str);
             return -3;
         }
         const char *l_penalty_group = s_get_penalty_group(l_key_addr->net_id);
@@ -2007,7 +2009,7 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
                                 a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK ?
                                     "excluded from" : "included in");
         }
-        DAP_DEL_MULTY(l_key_str, l_penalty_group, l_directive_hash_str, l_key_hash_str);
+        DAP_DEL_MULTY(l_penalty_group, l_directive_hash_str, l_key_hash_str);
         break;
     }
     default:
