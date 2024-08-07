@@ -55,6 +55,7 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net);
 static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_load_mode);
 static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply);
 
+static bool s_debug_more = false;
 
 // Public functions
 int dap_chain_net_decree_init(dap_chain_net_t *a_net)
@@ -65,6 +66,8 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net)
         log_it(L_WARNING,"Invalid arguments. a_net must be not NULL");
         return -106;
     }
+
+    s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
 
     dap_list_t *l_net_keys = NULL;
     uint16_t l_count_verify = 0;
@@ -262,7 +265,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
             return -110;
         }
         if (l_new_decree->is_applied) {
-            log_it(L_WARNING, "Decree already applied");
+            debug_if(s_debug_more, L_WARNING, "Decree already applied");
             return -111;
         }
     } else {            // Process decree itself
@@ -293,7 +296,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
         l_new_decree->is_applied = true;
         l_new_decree->wait_for_apply = false;
     } else
-        log_it(L_ERROR,"Decree applying failed!");
+        debug_if(s_debug_more, L_ERROR,"Decree applying failed!");
 
     return ret_val;
 }
@@ -435,7 +438,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 break;
             }
             if (dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr)) {
-                log_it(L_WARNING, "Key and node verification error");
+                debug_if(s_debug_more, L_WARNING, "Key and node verification error");
                 return -109;
             }
             if (!a_apply)

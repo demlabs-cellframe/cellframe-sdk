@@ -140,7 +140,7 @@ static bool s_sync_timer_callback(void *a_arg);
 static bool s_debug_more = false, s_debug_legacy = false;
 static uint32_t s_sync_timeout = 30;
 static uint32_t s_sync_packets_per_thread_call = 10;
-static uint32_t s_sync_ack_window_size = 100; // atoms
+static uint32_t s_sync_ack_window_size = 512; // atoms
 
 // Legacy
 static uint_fast16_t s_update_pack_size = 100; // Number of hashes packed into the one packet

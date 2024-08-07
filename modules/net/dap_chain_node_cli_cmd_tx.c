@@ -576,7 +576,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 if (l_base_tx)
                     l_src_str = l_reward_collect ? "reward collecting" : "emission";
                 else if (l_src_addr && dap_strcmp(l_dst_token, l_noaddr_token))
-                    l_src_str = dap_chain_addr_to_str(l_src_addr);
+                    l_src_str = dap_chain_addr_to_str_static(l_src_addr);
                 else
                     l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
                 if (l_is_unstake)
@@ -624,7 +624,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     l_src_token ? l_tx_ledger_accepted++ : l_tx_ledger_rejected++;
                 }
 
-                const char *l_dst_addr_str = l_dst_addr ? dap_chain_addr_to_str(l_dst_addr)
+                const char *l_dst_addr_str = l_dst_addr ? dap_chain_addr_to_str_static(l_dst_addr)
                                                         : dap_chain_tx_out_cond_subtype_to_str(
                                                               ((dap_chain_tx_out_cond_t *)it->data)->header.subtype);
                 const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
@@ -1289,7 +1289,7 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply)
                     l_addr_base58 = DAP_NEW_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
                     memcpy(l_addr_base58, l_addr_tmp, sizeof(dap_chain_addr_t));
                     dap_chain_wallet_close(l_wallet);
-                    char *ffl_addr_base58 = dap_chain_addr_to_str(l_addr_base58);
+                    char *ffl_addr_base58 = dap_chain_addr_to_str_static(l_addr_base58);
                     ffl_addr_base58 = 0;
                 }
                 else {

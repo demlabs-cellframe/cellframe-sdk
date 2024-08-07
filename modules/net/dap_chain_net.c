@@ -256,6 +256,7 @@ int dap_chain_net_init()
 {
     dap_ledger_init();
     dap_chain_ch_init();
+    dap_chain_net_anchor_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
     dap_chain_net_srv_voting_init();
@@ -1372,7 +1373,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 json_object *l_jobj_fee_coins = json_object_new_string(l_network_fee_coins_str);
                 json_object *l_jobj_fee_balance = json_object_new_string(l_network_fee_balance_str);
                 json_object *l_jobj_native_ticker = json_object_new_string(l_net->pub.native_ticker);
-                json_object *l_jobj_fee_addr = json_object_new_string(dap_chain_addr_to_str(&l_network_fee_addr));
+                json_object *l_jobj_fee_addr = json_object_new_string(dap_chain_addr_to_str_static(&l_network_fee_addr));
                 if (!l_jobj_network || !l_jobj_fee_coins || !l_jobj_fee_balance || !l_jobj_native_ticker || !l_jobj_fee_addr) {
                     json_object_put(l_jobj_fees);
                     json_object_put(l_jobj_network);
@@ -2288,7 +2289,7 @@ bool s_net_load(void *a_arg)
                                                     dap_global_db_instance_get_default(),
                                                     l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                     l_gdb_groups_mask, DAP_CHAIN_NET_MEMPOOL_TTL, true,
-                                                    l_chain == l_net->pub.chains ? DAP_GDB_MEMBER_ROLE_GUEST : DAP_GDB_MEMBER_ROLE_USER,
+                                                    DAP_GDB_MEMBER_ROLE_USER,
                                                     DAP_CLUSTER_TYPE_EMBEDDED);
         if (!l_cluster) {
             log_it(L_ERROR, "Can't initialize mempool cluster for network %s", l_net->pub.name);
