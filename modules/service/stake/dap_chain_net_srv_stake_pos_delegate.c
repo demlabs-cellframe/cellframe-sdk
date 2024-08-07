@@ -1497,14 +1497,13 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
         // Create the order & put it in GDB
         dap_hash_fast_t l_tx_hash = {};
         dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash);
-        char *l_cert_str = NULL, *l_default_cert_str = NULL;
+        char *l_cert_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", (const char **)&l_cert_str);
         if (!l_cert_str)
-            l_cert_str = l_default_cert_str = dap_strdup_printf("node-addr-%s", l_net->pub.name);
+            l_cert_str = "node-addr";
         dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
         if (!l_cert) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert %s", l_cert_str);
-            DAP_DEL_Z(l_default_cert_str);
             DAP_DELETE(l_tx_hash_str);
             return -8;
         }
@@ -1512,7 +1511,6 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Certificate \"%s\" has no private key", l_cert_str);
             return -20;
         }
-        DAP_DEL_Z(l_default_cert_str);
         char *l_order_hash_str = s_staker_order_create(l_net, l_value, &l_tx_hash, l_cert->enc_key, a_hash_out_type);
         if (!l_order_hash_str) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose the order");
@@ -1776,7 +1774,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
                 return -26;
             }
             l_prev_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_order->tx_cond_hash);
-            if (l_prev_tx) {
+            if (!l_prev_tx) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "The order's conditional transaction not found in ledger");
                 dap_enc_key_delete(l_enc_key);
                 DAP_DELETE(l_order);
