@@ -117,7 +117,7 @@ DAP_STATIC_INLINE int s_cell_file_write_header(dap_chain_cell_t *a_cell)
         .chain_net_id   = a_cell->chain->net_id,
         .cell_id        = a_cell->id
     };
-    return (int)fwrite(&l_hdr, sizeof(l_hdr), 1, a_cell->file_storage);
+    return fwrite(&l_hdr, sizeof(l_hdr), 1, a_cell->file_storage) ? fflush(a_cell->file_storage) : -1;
 }
 
 DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_fpos) {
@@ -244,7 +244,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
                             a_cell_id.uint64, file_storage_path);
             l_file = freopen(file_storage_path, "w+b", l_file);
         }
-        if ( !s_cell_file_write_header(l_cell) ) {
+        if ( s_cell_file_write_header(l_cell) < 0 ) {
             log_it(L_ERROR, "Can't init file storage for cell 0x%016"DAP_UINT64_FORMAT_X" \"%s\", errno %d",
                              a_cell_id.uint64, file_storage_path, errno);
             CLEANUP_AND_RET;
@@ -359,7 +359,7 @@ void dap_chain_cell_delete_all_and_free_file(dap_chain_t *a_chain) {
                 .chain          = a_chain,
                 .file_storage   = l_file
         };
-        if ( !s_cell_file_write_header(l_cell_nh)) {
+        if ( s_cell_file_write_header(l_cell_nh) < 0 ) {
             log_it(L_ERROR, "Can't init file storage for cell 0x%016"DAP_UINT64_FORMAT_X" \"%s\", errno %d",
                    l_cell_id.uint64, l_fsp, errno);
         } else {
@@ -401,12 +401,11 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
 {
     if (!a_cell)
         return -1;
-    size_t l_size = ( fseek(a_cell->file_storage, 0, SEEK_END), ftell(a_cell->file_storage) ), l_pos = 0;
-    if ( l_size < sizeof(dap_chain_cell_file_header_t) ) {
+    size_t l_full_size = !fseek(a_cell->file_storage, 0, SEEK_END) ? ftell(a_cell->file_storage) : 0;
+    if ( l_full_size < sizeof(dap_chain_cell_file_header_t) ) {
         log_it(L_ERROR, "Chain cell \"%s\" is corrupt, create new file", a_cell->file_storage_path);
         return -1;
     }
-    int l_ret = 0;
     dap_chain_cell_file_header_t *l_hdr = NULL;
     if (a_chain->is_mapped) {
         l_hdr = (dap_chain_cell_file_header_t*)a_cell->map;
@@ -432,34 +431,39 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         if (!a_chain->is_mapped) DAP_DELETE(l_hdr);
         return -4;
     }
-    l_pos += sizeof(dap_chain_cell_file_header_t);
+    size_t l_pos = sizeof(dap_chain_cell_file_header_t);
     if (a_chain->is_mapped)
-        a_cell->map_pos += l_pos;
-    if (l_size == l_pos) {
-        fseek(a_cell->file_storage, l_pos, SEEK_SET);
-        return 0;
+        a_cell->map_pos = a_cell->map + l_pos;
+    if (l_full_size == l_pos) {
+        return fseek(a_cell->file_storage, l_pos, SEEK_SET);
     }
-        
-        
-    uint64_t q = 0;
+
+    int l_ret = 0;    
+    uint64_t l_el_size, q = 0;
     if (a_chain->is_mapped) {
-        a_cell->map_pos = a_cell->map + sizeof(dap_chain_cell_file_header_t);
-        for ( uint64_t l_el_size = 0; l_pos < l_size; ++q, l_pos += l_el_size + sizeof(uint64_t), a_chain->load_progress =  (int)((double)l_pos/l_size * 100 + 0.5)) {
-            size_t space_left = (size_t)( a_cell->map_end - a_cell->map_pos );
-            if ( space_left < sizeof(uint64_t) || (space_left - sizeof(uint64_t)) < *(uint64_t*)a_cell->map_pos )
+        uint64_t l_vol_rest;
+        dap_hash_fast_t l_atom_hash;
+        for ( l_el_size = 0; l_pos < l_full_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
+            l_vol_rest = (uint64_t)( a_cell->map_end - a_cell->map_pos );
+            if ( l_vol_rest <= sizeof(uint64_t) || l_vol_rest - sizeof(uint64_t) <= *(uint64_t*)a_cell->map_pos)
                 if ( s_cell_map_new_volume(a_cell, l_pos) )
                     break;
+            if (*(uint64_t*)a_cell->map_pos > l_full_size - l_pos ) {
+                log_it(L_ERROR, "Atom size exeeds file remainder: %zu > %zu. "
+                                "Truncating chain \"%s\"", l_el_size, l_full_size - l_pos, a_cell->file_storage_path );
+                ftruncate(fileno(a_cell->file_storage), l_pos);
+                break;
+            }
             l_el_size = *(uint64_t*)a_cell->map_pos;
-            dap_hash_fast_t l_atom_hash;
             dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos += sizeof(uint64_t));
             dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
             a_chain->callback_atom_add(a_chain, l_atom, l_el_size, &l_atom_hash);
             a_cell->map_pos += l_el_size;
+            a_chain->load_progress = (int)((float)l_pos/l_full_size * 100 + 0.5);
         }
     } else { 
         DAP_DELETE(l_hdr);
         size_t l_read = 0;
-        uint64_t l_el_size = 0;
         while ((l_read = fread(&l_el_size, 1, sizeof(l_el_size), a_cell->file_storage)) && !feof(a_cell->file_storage)) {
             if (l_read != sizeof(l_el_size) || l_el_size == 0) {
                 log_it(L_ERROR, "Corrupted element size %zu, chain %s is damaged", l_el_size, a_cell->file_storage_path);
@@ -473,7 +477,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
                 break;
             }
             l_pos += sizeof(uint64_t) + ( l_read = fread((void*)l_element, 1, l_el_size, a_cell->file_storage) );
-            a_chain->load_progress =  (int)((double)l_pos/l_size * 100 + 0.5);
+            a_chain->load_progress = (int)((double)l_pos/l_full_size * 100 + 0.5);
             if (l_read != l_el_size) {
                 log_it(L_ERROR, "Read only %lu of %zu bytes, stop cell loading", l_read, l_el_size);
                 DAP_DELETE(l_element);
@@ -573,7 +577,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
         debug_if (s_debug_more,L_DEBUG, "Rewinding file %s", a_cell->file_storage_path);
         bool was_mapped = a_cell->chain->is_mapped;
         a_cell->chain->is_mapped = false;
-        if ( !s_cell_file_write_header(a_cell) ) {
+        if ( s_cell_file_write_header(a_cell) < 0 ) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": can't fill header",
                             a_cell->file_storage_path, a_cell->id.uint64);
             a_cell->chain->is_mapped = was_mapped;
