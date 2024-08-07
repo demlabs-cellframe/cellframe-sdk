@@ -1896,7 +1896,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                         if (l_wallet) {
                             l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
-                            const char *l_addr_str = dap_chain_addr_to_str(l_addr);
+                            const char *l_addr_str = dap_chain_addr_to_str_static(l_addr);
 
                             json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
                             if(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)
@@ -1970,7 +1970,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 }
             }
             json_object * json_obj_wall = json_object_new_object();
-            const char *l_l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
+            const char *l_l_addr_str = dap_chain_addr_to_str_static((dap_chain_addr_t*) l_addr);
             if(l_wallet)
             {
                 json_object_object_add(json_obj_wall, "sign", json_object_new_string(
@@ -2254,7 +2254,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                     l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
 
-                    const char *l_addr_str = dap_chain_addr_to_str(l_addr);
+                    const char *l_addr_str = dap_chain_addr_to_str_static(l_addr);
                     json_object * json_obj_wall = json_object_new_object();
                     json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet->name));
                     if (l_sign_count > 1) {
@@ -2928,7 +2928,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             }*/
                            dap_list_free(l_list_in_reward);
                         } else {
-                            json_object *l_jobj_addr_from = json_object_new_string(dap_chain_addr_to_str(&l_addr_from));
+                            json_object *l_jobj_addr_from = json_object_new_string(dap_chain_addr_to_str_static(&l_addr_from));
                             if (!l_jobj_addr_from) {
                                 json_object_put(l_jobj_datum);
                                 json_object_put(l_jobj_datums);
@@ -3121,7 +3121,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                     else
                                         json_object_array_add(l_jobj_change_list, l_jobj_f);
                                 } else {
-                                    json_object_object_add(l_jobj_f, "addr", json_object_new_string(dap_chain_addr_to_str(l_dist_addr)));
+                                    json_object_object_add(l_jobj_f, "addr", json_object_new_string(dap_chain_addr_to_str_static(l_dist_addr)));
                                     json_object_array_add(l_jobj_to_list, l_jobj_f);
                                 }
                             } else {
@@ -7378,7 +7378,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         if (!json_obj_summary) {
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;
         }
-        json_obj_out = dap_db_history_addr(l_addr, l_chain, l_hash_out_type, dap_chain_addr_to_str(l_addr), json_obj_summary, l_limit, l_offset, l_brief, l_tx_srv_str, l_action);
+        json_obj_out = dap_db_history_addr(l_addr, l_chain, l_hash_out_type, dap_chain_addr_to_str_static(l_addr), json_obj_summary, l_limit, l_offset, l_brief, l_tx_srv_str, l_action);
         if (!json_obj_out) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR,
                                     "something went wrong in tx_history");
