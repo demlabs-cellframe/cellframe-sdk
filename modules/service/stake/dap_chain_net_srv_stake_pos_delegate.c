@@ -1653,7 +1653,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                         if (!l_error) {
                             const char *l_tax_str; dap_uint256_to_char(l_tax, &l_tax_str);
                             dap_string_append_printf(l_reply_str, "  sovereign_tax:    %s%%\n  sovereign_addr:   %s\n",
-                                l_tax_str, dap_chain_addr_to_str(&l_addr));
+                                l_tax_str, dap_chain_addr_to_str_static(&l_addr));
                         } else
                             dap_string_append(l_reply_str, "  Conditional tx not found or illegal\n");
                     }
@@ -1831,7 +1831,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
 #if EXTENDED_SRV_DEBUG
             {
                 char *l_tax_str = dap_chain_balance_to_coins(l_sovereign_tax);
-                char *l_addr_str = dap_chain_addr_to_str(&l_sovereign_addr);
+                char *l_addr_str = dap_chain_addr_to_str_static(&l_sovereign_addr);
                 log_it(L_NOTICE, "Delegation tx params: tax = %s%%, addr = %s", l_tax_str, l_addr_str);
                 DAP_DEL_Z(l_tax_str);
                 DAP_DEL_Z(l_addr_str);
@@ -2161,7 +2161,7 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     if (dap_chain_esbocs_started(a_stake->signing_addr.net_id))
         snprintf(l_active_str, 32, "\tActive: %s\n", a_stake->is_active ? "true" : "false");
     const char *l_sov_addr_str = dap_chain_addr_is_blank(&a_stake->sovereign_addr) ?
-                "null" : dap_chain_addr_to_str(&a_stake->sovereign_addr);
+                "null" : dap_chain_addr_to_str_static(&a_stake->sovereign_addr);
     uint256_t l_sov_tax_percent = uint256_0;
     MULT_256_256(a_stake->sovereign_tax, GET_256_FROM_64(100), &l_sov_tax_percent);
     char *l_sov_tax_str = dap_chain_balance_to_coins(l_sov_tax_percent);
@@ -2658,7 +2658,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                     dap_chain_hash_fast_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast, l_pkey_hash_str, sizeof(l_pkey_hash_str));
                     l_balance = dap_uint256_to_char(l_tx_out_cond->header.value, &l_coins);
                     
-                    l_signing_addr_str = dap_chain_addr_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);
+                    l_signing_addr_str = dap_chain_addr_to_str_static(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);
                     dap_string_append_printf(l_str_tmp,"signing_addr:\t%s \n",l_signing_addr_str);
                     dap_string_append_printf(l_str_tmp,"signing_hash:\t%s \n",l_pkey_hash_str);
                     l_node_address_text_block = dap_strdup_printf("node_address:\t" NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr));
