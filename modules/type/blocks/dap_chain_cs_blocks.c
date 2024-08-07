@@ -331,7 +331,7 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     l_cs_blocks_pvt->blocks_count = 0;
 
     uint16_t l_list_len = 0;
-    char **l_hard_accept_list = dap_config_get_array_str(a_chain_config, "blocks", "hard_accept_list", &l_list_len);
+    const char **l_hard_accept_list = dap_config_get_array_str(a_chain_config, "blocks", "hard_accept_list", &l_list_len);
     log_it(L_MSG, "HAL for blocks contains %d whitelisted events", l_list_len);
     for (uint16_t i = 0; i < l_list_len; i++) {
         struct cs_blocks_hal_item *l_hal_item = DAP_NEW_Z(struct cs_blocks_hal_item);
