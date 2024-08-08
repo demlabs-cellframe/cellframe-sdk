@@ -2825,32 +2825,40 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         if (!l_esbocs_pvt->poa_mode) {
              // Compare signature with delegated keys
             if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr)) {
-                debug_if(l_esbocs_pvt->debug, L_ATT, "Unknown PoS signer %s for block %s",
-                                dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast),
-                                dap_hash_fast_to_str_static(a_block_hash));
+                if (l_esbocs_pvt->debug) {
+                    char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
+                    dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+                    log_it(L_ATT, "Unknown PoS signer %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+                }
                 continue;
             }
         } else {
             // Compare signature with auth_certs
             if (!s_validator_check(&l_signing_addr, l_esbocs_pvt->poa_validators)) {
-                debug_if(l_esbocs_pvt->debug, L_ATT, "Unknown PoA signer %s for block %s",
-                                dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast),
-                                dap_hash_fast_to_str_static(a_block_hash));
+                if (l_esbocs_pvt->debug) {
+                    char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
+                    dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+                    log_it(L_ATT, "Unknown PoA signer %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+                }
                 continue;
             }
         }
         if (i == 0) {
             if (l_block_is_emergency && !s_check_emergency_rights(l_esbocs, &l_signing_addr)) {
-                log_it(L_ATT, "Restricted emergency block submitter %s for block %s",
-                                dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast),
-                                dap_hash_fast_to_str_static(a_block_hash));
+                if (l_esbocs_pvt->debug) {
+                    char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
+                    dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+                    log_it(L_ATT, "Restricted emergency block submitter %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+                }
                 l_ret = -5;
                 break;
             } else if (l_esbocs_pvt->check_signs_structure &&
                        !s_check_signing_rights(l_esbocs, a_block, l_block_size, &l_signing_addr, true)) {
-                log_it(L_ATT, "Restricted block submitter %s for block %s",
-                                dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast),
-                                dap_hash_fast_to_str_static(a_block_hash));
+                if (l_esbocs_pvt->debug) {
+                    char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
+                    dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+                    log_it(L_ATT, "Restricted block submitter %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+                }
                 l_ret = -5;
                 break;
             }
@@ -2858,16 +2866,20 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             if (l_block_is_emergency && !s_check_emergency_rights(l_esbocs, &l_signing_addr) &&
                     l_esbocs_pvt->check_signs_structure &&
                     !s_check_signing_rights(l_esbocs, a_block, l_block_size, &l_signing_addr, false)) {
-                log_it(L_ATT, "Restricted emergency block signer %s for block %s",
-                                dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast),
-                                dap_hash_fast_to_str_static(a_block_hash));
+                if (l_esbocs_pvt->debug) {
+                    char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
+                    dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+                    log_it(L_ATT, "Restricted emergency block signer %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+                }
                 l_ret = -5;
                 break;
             } else if (l_esbocs_pvt->check_signs_structure &&
                     !s_check_signing_rights(l_esbocs, a_block, l_block_size, &l_signing_addr, false)) {
-                log_it(L_ATT, "Restricted block signer %s for block %s",
-                                dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast),
-                                dap_hash_fast_to_str_static(a_block_hash));
+                if (l_esbocs_pvt->debug) {
+                    char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
+                    dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+                    log_it(L_ATT, "Restricted block signer %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+                }
                 l_ret = -5;
                 break;
             }
