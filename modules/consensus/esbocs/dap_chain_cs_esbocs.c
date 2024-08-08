@@ -242,7 +242,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 
     const char *l_auth_certs_prefix = dap_config_get_item_str(a_chain_cfg, "esbocs", "auth_certs_prefix");
     uint16_t l_node_addrs_count;
-    char **l_addrs = dap_config_get_array_str(a_chain_cfg, "esbocs", "validators_addrs", &l_node_addrs_count);
+    const char **l_addrs = dap_config_get_array_str(a_chain_cfg, "esbocs", "validators_addrs", &l_node_addrs_count);
     if (l_node_addrs_count < l_esbocs_pvt->min_validators_count) {
         l_ret = -2;
         goto lb_err;
@@ -324,6 +324,7 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
                                         const size_t a_value_size, dap_nanotime_t UNUSED_ARG a_value_ts,
                                         bool UNUSED_ARG a_is_pinned, void *a_arg)
 {
+    static pthread_rwlock_t s_collecting_lock = PTHREAD_RWLOCK_INITIALIZER;
     bool l_fee_collect = strstr(a_group, "fee");
     if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS) {
         log_it(L_ERROR, "Can't add block with hash %s to autocollect %s list", a_key, l_fee_collect ? "fee" : "reward");
@@ -335,6 +336,7 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
     bool l_level_reached = false;
     uint256_t l_value_total = uint256_0;
     size_t l_objs_count = 0;
+    pthread_rwlock_wrlock(&s_collecting_lock);
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_group, &l_objs_count);
     if (l_objs_count >= 10) {
         for (size_t i = 0; i < l_objs_count; i++) {
@@ -365,8 +367,10 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
             DAP_DELETE(l_tx_hash_str);
         } else
             log_it(L_ERROR, "%s collect transaction creation error", l_fee_collect ? "Fee" : "Reward");
-        dap_global_db_del_sync(a_group, NULL);
+        for (size_t i = 0; i < l_objs_count; i++)
+            dap_global_db_del_sync(a_group, l_objs[i].key);
     }
+    pthread_rwlock_unlock(&s_collecting_lock);
     DAP_DELETE(l_block_collect_params);
     dap_global_db_objs_delete(l_objs, l_objs_count);
 }
@@ -422,8 +426,11 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
     pthread_mutex_lock(&l_session->mutex);
     dap_chain_hash_fast_t l_last_block_hash;
     dap_chain_get_atom_last_hash(l_session->chain, a_id, &l_last_block_hash);
-    if (!dap_hash_fast_compare(&l_last_block_hash, &l_session->cur_round.last_block_hash))
+    if (!dap_hash_fast_compare(&l_last_block_hash, &l_session->cur_round.last_block_hash) &&
+            !l_session->new_round_enqueued) {
+        l_session->new_round_enqueued = true;
         s_session_round_new(l_session);
+    }
     pthread_mutex_unlock(&l_session->mutex);
     if (!PVT(l_session->esbocs)->collecting_addr)
         return;
@@ -445,7 +452,9 @@ bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id)
     dap_chain_esbocs_session_t *l_session;
     DL_FOREACH(s_session_items, l_session) {
         if (l_session->chain->net_id.uint64 == a_net_id.uint64) {
-            if (l_session->esbocs && l_session->esbocs->_pvt && PVT(l_session->esbocs)->collecting_addr &&
+            if (l_session->esbocs && l_session->esbocs->_pvt &&
+                    PVT(l_session->esbocs)->block_sign_pkey &&
+                    PVT(l_session->esbocs)->collecting_addr &&
                     !dap_chain_addr_is_blank(PVT(l_session->esbocs)->collecting_addr))
                 return true;
             else
@@ -462,8 +471,8 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
     l_esbocs_pvt->collecting_addr = dap_chain_addr_from_str(dap_config_get_item_str(a_chain_net_cfg, "esbocs", "fee_addr"));
-    l_esbocs_pvt->collecting_level = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "set_collect_fee", "10.0"));
-
+    l_esbocs_pvt->collecting_level = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "collecting_level",
+                                                                                                dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "set_collect_fee", "10.0")));
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
     for (dap_list_t *it = l_validators; it; it = it->next) {
         dap_stream_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
@@ -571,7 +580,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_global_db_objs_delete(l_orders, l_orders_count);
 
     if (IS_ZERO_256(l_esbocs_pvt->minimum_fee)) {
-        log_it(L_ERROR, "No valid order found was signed by this validator deledgated key. Switch off validator mode.");
+        log_it(L_ERROR, "No valid order found was signed by this validator delegated key. Switch off validator mode.");
         return -4;
     }
     l_esbocs_pvt->emergency_mode = dap_config_get_item_bool_default(a_chain_net_cfg, "esbocs", "emergency_mode", false);
@@ -1103,6 +1112,7 @@ static bool s_session_round_new(void *a_arg)
             s_session_send_startsync(a_session);
     }
     a_session->round_fast_forward = false;
+    a_session->new_round_enqueued = false;
     a_session->sync_failed = false;
     a_session->listen_ensure = 0;
     return false;
@@ -1257,6 +1267,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
     a_session->ts_stage_entry = a_time;
 
     switch (a_new_state) {
+
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC: {
         dap_chain_esbocs_validator_t *l_validator = NULL;
         if (!a_session->cur_round.validators_list && PVT(a_session->esbocs)->emergency_mode) {
@@ -1321,9 +1332,10 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             }
         }
     } break;
+
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_VOTING: {
         if (a_session->old_state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC) {
-            // Clear mark of chosen to submit validator
+            // Clear mark of chosen to submit validator to allow it to submit candidate
             dap_list_t *l_list = s_validator_check(
                         &a_session->cur_round.attempt_submit_validator,
                         a_session->cur_round.validators_list
@@ -1335,7 +1347,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             }
             if (l_validator && l_validator->is_chosen)
                 l_validator->is_chosen = false;
-        } else
+        } else if (s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list))
             a_session->old_state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC;
     } break;
 
@@ -1385,13 +1397,17 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                             &l_store->precommit_candidate_hash, sizeof(dap_chain_hash_fast_t),
                                 a_session->cur_round.validators_list);
     } break;
+
     case DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS: {
         if (a_session->old_state != DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS)
             s_session_state_change(a_session, a_session->old_state, a_time);
         else {
             log_it(L_ERROR, "No previous state registered, can't roll back");
-            dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-            dap_proc_thread_callback_add(l_thread, s_session_round_new, a_session);
+            if (!a_session->new_round_enqueued) {
+                a_session->new_round_enqueued = true;
+                dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
+                dap_proc_thread_callback_add(l_thread, s_session_round_new, a_session);
+            }
         }
     }
     default:
@@ -1421,8 +1437,11 @@ static void s_session_proc_state(void *a_arg)
                                                                 " Round finished by reason: attempts is out",
                                                                     l_session->chain->net_name, l_session->chain->name,
                                                                         l_session->cur_round.id);
-                dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-                dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                if (!l_session->new_round_enqueued) {
+                    l_session->new_round_enqueued = true;
+                    dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
+                    dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                }
                 break;
             }
             uint16_t l_min_validators_synced = PVT(l_session->esbocs)->emergency_mode ?
@@ -1441,8 +1460,11 @@ static void s_session_proc_state(void *a_arg)
                                                     l_session->cur_round.id, l_session->cur_round.attempt_num,
                                                         l_round_skip ? "skipped" : "can't synchronize minimum number of validators");
                 l_session->sync_failed = true;
-                dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-                dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                if (!l_session->new_round_enqueued) {
+                    l_session->new_round_enqueued = true;
+                    dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
+                    dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                }
             }
         }
     } break;
@@ -1961,12 +1983,11 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
     case DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT: {
         dap_chain_addr_t *l_key_addr = (dap_chain_addr_t *)(((dap_tsd_t *)a_directive->tsd)->data);
         int l_status = dap_chain_net_srv_stake_key_delegated(l_key_addr);
-        const char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_addr->data.hash_fast);
+        const char *l_key_str = dap_chain_addr_to_str_static(l_key_addr);
         if (l_status == 0) {
             log_it(L_WARNING, "Invalid key %s with directive type %s applying",
                                     l_key_str, a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK ?
                                         "KICK" : "LIFT");
-            DAP_DEL_Z(l_key_str);
             return -3;
         }
         const char *l_penalty_group = s_get_penalty_group(l_key_addr->net_id);
@@ -1988,7 +2009,7 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
                                 a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK ?
                                     "excluded from" : "included in");
         }
-        DAP_DEL_MULTY(l_key_str, l_penalty_group, l_directive_hash_str, l_key_hash_str);
+        DAP_DEL_MULTY(l_penalty_group, l_directive_hash_str, l_key_hash_str);
         break;
     }
     default:
@@ -2329,8 +2350,11 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                     l_session->round_fast_forward = true;
                     l_session->cur_round.id = l_message->hdr.round_id - 1;
                     l_session->cur_round.sync_attempt = l_sync_attempt - 1;
-                    dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-                    dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                    if (!l_session->new_round_enqueued) {
+                        l_session->new_round_enqueued = true;
+                        dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
+                        dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                    }
                 }
             }
         } else // Send it immediatly, if was not sent yet
@@ -2819,14 +2843,14 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         if (!l_esbocs_pvt->poa_mode) {
              // Compare signature with delegated keys
             if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr)) {
-                log_it(L_ATT, "Unknown PoS signer %s",
+                debug_if(l_esbocs_pvt->debug, L_ATT, "Unknown PoS signer %s",
                     dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
                 continue;
             }
         } else {
             // Compare signature with auth_certs
             if (!s_validator_check(&l_signing_addr, l_esbocs_pvt->poa_validators)) {
-                log_it(L_ATT, "Unknown PoA signer %s",
+                debug_if(l_esbocs_pvt->debug, L_ATT, "Unknown PoA signer %s",
                     dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
                 continue;
             }
@@ -2872,7 +2896,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         dap_hash_fast(a_block, a_block_size, &l_block_hash);
         char l_block_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_hash_fast_to_str(&l_block_hash, l_block_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        log_it(L_ERROR, "Corrupted block %s: not enough authorized signs: %u of %u",
+        debug_if(l_esbocs_pvt->debug, L_ERROR, "Corrupted block %s: not enough authorized signs: %u of %u",
                     l_block_hash_str, l_signs_verified_count, l_esbocs_pvt->min_validators_count);
         return l_ret ? l_ret : -4;
     }

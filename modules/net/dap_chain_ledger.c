@@ -686,7 +686,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_recv_allow = DAP_DUP_SIZE(a_item_apply_to->tx_recv_allow, l_new_tx_recv_allow_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_recv_allow) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
@@ -696,7 +696,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             for (size_t i = 0; i < l_new_tx_recv_allow_size; i++) { // Check for all the list
                 if (dap_chain_addr_compare(l_new_tx_recv_allow + i, l_add_addr)) { // Found
                     log_it(L_WARNING, "TSD param TX_RECEIVER_ALLOWED_ADD has address %s thats already present in list",
-                                                                    dap_chain_addr_to_str(l_add_addr));
+                                                                    dap_chain_addr_to_str_static(l_add_addr));
                     ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
                     goto ret_n_clear;
                 }
@@ -705,7 +705,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ? DAP_REALLOC(l_new_tx_recv_allow, (l_new_tx_recv_allow_size + 1) * sizeof(dap_chain_addr_t))
                     : DAP_NEW_Z(dap_chain_addr_t);
             if (!l_new_tx_recv_allow) {
-                log_it(L_CRITICAL, c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 goto ret_n_clear;
             }
@@ -730,7 +730,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_recv_allow = DAP_DUP_SIZE(a_item_apply_to->tx_recv_allow, l_new_tx_recv_allow_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_recv_allow) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
@@ -743,7 +743,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     break;
             if (i == l_new_tx_recv_allow_size) {
                 log_it(L_WARNING, "TSD param TX_RECEIVER_ALLOWED_REMOVE has address %s thats not present in list",
-                        dap_chain_addr_to_str(l_add_addr));
+                        dap_chain_addr_to_str_static(l_add_addr));
                 ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
                 goto ret_n_clear;
             }
@@ -789,7 +789,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_recv_block = DAP_DUP_SIZE(a_item_apply_to->tx_recv_block, l_new_tx_recv_block_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_recv_block) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
@@ -799,7 +799,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             for (size_t i = 0; i < l_new_tx_recv_block_size; i++) { // Check for all the list
                 if (dap_chain_addr_compare(l_new_tx_recv_block + i, l_add_addr)) { // Found
                     log_it(L_WARNING, "TSD param TX_RECEIVER_BLOCKED_ADD has address %s thats already present in list",
-                                                                    dap_chain_addr_to_str(l_add_addr));
+                                                                    dap_chain_addr_to_str_static(l_add_addr));
                     ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
                     goto ret_n_clear;
                 }
@@ -808,7 +808,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ? DAP_REALLOC(l_new_tx_recv_block, (l_new_tx_recv_block_size + 1) * sizeof(dap_chain_addr_t))
                     : DAP_NEW_Z(dap_chain_addr_t);
             if (!l_new_tx_recv_block) {
-                log_it(L_CRITICAL, c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 goto ret_n_clear;
             }
@@ -833,7 +833,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_recv_block = DAP_DUP_SIZE(a_item_apply_to->tx_recv_block, l_new_tx_recv_block_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_recv_block) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
@@ -846,7 +846,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     break;
             if (i == l_new_tx_recv_block_size) {
                 log_it(L_WARNING, "TSD param TX_RECEIVER_BLOCKED_REMOVE has address %s thats not present in list",
-                        dap_chain_addr_to_str(l_add_addr));
+                        dap_chain_addr_to_str_static(l_add_addr));
                 ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
                 goto ret_n_clear;
             }
@@ -892,7 +892,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_send_allow = DAP_DUP_SIZE(a_item_apply_to->tx_send_allow, l_new_tx_send_allow_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_send_allow) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
@@ -902,7 +902,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             for (size_t i = 0; i < l_new_tx_send_allow_size; i++) { // Check for all the list
                 if (dap_chain_addr_compare(l_new_tx_send_allow + i, l_add_addr)) { // Found
                     log_it(L_WARNING, "TSD param TX_SENDER_ALLOWED_ADD has address %s thats already present in list",
-                                                                    dap_chain_addr_to_str(l_add_addr));
+                                                                    dap_chain_addr_to_str_static(l_add_addr));
                     ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
                     goto ret_n_clear;
                 }
@@ -911,7 +911,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ? DAP_REALLOC(l_new_tx_send_allow, (l_new_tx_send_allow_size + 1) * sizeof(dap_chain_addr_t))
                     : DAP_NEW_Z(dap_chain_addr_t);
             if (!l_new_tx_send_allow) {
-                log_it(L_CRITICAL, c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 goto ret_n_clear;
             }
@@ -937,7 +937,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_send_allow = DAP_DUP_SIZE(a_item_apply_to->tx_send_allow, l_new_tx_send_allow_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_send_allow) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
@@ -950,7 +950,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     break;
             if (i == l_new_tx_send_allow_size) {
                 log_it(L_WARNING, "TSD param TX_SENDER_ALLOWED_REMOVE has address %s thats not present in list",
-                        dap_chain_addr_to_str(l_add_addr));
+                        dap_chain_addr_to_str_static(l_add_addr));
                 ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
                 goto ret_n_clear;
             }
@@ -996,7 +996,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_send_block = DAP_DUP_SIZE(a_item_apply_to->tx_send_block, l_new_tx_send_block_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_send_block) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
@@ -1006,7 +1006,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             for (size_t i = 0; i < l_new_tx_send_block_size; i++) { // Check for all the list
                 if (dap_chain_addr_compare(l_new_tx_send_block + i, l_add_addr)) { // Found
                     log_it(L_WARNING, "TSD param TX_SENDER_BLOCKED_ADD has address %s thats already present in list",
-                                                                    dap_chain_addr_to_str(l_add_addr));
+                                                                    dap_chain_addr_to_str_static(l_add_addr));
                     ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
                     goto ret_n_clear;
                 }
@@ -1017,7 +1017,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     ? DAP_REALLOC(l_new_tx_send_block, (l_new_tx_send_block_size + 1) * sizeof(dap_chain_addr_t))
                     : DAP_NEW_Z(dap_chain_addr_t);
             if (!l_new_tx_send_block) {
-                log_it(L_CRITICAL, c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 goto ret_n_clear;
             }
@@ -1042,7 +1042,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy addrs to sandbox
                 l_new_tx_send_block = DAP_DUP_SIZE(a_item_apply_to->tx_send_block, l_new_tx_send_block_size * sizeof(dap_chain_addr_t));
                 if (!l_new_tx_send_block) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
@@ -1055,7 +1055,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     break;
             if (i == l_new_tx_send_block_size) {
                 log_it(L_WARNING, "TSD param TX_SENDER_BLOCKED_REMOVE has address %s thats not present in list",
-                        dap_chain_addr_to_str(l_add_addr));
+                        dap_chain_addr_to_str_static(l_add_addr));
                 ret = DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH;
                 goto ret_n_clear;
             }
@@ -1116,14 +1116,14 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy pkeys & its hashes to sandbox
                 l_new_pkeys = DAP_NEW_SIZE(dap_pkey_t *, l_new_signs_total * sizeof(dap_pkey_t *));
                 if (!l_new_pkeys) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
                 for (size_t i = 0; i < l_new_signs_total; i++) {
                     l_new_pkeys[i] = DAP_DUP_SIZE(a_item_apply_to->auth_pkeys[i], dap_pkey_get_size(a_item_apply_to->auth_pkeys[i]));
                     if (!l_new_pkeys[i]) {
-                        log_it(L_CRITICAL, c_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                         goto ret_n_clear;
                     }
@@ -1131,7 +1131,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 assert(!l_new_pkey_hashes);
                 l_new_pkey_hashes = DAP_DUP_SIZE(a_item_apply_to->auth_pkey_hashes, l_new_signs_total * sizeof(dap_hash_t));
                 if (!l_new_pkey_hashes) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
@@ -1162,14 +1162,14 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             l_new_pkeys = l_new_pkeys ? DAP_REALLOC(l_new_pkeys, (l_new_signs_total + 1) * sizeof(dap_pkey_t *))
                                       : DAP_NEW_Z(dap_pkey_t *);
             if (!l_new_pkeys) {
-                log_it(L_CRITICAL, c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 goto ret_n_clear;
             }
             // Pkey adding
             l_new_pkeys[l_new_signs_total] = DAP_DUP_SIZE(l_new_auth_pkey, dap_pkey_get_size(l_new_auth_pkey));
             if (!l_new_pkeys[l_new_signs_total]) {
-                log_it(L_CRITICAL, c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 goto ret_n_clear;
             }
@@ -1179,7 +1179,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             l_new_pkey_hashes = l_new_pkey_hashes ? DAP_REALLOC(l_new_pkey_hashes, (l_new_signs_total + 1) * sizeof(dap_hash_t))
                                                   : DAP_NEW_Z(dap_hash_t);
             if (!l_new_pkey_hashes) {
-                log_it(L_CRITICAL, c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 goto ret_n_clear;
             }
@@ -1198,14 +1198,14 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 // Deep copy pkeys & its hashes to sandbox
                 l_new_pkeys = DAP_NEW_SIZE(dap_pkey_t *, l_new_signs_total * sizeof(dap_pkey_t *));
                 if (!l_new_pkeys) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
                 for (size_t i = 0; i < l_new_signs_total; i++) {
                     l_new_pkeys[i] = DAP_DUP_SIZE(a_item_apply_to->auth_pkeys[i], dap_pkey_get_size(a_item_apply_to->auth_pkeys[i]));
                     if (!l_new_pkeys[i]) {
-                        log_it(L_CRITICAL, c_error_memory_alloc);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                         goto ret_n_clear;
                     }
@@ -1213,7 +1213,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 assert(!l_new_pkey_hashes);
                 l_new_pkey_hashes = DAP_DUP_SIZE(a_item_apply_to->auth_pkey_hashes, l_new_signs_total * sizeof(dap_hash_t));
                 if (!l_new_pkey_hashes) {
-                    log_it(L_CRITICAL, c_error_memory_alloc);
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                     goto ret_n_clear;
                 }
@@ -1739,7 +1739,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
         if (!l_token_update_item) {
             pthread_rwlock_unlock(&l_token_item->token_ts_updated_rwlock);
             pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
-            log_it(L_CRITICAL, c_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
         }
@@ -1926,7 +1926,7 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
                 l_header_printed = true;
             }
             //const char *l_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
-            const char *l_dst_addr_str = l_dst_addr ? dap_chain_addr_to_str(l_dst_addr)
+            const char *l_dst_addr_str = l_dst_addr ? dap_chain_addr_to_str_static(l_dst_addr)
                                                     : dap_chain_tx_out_cond_subtype_to_str(
                                                           ((dap_chain_tx_out_cond_t *)l_list_out->data)->header.subtype);
             json_object_object_add(l_json_obj_datum, "send", json_object_new_string(dap_uint256_to_char(l_value, NULL)));
@@ -1943,7 +1943,7 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
             const char *l_dst_token = (l_type == TX_ITEM_TYPE_OUT_EXT) ?
                         (const char *)(((dap_chain_tx_out_ext_t *)l_list_out->data)->token) : NULL;
             const char *l_src_addr_str = l_base_tx ? "emission"
-                                                   : (l_src_addr ? dap_chain_addr_to_str(l_src_addr)
+                                                   : (l_src_addr ? dap_chain_addr_to_str_static(l_src_addr)
                                                                  : dap_chain_tx_out_cond_subtype_to_str(
                                                                        l_src_subtype));
             json_object_object_add(l_json_obj_datum, "recv ", json_object_new_string(dap_uint256_to_char(l_value, NULL)));
@@ -2185,7 +2185,7 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item)
     json_object_object_add(json_obj_datum, "-->Token name", json_object_new_string(a_token_item->ticker));
     json_object_object_add(json_obj_datum, "type", json_object_new_string(l_type_str));
     if (a_token_item->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE && a_token_item->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC) {
-        dap_chain_datum_token_flags_dump_to_json(json_obj_datum, a_token_item->datum_token->header_native_decl.flags);
+        dap_chain_datum_token_flags_dump_to_json(json_obj_datum, "flags", a_token_item->flags);
         json_object_object_add(json_obj_datum, "description", a_token_item->description ?
                                json_object_new_string(a_token_item->description) :
                                json_object_new_string("The token description is not set"));
@@ -2626,7 +2626,7 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
                 l_chains_path = dap_strdup_printf("network/%s/%s", a_net->pub.name, l_entry_name);
                 dap_config_t * l_cfg = dap_config_open(l_chains_path);
                 uint16_t l_whitelist_size;
-                char **l_whitelist = dap_config_get_array_str(l_cfg, "ledger", "hard_accept_list", &l_whitelist_size);
+                const char **l_whitelist = dap_config_get_array_str(l_cfg, "ledger", "hard_accept_list", &l_whitelist_size);
                 for (uint16_t i = 0; i < l_whitelist_size; ++i) {
                     dap_ledger_hal_item_t *l_hal_item = DAP_NEW_Z(dap_ledger_hal_item_t);
                     if (!l_hal_item) {
@@ -2785,7 +2785,7 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
         dap_ledger_check_error_t ret = s_ledger_addr_check(l_token_item, &l_emission->hdr.address, true);
         if (ret == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
             log_it(L_WARNING, "Address %s is not in allowed to receive for emission of token %s",
-                            dap_chain_addr_to_str(&l_emission->hdr.address), l_token_item->ticker);
+                            dap_chain_addr_to_str_static(&l_emission->hdr.address), l_token_item->ticker);
             DAP_DELETE(l_emission);
             return ret;
         }
@@ -2944,7 +2944,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
         log_it(L_NOTICE, "Added token emission datum to emissions cache: type=%s value=%s token=%s to_addr=%s",
                        dap_chain_datum_emission_type_str(l_emission->hdr.type),
                        l_balance, l_emission->hdr.ticker,
-                       dap_chain_addr_to_str(&(l_emission->hdr.address)));
+                       dap_chain_addr_to_str_static(&(l_emission->hdr.address)));
     }
     if (PVT(a_ledger)->threshold_enabled)
         s_threshold_txs_proc(a_ledger);
@@ -3135,7 +3135,7 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
                 return;
             }
             l_count = 0;
-            const char *l_addr = dap_chain_addr_to_str(a_addr);
+            const char *l_addr = dap_chain_addr_to_str_static(a_addr);
             pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
             HASH_ITER(hh, PVT(a_ledger)->balance_accounts, wallet_balance, tmp) {
                 char **l_keys = dap_strsplit(wallet_balance->key, " ", -1);
@@ -3941,7 +3941,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 }
                 // Check permissions
                 if (s_ledger_addr_check(l_token_item, l_addr_from, false) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
-                    debug_if(s_debug_more, L_WARNING, "No permission to send for addr %s", dap_chain_addr_to_str(l_addr_from));
+                    debug_if(s_debug_more, L_WARNING, "No permission to send for addr %s", dap_chain_addr_to_str_static(l_addr_from));
                     l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
                     break;
                 }
@@ -4181,7 +4181,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         }
         // Check permissions
         if (s_ledger_addr_check(l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
-            debug_if(s_debug_more, L_WARNING, "No permission to receive for addr %s", dap_chain_addr_to_str(&l_tx_out_to));
+            debug_if(s_debug_more, L_WARNING, "No permission to receive for addr %s", dap_chain_addr_to_str_static(&l_tx_out_to));
             l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
             break;
         }
@@ -4519,7 +4519,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         case TX_ITEM_TYPE_IN: {
             dap_ledger_wallet_balance_t *wallet_balance = NULL;
             l_cur_token_ticker = l_bound_item->in.token_ticker;
-            const char *l_addr_str = dap_chain_addr_to_str(&l_bound_item->in.addr_from);
+            const char *l_addr_str = dap_chain_addr_to_str_static(&l_bound_item->in.addr_from);
             char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_cur_token_ticker, (char*)NULL);
             pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
             HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
@@ -4634,7 +4634,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         else if (l_addr->net_id.uint64 != a_ledger->net->pub.id.uint64 &&
                  !dap_chain_addr_is_blank(l_addr))
             l_cross_network = true;
-        const char *l_addr_str = dap_chain_addr_to_str(l_addr);
+        const char *l_addr_str = dap_chain_addr_to_str_static(l_addr);
         dap_ledger_wallet_balance_t *wallet_balance = NULL;
         char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_cur_token_ticker, (char*)NULL);
         debug_if(s_debug_more, L_DEBUG, "GOT %s to addr: %s",
@@ -4854,7 +4854,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         case TX_ITEM_TYPE_IN: {
             dap_ledger_wallet_balance_t *wallet_balance = NULL;
             l_cur_token_ticker = l_bound_item->in.token_ticker;
-            const char *l_addr_str = dap_chain_addr_to_str(&l_bound_item->in.addr_from);
+            const char *l_addr_str = dap_chain_addr_to_str_static(&l_bound_item->in.addr_from);
             char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_cur_token_ticker, (char*)NULL);
             pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
             HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
@@ -4971,7 +4971,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         else if (l_addr->net_id.uint64 != a_ledger->net->pub.id.uint64 &&
                  !dap_chain_addr_is_blank(l_addr))
             l_cross_network = true;
-        const char *l_addr_str = dap_chain_addr_to_str(l_addr);
+        const char *l_addr_str = dap_chain_addr_to_str_static(l_addr);
         dap_ledger_wallet_balance_t *wallet_balance = NULL;
         char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_cur_token_ticker, (char*)NULL);
         if(s_debug_more) {
@@ -5248,7 +5248,7 @@ uint256_t dap_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t
     uint256_t l_ret = uint256_0;
 
     dap_ledger_wallet_balance_t *l_balance_item = NULL;// ,* l_balance_item_tmp = NULL;
-    const char *l_addr = dap_chain_addr_to_str(a_addr);
+    const char *l_addr = dap_chain_addr_to_str_static(a_addr);
     char *l_wallet_balance_key = dap_strjoin(" ", l_addr, a_token_ticker, (char*)NULL);
     pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
     HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, l_balance_item);

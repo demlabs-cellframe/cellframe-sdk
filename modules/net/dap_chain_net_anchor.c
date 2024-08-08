@@ -50,6 +50,14 @@ typedef struct anchor_table{
 static bool s_verify_pubkeys(dap_sign_t *a_sign, dap_sign_t **a_decree_signs, size_t a_num_of_decree_sign);
 static inline dap_sign_t *s_concate_all_signs_in_array(dap_sign_t *a_in_signs, size_t a_signs_size, size_t *a_sings_count, size_t *a_signs_arr_size);
 
+static bool s_debug_more = false;
+
+int dap_chain_net_anchor_init()
+{
+    s_debug_more = dap_config_get_item_bool_default(g_config, "chain_net", "debug_more", s_debug_more);
+    return 0;
+}
+
 static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_anchor, size_t a_data_size, bool a_load_mode)
 {
     if (a_data_size < sizeof(dap_chain_datum_anchor_t))
@@ -161,7 +169,7 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
     }
 
     if ((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain)) != 0){
-        log_it(L_WARNING, "Decree applying failed");
+        debug_if(s_debug_more, L_WARNING, "Decree applying failed");
         return ret_val;
     }
         

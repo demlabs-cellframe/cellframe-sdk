@@ -419,11 +419,11 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 				// load priority for chain
 				l_chain->load_priority = dap_config_get_item_uint16_default(l_cfg, "chain", "load_priority", 100);
 
-				char**		l_datum_types				= NULL;
-				char**		l_default_datum_types		= NULL;
-				uint16_t	l_datum_types_count			= 0;
-				uint16_t	l_default_datum_types_count = 0;
-				uint16_t	l_count_recognized			= 0;
+                const char  **l_datum_types             = NULL;
+                const char  **l_default_datum_types     = NULL;
+                uint16_t    l_datum_types_count         = 0;
+                uint16_t    l_default_datum_types_count = 0;
+                uint16_t    l_count_recognized          = 0;
 
 				//		l_datum_types			=	(read chain datum types)
 				//	||	l_default_datum_types	=	(read chain default datum types if datum types readed and if present default datum types)
@@ -591,7 +591,7 @@ bool download_notify_callback(dap_chain_t* a_chain) {
     json_object_object_add(l_chain_info, "chain_id", json_object_new_uint64(a_chain->id.uint64));
     json_object_object_add(l_chain_info, "load_progress", json_object_new_int(a_chain->load_progress));
     dap_notify_server_send_mt(json_object_get_string(l_chain_info));
-    log_it(L_DEBUG, "Load progress: net_name: %s; chain_id: %" DAP_UINT64_FORMAT_U "; download:%d%%", a_chain->net_name, a_chain->id.uint64, a_chain->load_progress);
+    log_it(L_DEBUG, "Loading net \"%s\", chain %" DAP_UINT64_FORMAT_U " [%d%%]", a_chain->net_name, a_chain->id.uint64, a_chain->load_progress);
     json_object_put(l_chain_info);
     return true;
 }
