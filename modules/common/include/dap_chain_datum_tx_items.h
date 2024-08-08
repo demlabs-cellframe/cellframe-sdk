@@ -53,12 +53,6 @@ DAP_STATIC_INLINE dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(cons
     return a_item ? *(dap_chain_tx_item_type_t*)a_item : TX_ITEM_TYPE_UNKNOWN;
 }
 
-typedef struct dap_chain_datum_tx_item
-{
-    dap_chain_tx_item_type_t type;
-    byte_t data[];
-} DAP_ALIGN_PACKED dap_chain_datum_tx_item_t;
-
 /**
  * Get item name by item type
  *
@@ -142,7 +136,7 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
  *
  * return size, 0 Error
  */
-size_t dap_chain_datum_item_tx_get_size(const void *a_item);
+size_t dap_chain_datum_item_tx_get_size(const dap_chain_datum_tx_item_t *a_item, size_t a_max_size);
 
 /**
  * Create item dap_chain_tx_in_ems_t
@@ -274,7 +268,7 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
  * return item data, NULL Error index or bad format transaction
  */
 uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
-        dap_chain_tx_item_type_t a_type, int *a_item_out_size);
+        byte_t *a_iter, dap_chain_tx_item_type_t a_type, int *a_item_out_size);
 // Get Nth item of pointed type
 uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int a_item_idx);
 // Get all item from transaction by type
@@ -282,5 +276,8 @@ dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_t
 // Get conditional out item with it's idx
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_subtype_t a_cond_subtype, int *a_out_num);
 // Get output by output index
-uint8_t *dap_chain_datum_tx_out_get_by_out_idx(dap_chain_datum_tx_t *a_tx, int a_out_num);
+DAP_STATIC_INLINE uint8_t *dap_chain_datum_tx_out_get_by_out_idx(dap_chain_datum_tx_t *a_tx, int a_out_num)
+{
+    return dap_chain_datum_tx_item_get(a_tx, &a_out_num, NULL, TX_ITEM_TYPE_OUT_ALL, NULL);
+}
 

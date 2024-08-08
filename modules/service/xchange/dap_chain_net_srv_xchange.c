@@ -679,7 +679,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         return NULL;
     }
     const dap_chain_addr_t *l_seller_addr = &l_tx_out_cond->subtype.srv_xchange.seller_addr;
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &a_price->tx_hash, l_prev_cond_idx, 0)) {
+    if (1 != dap_chain_datum_tx_add_in_cond_item(&l_tx, &a_price->tx_hash, l_prev_cond_idx, 0)) {
         dap_chain_datum_tx_delete(l_tx);
         log_it(L_ERROR, "Can't add conditional input");
         return NULL;
@@ -1941,13 +1941,11 @@ size_t l_tx_total;
     return  0;
 }
 
-void s_tx_is_order_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
+void s_tx_is_order_check(UNUSED_ARG dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, UNUSED_ARG dap_hash_fast_t *a_tx_hash, void *a_arg)
 {
-    UNUSED(a_net);
-    UNUSED(a_tx_hash);
     dap_list_t **l_tx_list_ptr = a_arg;
-    if (dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL) &&
-            !dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_IN_COND, NULL))
+    if ( dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, NULL) &&
+        !dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_IN_COND, NULL))
        *l_tx_list_ptr = dap_list_append(*l_tx_list_ptr, a_tx);
 }
 

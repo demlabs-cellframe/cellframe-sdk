@@ -460,32 +460,18 @@ dap_list_t * dap_chain_net_get_tx_cond_all_for_addr(dap_chain_net_t * a_net, dap
     return l_ret;
 }
 
-static void s_tx_cond_all_by_srv_uid_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
+static void s_tx_cond_all_by_srv_uid_callback(UNUSED_ARG dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, UNUSED_ARG dap_hash_fast_t *a_tx_hash, void *a_arg)
 {
-    UNUSED(a_net);
-    UNUSED(a_tx_hash);
+    cond_all_by_srv_uid_arg_t *l_ret = (cond_all_by_srv_uid_arg_t*)a_arg;
 
-    cond_all_by_srv_uid_arg_t *l_ret = (cond_all_by_srv_uid_arg_t *)a_arg;
-    dap_chain_datum_tx_t *l_tx = a_tx;
-
-    // Check for time from
-    if(l_ret->time_from && l_tx->header.ts_created < l_ret->time_from)
+    if (l_ret->time_from && a_tx->header.ts_created < l_ret->time_from
+        || l_ret->time_to && a_tx->header.ts_created > l_ret->time_to)
         return;
 
-    // Check for time to
-    if(l_ret->time_to && l_tx->header.ts_created > l_ret->time_to)
-        return;
-
-    // Check for OUT_COND items
-    dap_list_t *l_list_out_cond_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_COND, NULL), *l_out_cond_item;
-    if(l_list_out_cond_items) {
-        DL_FOREACH(l_list_out_cond_items, l_out_cond_item) {
-                dap_chain_tx_out_cond_t *l_tx_out_cond = (dap_chain_tx_out_cond_t*)l_out_cond_item->data;
-                if (l_tx_out_cond && l_tx_out_cond->header.srv_uid.uint64 == l_ret->srv_uid.uint64) {
-                    l_ret->ret = dap_list_append(l_ret->ret, l_tx);
-                }
-        }
-        dap_list_free(l_list_out_cond_items);
+    dap_chain_datum_tx_item_t *item; size_t l_size;
+    TX_ITEM_ITER_TX(item, l_size, a_tx) {
+        if ( item->type == TX_ITEM_TYPE_OUT_COND && l_ret->srv_uid.uint64 == ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64 )
+            l_ret->ret = dap_list_append(l_ret->ret, a_tx);
     }
 }
 

@@ -216,7 +216,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              dap_chain_net_id_t a_net_id)
 {
     bool l_is_first = false;
-    dap_chain_tx_in_t *l_in_item = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(a_datum, NULL, TX_ITEM_TYPE_IN, NULL);
+    dap_chain_tx_in_t *l_in_item = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(a_datum, NULL, NULL, TX_ITEM_TYPE_IN, NULL);
     if (l_in_item && dap_hash_fast_is_blank(&l_in_item->header.tx_prev_hash))
         l_is_first = true;
     char l_tmp_buf[DAP_TIME_STR_SIZE];
@@ -228,9 +228,9 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              l_is_first ? " (emit)" : "", l_hash_str, l_tmp_buf,
                              a_ticker ? " Token ticker: " : "", a_ticker ? a_ticker : "");
     dap_hash_fast_t *l_hash_tmp = NULL;
-    byte_t *item; size_t l_tx_item_size;
-    dap_chain_datum_tx_item_iter(item, l_tx_item_size, a_datum->tx_items, a_datum->header.tx_items_size) {
-        switch(dap_chain_datum_tx_item_get_type(item)) {
+    dap_chain_datum_tx_item_t *item; size_t l_size;
+    TX_ITEM_ITER_TX(item, l_size, a_datum) {
+        switch (item->type) {
         case TX_ITEM_TYPE_IN:
             l_hash_tmp = &((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
             if (dap_hash_fast_is_blank(l_hash_tmp)) {
@@ -465,7 +465,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
         } break;
         case TX_ITEM_TYPE_VOTING:{
             int l_tsd_size = 0;
-            dap_chain_tx_tsd_t *l_item = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_datum, 0, TX_ITEM_TYPE_TSD, &l_tsd_size);
+            dap_chain_tx_tsd_t *l_item = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_datum, NULL, (byte_t*)item + l_size, TX_ITEM_TYPE_TSD, &l_tsd_size);
             if (!l_item || !l_tsd_size)
                     break;
             dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_voting_parse_tsd(a_datum);
@@ -527,7 +527,7 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
                              dap_chain_net_id_t a_net_id)
 {
     bool l_is_first = false;
-    dap_chain_tx_in_t *l_in_item = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(a_datum, NULL, TX_ITEM_TYPE_IN, NULL);
+    dap_chain_tx_in_t *l_in_item = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(a_datum, NULL, NULL, TX_ITEM_TYPE_IN, NULL);
     if (l_in_item && dap_hash_fast_is_blank(&l_in_item->header.tx_prev_hash))
         l_is_first = true;
     char l_tmp_buf[DAP_TIME_STR_SIZE];
@@ -545,10 +545,10 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
     //json_object_array_add(json_arr_items, json_obj_tx);
 
     dap_hash_fast_t *l_hash_tmp = NULL;
-    byte_t *item; size_t l_tx_item_size;
-    dap_chain_datum_tx_item_iter(item, l_tx_item_size, a_datum->tx_items, a_datum->header.tx_items_size) {
+    dap_chain_datum_tx_item_t *item; size_t l_size;
+    TX_ITEM_ITER_TX(item, l_size, a_datum) {
         json_object* json_obj_item = json_object_new_object();
-        switch(dap_chain_datum_tx_item_get_type(item)){
+        switch (item->type) {
         case TX_ITEM_TYPE_IN:
             l_hash_tmp = &((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
             if (dap_hash_fast_is_blank(l_hash_tmp)) {
@@ -757,7 +757,7 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
         } break;
         case TX_ITEM_TYPE_VOTING:{
             int l_tsd_size = 0;
-            dap_chain_tx_tsd_t *l_item = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_datum, 0, TX_ITEM_TYPE_TSD, &l_tsd_size);
+            dap_chain_tx_tsd_t *l_item = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_datum, NULL, (byte_t*)item + l_size, TX_ITEM_TYPE_TSD, &l_tsd_size);
             if (!l_item || !l_tsd_size)
                     break;
             dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_voting_parse_tsd(a_datum);

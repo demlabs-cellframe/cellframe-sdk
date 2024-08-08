@@ -588,7 +588,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     log_it(L_DEBUG, "Create %"DAP_UINT64_FORMAT_U" transactions, summary %s", a_tx_num, l_balance);
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
-                                                                          a_addr_from, l_value_need, &l_value_transfer);
+                                                                       a_addr_from, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_WARNING,"Not enough funds to transfer");
         DAP_DELETE(l_objs);
@@ -596,8 +596,8 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     }
     
     dap_chain_hash_fast_t l_tx_new_hash = {0};
-    for (size_t i=0; i< a_tx_num ; i++){
-        log_it(L_DEBUG, "Prepare tx %zu",i);
+    for (size_t i=0; i < a_tx_num; ++i){
+        log_it(L_DEBUG, "Prepare tx %zu", i);
         // find the transactions from which to take away coins
 
         // create empty transaction
@@ -613,7 +613,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
             dap_chain_hash_fast_to_str(&l_item->tx_hash_fast, l_in_hash_str, sizeof(l_in_hash_str));
 
             l_balance = dap_uint256_to_char(l_item->value, NULL);
-            if (dap_chain_datum_tx_add_in_item(&l_tx_new, &l_item->tx_hash_fast, l_item->num_idx_out)) {
+            if (1 == dap_chain_datum_tx_add_in_item(&l_tx_new, &l_item->tx_hash_fast, l_item->num_idx_out)) {
                 SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
                 log_it(L_DEBUG, "Added input %s with %s datoshi", l_in_hash_str, l_balance);
             } else {
@@ -688,48 +688,35 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         }
         // now tx is formed - calc size and hash
         size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx_new);
-
         dap_hash_fast(l_tx_new, l_tx_size, &l_tx_new_hash);
         // If we have value back - update balance cache
         if (!IS_ZERO_256(l_value_back)) {
             //log_it(L_DEBUG,"We have value back %"DAP_UINT64_FORMAT_U" now lets see how many outputs we have", l_value_back);
-            int l_item_count = 0;
-            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get( l_tx_new, TX_ITEM_TYPE_OUT_ALL,
-                    &l_item_count);
-            dap_list_t *l_list_tmp = l_list_out_items;
-            int l_out_idx_tmp = 0; // current index of 'out' item
-            //log_it(L_DEBUG,"We have %d outputs in new TX", l_item_count);
-            while(l_list_tmp) {
-                dap_chain_tx_out_t *l_out = l_list_tmp->data;
-                if( ! l_out){
-                    log_it(L_WARNING, "Output is NULL, continue check outputs...");
-                    l_out_idx_tmp++;
+            int l_out_idx = 0;
+            dap_chain_datum_tx_item_t *l_item; size_t l_size;
+            TX_ITEM_ITER_TX(l_item, l_size, l_tx_new) {
+                switch (l_item->type) {
+                case TX_ITEM_TYPE_OUT_COND:
+                    ++l_out_idx;
                     continue;
-                }
-                if (l_out->header.type == TX_ITEM_TYPE_OUT_COND) {
-                    l_list_tmp = l_list_tmp->next;
-                    l_out_idx_tmp++;
-                    continue;
-                }
-                if ( memcmp(&l_out->addr, a_addr_from, sizeof (*a_addr_from))==0 ){
-                    dap_chain_tx_used_out_item_t *l_item_back = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
-                    if (!l_item_back) {
-                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                        dap_list_free_full(l_list_used_out, NULL);
-                        DAP_DELETE(l_objs);
-                        return -6;
+                case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_OLD: case TX_ITEM_TYPE_OUT_EXT:
+                    if ( dap_chain_addr_compare(a_addr_from, &((dap_chain_tx_out_t*)l_item)->addr) ) {
+                        ++l_out_idx;
+                        continue;
                     }
+                    dap_chain_tx_used_out_item_t *l_item_back = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
                     *l_item_back = (dap_chain_tx_used_out_item_t) {
-                            .tx_hash_fast   = l_tx_new_hash,
-                            .num_idx_out    = l_out_idx_tmp,
-                            .value          = l_value_back
+                        .tx_hash_fast   = l_tx_new_hash,
+                        .num_idx_out    = l_out_idx,
+                        .value          = l_value_back
                     };
                     l_list_used_out = dap_list_prepend(l_list_used_out, l_item_back);
                     log_it(L_DEBUG,"Found change back output, stored back in UTXO table");
                     break;
-                 }
-                l_list_tmp = l_list_tmp->next;
-                l_out_idx_tmp++;
+                default:
+                    continue;
+                }
+                break; // Chargeback out found, exit iteration
             }
         }
         SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_transfer);
@@ -844,7 +831,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_datum_tx_add_item(&l_tx, (byte_t*)a_receipt);
     // add 'in_cond' items
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, l_tx_final_hash, l_out_cond_idx, 0)) {
+    if (1 != dap_chain_datum_tx_add_in_cond_item(&l_tx, l_tx_final_hash, l_out_cond_idx, 0)) {
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Can`t add tx cond input");
         if (a_ret_status)
