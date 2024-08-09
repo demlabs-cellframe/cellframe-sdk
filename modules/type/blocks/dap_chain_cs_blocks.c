@@ -1887,7 +1887,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                 dap_chain_block_forked_branch_atoms_table_t *l_item = NULL;
                 // Check block already present in forked branch
                 HASH_FIND(hh, l_cur_branch->forked_branch_atoms, &l_block_hash, sizeof(dap_hash_fast_t), l_item);
-                if (l_item && dap_hash_fast_compare(&l_item->block_hash, &l_block_hash)){
+                if (l_item) {
                     debug_if(s_debug_more,L_DEBUG,"%s","Block already exist in forked branch.");
                     ret = ATOM_PASS;
                     break;
@@ -1907,25 +1907,26 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                     break;
                 }
             }
-
-            // search block and previous block in main branch
-            unsigned l_checked_atoms_cnt = DAP_FORK_MAX_DEPTH;
-            for (dap_chain_block_cache_t *l_tmp = l_bcache_last; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--){
-                if(dap_hash_fast_compare(&l_tmp->block_hash, &l_block_hash)){
-                    debug_if(s_debug_more,L_DEBUG,"%s","Block is already exist in main branch.");
-                    ret = ATOM_PASS;
-                    break;
-                }
-
-                if (dap_hash_fast_compare(&l_tmp->block_hash, &l_block_prev_hash)) {
-                    if (l_tmp->hh.next) {
-                        debug_if(s_debug_more,L_DEBUG,"%s","New fork!");
-                        ret = ATOM_FORK;
+            if (ret == ATOM_MOVE_TO_THRESHOLD) {
+                // search block and previous block in main branch
+                unsigned l_checked_atoms_cnt = DAP_FORK_MAX_DEPTH;
+                for (dap_chain_block_cache_t *l_tmp = l_bcache_last; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--){
+                    if(dap_hash_fast_compare(&l_tmp->block_hash, &l_block_hash)){
+                        debug_if(s_debug_more,L_DEBUG,"%s","Block is already exist in main branch.");
+                        ret = ATOM_PASS;
                         break;
                     }
-                    debug_if(s_debug_more,L_DEBUG,"%s","Accept block to a main branch.");
-                    ret = ATOM_ACCEPT;
-                    break;
+
+                    if (dap_hash_fast_compare(&l_tmp->block_hash, &l_block_prev_hash)) {
+                        if (l_tmp->hh.next) {
+                            debug_if(s_debug_more,L_DEBUG,"%s","New fork!");
+                            ret = ATOM_FORK;
+                            break;
+                        }
+                        debug_if(s_debug_more,L_DEBUG,"%s","Accept block to a main branch.");
+                        ret = ATOM_ACCEPT;
+                        break;
+                    }
                 }
             }
             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
