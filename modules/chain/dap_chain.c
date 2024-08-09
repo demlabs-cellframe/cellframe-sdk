@@ -419,11 +419,11 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 				// load priority for chain
 				l_chain->load_priority = dap_config_get_item_uint16_default(l_cfg, "chain", "load_priority", 100);
 
-				char**		l_datum_types				= NULL;
-				char**		l_default_datum_types		= NULL;
-				uint16_t	l_datum_types_count			= 0;
-				uint16_t	l_default_datum_types_count = 0;
-				uint16_t	l_count_recognized			= 0;
+                const char  **l_datum_types             = NULL;
+                const char  **l_default_datum_types     = NULL;
+                uint16_t    l_datum_types_count         = 0;
+                uint16_t    l_default_datum_types_count = 0;
+                uint16_t    l_count_recognized          = 0;
 
 				//		l_datum_types			=	(read chain datum types)
 				//	||	l_default_datum_types	=	(read chain default datum types if datum types readed and if present default datum types)

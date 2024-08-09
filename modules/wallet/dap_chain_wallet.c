@@ -359,11 +359,13 @@ const char* dap_chain_wallet_get_path(dap_config_t * a_config)
         return  s_wallets_path;                                             /* Fine, just return existen value */
 
                                                                             /* Retrieve Wallet's store path from config */
-    if ( !(l_cp = (char *) dap_config_get_item_str(a_config, "resources", "wallets_path")) )
+    if ( !(l_cp = dap_config_get_item_str_path_default(a_config, "resources", "wallets_path", NULL)) )
         return  log_it(L_WARNING, "No path to wallet's store has been defined"), l_cp;
 
 
-    return  strncpy(s_wallets_path, l_cp, sizeof(s_wallets_path) - 1 );     /* Make local copy , return it to caller */
+    strncpy(s_wallets_path, l_cp, sizeof(s_wallets_path) - 1 );     /* Make local copy , return it to caller */
+    DAP_DEL_Z(l_cp);
+    return s_wallets_path;
 }
 
 /**
