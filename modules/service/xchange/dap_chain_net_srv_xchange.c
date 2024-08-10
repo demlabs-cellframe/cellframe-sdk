@@ -466,7 +466,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
                                                                        &l_seller_addr, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
         log_it(L_WARNING, "Nothing to change from %s (not enough funds in %s (%s))",
-               dap_chain_addr_to_str( &l_seller_addr), a_price->token_sell, dap_chain_balance_print(l_value_need));
+               dap_chain_addr_to_str_static( &l_seller_addr), a_price->token_sell, dap_chain_balance_print(l_value_need));
         return NULL;
     }
 
@@ -614,7 +614,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
                                                                        &l_buyer_addr, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_WARNING, "Nothing to change from %s (not enough funds in %s (%s))",
-               dap_chain_addr_to_str( &l_buyer_addr), a_price->token_buy, dap_chain_balance_print(l_value_need));
+               dap_chain_addr_to_str_static( &l_buyer_addr), a_price->token_buy, dap_chain_balance_print(l_value_need));
         return NULL;
     }
     bool l_pay_with_native = !dap_strcmp(a_price->token_sell, l_native_ticker);
@@ -2611,7 +2611,7 @@ json_object *dap_chain_net_srv_xchange_print_fee_json(dap_chain_net_t *a_net) {
         json_object *l_jobj_xchange = json_object_new_object();
         json_object_object_add(l_jobj_xchange, "coin",      json_object_new_string(l_fee_coins));
         json_object_object_add(l_jobj_xchange, "balance",   json_object_new_string(l_fee_balance));
-        json_object_object_add(l_jobj_xchange, "addr",      json_object_new_string(dap_chain_addr_to_str(&l_addr)));
+        json_object_object_add(l_jobj_xchange, "addr",      json_object_new_string(dap_chain_addr_to_str_static(&l_addr)));
         json_object_object_add(l_jobj_xchange, "type",      json_object_new_string(dap_chain_net_srv_fee_type_to_str((dap_chain_net_srv_fee_type_t)l_type)));
         return l_jobj_xchange;
     } else {
@@ -2631,7 +2631,7 @@ void dap_chain_net_srv_xchange_print_fee(dap_chain_net_t *a_net, dap_string_t *a
                                                "\t\tFee: %s (%s)\n"
                                                "\t\tAddr: %s\n"
                                                "\t\tType: %s\n",
-                                l_fee_coins, l_fee_balance, dap_chain_addr_to_str(&l_addr),
+                                l_fee_coins, l_fee_balance, dap_chain_addr_to_str_static(&l_addr),
                                 dap_chain_net_srv_fee_type_to_str((dap_chain_net_srv_fee_type_t)l_type));
     } else {
         dap_string_append_printf(a_string_ret, "\txchange:\n"

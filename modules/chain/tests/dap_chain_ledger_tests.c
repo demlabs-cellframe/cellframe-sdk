@@ -751,7 +751,7 @@ addr_key_container_t *gen_addr(dap_chain_net_id_t a_iddn){
     dap_chain_addr_fill_from_key(l_addr, l_new_key, a_iddn);
     l_container->enc_key = l_new_key;
     l_container->addr = l_addr;
-    l_container->str = dap_strdup(dap_chain_addr_to_str(l_container->addr));
+    l_container->str = dap_strdup(dap_chain_addr_to_str_static(l_container->addr));
     return l_container;
 }
 

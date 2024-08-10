@@ -225,7 +225,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
             }
             dap_chain_addr_t *l_addr_fee_wallet = /*{ };
             _dap_tsd_get_scalar(l_tsd, &l_addr_fee_wallet);*/ _dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-            dap_string_append_printf(a_str_out, "\tWallet for fee: %s\n", dap_chain_addr_to_str(l_addr_fee_wallet));
+            dap_string_append_printf(a_str_out, "\tWallet for fee: %s\n", dap_chain_addr_to_str_static(l_addr_fee_wallet));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH:
             if (l_tsd->size != sizeof(dap_hash_fast_t)) {
@@ -256,13 +256,12 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
             }
             dap_chain_addr_t *l_stake_addr_signing = /*{ };
             _dap_tsd_get_scalar(l_tsd, &l_stake_addr_signing);*/ _dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-            dap_string_append_printf(a_str_out, "\tSigning addr: %s\n", dap_chain_addr_to_str(l_stake_addr_signing));
+            dap_string_append_printf(a_str_out, "\tSigning addr: %s\n", dap_chain_addr_to_str_static(l_stake_addr_signing));
             dap_chain_hash_fast_t l_pkey_signing = l_stake_addr_signing->data.hash_fast;
             const char *l_pkey_signing_str = dap_strcmp(a_hash_out_type, "hex")
-                ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_signing)
-                : dap_chain_hash_fast_to_str_static(&l_pkey_signing);
+                    ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_signing)
+                    : dap_chain_hash_fast_to_str_static(&l_pkey_signing);
             dap_string_append_printf(a_str_out, "\tSigning pkey fingerprint: %s\n", l_pkey_signing_str);
-            break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
             if (l_tsd->size != sizeof(dap_chain_node_addr_t)){
                 dap_string_append_printf(a_str_out, "\tNode addr: <WRONG SIZE>\n");
@@ -428,8 +427,7 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             }
             dap_chain_addr_t *l_addr_fee_wallet = /*{ };
             _dap_tsd_get_scalar(l_tsd, &l_addr_fee_wallet);*/ _dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-            json_object_object_add(a_json_out, "Wallet for fee", json_object_new_string(dap_chain_addr_to_str(l_addr_fee_wallet)));
-            break;
+            json_object_object_add(a_json_out, "Wallet for fee", json_object_new_string(dap_chain_addr_to_str_static(l_addr_fee_wallet)));
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH:
             if (l_tsd->size > sizeof(dap_hash_fast_t)) {
                 json_object_object_add(a_json_out, "Stake tx", json_object_new_string("WRONG SIZE"));
@@ -452,20 +450,19 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             const char *l_stake_value_str = dap_uint256_to_char(l_stake_value, NULL);
             json_object_object_add(a_json_out, "Stake value", json_object_new_string(l_stake_value_str));
             break;
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR:
+       case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR:
             if (l_tsd->size > sizeof(dap_chain_addr_t)) {
                 json_object_object_add(a_json_out, "Signing addr", json_object_new_string("WRONG SIZE"));
                 break;
             }
             dap_chain_addr_t *l_stake_addr_signing = /*{ };
             _dap_tsd_get_scalar(l_tsd, &l_stake_addr_signing);*/ _dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-            json_object_object_add(a_json_out, "Signing addr", json_object_new_string(dap_chain_addr_to_str(l_stake_addr_signing)));
+            json_object_object_add(a_json_out, "Signing addr", json_object_new_string(dap_chain_addr_to_str_static(l_stake_addr_signing)));
             dap_chain_hash_fast_t l_pkey_signing = l_stake_addr_signing->data.hash_fast;
             const char *l_pkey_signing_str = dap_strcmp(a_hash_out_type, "hex")
                     ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_signing)
                     : dap_chain_hash_fast_to_str_static(&l_pkey_signing);
             json_object_object_add(a_json_out, "Signing pkey fingerprint", json_object_new_string(l_pkey_signing_str));
-            break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
             if(l_tsd->size > sizeof(dap_chain_node_addr_t)){
                 json_object_object_add(a_json_out, "Node addr", json_object_new_string("WRONG SIZE"));
