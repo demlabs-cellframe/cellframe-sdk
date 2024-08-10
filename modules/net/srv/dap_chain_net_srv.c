@@ -791,42 +791,35 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
 
     // check remainder on srv pay cond out is valid
     // find 'out' items
-    dap_list_t *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx_in, TX_ITEM_TYPE_OUT_ALL, NULL);
     uint256_t l_value = l_receipt->receipt_info.value_datoshi;
     uint256_t l_cond_out_value = {};
-    dap_chain_addr_t l_network_fee_addr = {};
+    dap_chain_addr_t l_network_fee_addr = {}, l_out_addr = {};
     dap_chain_net_tx_get_fee(a_ledger->net->pub.id, NULL, &l_network_fee_addr);
-    int l_item_idx = 0;
-    for (dap_list_t * l_list_tmp = l_list_out; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_item_idx++) {
-        dap_chain_tx_item_type_t l_type = *(uint8_t *)l_list_tmp->data;
-        switch (l_type) {
+    byte_t *l_item; size_t l_size; int i, l_item_idx = -1;
+    TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, a_tx_in) {
+        ++l_item_idx;
+        switch (*l_item) {
         case TX_ITEM_TYPE_OUT: { // 256
-            dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)l_list_tmp->data;
-            if (dap_chain_addr_compare(&l_tx_out->addr, &l_network_fee_addr)){
+            dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t*)l_item;
+            l_out_addr = l_tx_out->addr;
+            if (dap_chain_addr_compare(&l_out_addr, &l_network_fee_addr)){
                 SUM_256_256(l_value, l_tx_out->header.value, &l_value);
             }
         } break;
         case TX_ITEM_TYPE_OUT_COND: {
-            dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t *)l_list_tmp->data;
+            dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t*)l_item;
             if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE){
                 SUM_256_256(l_value, l_tx_out->header.value, &l_value);
             } else if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY){
                 l_cond_out_value = l_tx_out->header.value;
             }
         } break;
-        default: {}
+        default:
+            break;
         }
     }
-
-
     SUBTRACT_256_256(l_prev_out_cond->header.value, l_value, &l_value);
-    if (compare256(l_value, l_cond_out_value)){
-        log_it(L_ERROR, "Value in tx out is invalid!");
-        dap_list_free(l_list_out);
-        return -13;
-    }
-    dap_list_free(l_list_out);
-    return 0;
+    return compare256(l_value, l_cond_out_value) ? log_it(L_ERROR, "Value in tx out is invalid!"), -13 : 0;
 }
 
 dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net_srv_t *a_srv, const char *a_config_section, dap_chain_hash_fast_t* a_order_hash){

@@ -191,10 +191,6 @@ enum dap_chain_tx_item_type {
 };
 #define TX_ITEM_TYPE_UNKNOWN TX_ITEM_TYPE_ANY
 typedef byte_t dap_chain_tx_item_type_t;
-typedef struct dap_chain_datum_tx_item {
-    dap_chain_tx_item_type_t type;
-    byte_t data[];
-} DAP_ALIGN_PACKED dap_chain_datum_tx_item_t;
 
 #ifdef __cplusplus
 extern "C" {

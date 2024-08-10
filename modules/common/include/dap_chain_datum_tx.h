@@ -44,13 +44,17 @@ typedef struct dap_chain_datum_tx {
 #define TX_ITEM_ITER(item, item_size, data, total_size)                                                             \
     for ( byte_t *l_pos = (byte_t*)(data), *l_end = l_pos + (total_size) > l_pos ? l_pos + (total_size) : l_pos;    \
           !!( item = l_pos < l_end                                                                                  \
-          && (item_size = dap_chain_datum_item_tx_get_size((const dap_chain_datum_tx_item_t*)l_pos, l_end - l_pos)) \
-            ? (dap_chain_datum_tx_item_t*)l_pos : NULL );                                                           \
+          && (item_size = dap_chain_datum_item_tx_get_size(l_pos, l_end - l_pos))                                   \
+            ? l_pos : NULL );                                                           \
         l_pos += item_size )
 
 #define TX_ITEM_ITER_TX(item, item_size, tx) \
     TX_ITEM_ITER(item, item_size, tx->tx_items, tx->header.tx_items_size)
 
+#define TX_ITEM_ITER_TX_TYPE(item, item_type, item_size, item_index, tx)                                            \
+    for ( item_size = 0, item_index = 0;                                                                            \
+        !!( item = dap_chain_datum_tx_item_get(tx, &item_index, (byte_t*)item + item_size, item_type, &item_size) );\
+        item_index = 0 )
 /**
  * Create empty transaction
  *

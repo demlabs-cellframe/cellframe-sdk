@@ -35,6 +35,7 @@
 #include "dap_chain_datum_hashtree_roots.h"
 #include "dap_enc_base58.h"
 #include "dap_sign.h"
+#include "dap_tsd.h"
 
 #define LOG_TAG "dap_chain_datum"
 
@@ -227,19 +228,15 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
     dap_string_append_printf(a_str_out, "transaction:%s hash %s\n TS Created: %s%s%s\n Items:\n",
                              l_is_first ? " (emit)" : "", l_hash_str, l_tmp_buf,
                              a_ticker ? " Token ticker: " : "", a_ticker ? a_ticker : "");
-    dap_hash_fast_t *l_hash_tmp = NULL;
-    dap_chain_datum_tx_item_t *item; size_t l_size;
+    dap_hash_fast_t l_hash_tmp = { };
+    byte_t *item; size_t l_size;
     TX_ITEM_ITER_TX(item, l_size, a_datum) {
-        switch (item->type) {
+        switch (*item) {
         case TX_ITEM_TYPE_IN:
-            l_hash_tmp = &((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
-            if (dap_hash_fast_is_blank(l_hash_tmp)) {
-                l_hash_str = "BLANK";
-            } else {
-                l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                        ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
-                        : dap_chain_hash_fast_to_str_static(l_hash_tmp);
-            }
+            l_hash_tmp = ((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
+            l_hash_str = !dap_hash_fast_is_blank(l_hash_tmp) 
+                ? dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp) : dap_chain_hash_fast_to_str_static(&l_hash_tmp)
+                : "BLANK";
             dap_string_append_printf(a_str_out, "\t IN:\nTx_prev_hash: %s\n"
                                                 "\t\t Tx_out_prev_idx: %u\n",
                                         l_hash_str,
@@ -267,10 +264,10 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                         l_addr_str);
         } break;
         case TX_ITEM_TYPE_IN_EMS: {
-            l_hash_tmp = &((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash;
+            l_hash_tmp = ((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash;
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                    ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
-                    : dap_chain_hash_fast_to_str_static(l_hash_tmp);
+                    ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
+                    : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
             dap_string_append_printf(a_str_out, "\t IN_EMS:\n"
                                                 "\t\t ticker: %s \n"
                                                 "\t\t token_emission_hash: %s\n"
@@ -302,10 +299,10 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
         } break; */
 
         case TX_ITEM_TYPE_IN_REWARD: {
-            l_hash_tmp = &((dap_chain_tx_in_reward_t *)item)->block_hash;
+            l_hash_tmp = ((dap_chain_tx_in_reward_t *)item)->block_hash;
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                    ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
-                    : dap_chain_hash_fast_to_str_static(l_hash_tmp);
+                    ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
+                    : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
             dap_string_append_printf(a_str_out, "\t IN_REWARD:\n"
                                                 "\t\t block_hash: %s\n",
                                                 l_hash_str);
@@ -380,10 +377,10 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      ((dap_chain_tx_tsd_t*)item)->header.size);
         } break;
         case TX_ITEM_TYPE_IN_COND:
-            l_hash_tmp = &((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
+            l_hash_tmp = ((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                    ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
-                    : dap_chain_hash_fast_to_str_static(l_hash_tmp);
+                    ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
+                    : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
             dap_string_append_printf(a_str_out, "\t IN COND:\n\t\tReceipt_idx: %u\n"
                                                 "\t\t Tx_prev_hash: %s\n"
                                                 "\t\t Tx_out_prev_idx: %u\n",
@@ -408,10 +405,10 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: {
                     const char *l_coins_str, *l_value_str =
                         dap_uint256_to_char( ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi, &l_coins_str );
-                    l_hash_tmp = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash;
+                    l_hash_tmp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash;
                     l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                            ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
-                            : dap_chain_hash_fast_to_str_static(l_hash_tmp);
+                            ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
+                            : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
                     dap_string_append_printf(a_str_out, "\t\t\t unit: 0x%08x\n"
                                                         "\t\t\t pkey: %s\n"
                                                         "\t\t\t max price: %s (%s)\n",
@@ -423,10 +420,10 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: {
                     dap_chain_node_addr_t *l_signer_node_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signer_node_addr;
                     dap_chain_addr_t *l_signing_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signing_addr;
-                    l_hash_tmp = &l_signing_addr->data.hash_fast;
+                    l_hash_tmp = l_signing_addr->data.hash_fast;
                     l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                            ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
-                            : dap_chain_hash_fast_to_str_static(l_hash_tmp);
+                            ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
+                            : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
                     dap_string_append_printf(a_str_out, "\t\t\t signing_addr: %s\n"
                                                         "\t\t\t with pkey hash %s\n"
                                                         "\t\t\t signer_node_addr: "NODE_ADDR_FP_STR"\n",
@@ -544,20 +541,16 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
     json_object_object_add(json_obj_out, "Token ticker", a_ticker ? json_object_new_string(a_ticker) : json_object_new_string(""));
     //json_object_array_add(json_arr_items, json_obj_tx);
 
-    dap_hash_fast_t *l_hash_tmp = NULL;
-    dap_chain_datum_tx_item_t *item; size_t l_size;
+    dap_hash_fast_t l_hash_tmp = { };
+    byte_t *item; size_t l_size;
     TX_ITEM_ITER_TX(item, l_size, a_datum) {
         json_object* json_obj_item = json_object_new_object();
-        switch (item->type) {
+        switch (*item) {
         case TX_ITEM_TYPE_IN:
-            l_hash_tmp = &((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
-            if (dap_hash_fast_is_blank(l_hash_tmp)) {
-                l_hash_str = "BLANK";
-            } else {
-                l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                        ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
-                        : dap_chain_hash_fast_to_str_static(l_hash_tmp);
-            }
+            l_hash_tmp = ((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
+            l_hash_str = !dap_hash_fast_is_blank(&l_hash_tmp)
+                ? dap_strcmp(a_hash_out_type, "hex") : dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp) : dap_chain_hash_fast_to_str_static(&l_hash_tmp)
+                : "BLANK";
             json_object_object_add(json_obj_item,"item type", json_object_new_string("IN"));
             json_object_object_add(json_obj_item,"Tx prev hash", json_object_new_string(l_hash_str));
             json_object_object_add(json_obj_item,"Tx out prev idx", json_object_new_uint64(((dap_chain_tx_in_t*)item)->header.tx_out_prev_idx));
@@ -580,10 +573,10 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
         } break;
         case TX_ITEM_TYPE_IN_EMS: {
             char l_tmp_buff[70]={0};
-            l_hash_tmp = &((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash;
+            l_hash_tmp = ((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash;
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                    ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
-                    : dap_chain_hash_fast_to_str_static(l_hash_tmp);
+                    ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
+                    : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
             json_object_object_add(json_obj_item,"item type", json_object_new_string("IN_EMS"));
             json_object_object_add(json_obj_item,"ticker", json_object_new_string(((dap_chain_tx_in_ems_t*)item)->header.ticker));
             json_object_object_add(json_obj_item,"token_emission_hash", json_object_new_string(l_hash_str));
@@ -613,10 +606,10 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
         } break; */
 
         case TX_ITEM_TYPE_IN_REWARD: {
-            l_hash_tmp = &((dap_chain_tx_in_reward_t *)item)->block_hash;
+            l_hash_tmp = ((dap_chain_tx_in_reward_t *)item)->block_hash;
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                    ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
-                    : dap_chain_hash_fast_to_str_static(l_hash_tmp);
+                    ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
+                    : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
             json_object_object_add(json_obj_item,"item type", json_object_new_string("IN_REWARD"));
             json_object_object_add(json_obj_item,"block_hash", json_object_new_string(l_hash_str));
         } break;
@@ -681,10 +674,10 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
         } break;
         case TX_ITEM_TYPE_IN_COND:
             json_object_object_add(json_obj_item,"item type", json_object_new_string("IN COND"));
-            l_hash_tmp = &((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
+            l_hash_tmp = ((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                    ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
-                    : dap_chain_hash_fast_to_str_static(l_hash_tmp);
+                    ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
+                    : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
             json_object_object_add(json_obj_item,"Receipt_idx", json_object_new_uint64(((dap_chain_tx_in_cond_t*)item)->header.receipt_idx));
             json_object_object_add(json_obj_item,"Tx_prev_hash", json_object_new_string(l_hash_str));
             json_object_object_add(json_obj_item,"Tx_out_prev_idx", json_object_new_uint64(((dap_chain_tx_in_cond_t*)item)->header.tx_out_prev_idx));
@@ -706,10 +699,10 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: {
                     const char *l_coins_str, *l_value_str =
                         dap_uint256_to_char( ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi, &l_coins_str );
-                    l_hash_tmp = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash;
+                    l_hash_tmp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash;
                     l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                            ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
-                            : dap_chain_hash_fast_to_str_static(l_hash_tmp);
+                            ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
+                            : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
                     sprintf(l_tmp_buff,"0x%08x",((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit.uint32);
                     json_object_object_add(json_obj_item,"unit", json_object_new_string(l_tmp_buff));
                     json_object_object_add(json_obj_item,"pkey", json_object_new_string(l_hash_str));
@@ -720,10 +713,10 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: {
                     dap_chain_node_addr_t *l_signer_node_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signer_node_addr;
                     dap_chain_addr_t *l_signing_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signing_addr;
-                    l_hash_tmp = &l_signing_addr->data.hash_fast;
+                    l_hash_tmp = l_signing_addr->data.hash_fast;
                     l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                            ? dap_enc_base58_encode_hash_to_str_static(l_hash_tmp)
-                            : dap_chain_hash_fast_to_str_static(l_hash_tmp);
+                            ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
+                            : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
                     json_object_object_add(json_obj_item,"signing_addr", json_object_new_string(dap_chain_addr_to_str(l_signing_addr)));
                     json_object_object_add(json_obj_item,"with pkey hash", json_object_new_string(l_hash_str));                    
                     sprintf(l_tmp_buff,""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS(l_signer_node_addr));

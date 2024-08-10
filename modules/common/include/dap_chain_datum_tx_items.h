@@ -43,15 +43,7 @@
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_tx_in_reward.h"
-
-/**
- * Get item type
- *
- * return type, or TX_ITEM_TYPE_ANY if error
- */
-DAP_STATIC_INLINE dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const void *a_item) {
-    return a_item ? *(dap_chain_tx_item_type_t*)a_item : TX_ITEM_TYPE_UNKNOWN;
-}
+#include "dap_chain_datum_tx_voting.h"
 
 /**
  * Get item name by item type
@@ -136,7 +128,7 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
  *
  * return size, 0 Error
  */
-size_t dap_chain_datum_item_tx_get_size(const dap_chain_datum_tx_item_t *a_item, size_t a_max_size);
+size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size);
 
 /**
  * Create item dap_chain_tx_in_ems_t
@@ -219,7 +211,9 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
 
 json_object* dap_chain_datum_tx_item_out_cond_srv_xchange_to_json(dap_chain_tx_out_cond_t* a_srv_xchange);
 
-DAP_STATIC_INLINE uint32_t dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size() { return sizeof(dap_chain_addr_t) + sizeof(uint256_t) + 2 * sizeof(dap_tsd_t); }
+DAP_STATIC_INLINE uint32_t dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size() {
+    return sizeof(dap_chain_addr_t) + sizeof(uint256_t) + 2 * sizeof(dap_tsd_t);
+}
 
 /**
  * Create item dap_chain_tx_out_cond_t for stake service
@@ -276,8 +270,6 @@ dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_t
 // Get conditional out item with it's idx
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_subtype_t a_cond_subtype, int *a_out_num);
 // Get output by output index
-DAP_STATIC_INLINE uint8_t *dap_chain_datum_tx_out_get_by_out_idx(dap_chain_datum_tx_t *a_tx, int a_out_num)
-{
-    return dap_chain_datum_tx_item_get(a_tx, &a_out_num, NULL, TX_ITEM_TYPE_OUT_ALL, NULL);
-}
+#define dap_chain_datum_tx_out_get_by_out_idx(a_tx, a_out_num) \
+    dap_chain_datum_tx_item_get(a_tx, &a_out_num, NULL, TX_ITEM_TYPE_OUT_ALL, NULL);
 

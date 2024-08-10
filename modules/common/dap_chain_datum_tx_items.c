@@ -32,7 +32,6 @@
 #include "dap_hash.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
-#include "dap_chain_datum_tx_voting.h"
 
 #define LOG_TAG "dap_chain_datum_tx_items"
 
@@ -102,15 +101,16 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
  * return size, 0 Error
  */
 
-size_t dap_chain_datum_item_tx_get_size(const dap_chain_datum_tx_item_t *a_item, size_t a_max_size) {
-    dap_return_val_if_fail(a_item && a_max_size, TX_ITEM_TYPE_UNKNOWN);
+size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size) {
+    dap_return_val_if_fail(a_item, TX_ITEM_TYPE_UNKNOWN);
     size_t l_ret = 0;
-#define m_tx_item_size(t) ( sizeof(t) <= a_max_size ? sizeof(t) : 0 )
-#define m_tx_item_size_ext(t, size_field)                                                                                   \
-    ( sizeof(t) < a_max_size && a_max_size > ((t*)a_item)->size_field && sizeof(t) <= a_max_size - ((t*)a_item)->size_field \
+#define m_tx_item_size(t) ( !a_max_size || sizeof(t) <= a_max_size ? sizeof(t) : 0 )
+#define m_tx_item_size_ext(t, size_field)                                                                                       \
+    ( !a_max_size ||                                                                                                            \
+    ( sizeof(t) < a_max_size && a_max_size > ((t*)a_item)->size_field && sizeof(t) <= a_max_size - ((t*)a_item)->size_field )   \
         ? sizeof(t) + ((t*)a_item)->size_field : 0 );
 
-    switch (a_item->type) {
+    switch (*a_item) {
     case TX_ITEM_TYPE_IN:       return m_tx_item_size(dap_chain_tx_in_t);
     case TX_ITEM_TYPE_OUT_OLD:  return m_tx_item_size(dap_chain_tx_out_old_t);
     case TX_ITEM_TYPE_OUT:      return m_tx_item_size(dap_chain_tx_out_t);
@@ -128,7 +128,7 @@ size_t dap_chain_datum_item_tx_get_size(const dap_chain_datum_tx_item_t *a_item,
     // Receipt size calculation is non-trivial...
     case TX_ITEM_TYPE_RECEIPT: {
         typedef dap_chain_datum_tx_receipt_t t;
-        return sizeof(t) < a_max_size && ((t*)a_item)->size < a_max_size ? ((t*)a_item)->size : 0;
+        return !a_max_size || ( sizeof(t) < a_max_size && ((t*)a_item)->size < a_max_size ) ? ((t*)a_item)->size : 0;
     }
     default: return 0;
     }
@@ -457,9 +457,8 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
     int i = a_item_idx && *a_item_idx > 0 ? -*a_item_idx - 1 : 0;
     byte_t  *l_end = a_tx->tx_items + a_tx->header.tx_items_size,
             *l_begin = i || !a_iter || a_iter < a_tx->tx_items || a_iter >= l_end ? a_tx->tx_items : a_iter;
-    dap_chain_datum_tx_item_t *l_item;
     size_t l_left_size = (size_t)(l_end - l_begin), l_tx_item_size;
-
+    byte_t *l_item;
     TX_ITEM_ITER(l_item, l_tx_item_size, l_begin, l_left_size) {
         if (++i < 0)
             continue;
@@ -467,25 +466,25 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
         case TX_ITEM_TYPE_ANY:
             break;
         case TX_ITEM_TYPE_OUT_ALL:
-            switch (l_item->type) {
+            switch (*l_item) {
             case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_OLD: case TX_ITEM_TYPE_OUT_COND: case TX_ITEM_TYPE_OUT_EXT:
                 break;
             default:
                 continue;
             }
         case TX_ITEM_TYPE_IN_ALL:
-            switch (l_item->type) {
+            switch (*l_item) {
             case TX_ITEM_TYPE_IN: case TX_ITEM_TYPE_IN_COND: case TX_ITEM_TYPE_IN_EMS: case TX_ITEM_TYPE_IN_REWARD:
                 break;
             default:
                 continue; 
             }
         default:
-            if (a_type == l_item->type)
+            if (*l_item == a_type)
                 break;
             else continue;
         }
-        return (a_item_idx ? (*a_item_idx = i) : 0), (a_item_out_size ? (*a_item_out_size = l_tx_item_size) : 0), (byte_t*)l_item;
+        return (a_item_idx ? (*a_item_idx = i) : 0), (a_item_out_size ? (*a_item_out_size = l_tx_item_size) : 0), l_item;
     }
     return (a_item_idx ? (*a_item_idx = 0) : 0), (a_item_out_size ? (*a_item_out_size = 0) : 0), NULL;
 }
@@ -502,18 +501,22 @@ dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_t
 {
     dap_list_t *items_list = NULL;
     uint8_t *l_tx_item = NULL;
-    int q = 0;
-    for (size_t l_size = 0; ( l_tx_item = dap_chain_datum_tx_item_get(a_tx, NULL, l_tx_item + l_size, a_type, &l_size) ); ++q) {
+    size_t l_size; int i, q = 0;
+    TX_ITEM_ITER_TX_TYPE(l_tx_item, a_type, l_size, i, a_tx) {
         items_list = dap_list_append(items_list, l_tx_item);
+        ++q;
     }
     return (a_item_count ? (*a_item_count = q) : 0), items_list;
 }
 
 uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int a_item_idx)
 {
-    uint8_t *l_tx_item = NULL;
-    for (size_t l_size = 0; a_item_idx >= 0 && (l_tx_item = dap_chain_datum_tx_item_get(a_tx, NULL, l_tx_item + l_size, a_type, &l_size)); --a_item_idx);
-    return l_tx_item;
+    uint8_t *l_tx_item = NULL; size_t l_size; int i;
+    TX_ITEM_ITER_TX_TYPE(l_tx_item, a_type, l_size, i, a_tx) {
+        if (!a_item_idx--)
+            return l_tx_item;
+    }
+    return NULL; 
 }
 
 /**
@@ -527,9 +530,9 @@ uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_t
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_subtype_t a_cond_subtype, int *a_out_num)
 {
     int l_idx = a_out_num && *a_out_num > 0 ? -*a_out_num : 0;
-    dap_chain_datum_tx_item_t *l_item; size_t l_tx_item_size;
+    byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
-        switch (l_item->type) {
+        switch (*l_item) {
         case TX_ITEM_TYPE_OUT_COND:
             if ( l_idx >= 0 && ((dap_chain_tx_out_cond_t*)l_item)->header.subtype == a_cond_subtype )
                 return (a_out_num ? (*a_out_num = l_idx) : 0), (dap_chain_tx_out_cond_t*)l_item;
@@ -576,9 +579,9 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
     if(!a_tx || !a_res_group)
         return NULL;
     
-    dap_chain_datum_tx_item_t *l_item; size_t l_tx_item_size;
+    byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
-        switch (l_item->type) {
+        switch (*l_item) {
         case TX_ITEM_TYPE_IN:
             DAP_LIST_SAPPEND(a_res_group->items_in, l_item);
             DAP_LIST_SAPPEND(a_res_group->items_in_all, l_item);

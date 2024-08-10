@@ -1050,26 +1050,27 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
         } else
             l_burning_tx = a_tx_in;
 
-        dap_list_t *l_outs_list = dap_chain_datum_tx_items_get(l_burning_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
         uint256_t l_blank_out_value = {};
-        for (dap_list_t *it = l_outs_list; it; it = it->next) {
+        dap_chain_addr_t l_out_addr = {};
+        byte_t *l_item; size_t l_size; int i;
+        TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, l_burning_tx) {
             byte_t l_type = *(byte_t *)it->data;
-            if (l_type == TX_ITEM_TYPE_OUT) {
-                dap_chain_tx_out_t *l_out = it->data;
-                if (dap_chain_addr_is_blank(&l_out->addr)) {
+            if (*l_item == TX_ITEM_TYPE_OUT) {
+                dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)l_item;
+                l_out_addr = l_out->addr;
+                if ( dap_chain_addr_is_blank(&l_out_addr) ) {
                     l_blank_out_value = l_out->header.value;
                     break;
                 }
-            } else if (l_type == TX_ITEM_TYPE_OUT_EXT) {
-                dap_chain_tx_out_ext_t *l_out = it->data;
-                if (dap_chain_addr_is_blank(&l_out->addr) &&
-                        !strcmp(l_out->token, l_delegated_ticker_str)) {
+            } else if (*l_item == TX_ITEM_TYPE_OUT_EXT) {
+                dap_chain_tx_out_ext_t *l_out = (dap_chain_tx_out_ext_t*)l_item;
+                l_out_addr = l_out->addr;
+                if ( dap_chain_addr_is_blank(&l_out_addr) && !strcmp(l_out->token, l_delegated_ticker_str) ) {
                     l_blank_out_value = l_out->header.value;
                     break;
                 }
             }
         }
-        dap_list_free(l_outs_list);
         if (IS_ZERO_256(l_blank_out_value)) {
             log_it(L_ERROR, "Can't find OUT with BLANK addr in burning TX");
             return -11;

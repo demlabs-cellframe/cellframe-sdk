@@ -2878,10 +2878,9 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             json_object_object_add(l_jobj_datum, "action", json_object_new_string("UNKNOWN"));
                         }
 
-
-                        dap_list_t *l_list_sig_item = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_SIG, NULL);
                         dap_list_t *l_list_in_ems = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_EMS, NULL);
-                        if (!l_list_sig_item) {
+                        dap_chain_tx_sig_t *l_sig = (dap_chain_tx_sig_t*)dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+                        if (!l_sig) {
                             json_object *l_jobj_wgn = json_object_new_string(
                                     "An item with a type TX_ITEM_TYPE_SIG for the "
                                     "transaction was not found, the transaction may "
@@ -2889,13 +2888,11 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             json_object_object_add(l_jobj_datum, "warning", l_jobj_wgn);
                             break;
                         }
-                        dap_chain_tx_sig_t *l_sig = l_list_sig_item->data;
                         dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sig);
                         dap_chain_addr_fill_from_sign(&l_addr_from, l_sign, a_net->pub.id);
                         if (l_wallet_addr && dap_chain_addr_compare(l_wallet_addr, &l_addr_from)) {
                             datum_is_accepted_addr = true;
                         }
-                        dap_list_free(l_list_sig_item);
                         dap_list_t *l_list_in_reward = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_REWARD, NULL);
                         if (l_list_in_reward) {
                             /*json_object *l_obj_in_reward_arary = json_object_new_array();
@@ -5478,12 +5475,10 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **reply)
             continue;
         }
         // Get owner tx
-        dap_hash_fast_t *l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_cond_tx, l_tx_out_cond);
-        dap_chain_datum_tx_t *l_owner_tx = l_cond_tx;
-        if (l_owner_tx_hash){
-            l_owner_tx = dap_ledger_tx_find_by_hash(l_ledger, l_owner_tx_hash);
-            DAP_DEL_Z(l_owner_tx_hash);
-        }
+        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_cond_tx, l_tx_out_cond);
+        dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
+            ? l_cond_tx:
+            dap_ledger_tx_find_by_hash(l_ledger, l_owner_tx_hash);
         if (!l_owner_tx)
             continue;
         dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
@@ -5500,9 +5495,9 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **reply)
         }
 
         // get final tx 
-        dap_hash_fast_t *l_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash);
-        dap_chain_datum_tx_t *l_final_tx = dap_ledger_tx_find_by_hash(l_ledger, l_final_hash);
-        if (!l_final_tx){
+        dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash);
+        dap_chain_datum_tx_t *l_final_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_final_hash);
+        if (!l_final_tx) {
             log_it(L_WARNING, "Only get final tx hash or tx is already used out.");
             continue;
         }
@@ -5517,7 +5512,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **reply)
         
         // add in_cond to new tx
         // add 'in' item to buy from conditional transaction
-        dap_chain_datum_tx_add_in_cond_item(&l_tx, l_final_hash, l_final_cond_idx, 0);
+        dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_hash, l_final_cond_idx, 0);
         SUM_256_256(l_cond_value_sum, l_final_tx_out_cond->header.value, &l_cond_value_sum);
     }
     dap_list_free_full(l_hashes_list, NULL);
@@ -5750,12 +5745,10 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply)
         }
 
         // Check sign
-        dap_hash_fast_t *l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_data_tx->tx, l_out_cond);
-        dap_chain_datum_tx_t *l_owner_tx = l_tx;
-        if (l_owner_tx_hash){
-            l_owner_tx = dap_ledger_tx_find_by_hash(l_ledger, l_owner_tx_hash);
-            DAP_DEL_Z(l_owner_tx_hash);
-        }
+        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_data_tx->tx, l_out_cond);
+        dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
+            ? l_tx
+            : dap_ledger_tx_find_by_hash(l_ledger, l_owner_tx_hash);
             
         if (!l_owner_tx)
             continue;

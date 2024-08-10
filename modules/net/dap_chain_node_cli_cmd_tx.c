@@ -101,34 +101,23 @@ bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
     json_object_object_add(json_obj_out, "Token_description", l_description ? json_object_new_string(l_description)
                                                                             : json_object_new_null());
     dap_chain_datum_dump_tx_json(a_datum, l_ticker, json_obj_out, a_hash_out_type, a_tx_hash, a_ledger->net->pub.id);
-
-    dap_list_t *l_out_items = dap_chain_datum_tx_items_get(a_datum, TX_ITEM_TYPE_OUT_ALL, NULL);
-    int l_out_idx = 0;
     json_object* json_arr_items = json_object_new_array();
     bool l_spent = false;
-    for (dap_list_t *l_item = l_out_items; l_item; l_item = l_item->next, ++l_out_idx) {
-        switch (*(dap_chain_tx_item_type_t*)l_item->data) {
-        case TX_ITEM_TYPE_OUT:
-        case TX_ITEM_TYPE_OUT_OLD:
-        case TX_ITEM_TYPE_OUT_EXT:
-        case TX_ITEM_TYPE_OUT_COND: {
-            dap_hash_fast_t l_spender = { };
-            if (dap_ledger_tx_hash_is_used_out_item(a_ledger, a_tx_hash, l_out_idx, &l_spender)) {
-                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
-                dap_hash_fast_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
-                json_object * l_json_obj_datum = json_object_new_object();
-                json_object_object_add(l_json_obj_datum, "OUT - ", json_object_new_int(l_out_idx));
-                json_object_object_add(l_json_obj_datum, "is spent by tx", json_object_new_string(l_hash_str));
-                json_object_array_add(json_arr_items, l_json_obj_datum);
-                l_spent = true;
-            }
-            break;
+    byte_t *l_item; size_t l_size; int i, l_out_idx = -1;
+    TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, a_datum) {
+        ++l_out_idx;
+        dap_hash_fast_t l_spender = { };
+        if ( dap_ledger_tx_hash_is_used_out_item(a_ledger, a_tx_hash, l_out_idx, &l_spender) ) {
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+            dap_hash_fast_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
+            json_object * l_json_obj_datum = json_object_new_object();
+            json_object_object_add(l_json_obj_datum, "OUT - ", json_object_new_int(l_out_idx));
+            json_object_object_add(l_json_obj_datum, "is spent by tx", json_object_new_string(l_hash_str));
+            json_object_array_add(json_arr_items, l_json_obj_datum);
+            l_spent = true;
         }
-        default:
-            break;
-        }
+        break;
     }
-    dap_list_free(l_out_items);
     json_object_object_add(json_obj_out, "Spent OUTs", json_arr_items);
     json_object_object_add(json_obj_out, "all OUTs yet unspent", l_spent ? json_object_new_string("no") : json_object_new_string("yes"));
     return true;

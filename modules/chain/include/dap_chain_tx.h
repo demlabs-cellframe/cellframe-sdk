@@ -45,10 +45,10 @@ typedef struct dap_chain_tx
     dap_chain_datum_token_t *token;
 
     // Inputs
-    dap_chain_datum_tx_item_t * in;
+    byte_t * in;
     dap_chain_tx_in_cond_t * in_cond;
     // Outputs
-    dap_chain_datum_tx_item_t * out;
+    byte_t * out;
     dap_chain_tx_out_cond_t * out_cond;
 
     // Previous

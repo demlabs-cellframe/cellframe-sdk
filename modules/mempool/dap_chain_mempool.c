@@ -693,9 +693,9 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         if (!IS_ZERO_256(l_value_back)) {
             //log_it(L_DEBUG,"We have value back %"DAP_UINT64_FORMAT_U" now lets see how many outputs we have", l_value_back);
             int l_out_idx = 0;
-            dap_chain_datum_tx_item_t *l_item; size_t l_size;
+            byte_t *l_item; size_t l_size;
             TX_ITEM_ITER_TX(l_item, l_size, l_tx_new) {
-                switch (l_item->type) {
+                switch (*l_item) {
                 case TX_ITEM_TYPE_OUT_COND:
                     ++l_out_idx;
                     continue;
@@ -789,20 +789,20 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
             *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_WRONG_ADDR;
         return NULL;
     }
-    dap_chain_hash_fast_t *l_tx_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, a_tx_prev_hash);
-    if (!l_tx_final_hash) {
+    dap_chain_hash_fast_t l_tx_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, a_tx_prev_hash);
+    if ( dap_hash_fast_is_blank(&l_tx_final_hash) ) {
         log_it(L_WARNING, "Requested conditional transaction is already used out");
         if (a_ret_status)
             *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_FIND_FINAL_TX_HASH;
         return NULL;
     }
-    if (dap_strcmp(a_net->pub.native_ticker, dap_ledger_tx_get_token_ticker_by_hash(l_ledger, l_tx_final_hash))) {
+    if (dap_strcmp(a_net->pub.native_ticker, dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_final_hash))) {
         log_it(L_WARNING, "Pay for service should be only in native token ticker");
         if (a_ret_status)
             *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_NATIVE_TOKEN;
         return NULL;
     }
-    dap_chain_datum_tx_t *l_tx_cond = dap_ledger_tx_find_by_hash(l_ledger, l_tx_final_hash);
+    dap_chain_datum_tx_t *l_tx_cond = dap_ledger_tx_find_by_hash(l_ledger, &l_tx_final_hash);
     int l_out_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cond, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_out_cond_idx);
     if (!l_out_cond) {
@@ -831,7 +831,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_datum_tx_add_item(&l_tx, (byte_t*)a_receipt);
     // add 'in_cond' items
-    if (1 != dap_chain_datum_tx_add_in_cond_item(&l_tx, l_tx_final_hash, l_out_cond_idx, 0)) {
+    if (1 != dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tx_final_hash, l_out_cond_idx, 0)) {
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Can`t add tx cond input");
         if (a_ret_status)
