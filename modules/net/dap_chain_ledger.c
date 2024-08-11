@@ -3260,7 +3260,7 @@ static int s_callback_sign_compare(dap_list_t *a_list_elem, dap_list_t *a_sign_e
 
 bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
 {
-    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
     dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
     return dap_list_find(a_ledger->net->pub.keys, l_sign, s_callback_sign_compare);
 }
@@ -3591,7 +3591,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 uint256_t l_stake_lock_ems_value = {};
                 int l_item_idx = 0;
                 do {
-                    l_tx_out_ext = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_OUT_EXT, NULL);
+                    l_tx_out_ext = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_item_get(a_tx, &l_item_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
                     if (!l_tx_out_ext) {
                         if (l_girdled_ems) {
                             debug_if(s_debug_more, L_WARNING, "No OUT_EXT for girdled IN_EMS [%s]", l_tx_in_ems->header.ticker);
@@ -3602,7 +3602,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     l_item_idx++;
                 } while (strcmp(l_tx_out_ext->token, l_token));
                 if (!l_tx_out_ext) {
-                    dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_OUT, NULL);
+                    dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_OUT, NULL);
                     if (!l_tx_out) {
                         debug_if(true, L_WARNING, "Can't find OUT nor OUT_EXT item for base TX with IN_EMS [%s]", l_tx_in_ems->header.ticker);
                         l_err_num = DAP_LEDGER_TX_CHECK_NO_OUT_ITEMS_FOR_BASE_TX;
@@ -3686,7 +3686,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 break;
             if (!l_tx_first_sign_pkey) {
                 // Get sign item
-                dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(a_tx, NULL,
+                dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(a_tx, NULL, NULL,
                         TX_ITEM_TYPE_SIG, NULL);
                 assert(l_tx_sig);
                 // Get sign from sign item
@@ -3828,7 +3828,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             }
             if (dap_hash_fast_is_blank(&l_tx_first_sign_pkey_hash)) {
                 // Get sign item
-                dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(a_tx, NULL,
+                dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(a_tx, NULL, NULL,
                         TX_ITEM_TYPE_SIG, NULL);
                 assert(l_tx_sig);
                 // Get sign from sign item
@@ -3901,9 +3901,9 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
                     ? l_tx_prev
                     : dap_ledger_tx_find_by_hash(a_ledger, l_owner_tx_hash);
-                dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+                dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
                 dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
-                dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+                dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
                 dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
 
                 bool l_owner = false;
@@ -4187,7 +4187,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
 
     if (!l_err_num) {
         // TODO move it to service tag deduction
-        if ( dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_VOTING, NULL ) ) {
+        if ( dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_VOTING, NULL ) ) {
             if (s_voting_callbacks.voting_callback){
                 if (!s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, false)){
                     debug_if(s_debug_more, L_WARNING, "Verificator check error for voting.");
@@ -4199,7 +4199,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             }
             if (a_tag)
                 a_tag->uint64 = DAP_CHAIN_TX_TAG_ACTION_VOTING;
-        } else if ( dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_VOTE, NULL) ) {
+        } else if ( dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL) ) {
            if (s_voting_callbacks.voting_callback){
                if (!s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, false)){
                    debug_if(s_debug_more, L_WARNING, "Verificator check error for vote.");
@@ -5386,7 +5386,7 @@ const dap_chain_datum_tx_t* dap_ledger_tx_find_by_pkey(dap_ledger_t *a_ledger,
         }
         // Get sign item from transaction
         dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(l_tx_tmp, NULL,
-                TX_ITEM_TYPE_SIG, NULL);
+                NULL, TX_ITEM_TYPE_SIG, NULL);
         // Get dap_sign_t from item
         dap_sign_t *l_sig = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
         if(l_sig) {

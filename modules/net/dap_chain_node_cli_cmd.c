@@ -5481,7 +5481,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **reply)
             dap_ledger_tx_find_by_hash(l_ledger, l_owner_tx_hash);
         if (!l_owner_tx)
             continue;
-        dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
         dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
 
         if (!l_owner_sign) {
@@ -5748,11 +5748,11 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply)
         dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_data_tx->tx, l_out_cond);
         dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
             ? l_tx
-            : dap_ledger_tx_find_by_hash(l_ledger, l_owner_tx_hash);
+            : dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
             
         if (!l_owner_tx)
             continue;
-        dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
         dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
 
 

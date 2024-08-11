@@ -572,7 +572,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     uint8_t *l_owner_pkey = dap_enc_key_serialize_pub_key(l_owner_key, &l_owner_pkey_size);
     dap_sign_t *l_owner_sign = NULL;
     dap_chain_tx_sig_t *l_tx_sign = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(
-                                                            l_cond_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+                                                            l_cond_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
     if (l_tx_sign)
         l_owner_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sign);
     if (!l_owner_sign || l_owner_pkey_size != l_owner_sign->header.sign_pkey_size ||
@@ -1006,7 +1006,7 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
         return -2;
 
     if (NULL == (l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(
-                                                            a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0)))
+                                                            a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL)))
         return -3;
     if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
         return false;
@@ -1028,7 +1028,7 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
                 IS_ZERO_256(l_value_delegated))
             return -6;
 
-        l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_RECEIPT, 0);
+        l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
         if (l_receipt) {
             if (!dap_chain_net_srv_uid_compare_scalar(l_receipt->receipt_info.srv_uid, DAP_CHAIN_NET_SRV_STAKE_LOCK_ID))
                 return -7;
@@ -1054,7 +1054,6 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
         dap_chain_addr_t l_out_addr = {};
         byte_t *l_item; size_t l_size; int i;
         TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, l_burning_tx) {
-            byte_t l_type = *(byte_t *)it->data;
             if (*l_item == TX_ITEM_TYPE_OUT) {
                 dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)l_item;
                 l_out_addr = l_out->addr;

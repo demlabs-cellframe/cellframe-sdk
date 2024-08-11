@@ -45,6 +45,7 @@ typedef struct dap_ledger {
     void *_internal;
 } dap_ledger_t;
 
+typedef struct dap_ledger_tx_item dap_ledger_tx_item_t;
 /**
  * @brief Error codes for accepting a transaction to the ledger.
  */

@@ -52,7 +52,6 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
-#include "dap_chain_net_tx.h"
 #include "dap_stream_ch_chain_net_srv.h"
 #include "dap_chain_cs_blocks.h"
 #ifdef DAP_MODULES_DYNAMIC
@@ -667,7 +666,7 @@ static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (!l_chain->callback_block_find_by_tx_hash)
             continue;
-        dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
+        dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
         if (!l_tx_in_cond)
             return -1;
         if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
@@ -682,7 +681,7 @@ static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             return -3;
 
         // TX sign is already verified, just compare pkeys
-        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
         dap_sign_t *l_sign_tx = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
         return dap_sign_compare_pkeys(l_sign_block, l_sign_tx) ? 0 : -5;
     }
@@ -704,7 +703,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
     if (a_owner)
         return 0;
     dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
-                                               dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
+                                               dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
     if (!l_receipt){
         log_it(L_ERROR, "Can't find receipt.");
         return -1;
@@ -731,8 +730,8 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
         return -4;
     }
 
-    int l_item_size = 0;
-    uint8_t* l_sig = dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_SIG, &l_item_size);
+    size_t l_item_size = 0;
+    uint8_t* l_sig = dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_SIG, &l_item_size);
     if(!l_sig){
         log_it(L_ERROR, "Can't get item with provider signature from tx");
         return false;
@@ -772,7 +771,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
     }
 
     // Check price is less than maximum
-    dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
+    dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger , &l_tx_in_cond->header.tx_prev_hash);
     dap_chain_tx_out_cond_t *l_prev_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
 

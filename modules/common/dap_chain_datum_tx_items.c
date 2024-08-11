@@ -450,7 +450,7 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
  * return item data, NULL Error index or bad format transaction
  */
 uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_idx,
-        byte_t *a_iter, dap_chain_tx_item_type_t a_type, int *a_item_out_size)
+        byte_t *a_iter, dap_chain_tx_item_type_t a_type, size_t *a_item_out_size)
 {
     if (!a_tx)
         return NULL;
