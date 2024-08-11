@@ -239,7 +239,8 @@ json_object *dap_chain_datum_tx_item_out_cond_srv_stake_to_json(dap_chain_tx_out
 // Create cond out
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_net_srv_uid_t a_srv_uid,
                                                                                   uint256_t a_value, uint64_t a_time_staking,
-                                                                                  uint256_t a_reinvest_percent);
+                                                                                  uint256_t a_reinvest_percent,
+                                                                                  uint32_t a_flags);
 
 json_object *dap_chain_net_srv_stake_lock_cond_out_to_json(dap_chain_tx_out_cond_t *a_stake_lock);
 
