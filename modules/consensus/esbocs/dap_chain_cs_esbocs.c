@@ -2109,7 +2109,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     dap_chain_esbocs_message_t *l_message = (dap_chain_esbocs_message_t *)l_ch_pkt->data;
     size_t l_message_size = l_ch_pkt->hdr.data_size;
     if (l_message_size < sizeof(dap_chain_esbocs_message_t) ||
-            l_message_size > DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE + PKT_SIGN_N_HDR_OVERHEAD ||
+            l_message_size > DAP_CHAIN_ATOM_MAX_SIZE + PKT_SIGN_N_HDR_OVERHEAD ||
             l_message_size != sizeof(*l_message) + l_message->hdr.sign_size + l_message->hdr.message_size) {
         log_it(L_WARNING, "Invalid message size %zu, drop this packet", l_message_size);
         return false;

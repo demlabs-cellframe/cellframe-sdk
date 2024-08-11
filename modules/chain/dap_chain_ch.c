@@ -143,7 +143,7 @@ static uint32_t s_sync_packets_per_thread_call = 10;
 static uint32_t s_sync_ack_window_size = 512; // atoms
 
 // Legacy
-static uint_fast16_t s_update_pack_size = 100; // Number of hashes packed into the one packet
+static const uint_fast16_t s_update_pack_size = 100; // Number of hashes packed into the one packet
 
 #ifdef  DAP_SYS_DEBUG
 
@@ -652,7 +652,7 @@ static bool s_sync_in_chains_callback(void *a_arg)
         break;
     }
     if (l_ack_send && l_args->ack_req) {
-        uint64_t l_ack_num = (l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo;
+        uint64_t l_ack_num = ((uint32_t)l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo;
         dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                                                          &l_ack_num, sizeof(uint64_t), DAP_CHAIN_CH_PKT_VERSION_CURRENT);
         dap_stream_ch_pkt_send_by_addr(&l_args->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK, l_pkt, dap_chain_ch_pkt_get_size(l_pkt));
@@ -744,7 +744,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN: {
-        if (!l_chain_pkt_data_size) {
+        if (!l_chain_pkt_data_size || l_chain_pkt_data_size > sizeof(dap_chain_ch_pkt_t) + DAP_CHAIN_ATOM_MAX_SIZE) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
@@ -1099,7 +1099,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     // Response with gdb element hashes and sizes
     case DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB: {
-        if (l_chain_pkt_data_size % sizeof(dap_chain_ch_update_element_t)) {
+        if (l_chain_pkt_data_size % sizeof(dap_chain_ch_update_element_t) || l_chain_pkt_data_size > UINT16_MAX) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
@@ -1212,7 +1212,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     case DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB: {
         dap_global_db_pkt_old_t *l_pkt = (dap_global_db_pkt_old_t *)l_chain_pkt->data;
         if (l_chain_pkt_data_size < sizeof(dap_global_db_pkt_old_t) ||
-                l_chain_pkt_data_size != sizeof(*l_pkt) + l_pkt->data_size) {
+                (uint64_t)sizeof(*l_pkt) + l_pkt->data_size < l_pkt->data_size ||
+                l_chain_pkt_data_size != (uint64_t)sizeof(*l_pkt) + l_pkt->data_size) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
@@ -1351,7 +1352,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     // Response with atom hashes and sizes
     case DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS: {
-        if (l_chain_pkt_data_size > sizeof(dap_chain_ch_update_element_t) * s_update_pack_size) {
+        if (l_chain_pkt_data_size % sizeof(dap_chain_ch_update_element_t) || l_chain_pkt_data_size > UINT16_MAX) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
@@ -1468,7 +1469,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_OLD: {
-        if (!l_chain_pkt_data_size) {
+        if (!l_chain_pkt_data_size || l_chain_pkt_data_size > sizeof(dap_chain_ch_pkt_t) + DAP_CHAIN_ATOM_MAX_SIZE) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
