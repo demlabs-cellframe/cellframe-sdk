@@ -1966,6 +1966,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                                            "Can't find network id 0x%016"DAP_UINT64_FORMAT_X" from address %s",
                                            l_addr->net_id.uint64, l_addr_str);
                     json_object_put(json_arr_out);
+                    DAP_DELETE(l_addr);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR;
                 }
             }
@@ -2035,6 +2036,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             json_object_object_add(json_obj_wall, "tokens", j_arr_balance);
             json_object_array_add(json_arr_out, json_obj_wall);
             DAP_DELETE(l_l_addr_tokens);
+            DAP_DELETE(l_addr);
+
             if(l_wallet)
                 dap_chain_wallet_close(l_wallet);
             break;
@@ -7494,7 +7497,6 @@ int com_exit(int a_argc, char **a_argv, void **a_str_reply)
     exit(0);
     return 0;
 }
-
 
 /**
  * @brief com_print_log Print log info
