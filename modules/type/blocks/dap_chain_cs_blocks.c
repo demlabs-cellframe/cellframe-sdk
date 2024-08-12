@@ -1460,7 +1460,10 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
 
     dap_chain_block_chunks_delete(PVT(l_blocks)->chunks);
-    //dap_chain_cell_delete_all_and_free_file(a_chain);
+
+    //close all mapped cells
+    dap_chain_cell_delete_all(a_chain);
+    
     PVT(l_blocks)->chunks = dap_chain_block_chunks_create(l_blocks);
 }
 

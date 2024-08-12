@@ -276,7 +276,7 @@ void dap_chain_cell_close(dap_chain_cell_t *a_cell)
         return;
     if(a_cell->file_storage) {
         fclose(a_cell->file_storage);
-        a_cell->file_storage = NULL;
+        // a_cell->file_storage = NULL;
     }
     if (a_cell->chain->is_mapped) {
         dap_list_t *l_iter = a_cell->map_range_bounds;
@@ -309,6 +309,9 @@ void dap_chain_cell_close(dap_chain_cell_t *a_cell)
         DAP_DELETE(l_orig);
     }
 #endif
+    a_cell->map = NULL;
+    a_cell->map_end = NULL;
+    a_cell->map_pos = NULL;
 }
 
 /**
