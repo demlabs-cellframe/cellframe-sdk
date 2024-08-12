@@ -524,7 +524,7 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
         return -2;
     }
     if (fwrite(a_atom, a_atom_size, 1, a_cell->file_storage) != 1) {
-        log_it(L_ERROR, "Can't write atom (%zu b) to file \"%s\", err %ld: \"%s\"",
+        log_it(L_ERROR, "Can't write atom (%zu b) to file \"%s\", err %d: \"%s\"",
                         a_atom_size, a_cell->file_storage_path, errno, dap_strerror(errno) );
         return -3;
     }

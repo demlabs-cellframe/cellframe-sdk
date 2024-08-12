@@ -114,7 +114,7 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
     else
         dap_hash_fast(a_block_cache->block, a_block_cache->block_size, &a_block_cache->block_hash);
 
-    dap_hash_fast_to_str(&a_block_cache->block_hash, &a_block_cache->block_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+    dap_hash_fast_to_str(&a_block_cache->block_hash, a_block_cache->block_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
 
     if (dap_chain_block_meta_extract(a_block_cache->block, a_block_cache->block_size,
                                         &a_block_cache->prev_hash,
