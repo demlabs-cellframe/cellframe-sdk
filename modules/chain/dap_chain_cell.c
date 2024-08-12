@@ -527,9 +527,8 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
         return -2;
     }
     if (fwrite(a_atom, a_atom_size, 1, a_cell->file_storage) != 1) {
-        log_it (L_ERROR, "Can't write data from cell 0x%016"DAP_UINT64_FORMAT_X" to the file \"%s\"",
-                         a_cell->id.uint64,
-                         a_cell->file_storage_path);
+        log_it(L_ERROR, "Can't write atom (%zu b) to file \"%s\", err %ld: \"%s\"",
+                        a_atom_size, a_cell->file_storage_path, errno, dap_strerror(errno) );
         return -3;
     }
     debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG, "After writing an atom of size %lu, stream pos of %s is %lu and map shift is %lu", 
