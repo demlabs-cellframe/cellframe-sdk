@@ -771,8 +771,7 @@ static dap_chain_net_t *s_net_new(dap_chain_net_id_t *a_id, const char *a_name,
         DAP_DELETE(l_ret);
         return NULL;
     }
-    l_ret->pub.name = dap_strdup( a_name );
-    l_ret->pub.native_ticker = dap_strdup( a_native_ticker );
+
     if (!(l_ret->pub.name = dap_strdup(a_name)) ||
         !(l_ret->pub.native_ticker = dap_strdup( a_native_ticker )))
             DAP_DEL_MULTY(l_ret->pub.name, l_ret->pub.native_ticker, l_ret);
