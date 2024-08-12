@@ -5595,7 +5595,7 @@ dap_list_t *dap_ledger_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_to
     dap_chain_hash_fast_t l_tx_cur_hash = { };
     uint256_t l_value_transfer = {};
     dap_chain_datum_tx_t *l_tx;
-    while ( l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash) ) {
+    while (( l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash) )) {
         byte_t *it; size_t l_size; int i, l_out_idx_tmp = -1;
         dap_chain_addr_t l_out_addr = { };
         TX_ITEM_ITER_TX_TYPE(it, TX_ITEM_TYPE_OUT_ALL, l_size, i, l_tx) {
@@ -5827,13 +5827,11 @@ dap_list_t *dap_ledger_get_list_tx_cond_outs(dap_ledger_t *a_ledger, const char 
     dap_chain_hash_fast_t l_tx_cur_hash = { };
     uint256_t l_value_transfer = { };
     dap_chain_datum_tx_t *l_tx;
-    uint256_t l_value = { };
-    while( l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash) ) {
+    while(( l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash) )) {
         byte_t *it; size_t l_size; int i, l_out_idx_tmp = -1;
         TX_ITEM_ITER_TX_TYPE(it, TX_ITEM_TYPE_OUT_COND, l_size, i, l_tx) {
             ++l_out_idx_tmp;
             dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t*)it;
-            l_value = l_out_cond->header.value;
             if ( a_subtype != l_out_cond->header.subtype || IS_ZERO_256(l_out_cond->header.value) )
                 continue;
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);

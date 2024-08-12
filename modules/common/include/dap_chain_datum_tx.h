@@ -52,7 +52,7 @@ typedef struct dap_chain_datum_tx {
     TX_ITEM_ITER(item, item_size, tx->tx_items, tx->header.tx_items_size)
 
 #define TX_ITEM_ITER_TX_TYPE(item, item_type, item_size, item_index, tx)                                            \
-    for ( item_size = 0, item_index = 0;                                                                            \
+    for ( item_size = 0, item_index = 0, item = NULL;                                                                            \
         !!( item = dap_chain_datum_tx_item_get(tx, &item_index, (byte_t*)item + item_size, item_type, &item_size) );\
         item_index = 0 )
 /**

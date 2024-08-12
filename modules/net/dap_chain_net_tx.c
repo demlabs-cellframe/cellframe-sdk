@@ -52,8 +52,8 @@ static void s_tx_cond_all_with_spends_by_srv_uid_callback(dap_chain_net_t* a_net
     cond_all_with_spends_by_srv_uid_arg_t *l_arg = (cond_all_with_spends_by_srv_uid_arg_t*)a_arg;
     dap_chain_datum_tx_spends_items_t *l_ret = l_arg->ret;
 
-    dap_return_if_pass(l_arg->time_from && a_tx->header.ts_created < l_arg->time_from 
-                    || l_arg->time_to && a_tx->header.ts_created > l_arg->time_to);
+    dap_return_if_pass(( l_arg->time_from && a_tx->header.ts_created < l_arg->time_from )
+                    || ( l_arg->time_to && a_tx->header.ts_created > l_arg->time_to ));
     byte_t *l_item; size_t l_size;
     TX_ITEM_ITER_TX(l_item, l_size, a_tx) {
         switch (*l_item) {
@@ -432,8 +432,8 @@ static void s_tx_cond_all_by_srv_uid_callback(UNUSED_ARG dap_chain_net_t* a_net,
 {
     cond_all_by_srv_uid_arg_t *l_ret = (cond_all_by_srv_uid_arg_t*)a_arg;
 
-    if (l_ret->time_from && a_tx->header.ts_created < l_ret->time_from
-        || l_ret->time_to && a_tx->header.ts_created > l_ret->time_to)
+    if (( l_ret->time_from && a_tx->header.ts_created < l_ret->time_from )
+        || ( l_ret->time_to && a_tx->header.ts_created > l_ret->time_to ))
         return;
 
     byte_t *item; size_t l_size;

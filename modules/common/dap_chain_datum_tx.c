@@ -247,9 +247,9 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx)
         if (*l_item == TX_ITEM_TYPE_SIG) {
             l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*)l_item);
             const size_t l_offset = (size_t)(l_item - a_tx->tx_items);
-            if ( l_ret = dap_sign_get_size(l_sign) > l_size
+            if ( 0 != ( l_ret = dap_sign_get_size(l_sign) > l_size
                     ? log_it(L_WARNING, "Incorrect signature header, possible corrupted data"), -3
-                    : dap_sign_verify_all(l_sign, a_tx->header.tx_items_size - l_offset, a_tx->tx_items, l_offset) )
+                    : dap_sign_verify_all(l_sign, a_tx->header.tx_items_size - l_offset, a_tx->tx_items, l_offset) ))
                 break;
         }
     }
