@@ -90,7 +90,7 @@ static bool s_debug_more = false;
  */
 int dap_chain_cell_init(void)
 {
-    s_debug_more = true; //dap_config_get_item_bool_default(g_config, "chain", "debug_more", false);
+    s_debug_more = dap_config_get_item_bool_default(g_config, "chain", "debug_more", false);
 #ifdef DAP_OS_WINDOWS
     if ( dap_config_get_item_bool_default(g_config, "ledger", "mapped", true) ) {
         HMODULE ntdll = GetModuleHandle("ntdll.dll");
