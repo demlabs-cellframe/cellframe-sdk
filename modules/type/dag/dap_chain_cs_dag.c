@@ -540,9 +540,12 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             debug_if(s_debug_more, L_WARNING, "... added with ledger code %d", l_consensus_check);
             break;
         }
+        DAP_CHAIN_PVT(a_chain)->need_reorder = true;
         dap_chain_cs_dag_event_item_t *l_tail = HASH_LAST(PVT(l_dag)->events);
         if (l_tail && l_tail->ts_created > l_event->header.ts_created) {
             DAP_CHAIN_PVT(a_chain)->need_reorder = true;
+            debug_if(true, L_ERROR, "============= NEED REORDER");
+
             HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
             dap_chain_cs_dag_event_item_t *it = PVT(l_dag)->events;
             for (uint64_t i = 0; it; it = it->hh.next)  // renumber chain events
