@@ -5,9 +5,10 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <errno.h>
 
 #ifdef __ANDROID__
-    #include "pthread_barrier.h"
+#include "pthread_barrier.h"
 #endif
 
 #include "dap_network_monitor.h"
@@ -15,25 +16,31 @@
 
 #define LOG_TAG "dap_network_monitor"
 
-static bool _send_NLM_F_ACK_msg(int fd)
-{
+static bool _send_NLM_F_ACK_msg(int fd) {
     static int sequence_number = 0;
 
     struct nlmsghdr *nh = DAP_NEW_Z(struct nlmsghdr);
+    if (!nh) {
+        log_it(L_ERROR, "Memory allocation failed");
+        return false;
+    }
+
     struct sockaddr_nl sa;
-    struct iovec iov = { &nh, nh->nlmsg_len };
-    struct msghdr msg = {&sa, sizeof(sa), &iov, 1, NULL, 0, 0};
+    struct iovec iov = { nh, sizeof(struct nlmsghdr) };
+    struct msghdr msg = { &sa, sizeof(sa), &iov, 1, NULL, 0, 0 };
 
     memset(&sa, 0, sizeof(sa));
     sa.nl_family = AF_NETLINK;
     nh->nlmsg_pid = getpid();
     nh->nlmsg_seq = ++sequence_number;
     nh->nlmsg_flags |= NLM_F_ACK;
+    nh->nlmsg_len = sizeof(struct nlmsghdr);
 
     ssize_t rc = sendmsg(fd, &msg, 0);
     if (rc == -1) {
-          log_it(L_ERROR, "sendmsg failed");
-          return false;
+        log_it(L_ERROR, "sendmsg failed");
+        DAP_DELETE(nh);
+        return false;
     }
 
     DAP_DELETE(nh);
@@ -62,19 +69,26 @@ int dap_network_monitor_init(dap_network_monitor_notification_callback_t cb)
     addr.nl_groups = RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV4_ROUTE;
     if (bind(_net_notification.socket, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
         log_it(L_ERROR, "Can't bind notification socket");
+        close(_net_notification.socket);
         return -2;
     }
 
     pthread_barrier_t barrier;
 
-    pthread_barrier_init(&barrier, NULL, 2);
-    if(pthread_create(&_net_notification.thread, NULL, network_monitor_worker, &barrier) != 0) {
-        log_it(L_ERROR, "Error create notification thread");
+    if (pthread_barrier_init(&barrier, NULL, 2) != 0) {
+        log_it(L_ERROR, "Error initializing barrier");
+        close(_net_notification.socket);
         return -3;
     }
 
-    pthread_barrier_wait(&barrier);
+    if(pthread_create(&_net_notification.thread, NULL, network_monitor_worker, &barrier) != 0) {
+        log_it(L_ERROR, "Error create notification thread");
+        pthread_barrier_destroy(&barrier);
+        close(_net_notification.socket);
+        return -4;
+    }
 
+    pthread_barrier_wait(&barrier);
     pthread_barrier_destroy(&barrier);
 
     _net_notification.callback = cb;
@@ -124,43 +138,42 @@ static void _route_msg_handler(struct nlmsghdr *nlh,
     route_attribute_len = RTM_PAYLOAD(nlh);
 
     for ( ; NLMSG_OK(nlh, received_bytes); \
-                       nlh = NLMSG_NEXT(nlh, received_bytes))
-       {
-           /* Get the route data */
-           route_entry = (struct rtmsg *) NLMSG_DATA(nlh);
+                                          nlh = NLMSG_NEXT(nlh, received_bytes))
+    {
+        /* Get the route data */
+        route_entry = (struct rtmsg *) NLMSG_DATA(nlh);
 
-           result->route.netmask = route_entry->rtm_dst_len;
-           result->route.protocol = route_entry->rtm_protocol;
+        result->route.netmask = route_entry->rtm_dst_len;
+        result->route.protocol = route_entry->rtm_protocol;
 
-           /* Get attributes of route_entry */
-           route_attribute = (struct rtattr *) RTM_RTA(route_entry);
+        /* Get attributes of route_entry */
+        route_attribute = (struct rtattr *) RTM_RTA(route_entry);
 
-           /* Get the route atttibutes len */
-           route_attribute_len = RTM_PAYLOAD(nlh);
-           /* Loop through all attributes */
-           for ( ; RTA_OK(route_attribute, route_attribute_len); \
-               route_attribute = RTA_NEXT(route_attribute, route_attribute_len))
-           {
-               /* Get the destination address */
-               if (route_attribute->rta_type == RTA_DST)
-               {
-                   result->route.destination_address = htonl(*(uint32_t*)RTA_DATA(route_attribute));
+        /* Get the route atttibutes len */
+        route_attribute_len = RTM_PAYLOAD(nlh);
+        /* Loop through all attributes */
+        for ( ; RTA_OK(route_attribute, route_attribute_len); \
+                                                             route_attribute = RTA_NEXT(route_attribute, route_attribute_len))
+        {
+            /* Get the destination address */
+            if (route_attribute->rta_type == RTA_DST)
+            {
+                result->route.destination_address = htonl(*(uint32_t*)RTA_DATA(route_attribute));
 
-                   inet_ntop(AF_INET, RTA_DATA(route_attribute),
-                                                result->route.s_destination_address,
-                                                sizeof(result->route.s_destination_address));
-               }
-               /* Get the gateway (Next hop) */
-               if (route_attribute->rta_type == RTA_GATEWAY)
-               {
-                   result->route.gateway_address = htonl(*(uint32_t*)RTA_DATA(route_attribute));
-;
-                   inet_ntop(AF_INET, RTA_DATA(route_attribute),
-                                                result->route.s_gateway_address,
-                                                sizeof(result->route.s_gateway_address));
-               }
-           }
-   }
+                inet_ntop(AF_INET, RTA_DATA(route_attribute),
+                          result->route.s_destination_address,
+                          sizeof(result->route.s_destination_address));
+            }
+            /* Get the gateway (Next hop) */
+            if (route_attribute->rta_type == RTA_GATEWAY)
+            {
+                result->route.gateway_address = htonl(*(uint32_t*)RTA_DATA(route_attribute));
+                inet_ntop(AF_INET, RTA_DATA(route_attribute),
+                          result->route.s_gateway_address,
+                          sizeof(result->route.s_gateway_address));
+            }
+        }
+    }
 
 }
 
@@ -170,20 +183,20 @@ static void _link_msg_handler(struct nlmsghdr *nlh,
 {
     (void) sa;
     struct ifaddrmsg *ifa=NLMSG_DATA(nlh);
-    struct ifinfomsg *ifi=NLMSG_DATA(nlh);;
+    struct ifinfomsg *ifi=NLMSG_DATA(nlh);
 
     switch (nlh->nlmsg_type){
-        case RTM_NEWLINK:
-            if_indextoname(ifa->ifa_index,result->link.interface_name);
-            result->link.is_up = ifi->ifi_flags & IFF_UP ? true : false;
-            result->link.is_running = ifi->ifi_flags & IFF_RUNNING ? true : false;
-            //printf("netlink_link_state: Link %s is %s and %s\n",
-            //    result->link.interface_name, (ifi->ifi_flags & IFF_UP)?"Up":"Down", (ifi->ifi_flags & IFF_RUNNING)?"Running":"Not Running");
-            break;
-        case RTM_DELLINK:
-            if_indextoname(ifa->ifa_index,result->link.interface_name);
-            //printf("msg_handler: RTM_DELLINK : %s\n",result->link.interface_name);
-            break;
+    case RTM_NEWLINK:
+        if_indextoname(ifa->ifa_index,result->link.interface_name);
+        result->link.is_up = ifi->ifi_flags & IFF_UP ? true : false;
+        result->link.is_running = ifi->ifi_flags & IFF_RUNNING ? true : false;
+        //printf("netlink_link_state: Link %s is %s and %s\n",
+        //    result->link.interface_name, (ifi->ifi_flags & IFF_UP)?"Up":"Down", (ifi->ifi_flags & IFF_RUNNING)?"Running":"Not Running");
+        break;
+    case RTM_DELLINK:
+        if_indextoname(ifa->ifa_index,result->link.interface_name);
+        //printf("msg_handler: RTM_DELLINK : %s\n",result->link.interface_name);
+        break;
     }
 }
 
@@ -216,10 +229,18 @@ static void* network_monitor_worker(void *arg)
         _send_NLM_F_ACK_msg(_net_notification.socket);
 
         for (nlh = (struct nlmsghdr *) buf; (NLMSG_OK(nlh, len)) && (nlh->nlmsg_type != NLMSG_DONE); nlh = NLMSG_NEXT(nlh, len)) {
-            if (nlh->nlmsg_type == NLMSG_ERROR){
-                /* Do some error handling. */
-                log_it(L_DEBUG, "There an error! nlmsg_type %d", nlh->nlmsg_type);
-                break;
+            if (nlh->nlmsg_type == NLMSG_ERROR) {
+                struct nlmsgerr *err_msg = (struct nlmsgerr *)NLMSG_DATA(nlh);
+                if (nlh->nlmsg_len < NLMSG_LENGTH(sizeof(struct nlmsgerr))) {
+                    log_it(L_ERROR, "Netlink message error: message truncated");
+                } else {
+                    if (err_msg->error == 0) {
+                        // log_it(L_DEBUG, "Netlink message: ACK received");
+                    } else {
+                        log_it(L_ERROR, "Netlink message error: %s", strerror(-err_msg->error));
+                    }
+                }
+                continue;
             }
 
             clear_results(&callback_result);
@@ -229,10 +250,9 @@ static void* network_monitor_worker(void *arg)
                 _ip_addr_msg_handler(nlh, &callback_result);
             } else if(nlh->nlmsg_type == RTM_NEWROUTE || nlh->nlmsg_type == RTM_DELROUTE) {
                 _route_msg_handler(nlh, &callback_result, len);
-            } else if (nlh->nlmsg_type == RTM_NEWLINK || nlh->nlmsg_type == RTM_DELLINK){
+            } else if (nlh->nlmsg_type == RTM_NEWLINK || nlh->nlmsg_type == RTM_DELLINK) {
                 _link_msg_handler(nlh, &callback_result, sa);
-            }
-            else{
+            } else {
                 log_it(L_DEBUG, "Not supported msg type %d", nlh->nlmsg_type);
                 continue;
             }
@@ -244,5 +264,10 @@ static void* network_monitor_worker(void *arg)
             }
         }
     }
+
+    if (len == -1) {
+        log_it(L_ERROR, "recvmsg failed: %s", strerror(errno));
+    }
+
     return NULL;
 }
