@@ -472,14 +472,14 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
                 break;
             default:
                 continue;
-            }
+            } break;
         case TX_ITEM_TYPE_IN_ALL:
             switch (*l_item) {
             case TX_ITEM_TYPE_IN: case TX_ITEM_TYPE_IN_COND: case TX_ITEM_TYPE_IN_EMS: case TX_ITEM_TYPE_IN_REWARD:
                 break;
             default:
                 continue; 
-            }
+            } break;
         default:
             if (*l_item == a_type)
                 break;
