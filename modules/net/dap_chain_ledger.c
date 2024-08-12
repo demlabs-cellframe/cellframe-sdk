@@ -603,17 +603,17 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
          l_was_tx_send_allow_copied = false, l_was_tx_send_block_copied = false;
 
     int ret = DAP_LEDGER_CHECK_OK;
-    size_t l_tsd_size = 0;
+    uint64_t l_tsd_size = 0;
     dap_tsd_t *l_tsd = (dap_tsd_t *)a_tsd;
-    for (size_t l_offset = 0; l_offset < a_tsd_total_size; l_offset += l_tsd_size) {
-        if (l_offset + sizeof(dap_tsd_t) > a_tsd_total_size) {
+    for (uint64_t l_offset = 0; l_offset < a_tsd_total_size; l_offset += l_tsd_size) {
+        if (l_offset + sizeof(dap_tsd_t) > a_tsd_total_size || l_offset + sizeof(dap_tsd_t) < l_offset) {
             log_it(L_WARNING, "Incorrect TSD section size, less than header");
             ret = DAP_LEDGER_CHECK_INVALID_SIZE;
             goto ret_n_clear;
         }
         l_tsd = (dap_tsd_t *)((byte_t *)l_tsd + l_tsd_size);
         l_tsd_size = dap_tsd_size(l_tsd);
-        if (l_offset + l_tsd_size > a_tsd_total_size) {
+        if (l_offset + l_tsd_size > a_tsd_total_size || l_offset + l_tsd_size < l_offset) {
             log_it(L_WARNING, "Wrong TSD size %zu, exiting TSD parse", l_tsd_size);
             ret = DAP_LEDGER_CHECK_INVALID_SIZE;
             goto ret_n_clear;
@@ -1459,7 +1459,8 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
             return DAP_LEDGER_CHECK_PARSE_ERROR;
         }
     }
-    if (l_token_size < sizeof(dap_chain_datum_token_t) + l_size_tsd_section) {
+    if (sizeof(dap_chain_datum_token_t) + l_size_tsd_section > l_token_size ||
+            sizeof(dap_chain_datum_token_t) + l_size_tsd_section < l_size_tsd_section) {
         log_it(L_WARNING, "Incorrect size %zu of datum token, expected at least %zu", l_token_size,
                                                 sizeof(dap_chain_datum_token_t) + l_size_tsd_section);
         DAP_DELETE(l_token);
@@ -1467,16 +1468,23 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     }
     // Check signs
     byte_t *l_signs_ptr = l_token->tsd_n_signs + l_size_tsd_section;
-    size_t l_signs_size = 0, l_signs_offset = sizeof(dap_chain_datum_token_t) + l_size_tsd_section;
+    uint64_t l_signs_size = 0, l_signs_offset = sizeof(dap_chain_datum_token_t) + l_size_tsd_section;
     for (uint16_t l_signs_passed = 0; l_signs_passed < l_token->signs_total; l_signs_passed++) {
         dap_sign_t *l_sign = (dap_sign_t *)(l_signs_ptr + l_signs_size);
-        if (l_token_size < l_signs_offset + l_signs_size + sizeof(dap_sign_t)) {
+        if (l_signs_offset + l_signs_size + sizeof(dap_sign_t) > l_token_size ||
+                l_signs_offset + l_signs_size + sizeof(dap_sign_t) < l_signs_offset) {
             log_it(L_WARNING, "Incorrect size %zu of datum token, expected at least %zu", l_token_size,
                                                     l_signs_offset + l_signs_size + sizeof(dap_sign_t));
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_INVALID_SIZE;
         }
-        l_signs_size += dap_sign_get_size(l_sign);
+        uint64_t l_sign_size = dap_sign_get_size(l_sign);
+        if (!l_sign_size || l_sign_size + l_signs_size < l_signs_size) {
+            log_it(L_WARNING, "Incorrect size %zu of datum token sign", l_sign_size);
+            DAP_DELETE(l_token);
+            return DAP_LEDGER_CHECK_INVALID_SIZE;
+        }
+        l_signs_size += l_sign_size;
     }
     if (l_token_size != l_signs_offset + l_signs_size) {
         log_it(L_WARNING, "Incorrect size %zu of datum token, expected %zu", l_token_size, l_signs_offset + l_signs_size);
@@ -2793,7 +2801,8 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
     switch (l_emission->hdr.type) {
 
     case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH: {
-        size_t l_sign_data_check_size = sizeof(dap_chain_datum_token_emission_t) + l_emission->data.type_auth.tsd_total_size;
+        size_t l_sign_data_check_size = sizeof(dap_chain_datum_token_emission_t) + l_emission->data.type_auth.tsd_total_size > sizeof(dap_chain_datum_token_emission_t)
+                                                ? sizeof(dap_chain_datum_token_emission_t) + l_emission->data.type_auth.tsd_total_size : 0;
         if (l_sign_data_check_size > l_emission_size) {
             if (!s_check_hal(a_ledger, a_emission_hash)) {
                 log_it(L_WARNING, "Incorrect size %zu of datum emission, expected at least %zu", l_emission_size, l_sign_data_check_size);
@@ -2802,7 +2811,8 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
             }
             goto ret_success;
         }
-        size_t l_emission_check_size = sizeof(dap_chain_datum_token_emission_t) + l_emission->data.type_auth.tsd_n_signs_size;
+        size_t l_emission_check_size = sizeof(dap_chain_datum_token_emission_t) + l_emission->data.type_auth.tsd_n_signs_size > sizeof(dap_chain_datum_token_emission_t)
+                                                ? sizeof(dap_chain_datum_token_emission_t) + l_emission->data.type_auth.tsd_n_signs_size : 0;
         if (l_emission_check_size != l_emission_size) {
             log_it(L_WARNING, "Incorrect size %zu of datum emission, must be %zu", l_emission_size, l_emission_check_size);
             DAP_DELETE(l_emission);
