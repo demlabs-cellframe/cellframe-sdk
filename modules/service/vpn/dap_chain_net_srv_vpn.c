@@ -1065,8 +1065,6 @@ static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t
     const dap_chain_datum_tx_receipt_t * l_receipt_next = (const dap_chain_datum_tx_receipt_t *) a_receipt_next;
     size_t l_receipt_next_size = a_receipt_next_size;
 
-
-
     log_it(L_INFO, "Next receipt successfuly accepted");
     // usage is present, we've accepted packets
     dap_stream_ch_set_ready_to_read_unsafe( l_srv_ch_vpn->ch , true );

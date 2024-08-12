@@ -1353,6 +1353,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             return false;
         }
         dap_chain_datum_tx_receipt_t * l_receipt = (dap_chain_datum_tx_receipt_t *) l_ch_pkt->data;
+        // TODO calculate actual receipt size and compare it with provided packet size
         size_t l_receipt_size = l_ch_pkt->hdr.data_size;
 
         bool l_is_found = false;
