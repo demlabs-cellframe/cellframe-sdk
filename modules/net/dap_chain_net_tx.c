@@ -52,8 +52,8 @@ static void s_tx_cond_all_with_spends_by_srv_uid_callback(dap_chain_net_t* a_net
     cond_all_with_spends_by_srv_uid_arg_t *l_arg = (cond_all_with_spends_by_srv_uid_arg_t*)a_arg;
     dap_chain_datum_tx_spends_items_t *l_ret = l_arg->ret;
 
-    dap_return_if_pass(l_arg->time_from && l_tx->header.ts_created < l_arg->time_from 
-                    || l_arg->time_to && l_tx->header.ts_created > l_arg->time_to);
+    dap_return_if_pass(l_arg->time_from && a_tx->header.ts_created < l_arg->time_from 
+                    || l_arg->time_to && a_tx->header.ts_created > l_arg->time_to);
     byte_t *l_item; size_t l_size;
     TX_ITEM_ITER_TX(l_item, l_size, a_tx) {
         switch (*l_item) {
@@ -61,13 +61,14 @@ static void s_tx_cond_all_with_spends_by_srv_uid_callback(dap_chain_net_t* a_net
             dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t*)l_item;
             dap_chain_datum_tx_spends_item_t *l_spends = NULL;
             dap_hash_fast_t l_prev_hash = l_tx_in_cond->header.tx_prev_hash;
-            if (( HASH_FIND(hh, l_ret->tx_outs, &l_prev_hash, sizeof(l_prev_hash), l_spends), l_spends )) {
+            HASH_FIND(hh, l_ret->tx_outs, &l_prev_hash, sizeof(l_prev_hash), l_spends);
+            if (l_spends) {
                 dap_chain_datum_tx_spends_item_t *l_in = DAP_NEW_Z(dap_chain_datum_tx_spends_item_t);
                 *l_in = (dap_chain_datum_tx_spends_item_t) { 
                     .tx = a_tx,
                     .tx_hash = *a_tx_hash,
                     .in_cond = l_tx_in_cond
-                }
+                };
                 HASH_ADD(hh, l_ret->tx_ins, tx_hash, sizeof(dap_chain_hash_fast_t), l_in);
                 l_spends->tx_next = a_tx;
             }
@@ -80,13 +81,14 @@ static void s_tx_cond_all_with_spends_by_srv_uid_callback(dap_chain_net_t* a_net
                     .tx = a_tx,
                     .tx_hash = *a_tx_hash,
                     .out_cond = l_tx_out_cond
-                }
+                };
                 HASH_ADD(hh, l_ret->tx_outs, tx_hash, sizeof(dap_chain_hash_fast_t), l_out);
                 // ??? TODO?
             }
         } break;
         default:
             break;
+        }
     }
 }
 
@@ -236,13 +238,12 @@ struct get_tx_cond_all_from_tx
 static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
 {
     struct get_tx_cond_all_from_tx * l_args = (struct get_tx_cond_all_from_tx* ) a_arg;
-
     if( l_args->ret ){
         int l_item_idx = 0;
         byte_t *l_tx_item;
         dap_hash_fast_t * l_tx_hash = a_tx_hash;
         // Get items from transaction
-        while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL)) != NULL){
+        while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, NULL, TX_ITEM_TYPE_IN_COND , NULL)) != NULL){
             dap_chain_tx_in_cond_t * l_in_cond = (dap_chain_tx_in_cond_t *) l_tx_item;
             if(dap_hash_fast_compare(&l_in_cond->header.tx_prev_hash, &l_args->tx_last_hash) &&
                     (uint32_t)l_args->tx_last_cond_idx == l_in_cond->header.tx_out_prev_idx ){ // Found output

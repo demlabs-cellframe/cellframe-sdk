@@ -42,7 +42,7 @@ dap_chain_datum_tx_t* dap_chain_datum_tx_create(void)
     dap_chain_datum_tx_t *tx = DAP_NEW_Z(dap_chain_datum_tx_t);
     return tx 
         ? tx->header.ts_created = time(NULL), tx
-        : ( log_it(L_CRITICAL, "%s", c_error_memory_alloc), 0 );
+        : ( log_it(L_CRITICAL, "%s", c_error_memory_alloc), NULL );
 }
 
 /**
@@ -83,7 +83,7 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
 }
 
 #define dap_chain_datum_tx_add_new_generic(a_tx, type, a_item) \
-    ({ type* item = a_item; item ? dap_chain_datum_tx_add_item(a_tx, item), DAP_DELETE(item), 1 : -1; });
+    ({ type* item = a_item; item ? ( dap_chain_datum_tx_add_item(a_tx, item), DAP_DELETE(item), 1 ) : -1; })
 
 /**
  * Create 'in' item and insert to transaction
@@ -183,7 +183,7 @@ int dap_chain_datum_tx_get_fee_value(dap_chain_datum_tx_t *a_tx, uint256_t *a_va
 dap_sign_t *dap_chain_datum_tx_get_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
 {
     dap_return_val_if_fail(a_tx, NULL);
-    return dap_chain_datum_tx_item_sign_get_sig( dap_chain_datum_tx_item_get_nth(a_tx, TX_ITEM_TYPE_SIG, a_sign_num) );
+    return dap_chain_datum_tx_item_sign_get_sig( (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get_nth(a_tx, TX_ITEM_TYPE_SIG, a_sign_num) );
 }
 
 /**

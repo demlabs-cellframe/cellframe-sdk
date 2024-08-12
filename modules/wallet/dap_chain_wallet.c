@@ -352,7 +352,7 @@ static char s_wallets_path[MAX_PATH];
 
 const char* dap_chain_wallet_get_path(dap_config_t * a_config)
 {
-    char *l_cp = NULL;
+    const char *l_cp = NULL;
     if (!a_config)
         a_config = g_config;
     if ( s_wallets_path[0] )                                                /* Is the path to the wallet's store has been defined ? */

@@ -234,7 +234,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
         switch (*item) {
         case TX_ITEM_TYPE_IN:
             l_hash_tmp = ((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
-            l_hash_str = !dap_hash_fast_is_blank(l_hash_tmp) 
+            l_hash_str = !dap_hash_fast_is_blank(&l_hash_tmp) 
                 ? dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp) : dap_chain_hash_fast_to_str_static(&l_hash_tmp)
                 : "BLANK";
             dap_string_append_printf(a_str_out, "\t IN:\nTx_prev_hash: %s\n"
@@ -461,7 +461,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      l_value_str);
         } break;
         case TX_ITEM_TYPE_VOTING:{
-            int l_tsd_size = 0;
+            size_t l_tsd_size = 0;
             dap_chain_tx_tsd_t *l_item = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_datum, NULL, (byte_t*)item + l_size, TX_ITEM_TYPE_TSD, &l_tsd_size);
             if (!l_item || !l_tsd_size)
                     break;
@@ -549,7 +549,7 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
         case TX_ITEM_TYPE_IN:
             l_hash_tmp = ((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
             l_hash_str = !dap_hash_fast_is_blank(&l_hash_tmp)
-                ? dap_strcmp(a_hash_out_type, "hex") : dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp) : dap_chain_hash_fast_to_str_static(&l_hash_tmp)
+                ? dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp) : dap_chain_hash_fast_to_str_static(&l_hash_tmp)
                 : "BLANK";
             json_object_object_add(json_obj_item,"item type", json_object_new_string("IN"));
             json_object_object_add(json_obj_item,"Tx prev hash", json_object_new_string(l_hash_str));
@@ -749,7 +749,7 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
             
         } break;
         case TX_ITEM_TYPE_VOTING:{
-            int l_tsd_size = 0;
+            size_t l_tsd_size = 0;
             dap_chain_tx_tsd_t *l_item = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_datum, NULL, (byte_t*)item + l_size, TX_ITEM_TYPE_TSD, &l_tsd_size);
             if (!l_item || !l_tsd_size)
                     break;

@@ -32,6 +32,7 @@
 #include "dap_hash.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_tx_voting.h"
 
 #define LOG_TAG "dap_chain_datum_tx_items"
 

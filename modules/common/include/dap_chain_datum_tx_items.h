@@ -43,7 +43,6 @@
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_tx_in_reward.h"
-#include "dap_chain_datum_tx_voting.h"
 
 typedef struct dap_chain_datum_tx_item_groups {
 
