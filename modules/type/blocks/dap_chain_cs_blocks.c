@@ -1711,6 +1711,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     return ATOM_FORK;
                 }
             }
+
         } else {
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
             ++PVT(l_blocks)->blocks_count;
@@ -1721,6 +1722,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
             return ret;
         }
+
+        DAP_DELETE(l_block_cache);
         pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: REJECTED", a_atom);
         return ATOM_REJECT;
@@ -1780,6 +1783,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             debug_if(s_debug_more, L_DEBUG, "Fork is made successfuly.");
             return ATOM_FORK;
         }
+
+        DAP_DELETE(l_block_cache);
         pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
         return ATOM_REJECT;
     }
