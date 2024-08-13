@@ -78,7 +78,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
 static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks);
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg);
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
-static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size);
+static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, dap_hash_fast_t *a_block_hash, size_t a_block_size);
 static void s_db_change_notifier(dap_store_obj_t *a_obj, void * a_arg);
 static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_addr_t *a_signing_addr);
 static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply);
@@ -2783,42 +2783,29 @@ static uint64_t s_get_precached_key_hash(struct precached_key **a_precached_keys
     return 0;
 }
 
-static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size)
+static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, dap_hash_fast_t *a_block_hash, size_t a_block_size)
 {
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
-    if (sizeof(a_block->hdr) >= a_block_size) {
-        log_it(L_WARNING, "Incorrect header size with block %p on chain %s", a_block, a_blocks->chain->name);
-        return  -7;
-    }
-    size_t l_offset = dap_chain_block_get_sign_offset(a_block, a_block_size);
-    if (!l_offset) {
-        log_it(L_WARNING, "Block with size %zu parsing error", a_block_size);
-        return -5;
-    }
-    if ((a_block->hdr.meta_n_datum_n_signs_size > l_offset || a_block->hdr.version == 2) &&
-            a_block->hdr.meta_n_datum_n_signs_size != a_block_size - sizeof(a_block->hdr)) {
-        log_it(L_WARNING, "Incorrect size with block %p on chain %s", a_block, a_blocks->chain->name);
-        return -8;
-    }
-
     if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block)
         // It's a block candidate, don't check signs
-        return 0;
+        return a_block->hdr.version > 1 ? 0 : -3;
 
-
+    size_t l_block_size = a_block_size; // /* Can't calc it for many old bugged blocks */ dap_chain_block_get_size(a_block);
     size_t l_signs_count = 0;
+    size_t l_offset = dap_chain_block_get_sign_offset(a_block, l_block_size);
     dap_sign_t **l_signs = dap_sign_get_unique_signs(a_block->meta_n_datum_n_sign+l_offset,
-                                            a_block_size-sizeof(a_block->hdr)-l_offset, &l_signs_count);
+                                            l_block_size-sizeof(a_block->hdr)-l_offset, &l_signs_count);
     if (!l_signs_count){
-        log_it(L_ERROR, "No any signatures at all for block");
+        log_it(L_ERROR, "No any signatures at all for block %s", dap_hash_fast_to_str_static(a_block_hash));
         DAP_DELETE(l_signs);
         return -2;
     }
 
     if (l_signs_count < l_esbocs_pvt->min_validators_count) {
-        log_it(L_ERROR, "Corrupted block: not enough signs: %zu of %hu", l_signs_count, l_esbocs_pvt->min_validators_count);
+        log_it(L_ERROR, "Corrupted block  %s: not enough signs: %zu of %hu", dap_hash_fast_to_str_static(a_block_hash),
+                                    l_signs_count, l_esbocs_pvt->min_validators_count);
         DAP_DELETE(l_signs);
         return -1;
     }
@@ -2826,60 +2813,73 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     // Parse the rest signs
     int l_ret = 0;
     uint16_t l_signs_verified_count = 0;
-    size_t l_block_excl_sign_size = dap_chain_block_get_sign_offset(a_block, a_block_size) + sizeof(a_block->hdr);
-    bool l_block_is_emergency = s_block_is_emergency(a_block, a_block_size);
+    size_t l_block_excl_sign_size = dap_chain_block_get_sign_offset(a_block, l_block_size) + sizeof(a_block->hdr);
+    bool l_block_is_emergency = s_block_is_emergency(a_block, l_block_size);
     // Get the header on signing operation time
     size_t l_block_original = a_block->hdr.meta_n_datum_n_signs_size;
     a_block->hdr.meta_n_datum_n_signs_size = l_block_excl_sign_size - sizeof(a_block->hdr);
     for (size_t i = 0; i < l_signs_count; i++) {
         dap_sign_t *l_sign = l_signs[i];
-        if (!dap_sign_verify_size(l_sign, a_block_size - l_block_excl_sign_size + sizeof(a_block->hdr))) {
-            log_it(L_ERROR, "Corrupted block: sign size is bigger than block size");
-            l_ret = -3;
-            break;
-        }
         dap_chain_addr_t l_signing_addr = { .net_id = a_blocks->chain->net_id };
         s_get_precached_key_hash(&l_esbocs_pvt->precached_keys, l_sign, &l_signing_addr.data.hash_fast);
         if (!l_esbocs_pvt->poa_mode) {
              // Compare signature with delegated keys
             if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr)) {
-                debug_if(l_esbocs_pvt->debug, L_ATT, "Unknown PoS signer %s",
-                    dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
+                if (l_esbocs_pvt->debug) {
+                    char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
+                    dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+                    log_it(L_ATT, "Unknown PoS signer %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+                }
                 continue;
             }
         } else {
             // Compare signature with auth_certs
             if (!s_validator_check(&l_signing_addr, l_esbocs_pvt->poa_validators)) {
-                debug_if(l_esbocs_pvt->debug, L_ATT, "Unknown PoA signer %s",
-                    dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
+                if (l_esbocs_pvt->debug) {
+                    char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
+                    dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+                    log_it(L_ATT, "Unknown PoA signer %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+                }
                 continue;
             }
         }
         if (i == 0) {
             if (l_block_is_emergency && !s_check_emergency_rights(l_esbocs, &l_signing_addr)) {
-                log_it(L_ATT, "Restricted emergency block submitter %s",
-                                dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
+                if (l_esbocs_pvt->debug) {
+                    char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
+                    dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+                    log_it(L_ATT, "Restricted emergency block submitter %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+                }
                 l_ret = -5;
                 break;
             } else if (l_esbocs_pvt->check_signs_structure &&
-                       !s_check_signing_rights(l_esbocs, a_block, a_block_size, &l_signing_addr, true)) {
-                log_it(L_ATT, "Restricted block submitter %s",
-                                dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
+                       !s_check_signing_rights(l_esbocs, a_block, l_block_size, &l_signing_addr, true)) {
+                if (l_esbocs_pvt->debug) {
+                    char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
+                    dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+                    log_it(L_ATT, "Restricted block submitter %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+                }
                 l_ret = -5;
                 break;
             }
         } else {
             if (l_block_is_emergency && !s_check_emergency_rights(l_esbocs, &l_signing_addr) &&
                     l_esbocs_pvt->check_signs_structure &&
-                    !s_check_signing_rights(l_esbocs, a_block, a_block_size, &l_signing_addr, false)) {
-                log_it(L_ATT, "Restricted emergency block signer %s",
-                                dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
+                    !s_check_signing_rights(l_esbocs, a_block, l_block_size, &l_signing_addr, false)) {
+                if (l_esbocs_pvt->debug) {
+                    char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
+                    dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+                    log_it(L_ATT, "Restricted emergency block signer %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+                }
                 l_ret = -5;
                 break;
             } else if (l_esbocs_pvt->check_signs_structure &&
-                    !s_check_signing_rights(l_esbocs, a_block, a_block_size, &l_signing_addr, false)) {
-                log_it(L_ATT, "Restricted block signer %s",
-                                dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
+                    !s_check_signing_rights(l_esbocs, a_block, l_block_size, &l_signing_addr, false)) {
+                if (l_esbocs_pvt->debug) {
+                    char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
+                    dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+                    log_it(L_ATT, "Restricted block signer %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+                }
                 l_ret = -5;
                 break;
             }
@@ -2892,12 +2892,8 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     a_block->hdr.meta_n_datum_n_signs_size = l_block_original;
 
     if (l_signs_verified_count < l_esbocs_pvt->min_validators_count) {
-        dap_hash_fast_t l_block_hash;
-        dap_hash_fast(a_block, a_block_size, &l_block_hash);
-        char l_block_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_hash_fast_to_str(&l_block_hash, l_block_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
         debug_if(l_esbocs_pvt->debug, L_ERROR, "Corrupted block %s: not enough authorized signs: %u of %u",
-                    l_block_hash_str, l_signs_verified_count, l_esbocs_pvt->min_validators_count);
+                    dap_hash_fast_to_str_static(a_block_hash), l_signs_verified_count, l_esbocs_pvt->min_validators_count);
         return l_ret ? l_ret : -4;
     }
     return 0;
