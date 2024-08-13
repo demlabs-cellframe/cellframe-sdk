@@ -605,6 +605,7 @@ static dap_list_t* s_get_options_list_from_str(const char* a_str)
 
 static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 {
+    json_object **json_arr_reply = (json_object **)a_str_reply;
     enum {CMD_NONE=0, CMD_CREATE, CMD_VOTE, CMD_LIST, CMD_DUMP};
 
     const char* l_net_str = NULL;
@@ -622,13 +623,12 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
     // Select chain network
     if(!l_net_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "command requires parameter '-net'");
-        return -2;
+        dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_VOTING_NET_PARAM_MISSING, "command requires parameter '-net'");
+        return -DAP_CHAIN_NET_VOTE_VOTING_NET_PARAM_MISSING;
     } else {
         if((l_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                              "command requires parameter '-net' to be valid chain network name");
-            return -3;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_VOTING_NET_PARAM_NOT_VALID, "command requires parameter '-net' to be valid chain network name");            
+            return -DAP_CHAIN_NET_VOTE_VOTING_NET_PARAM_NOT_VALID;
         }
     }
 
@@ -654,46 +654,48 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-question", &l_question_str);
         if (!l_question_str){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Voting requires a question parameter to be valid.");
-            return -100;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_QUESTION_PARAM_MISSING, "Voting requires a question parameter to be valid.");
+            return -DAP_CHAIN_NET_VOTE_CREATE_QUESTION_PARAM_MISSING;
         }
 
         if (strlen(l_question_str) > DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "The question must contain no more than %d characters", DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH);
-            return -101;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_QUESTION_CONTAIN_MAX_CHARACTERS, 
+            "The question must contain no more than %d characters", DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH);
+            return -DAP_CHAIN_NET_VOTE_CREATE_QUESTION_CONTAIN_MAX_CHARACTERS;
         }
 
         dap_list_t *l_options_list = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-options", &l_options_list_str);
         if (!l_options_list_str){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Voting requires a question parameter to be valid.");
-            return -101;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_OPTION_PARAM_MISSING, "Voting requires a question parameter to be valid.");
+            return -DAP_CHAIN_NET_VOTE_CREATE_OPTION_PARAM_MISSING;
         }
         // Parse options list
         l_options_list = s_get_options_list_from_str(l_options_list_str);
         if(!l_options_list || dap_list_length(l_options_list) < 2){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Number of options must be 2 or greater.");
-            return -102;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_NUMBER_OPTIONS_ERROR, "Number of options must be 2 or greater.");
+            return -DAP_CHAIN_NET_VOTE_CREATE_NUMBER_OPTIONS_ERROR;
         }
 
         if(dap_list_length(l_options_list)>DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "The voting can contain no more than %d options", DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT);
-            return -102;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_CONTAIN_MAX_OPTIONS, 
+            "The voting can contain no more than %d options", DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT);            
+            return -DAP_CHAIN_NET_VOTE_CREATE_CONTAIN_MAX_OPTIONS;
         }
 
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-expire", &l_voting_expire_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-max_votes_count", &l_max_votes_count_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_str);
         if (!l_fee_str){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Voting requires paramete -fee to be valid.");
-            return -102;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_FEE_PARAM_NOT_VALID, "Voting requires paramete -fee to be valid.");
+            return -DAP_CHAIN_NET_VOTE_CREATE_FEE_PARAM_NOT_VALID;
         }
         uint256_t l_value_fee = dap_chain_balance_scan(l_fee_str);
 
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-w", &l_wallet_str);
         if (!l_wallet_str){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Voting requires parameter -w to be valid.");
-            return -103;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_WALLET_PARAM_NOT_VALID, "Voting requires parameter -w to be valid.");
+            return -DAP_CHAIN_NET_VOTE_CREATE_WALLET_PARAM_NOT_VALID;
         }
 
         dap_time_t l_time_expire = 0;
@@ -708,8 +710,8 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
         dap_chain_wallet_t *l_wallet_fee = dap_chain_wallet_open(l_wallet_str, c_wallets_path,NULL);
         if (!l_wallet_fee) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet %s does not exist", l_wallet_str);
-            return -112;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_WALLET_DOES_NOT_EXIST, "Wallet %s does not exist", l_wallet_str);
+            return -DAP_CHAIN_NET_VOTE_CREATE_WALLET_DOES_NOT_EXIST;
         }
 
         char *l_hash_ret = NULL;
@@ -724,67 +726,67 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NET_VOTE_CREATE_OK;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_LENGTH_QUESTION_OVERSIZE_MAX: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "The question must contain no more than %d characters",
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_LENGTH_QUESTION_OVERSIZE_MAX, "The question must contain no more than %d characters",
                                                   DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH);
                 return DAP_CHAIN_NET_VOTE_CREATE_LENGTH_QUESTION_OVERSIZE_MAX;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_COUNT_OPTION_OVERSIZE_MAX: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "The voting can contain no more than %d options",
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_COUNT_OPTION_OVERSIZE_MAX, "The voting can contain no more than %d options",
                                                   DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT);
                 return DAP_CHAIN_NET_VOTE_CREATE_COUNT_OPTION_OVERSIZE_MAX;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_FEE_IS_ZERO: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "The commission amount must be greater than zero");
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_FEE_IS_ZERO, "The commission amount must be greater than zero");
                 return DAP_CHAIN_NET_VOTE_CREATE_FEE_IS_ZERO;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_SOURCE_ADDRESS_IS_INVALID: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "source address is invalid");
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_SOURCE_ADDRESS_IS_INVALID, "source address is invalid");
                 return DAP_CHAIN_NET_VOTE_CREATE_SOURCE_ADDRESS_IS_INVALID;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_NOT_ENOUGH_FUNDS_TO_TRANSFER: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Not enough funds to transfer");
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_NOT_ENOUGH_FUNDS_TO_TRANSFER, "Not enough funds to transfer");
                 return DAP_CHAIN_NET_VOTE_CREATE_NOT_ENOUGH_FUNDS_TO_TRANSFER;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_MAX_COUNT_OPTION_EXCEEDED: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "The option must contain no more than %d characters",
-                                                  DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_MAX_COUNT_OPTION_EXCEEDED, "The option must contain no more than %d characters",
+                                                  DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH);                
                 return DAP_CHAIN_NET_VOTE_CREATE_MAX_COUNT_OPTION_EXCEEDED;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_OPTION_TSD_ITEM: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create voting with expired time");
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_OPTION_TSD_ITEM, "Can't create voting with expired time");
                 return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_OPTION_TSD_ITEM;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_INPUT_TIME_MORE_CURRENT_TIME: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create voting with expired time");
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_INPUT_TIME_MORE_CURRENT_TIME, "Can't create voting with expired time");
                 return DAP_CHAIN_NET_VOTE_CREATE_INPUT_TIME_MORE_CURRENT_TIME;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_EXPIRE_TIME: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create expired tsd item.");
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_EXPIRE_TIME, "Can't create expired tsd item.");
                 return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_EXPIRE_TIME;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_DELEGATE_KEY: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create delegated key req tsd item.");
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_DELEGATE_KEY, "Can't create delegated key req tsd item.");                
                 return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_DELEGATE_KEY;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_ADD_NET_FEE_OUT: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add net fee out.");
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_ADD_NET_FEE_OUT, "Can't add net fee out.");
                 return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_ADD_NET_FEE_OUT;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_ADD_OUT_WITH_VALUE_BACK: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add out with value back");
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_ADD_OUT_WITH_VALUE_BACK, "Can't add out with value back");
                 return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_ADD_OUT_WITH_VALUE_BACK;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_SIGNED_TX: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can not sign transaction");
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_SIGNED_TX, "Can not sign transaction");
                 return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_SIGNED_TX;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_POOL_DATUM_IN_MEMPOOL: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can not pool transaction in mempool");
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_POOL_DATUM_IN_MEMPOOL, "Can not pool transaction in mempool");
                 return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_POOL_DATUM_IN_MEMPOOL;
             } break;
             default: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown error. Code: %d", res);
-                return -1;
+                dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_CREATE_UNKNOWN_ERR, "Unknown error. Code: %d", res);
+                return -DAP_CHAIN_NET_VOTE_CREATE_UNKNOWN_ERR;
             }
         }
     }break;
@@ -797,8 +799,8 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
         if(!l_hash_str){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'vote' require the parameter -hash");
-            return -110;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_VOTING_HASH_NOT_FOUND, "Command 'vote' require the parameter -hash");
+            return -DAP_CHAIN_NET_VOTE_VOTING_HASH_NOT_FOUND;
         }
 
         dap_hash_fast_t l_voting_hash = {};
