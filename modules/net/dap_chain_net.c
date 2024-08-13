@@ -2480,6 +2480,10 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                              DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             return;
         }
+        if (!l_net_pvt->sync_context.cur_chain) {
+            assert(false);  // Strange bug here, stop and investigate it
+            return;
+        }
         dap_chain_atom_iter_t *l_iter = l_net_pvt->sync_context.cur_chain->callback_atom_iter_create(
                                                                             l_net_pvt->sync_context.cur_chain,
                                                                             l_net_pvt->sync_context.cur_cell
