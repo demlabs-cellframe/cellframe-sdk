@@ -347,7 +347,6 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
         DAP_DELETE(l_event_current);
     }
     HASH_ITER(hh, l_dag_pvt->events_lasts_unlinked, l_event_current, l_event_tmp) {
-        log_it(L_MSG, "DELETE l_dag_pvt->events_lasts_unlinked = %p, l_event_cur = %p", l_dag_pvt->events_lasts_unlinked, l_event_current);
         HASH_DEL(l_dag_pvt->events_lasts_unlinked, l_event_current);
         //if (!a_chain->is_mapped && !l_event_current->mapped_region)
         //    DAP_DELETE(l_event_current->event);
@@ -855,7 +854,6 @@ void s_dag_events_lasts_delete_linked_with_event(dap_chain_cs_dag_t * a_dag, dap
         dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) a_event->hashes_n_datum_n_signs) + i;
         dap_chain_cs_dag_event_item_t * l_event_item = NULL;
         dap_chain_cs_dag_pvt_t * l_dag_pvt =  PVT(a_dag);
-        log_it(L_MSG, "FIND l_dag_pvt->events_lasts_unlinked = %p", l_dag_pvt->events_lasts_unlinked);
         HASH_FIND(hh, l_dag_pvt->events_lasts_unlinked ,l_hash ,sizeof (*l_hash),  l_event_item);
         if ( l_event_item ){
             HASH_DEL(PVT(a_dag)->events_lasts_unlinked,l_event_item);
