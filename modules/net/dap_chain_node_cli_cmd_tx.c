@@ -901,6 +901,7 @@ static json_object* dap_db_chain_history_token_list(dap_chain_t * a_chain, const
             json_object_object_add(l_jobj_ticker, "declarations", l_jobj_decls);
             json_object_object_add(l_jobj_ticker, "updates", l_jobj_updates);
             json_object_object_add(l_jobj_tickers, l_token->ticker, l_jobj_ticker);
+            l_token_num++;
         } else {
             l_jobj_decls = json_object_object_get(l_jobj_ticker, "declarations");
             l_jobj_updates = json_object_object_get(l_jobj_ticker, "updates");
@@ -925,7 +926,6 @@ static json_object* dap_db_chain_history_token_list(dap_chain_t * a_chain, const
                 break;
         }
         DAP_DELETE(l_token);
-        l_token_num++;
     }
     a_chain->callback_datum_iter_delete(l_datum_iter);
     if (a_token_num)
@@ -953,7 +953,7 @@ static size_t dap_db_net_history_token_list(dap_chain_net_t * l_net, const char 
         json_obj_tx = dap_db_chain_history_token_list(l_chain_cur, a_token_name, a_hash_out_type, &l_token_num);
         if(json_obj_tx)
             json_object_array_add(json_arr_obj_tx, json_obj_tx);
-        l_token_num_total += l_token_num;        
+        l_token_num_total += l_token_num;
     }
     json_object_object_add(a_obj_out, "TOKENS", json_arr_obj_tx);
     return l_token_num_total;
@@ -1170,10 +1170,10 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply)
     // token list
     if(l_cmd == CMD_LIST) {
         json_object* json_obj_tx = json_object_new_object();
-        size_t l_token_num_total = dap_db_net_history_token_list(l_net, NULL, l_hash_out_type, json_obj_tx);
+        size_t l_total_all_token = dap_db_net_history_token_list(l_net, NULL, l_hash_out_type, json_obj_tx);
 
-        //total
-        json_object_object_add(json_obj_tx, "tokens", json_object_new_uint64(l_token_num_total));
+        json_object_object_length(json_obj_tx);
+        json_object_object_add(json_obj_tx, "tokens", json_object_new_uint64(l_total_all_token));
         json_object_array_add(*json_arr_reply, json_obj_tx);
         return 0;
     }

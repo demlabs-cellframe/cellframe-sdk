@@ -2818,13 +2818,17 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
         dap_sign_t **l_signs = dap_sign_get_unique_signs(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size,
                                                          l_emission->data.type_auth.tsd_n_signs_size, &l_signs_unique);
         if (l_signs_unique < l_token_item->auth_signs_valid) {
+            
+            DAP_DELETE(l_signs);
+
             if (!s_check_hal(a_ledger, a_emission_hash)) {
-                DAP_DEL_Z(l_signs);
+                
                 log_it(L_WARNING, "The number of unique token signs %zu is less than total token signs set to %zu",
                        l_signs_unique, l_token_item->auth_signs_total);
                 DAP_DELETE(l_emission);
                 return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
             }
+            
             goto ret_success;
         }
         size_t l_sign_auth_count = l_emission->data.type_auth.signs_count;
@@ -2875,6 +2879,7 @@ ret_success:
         *a_emission = l_emission;
     else
         DAP_DELETE(l_emission);
+
     return DAP_LEDGER_CHECK_OK;
 }
 
