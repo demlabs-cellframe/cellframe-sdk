@@ -630,7 +630,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
             NTSTATUS err = pfnNtExtendSection(hSection, &SectionSize);
             if ( !NT_SUCCESS(err) ) {
                 log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
-                return -4;
+                l_err = true;
             }
         }
 #endif
