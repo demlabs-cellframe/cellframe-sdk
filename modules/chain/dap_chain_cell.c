@@ -243,7 +243,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
     off_t l_size = !fseeko(l_file, 0, SEEK_END) ? ftello(l_file) : -1;
     if (l_size < 0)
         CLEANUP_AND_RET;
-    else if ( l_size < sizeof(dap_chain_cell_file_header_t) ) {
+    else if ( (size_t)l_size < sizeof(dap_chain_cell_file_header_t) ) {
         if ( l_size ) {
             log_it(L_INFO, "Possibly corrupt cell storage 0x%016"DAP_UINT64_FORMAT_X" \"%s\", rewriting it",
                             a_cell_id.uint64, file_storage_path);
