@@ -113,7 +113,8 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
         a_block_cache->block_hash = *a_block_hash;
     else
         dap_hash_fast(a_block_cache->block, a_block_cache->block_size, &a_block_cache->block_hash);
-    a_block_cache->block_hash_str = dap_hash_fast_to_str_new(&a_block_cache->block_hash);
+
+    dap_hash_fast_to_str(&a_block_cache->block_hash, a_block_cache->block_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
 
     if (dap_chain_block_meta_extract(a_block_cache->block, a_block_cache->block_size,
                                         &a_block_cache->prev_hash,
@@ -147,7 +148,6 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
  */
 void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache)
 {
-    DAP_DEL_Z(a_block_cache->block_hash_str);
     DAP_DEL_Z(a_block_cache->datum);
     DAP_DEL_Z(a_block_cache->datum_hash);
     DAP_DEL_Z(a_block_cache->links_hash);
