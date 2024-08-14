@@ -106,9 +106,9 @@ dap_sign_t *dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t *a_
     uint16_t l_sign_position;
     dap_sign_t *l_sign = NULL;
     for (l_sign_position = a_sign_position + 1; l_sign_position; l_sign_position--) {
-        dap_sign_t *l_sign = (dap_sign_t *)(a_receipt->exts_n_signs + l_offset);
+        l_sign = (dap_sign_t *)(a_receipt->exts_n_signs + l_offset);
         // not enough signs in receipt
-        if (sizeof(dap_chain_datum_tx_receipt_t) + l_offset + sizeof(dap_sign_t) < a_receipt_size)
+        if (sizeof(dap_chain_datum_tx_receipt_t) + l_offset + sizeof(dap_sign_t) > a_receipt_size)
             return NULL;
         uint64_t l_sign_size = dap_sign_get_size(l_sign);
         // incorrect sign size
