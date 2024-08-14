@@ -7234,6 +7234,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
     const char *l_tx_act_str = NULL;
     const char *l_limit_str = NULL;
     const char *l_offset_str = NULL;
+    const char *l_head_str = NULL;
 
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
@@ -7259,7 +7260,8 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
     
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
-    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
+    bool l_head = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-head", &l_head_str) ? true : false;
+    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
     size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
 
     //default is ALL/ANY
@@ -7381,7 +7383,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         if (!json_obj_summary) {
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;
         }
-        json_obj_out = dap_db_history_addr(l_addr, l_chain, l_hash_out_type, dap_chain_addr_to_str_static(l_addr), json_obj_summary, l_limit, l_offset, l_brief, l_tx_srv_str, l_action);
+        json_obj_out = dap_db_history_addr(l_addr, l_chain, l_hash_out_type, dap_chain_addr_to_str_static(l_addr), json_obj_summary, l_limit, l_offset, l_brief, l_tx_srv_str, l_action, l_head);
         if (!json_obj_out) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR,
                                     "something went wrong in tx_history");
@@ -7399,7 +7401,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         }
 
         json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_hash_out_type, json_obj_summary,
-                                                                l_limit, l_offset, l_brief,  l_tx_srv_str, l_action);
+                                                                l_limit, l_offset, l_brief, l_tx_srv_str, l_action, l_head);
         if (!json_arr_history_all) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ALL_ERR,
                                     "something went wrong in tx_history");
