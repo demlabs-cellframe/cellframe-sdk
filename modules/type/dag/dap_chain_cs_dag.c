@@ -93,7 +93,7 @@ typedef struct dap_chain_cs_dag_pvt {
 static int s_chain_cs_dag_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
 static void s_chain_cs_dag_delete(dap_chain_t *a_chain);
 static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain);
-static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag);
+static void s_threshold_free(dap_chain_cs_dag_t *a_dag);
 static dap_chain_cs_dag_event_item_t *s_dag_proc_treshold(dap_chain_cs_dag_t *a_dag);
 
 // Atomic element organization callbacks
@@ -286,14 +286,15 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->gdb_group_events_round_new = dap_strdup_printf(l_dag->is_celled ? "dag-%s-%s-%016llx-round.new" : "dag-%s-%s-round.new",
                                         "Snet", a_chain->name, 0LLU);
 #endif
-    PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_dap_chain_cs_dag_threshold_free, l_dag);
+    PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_threshold_free, l_dag);
 
     log_it (L_NOTICE, "DAG chain initialized (%s)", l_dag->is_single_line ? "single line" : "multichain");
 
     return 0;
 }
 
-static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag) {
+static void s_threshold_free(dap_chain_cs_dag_t *a_dag)
+{
     dap_chain_cs_dag_pvt_t *l_pvt = PVT(a_dag);
     dap_chain_cs_dag_event_item_t *l_current = NULL, *l_tmp = NULL;
     dap_nanotime_t  l_time_cut_off = dap_nanotime_now() - dap_nanotime_from_sec(7200); //7200 sec = 2 hours.
@@ -303,7 +304,7 @@ static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag) {
         if (l_current->ts_added < l_time_cut_off) {
             dap_chain_cs_dag_blocked_t *l_el = DAP_NEW(dap_chain_cs_dag_blocked_t);
             if (!l_el) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 pthread_mutex_unlock(&l_pvt->events_mutex);
                 return;
             }
@@ -365,7 +366,7 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
         DAP_DELETE(l_event_current);
     }
     pthread_mutex_unlock(&l_dag_pvt->events_mutex);
-    //dap_chain_cell_delete_all_and_free_file(a_chain);
+    dap_chain_cell_delete_all(a_chain);
 }
 
 /**
@@ -540,9 +541,11 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             debug_if(s_debug_more, L_WARNING, "... added with ledger code %d", l_consensus_check);
             break;
         }
+        
         dap_chain_cs_dag_event_item_t *l_tail = HASH_LAST(PVT(l_dag)->events);
         if (l_tail && l_tail->ts_created > l_event->header.ts_created) {
             DAP_CHAIN_PVT(a_chain)->need_reorder = true;
+        
             HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
             dap_chain_cs_dag_event_item_t *it = PVT(l_dag)->events;
             for (uint64_t i = 0; it; it = it->hh.next)  // renumber chain events

@@ -83,6 +83,8 @@ typedef struct  dap_chain_block{
     uint8_t meta_n_datum_n_sign[]; // Here are: metadata, datum sections and verificator signatures
 } DAP_ALIGN_PACKED dap_chain_block_t;
 
+DAP_STATIC_INLINE size_t dap_chain_block_get_size(dap_chain_block_t *a_block) { return sizeof(a_block->hdr) + a_block->hdr.meta_n_datum_n_signs_size; }
+
 // Init module
 int dap_chain_block_init();
 // Deinit module
