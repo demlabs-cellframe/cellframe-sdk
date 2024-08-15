@@ -50,6 +50,7 @@
 
 typedef struct dap_chain_node_net_states_info {
     dap_chain_node_addr_t address;
+    uint64_t events_count;
     uint64_t atoms_count;
     uint32_t uplinks_count;
     uint32_t downlinks_count;
@@ -57,8 +58,10 @@ typedef struct dap_chain_node_net_states_info {
 } DAP_ALIGN_PACKED dap_chain_node_net_states_info_t;
 
 static const uint64_t s_cmp_delta_timestamp = (uint64_t)1000 /*sec*/ * (uint64_t)1000000000;
-static const uint64_t s_cmp_delta_atom = 50;
+static const uint64_t s_cmp_delta_event = 1;
+static const uint64_t s_cmp_delta_atom = 10;
 static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
+static const char *s_states_group = ".nodes.states";
 
 /**
  * @brief get states info about current
@@ -67,8 +70,7 @@ static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
 static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 {
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
-        dap_chain_t *l_chain = NULL;
-        if(dap_chain_net_get_state(l_net) != NET_STATE_OFFLINE && (l_chain = dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 1 })) ) {
+        if(dap_chain_net_get_state(l_net) != NET_STATE_OFFLINE) {
             size_t
                 l_uplinks_count = 0,
                 l_downlinks_count = 0,
@@ -83,10 +85,15 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
             l_info->address.uint64 = g_node_addr.uint64;
             l_info->uplinks_count = l_uplinks_count;
             l_info->downlinks_count = l_downlinks_count;
-            l_info->atoms_count = l_chain->callback_count_atom ? l_chain->callback_count_atom(l_chain) : 0;
+
+            dap_chain_t *l_chain = dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 0 });  // zerochain
+            l_info->events_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;
+            l_chain =dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 1 });  // mainchain
+            l_info->atoms_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;
+            
             memcpy(l_info->links_addrs, l_linked_node_addrs, (l_info->uplinks_count + l_info->downlinks_count) * sizeof(dap_chain_node_addr_t));
             // DB write
-            char *l_gdb_group = dap_strdup_printf("%s.nodes.states", l_net->pub.gdb_groups_prefix);
+            char *l_gdb_group = dap_strdup_printf("%s%s", l_net->pub.gdb_groups_prefix, s_states_group);
             const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->address);
             dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_size, false);
             DAP_DEL_MULTY(l_linked_node_addrs, l_info, l_gdb_group);
@@ -100,17 +107,18 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
     dap_return_if_pass(!a_net || !a_node_addr_str || !l_info_str);
 // func work
     dap_nanotime_t l_timestamp = 0;
-    char *l_gdb_group = dap_strdup_printf("%s.nodes.states", a_net->pub.gdb_groups_prefix);
-    dap_chain_node_net_states_info_t *l_store_obj = (dap_chain_node_net_states_info_t *)dap_global_db_get_sync(l_gdb_group, a_node_addr_str, NULL, NULL, &l_timestamp);
-    if (!l_store_obj) {
+    size_t l_data_size = 0;
+    char *l_gdb_group = dap_strdup_printf("%s%s", a_net->pub.gdb_groups_prefix, s_states_group);
+    dap_chain_node_net_states_info_t *l_store_obj = (dap_chain_node_net_states_info_t *)dap_global_db_get_sync(l_gdb_group, a_node_addr_str, &l_data_size, NULL, &l_timestamp);
+    if (!l_store_obj || l_data_size != sizeof(dap_chain_node_net_states_info_t) + (l_store_obj->uplinks_count + l_store_obj->downlinks_count) * sizeof(dap_chain_node_addr_t)) {
         log_it(L_ERROR, "Can't find state about %s node", a_node_addr_str);
         return;
     }
     char l_ts[80] = { '\0' };
     dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_timestamp);
     dap_string_append_printf(l_info_str,
-        "Record timestamp: %s\nNode addr: %s\nNet: %s\nAtoms count: %"DAP_UINT64_FORMAT_U"\nUplinks count: %u\nDownlinks count: %u\n",
-        l_ts, a_node_addr_str, a_net->pub.name, l_store_obj->atoms_count, l_store_obj->uplinks_count, l_store_obj->downlinks_count);
+        "Record timestamp: %s\nNode addr: %s\nNet: %s\nEvents count: %"DAP_UINT64_FORMAT_U"\nAtoms count: %"DAP_UINT64_FORMAT_U"\nUplinks count: %u\nDownlinks count: %u\n",
+        l_ts, a_node_addr_str, a_net->pub.name, l_store_obj->events_count, l_store_obj->atoms_count, l_store_obj->uplinks_count, l_store_obj->downlinks_count);
     size_t l_max_links = dap_max(l_store_obj->uplinks_count, l_store_obj->downlinks_count);
     if(l_max_links) {
         dap_string_append_printf(l_info_str,
@@ -409,6 +417,8 @@ static int s_node_states_info_cmp(dap_list_t *a_first, dap_list_t *a_second)
 
   if(a->timestamp > b->timestamp && a->timestamp - b->timestamp > s_cmp_delta_timestamp) return -1;
   if(b->timestamp > a->timestamp && b->timestamp - a->timestamp > s_cmp_delta_timestamp) return 1;
+  if(a->events_count > b->events_count && a->events_count - b->events_count > s_cmp_delta_event) return -1;
+  if(b->events_count > a->events_count && b->events_count - a->events_count > s_cmp_delta_event) return 1;
   if(a->atoms_count > b->atoms_count && a->atoms_count - b->atoms_count > s_cmp_delta_atom) return -1;
   if(b->atoms_count > a->atoms_count && b->atoms_count - a->atoms_count > s_cmp_delta_atom) return 1;
   if(a->downlinks_count < b->downlinks_count) return -1;
@@ -432,7 +442,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
         log_it(L_ERROR, "Node list in net %s is empty", a_net->pub.name);
         return NULL;
     }
-    char *l_gdb_group = dap_strdup_printf("%s.nodes.states", a_net->pub.gdb_groups_prefix);
+    char *l_gdb_group = dap_strdup_printf("%s%s", a_net->pub.gdb_groups_prefix, s_states_group);
     dap_list_t *l_ret = NULL;
     for (size_t i = 0; i < l_node_count; ++i) {
         if (!l_objs[i].value) {
@@ -452,17 +462,22 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
             log_it(L_ERROR, "%s", c_error_memory_alloc);
             break;
         }
-        dap_nanotime_t l_state_timestamp = 0;
-        dap_chain_node_net_states_info_t *l_state_store_obj = (dap_chain_node_net_states_info_t *)dap_global_db_get_sync(l_gdb_group, l_objs[i].key, NULL, NULL, &l_state_timestamp);
-        if (!l_state_store_obj) {
-            log_it(L_WARNING, "Can't find state about %s node, apply low priority", l_objs[i].key);
-        }
         l_item->link_info.node_addr.uint64 = ((dap_chain_node_info_t*)(l_objs + i)->value)->address.uint64;
         l_item->link_info.uplink_port = ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_port;
         dap_strncpy(l_item->link_info.uplink_addr, ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_host, sizeof(l_item->link_info.uplink_addr) - 1);
-        l_item->atoms_count = l_state_store_obj ? l_state_store_obj->atoms_count : 0;
-        l_item->downlinks_count = l_state_store_obj ? l_state_store_obj->downlinks_count : (uint32_t)(-1);
-        l_item->timestamp = l_state_timestamp;
+
+        dap_nanotime_t l_state_timestamp = 0;
+        size_t l_data_size = 0;
+        dap_chain_node_net_states_info_t *l_state_store_obj = (dap_chain_node_net_states_info_t *)dap_global_db_get_sync(l_gdb_group, l_objs[i].key, &l_data_size, NULL, &l_state_timestamp);
+        if (!l_state_store_obj || l_data_size != sizeof(dap_chain_node_net_states_info_t) + (l_state_store_obj->uplinks_count + l_state_store_obj->downlinks_count) * sizeof(dap_chain_node_addr_t)) {
+            log_it(L_WARNING, "Can't find state about %s node, apply low priority", l_objs[i].key);
+            l_item->downlinks_count = (uint32_t)(-1);
+        } else {
+            l_item->atoms_count = l_state_store_obj->atoms_count;
+            l_item->events_count = l_state_store_obj->events_count;
+            l_item->downlinks_count = l_state_store_obj->downlinks_count;
+            l_item->timestamp = l_state_timestamp;
+        }
         l_ret = dap_list_insert_sorted(l_ret, (void *)l_item, s_node_states_info_cmp);
         DAP_DELETE(l_state_store_obj);
     }
