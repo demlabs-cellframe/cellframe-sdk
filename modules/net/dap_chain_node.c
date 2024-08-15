@@ -112,6 +112,7 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
     dap_chain_node_net_states_info_t *l_store_obj = (dap_chain_node_net_states_info_t *)dap_global_db_get_sync(l_gdb_group, a_node_addr_str, &l_data_size, NULL, &l_timestamp);
     if (!l_store_obj || l_data_size != sizeof(dap_chain_node_net_states_info_t) + (l_store_obj->uplinks_count + l_store_obj->downlinks_count) * sizeof(dap_chain_node_addr_t)) {
         log_it(L_ERROR, "Can't find state about %s node", a_node_addr_str);
+        DAP_DELETE(l_gdb_group);
         return;
     }
     char l_ts[80] = { '\0' };
@@ -127,10 +128,10 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
         "-----------------------------------------------------------------\n");
     }
     for (size_t i = 0; i < l_max_links; ++i) {
-        char *l_upnlinks = i < l_store_obj->uplinks_count ? dap_stream_node_addr_to_str(l_store_obj->links_addrs[i], false) : dap_strdup("\t\t");
-        char *l_downlinks = i < l_store_obj->downlinks_count ? dap_stream_node_addr_to_str(l_store_obj->links_addrs[i + l_store_obj->uplinks_count], false) : dap_strdup("\t\t");
-        dap_string_append_printf(l_info_str, "|\t%s\t|\t%s\t|\n", l_upnlinks, l_downlinks);
-        DAP_DEL_MULTY(l_upnlinks, l_downlinks);
+        char *l_upnlink_str = i < l_store_obj->uplinks_count ? dap_stream_node_addr_to_str(l_store_obj->links_addrs[i], false) : dap_strdup("\t\t");
+        char *l_downlink_str = i < l_store_obj->downlinks_count ? dap_stream_node_addr_to_str(l_store_obj->links_addrs[i + l_store_obj->uplinks_count], false) : dap_strdup("\t\t");
+        dap_string_append_printf(l_info_str, "|\t%s\t|\t%s\t|\n", l_upnlink_str, l_downlink_str);
+        DAP_DEL_MULTY(l_upnlink_str, l_downlink_str);
     }
     dap_string_append_printf(l_info_str, "-----------------------------------------------------------------\n");
     DAP_DEL_MULTY(l_store_obj, l_gdb_group);
