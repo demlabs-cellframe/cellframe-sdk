@@ -30,6 +30,12 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 
+#ifdef DAP_TPS_TEST
+#define DAP_CHAIN_ATOM_MAX_SIZE (100 * 1024 * 1024)
+#else
+#define DAP_CHAIN_ATOM_MAX_SIZE (256 * 1024) // 256 KB
+#endif
+
 typedef struct dap_chain dap_chain_t;
 
 typedef struct dap_chain_cell dap_chain_cell_t;
