@@ -34,7 +34,7 @@ typedef struct dap_chain_cs_blocks dap_chain_cs_blocks_t;
 
 typedef void (*dap_chain_cs_blocks_callback_t)(dap_chain_cs_blocks_t *);
 typedef void (*dap_chain_cs_blocks_callback_op_results_t)(dap_chain_cs_blocks_t * a_cs_blocks, int a_rc, void * a_arg);
-typedef int (*dap_chain_cs_blocks_callback_block_t)(dap_chain_cs_blocks_t *, dap_chain_block_t *, size_t);
+typedef int (*dap_chain_cs_blocks_callback_block_verify_t)(dap_chain_cs_blocks_t *a_cs_blocks, dap_chain_block_t *a_block, dap_hash_fast_t *a_block_hash, size_t a_block_size);
 typedef size_t (*dap_chain_cs_blocks_callback_block_sign_t)(dap_chain_cs_blocks_t *, dap_chain_block_t **, size_t);
 typedef dap_chain_block_t *(*dap_chain_cs_block_move_t)(dap_chain_cs_blocks_t *, size_t *);
 typedef dap_chain_block_t * (*dap_chain_cs_blocks_callback_block_create_t)(dap_chain_cs_blocks_t *,
@@ -50,7 +50,7 @@ typedef struct dap_chain_cs_blocks
 
    dap_chain_cs_blocks_callback_t callback_delete;
    dap_chain_cs_blocks_callback_block_create_t callback_block_create;
-   dap_chain_cs_blocks_callback_block_t callback_block_verify;
+   dap_chain_cs_blocks_callback_block_verify_t callback_block_verify;
    dap_chain_cs_blocks_callback_block_sign_t callback_block_sign;
    dap_chain_cs_block_move_t callback_new_block_move;
 

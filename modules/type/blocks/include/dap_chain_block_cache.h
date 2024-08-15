@@ -31,7 +31,7 @@ typedef struct dap_chain_cs_blocks dap_chain_cs_blocks_t;
 typedef struct dap_chain_block_cache {
     // Block's general non-nested attributes
     dap_chain_hash_fast_t block_hash;
-    char* block_hash_str;
+    char block_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
     size_t block_size;
     uint64_t block_number;
 

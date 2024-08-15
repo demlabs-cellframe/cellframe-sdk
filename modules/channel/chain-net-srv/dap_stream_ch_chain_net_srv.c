@@ -1441,7 +1441,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             l_usage->is_waiting_next_receipt_sign = false;
         }
 
-        if (l_usage->is_grace && l_usage->is_waiting_first_receipt_sign){
+        if (l_usage->is_waiting_first_receipt_sign){
             l_usage->is_waiting_first_receipt_sign = false;
             l_usage->is_grace = false;
         }

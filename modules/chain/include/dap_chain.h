@@ -104,7 +104,10 @@ typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *);
 
 typedef dap_chain_datum_iter_t * (*dap_chain_datum_callback_iter_create_t)(dap_chain_t *);
 typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_first_t)(dap_chain_datum_iter_t *);
+typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_last_t)(dap_chain_datum_iter_t *);
 typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_next_t)(dap_chain_datum_iter_t *);
+typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_prev_t)(dap_chain_datum_iter_t *);
+typedef dap_chain_datum_t * (*dap_chain_datum_callback_iters)(dap_chain_datum_iter_t *);
 typedef void (*dap_chain_datum_callback_iter_delete_t)(dap_chain_datum_iter_t *);
 
 typedef dap_chain_datum_t** (*dap_chain_callback_atom_get_datum_t)(dap_chain_atom_ptr_t, size_t, size_t * );
@@ -205,7 +208,9 @@ typedef struct dap_chain {
     // Iterator callbacks
     dap_chain_datum_callback_iter_create_t callback_datum_iter_create;
     dap_chain_datum_callback_iter_get_first_t callback_datum_iter_get_first;
+    dap_chain_datum_callback_iter_get_last_t callback_datum_iter_get_last;
     dap_chain_datum_callback_iter_get_next_t callback_datum_iter_get_next;
+    dap_chain_datum_callback_iter_get_prev_t callback_datum_iter_get_prev;
     dap_chain_datum_callback_iter_delete_t callback_datum_iter_delete;
 
     dap_list_t *atom_notifiers;
