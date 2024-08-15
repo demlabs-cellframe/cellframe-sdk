@@ -502,11 +502,11 @@ dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, 
             l_ret = dap_list_append(l_ret, l_data);
         }
         if (!l_stake->is_active && a_excluded_list) {
-            *a_excluded_list[l_arr_idx++] = l_list_idx;
+            (*a_excluded_list)[l_arr_idx++] = l_list_idx;
             if (l_arr_idx == l_arr_size) {
                 l_arr_size += l_arr_resize_step;
                 void *l_new_arr = DAP_REALLOC(*a_excluded_list, l_arr_size * sizeof(uint16_t));
-                if (l_new_arr)
+                if (!l_new_arr)
                     goto fail_ret;
                 else
                     *a_excluded_list = l_new_arr;

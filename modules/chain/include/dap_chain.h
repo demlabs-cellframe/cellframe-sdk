@@ -30,6 +30,12 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 
+#ifdef DAP_TPS_TEST
+#define DAP_CHAIN_ATOM_MAX_SIZE (100 * 1024 * 1024)
+#else
+#define DAP_CHAIN_ATOM_MAX_SIZE (256 * 1024) // 256 KB
+#endif
+
 typedef struct dap_chain dap_chain_t;
 
 typedef struct dap_chain_cell dap_chain_cell_t;
@@ -98,7 +104,10 @@ typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *);
 
 typedef dap_chain_datum_iter_t * (*dap_chain_datum_callback_iter_create_t)(dap_chain_t *);
 typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_first_t)(dap_chain_datum_iter_t *);
+typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_last_t)(dap_chain_datum_iter_t *);
 typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_next_t)(dap_chain_datum_iter_t *);
+typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_prev_t)(dap_chain_datum_iter_t *);
+typedef dap_chain_datum_t * (*dap_chain_datum_callback_iters)(dap_chain_datum_iter_t *);
 typedef void (*dap_chain_datum_callback_iter_delete_t)(dap_chain_datum_iter_t *);
 
 typedef dap_chain_datum_t** (*dap_chain_callback_atom_get_datum_t)(dap_chain_atom_ptr_t, size_t, size_t * );
@@ -199,7 +208,9 @@ typedef struct dap_chain {
     // Iterator callbacks
     dap_chain_datum_callback_iter_create_t callback_datum_iter_create;
     dap_chain_datum_callback_iter_get_first_t callback_datum_iter_get_first;
+    dap_chain_datum_callback_iter_get_last_t callback_datum_iter_get_last;
     dap_chain_datum_callback_iter_get_next_t callback_datum_iter_get_next;
+    dap_chain_datum_callback_iter_get_prev_t callback_datum_iter_get_prev;
     dap_chain_datum_callback_iter_delete_t callback_datum_iter_delete;
 
     dap_list_t *atom_notifiers;

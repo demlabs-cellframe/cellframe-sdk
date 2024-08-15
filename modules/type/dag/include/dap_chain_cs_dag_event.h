@@ -90,8 +90,8 @@ bool dap_chain_cs_dag_event_sign_exists(dap_chain_cs_dag_event_t *a_event, size_
 bool dap_chain_cs_dag_event_round_sign_exists(dap_chain_cs_dag_event_round_item_t *a_round_item, dap_enc_key_t * a_key);
 dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, size_t a_event_size, uint16_t a_sign_number);
 
-size_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_dag_event_t *a_event, size_t a_limit_size);
-size_t dap_chain_cs_dag_event_calc_size(dap_chain_cs_dag_event_t *a_event, size_t a_limit_size);
+uint64_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_dag_event_t *a_event, uint64_t a_limit_size);
+uint64_t dap_chain_cs_dag_event_calc_size(dap_chain_cs_dag_event_t *a_event, uint64_t a_limit_size);
 
 
 /**

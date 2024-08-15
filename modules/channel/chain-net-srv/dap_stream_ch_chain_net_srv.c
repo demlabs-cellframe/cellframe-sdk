@@ -769,7 +769,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         if ( !l_price ) {
             log_it( L_WARNING, "Request can't be processed because no acceptable price in pricelist for token %s in network %s",
                     l_ticker, l_net->pub.name );
-            l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
             s_grace_error(a_grace, l_err);
             return false;
         }
@@ -1265,6 +1265,12 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             return false;
         }
         pkt_test_t *l_request = (pkt_test_t*)l_ch_pkt->data;
+        if (l_request->data_size_recv > DAP_CHAIN_NET_SRV_CH_REQUEST_SIZE_MAX || l_request->data_size > DAP_CHAIN_NET_SRV_CH_REQUEST_SIZE_MAX) {
+            log_it(L_WARNING, "Too large payload %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_request->data_size_recv, l_ch_pkt->hdr.seq_id);
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_BIG_SIZE;
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
+            return false;
+        }
         size_t l_request_size = l_request->data_size + sizeof(pkt_test_t);
         if (l_ch_pkt->hdr.data_size != l_request_size) {
             log_it(L_WARNING, "Wrong CHECK_REQUEST size %u, must be %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_ch_pkt->hdr.data_size, l_request_size, l_ch_pkt->hdr.seq_id);
@@ -1272,14 +1278,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             return false;
         }
-        if(l_request->data_size_recv > DAP_CHAIN_NET_SRV_CH_REQUEST_SIZE_MAX) {
-            log_it(L_WARNING, "Too large payload %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_request->data_size_recv, l_ch_pkt->hdr.seq_id);
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_BIG_SIZE;
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
-            return false;
-        }
         dap_chain_hash_fast_t l_data_hash;
-        dap_hash_fast(l_request->data, l_request->data_size, &l_data_hash);
+        dap_hash_fast(l_request->data, l_request->data_size, &l_data_hash); // TODO change it to less CPU consuming algorithm
         if (l_request->data_size > 0 && !dap_hash_fast_compare(&l_data_hash, &l_request->data_hash)) {
             log_it(L_WARNING, "Wrong hash [pkt seq %"DAP_UINT64_FORMAT_U"]", l_ch_pkt->hdr.seq_id);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH;
@@ -1353,6 +1353,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             return false;
         }
         dap_chain_datum_tx_receipt_t * l_receipt = (dap_chain_datum_tx_receipt_t *) l_ch_pkt->data;
+        // TODO calculate actual receipt size and compare it with provided packet size
         size_t l_receipt_size = l_ch_pkt->hdr.data_size;
 
         bool l_is_found = false;
@@ -1440,7 +1441,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             l_usage->is_waiting_next_receipt_sign = false;
         }
 
-        if (l_usage->is_grace && l_usage->is_waiting_first_receipt_sign){
+        if (l_usage->is_waiting_first_receipt_sign){
             l_usage->is_waiting_first_receipt_sign = false;
             l_usage->is_grace = false;
         }
