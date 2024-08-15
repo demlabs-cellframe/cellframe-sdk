@@ -455,13 +455,18 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
 {
     if (!a_tx)
         return NULL;
-    int i = a_item_idx && *a_item_idx > 0 ? -*a_item_idx - 1 : 0;
+    int i = a_item_idx ? *a_item_idx : 0, j = -1;
     byte_t  *l_end = a_tx->tx_items + a_tx->header.tx_items_size,
-            *l_begin = i || !a_iter || a_iter < a_tx->tx_items || a_iter >= l_end ? a_tx->tx_items : a_iter;
+            *l_begin = i || !a_iter || a_iter < a_tx->tx_items || a_iter > l_end ? a_tx->tx_items : a_iter;
     size_t l_left_size = (size_t)(l_end - l_begin), l_tx_item_size;
     byte_t *l_item;
+#define m_item_idx_n_size(item, idx, size) ({       \
+    if (a_item_idx) *a_item_idx = idx;              \
+    if (a_item_out_size) *a_item_out_size = size;   \
+    item;                                           \
+})
     TX_ITEM_ITER(l_item, l_tx_item_size, l_begin, l_left_size) {
-        if (++i < 0)
+        if (++j < i)
             continue;
         switch (a_type) {
         case TX_ITEM_TYPE_ANY:
@@ -485,9 +490,10 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
                 break;
             else continue;
         }
-        return (a_item_idx ? (*a_item_idx = i) : 0), (a_item_out_size ? (*a_item_out_size = l_tx_item_size) : 0), l_item;
+        return m_item_idx_n_size(l_item, j, l_tx_item_size);
     }
-    return (a_item_idx ? (*a_item_idx = 0) : 0), (a_item_out_size ? (*a_item_out_size = 0) : 0), NULL;
+    return m_item_idx_n_size(NULL, -1, 0);
+#undef m_item_idx_n_size
 }
 
 /**

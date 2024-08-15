@@ -4089,7 +4089,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             }
         } break;
         default:
-            break;
+            continue;
         }
 
         if (l_err_num)
