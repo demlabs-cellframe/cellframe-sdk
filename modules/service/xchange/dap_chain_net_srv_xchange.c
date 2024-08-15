@@ -249,7 +249,7 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
     if(!a_tx_in || !a_tx_out_cond)
         return -1;
 
-    dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
+    dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
     if (!l_tx_in_cond)
         return -2;
     if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
@@ -261,8 +261,6 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
 
     uint256_t l_buy_val = {}, l_fee_val = {},
               l_sell_again_val = {}, l_service_fee_val = {};
-    int l_item_idx_start = 0;
-    byte_t * l_tx_item;
 
     dap_chain_addr_t l_service_fee_addr, *l_seller_addr = &a_tx_out_cond->subtype.srv_xchange.seller_addr;
     uint16_t l_service_fee_type = 0;
@@ -271,39 +269,38 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
     const char *l_native_ticker = l_net->pub.native_ticker;
     const char *l_service_ticker = (l_service_fee_type == SERVICE_FEE_OWN_FIXED || l_service_fee_type == SERVICE_FEE_OWN_PERCENT) ?
                 l_buy_ticker : l_native_ticker;
-    while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx_in, &l_item_idx_start, TX_ITEM_TYPE_OUT_ALL, NULL)) != NULL)
-    {
-        dap_chain_tx_item_type_t l_tx_out_type = dap_chain_datum_tx_item_get_type(l_tx_item);
-        switch(l_tx_out_type){
-            case TX_ITEM_TYPE_OUT_EXT: {
-                dap_chain_tx_out_ext_t *l_tx_in_output = (dap_chain_tx_out_ext_t *)l_tx_item;
-                const char * l_out_token = l_tx_in_output->token;
-                const uint256_t *l_out_value = &l_tx_in_output->header.value;
-                dap_chain_addr_t * l_out_addr = &l_tx_in_output->addr;
-                // Out is with token to buy
-                if (!strcmp(l_out_token, l_buy_ticker) &&
-                        !memcmp(l_out_addr, l_seller_addr, sizeof(*l_out_addr)))
-                    SUM_256_256(l_buy_val, *l_out_value, &l_buy_val);
-                // Out is with token to fee
-                if (l_service_fee_used && !strcmp(l_out_token, l_service_ticker) &&
-                        !memcmp(l_out_addr, &l_service_fee_addr, sizeof(*l_out_addr)))
-                    SUM_256_256(l_fee_val, *l_out_value, &l_fee_val);
-            } break;
-            case TX_ITEM_TYPE_OUT_COND: {
-                dap_chain_tx_out_cond_t *l_tx_in_output = (dap_chain_tx_out_cond_t *)l_tx_item;
-                if (l_tx_in_output->header.subtype == a_tx_out_cond->header.subtype &&                             // Same subtype
-                        l_tx_in_output->header.srv_uid.uint64 == a_tx_out_cond->header.srv_uid.uint64 &&          // Same service uid
-                        l_tx_in_output->header.ts_expires == a_tx_out_cond->header.ts_expires &&                  // Same expires time
-                        l_tx_in_output->tsd_size == a_tx_out_cond->tsd_size &&                              // Same params size
-                        memcmp(l_tx_in_output->tsd, a_tx_out_cond->tsd, l_tx_in_output->tsd_size) == 0 && // Same params itself
-                        memcmp(&l_tx_in_output->subtype.srv_xchange, &a_tx_out_cond->subtype.srv_xchange,         // Same subtype header
-                           sizeof(a_tx_out_cond->subtype.srv_xchange)) == 0) {
-                    l_sell_again_val = l_tx_in_output->header.value;                                    // It is back to cond owner value
-                }
-            }break;
-            default: break;
+    byte_t *l_tx_item; size_t l_size;
+    TX_ITEM_ITER_TX(l_tx_item, l_size, a_tx_in) {
+        switch (*l_tx_item) {
+        case TX_ITEM_TYPE_OUT_EXT: {
+            dap_chain_tx_out_ext_t *l_tx_in_output = (dap_chain_tx_out_ext_t*)l_tx_item;
+            const char *l_out_token = l_tx_in_output->token;
+            const uint256_t l_out_value = l_tx_in_output->header.value;
+            dap_chain_addr_t l_out_addr = l_tx_in_output->addr;
+            // Out is with token to buy
+            if (!strcmp(l_out_token, l_buy_ticker) &&
+                    !memcmp(&l_out_addr, l_seller_addr, sizeof(l_out_addr)))
+                SUM_256_256(l_buy_val, l_out_value, &l_buy_val);
+            // Out is with token to fee
+            if (l_service_fee_used && !strcmp(l_out_token, l_service_ticker) &&
+                    !memcmp(&l_out_addr, &l_service_fee_addr, sizeof(l_out_addr)))
+                SUM_256_256(l_fee_val, l_out_value, &l_fee_val);
+        } break;
+        case TX_ITEM_TYPE_OUT_COND: {
+            dap_chain_tx_out_cond_t *l_tx_in_output = (dap_chain_tx_out_cond_t*)l_tx_item;
+            if (l_tx_in_output->header.subtype == a_tx_out_cond->header.subtype &&                             // Same subtype
+                    l_tx_in_output->header.srv_uid.uint64 == a_tx_out_cond->header.srv_uid.uint64 &&          // Same service uid
+                    l_tx_in_output->header.ts_expires == a_tx_out_cond->header.ts_expires &&                  // Same expires time
+                    l_tx_in_output->tsd_size == a_tx_out_cond->tsd_size &&                              // Same params size
+                    memcmp(l_tx_in_output->tsd, a_tx_out_cond->tsd, l_tx_in_output->tsd_size) == 0 && // Same params itself
+                    memcmp(&l_tx_in_output->subtype.srv_xchange, &a_tx_out_cond->subtype.srv_xchange,         // Same subtype header
+                        sizeof(a_tx_out_cond->subtype.srv_xchange)) == 0) {
+                l_sell_again_val = l_tx_in_output->header.value;                                    // It is back to cond owner value
+            }
+        } break;
+        default:
+            break;
         }
-        l_item_idx_start++;
     }
 
     /* Check the condition for rate verification success
@@ -679,7 +676,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         return NULL;
     }
     const dap_chain_addr_t *l_seller_addr = &l_tx_out_cond->subtype.srv_xchange.seller_addr;
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &a_price->tx_hash, l_prev_cond_idx, 0)) {
+    if (1 != dap_chain_datum_tx_add_in_cond_item(&l_tx, &a_price->tx_hash, l_prev_cond_idx, 0)) {
         dap_chain_datum_tx_delete(l_tx);
         log_it(L_ERROR, "Can't add conditional input");
         return NULL;
@@ -867,14 +864,14 @@ uint64_t dap_chain_net_srv_xchange_get_order_completion_rate(dap_chain_net_t *a_
         return 0;
     }
 
-    dap_hash_fast_t * l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash);
-    if(!l_last_tx_hash){
+    dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash);
+    if ( dap_hash_fast_is_blank(&l_last_tx_hash) ){
         log_it(L_ERROR, " Can't get last tx cond hash from order");
         return 0;
     }
 
-    dap_chain_datum_tx_t * l_last_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, l_last_tx_hash);
-    if(!l_last_tx_hash){
+    dap_chain_datum_tx_t * l_last_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_last_tx_hash);
+    if(!l_last_tx){
         log_it(L_ERROR, "Can't find last tx");
         return 0;
     }
@@ -924,14 +921,14 @@ dap_chain_net_srv_xchange_order_status_t dap_chain_net_srv_xchange_get_order_sta
         return XCHANGE_ORDER_STATUS_UNKNOWN;
     }
 
-    dap_hash_fast_t * l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash);
-    if(!l_last_tx_hash){
+    dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash);
+    if ( dap_hash_fast_is_blank(&l_last_tx_hash) ) {
         log_it(L_ERROR, " Can't get last tx cond hash from order");
         return XCHANGE_ORDER_STATUS_UNKNOWN;
     }
 
-    dap_chain_datum_tx_t * l_last_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, l_last_tx_hash);
-    if(!l_last_tx_hash){
+    dap_chain_datum_tx_t * l_last_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_last_tx_hash);
+    if (!l_last_tx) {
         log_it(L_ERROR, "Can't find last tx");
         return XCHANGE_ORDER_STATUS_UNKNOWN;
     }
@@ -1149,10 +1146,10 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
     l_price->creator_addr = l_out_cond->subtype.srv_xchange.seller_addr;
     if (!IS_ZERO_256(l_price->datoshi_buy)) {
         l_price->rate = l_out_cond->subtype.srv_xchange.rate;
-        dap_hash_fast_t *l_final_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger,
+        dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger,
                                             DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_tx_hash);
-        if (l_final_hash) {
-            l_price->tx_hash = *l_final_hash;
+        if ( !dap_hash_fast_is_blank(&l_final_hash) ) {
+            l_price->tx_hash = l_final_hash;
             return l_price;
         } else {
             log_it(L_WARNING, "This order have no active conditional transaction");
@@ -1533,14 +1530,14 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
             dap_ledger_t * l_ledger = dap_ledger_by_net_name(l_net->pub.name);
             char *l_cp_rate;
             char* l_status_order = NULL;
-            dap_hash_fast_t * l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash);
-            if(!l_last_tx_hash){
+            dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash);
+            if( dap_hash_fast_is_blank(&l_last_tx_hash) ){
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get last tx cond hash from order");
                 return -18;
             }
 
-            dap_chain_datum_tx_t * l_last_tx = dap_ledger_tx_find_by_hash(l_ledger, l_last_tx_hash);
-            if(!l_last_tx_hash){
+            dap_chain_datum_tx_t * l_last_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_last_tx_hash);
+            if (!l_last_tx){
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find last tx");
                 return -18;
             }
@@ -1631,7 +1628,7 @@ static bool s_filter_tx_list(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, v
         return true;
     // Find SRV_XCHANGE in_cond item
     int l_item_idx = 0;
-    dap_chain_tx_in_cond_t * l_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(l_datum_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL);
+    dap_chain_tx_in_cond_t * l_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(l_datum_tx, &l_item_idx, NULL, TX_ITEM_TYPE_IN_COND , NULL);
     int l_prev_cond_idx = 0;
     dap_chain_datum_tx_t * l_prev_tx = l_in_cond ? dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_in_cond->header.tx_prev_hash) : NULL;
     dap_chain_tx_out_cond_t *l_out_prev_cond_item = l_prev_tx ? dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
@@ -1651,7 +1648,7 @@ xchange_tx_type_t dap_chain_net_srv_xchange_tx_get_type (dap_ledger_t * a_ledger
                                                                                &l_cond_idx);
     // Find SRV_XCHANGE in_cond item
     int l_item_idx = 0;
-    byte_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL);
+    byte_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, NULL, TX_ITEM_TYPE_IN_COND , NULL);
     dap_chain_tx_in_cond_t * l_in_cond = l_tx_item ? (dap_chain_tx_in_cond_t *) l_tx_item : NULL;
     int l_prev_cond_idx = 0;
     dap_chain_datum_tx_t * l_prev_tx = l_in_cond ? dap_ledger_tx_find_by_hash(a_ledger, &l_in_cond->header.tx_prev_hash) : NULL;
@@ -1673,7 +1670,7 @@ xchange_tx_type_t dap_chain_net_srv_xchange_tx_get_type (dap_ledger_t * a_ledger
     {
         dap_chain_datum_tx_t * l_prev_tx_temp = a_tx;
         byte_t *l_tx_item_temp = NULL;
-        while((l_tx_item_temp = dap_chain_datum_tx_item_get(l_prev_tx_temp, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL)) != NULL)
+        while((l_tx_item_temp = dap_chain_datum_tx_item_get(l_prev_tx_temp, &l_item_idx, NULL, TX_ITEM_TYPE_IN_COND , NULL)) != NULL)
         {
                 dap_chain_tx_in_cond_t * l_in_cond_temp = (dap_chain_tx_in_cond_t *) l_tx_item_temp;
                 l_prev_tx_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_in_cond_temp->header.tx_prev_hash);
@@ -1686,9 +1683,9 @@ xchange_tx_type_t dap_chain_net_srv_xchange_tx_get_type (dap_ledger_t * a_ledger
         if (!l_out_cond_item) {
             l_tx_type = TX_TYPE_UNDEFINED;
         } else {
-            dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_prev_tx_temp, NULL, TX_ITEM_TYPE_SIG, NULL);
+            dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_prev_tx_temp, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
             dap_sign_t *l_prev_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_prev_sig);
-            dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+            dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
             dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
 
         bool l_owner = false;
@@ -1721,14 +1718,14 @@ static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx
 
     dap_hash_fast_t l_tx_hash = {};
     dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_hash);
-    dap_hash_fast_t * l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_tx_hash);
-    if(!l_last_tx_hash){
+    dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_tx_hash);
+    if ( dap_hash_fast_is_blank(&l_last_tx_hash) ) {
         log_it(L_WARNING,"Can't get last tx cond hash from order");
         return 0;
     }
 
-    dap_chain_datum_tx_t * l_last_tx = dap_ledger_tx_find_by_hash(l_ledger, l_last_tx_hash);
-    if(!l_last_tx_hash){
+    dap_chain_datum_tx_t * l_last_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_last_tx_hash);
+    if (!l_last_tx) {
         log_it(L_WARNING,"Can't find last tx");
         return 0;
     }
@@ -1806,7 +1803,7 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
         } break;
         case TX_TYPE_EXCHANGE:{
             dap_chain_tx_in_cond_t *l_in_cond 
-                = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_IN_COND , NULL);
+                = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND , NULL);
             char l_tx_prev_cond_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&l_in_cond->header.tx_prev_hash, l_tx_prev_cond_hash_str, sizeof(l_tx_prev_cond_hash_str));
 
@@ -1856,7 +1853,7 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
                 dap_string_append_printf(a_reply_str, "\n  Prev cond: %s", l_tx_prev_cond_hash_str);
         } break;
         case TX_TYPE_INVALIDATE:{
-            dap_chain_tx_in_cond_t * l_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_IN_COND , NULL);
+            dap_chain_tx_in_cond_t * l_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND , NULL);
             char l_tx_prev_cond_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&l_in_cond->header.tx_prev_hash,l_tx_prev_cond_hash_str, sizeof(l_tx_prev_cond_hash_str));
 
@@ -1870,13 +1867,10 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
                 return false;
 
             int l_out_num = l_in_cond->header.tx_out_prev_idx;
-            dap_hash_fast_t l_order_hash = l_in_cond->header.tx_prev_hash;
             dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_out_num);
-            dap_hash_fast_t *l_order_hash_ptr = dap_ledger_get_first_chain_tx_hash(a_net->pub.ledger, a_tx, l_out_cond);
-            if (l_order_hash_ptr){
-                l_order_hash = *l_order_hash_ptr;
-                DAP_DEL_Z(l_order_hash_ptr);
-            }
+            dap_hash_fast_t l_order_hash = dap_ledger_get_first_chain_tx_hash(a_net->pub.ledger, a_tx, l_out_cond);
+            if ( dap_hash_fast_is_blank(&l_order_hash) )
+                l_order_hash = l_in_cond->header.tx_prev_hash;
 
             char *l_value_from_str = dap_chain_balance_to_coins(l_out_prev_cond_item->header.value);
             char *l_value_from_datoshi_str = dap_chain_balance_print(l_out_prev_cond_item->header.value);
@@ -1941,13 +1935,11 @@ size_t l_tx_total;
     return  0;
 }
 
-void s_tx_is_order_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
+void s_tx_is_order_check(UNUSED_ARG dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, UNUSED_ARG dap_hash_fast_t *a_tx_hash, void *a_arg)
 {
-    UNUSED(a_net);
-    UNUSED(a_tx_hash);
     dap_list_t **l_tx_list_ptr = a_arg;
-    if (dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL) &&
-            !dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_IN_COND, NULL))
+    if ( dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, NULL) &&
+        !dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL))
        *l_tx_list_ptr = dap_list_append(*l_tx_list_ptr, a_tx);
 }
 
@@ -2086,14 +2078,14 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 dap_ledger_t * l_ledger = dap_ledger_by_net_name(l_net->pub.name);
                 char *l_cp_rate;
                 char* l_status_order = NULL;
-                dap_hash_fast_t * l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash);
-                if(!l_last_tx_hash){
+                dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash);
+                if ( dap_hash_fast_is_blank(&l_last_tx_hash) ) {
                     log_it(L_WARNING,"Can't get last tx cond hash from order");
                     continue;
                 }
 
-                dap_chain_datum_tx_t * l_last_tx = dap_ledger_tx_find_by_hash(l_ledger, l_last_tx_hash);
-                if(!l_last_tx_hash){
+                dap_chain_datum_tx_t * l_last_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_last_tx_hash);
+                if(!l_last_tx){
                     log_it(L_WARNING,"Can't find last tx");
                     continue;
                 }
@@ -2486,7 +2478,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                                                                                                        NULL);
                             if(!l_out_cond_item){
                                 int l_item_idx = 0;
-                                byte_t *l_tx_item = dap_chain_datum_tx_item_get(l_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL);
+                                byte_t *l_tx_item = dap_chain_datum_tx_item_get(l_tx, &l_item_idx, NULL, TX_ITEM_TYPE_IN_COND , NULL);
                                 dap_chain_tx_in_cond_t * l_in_cond = l_tx_item ? (dap_chain_tx_in_cond_t *) l_tx_item : NULL;
                                 int l_prev_cond_idx = 0;
                                 dap_chain_datum_tx_t * l_prev_tx = l_in_cond ? dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_in_cond->header.tx_prev_hash) : NULL;

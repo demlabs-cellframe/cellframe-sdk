@@ -1981,7 +1981,7 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
     switch (a_directive->type) {
     case DAP_CHAIN_ESBOCS_DIRECTIVE_KICK:
     case DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT: {
-        dap_chain_addr_t *l_key_addr = (dap_chain_addr_t *)(((dap_tsd_t *)a_directive->tsd)->data);
+        dap_chain_addr_t *l_key_addr = (dap_chain_addr_t *)((dap_tsd_t *)a_directive->tsd)->data;
         int l_status = dap_chain_net_srv_stake_key_delegated(l_key_addr);
         const char *l_key_str = dap_chain_addr_to_str_static(l_key_addr);
         if (l_status == 0) {
