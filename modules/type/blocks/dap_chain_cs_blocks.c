@@ -136,7 +136,9 @@ static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );  
 static dap_chain_datum_iter_t *s_chain_callback_datum_iter_create(dap_chain_t *a_chain);
 static void s_chain_callback_datum_iter_delete(dap_chain_datum_iter_t *a_datum_iter);
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter); // Get the fisrt datum from blocks
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_last(dap_chain_datum_iter_t *a_datum_iter); // Get the last datum from blocks
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter); // Get the next datum from blocks
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_prev(dap_chain_datum_iter_t *a_datum_iter); // Get the prev datum from blocks
 
 static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_count);
 
@@ -275,7 +277,9 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     a_chain->callback_datum_iter_create = s_chain_callback_datum_iter_create; // Datum iterator create
     a_chain->callback_datum_iter_delete = s_chain_callback_datum_iter_delete; // Datum iterator delete
     a_chain->callback_datum_iter_get_first = s_chain_callback_datum_iter_get_first; // Get the fisrt datum from chain
+    a_chain->callback_datum_iter_get_last = s_chain_callback_datum_iter_get_last; // Get the last datum from chain
     a_chain->callback_datum_iter_get_next = s_chain_callback_datum_iter_get_next; // Get the next datum from chain from the current one
+    a_chain->callback_datum_iter_get_prev = s_chain_callback_datum_iter_get_prev; // Get the next datum from chain from the current one
 
     a_chain->callback_atom_get_datums = s_callback_atom_get_datums;
     a_chain->callback_atom_get_timestamp = s_chain_callback_atom_get_timestamp;
@@ -814,7 +818,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         } break;
 
         case SUBCMD_LIST:{
-            const char *l_cert_name = NULL, *l_from_hash_str = NULL, *l_to_hash_str = NULL,
+            const char *l_cert_name = NULL, *l_from_hash_str = NULL, *l_to_hash_str = NULL, *l_head_str = NULL,
                         *l_from_date_str = NULL, *l_to_date_str = NULL, *l_pkey_hash_str = NULL, *l_limit_str = NULL, *l_offset_str = NULL;
             bool l_unspent_flag = false, l_first_signed_flag = false, l_signed_flag = false, l_hash_flag = false;
             dap_pkey_t * l_pub_key = NULL;
@@ -833,8 +837,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_dt", &l_to_date_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
+            bool l_head = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-head", &l_head_str) ? true : false;
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
-            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
+            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
 
             if (l_signed_flag && l_first_signed_flag) {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Choose only one option from 'singed' and 'first_signed'");
@@ -900,22 +905,15 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
 
             pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
             json_object* json_arr_bl_cache_out = json_object_new_array();
-            json_object* json_obj_lim = json_object_new_object();
             size_t l_start_arr = 0;
-            if(l_offset > 0) {
-                l_start_arr = l_offset;
-                json_object_object_add(json_obj_lim, "offset",json_object_new_uint64(l_start_arr));
-            }
-            size_t l_arr_end = PVT(l_blocks)->blocks_count;
-            if (l_limit) {
-                json_object_object_add(json_obj_lim, "limit",json_object_new_uint64(l_limit));
-                l_arr_end = l_start_arr + l_limit;
-                if (l_arr_end > PVT(l_blocks)->blocks_count)
-                    l_arr_end = PVT(l_blocks)->blocks_count;
-            }
-            json_object_array_add(json_arr_bl_cache_out, json_obj_lim);
+            size_t l_arr_end = 0;
+            s_set_offset_limit_json(json_arr_bl_cache_out, &l_start_arr, &l_arr_end, l_limit, l_offset, PVT(l_blocks)->blocks_count);
+            
             size_t i_tmp = 0;
-            for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
+            dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks;
+            if (!l_head)
+                l_block_cache = HASH_LAST(l_block_cache);             
+            for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
                 dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                 if (l_from_time && l_ts < l_from_time)
                     continue;
@@ -1835,9 +1833,14 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         l_offset += l_sign_size;
     }
     if (l_offset + sizeof(l_block->hdr) != a_atom_size) {
-        log_it(L_WARNING, "Incorrect size %zu of block %s, expected %zu", l_offset + sizeof(l_block->hdr),
-                                                                dap_hash_fast_to_str_static(a_atom_hash), a_atom_size);
-        return ATOM_REJECT;
+        // Hard accept list
+        struct cs_blocks_hal_item *l_hash_found = NULL;
+        HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
+        if (!l_hash_found) {
+            log_it(L_WARNING, "Incorrect size %zu of block %s, expected %zu", l_offset + sizeof(l_block->hdr),
+                                                                    dap_hash_fast_to_str_static(a_atom_hash), a_atom_size);
+            return ATOM_REJECT;
+        }
     }
 
     if (!l_block->hdr.ts_created || l_block->hdr.ts_created > dap_time_now() + 600) {
@@ -2231,6 +2234,17 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_first(dap_chain_datum_
     return a_datum_iter->cur;
 }
 
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_last(dap_chain_datum_iter_t *a_datum_iter)
+{
+    dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
+    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
+    //dap_chain_block_datum_index_t *l_datum_index = PVT(l_cs_blocks)->datum_index;
+    dap_chain_block_datum_index_t *l_datum_index = HASH_LAST(PVT(l_cs_blocks)->datum_index);    
+    s_datum_iter_fill(a_datum_iter, l_datum_index);
+    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
+    return a_datum_iter->cur;
+}
+
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter)
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
@@ -2238,6 +2252,18 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_i
     dap_chain_block_datum_index_t *l_datum_index = a_datum_iter->cur_item;
     if (l_datum_index)
         l_datum_index = l_datum_index->hh.next;
+    s_datum_iter_fill(a_datum_iter, l_datum_index);
+    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
+    return a_datum_iter->cur;
+}
+
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_prev(dap_chain_datum_iter_t *a_datum_iter)
+{
+    dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
+    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
+    dap_chain_block_datum_index_t *l_datum_index = a_datum_iter->cur_item;
+    if (l_datum_index)
+        l_datum_index = l_datum_index->hh.prev;
     s_datum_iter_fill(a_datum_iter, l_datum_index);
     pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
     return a_datum_iter->cur;
