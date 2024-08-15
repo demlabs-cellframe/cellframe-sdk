@@ -271,7 +271,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
         pthread_rwlock_unlock(&s_votings_rwlock);
         return true;
     } else if (a_type == TX_ITEM_TYPE_VOTE){
-        dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_VOTE, NULL);
+        dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t*)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
         if(!l_vote_tx_item){
             log_it(L_ERROR, "Can't find vote item");
             return false;
@@ -385,7 +385,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
                     continue;
                 }
                 dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_hash);
-                dap_chain_tx_out_cond_t *l_prev_out = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(l_tx_prev_temp, &l_out_idx, TX_ITEM_TYPE_OUT_COND, NULL);
+                dap_chain_tx_out_cond_t *l_prev_out = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(l_tx_prev_temp, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
                 if(!l_prev_out || l_prev_out->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK){
                     l_tsd_temp = l_tsd_temp->next;
                     continue;
@@ -532,7 +532,7 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
 
         return true;
     } else if (a_type == TX_ITEM_TYPE_VOTE){
-        dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_VOTE, NULL);
+        dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
         if(!l_vote_tx_item){
             log_it(L_ERROR, "Can't find vote item");
             return false;
@@ -1075,7 +1075,7 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
         return 1;
     }
 
-    dap_chain_tx_vote_t *l_vote =(dap_chain_tx_vote_t *) dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_VOTE, NULL);
+    dap_chain_tx_vote_t *l_vote =(dap_chain_tx_vote_t *) dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
     if(l_vote && dap_hash_fast_compare(&l_vote->voting_hash, &a_voting_hash)){
         dap_chain_net_votings_t *l_voting = NULL;
         pthread_rwlock_wrlock(&s_votings_rwlock);
@@ -1166,7 +1166,7 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
         }
 
 
-        dap_chain_tx_vote_t *l_vote =(dap_chain_tx_vote_t *) dap_chain_datum_tx_item_get(l_tx_prev_temp, NULL, TX_ITEM_TYPE_VOTE, NULL);
+        dap_chain_tx_vote_t *l_vote =(dap_chain_tx_vote_t *) dap_chain_datum_tx_item_get(l_tx_prev_temp, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
         if(l_vote && dap_hash_fast_compare(&l_vote->voting_hash, &a_voting_hash)){
             dap_chain_net_votings_t *l_voting = NULL;
             pthread_rwlock_wrlock(&s_votings_rwlock);

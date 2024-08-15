@@ -199,6 +199,7 @@ extern "C" {
 size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
 
 const char *dap_chain_addr_to_str_static(const dap_chain_addr_t *a_addr);
+#define dap_chain_addr_to_str dap_chain_addr_to_str_static
 dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 

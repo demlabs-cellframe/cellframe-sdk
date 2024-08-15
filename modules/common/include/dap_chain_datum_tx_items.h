@@ -44,47 +44,6 @@
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_tx_in_reward.h"
 
-/**
- * Get item type
- *
- * return type, or TX_ITEM_TYPE_ANY if error
- */
-dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const void *a_item);
-
-typedef struct dap_chain_datum_tx_item
-{
-    dap_chain_tx_item_type_t type;
-    byte_t data[];
-} DAP_ALIGN_PACKED dap_chain_datum_tx_item_t;
-
-/**
- * Get item name by item type
- *
- * return name, or UNDEFINED
- */
-DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_item_type_t a_item_type)
-{
-    switch(a_item_type){
-        case TX_ITEM_TYPE_IN: return "TX_ITEM_TYPE_IN";
-        case TX_ITEM_TYPE_OUT_OLD: return "TX_ITEM_TYPE_OUT_OLD";
-        case TX_ITEM_TYPE_OUT: return "TX_ITEM_TYPE_OUT"; // 256
-        case TX_ITEM_TYPE_OUT_EXT: return "TX_ITEM_TYPE_OUT_EXT"; // 256
-        case TX_ITEM_TYPE_PKEY: return "TX_ITEM_TYPE_PKEY";
-        case TX_ITEM_TYPE_SIG: return "TX_ITEM_TYPE_SIG";
-        case TX_ITEM_TYPE_IN_EMS: return "TX_ITEM_TYPE_IN_EMS";
-        case TX_ITEM_TYPE_IN_REWARD: return "TX_ITEM_TYPE_IN_REWARD";
-        case TX_ITEM_TYPE_IN_COND: return "TX_ITEM_TYPE_IN_COND";
-        case TX_ITEM_TYPE_OUT_COND: return "TX_ITEM_TYPE_OUT_COND"; // 256
-        case TX_ITEM_TYPE_RECEIPT: return "TX_ITEM_TYPE_RECEIPT";
-        case TX_ITEM_TYPE_TSD: return "TX_ITEM_TYPE_TSD";
-        case TX_ITEM_TYPE_OUT_ALL: return "TX_ITEM_TYPE_OUT_OLDALL";
-        case TX_ITEM_TYPE_ANY: return "TX_ITEM_TYPE_ANY";
-        case TX_ITEM_TYPE_VOTING: return "TX_ITEM_TYPE_VOTING";
-        case TX_ITEM_TYPE_VOTE: return "TX_ITEM_TYPE_VOTE";
-        default: return "UNDEFINED";
-    }
-}
-
 typedef struct dap_chain_datum_tx_item_groups {
 
     dap_list_t *items_in_all;
@@ -118,6 +77,34 @@ typedef struct dap_chain_datum_tx_item_groups {
 
 } dap_chain_datum_tx_item_groups_t;
 
+/**
+ * Get item name by item type
+ *
+ * return name, or UNDEFINED
+ */
+DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_item_type_t a_item_type)
+{
+    switch(a_item_type){
+        case TX_ITEM_TYPE_IN: return "TX_ITEM_TYPE_IN";
+        case TX_ITEM_TYPE_OUT_OLD: return "TX_ITEM_TYPE_OUT_OLD";
+        case TX_ITEM_TYPE_OUT: return "TX_ITEM_TYPE_OUT"; // 256
+        case TX_ITEM_TYPE_OUT_EXT: return "TX_ITEM_TYPE_OUT_EXT"; // 256
+        case TX_ITEM_TYPE_PKEY: return "TX_ITEM_TYPE_PKEY";
+        case TX_ITEM_TYPE_SIG: return "TX_ITEM_TYPE_SIG";
+        case TX_ITEM_TYPE_IN_EMS: return "TX_ITEM_TYPE_IN_EMS";
+        case TX_ITEM_TYPE_IN_REWARD: return "TX_ITEM_TYPE_IN_REWARD";
+        case TX_ITEM_TYPE_IN_COND: return "TX_ITEM_TYPE_IN_COND";
+        case TX_ITEM_TYPE_OUT_COND: return "TX_ITEM_TYPE_OUT_COND"; // 256
+        case TX_ITEM_TYPE_RECEIPT: return "TX_ITEM_TYPE_RECEIPT";
+        case TX_ITEM_TYPE_TSD: return "TX_ITEM_TYPE_TSD";
+        case TX_ITEM_TYPE_OUT_ALL: return "TX_ITEM_TYPE_OUT_OLDALL";
+        case TX_ITEM_TYPE_ANY: return "TX_ITEM_TYPE_ANY";
+        case TX_ITEM_TYPE_VOTING: return "TX_ITEM_TYPE_VOTING";
+        case TX_ITEM_TYPE_VOTE: return "TX_ITEM_TYPE_VOTE";
+        default: return "UNDEFINED";
+    }
+}
+
 bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_res_group);
 void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_group);
 
@@ -140,7 +127,7 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
  *
  * return size, 0 Error
  */
-size_t dap_chain_datum_item_tx_get_size(const void *a_item);
+size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size);
 
 /**
  * Create item dap_chain_tx_in_ems_t
@@ -223,7 +210,9 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
 
 json_object* dap_chain_datum_tx_item_out_cond_srv_xchange_to_json(dap_chain_tx_out_cond_t* a_srv_xchange);
 
-DAP_STATIC_INLINE uint32_t dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size() { return sizeof(dap_chain_addr_t) + sizeof(uint256_t) + 2 * sizeof(dap_tsd_t); }
+DAP_STATIC_INLINE uint32_t dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size() {
+    return sizeof(dap_chain_addr_t) + sizeof(uint256_t) + 2 * sizeof(dap_tsd_t);
+}
 
 /**
  * Create item dap_chain_tx_out_cond_t for stake service
@@ -272,13 +261,14 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
  * return item data, NULL Error index or bad format transaction
  */
 uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
-        dap_chain_tx_item_type_t a_type, int *a_item_out_size);
+        byte_t *a_iter, dap_chain_tx_item_type_t a_type, size_t *a_item_out_size);
 // Get Nth item of pointed type
 uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int a_item_idx);
 // Get all item from transaction by type
 dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count);
 // Get conditional out item with it's idx
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_cond_type, int *a_out_num);
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_subtype_t a_cond_subtype, int *a_out_num);
 // Get output by output index
-uint8_t *dap_chain_datum_tx_out_get_by_out_idx(dap_chain_datum_tx_t *a_tx, int a_out_num);
+#define dap_chain_datum_tx_out_get_by_out_idx(a_tx, a_out_num) \
+    dap_chain_datum_tx_item_get(a_tx, &a_out_num, NULL, TX_ITEM_TYPE_OUT_ALL, NULL);
 

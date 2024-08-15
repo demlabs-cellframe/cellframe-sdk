@@ -22,9 +22,10 @@
 #pragma once
 
 #include <stdint.h>
+#include "dap_chain.h"
 #include "dap_chain_common.h"
-#include "dap_chain_datum_tx.h"
-#include "dap_chain_datum_tx_items.h"
+//#include "dap_chain_datum_tx.h"
+//#include "dap_chain_datum_tx_items.h"
 #include "dap_chain_ledger.h"
 #include "dap_time.h"
 #include "dap_list.h"
