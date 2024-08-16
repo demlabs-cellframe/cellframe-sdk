@@ -98,21 +98,15 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
     }
     if (dap_log_level_get() <= L_DEBUG ) {
         char *l_ignored_str = NULL;
-        int l_bias = 0;
         DAP_NEW_Z_SIZE_RET_VAL(l_ignored_str, char, 26 *(l_uplinks_count + l_low_availability_count + 1) + 200, NULL, l_uplinks, l_low_availability);
-        sprintf(l_ignored_str + l_bias, "Second nodes will be ignored in balancer links preparing:\n\tSelf:\n\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_curr_addr));
-        l_bias = strlen(l_ignored_str);
-        sprintf(l_ignored_str + l_bias, "\tUplinks:\n");
-        l_bias = strlen(l_ignored_str);
+        sprintf(l_ignored_str + strlen(l_ignored_str), "Second nodes will be ignored in balancer links preparing:\n\tSelf:\n\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_curr_addr));
+        sprintf(l_ignored_str + strlen(l_ignored_str), "\tUplinks:\n");
         for (size_t i = 0; i < l_uplinks_count; ++i) {
-            sprintf(l_ignored_str + l_bias, "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_uplinks + i));
-            l_bias = strlen(l_ignored_str);
+            sprintf(l_ignored_str + strlen(l_ignored_str), "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_uplinks + i));
         }
-        sprintf(l_ignored_str + l_bias, "\tLow availability:\n");
-        l_bias = strlen(l_ignored_str);
+        sprintf(l_ignored_str + strlen(l_ignored_str), "\tLow availability:\n");
         for (size_t i = 0; i < l_low_availability_count; ++i) {
-            sprintf(l_ignored_str + l_bias, "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_low_availability + i));
-            l_bias = strlen(l_ignored_str);
+            sprintf(l_ignored_str + strlen(l_ignored_str), "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_low_availability + i));
         }
         log_it(L_DEBUG, "%s", l_ignored_str);
         DAP_DELETE(l_ignored_str);
@@ -143,11 +137,21 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
 static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_chain_net_links_t *a_link_full_node_list, const char* a_host_addr, uint16_t a_host_port)
 {
     char l_err_str[128] = {0};
+    if (dap_log_level_get() <= L_DEBUG ) {
+        char *l_links_str = NULL;
+        DAP_NEW_Z_SIZE_RET(l_links_str, char, 270 * a_link_full_node_list->count_node + 100, NULL);
+        sprintf(l_links_str + strlen(l_links_str), "Second %"DAP_UINT64_FORMAT_U" links was prepared from balancer:\n", a_link_full_node_list->count_node);
+        for (size_t i = 0; i < a_link_full_node_list->count_node; ++i) {
+            dap_link_info_t *l_link_info = (dap_link_info_t *)a_link_full_node_list->nodes_info + i;
+            sprintf(l_links_str + strlen(l_links_str), "\t"NODE_ADDR_FP_STR " [ %s : %u ]\n",
+               NODE_ADDR_FP_ARGS_S(l_link_info->node_addr), l_link_info->uplink_addr, l_link_info->uplink_port);
+        }
+        log_it(L_DEBUG, "%s", l_links_str);
+        DAP_DELETE(l_links_str);
+    }
     struct json_object *l_json;
     for (size_t i = 0; i < a_link_full_node_list->count_node; ++i) {
         dap_link_info_t *l_link_info = (dap_link_info_t *)a_link_full_node_list->nodes_info + i;
-        log_it(L_DEBUG,"Link " NODE_ADDR_FP_STR " [ %s : %u ] prepare success",
-               NODE_ADDR_FP_ARGS_S(l_link_info->node_addr), l_link_info->uplink_addr, l_link_info->uplink_port);
         if (dap_chain_net_link_add(a_net, &l_link_info->node_addr, l_link_info->uplink_addr, l_link_info->uplink_port))
             continue;
         l_json = s_balancer_states_json_collect(a_net, a_host_addr, a_host_port);
@@ -157,8 +161,6 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_chain_ne
         json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
         dap_notify_server_send_mt(json_object_get_string(l_json));
         json_object_put(l_json);
-        log_it(L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added",
-                 NODE_ADDR_FP_ARGS_S(l_link_info->node_addr));
     }
 }
 

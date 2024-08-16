@@ -440,6 +440,7 @@ int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_add
     int rc = dap_link_manager_link_update(a_addr, a_host, a_port);
     if (rc)
         log_it(L_ERROR, "Can't update link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_addr));
+    log_it(L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added", NODE_ADDR_FP_ARGS(a_addr));
     return rc;
 }
 
