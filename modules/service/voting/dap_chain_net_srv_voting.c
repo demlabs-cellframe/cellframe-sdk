@@ -873,6 +873,9 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             case DAP_CHAIN_NET_VOTE_VOTING_NO_KEY_FOUND_IN_CERT: {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "No key found in \"%s\" certificate", l_cert_name);
             } break;
+            case DAP_CHAIN_NET_VOTE_VOTING_CERT_REQUIRED: {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "This voting required a delegated key. Parameter -cert must contain a valid certificate name");
+            } break;
             case DAP_CHAIN_NET_VOTE_VOTING_NO_PUBLIC_KEY_IN_CERT: {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't serialize public key of certificate \"%s\"",
                                                   l_cert_name);
@@ -1003,7 +1006,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             char l_tmp_buf[DAP_TIME_STR_SIZE];
             dap_time_t l_expire = *(dap_time_t*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_expire_offset);
             dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_expire);
-            dap_string_append_printf(l_str_out, "\t Voting expire: %s", l_tmp_buf);
+            dap_string_append_printf(l_str_out, "\t Voting expire: %s \n", l_tmp_buf);
             dap_string_truncate(l_str_out, l_str_out->len - 1);
             dap_string_append_printf(l_str_out, " (%s)\n", l_expire > dap_time_now() ? "active" : "expired");
         }
@@ -1434,7 +1437,9 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
 
     if(l_voting->voting_params.delegate_key_required_offset &&
        *(bool*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.delegate_key_required_offset) ){
-        if (!a_cert) {} else {
+        if (!a_cert) {
+            return DAP_CHAIN_NET_VOTE_VOTING_CERT_REQUIRED;
+        } else {
             if (a_cert->enc_key == NULL) {
                 return DAP_CHAIN_NET_VOTE_VOTING_NO_KEY_FOUND_IN_CERT;
             }
