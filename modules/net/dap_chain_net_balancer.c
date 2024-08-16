@@ -97,6 +97,27 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
         log_it(L_WARNING, "Error forming ignore list in net %s, please check, should be minimum self addr", a_net->pub.name);
         return NULL;
     }
+    if (dap_log_level_get() <= L_DEBUG ) {
+        char *l_ignored_str = NULL;
+        int l_bias = 0;
+        DAP_NEW_Z_SIZE_RET_VAL(l_ignored_str, char, 26 *(l_uplinks_count + l_low_availability_count + 1) + 200, NULL, l_uplinks, l_low_availability);
+        sprintf(l_ignored_str + l_bias, "Second nodes will be ignored in balancer links preparing:\n\tSelf:\n\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_curr_addr));
+        l_bias = strlen(l_ignored_str);
+        sprintf(l_ignored_str + l_bias, "\tUplinks:\n");
+        l_bias = strlen(l_ignored_str);
+        for (size_t i = 0; i < l_uplinks_count; ++i) {
+            sprintf(l_ignored_str + l_bias, "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_uplinks + i));
+            l_bias = strlen(l_ignored_str);
+        }
+        sprintf(l_ignored_str + l_bias, "\tLow availability:\n");
+        l_bias = strlen(l_ignored_str);
+        for (size_t i = 0; i < l_low_availability_count; ++i) {
+            sprintf(l_ignored_str + l_bias, "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_low_availability + i));
+            l_bias = strlen(l_ignored_str);
+        }
+        log_it(L_DEBUG, "%s", l_ignored_str);
+        DAP_DELETE(l_ignored_str);
+    }
     l_size = sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * (l_uplinks_count + l_low_availability_count + 1);
 // memory alloc
     dap_chain_net_links_t *l_ret = NULL;
