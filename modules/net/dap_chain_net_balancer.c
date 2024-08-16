@@ -75,10 +75,9 @@ struct json_object *s_balancer_states_json_collect(dap_chain_net_t *a_net, const
 }
 
 /**
- * @brief callback to success balancer request
- * @param a_net - responce net
- * @param a_link_full_node_list - getted node list
- * @param a_host_info - host info
+ * @brief get ignored node addr
+ * @param a_net - net
+ * @param a_size - out ingored node count
  */
 static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, size_t *a_size)
 {
