@@ -139,7 +139,7 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_chain_ne
     char l_err_str[128] = {0};
     if (dap_log_level_get() <= L_DEBUG ) {
         char *l_links_str = NULL;
-        DAP_NEW_Z_SIZE_RET(l_links_str, char, 270 * a_link_full_node_list->count_node + 100, NULL);
+        DAP_NEW_Z_SIZE_RET(l_links_str, char, 300 * a_link_full_node_list->count_node + 100, NULL);
         sprintf(l_links_str + strlen(l_links_str), "Second %"DAP_UINT64_FORMAT_U" links was prepared from balancer:\n", a_link_full_node_list->count_node);
         for (size_t i = 0; i < a_link_full_node_list->count_node; ++i) {
             dap_link_info_t *l_link_info = (dap_link_info_t *)a_link_full_node_list->nodes_info + i;
