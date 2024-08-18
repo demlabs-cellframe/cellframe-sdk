@@ -4054,7 +4054,6 @@ typedef struct _dap_cli_token_additional_params {
     uint16_t    parsed_flags;
     size_t      tsd_total_size;
     byte_t      *parsed_tsd;
-    size_t      parsed_tsd_size;
 } dap_cli_token_additional_params;
 
 typedef struct _dap_sdk_cli_params {
@@ -4208,7 +4207,6 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
     size_t l_tsd_total_size = 0;
     uint16_t l_flags = 0;
     char ** l_str_flags = NULL;
-    a_params->ext.parsed_tsd_size = 0;
 
     if (!a_update_token) {
         if (a_params->ext.flags){   // Flags
@@ -4223,7 +4221,6 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
                 l_str_flags++;
             }
         }
-        a_params->ext.parsed_flags = l_flags;
     } else {
         const char *l_set_flags = NULL;
         const char *l_unset_flags = NULL;
@@ -4244,7 +4241,6 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
             l_flags = 0;
             l_tsd_list = dap_list_append(l_tsd_list, l_flag_set_tsd);
             l_tsd_total_size += dap_tsd_size(l_flag_set_tsd);
-            a_params->ext.parsed_tsd_size += dap_tsd_size(l_flag_set_tsd);
         }
         if (l_unset_flags) {
             l_str_flags = dap_strsplit(l_unset_flags,",",0xffff );
@@ -4261,9 +4257,40 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
             l_flags = 0;
             l_tsd_list = dap_list_append(l_tsd_list, l_flag_unset_tsd);
             l_tsd_total_size += dap_tsd_size(l_flag_unset_tsd);
-            a_params->ext.parsed_tsd_size += dap_tsd_size(l_flag_unset_tsd);
         }
     }
+
+    if (a_params->ext.total_signs_valid){ // Signs valid
+        uint16_t l_param_value = (uint16_t)atoi(a_params->ext.total_signs_valid);
+        dap_tsd_t * l_tsd = dap_tsd_create_scalar(
+                                                DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_param_value);
+        l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+        l_tsd_total_size+= dap_tsd_size(l_tsd);
+    }
+    if (a_params->ext.datum_type_allowed){
+        dap_tsd_t * l_tsd = dap_tsd_create_string(
+                                                DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD, a_params->ext.datum_type_allowed);
+        l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+        l_tsd_total_size+= dap_tsd_size(l_tsd);
+    }
+    if (a_params->ext.datum_type_blocked){
+        dap_tsd_t * l_tsd = dap_tsd_create_string(
+                                                DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD, a_params->ext.datum_type_blocked);
+        l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+        l_tsd_total_size+= dap_tsd_size(l_tsd);
+    }
+    if (a_params->ext.tx_receiver_allowed)
+        l_tsd_list = s_parse_wallet_addresses(a_params->ext.tx_receiver_allowed, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD);
+
+    if (a_params->ext.tx_receiver_blocked)
+        l_tsd_list = s_parse_wallet_addresses(a_params->ext.tx_receiver_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD);
+
+    if (a_params->ext.tx_sender_allowed)
+        l_tsd_list = s_parse_wallet_addresses(a_params->ext.tx_sender_allowed, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD);
+
+    if (a_params->ext.tx_sender_blocked)
+        l_tsd_list = s_parse_wallet_addresses(a_params->ext.tx_sender_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD);
+
 
     const char* l_new_certs_str = NULL;
     const char* l_remove_signs = NULL;
@@ -4314,7 +4341,6 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
         dap_tsd_t *l_desc_token = dap_tsd_create_string(DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION, l_description);
         l_tsd_list = dap_list_append(l_tsd_list, l_desc_token);
         l_tsd_total_size += dap_tsd_size(l_desc_token);
-        a_params->ext.parsed_tsd_size += dap_tsd_size(l_desc_token);
     }
     size_t l_tsd_offset = 0;
     a_params->ext.parsed_tsd = DAP_NEW_SIZE(byte_t, l_tsd_total_size);
@@ -4491,24 +4517,9 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
 		{ // 256
             dap_list_t *l_tsd_list = NULL;
-            size_t l_tsd_total_size = 0;
-            uint16_t l_flags = 0;
-            char ** l_str_flags = NULL;
+            size_t l_tsd_local_list_size = 0;
 
-            if (l_params->ext.flags){   // Flags
-                 l_str_flags = dap_strsplit(l_params->ext.flags,",",0xffff );
-                 while (l_str_flags && *l_str_flags){
-                     uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
-                     if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
-                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
-                         DAP_DEL_Z(l_params);
-                         return -20;
-                     }
-                     l_flags |= l_flag; // if we have multiple flags
-                     l_str_flags++;
-                }
-            }
-			if (l_params->ext.delegated_token_from){
+            if (l_params->ext.delegated_token_from){
 				dap_chain_datum_token_t *l_delegated_token_from;
 				if (NULL == (l_delegated_token_from = dap_ledger_token_ticker_check(l_net->pub.ledger, l_params->ext.delegated_token_from))) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,"To create a delegated token %s, can't find token by ticket %s", l_ticker, l_params->ext.delegated_token_from);
@@ -4528,42 +4539,19 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
 				dap_tsd_t * l_tsd = dap_tsd_create_scalar(
 														DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK, l_tsd_section);
 				l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-				l_tsd_total_size+= dap_tsd_size(l_tsd);
+				l_tsd_local_list_size += dap_tsd_size(l_tsd);
 			}
-            if (l_params->ext.total_signs_valid){ // Signs valid
-                uint16_t l_param_value = (uint16_t)atoi(l_params->ext.total_signs_valid);
-                l_signs_total = l_param_value;
-                dap_tsd_t * l_tsd = dap_tsd_create_scalar(
-                                                        DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_param_value);
-                l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-                l_tsd_total_size+= dap_tsd_size(l_tsd);
+
+            if (l_params->ext.total_signs_valid) {
+                l_signs_total = (uint16_t)atoi(l_params->ext.total_signs_valid);
             }
-            if (l_params->ext.datum_type_allowed){
-                dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                        DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD, l_params->ext.datum_type_allowed);
-                l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-                l_tsd_total_size+= dap_tsd_size(l_tsd);
-            }
-            if (l_params->ext.datum_type_blocked){
-                dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                        DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD, l_params->ext.datum_type_blocked);
-                l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-                l_tsd_total_size+= dap_tsd_size(l_tsd);
-            }
-            if (l_params->ext.tx_receiver_allowed)
-                l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_receiver_allowed, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD);
 
-            if (l_params->ext.tx_receiver_blocked)
-                l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_receiver_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD);
 
-            if (l_params->ext.tx_sender_allowed)
-                l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_sender_allowed, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD);
+            size_t l_tsd_total_size = l_tsd_local_list_size + l_params->ext.tsd_total_size;
 
-            if (l_params->ext.tx_sender_blocked)
-                l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_sender_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD);
 
-            if (l_params->ext.parsed_tsd)
-                l_tsd_total_size += l_params->ext.parsed_tsd_size;
+            // if (l_params->ext.parsed_tsd)
+                // l_tsd_total_size += l_params->ext.parsed_tsd_size;
 
 
             // Create new datum token
@@ -4583,7 +4571,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
                 l_datum_token->header_private_decl.flags = l_params->ext.parsed_flags;
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
-                l_datum_token->header_private_decl.tsd_total_size = l_tsd_total_size;
+                l_datum_token->header_private_decl.tsd_total_size = l_tsd_local_list_size + l_params->ext.tsd_total_size;
                 l_datum_token->header_private_decl.decimals = atoi(l_params->decimals_str);
             } else { //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
                 log_it(L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_tsd_total_size);
@@ -4679,6 +4667,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
             DAP_DEL_Z(l_params);
             return -8;
     }
+    dap_uuid_generate_nonce(&l_datum_token->nonce, DAP_CHAIN_DATUM_NONCE_SIZE);
     // If we have more certs than we need signs - use only first part of the list
     if(l_certs_count > l_signs_total)
         l_certs_count = l_signs_total;
@@ -4859,7 +4848,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
             // Add TSD sections in the end
             // Add TSD sections in the end
             if (l_params->ext.tsd_total_size) {
-                memcpy(l_datum_token->tsd_n_signs, l_params->ext.parsed_tsd, l_params->ext.parsed_tsd_size);
+                memcpy(l_datum_token->tsd_n_signs, l_params->ext.parsed_tsd, l_params->ext.tsd_total_size);
                 DAP_DELETE(l_params->ext.parsed_tsd);
             }
             log_it(L_DEBUG, "%s token declaration update '%s' initialized", (	l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)	?
@@ -4885,6 +4874,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
                                               "Unknown token type");
             return -8;
     }
+    dap_uuid_generate_nonce(&l_datum_token->nonce, DAP_CHAIN_DATUM_NONCE_SIZE);
     // If we have more certs than we need signs - use only first part of the list
     if(l_certs_count > l_signs_total)
         l_certs_count = l_signs_total;
