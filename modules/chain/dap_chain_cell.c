@@ -127,8 +127,11 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
     if ( !a_fpos ) {
         //if (a_cell->map_range_bounds)
         //    NtClose( (HANDLE)a_cell->map_range_bounds->data );
+        off_t l_ssize = !fseeko(a_cell->file_storage, 0, SEEK_END) ? ftello(a_cell->file_storage) : -1;
+        if (l_ssize < 0)
+            return log_it(L_ERROR, "Can't get chain size, error %d: \"%s\"", errno, dap_strerror(errno)), -1;
         LARGE_INTEGER SectionSize = { 
-            .QuadPart = ( fseek(a_cell->file_storage, 0, SEEK_END), ftell(a_cell->file_storage) ) 
+            .QuadPart = l_ssize 
         };
         
         NTSTATUS err = pfnNtCreateSection(&hSection, SECTION_MAP_READ|SECTION_EXTEND_SIZE|SECTION_MAP_WRITE, 
@@ -237,9 +240,11 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
         .file_storage   = l_file,
         .storage_rwlock = PTHREAD_RWLOCK_INITIALIZER
     };
-    size_t l_size = ( fseek(l_file, 0, SEEK_END), ftell(l_file) );
-    if ( l_size < sizeof(dap_chain_cell_file_header_t) ) {
-        if (l_size) {
+    off_t l_size = !fseeko(l_file, 0, SEEK_END) ? ftello(l_file) : -1;
+    if (l_size < 0)
+        CLEANUP_AND_RET;
+    else if ( (size_t)l_size < sizeof(dap_chain_cell_file_header_t) ) {
+        if ( l_size ) {
             log_it(L_INFO, "Possibly corrupt cell storage 0x%016"DAP_UINT64_FORMAT_X" \"%s\", rewriting it",
                             a_cell_id.uint64, file_storage_path);
             l_file = freopen(file_storage_path, "w+b", l_file);
@@ -401,7 +406,10 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
 {
     if (!a_cell)
         return -1;
-    size_t l_full_size = !fseek(a_cell->file_storage, 0, SEEK_END) ? ftell(a_cell->file_storage) : 0;
+    off_t l_ssize = !fseeko(a_cell->file_storage, 0, SEEK_END) ? ftello(a_cell->file_storage) : -1;
+    if (l_ssize < 0)
+        return log_it(L_ERROR, "Can't get chain size, error %d: \"%s\"", errno, dap_strerror(errno)), -1;
+    size_t l_full_size = (size_t)l_ssize;
     if ( l_full_size < sizeof(dap_chain_cell_file_header_t) ) {
         log_it(L_ERROR, "Chain cell \"%s\" is corrupt, create new file", a_cell->file_storage_path);
         return -1;
@@ -410,7 +418,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     if (a_chain->is_mapped) {
         l_hdr = (dap_chain_cell_file_header_t*)a_cell->map;
     } else {
-        fseek(a_cell->file_storage, 0, SEEK_SET);
+        fseeko(a_cell->file_storage, 0, SEEK_SET);
         l_hdr = DAP_NEW(dap_chain_cell_file_header_t);
         if ( fread(l_hdr, 1, sizeof(*l_hdr), a_cell->file_storage) != sizeof(*l_hdr) ) {
             log_it(L_ERROR,"Can't read chain header \"%s\"", a_cell->file_storage_path);
@@ -435,7 +443,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     if (a_chain->is_mapped)
         a_cell->map_pos = a_cell->map + l_pos;
     if (l_full_size == l_pos) {
-        return fseek(a_cell->file_storage, l_pos, SEEK_SET);
+        return fseeko(a_cell->file_storage, l_pos, SEEK_SET);
     }
 
     int l_ret = 0;    
@@ -493,7 +501,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             ++q;
         }
     }
-    fseek(a_cell->file_storage, l_pos, SEEK_SET);
+    fseeko(a_cell->file_storage, l_pos, SEEK_SET);
     log_it(L_INFO, "Loaded %lu atoms in cell %s", q, a_cell->file_storage_path);
     return l_ret;
 }
@@ -505,16 +513,18 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
         return -1;
     }
     if (a_cell->chain->is_mapped) {
-        size_t l_pos = ( fseek(a_cell->file_storage, 0, SEEK_END), ftell(a_cell->file_storage) );
-        debug_if (s_debug_more, L_DEBUG, "Before filling volume for atom size %lu, stream pos of %s is %lu, map pos is %lu, space left in map %lu",
+        off_t l_pos = !fseeko(a_cell->file_storage, 0, SEEK_END) ? ftello(a_cell->file_storage) : -1;
+        if (l_pos < 0)
+            return log_it(L_ERROR, "Can't get chain size, error %d: \"%s\"", errno, dap_strerror(errno)), -1;
+        debug_if (s_debug_more, L_DEBUG, "Before filling volume for atom size %ld, stream pos of %s is %lu, map pos is %lu, space left in map %lu",
                       a_atom_size, a_cell->file_storage_path, l_pos, (size_t)(a_cell->map_pos - a_cell->map), (size_t)(a_cell->map_end - a_cell->map_pos));
         if ( a_atom_size + sizeof(uint64_t) > (size_t)(a_cell->map_end - a_cell->map_pos) )
-            if ( s_cell_map_new_volume(a_cell, l_pos) )
+            if ( s_cell_map_new_volume(a_cell, (size_t)l_pos) )
                 return -2;
     }
     
-    debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG, "Before writing an atom of size %lu, stream pos of %s is %lu and pos is %lu, space left in map %lu", 
-                                            a_atom_size, a_cell->file_storage_path, ftell(a_cell->file_storage),
+    debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG, "Before writing an atom of size %lu, stream pos of %s is %ld and pos is %lu, space left in map %lu", 
+                                            a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
                                             (size_t)(a_cell->map_pos - a_cell->map), (size_t)(a_cell->map_end - a_cell->map_pos));
 
     if (fwrite(&a_atom_size, sizeof(a_atom_size), 1, a_cell->file_storage) != 1) {
@@ -529,7 +539,7 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
         return -3;
     }
     debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG, "After writing an atom of size %lu, stream pos of %s is %lu and map shift is %lu", 
-                                            a_atom_size, a_cell->file_storage_path, ftell(a_cell->file_storage),
+                                            a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
                                             (size_t)(a_cell->map_pos - a_cell->map));
 #ifdef DAP_OS_DARWIN
     if (a_cell->chain->is_mapped) {
@@ -602,11 +612,11 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
         a_cell->chain->is_mapped = was_mapped;
         a_cell->chain->callback_atom_iter_delete(l_atom_iter);
         debug_if (s_debug_more && a_cell->chain->is_mapped,L_DEBUG, "After rewriting file %s, stream pos is %lu and map pos is %lu",
-                      a_cell->file_storage_path, ftell(a_cell->file_storage),
+                      a_cell->file_storage_path, ftello(a_cell->file_storage),
                       (size_t)(a_cell->map_pos - a_cell->map));
     } else {
         debug_if (s_debug_more && a_cell->chain->is_mapped,L_DEBUG, "Before appending an atom of size %lu, stream pos of %s is %lu, map pos is %lu",
-                      a_atom_size, a_cell->file_storage_path, ftell(a_cell->file_storage),
+                      a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
                       (size_t)(a_cell->map_pos - a_cell->map));
         if ( s_cell_file_atom_add(a_cell, a_atom, a_atom_size) ) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": can't save atom!",
@@ -615,7 +625,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
             return -4;
         }
         debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG,"After appending an atom of size %lu, stream pos of %s is %lu, map pos is %lu",
-                                                a_atom_size, a_cell->file_storage_path, ftell(a_cell->file_storage),
+                                                a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
                                                 (size_t)(a_cell->map_end - a_cell->map_pos));
         ++l_count;
         l_total_res = a_atom_size + sizeof(uint64_t);
@@ -625,12 +635,18 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
         fflush(a_cell->file_storage);
 #ifdef DAP_OS_WINDOWS
         if (a_cell->chain->is_mapped) {
-            LARGE_INTEGER SectionSize = (LARGE_INTEGER) { .QuadPart = ftell(a_cell->file_storage) };
-            HANDLE hSection = (HANDLE)a_cell->map_range_bounds->data;
-            NTSTATUS err = pfnNtExtendSection(hSection, &SectionSize);
-            if ( !NT_SUCCESS(err) ) {
-                log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
+            off_t l_off = ftello(a_cell->file_storage);
+            if (l_off < 0) {
+                log_it(L_ERROR, "Can't get chain size!");
                 l_err = true;
+            } else {
+                LARGE_INTEGER SectionSize = (LARGE_INTEGER) { .QuadPart = l_off };
+                HANDLE hSection = (HANDLE)a_cell->map_range_bounds->data;
+                NTSTATUS err = pfnNtExtendSection(hSection, &SectionSize);
+                if ( !NT_SUCCESS(err) ) {
+                    log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
+                    l_err = true;
+                }
             }
         }
 #endif
