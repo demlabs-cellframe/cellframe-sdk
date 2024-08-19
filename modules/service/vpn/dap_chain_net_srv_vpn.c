@@ -1388,7 +1388,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
         a_usage->is_limits_changed = true;
 
         if(a_srv_session->limits_ts && a_srv_session->limits_ts < l_current_limit_ts/2 && 
-            !a_usage->receipt_next && !a_usage->is_waiting_first_receipt_sign){
+            !a_usage->receipt_next && !a_usage->is_waiting_first_receipt_sign && !a_usage->is_grace){
             l_issue_new_receipt = true;
         }
         a_srv_session->last_update_ts = time(NULL);
