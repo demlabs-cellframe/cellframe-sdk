@@ -608,10 +608,6 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                   l_new_tx_send_allow, l_new_tx_send_block, \
                   l_new_pkeys, l_new_pkey_hashes);          \
     ret_code; })
-#if 0
-    dap_tsd_t *l_tsd; size_t l_tsd_size;
-    dap_tsd_iter(l_tsd, l_tsd_size, a_tsd, a_tsd_total_size) {
-#else
     uint64_t l_tsd_size = 0;
     dap_tsd_t *l_tsd = (dap_tsd_t *)a_tsd;
     for (uint64_t l_offset = 0; l_offset < a_tsd_total_size; l_offset += l_tsd_size) {
@@ -625,7 +621,6 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             log_it(L_WARNING, "Wrong TSD size %zu, exiting TSD parse", l_tsd_size);
             return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
         }
-#endif
         switch (l_tsd->type) {
         // set flags
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS: {

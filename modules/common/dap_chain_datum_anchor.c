@@ -30,22 +30,11 @@
 
 #define LOG_TAG "dap_chain_datum_anchor"
 
-int dap_chain_datum_anchor_get_hash_from_data(dap_chain_datum_anchor_t* a_anchor, dap_hash_fast_t * l_out_hash)
+int dap_chain_datum_anchor_get_hash_from_data(dap_chain_datum_anchor_t* a_anchor, dap_hash_fast_t *a_out_hash)
 {
-    if(!a_anchor){
-        log_it(L_WARNING,"Wrong arguments");
-        return -1;
-    }
-    dap_tsd_t *l_tsd; size_t l_tsd_size;
-    dap_tsd_iter(l_tsd, l_tsd_size, a_anchor->data_n_sign, a_anchor->header.data_size) {
-        if (l_tsd->type == DAP_CHAIN_DATUM_ANCHOR_TSD_TYPE_DECREE_HASH) {
-            if (l_tsd->size > sizeof(dap_hash_fast_t))
-                return log_it(L_WARNING,"Wrong fee tsd data size"), -1;
-            _dap_tsd_get_scalar(l_tsd, l_out_hash);
-            return 0;
-        }
-    }
-    return -2;
+    dap_return_val_if_fail(a_anchor && a_out_hash, -1);
+    dap_tsd_t *l_tsd = dap_tsd_find(a_anchor->data_n_sign, a_anchor->header.data_size, DAP_CHAIN_DATUM_ANCHOR_TSD_TYPE_DECREE_HASH);
+    return l_tsd && l_tsd->size == sizeof(dap_hash_fast_t) ? ( _dap_tsd_get_scalar(l_tsd, a_out_hash), 0 ) : 1;
 }
 
 void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type)
