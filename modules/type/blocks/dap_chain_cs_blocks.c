@@ -1833,9 +1833,14 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         l_offset += l_sign_size;
     }
     if (l_offset + sizeof(l_block->hdr) != a_atom_size) {
-        log_it(L_WARNING, "Incorrect size %zu of block %s, expected %zu", l_offset + sizeof(l_block->hdr),
-                                                                dap_hash_fast_to_str_static(a_atom_hash), a_atom_size);
-        return ATOM_REJECT;
+        // Hard accept list
+        struct cs_blocks_hal_item *l_hash_found = NULL;
+        HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
+        if (!l_hash_found) {
+            log_it(L_WARNING, "Incorrect size %zu of block %s, expected %zu", l_offset + sizeof(l_block->hdr),
+                                                                    dap_hash_fast_to_str_static(a_atom_hash), a_atom_size);
+            return ATOM_REJECT;
+        }
     }
 
     if (!l_block->hdr.ts_created || l_block->hdr.ts_created > dap_time_now() + 600) {
