@@ -72,19 +72,19 @@ typedef struct ch_vpn_pkt {
                 uint32_t addr_size;
                 uint16_t port;
                 uint16_t padding;
-            } op_connect;
+            } DAP_ALIGN_PACKED op_connect;
             struct { // For data transmission, usualy for I/O functions
                 uint32_t data_size;
                 uint32_t padding;
-            } op_data;
+            } DAP_ALIGN_PACKED op_data;
             struct { // We have a problem and we know that!
                 uint32_t code; // I hope we'll have no more than 4B+ problems, not I??
                 uint32_t padding_padding_padding_damned_padding_nobody_nowhere_uses_this_fild_but_if_wil_change_me_pls_with_an_auto_rename;
-            } op_problem;
+            } DAP_ALIGN_PACKED op_problem;
             struct {
                 uint32_t padding1;
                 uint32_t padding2;
-            } raw; // Raw access to OP bytes
+            } DAP_ALIGN_PACKED raw; // Raw access to OP bytes
         };
     } DAP_ALIGN_PACKED header;
     byte_t data[]; // Binary data nested by packet
