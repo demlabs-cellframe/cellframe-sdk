@@ -1019,7 +1019,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
                 l_srv_session->last_update_ts = time(NULL);
                 if (!l_usage_active->is_grace && l_srv_session->limits_ts <= 0){
                     char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage_active->client_pkey_hash);
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage for user %s", l_srv_session->limits_ts < 0 ? l_usage_active->receipt->receipt_info.units + l_srv_session->limits_ts :
+                    log_it(L_INFO,"%ld seconds more for VPN usage for user %s", l_srv_session->limits_ts < 0 ? l_usage_active->receipt->receipt_info.units + l_srv_session->limits_ts :
                                                                                                                         l_usage_active->receipt->receipt_info.units, l_user_key);
                     DAP_DELETE(l_user_key);
                     l_srv_session->limits_ts += (time_t)l_usage_active->receipt->receipt_info.units;
@@ -1388,7 +1388,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
         a_usage->is_limits_changed = true;
 
         if(a_srv_session->limits_ts && a_srv_session->limits_ts < l_current_limit_ts/2 && 
-            !a_usage->receipt_next && !a_usage->is_waiting_first_receipt_sign){
+            !a_usage->receipt_next && !a_usage->is_waiting_first_receipt_sign && !a_usage->is_grace){
             l_issue_new_receipt = true;
         }
         a_srv_session->last_update_ts = time(NULL);
