@@ -829,15 +829,14 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         }
         uint256_t l_value_fee = dap_chain_balance_scan(l_fee_str);
         if (IS_ZERO_256(l_value_fee)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                              "command requires parameter '-fee' to be valid uint256");
-            return -103;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_VOTING_FEE_PARAM_BAD_TYPE, "command requires parameter '-fee' to be valid uint256");            
+            return -DAP_CHAIN_NET_VOTE_VOTING_FEE_PARAM_BAD_TYPE;
         }
 
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-w", &l_wallet_str);
         if (!l_wallet_str){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'vote' requires parameter -w to be valid.");
-            return -103;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_VOTING_WALLET_PARAM_NOT_VALID, "Command 'vote' requires parameter -w to be valid.");
+            return -DAP_CHAIN_NET_VOTE_VOTING_WALLET_PARAM_NOT_VALID;
         }
 
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-option_idx", &l_option_idx_str);
