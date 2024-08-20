@@ -80,7 +80,7 @@ dap_chain_tx_tsd_t* dap_chain_datum_voting_question_tsd_create(const char* a_que
 dap_chain_tx_tsd_t* dap_chain_datum_voting_answer_tsd_create(const char* a_answer_str, size_t str_len);
 dap_chain_tx_tsd_t* dap_chain_datum_voting_expire_tsd_create(dap_time_t a_expire);
 dap_chain_tx_tsd_t* dap_chain_datum_voting_max_votes_count_tsd_create(uint64_t a_max_count);
-dap_chain_tx_tsd_t* dap_chain_datum_voting_delegated_key_required_tsd_create(bool a_delegate_key_required);
+dap_chain_tx_tsd_t *dap_chain_datum_voting_delegated_key_required_tsd_create(bool a_delegated_key_required);
 dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_changing_allowed_tsd_create(bool a_vote_changing_allowed);
 dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_tx_cond_tsd_create(dap_chain_hash_fast_t a_tx_hash, int a_out_idx);
 

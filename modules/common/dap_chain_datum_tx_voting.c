@@ -108,16 +108,18 @@ dap_chain_tx_tsd_t* dap_chain_datum_voting_max_votes_count_tsd_create(uint64_t a
     return l_tsd;
 }
 
-dap_chain_tx_tsd_t* dap_chain_datum_voting_delegated_key_required_tsd_create(bool a_delegate_key_required)
+dap_chain_tx_tsd_t* dap_chain_datum_voting_delegated_key_required_tsd_create(bool a_delegated_key_required)
 {
-    dap_chain_tx_tsd_t* l_tsd = dap_chain_datum_tx_item_tsd_create(&a_delegate_key_required, VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED, sizeof(bool));
+    byte_t l_value = a_delegated_key_required;
+    dap_chain_tx_tsd_t* l_tsd = dap_chain_datum_tx_item_tsd_create(&l_value, VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED, sizeof(byte_t));
 
     return l_tsd;
 }
 
 dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_changing_allowed_tsd_create(bool a_vote_changing_allowed)
 {
-    dap_chain_tx_tsd_t* l_tsd = dap_chain_datum_tx_item_tsd_create(&a_vote_changing_allowed, VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED, sizeof(bool));
+    byte_t l_value = a_vote_changing_allowed;
+    dap_chain_tx_tsd_t* l_tsd = dap_chain_datum_tx_item_tsd_create(&l_value, VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED, sizeof(byte_t));
 
     return l_tsd;
 }
