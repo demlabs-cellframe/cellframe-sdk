@@ -181,7 +181,7 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
 
     if(l_ch) { // Is present in hash table such destination address
         size_t l_ipv4_str_len = 0; //dap_strlen(a_ipv4_str);
-        ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_ipv4_str_len);
+        dap_stream_ch_vpn_pkt_t *pkt_out = (dap_stream_ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_ipv4_str_len);
         if (!pkt_out) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             dap_stream_session_unlock();
@@ -682,7 +682,7 @@ dap_chain_net_vpn_client_status_t dap_chain_net_vpn_client_status(void)
  */
 void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t* a_pkt)
 {
-    ch_vpn_pkt_t * l_sf_pkt = (ch_vpn_pkt_t *) a_pkt->data;
+    dap_stream_ch_vpn_pkt_t * l_sf_pkt = (dap_stream_ch_vpn_pkt_t *) a_pkt->data;
     size_t l_sf_pkt_data_size = a_pkt->hdr.data_size - sizeof(l_sf_pkt->header);
 
     if(!a_pkt->hdr.data_size) {
