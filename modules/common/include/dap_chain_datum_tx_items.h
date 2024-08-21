@@ -270,5 +270,5 @@ dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_t
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_subtype_t a_cond_subtype, int *a_out_num);
 // Get output by output index
 #define dap_chain_datum_tx_out_get_by_out_idx(a_tx, a_out_num) \
-    dap_chain_datum_tx_item_get(a_tx, &a_out_num, NULL, TX_ITEM_TYPE_OUT_ALL, NULL);
+    dap_chain_datum_tx_item_get_nth(a_tx, TX_ITEM_TYPE_OUT_ALL, a_out_num);
 

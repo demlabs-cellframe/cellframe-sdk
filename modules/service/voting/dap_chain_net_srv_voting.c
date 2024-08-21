@@ -273,8 +273,6 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
 
 static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
 {
-    if (!dap_strcmp("0xF934920010A901571B44FBFBC8FE91386D2513892A977249BF9AA1F279FDCF01", dap_hash_fast_to_str_static(a_tx_hash)))
-        log_it(L_ATT, "Bingo!");
     dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t*)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
     if (!l_vote_tx_item) {
         log_it(L_ERROR, "Can't find vote item for tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
@@ -404,8 +402,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
         if (!s_datum_tx_voting_coin_check_spent(a_ledger->net, l_vote_tx_item->voting_hash,
                                                 l_tx_in->header.tx_prev_hash, l_tx_in->header.tx_out_prev_idx)) {
             dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_tx_in->header.tx_prev_hash);
-            int l_out_prev_idx = (int)l_tx_in->header.tx_out_prev_idx;
-            dap_chain_tx_out_t *l_prev_out_union = (dap_chain_tx_out_t *)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev_temp, l_out_prev_idx);
+            dap_chain_tx_out_t *l_prev_out_union = (dap_chain_tx_out_t *)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev_temp, l_tx_in->header.tx_out_prev_idx);
             if (!l_prev_out_union)
                 continue;
             if ((l_prev_out_union->header.type == TX_ITEM_TYPE_OUT || l_prev_out_union->header.type == TX_ITEM_TYPE_OUT_EXT) &&
@@ -1102,10 +1099,9 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
         dap_list_t *l_ins_list = (dap_list_t*)l_tx_temp->data;
         dap_chain_tx_in_t* l_temp_in = (dap_chain_tx_in_t*)l_ins_list->data;
         dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_find_by_hash(l_ledger, &l_temp_in->header.tx_prev_hash);
-        int l_out_prev_idx = (int)l_temp_in->header.tx_out_prev_idx;
 
         const char* l_tx_token = NULL;
-        dap_chain_tx_out_t *l_prev_out_union = (dap_chain_tx_out_t*)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev_temp, l_out_prev_idx);
+        dap_chain_tx_out_t *l_prev_out_union = (dap_chain_tx_out_t*)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev_temp, l_temp_in->header.tx_out_prev_idx);
         if (!l_prev_out_union){
             l_tx_temp->data = dap_list_remove(l_tx_temp->data, l_temp_in);
             if (l_tx_temp->data == NULL){
