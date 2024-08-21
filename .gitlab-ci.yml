@@ -16,68 +16,68 @@ stages:
   dependencies: []
   
   
-linux-amd64-tests:
+tests:amd64.gcc:
     extends: .tests
-    image: demlabs/amd64/debian-bullseye:linuxbuilder
+    image: demlabs/debian/amd64:qt5
     before_script: /opt/buildtools/prepare_environment.sh amd64-linux
     script:
       - mkdir build
       - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
 
 
-linux-amd64-tests-clang:
+tests:amd64.clang:
     extends: .tests
-    image: demlabs/amd64/debian-bullseye:linuxbuilder
+    image: demlabs/debian/amd64:qt5
     before_script: /opt/buildtools/prepare_environment.sh amd64-linux
     script:
       - mkdir build
       - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
 
 
-linux-arm32v7-tests:
+tests:arm64.gcc:
     extends: .tests
-    image: demlabs/arm32v7/debian-bullseye:linuxbuilder
-    before_script: /opt/buildtools/prepare_environment.sh arm32v7-linux
-    script:
-      - mkdir build
-      - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
-
-linux-arm32v7-tests-clang:
-    extends: .tests
-    image: demlabs/arm32v7/debian-bullseye:linuxbuilder
-    before_script: /opt/buildtools/prepare_environment.sh arm32v7-linux
-    script:
-      - mkdir build
-      - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
-
-linux-arm64v8-tests:
-    extends: .tests
-    image: demlabs/arm64v8/debian-bullseye:linuxbuilder
+    image: demlabs/debian/arm64:qt5
     before_script: /opt/buildtools/prepare_environment.sh arm64-linux
     script:
       - mkdir build
       - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
 
-linux-arm64v8-tests-clang:
+tests:arm64.clang:
     extends: .tests
-    image: demlabs/arm64v8/debian-bullseye:linuxbuilder
+    image: demlabs/debian/arm64:qt5
     before_script: /opt/buildtools/prepare_environment.sh arm64-linux
     script:
       - mkdir build
       - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
 
-windows-tests:
+tests:arm32.gcc:
     extends: .tests
-    image: demlabs/amd64/debian-bullseye:windowsbuilder
+    image: demlabs/debian/arm32:qt5
+    before_script: /opt/buildtools/prepare_environment.sh arm32v7-linux
+    script:
+      - mkdir build
+      - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
+
+tests:arm32.clang:
+    extends: .tests
+    image: demlabs/debian/arm32:qt5
+    before_script: /opt/buildtools/prepare_environment.sh arm32v7-linux
+    script:
+      - mkdir build
+      - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
+
+build:windows:
+    extends: .tests
+    image: demlabs/windows/amd64:qt5
     before_script: /opt/buildtools/prepare_environment.sh amd64-windows
     script:
       - mkdir build
       - cd build && export PATH=${MXE_ROOT}/usr/bin:$PATH && x86_64-w64-mingw32.static-cmake .. -DCMAKE_BUILD_TYPE=Release && make -j$(nproc)
     
 
-macos-tests:
+build:macos:
     extends: .tests
-    image: demlabs/amd64/debian-bullseye:osxbuilder
+    image: demlabs/macos/amd64:qt5
     before_script: /opt/buildtools/prepare_environment.sh amd64-windows
     script:
       - mkdir build
