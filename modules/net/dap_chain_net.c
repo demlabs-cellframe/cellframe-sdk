@@ -2592,6 +2592,7 @@ static void s_sync_timer_callback(void *a_arg)
                     l_net_pvt->state = NET_STATE_ONLINE;
                     l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_IDLE;
                     s_net_states_proc(l_net);
+                    dap_leger_load_end(l_net->pub.ledger);
                 } else
                     l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_WAITING;
                 return;
