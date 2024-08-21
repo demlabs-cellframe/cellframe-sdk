@@ -32,7 +32,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_STREAM_CH_ESBOCS_ID                     'E'
 
 #define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           8
-#define DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX          "esbocs"
+#define DAP_CHAIN_ESBOCS_CS_TYPE_STR                "esbocs"
+#define DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX          DAP_CHAIN_ESBOCS_CS_TYPE_STR
 #define DAP_CHAIN_CLUSTER_ID_ESBOCS                 0x8000
 
 #define DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT            0x04
