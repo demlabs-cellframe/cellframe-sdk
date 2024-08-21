@@ -2013,7 +2013,6 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' }; uint16_t l_port = 0;
         struct sockaddr_storage l_saddr;
         if ( dap_net_parse_config_address(l_seed_nodes_hosts[i], l_host, &l_port, NULL, NULL) < 0)
-            //|| dap_net_resolve_host(l_host, dap_itoa(l_port), false, &l_saddr, NULL) < 0)
         {
             log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config"
                             "or check internet connection and restart node",
