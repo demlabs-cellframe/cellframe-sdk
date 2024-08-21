@@ -62,7 +62,7 @@
 
 #define TUN_MTU 0xFFFF
 
-typedef struct ch_vpn_pkt {
+typedef struct dap_stream_ch_vpn_pkt {
     struct {
         int sock_id; // Client's socket id
         uint32_t op_code; // Operation code
@@ -70,25 +70,21 @@ typedef struct ch_vpn_pkt {
         union {
             struct { // L4 connect operation
                 uint32_t addr_size;
-                uint16_t port;
-                uint16_t padding;
-            } DAP_ALIGN_PACKED op_connect;
+                uint16_t port DAP_ALIGNED(4);
+            } DAP_PACKED op_connect;
             struct { // For data transmission, usualy for I/O functions
-                uint32_t data_size;
-                uint32_t padding;
-            } DAP_ALIGN_PACKED op_data;
+                uint32_t data_size DAP_ALIGNED(8);
+            } DAP_PACKED op_data;
             struct { // We have a problem and we know that!
-                uint32_t code; // I hope we'll have no more than 4B+ problems, not I??
-                uint32_t padding_padding_padding_damned_padding_nobody_nowhere_uses_this_fild_but_if_wil_change_me_pls_with_an_auto_rename;
-            } DAP_ALIGN_PACKED op_problem;
+                uint32_t code DAP_ALIGNED(8); // I hope we'll have no more than 4B+ problems, not I??
+            } DAP_PACKED op_problem;
             struct {
-                uint32_t padding1;
-                uint32_t padding2;
-            } DAP_ALIGN_PACKED raw; // Raw access to OP bytes
+                uint64_t op_data_raw DAP_ALIGNED(8);
+            } DAP_PACKED raw; // Raw access to OP bytes
         };
     } DAP_ALIGN_PACKED header;
     byte_t data[]; // Binary data nested by packet
-}DAP_ALIGN_PACKED ch_vpn_pkt_t;
+}DAP_ALIGN_PACKED dap_stream_ch_vpn_pkt_t;
 
 typedef struct dap_chain_net_srv_vpn_tun_socket dap_chain_net_srv_vpn_tun_socket_t;
 typedef struct dap_chain_net_srv_ch_vpn dap_chain_net_srv_ch_vpn_t;
