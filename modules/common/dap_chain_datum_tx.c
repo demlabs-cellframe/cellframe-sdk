@@ -60,7 +60,9 @@ void dap_chain_datum_tx_delete(dap_chain_datum_tx_t *a_tx)
  */
 size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx)
 {
-    return a_tx ? sizeof(dap_chain_datum_tx_t) + a_tx->header.tx_items_size : 0;
+    dap_return_val_if_fail(a_tx, 0);
+    return (sizeof(dap_chain_datum_tx_t) + a_tx->header.tx_items_size) > a_tx->header.tx_items_size
+            ? sizeof(dap_chain_datum_tx_t) + a_tx->header.tx_items_size : 0;
 }
 
 /**

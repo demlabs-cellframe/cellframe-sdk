@@ -3884,6 +3884,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
                     break;
                 }
+
                 int l_verificator_error = l_verificator->callback(a_ledger, l_tx_prev_out_cond, a_tx, l_owner);
                 if (l_verificator_error != DAP_LEDGER_CHECK_OK) { // TODO add string representation for verificator return codes
                     debug_if(s_debug_more, L_WARNING, "Verificator check error %d for conditional output %s",

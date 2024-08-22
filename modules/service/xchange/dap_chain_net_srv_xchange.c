@@ -34,7 +34,6 @@
 #include "dap_time.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_ledger.h"
-#include "dap_chain_net_srv_order.h"
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_math_ops.h"
@@ -75,7 +74,7 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_
 dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_order, uint256_t *a_fee, bool a_ret_is_invalid);
 
 static dap_chain_net_srv_xchange_t *s_srv_xchange;
-static bool s_debug_more = true;
+static bool s_debug_more = false;
 
 
 static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
@@ -279,12 +278,18 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
             dap_chain_addr_t l_out_addr = l_tx_in_output->addr;
             // Out is with token to buy
             if (!strcmp(l_out_token, l_buy_ticker) &&
-                    !memcmp(&l_out_addr, l_seller_addr, sizeof(l_out_addr)))
-                SUM_256_256(l_buy_val, l_out_value, &l_buy_val);
+                    !memcmp(&l_out_addr, l_seller_addr, sizeof(l_out_addr)) &&
+                    SUM_256_256(l_buy_val, l_out_value, &l_buy_val)) {
+                log_it(L_WARNING, "Integer overflow for buyer value of exchange tx");
+                return -5;
+            }
             // Out is with token to fee
             if (l_service_fee_used && !strcmp(l_out_token, l_service_ticker) &&
-                    !memcmp(&l_out_addr, &l_service_fee_addr, sizeof(l_out_addr)))
-                SUM_256_256(l_fee_val, l_out_value, &l_fee_val);
+                    !memcmp(&l_out_addr, &l_service_fee_addr, sizeof(l_out_addr)) &&
+                    SUM_256_256(l_fee_val, l_out_value, &l_fee_val)) {
+                log_it(L_WARNING, "Integer overflow for fee value of exchange tx");
+                return -5;
+            }
         } break;
         case TX_ITEM_TYPE_OUT_COND: {
             dap_chain_tx_out_cond_t *l_tx_in_output = (dap_chain_tx_out_cond_t*)l_tx_item;
@@ -313,11 +318,28 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
      * a_cond->subtype.srv_xchange.buy_value * (a_cond->header.value - new_cond->header.value)
      */
 
+
     uint256_t l_sell_val, l_buyer_val_expected;
-    if (compare256(l_sell_again_val, a_tx_out_cond->header.value) >= 0)
+    if (SUBTRACT_256_256(a_tx_out_cond->header.value, l_sell_again_val, &l_sell_val)) {
+        log_it(L_WARNING, "Integer overflow for resell value of exchange tx");
         return -5;
-    SUBTRACT_256_256(a_tx_out_cond->header.value, l_sell_again_val, &l_sell_val);
+    }
     MULT_256_COIN(l_sell_val, a_tx_out_cond->subtype.srv_xchange.rate, &l_buyer_val_expected);
+    if (s_debug_more) {
+        const char *l_value_str;
+        dap_uint256_to_char(a_tx_out_cond->header.value, &l_value_str);
+        log_it(L_NOTICE, "Total sell %s %s from %s", l_value_str, l_sell_ticker, dap_hash_fast_to_str_static(&l_tx_in_cond->header.tx_prev_hash));
+        dap_uint256_to_char(a_tx_out_cond->subtype.srv_xchange.rate, &l_value_str);
+        log_it(L_NOTICE, "Rate is %s", l_value_str);
+        dap_uint256_to_char(l_sell_again_val, &l_value_str);
+        log_it(L_NOTICE, "Resell %s %s", l_value_str, l_sell_ticker);
+        dap_uint256_to_char(l_buyer_val_expected, &l_value_str);
+        log_it(L_NOTICE, "Expect to buy %s %s", l_value_str, l_buy_ticker);
+        dap_uint256_to_char(l_buy_val, &l_value_str);
+        log_it(L_NOTICE, "Buy %s %s", l_value_str, l_buy_ticker);
+        dap_uint256_to_char(l_fee_val, &l_value_str);
+        log_it(L_NOTICE, "Service fee is %s %s", l_value_str, l_service_ticker);
+    }
     if (compare256(l_buyer_val_expected, l_buy_val) > 0)
         return -6;
 
