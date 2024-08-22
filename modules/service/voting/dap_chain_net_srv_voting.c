@@ -681,6 +681,10 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         dap_time_t l_time_expire = 0;
         if (l_voting_expire_str)
             l_time_expire = dap_time_from_str_rfc822(l_voting_expire_str);
+        if(!l_time_expire){
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong time format. -expire parameter must be in format \"Day Month Year HH:MM:SS Timezone\" e.g. \"19 August 2024 22:00:00 +00\"");
+            return -104;
+        }
         uint64_t l_max_count = 0;
         if (l_max_votes_count_str)
             l_max_count = strtoul(l_max_votes_count_str, NULL, 10);
@@ -855,6 +859,9 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             case DAP_CHAIN_NET_VOTE_VOTING_NO_KEY_FOUND_IN_CERT: {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "No key found in \"%s\" certificate", l_cert_name);
             } break;
+            case DAP_CHAIN_NET_VOTE_VOTING_CERT_REQUIRED: {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "This voting required a delegated key. Parameter -cert must contain a valid certificate name");
+            } break;
             case DAP_CHAIN_NET_VOTE_VOTING_NO_PUBLIC_KEY_IN_CERT: {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't serialize public key of certificate \"%s\"",
                                                   l_cert_name);
@@ -984,7 +991,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         if (l_voting->voting_params.voting_expire) {
             char l_tmp_buf[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_voting->voting_params.voting_expire);
-            dap_string_append_printf(l_str_out, "\t Voting expire: %s", l_tmp_buf);
+            dap_string_append_printf(l_str_out, "\t Voting expire: %s\n", l_tmp_buf);
             dap_string_truncate(l_str_out, l_str_out->len - 1);
             dap_string_append_printf(l_str_out, " (%s)\n", l_voting->voting_params.voting_expire > dap_time_now() ? "active" : "expired");
         }
@@ -1402,7 +1409,9 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
         return DAP_CHAIN_NET_VOTE_VOTING_ALREADY_EXPIRED;
 
     if (l_voting->voting_params.delegate_key_required) {
-        if (!a_cert || !a_cert->enc_key)
+        if (!a_cert)
+            return DAP_CHAIN_NET_VOTE_VOTING_CERT_REQUIRED;
+        if (!a_cert->enc_key)
             return DAP_CHAIN_NET_VOTE_VOTING_NO_KEY_FOUND_IN_CERT;
         // Get publivc key hash
         size_t l_pub_key_size = 0;

@@ -123,7 +123,7 @@ typedef struct vpn_local_network {
 #endif
     bool auto_cpu_reassignment;
 
-    ch_vpn_pkt_t * pkt_out[400];
+    dap_stream_ch_vpn_pkt_t * pkt_out[400];
     size_t pkt_out_size;
     size_t pkt_out_rindex;
     size_t pkt_out_windex;
@@ -159,7 +159,7 @@ typedef struct tun_socket_msg{
             struct in_addr addr;
         } ip_unassigment;
         struct{ // CH VPN send operation
-            ch_vpn_pkt_t * pkt;
+            dap_stream_ch_vpn_pkt_t * pkt;
         } ch_vpn_send;
     };
 } tun_socket_msg_t;
@@ -241,10 +241,10 @@ static int s_tun_attach_queue(int fd);
 #endif
 
 static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * a_ch_vpn_info, const void * a_data, size_t a_data_size);
-static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn, ch_vpn_pkt_t * l_pkt_out);
+static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn, dap_stream_ch_vpn_pkt_t * l_pkt_out);
 
 
-static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn, ch_vpn_pkt_t * l_pkt_out)
+static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn, dap_stream_ch_vpn_pkt_t * l_pkt_out)
 {
     dap_chain_net_srv_stream_session_t *l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
     dap_chain_net_srv_usage_t *l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session, l_ch_vpn->usage_id);
@@ -272,7 +272,7 @@ static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn,
  * @param a_pkt_out
  * @return
  */
-static bool s_tun_client_send_data_inter(dap_events_socket_t * a_es_input, dap_chain_net_srv_ch_vpn_t  * a_ch_vpn, ch_vpn_pkt_t * a_pkt_out)
+static bool s_tun_client_send_data_inter(dap_events_socket_t * a_es_input, dap_chain_net_srv_ch_vpn_t  * a_ch_vpn, dap_stream_ch_vpn_pkt_t * a_pkt_out)
 {
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (a_ch_vpn->ch->stream->session );
     dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,  a_ch_vpn->usage_id);
@@ -297,7 +297,7 @@ static bool s_tun_client_send_data_inter(dap_events_socket_t * a_es_input, dap_c
 static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_info, const void * a_data, size_t a_data_size)
 {
     assert(a_data_size > sizeof (dap_os_iphdr_t));
-    ch_vpn_pkt_t *l_pkt_out             = DAP_NEW_Z_SIZE(ch_vpn_pkt_t, sizeof(l_pkt_out->header) + a_data_size);
+    dap_stream_ch_vpn_pkt_t *l_pkt_out             = DAP_NEW_Z_SIZE(dap_stream_ch_vpn_pkt_t, sizeof(l_pkt_out->header) + a_data_size);
     if (!l_pkt_out) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return false;
@@ -1019,7 +1019,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
                 l_srv_session->last_update_ts = time(NULL);
                 if (!l_usage_active->is_grace && l_srv_session->limits_ts <= 0){
                     char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage_active->client_pkey_hash);
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage for user %s", l_srv_session->limits_ts < 0 ? l_usage_active->receipt->receipt_info.units + l_srv_session->limits_ts :
+                    log_it(L_INFO,"%ld seconds more for VPN usage for user %s", l_srv_session->limits_ts < 0 ? l_usage_active->receipt->receipt_info.units + l_srv_session->limits_ts :
                                                                                                                         l_usage_active->receipt->receipt_info.units, l_user_key);
                     DAP_DELETE(l_user_key);
                     l_srv_session->limits_ts += (time_t)l_usage_active->receipt->receipt_info.units;
@@ -1386,7 +1386,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
         a_usage->is_limits_changed = true;
 
         if(a_srv_session->limits_ts && a_srv_session->limits_ts < l_current_limit_ts/2 && 
-            !a_usage->receipt_next && !a_usage->is_waiting_first_receipt_sign){
+            !a_usage->receipt_next && !a_usage->is_waiting_first_receipt_sign && !a_usage->is_grace){
             l_issue_new_receipt = true;
         }
         a_srv_session->last_update_ts = time(NULL);
@@ -1521,7 +1521,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 static void send_pong_pkt(dap_stream_ch_t* a_ch)
 {
 //    log_it(L_DEBUG,"---------------------------------- PONG!");
-    ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
+    dap_stream_ch_vpn_pkt_t *pkt_out = (dap_stream_ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
     if (!pkt_out) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
@@ -1550,7 +1550,7 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t *a_ch, dap_chain_
 
     if ( l_ch_vpn->addr_ipv4.s_addr ) {
         log_it(L_WARNING, "IP address is already leased");
-        ch_vpn_pkt_t* pkt_out           = DAP_NEW_STACK_SIZE(ch_vpn_pkt_t, sizeof(pkt_out->header));
+        dap_stream_ch_vpn_pkt_t* pkt_out           = DAP_NEW_STACK_SIZE(dap_stream_ch_vpn_pkt_t, sizeof(pkt_out->header));
         if (!pkt_out) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return;
@@ -1582,7 +1582,7 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t *a_ch, dap_chain_
         HASH_ADD(hh, s_ch_vpn_addrs, addr_ipv4, sizeof (l_ch_vpn->addr_ipv4), l_ch_vpn);
         pthread_rwlock_unlock( &s_clients_rwlock );
 
-        ch_vpn_pkt_t *l_pkt_out = DAP_NEW_STACK_SIZE(ch_vpn_pkt_t,
+        dap_stream_ch_vpn_pkt_t *l_pkt_out = DAP_NEW_STACK_SIZE(dap_stream_ch_vpn_pkt_t,
                 sizeof(l_pkt_out->header) + sizeof(l_ch_vpn->addr_ipv4) + sizeof(s_raw_server->ipv4_network_addr));
         l_pkt_out->header.sock_id           = s_raw_server->tun_fd;
         l_pkt_out->header.op_code           = VPN_PACKET_OP_CODE_VPN_ADDR_REPLY;
@@ -1685,7 +1685,7 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t *a_ch, dap_chain_
             HASH_ADD(hh, s_ch_vpn_addrs, addr_ipv4, sizeof (l_ch_vpn->addr_ipv4), l_ch_vpn);
             pthread_rwlock_unlock( &s_clients_rwlock );
 
-            ch_vpn_pkt_t *pkt_out = DAP_NEW_STACK_SIZE(ch_vpn_pkt_t,
+            dap_stream_ch_vpn_pkt_t *pkt_out = DAP_NEW_STACK_SIZE(dap_stream_ch_vpn_pkt_t,
                     sizeof(pkt_out->header) + sizeof(l_ch_vpn->addr_ipv4) + sizeof(s_raw_server->ipv4_gw));
             pkt_out->header.sock_id             = s_raw_server->tun_fd;
             pkt_out->header.op_code             = VPN_PACKET_OP_CODE_VPN_ADDR_REPLY;
@@ -1711,7 +1711,7 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t *a_ch, dap_chain_
             }
         } else { // All the network is filled with clients, can't lease a new address
             log_it(L_ERROR, "No free IP address left, can't lease one...");
-            ch_vpn_pkt_t* pkt_out           = DAP_NEW_STACK_SIZE(ch_vpn_pkt_t, sizeof(pkt_out->header));
+            dap_stream_ch_vpn_pkt_t* pkt_out           = DAP_NEW_STACK_SIZE(dap_stream_ch_vpn_pkt_t, sizeof(pkt_out->header));
             pkt_out->header.sock_id         = s_raw_server->tun_fd;
             pkt_out->header.op_code         = VPN_PACKET_OP_CODE_PROBLEM;
             pkt_out->header.usage_id        = a_usage->id;
@@ -1739,7 +1739,7 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t *a_ch, dap_chain_
 static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
     dap_stream_ch_pkt_t * l_pkt = (dap_stream_ch_pkt_t *) a_arg;
-    ch_vpn_pkt_t *l_vpn_pkt = (ch_vpn_pkt_t*)l_pkt->data;
+    dap_stream_ch_vpn_pkt_t *l_vpn_pkt = (dap_stream_ch_vpn_pkt_t*)l_pkt->data;
     if (l_pkt->hdr.data_size < sizeof(l_vpn_pkt->header)) {
         log_it(L_WARNING, "Data size of stream channel packet %u is lesser than size of VPN packet header %zu",
                                                               l_pkt->hdr.data_size, sizeof(l_vpn_pkt->header));
@@ -1940,7 +1940,7 @@ static bool s_es_tun_write(dap_events_socket_t *a_es, void *arg)
     size_t l_shift = 0;
     debug_if(s_debug_more, L_DEBUG, "Write %lu bytes to tun", l_tun->es->buf_out_size);
     for (ssize_t l_pkt_size = 0, l_bytes_written = 0; l_tun->es->buf_out_size; ) {
-        ch_vpn_pkt_t *l_vpn_pkt = (ch_vpn_pkt_t *)(l_tun->es->buf_out + l_shift);
+        dap_stream_ch_vpn_pkt_t *l_vpn_pkt = (dap_stream_ch_vpn_pkt_t *)(l_tun->es->buf_out + l_shift);
         l_pkt_size = l_vpn_pkt->header.op_data.data_size;
         debug_if(s_debug_more, L_DEBUG, "Packet: op_code 0x%02x, data size %ld",
                  l_vpn_pkt->header.op_code, l_pkt_size);

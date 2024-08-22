@@ -807,9 +807,9 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         }
 
         size_t l_objs_count = 0;
-        dap_global_db_obj_t* l_obj = dap_global_db_get_all_sync(l_group_str, &l_objs_count);
+        dap_store_obj_t *l_objs = dap_global_db_get_all_raw_sync(l_group_str, &l_objs_count);
 
-        if (!l_obj || !l_objs_count)
+        if (!l_objs || !l_objs_count)
         {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_DATA_IN_GROUP,"No data in group %s.", l_group_str);
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_DATA_IN_GROUP;
@@ -819,13 +819,15 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         json_object* json_obj_keys = NULL;
         for(size_t i = 0; i < l_objs_count; i++) {
             char l_ts[64] = { '\0' };
-            dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_obj[i].timestamp);
+            dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
             json_obj_keys = json_object_new_object();
-            json_object_object_add(json_obj_keys, "key", json_object_new_string(l_obj[i].key));
+            json_object_object_add(json_obj_keys, "key", json_object_new_string(l_objs[i].key));
             json_object_object_add(json_obj_keys, "time", json_object_new_string(l_ts));
+            json_object_object_add(json_obj_keys, "type", json_object_new_string(
+                                       dap_store_obj_get_type(l_objs + i) == DAP_GLOBAL_DB_OPTYPE_ADD ?  "record" : "hole"));
             json_object_array_add(json_arr_keys, json_obj_keys);
         }
-        dap_global_db_objs_delete(l_obj, l_objs_count);
+        dap_store_obj_free(l_objs, l_objs_count);
 
         json_object* json_keys_list = json_object_new_object();
         json_object_object_add(json_keys_list, "group name", json_object_new_string(l_group_str));

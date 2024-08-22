@@ -775,8 +775,8 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
             json_object_object_add(json_obj_item,"Changing vote is", l_voting_params->vote_changing_allowed ? json_object_new_string("available") : 
                                     json_object_new_string("not available"));
             l_voting_params->delegate_key_required ? 
-                json_object_object_add(json_obj_item,"Votes max count", json_object_new_string("A delegated key is required to participate in voting.")):
-                json_object_object_add(json_obj_item,"Votes max count", json_object_new_string("A delegated key is not required to participate in voting."));                 
+                json_object_object_add(json_obj_item,"Delegated key for participating in voting", json_object_new_string("required")):
+                json_object_object_add(json_obj_item,"Delegated key for participating in voting", json_object_new_string("not required"));                 
 
             dap_list_free_full(l_voting_params->answers_list, NULL);
             DAP_DELETE(l_voting_params->voting_question);
