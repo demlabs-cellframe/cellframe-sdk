@@ -67,7 +67,8 @@ uint32_t    dap_chain_datum_tx_receipt_utype_get(dap_chain_datum_tx_receipt_t *a
 uint64_t    dap_chain_datum_tx_receipt_srv_uid_get(dap_chain_datum_tx_receipt_t *a_receipt);
 uint64_t    dap_chain_datum_tx_receipt_units_get(dap_chain_datum_tx_receipt_t *a_receipt);
 uint256_t   dap_chain_datum_tx_receipt_value_get(dap_chain_datum_tx_receipt_t *a_receipt);
-uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t *a_receipt, size_t a_receipt_size);
+uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t *a_receipt);
+int dap_chain_datum_tx_receipt_check_size(dap_chain_datum_tx_receipt_t *a_receipt, size_t a_control_size);
 
 #ifdef __cplusplus
 }

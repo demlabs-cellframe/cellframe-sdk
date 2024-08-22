@@ -241,36 +241,13 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
         log_it(L_ERROR, "Conditional in item not found in checking tx");
         return -6;
     }
+    // ATTENTION: It's correct only with single IN_COND TX item
     dap_hash_fast_t *l_prev_hash = &l_tx_in_cond->header.tx_prev_hash;
     if (dap_hash_fast_is_blank(l_prev_hash)) {
         log_it(L_ERROR, "Blank hash of prev tx in tx_in_cond");
         return -7;
     }
-    dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, l_prev_hash);
-    if (!l_prev_tx) {
-        log_it(L_ERROR, "Previous tx not found for now but is found in ledger before");
-        return -8;
-    }
-    bool l_owner = false;
-    dap_chain_tx_in_cond_t *l_tx_prev_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(l_prev_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
-    if (!l_tx_prev_in_cond)
-        l_owner = a_owner;
-    else {
-        dap_hash_fast_t *l_owner_tx_hash = &l_tx_prev_in_cond->header.tx_prev_hash;
-        dap_chain_datum_tx_t *l_owner_tx = dap_ledger_tx_find_by_hash(a_ledger, l_owner_tx_hash);
-        dap_sign_t *l_owner_sign = dap_chain_datum_tx_get_sign(l_owner_tx, 0);
-        if (!l_owner_sign) {
-            log_it(L_ERROR, "Can't get owner sign");
-            return -9;
-        }
-        dap_sign_t *l_taker_sign = dap_chain_datum_tx_get_sign(a_tx_in, 0);
-        if (!l_taker_sign) {
-            log_it(L_ERROR, "Can't get taker sign");
-            return -10;
-        }
-        l_owner = dap_sign_compare_pkeys(l_taker_sign, l_owner_sign);
-    }
-    if (!l_owner) {
+    if (!a_owner) {
         log_it(L_WARNING, "Trying to spend conditional tx not by owner");
         return -11;
     }

@@ -98,23 +98,21 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
  */
 dap_sign_t *dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t *a_receipt, size_t a_receipt_size, uint16_t a_sign_position)
 {
-    dap_return_val_if_fail(a_receipt && a_receipt_size == a_receipt->size &&
-                           a_receipt_size > a_receipt->exts_size &&
-                           a_receipt_size >= sizeof(dap_chain_datum_tx_receipt_t) + a_receipt->exts_size,
-                           NULL);
-    uint64_t l_offset = a_receipt->exts_size;
-    uint16_t l_sign_position;
+    if (dap_chain_datum_tx_receipt_check_size(a_receipt, a_receipt_size)) {
+        log_it(L_WARNING, "Receipt size check error");
+        return NULL;
+    }
+    size_t l_offset = a_receipt->exts_size;
+    size_t l_total_signs_size = a_receipt->size - sizeof(dap_chain_datum_tx_receipt_t) - a_receipt->exts_size;
+    if (!l_total_signs_size)
+        return NULL;
     dap_sign_t *l_sign = NULL;
-    for (l_sign_position = a_sign_position + 1; l_sign_position; l_sign_position--) {
-        l_sign = (dap_sign_t *)(a_receipt->exts_n_signs + l_offset);
-        // not enough signs in receipt
-        if (sizeof(dap_chain_datum_tx_receipt_t) + l_offset + sizeof(dap_sign_t) > a_receipt_size)
-            return NULL;
+    for (uint16_t l_sign_position = a_sign_position + 1; l_sign_position; l_sign_position--) {
+        dap_sign_t *l_sign = (dap_sign_t *)(a_receipt->exts_n_signs + l_offset);
         uint64_t l_sign_size = dap_sign_get_size(l_sign);
-        // incorrect sign size
-        if (!l_sign_size || l_offset + l_sign_size < l_offset)
-            return NULL;
         l_offset += l_sign_size;
+        if (l_offset > l_total_signs_size)
+            return NULL;
     }
     return l_sign;
 }
@@ -147,17 +145,37 @@ uint256_t   dap_chain_datum_tx_receipt_value_get(dap_chain_datum_tx_receipt_t *a
  * @param a_receipt_size
  * @return
  */
-uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t * a_receipt, size_t a_receipt_size)
+uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t *a_receipt)
 {
     uint16_t l_ret = 0;
-    if(!a_receipt)
-        return 0;
+    dap_return_val_if_fail(a_receipt, 0);
     dap_sign_t *l_sign;
-    for (l_sign = (dap_sign_t *)a_receipt->exts_n_signs; a_receipt_size > (size_t) ( (byte_t *) l_sign - (byte_t *) a_receipt ) ;
+    for (l_sign = (dap_sign_t *)a_receipt->exts_n_signs; a_receipt->size > (size_t) ( (byte_t *) l_sign - (byte_t *) a_receipt ) ;
         l_sign =(dap_sign_t *) (((byte_t*) l_sign)+  dap_sign_get_size( l_sign )) ){
         l_ret++;
     }
-    if(a_receipt_size != (size_t) ((byte_t *) l_sign - (byte_t *) a_receipt) )
-        log_it(L_ERROR, "Receipt 0x%zu (size=%zu) is corrupted", (size_t)a_receipt, a_receipt_size);
     return l_ret;
+}
+
+int dap_chain_datum_tx_receipt_check_size(dap_chain_datum_tx_receipt_t *a_receipt, size_t a_control_size)
+{
+    dap_return_val_if_fail(a_receipt && a_control_size == a_receipt->size &&
+                           a_control_size >= sizeof(dap_chain_datum_tx_receipt_t) + a_receipt->exts_size,
+                           -1); // Main controls incosistentency
+    if (a_control_size == sizeof(dap_chain_datum_tx_receipt_t) + a_receipt->exts_size)
+        return 0;               // No signs at receipt, it's OK
+    if (a_control_size < sizeof(dap_chain_datum_tx_receipt_t) + a_receipt->exts_size + sizeof(dap_sign_t))
+        return -2;
+    dap_sign_t *l_sign = (dap_sign_t *)(a_receipt->exts_n_signs + a_receipt->exts_size);
+    for (uint16_t l_sign_position = 2; l_sign_position; l_sign_position--) {
+        size_t l_sign_offset = (byte_t *)l_sign - (byte_t *)a_receipt;
+        if (a_control_size < l_sign_offset + sizeof(dap_sign_t))
+            return -2;          // Left space is too samll to contain a sign
+        uint64_t l_sign_size = dap_sign_get_size(l_sign);
+        if (l_sign_size + l_sign_offset <= l_sign_offset || l_sign_size + l_sign_offset > a_control_size)
+            return -3;
+        l_sign = (dap_sign_t *)((byte_t *)l_sign + l_sign_size);
+    }
+    size_t l_sign_offset = (byte_t *)l_sign - (byte_t *)a_receipt;
+    return l_sign_offset == a_control_size ? 0 : -4; // Receipt is lagrer that two signs need
 }

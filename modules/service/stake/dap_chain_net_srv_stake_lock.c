@@ -1027,12 +1027,14 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
                 MULT_256_COIN(a_cond->header.value, l_emission_rate, &l_value_delegated) ||
                 IS_ZERO_256(l_value_delegated))
             return -6;
-
-        l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
+        size_t l_receipt_size = 0;
+        l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT, &l_receipt_size);
         if (l_receipt) {
+            if (dap_chain_datum_tx_receipt_check_size(l_receipt, l_receipt_size))
+                return -13;
             if (!dap_chain_net_srv_uid_compare_scalar(l_receipt->receipt_info.srv_uid, DAP_CHAIN_NET_SRV_STAKE_LOCK_ID))
                 return -7;
-            if (!l_receipt->exts_size)
+            if (l_receipt->exts_size != sizeof(dap_hash_fast_t))
                 return -8;
             l_burning_tx_hash = *(dap_hash_fast_t*)l_receipt->exts_n_signs;
             if (dap_hash_fast_is_blank(&l_burning_tx_hash))
@@ -1076,19 +1078,17 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
         }
 
         if (s_debug_more) {
-            char *str1 = dap_chain_balance_print(a_cond->header.value);
-            char *str2 = dap_chain_balance_print(l_value_delegated);
-            char *str3 = dap_chain_balance_print(l_blank_out_value);
-            log_it(L_INFO, "hold/take_value: %s",	str1);
-            log_it(L_INFO, "delegated_value: %s",	str2);
-            log_it(L_INFO, "burning_value:   %s",	str3);
+            char *str1 = dap_chain_balance_to_coins(a_cond->header.value);
+            char *str2 = dap_chain_balance_to_coins(l_value_delegated);
+            char *str3 = dap_chain_balance_to_coins(l_blank_out_value);
+            log_it(L_INFO, "hold/take_value: %s, delegated_value: %s, burning_value: %s", str1,	str2, str3);
             DAP_DEL_MULTY(str1, str2, str3);
         }
 
         if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
             // !!! A terrible legacy crutch, TODO !!!
-            SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated);
-            if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
+            if (SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated) ||
+                    !EQUAL_256(l_blank_out_value, l_value_delegated)) {
                 log_it(L_ERROR, "Burning and delegated value mismatch");
                 return -12;
             }
