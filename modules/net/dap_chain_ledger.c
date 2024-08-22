@@ -3135,18 +3135,15 @@ dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
         return l_hash;
     }
     dap_chain_datum_tx_t *l_prev_tx = a_tx;
-    dap_chain_tx_in_cond_t *l_in_cond = NULL;
-    dap_chain_tx_out_cond_t *l_out_cond = NULL;
-    
-    size_t l_size = 0;
-    while (( l_in_cond = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(l_prev_tx, NULL, (byte_t*)l_out_cond + l_size, TX_ITEM_TYPE_IN_COND, NULL) )) {
-        l_hash_tmp = l_in_cond->header.tx_prev_hash;
+    byte_t *l_iter = a_tx->tx_items;
+    while (( l_iter = dap_chain_datum_tx_item_get(l_prev_tx, NULL, l_iter, TX_ITEM_TYPE_IN_COND, NULL) )) {
+        l_hash_tmp =  ((dap_chain_tx_in_cond_t *)l_iter)->header.tx_prev_hash;
         if ( dap_hash_fast_is_blank(&l_hash_tmp) )
             return l_hash_tmp;
-        l_size = 0;
-        if (( l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_hash_tmp) ) && ( l_out_cond = dap_chain_datum_tx_out_cond_get(l_prev_tx, a_cond_out->header.subtype, NULL) )) {
-            l_size = dap_chain_datum_item_tx_get_size((const byte_t*)l_out_cond, (byte_t*)l_out_cond - l_prev_tx->tx_items);
+        if (( l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_hash_tmp) ) &&
+                ( dap_chain_datum_tx_out_cond_get(l_prev_tx, a_cond_out->header.subtype, NULL) )) {
             l_hash = l_hash_tmp;
+            l_iter = l_prev_tx->tx_items;
         }
     }
     return l_hash;
