@@ -82,3 +82,11 @@ build:macos:
     script:
       - mkdir build
       - cd build && $(${OSXCROSS_ROOT}/bin/osxcross-conf) && export OSXCROSS_NO_INCLUDE_PATH_WARNINGS=1 && export OSXCROSS_HOST=x86_64-apple-darwin20.4 && cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${OSXCROSS_ROOT}/toolchain.cmake -DBoost_INCLUDE_DIR=$BOOST_INCLUDE_DIR .. && make -j$(nproc)
+
+
+build:android:
+    extends: .tests
+    image: demlabs/android/any:qt5
+    before_script: /opt/buildtools/prepare_environment.sh amd64-windows
+    script:
+      - ./prod_build/build.sh --target android
