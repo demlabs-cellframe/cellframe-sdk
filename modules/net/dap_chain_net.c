@@ -1802,8 +1802,6 @@ void dap_chain_net_deinit()
 void dap_chain_net_delete(dap_chain_net_t *a_net)
 {
     // Synchronously going to offline state
-    if(PVT(a_net)->state == NET_STATE_SYNC_CHAINS)
-        dap_leger_load_end(a_net->pub.ledger);
     PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
     s_net_states_proc(a_net);
     dap_global_db_cluster_t *l_mempool = PVT(a_net)->mempool_clusters;
