@@ -339,7 +339,12 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_group, &l_objs_count);
     if (l_objs_count >= 10) {
         for (size_t i = 0; i < l_objs_count; i++) {
-            SUM_256_256(l_value_total, *(uint256_t*)l_objs[i].value, &l_value_total);
+            if (l_objs[i].value_len != sizeof(uint256_t)) {
+                log_it(L_ERROR, "Autocollect record %s is corrupt, len %zu clear it", l_objs[i].key, l_objs[i].value_len);
+                dap_global_db_del_sync(a_group, l_objs[i].key);
+                continue;
+            }
+            SUM_256_256(l_value_total, *(uint256_t *)l_objs[i].value, &l_value_total);
             if (compare256(l_value_total, l_block_collect_params->collecting_level) >= 0) {
                 l_level_reached = true;
                 break;
