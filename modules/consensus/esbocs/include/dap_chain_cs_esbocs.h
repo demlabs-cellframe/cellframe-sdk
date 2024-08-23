@@ -207,6 +207,7 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_esbocs_penalty_item_t *penalty;
     dap_global_db_cluster_t *db_cluster;
     dap_global_db_driver_hash_t db_hash;
+    bool is_actual_hash;
 
     struct dap_chain_esbocs_session *prev, *next;
 } dap_chain_esbocs_session_t;

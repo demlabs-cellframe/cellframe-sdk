@@ -541,7 +541,6 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
                                                       dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_ESBOCS),
                                                       l_sync_group, 72 * 3600, true,
                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
-    dap_global_db_cluster_add_notify_callback(l_session->db_cluster, s_db_change_notifier, l_session);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_session->db_cluster->links_cluster);
     dap_global_db_del_sync(l_sync_group, NULL);     // Drop table on stratup
     DAP_DELETE(l_sync_group);
@@ -949,6 +948,37 @@ static dap_list_t *s_validator_check_synced(dap_chain_addr_t *a_addr, dap_list_t
     return dap_list_find(a_validators, a_addr, s_callback_addr_compare_synced);
 }
 
+static void s_db_calc_sync_hash(dap_chain_esbocs_session_t *a_session)
+{
+    char *l_penalty_group = s_get_penalty_group(a_session->chain->net_id);
+    size_t l_penalties_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_penalty_group, &l_penalties_count);
+    for (size_t i = 0; i < l_penalties_count; i++) {
+        dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(l_objs[i].key);
+        if (!l_validator_addr) {
+            log_it(L_WARNING, "Unreadable address in esbocs global DB group");
+            continue;
+        }
+        if (l_validator_addr->net_id.uint64 != a_session->chain->net_id.uint64) {
+            log_it(L_ERROR, "Wrong destination net ID %" DAP_UINT64_FORMAT_x "session net ID %" DAP_UINT64_FORMAT_x,
+                                                        l_validator_addr->net_id.uint64, a_session->chain->net_id.uint64);
+            continue;
+        }
+        if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, false)) {
+            log_it(L_ERROR, "Validator with signing address %s not found in network %s",
+                                                        l_objs[i].key, a_session->chain->net_name);
+            continue;
+        }
+    }
+    dap_global_db_objs_delete(l_objs, l_penalties_count);
+    dap_store_obj_t *l_last_raw = dap_global_db_driver_read_last(l_penalty_group, false);
+    if (l_last_raw) {
+        a_session->db_hash = dap_global_db_driver_hash_get(l_last_raw);
+        dap_store_obj_free_one(l_last_raw);
+    }
+    DAP_DELETE(l_penalty_group);
+    a_session->is_actual_hash = true;
+}
 
 static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
 {
@@ -959,6 +989,8 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
     a_session->ts_round_sync_start = dap_time_now();
     if (!dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash))
         return;     // My last block hash has changed, skip sync message
+    if (!a_session->is_actual_hash)
+        s_db_calc_sync_hash(a_session);
     if (PVT(a_session->esbocs)->debug) {
         dap_string_t *l_addr_list = dap_string_new("");
         for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
@@ -1038,6 +1070,8 @@ static void s_session_round_clear(dap_chain_esbocs_session_t *a_session)
             .last_block_hash = a_session->cur_round.last_block_hash,
             .sync_attempt = a_session->cur_round.sync_attempt
     };
+    a_session->db_hash = c_dap_global_db_driver_hash_blank;
+    a_session->is_actual_hash = false;
 }
 
 static bool s_session_round_new(void *a_arg)
@@ -1954,46 +1988,6 @@ static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, d
     s_message_send(a_session, l_type, a_directive_hash, NULL, 0, a_session->cur_round.all_validators);
 }
 
-static void s_db_change_notifier(dap_store_obj_t *a_obj, void *a_arg)
-{
-    dap_chain_esbocs_session_t *l_session = a_arg;
-    dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(a_obj->key);
-    if (!l_validator_addr) {
-        log_it(L_WARNING, "Unreadable address in esbocs global DB group");
-        return;
-    }
-    if (l_validator_addr->net_id.uint64 != l_session->chain->net_id.uint64) {
-        log_it(L_ERROR, "Wrong destination net ID %" DAP_UINT64_FORMAT_x "session net ID %" DAP_UINT64_FORMAT_x,
-                                                    l_validator_addr->net_id.uint64, l_session->chain->net_id.uint64);
-        return;
-    }
-    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr,
-                                                      dap_store_obj_get_type(a_obj) != DAP_GLOBAL_DB_OPTYPE_ADD)) {
-        log_it(L_ERROR, "Validator with signing address %s not found in network %s",
-                                                    a_obj->key, l_session->chain->net_name);
-        return;
-    }
-    log_it(L_DEBUG, "Got new penalty item for group %s with key %s", a_obj->group, a_obj->key);
-    if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_ADD)
-        l_session->db_hash = dap_global_db_driver_hash_get(a_obj);
-    else {
-        char *l_last_key = NULL;
-        byte_t *l_value = dap_global_db_get_last_sync(a_obj->group, &l_last_key, NULL, NULL, NULL);
-        if (l_last_key) {
-            dap_store_obj_t *l_last_raw = dap_global_db_get_raw_sync(a_obj->group, l_last_key);
-            assert(l_last_raw);
-            if (l_last_raw) {
-                l_session->db_hash = dap_global_db_driver_hash_get(l_last_raw);
-                dap_store_obj_free_one(l_last_raw);
-            } else
-                log_it(L_ERROR, "Last key in %s is %s, but no raw object with this key", a_obj->group, l_last_key);
-            DAP_DELETE(l_last_key);
-        } else
-            l_session->db_hash = c_dap_global_db_driver_hash_blank;
-        DAP_DEL_Z(l_value);
-    }
-}
-
 static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, dap_hash_fast_t *a_directive_hash)
 {
     if (!a_directive) {
@@ -2330,6 +2324,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                     " Receive START_SYNC: from validator:%s, sync attempt %"DAP_UINT64_FORMAT_U,
                                         l_session->chain->net_name, l_session->chain->name, l_message->hdr.round_id,
                                             l_validator_addr_str, l_sync_attempt);
+        if (!l_session->is_actual_hash)
+            s_db_calc_sync_hash(l_session);
         dap_global_db_driver_hash_t l_msg_hash = ((struct sync_params *)l_message_data)->db_hash, l_session_hash = l_session->db_hash;
         if (!PVT(l_session->esbocs)->emergency_mode &&
                 dap_global_db_driver_hash_compare(&l_msg_hash, &l_session_hash)) {
