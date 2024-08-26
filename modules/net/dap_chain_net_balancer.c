@@ -98,7 +98,7 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
     }
     if (dap_log_level_get() <= L_DEBUG ) {
         char *l_ignored_str = NULL;
-        DAP_NEW_Z_SIZE_RET_VAL(l_ignored_str, char, 26 *(l_uplinks_count + l_low_availability_count + 1) + 200, NULL, l_uplinks, l_low_availability);
+        DAP_NEW_Z_SIZE_RET_VAL(l_ignored_str, char, 50 * (l_uplinks_count + l_low_availability_count + 1) + 200, NULL, l_uplinks, l_low_availability);
         sprintf(l_ignored_str + strlen(l_ignored_str), "Second nodes will be ignored in balancer links preparing:\n\tSelf:\n\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_curr_addr));
         sprintf(l_ignored_str + strlen(l_ignored_str), "\tUplinks:\n");
         for (size_t i = 0; i < l_uplinks_count; ++i) {
@@ -139,7 +139,7 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_chain_ne
     char l_err_str[128] = {0};
     if (dap_log_level_get() <= L_DEBUG ) {
         char *l_links_str = NULL;
-        DAP_NEW_Z_SIZE_RET(l_links_str, char, 300 * a_link_full_node_list->count_node + 100, NULL);
+        DAP_NEW_Z_SIZE_RET(l_links_str, char, (DAP_HOSTADDR_STRLEN + 50) * a_link_full_node_list->count_node + 200, NULL);
         sprintf(l_links_str + strlen(l_links_str), "Second %"DAP_UINT64_FORMAT_U" links was prepared from balancer:\n", a_link_full_node_list->count_node);
         for (size_t i = 0; i < a_link_full_node_list->count_node; ++i) {
             dap_link_info_t *l_link_info = (dap_link_info_t *)a_link_full_node_list->nodes_info + i;
