@@ -63,7 +63,7 @@
 
 //#define __USE_GNU
 
-#if defined(__USE_BSD) || defined(__USE_GNU)
+#if defined(__USE_BSD) || defined(__USE_GNU) || defined(DAP_OS_ANDROID)
 #define S_IREAD S_IRUSR
 #define S_IWRITE S_IWUSR
 #define S_IEXEC S_IXUSR

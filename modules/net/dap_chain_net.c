@@ -678,6 +678,8 @@ static bool s_net_states_proc(void *a_arg)
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     assert(l_net_pvt);
     if (l_net_pvt->state_target == NET_STATE_OFFLINE) {
+        if(l_net_pvt->state == NET_STATE_SYNC_CHAINS)
+            dap_leger_load_end(l_net->pub.ledger);
         l_net_pvt->state = NET_STATE_OFFLINE;
     }
 
@@ -687,8 +689,11 @@ static bool s_net_states_proc(void *a_arg)
             log_it(L_NOTICE,"%s.state: NET_STATE_OFFLINE", l_net->pub.name);
             // delete all links
             if ( l_net_pvt->state_target != NET_STATE_OFFLINE ){
+                dap_chain_net_state_t l_prev_state = l_net_pvt->state;
                 l_net_pvt->state = NET_STATE_LINKS_PREPARE;
                 l_repeat_after_exit = true;
+                if(l_prev_state == NET_STATE_SYNC_CHAINS)
+                    dap_leger_load_end(l_net->pub.ledger);
             }
             l_net_pvt->last_sync = 0;
         } break;
@@ -2589,10 +2594,13 @@ static void s_sync_timer_callback(void *a_arg)
             l_net_pvt->sync_context.cur_chain = l_net_pvt->sync_context.cur_chain->next;
             log_it(L_DEBUG, "[%s:%d] Go to next chain %p", __FUNCTION__, __LINE__, l_net_pvt->sync_context.cur_chain);
             if (!l_net_pvt->sync_context.cur_chain) {
+                dap_chain_net_state_t l_prev_state = l_net_pvt->state;
                 if (l_net_pvt->sync_context.last_state == SYNC_STATE_SYNCED) {
                     l_net_pvt->state = NET_STATE_ONLINE;
                     l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_IDLE;
                     s_net_states_proc(l_net);
+                    if(l_prev_state == NET_STATE_SYNC_CHAINS)
+                        dap_leger_load_end(l_net->pub.ledger);
                 } else
                     l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_WAITING;
                 return;
@@ -2969,6 +2977,8 @@ void dap_chain_net_set_state(dap_chain_net_t *l_net, dap_chain_net_state_t a_sta
     if(a_state == PVT(l_net)->state){
         return;
     }
+    if(PVT(l_net)->state == NET_STATE_SYNC_CHAINS)
+        dap_leger_load_end(l_net->pub.ledger);
     PVT(l_net)->state = a_state;
     dap_proc_thread_callback_add(NULL, s_net_states_proc, l_net);
 }

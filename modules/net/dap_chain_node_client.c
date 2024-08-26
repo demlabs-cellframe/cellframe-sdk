@@ -395,28 +395,28 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
         return -2;
     }
 
-    // prepare for signal waiting
-    struct timespec l_cond_timeout;
-    clock_gettime(CLOCK_REALTIME, &l_cond_timeout);
-    l_cond_timeout.tv_sec += a_timeout_ms;//1000;
     // signal waiting
-    dap_chain_node_client_state_t l_clinet_state = a_client->state;
-    while (a_client->state == l_clinet_state) {
+    while (a_client->state != a_waited_state) {
+        // prepare for signal waiting
+        struct timespec l_cond_timeout;
+        clock_gettime(CLOCK_REALTIME, &l_cond_timeout);
+        l_cond_timeout.tv_sec += a_timeout_ms;
         int l_ret_wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &l_cond_timeout);
-        if(l_ret_wait == 0 && (
-                a_client->state == a_waited_state ||
-                        (a_client->state == NODE_CLIENT_STATE_ERROR || a_client->state == NODE_CLIENT_STATE_DISCONNECTED))
-                ) {
+        if (l_ret_wait == 0) {
+            if (a_client->state != a_waited_state) {
+                if (a_client->state == NODE_CLIENT_STATE_CONNECTING)
+                    continue; // Spurious wakeup?
+                assert(a_client->state == NODE_CLIENT_STATE_DISCONNECTED || a_client->state == NODE_CLIENT_STATE_ERROR);
+            }
             ret = a_client->state == a_waited_state ? 0 : -2;
-            break;
-        }
-        else if(l_ret_wait == ETIMEDOUT) { // 110 260
+        } else if (l_ret_wait == ETIMEDOUT) { // 110 260
             log_it(L_NOTICE, "Wait for status is stopped by timeout");
             ret = -1;
-            break;
-        }else if (l_ret_wait != 0 ){
+        } else if (l_ret_wait != 0) {
             log_it(L_CRITICAL, "pthread_cond_timedwait() error %d:\"%s\"", l_ret_wait, dap_strerror(l_ret_wait));
+            ret = -4;
         }
+        break;
     }
     pthread_mutex_unlock(&a_client->wait_mutex);
     return ret;
