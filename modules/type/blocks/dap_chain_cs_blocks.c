@@ -1242,17 +1242,14 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                         .block_sign_pkey = l_pub_key,
                         .collecting_addr = l_addr
                 };
-                //Cleare gdb
-                size_t l_objs_fee_count = 0;
-                size_t l_objs_rew_count = 0;
+                //Clear gdb
                 char *l_group_fee = dap_chain_cs_blocks_get_fee_group(l_net->pub.name);
-                char *l_group_rew = dap_chain_cs_blocks_get_reward_group(l_net->pub.name);
-                dap_global_db_obj_t *l_objs_fee = dap_global_db_get_all_sync(l_group_fee, &l_objs_fee_count);
-                dap_global_db_obj_t *l_objs_rew = dap_global_db_get_all_sync(l_group_rew, &l_objs_rew_count);
-                if(l_objs_fee_count)dap_global_db_objs_delete(l_objs_fee,l_objs_fee_count);
-                if(l_objs_rew_count)dap_global_db_objs_delete(l_objs_rew,l_objs_rew_count);
+                dap_global_db_del_sync(l_group_fee, NULL);
                 DAP_DELETE(l_group_fee);
-                DAP_DELETE(l_group_rew);
+                char *l_group_reward = dap_chain_cs_blocks_get_reward_group(l_net->pub.name);
+                dap_global_db_del_sync(l_group_reward, NULL);
+                DAP_DELETE(l_group_reward);
+
                 json_object* json_arr_bl_out = json_object_new_array();
 
                 for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
