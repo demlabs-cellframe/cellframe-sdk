@@ -567,6 +567,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 if (!l_header_printed) {               
                     s_tx_header_print(j_obj_tx, &l_tx_data_ht, l_tx, l_datum_iter->cur_atom_hash,
                                       a_hash_out_type, l_ledger, &l_tx_hash, l_datum_iter->ret_code);
+                    json_object_object_add(j_obj_tx, "test_sts", json_object_new_string(l_datum_iter->declined ? "DECL" : "ACCE"));
                     l_header_printed = true;
                     l_count++;
                     i_tmp++;

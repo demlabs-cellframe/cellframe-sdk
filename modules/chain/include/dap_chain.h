@@ -57,6 +57,7 @@ typedef struct dap_chain_datum_iter {
     dap_chain_hash_fast_t *cur_hash;
     dap_chain_hash_fast_t *cur_atom_hash;
     int ret_code;
+    bool declined;
     void *cur_item;
 } dap_chain_datum_iter_t;
 
