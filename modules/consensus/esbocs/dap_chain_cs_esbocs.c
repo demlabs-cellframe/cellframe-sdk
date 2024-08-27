@@ -957,16 +957,19 @@ static void s_db_calc_sync_hash(dap_chain_esbocs_session_t *a_session)
         dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(l_objs[i].key);
         if (!l_validator_addr) {
             log_it(L_WARNING, "Unreadable address in esbocs global DB group");
+            dap_global_db_del_sync(l_penalty_group, l_objs[i].key);
             continue;
         }
         if (l_validator_addr->net_id.uint64 != a_session->chain->net_id.uint64) {
             log_it(L_ERROR, "Wrong destination net ID %" DAP_UINT64_FORMAT_x "session net ID %" DAP_UINT64_FORMAT_x,
                                                         l_validator_addr->net_id.uint64, a_session->chain->net_id.uint64);
+            dap_global_db_del_sync(l_penalty_group, l_objs[i].key);
             continue;
         }
         if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, false)) {
             log_it(L_ERROR, "Validator with signing address %s not found in network %s",
                                                         l_objs[i].key, a_session->chain->net_name);
+            dap_global_db_del_sync(l_penalty_group, l_objs[i].key);
             continue;
         }
     }
