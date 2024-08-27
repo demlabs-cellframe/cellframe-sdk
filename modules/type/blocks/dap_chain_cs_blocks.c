@@ -42,6 +42,7 @@ typedef struct dap_chain_block_datum_index {
     time_t ts_added;
     dap_chain_block_cache_t *block_cache;
     size_t datum_index;
+    char *token_ticker;
     UT_hash_handle hh;
 } dap_chain_block_datum_index_t;
 
@@ -1469,6 +1470,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         i++, l_block_offset += l_datum_size ){
         dap_chain_datum_t *l_datum = a_block_cache->datum[i];
         size_t l_datum_data_size = l_datum->header.data_size;
+        char* l_token_ticker = NULL;
         l_datum_size = l_datum_data_size + sizeof(l_datum->header);
         if(l_datum_size>a_block_cache->block_size- l_block_offset ){
             log_it(L_WARNING, "Corrupted block %s has strange datum on offset %zd with size %zd out of block size",
@@ -1479,7 +1481,10 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash);
         l_ret++;
         if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
-            PVT(a_blocks)->tx_count++;
+        {
+            PVT(a_blocks)->tx_count++;            
+            l_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(dap_chain_net_by_id(a_blocks->chain->net_id)->pub.ledger, l_datum_hash);   
+        }
         // Save datum hash -> block_hash link in hash table
         dap_chain_block_datum_index_t *l_datum_index = DAP_NEW_Z(dap_chain_block_datum_index_t);
         if (!l_datum_index) {
@@ -1491,6 +1496,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         l_datum_index->datum_hash = *l_datum_hash;
         l_datum_index->ret_code = l_res;
         l_datum_index->datum_index = i;
+        l_datum_index->token_ticker = l_token_ticker;
         pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
         HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
         pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
@@ -2211,12 +2217,14 @@ static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_bl
         a_datum_iter->cur_hash = &a_datum_index->datum_hash;
         a_datum_iter->cur_atom_hash = &a_datum_index->block_cache->block_hash;
         a_datum_iter->ret_code = a_datum_index->ret_code;
+        a_datum_iter->token_ticker = a_datum_index->token_ticker;
     } else {
         a_datum_iter->cur = NULL;
         a_datum_iter->cur_hash = NULL;
         a_datum_iter->cur_atom_hash = NULL;
         a_datum_iter->cur_size = 0;
         a_datum_iter->ret_code = 0;
+        a_datum_iter->token_ticker = NULL;
     }
     debug_if(a_datum_index && !a_datum_index->block_cache->datum, L_ERROR, "Chains was deleted with errors");
 }
