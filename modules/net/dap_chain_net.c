@@ -2170,6 +2170,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
     // Decrees initializing
     dap_chain_net_decree_init(l_net);
+    dap_link_manager_erase_ignored_table(l_net->pub.id.uint64);
 
     l_net->pub.config = l_cfg;
     return 0;

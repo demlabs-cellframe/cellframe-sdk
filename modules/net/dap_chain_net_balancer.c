@@ -91,7 +91,7 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
     const dap_stream_node_addr_t
         *l_curr_addr = &dap_chain_net_get_my_node_info(a_net)->address,
         *l_uplinks = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64, &l_uplinks_count, NULL, true),
-        *l_low_availability = dap_link_manager_get_ignored_addrs(&l_low_availability_count);
+        *l_low_availability = dap_link_manager_get_ignored_addrs(&l_low_availability_count, a_net->pub.id.uint64);
     if(!l_curr_addr->uint64 && !l_uplinks && !l_low_availability) {
         log_it(L_WARNING, "Error forming ignore list in net %s, please check, should be minimum self addr", a_net->pub.name);
         return NULL;
@@ -104,7 +104,7 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
         for (size_t i = 0; i < l_uplinks_count; ++i) {
             sprintf(l_ignored_str + strlen(l_ignored_str), "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_uplinks + i));
         }
-        sprintf(l_ignored_str + strlen(l_ignored_str), "\tLow availability:\n");
+        sprintf(l_ignored_str + strlen(l_ignored_str), "\tCooling:\n");
         for (size_t i = 0; i < l_low_availability_count; ++i) {
             sprintf(l_ignored_str + strlen(l_ignored_str), "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_low_availability + i));
         }
