@@ -5244,7 +5244,7 @@ static dap_ledger_tx_item_t* tx_item_find_by_addr(dap_ledger_t *a_ledger, const 
         dap_chain_hash_fast_t *l_tx_hash = &l_iter_current->tx_hash_fast;
         // start searching from the next hash after a_tx_first_hash
         if (!is_search_started) {
-            is_search_started = !dap_hash_fast_compare(l_tx_hash, a_tx_first_hash);
+            is_search_started = dap_hash_fast_compare(l_tx_hash, a_tx_first_hash);
             continue;
         }
         // Get 'out' items from transaction
@@ -5266,7 +5266,7 @@ static dap_ledger_tx_item_t* tx_item_find_by_addr(dap_ledger_t *a_ledger, const 
             default:
                 continue;
             }
-            if ( !dap_chain_addr_compare(a_addr, &l_addr) ) {
+            if ( dap_chain_addr_compare(a_addr, &l_addr) ) {
                 *a_tx_first_hash = *l_tx_hash;
                 is_tx_found = true;
                 break;
@@ -5342,9 +5342,8 @@ const dap_chain_datum_tx_t* dap_ledger_tx_find_by_pkey(dap_ledger_t *a_ledger,
         dap_chain_datum_tx_t *l_tx_tmp = l_iter_current->tx;
         dap_chain_hash_fast_t *l_tx_hash_tmp = &l_iter_current->tx_hash_fast;
         // start searching from the next hash after a_tx_first_hash
-        if(!is_search_enable) {
-            if(dap_hash_fast_compare(l_tx_hash_tmp, a_tx_first_hash))
-                is_search_enable = true;
+        if (!is_search_enable) {
+            is_search_enable = dap_hash_fast_compare(l_tx_hash_tmp, a_tx_first_hash);
             continue;
         }
         // Get sign item from transaction
@@ -5411,9 +5410,8 @@ dap_chain_datum_tx_t* dap_ledger_tx_cache_find_out_cond(dap_ledger_t *a_ledger, 
         dap_chain_datum_tx_t *l_tx_tmp = l_iter_current->tx;
         dap_chain_hash_fast_t *l_tx_hash_tmp = &l_iter_current->tx_hash_fast;
         // start searching from the next hash after a_tx_first_hash
-        if(!is_search_enable) {
-            if(dap_hash_fast_compare(l_tx_hash_tmp, a_tx_first_hash))
-                is_search_enable = true;
+        if (!is_search_enable) {
+            is_search_enable = dap_hash_fast_compare(l_tx_hash_tmp, a_tx_first_hash);
             continue;
         }
         // Get out_cond item from transaction
@@ -5522,7 +5520,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const c
             case TX_ITEM_TYPE_OUT_EXT: {
                 dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t*)it;
                 l_out_addr = l_out_ext->addr;
-                if ( dap_chain_addr_compare(a_addr_from, &l_out_addr)
+                if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
                 || strcmp((char *)a_token_ticker, l_out_ext->token)
                 || IS_ZERO_256(l_out_ext->header.value) )
                     continue;
@@ -5544,7 +5542,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const c
             }
         }
     }
-    return compare256(l_value_transfer, a_value_need) > -1 && l_list_used_out
+    return compare256(l_value_transfer, a_value_need) >= 0 && l_list_used_out
         ? ({ if (a_value_transfer) *a_value_transfer = l_value_transfer; l_list_used_out; })
         : ( dap_list_free_full(l_list_used_out, NULL), NULL );
 }
