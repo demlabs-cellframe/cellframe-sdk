@@ -197,6 +197,11 @@ typedef struct dap_ledger_datum_iter {
     void *cur_ledger_tx_item;
 } dap_ledger_datum_iter_t;
 
+typedef struct dap_ledger_datum_iter_data {
+    char * token_ticker;
+    dap_chain_tx_tag_action_type_t action_tag;
+} dap_ledger_datum_iter_data_t;
+
 typedef int (*dap_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chan_ledger_notify_opcodes_t a_opcode);
@@ -267,8 +272,8 @@ DAP_STATIC_INLINE char *dap_ledger_get_gdb_group(dap_ledger_t *a_ledger, const c
  *
  * return 1 OK, -1 error
  */
-int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold);
-int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash);
+int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data);
+int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data);
 int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash);
 
 int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);

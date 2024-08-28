@@ -2305,7 +2305,7 @@ static void s_threshold_txs_proc( dap_ledger_t *a_ledger)
         l_success = false;
         dap_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
         HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp) {
-            int l_res = dap_ledger_tx_add(a_ledger, l_tx_item->tx, &l_tx_item->tx_hash_fast, true);
+            int l_res = dap_ledger_tx_add(a_ledger, l_tx_item->tx, &l_tx_item->tx_hash_fast, true, NULL);
             if (l_res != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
                     l_res != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS) {
                 HASH_DEL(l_ledger_pvt->threshold_txs, l_tx_item);
@@ -4386,7 +4386,7 @@ static int s_sort_ledger_tx_item(dap_ledger_tx_item_t *a, dap_ledger_tx_item_t *
  * @param a_from_threshold
  * @return return 1 OK, -1 error
  */
-int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold)
+int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
     if(!a_tx) {
         debug_if(s_debug_more, L_ERROR, "NULL tx detected");
@@ -5059,7 +5059,7 @@ FIN:
     return l_ret;
 }
 
-int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash)
+int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
 #ifndef DAP_LEDGER_TEST
     if (dap_chain_net_get_load_mode(a_ledger->net)) {
@@ -5075,7 +5075,7 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
             return DAP_LEDGER_CHECK_ALREADY_CACHED;
     }
 #endif
-    return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false);
+    return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, a_datum_index_data);
 }
 
 /**

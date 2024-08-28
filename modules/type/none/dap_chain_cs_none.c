@@ -318,7 +318,7 @@ static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t 
     dap_nonconsensus_private_t *l_nochain_priv = PVT(l_nochain);
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) a_atom;
     dap_hash_fast_t l_datum_hash = *a_atom_hash;
-    if(dap_chain_datum_add(a_chain, l_datum, a_atom_size, &l_datum_hash))
+    if(dap_chain_datum_add(a_chain, l_datum, a_atom_size, &l_datum_hash, NULL))
         return ATOM_REJECT;
 
     dap_nonconsensus_datum_hash_item_t * l_hash_item = DAP_NEW_Z(dap_nonconsensus_datum_hash_item_t);

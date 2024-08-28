@@ -1478,7 +1478,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             break;
         }
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
-        int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash);
+        int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, NULL);
         l_ret++;
         if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
         {

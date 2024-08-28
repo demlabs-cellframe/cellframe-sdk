@@ -407,7 +407,7 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
     }
     dap_hash_fast_t l_datum_hash;
     dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
-    int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash);
+    int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash, NULL);
     if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)  // && l_ret == 0
         PVT(a_dag)->tx_count++;
     a_event_item->datum_hash = l_datum_hash;

@@ -3225,7 +3225,7 @@ dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, d
  * @param a_datum_size
  * @return
  */
-int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash)
+int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data)
 {
     size_t l_datum_data_size = a_datum->header.data_size;
     if (a_datum_size < l_datum_data_size + sizeof(a_datum->header)) {
@@ -3266,7 +3266,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 log_it(L_WARNING, "Corrupted transaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
                 return -102;
             }
-            return dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash);
+            return dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, a_datum_index_data);
         }
         case DAP_CHAIN_DATUM_CA:
             return dap_cert_chain_file_save(a_datum, a_chain->net_name);
