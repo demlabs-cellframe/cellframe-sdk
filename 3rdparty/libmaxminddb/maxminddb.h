@@ -215,6 +215,9 @@ typedef struct MMDB_search_node_s {
 
 extern int MMDB_open(const char *const filename, uint32_t flags,
                      MMDB_s *const mmdb);
+
+extern int MMDB_open_memory(const char *const mem, ssize_t size, MMDB_s *const mmdb);
+
 extern MMDB_lookup_result_s MMDB_lookup_string(const MMDB_s *const mmdb,
                                                const char *const ipstr,
                                                int *const gai_error,
