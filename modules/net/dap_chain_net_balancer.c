@@ -99,12 +99,12 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
     if (dap_log_level_get() <= L_DEBUG ) {
         char *l_ignored_str = NULL;
         DAP_NEW_Z_SIZE_RET_VAL(l_ignored_str, char, 50 * (l_uplinks_count + l_low_availability_count + 1) + 200 + strlen(a_net->pub.name), NULL, l_uplinks, l_low_availability);
-        sprintf(l_ignored_str + strlen(l_ignored_str), "Second nodes will be ignored in balancer links preparing in net %s:\n\tSelf:\n\t\t"NODE_ADDR_FP_STR"\n", a_net->pub.name, NODE_ADDR_FP_ARGS(l_curr_addr));
-        sprintf(l_ignored_str + strlen(l_ignored_str), "\tUplinks:\n");
+        sprintf(l_ignored_str + strlen(l_ignored_str), "Second %zu nodes will be ignored in balancer links preparing in net %s:\n\tSelf:\n\t\t"NODE_ADDR_FP_STR"\n", l_uplinks_count + l_low_availability_count + 1, a_net->pub.name, NODE_ADDR_FP_ARGS(l_curr_addr));
+        sprintf(l_ignored_str + strlen(l_ignored_str), "\tUplinks (%zu):\n", l_uplinks_count);
         for (size_t i = 0; i < l_uplinks_count; ++i) {
             sprintf(l_ignored_str + strlen(l_ignored_str), "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_uplinks + i));
         }
-        sprintf(l_ignored_str + strlen(l_ignored_str), "\tCooling:\n");
+        sprintf(l_ignored_str + strlen(l_ignored_str), "\tCooling (%zu):\n", l_low_availability_count);
         for (size_t i = 0; i < l_low_availability_count; ++i) {
             sprintf(l_ignored_str + strlen(l_ignored_str), "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_low_availability + i));
         }
