@@ -2586,7 +2586,11 @@ static void s_sync_timer_callback(void *a_arg)
             l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_WAITING;
         } else {
             l_net_pvt->sync_context.cur_chain = l_net_pvt->sync_context.cur_chain->next;
-            log_it(L_DEBUG, "[%s:%d] Go to next chain %p", __FUNCTION__, __LINE__, l_net_pvt->sync_context.cur_chain);
+            if (l_net_pvt->sync_context.cur_chain)
+                log_it(L_DEBUG, "[%s:%d] Go to next chain \"%s\" for net %s", __FUNCTION__, __LINE__,
+                        l_net_pvt->sync_context.cur_chain->name, l_net_pvt->sync_context.cur_chain->net_name);
+            else 
+                log_it(L_DEBUG, "[%s:%d] Go to next chain: <NULL>",  __FUNCTION__, __LINE__);
             if (!l_net_pvt->sync_context.cur_chain) {
                 dap_chain_net_state_t l_prev_state = l_net_pvt->state;
                 if (l_net_pvt->sync_context.last_state == SYNC_STATE_SYNCED) {
@@ -2605,7 +2609,11 @@ static void s_sync_timer_callback(void *a_arg)
         if (l_net_pvt->sync_context.cur_chain->callback_load_from_gdb) {
             // This type of chain is GDB based and not synced by chains protocol
             l_net_pvt->sync_context.cur_chain = l_net_pvt->sync_context.cur_chain->next;
-            log_it(L_DEBUG, "[%s:%d] Go to next chain %p", __FUNCTION__, __LINE__, l_net_pvt->sync_context.cur_chain);
+            if (l_net_pvt->sync_context.cur_chain)
+                log_it(L_DEBUG, "[%s:%d] Go to next chain \"%s\" for net %s", __FUNCTION__, __LINE__,
+                        l_net_pvt->sync_context.cur_chain->name, l_net_pvt->sync_context.cur_chain->net_name);
+            else 
+                log_it(L_DEBUG, "[%s:%d] Go to next chain: <NULL>",  __FUNCTION__, __LINE__);
             l_net_pvt->sync_context.last_state = SYNC_STATE_SYNCED;
             return;
         }

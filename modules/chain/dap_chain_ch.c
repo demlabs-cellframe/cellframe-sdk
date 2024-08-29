@@ -778,7 +778,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (s_debug_more) {
             char *l_atom_hash_str;
             dap_get_data_hash_str_static(l_chain_pkt->data, l_chain_pkt_data_size, l_atom_hash_str);
-            log_it(L_INFO, "In: CHAIN pkt: atom hash %s (size %zd)", l_atom_hash_str, l_chain_pkt_data_size);
+            log_it(L_INFO, "In: CHAIN pkt: atom hash %s, size %zd, net id %lu, chain id %lu",
+                    l_atom_hash_str, l_chain_pkt_data_size, l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
         }
         dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_args);
     } break;
