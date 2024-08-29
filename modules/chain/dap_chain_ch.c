@@ -624,7 +624,7 @@ static bool s_sync_in_chains_callback(void *a_arg)
     dap_hash_fast(l_atom, l_atom_size, &l_atom_hash); 
     if (s_debug_more)
         dap_get_data_hash_str_static(l_atom, l_atom_size, l_atom_hash_str);
-    dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size, &l_atom_hash);
+    dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size, &l_atom_hash, false);
     bool l_ack_send = false;
     switch (l_atom_add_res) {
     case ATOM_PASS:
@@ -745,7 +745,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN: {
-        if (!l_chain_pkt_data_size || l_chain_pkt_data_size > sizeof(dap_chain_ch_pkt_t) + DAP_CHAIN_ATOM_MAX_SIZE) {
+        if (!l_chain_pkt_data_size || l_chain_pkt_data_size > sizeof(dap_chain_ch_pkt_t) + DAP_CHAIN_ATOM_MAX_SIZE * 4) {
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
@@ -778,8 +778,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (s_debug_more) {
             char *l_atom_hash_str;
             dap_get_data_hash_str_static(l_chain_pkt->data, l_chain_pkt_data_size, l_atom_hash_str);
-            log_it(L_INFO, "In: CHAIN pkt: atom hash %s, size %zd, net id %lu, chain id %lu",
-                    l_atom_hash_str, l_chain_pkt_data_size, l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
+            log_it(L_INFO, "In: CHAIN pkt: atom hash %s, size %zd, net id %" DAP_UINT64_FORMAT_U ", chain id %" DAP_UINT64_FORMAT_U,
+                    l_atom_hash_str, l_chain_pkt_data_size, l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64);
         }
         dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_args);
     } break;
@@ -1481,13 +1481,12 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         struct legacy_sync_context *l_context = l_ch_chain->legacy_sync_context;
         if (!l_context || l_context->state != DAP_CHAIN_CH_STATE_SYNC_CHAINS_REMOTE) {
-            log_it(L_WARNING, "Can't process FIRST_CHAIN packet cause synchronization sequence violation");
+            log_it(L_WARNING, "Can't process CHAIN_OLD packet cause synchronization sequence violation");
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
         }
-        debug_if(s_debug_legacy, L_INFO, "In: CHAIN_OLD data_size=%zu", l_chain_pkt_data_size);
         struct atom_processing_args *l_args = DAP_NEW_Z_SIZE(struct atom_processing_args, l_ch_pkt->hdr.data_size + sizeof(struct atom_processing_args));
         if (!l_args) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -1498,7 +1497,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         l_chain_pkt->hdr.data_size = l_chain_pkt_data_size;
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
-        if (s_debug_more) {
+        if (s_debug_legacy) {
             char *l_atom_hash_str;
             dap_get_data_hash_str_static(l_chain_pkt->data, l_chain_pkt_data_size, l_atom_hash_str);
             log_it(L_INFO, "In: CHAIN_OLD pkt: atom hash %s (size %zd)", l_atom_hash_str, l_chain_pkt_data_size);
