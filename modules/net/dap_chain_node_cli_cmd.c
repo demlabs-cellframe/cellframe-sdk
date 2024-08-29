@@ -785,7 +785,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
         }
 
-        if (!dap_global_db_del_sync(l_group_str, NULL))
+        if (!dap_global_db_erase_table_sync(l_group_str))
         {
             json_object* json_obj_drop = json_object_new_object();
             json_object_object_add(json_obj_drop, "Dropped table", json_object_new_string(l_group_str));
