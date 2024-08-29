@@ -42,7 +42,7 @@ typedef struct dap_chain_block_datum_index {
     time_t ts_added;
     dap_chain_block_cache_t *block_cache;
     size_t datum_index;
-    char *token_ticker;
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     UT_hash_handle hh;
 } dap_chain_block_datum_index_t;
 
@@ -1470,7 +1470,6 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         i++, l_block_offset += l_datum_size ){
         dap_chain_datum_t *l_datum = a_block_cache->datum[i];
         size_t l_datum_data_size = l_datum->header.data_size;
-        char* l_token_ticker = NULL;
         l_datum_size = l_datum_data_size + sizeof(l_datum->header);
         if(l_datum_size>a_block_cache->block_size- l_block_offset ){
             log_it(L_WARNING, "Corrupted block %s has strange datum on offset %zd with size %zd out of block size",
@@ -1478,13 +1477,11 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             break;
         }
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
-        int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, NULL);
+        dap_ledger_datum_iter_data_t l_datum_index_data;
+        int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
         l_ret++;
         if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
-        {
-            PVT(a_blocks)->tx_count++;            
-            l_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(dap_chain_net_by_id(a_blocks->chain->net_id)->pub.ledger, l_datum_hash);   
-        }
+            PVT(a_blocks)->tx_count++;  
         // Save datum hash -> block_hash link in hash table
         dap_chain_block_datum_index_t *l_datum_index = DAP_NEW_Z(dap_chain_block_datum_index_t);
         if (!l_datum_index) {
@@ -1496,7 +1493,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         l_datum_index->datum_hash = *l_datum_hash;
         l_datum_index->ret_code = l_res;
         l_datum_index->datum_index = i;
-        l_datum_index->token_ticker = l_token_ticker;
+        dap_strncpy(l_datum_index->token_ticker, l_datum_index_data.token_ticker, DAP_CHAIN_TICKER_SIZE_MAX); 
         pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
         HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
         pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);

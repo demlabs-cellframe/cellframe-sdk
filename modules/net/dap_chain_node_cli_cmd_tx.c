@@ -246,6 +246,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
                               dap_chain_hash_fast_t *a_tx_hash)
 {
     bool l_declined = false;
+    bool l_declined2 = false;
     // transaction time
     char l_time_str[DAP_TIME_STR_SIZE] = "unknown";                                /* Prefill string */
     if (a_tx->header.ts_created)
@@ -253,7 +254,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     dap_chain_tx_hash_processed_ht_t *l_tx_data = NULL;
     HASH_FIND(hh, *a_tx_data_ht, a_tx_hash, sizeof(*a_tx_hash), l_tx_data);
     if (l_tx_data)  // this tx already present in ledger (double)
-        l_declined = true;
+        {l_declined = true;l_declined2 = true;}
     else {
         l_tx_data = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
         if (!l_tx_data) {
@@ -262,8 +263,10 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
         }
         l_tx_data->hash = *a_tx_hash;
         HASH_ADD(hh, *a_tx_data_ht, hash, sizeof(*a_tx_hash), l_tx_data);
-        //const char *l_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
-        const char *l_token_ticker = a_datum_iter->token_ticker;
+        const char *l_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
+        const char *l_token_ticker_t = a_datum_iter->token_ticker;
+        if (!l_token_ticker_t)
+            l_declined2 = true;
         if (!l_token_ticker)
             l_declined = true;
     }
@@ -275,6 +278,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
         l_tx_hash_str = dap_enc_base58_encode_hash_to_str(a_tx_hash);
         l_atom_hash_str = dap_enc_base58_encode_hash_to_str(a_datum_iter->cur_atom_hash);
     }
+    json_object_object_add(json_obj_datum, "test_sts", json_object_new_string(l_declined2 ? "DECLINED" : "ACCEPTED"));
     json_object_object_add(json_obj_datum, "status", json_object_new_string(l_declined ? "DECLINED" : "ACCEPTED"));
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
@@ -599,8 +603,8 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 json_object_object_add(j_obj_data, "tx_type", json_object_new_string("recv"));
                 json_object_object_add(j_obj_data, "recv_coins", json_object_new_string(l_coins_str));
                 json_object_object_add(j_obj_data, "recv_datoshi", json_object_new_string(l_value_str));
-                json_object_object_add(j_obj_data, "token", l_dst_token ? json_object_new_string(l_dst_token)
-                                                                            : json_object_new_string("UNKNOWN"));
+                //json_object_object_add(j_obj_data, "token", l_dst_token ? json_object_new_string(l_dst_token)
+                                                                            //: json_object_new_string("UNKNOWN"));
                 json_object_object_add(j_obj_data, "source_address", json_object_new_string(l_src_str));
                 if (l_is_need_correction)
                     l_corr_object = j_obj_data;
@@ -641,8 +645,8 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 json_object_object_add(j_obj_data, "tx_type", json_object_new_string("send"));
                 json_object_object_add(j_obj_data, "send_coins", json_object_new_string(l_coins_str));
                 json_object_object_add(j_obj_data, "send_datoshi", json_object_new_string(l_value_str));
-                json_object_object_add(j_obj_data, "token", l_dst_token ? json_object_new_string(l_dst_token)
-                                                                        : json_object_new_string("UNKNOWN"));
+                //json_object_object_add(j_obj_data, "token", l_dst_token ? json_object_new_string(l_dst_token)
+                                                                       // : json_object_new_string("UNKNOWN"));
                 json_object_object_add(j_obj_data, "destination_address", json_object_new_string(l_dst_addr_str));
                 json_object_array_add(j_arr_data, j_obj_data);                
             }

@@ -198,7 +198,7 @@ typedef struct dap_ledger_datum_iter {
 } dap_ledger_datum_iter_t;
 
 typedef struct dap_ledger_datum_iter_data {
-    char * token_ticker;
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_chain_tx_tag_action_type_t action_tag;
 } dap_ledger_datum_iter_data_t;
 

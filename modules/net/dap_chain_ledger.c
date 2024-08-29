@@ -130,6 +130,7 @@ typedef struct dap_ledger_token_item {
     time_t last_update_token_time;
 
     // for auth operations
+
     dap_pkey_t ** auth_pkeys;
     dap_chain_hash_fast_t *auth_pkey_hashes;
     size_t auth_signs_total;
@@ -4422,7 +4423,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                 if (!l_item_tmp) {
                     if (l_threshold_txs_count >= s_threshold_txs_max) {
                         if(s_debug_more)
-                            log_it(L_WARNING, "Threshold for tranactions is overfulled (%zu max), dropping down tx %s, added nothing",
+                            log_it(L_WARNING, "Threshold for transactions is overfulled (%zu max), dropping down tx %s, added nothing",
                                        s_threshold_txs_max, l_tx_hash_str);
                     } else {
                         l_item_tmp = DAP_NEW_Z(dap_ledger_tx_item_t);
@@ -4450,6 +4451,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             debug_if(s_debug_more, L_WARNING, "dap_ledger_tx_add() tx %s not passed the check: %s ", l_tx_hash_str,
                         dap_ledger_check_error_str(l_ret_check));
         }
+        dap_strncpy(a_datum_index_data->token_ticker, l_main_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);       
+        a_datum_index_data->action_tag = l_action;
         
         if ( l_list_bound_items )
             dap_list_free_full(l_list_bound_items, NULL);
