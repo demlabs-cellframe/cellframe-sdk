@@ -2368,37 +2368,32 @@ bool s_net_load(void *a_arg)
             l_chain->callback_created(l_chain, l_net->pub.config);
 
      if ( dap_config_get_item_bool_default(g_config, "server", "enabled", false) ) {
-        if ( !l_net_pvt->node_info->ext_port ) {
-            char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
-            uint16_t l_ext_port = 0;
-            const char *l_ext_addr = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
-            if (!l_ext_addr) {
-                log_it(L_INFO, "External address is not set, will be detected automatically");
-            } else {
-                struct sockaddr_storage l_saddr = { };
-                if ( 0 > dap_net_parse_config_address(l_ext_addr, l_host, &l_ext_port, &l_saddr, NULL) )
-                    log_it(L_ERROR, "Invalid server address \"%s\", fix config and restart node", l_ext_addr);
-                else {
-                    uint8_t l_hostlen = dap_strlen(l_host);
-                    l_net_pvt->node_info->ext_port = l_ext_port;
-                    l_net_pvt->node_info->ext_host_len = dap_strncpy(l_net_pvt->node_info->ext_host, l_host, l_hostlen) - l_net_pvt->node_info->ext_host;
-                }
+        char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
+        uint16_t l_ext_port = 0;
+        const char *l_ext_addr = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
+        if (l_ext_addr) {
+            struct sockaddr_storage l_saddr = { };
+            if ( 0 > dap_net_parse_config_address(l_ext_addr, l_host, &l_ext_port, &l_saddr, NULL) )
+                log_it(L_ERROR, "Invalid server address \"%s\", fix config and restart node", l_ext_addr);
+            else {
+                uint8_t l_hostlen = dap_strlen(l_host);
+                l_net_pvt->node_info->ext_port = l_ext_port;
+                l_net_pvt->node_info->ext_host_len = dap_strncpy(l_net_pvt->node_info->ext_host, l_host, l_hostlen) - l_net_pvt->node_info->ext_host;
             }
-            if ( !l_net_pvt->node_info->ext_port ) {
-                const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
-                l_net_pvt->node_info->ext_port =
-                    ( l_listening && dap_net_parse_config_address(*l_listening, NULL, &l_ext_port, NULL, NULL) > 0 && l_ext_port )
-                        ? l_ext_port
-                        : dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079); // TODO: default port?
-            }
-        } // otherwise, we're in seed list - seed config predominates server config thus disambiguating the settings
-        
-        if (l_net_pvt->node_info->ext_host_len) {
-            log_it(L_INFO, "Server is configured with external address %s : %u",
-               l_net_pvt->node_info->ext_host, l_net_pvt->node_info->ext_port);
         }
-    } else
-        log_it(L_INFO, "Server is disabled");
+#ifdef DAP_TRY_DEFAULT_PORT
+        log_it(L_INFO, "External address is not set, will be detected automatically");
+        if ( !l_net_pvt->node_info->ext_port ) {
+            const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
+            l_net_pvt->node_info->ext_port =
+                ( l_listening && dap_net_parse_config_address(*l_listening, NULL, &l_ext_port, NULL, NULL) > 0 && l_ext_port )
+                    ? l_ext_port
+                    : dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079);
+        }
+#endif
+        log_it(L_INFO, "Server is configured with external address %s : %u",
+            l_net_pvt->node_info->ext_host_len ? l_net_pvt->node_info->ext_host : "", l_net_pvt->node_info->ext_port);
+    }
 
     l_net_pvt->node_info->address.uint64 = g_node_addr.uint64;
 
@@ -3374,7 +3369,14 @@ uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num)
     return uint256_0;
 }
 
-void dap_chain_net_announce_addrs(dap_chain_net_t *a_net)
+
+void dap_chain_net_announce_addr_all()
+{
+    for (dap_chain_net_item_t *it = s_net_items; it; it = it->hh.next)
+        dap_chain_net_announce_addr(it->chain_net);
+}
+
+void dap_chain_net_announce_addr(dap_chain_net_t *a_net)
 {
     dap_return_if_fail(a_net);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
