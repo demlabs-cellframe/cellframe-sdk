@@ -5103,13 +5103,13 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TXS_STR);
-        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
 
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_SPENT_TXS_STR);
-        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
 
@@ -5122,7 +5122,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_BALANCES_STR);
-        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
 
@@ -5150,10 +5150,10 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TOKENS_STR);
-        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_EMISSIONS_STR);
-        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
 
@@ -5165,7 +5165,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_STAKE_LOCK_STR);
-        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
 
