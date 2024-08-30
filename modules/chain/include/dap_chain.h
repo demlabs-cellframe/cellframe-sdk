@@ -56,6 +56,8 @@ typedef struct dap_chain_datum_iter {
     size_t cur_size;
     dap_chain_hash_fast_t *cur_hash;
     dap_chain_hash_fast_t *cur_atom_hash;
+    uint32_t action;
+    dap_chain_net_srv_uid_t uid;
     int ret_code;
     char *token_ticker;
     void *cur_item;

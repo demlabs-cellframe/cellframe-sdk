@@ -199,7 +199,8 @@ typedef struct dap_ledger_datum_iter {
 
 typedef struct dap_ledger_datum_iter_data {
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    dap_chain_tx_tag_action_type_t action_tag;
+    dap_chain_tx_tag_action_type_t action;
+    dap_chain_net_srv_uid_t uid;
 } dap_ledger_datum_iter_data_t;
 
 typedef int (*dap_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);

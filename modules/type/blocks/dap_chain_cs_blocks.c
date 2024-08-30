@@ -43,6 +43,8 @@ typedef struct dap_chain_block_datum_index {
     dap_chain_block_cache_t *block_cache;
     size_t datum_index;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    dap_chain_net_srv_uid_t service_uid;
+    dap_chain_tx_tag_action_type_t action;
     UT_hash_handle hh;
 } dap_chain_block_datum_index_t;
 
@@ -1477,7 +1479,8 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             break;
         }
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
-        dap_ledger_datum_iter_data_t l_datum_index_data;
+        dap_ledger_datum_iter_data_t l_datum_index_data = { "0", 0 , 0 };
+
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
         l_ret++;
         if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
@@ -1493,7 +1496,9 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         l_datum_index->datum_hash = *l_datum_hash;
         l_datum_index->ret_code = l_res;
         l_datum_index->datum_index = i;
-        dap_strncpy(l_datum_index->token_ticker, l_datum_index_data.token_ticker, DAP_CHAIN_TICKER_SIZE_MAX); 
+        l_datum_index->action = l_datum_index_data.action;
+        l_datum_index->service_uid = l_datum_index_data.uid;
+        dap_strncpy(l_datum_index->token_ticker, l_datum_index_data.token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
         pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
         HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
         pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
@@ -2214,7 +2219,9 @@ static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_bl
         a_datum_iter->cur_hash = &a_datum_index->datum_hash;
         a_datum_iter->cur_atom_hash = &a_datum_index->block_cache->block_hash;
         a_datum_iter->ret_code = a_datum_index->ret_code;
-        a_datum_iter->token_ticker = a_datum_index->token_ticker;
+        a_datum_iter->action = a_datum_index->action;
+        a_datum_iter->uid = a_datum_index->service_uid;    
+        a_datum_iter->token_ticker = dap_strcmp(a_datum_index->token_ticker, "0") ? a_datum_index->token_ticker : NULL;
     } else {
         a_datum_iter->cur = NULL;
         a_datum_iter->cur_hash = NULL;
@@ -2222,6 +2229,8 @@ static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_bl
         a_datum_iter->cur_size = 0;
         a_datum_iter->ret_code = 0;
         a_datum_iter->token_ticker = NULL;
+        a_datum_iter->action = NULL;
+        a_datum_iter->uid.uint64 = 0;
     }
     debug_if(a_datum_index && !a_datum_index->block_cache->datum, L_ERROR, "Chains was deleted with errors");
 }

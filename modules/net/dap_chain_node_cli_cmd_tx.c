@@ -246,7 +246,6 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
                               dap_chain_hash_fast_t *a_tx_hash)
 {
     bool l_declined = false;
-    bool l_declined2 = false;
     // transaction time
     char l_time_str[DAP_TIME_STR_SIZE] = "unknown";                                /* Prefill string */
     if (a_tx->header.ts_created)
@@ -254,7 +253,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     dap_chain_tx_hash_processed_ht_t *l_tx_data = NULL;
     HASH_FIND(hh, *a_tx_data_ht, a_tx_hash, sizeof(*a_tx_hash), l_tx_data);
     if (l_tx_data)  // this tx already present in ledger (double)
-        {l_declined = true;l_declined2 = true;}
+        l_declined = true;
     else {
         l_tx_data = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
         if (!l_tx_data) {
@@ -263,10 +262,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
         }
         l_tx_data->hash = *a_tx_hash;
         HASH_ADD(hh, *a_tx_data_ht, hash, sizeof(*a_tx_hash), l_tx_data);
-        const char *l_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
-        const char *l_token_ticker_t = a_datum_iter->token_ticker;
-        if (!l_token_ticker_t)
-            l_declined2 = true;
+        const char *l_token_ticker = a_datum_iter->token_ticker;        
         if (!l_token_ticker)
             l_declined = true;
     }
@@ -278,7 +274,6 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
         l_tx_hash_str = dap_enc_base58_encode_hash_to_str(a_tx_hash);
         l_atom_hash_str = dap_enc_base58_encode_hash_to_str(a_datum_iter->cur_atom_hash);
     }
-    json_object_object_add(json_obj_datum, "test_sts", json_object_new_string(l_declined2 ? "DECLINED" : "ACCEPTED"));
     json_object_object_add(json_obj_datum, "status", json_object_new_string(l_declined ? "DECLINED" : "ACCEPTED"));
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
@@ -398,7 +393,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         const char *l_noaddr_token = NULL;
 
         dap_hash_fast_t l_tx_hash = *l_datum_iter->cur_hash;
-        //const char *l_src_token = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
         const char *l_src_token = l_datum_iter->token_ticker;
 
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
@@ -545,10 +539,13 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             //tag
             char *service_name = NULL;
             dap_chain_tx_tag_action_type_t l_action;
+            dap_chain_tx_tag_action_type_t l_action2;
+            bool srv_found2 = l_datum_iter->uid.uint64 ? true : false;
+            l_action2 = l_datum_iter->action; 
             bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_tx_hash, NULL, &service_name, &l_action);
             if (!(l_action & a_action))
                 continue;
-
+            if(l_action2) i_tmp++;
             if (a_srv)
             {
               
@@ -720,7 +717,7 @@ static int s_json_tx_history_pack(json_object** a_json_obj_datum, dap_chain_datu
     if (a_srv)
     {
         char *service_name = NULL;
-        bool srv_found = false;//dap_ledger_tx_service_info(l_ledger, &l_ttx_hash, NULL, &service_name, NULL);
+        bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_ttx_hash, NULL, &service_name, NULL);
         //skip if looking for UNKNOWN + it is known
         if (a_look_for_unknown_service && srv_found) {
             return 1;
