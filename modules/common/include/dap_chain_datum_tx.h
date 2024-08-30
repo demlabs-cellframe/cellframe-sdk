@@ -33,13 +33,28 @@
   * @struct dap_chain_datum_tx
   * @brief Transaction section, consists from lot of tx_items
   */
-typedef struct dap_chain_datum_tx{
+typedef struct dap_chain_datum_tx {
     struct {
         dap_time_t ts_created;
-        uint32_t tx_items_size; // size of next sequencly lying tx_item sections would be decided to belong this transaction
+        uint32_t tx_items_size; // total size of sequential tx_items
     } DAP_ALIGN_PACKED header;
     uint8_t tx_items[];
 } DAP_ALIGN_PACKED dap_chain_datum_tx_t;
+
+#define TX_ITEM_ITER(item, item_size, data, total_size)                                                             \
+    for ( byte_t *l_pos = (byte_t*)(data), *l_end = l_pos + (total_size) > l_pos ? l_pos + (total_size) : l_pos;    \
+          !!( item = l_pos < l_end                                                                                  \
+          && (item_size = dap_chain_datum_item_tx_get_size(l_pos, l_end - l_pos))                                   \
+            ? l_pos : NULL );                                                           \
+        l_pos += item_size )
+
+#define TX_ITEM_ITER_TX(item, item_size, tx) \
+    TX_ITEM_ITER(item, item_size, tx->tx_items, tx->header.tx_items_size)
+
+#define TX_ITEM_ITER_TX_TYPE(item, item_type, item_size, item_index, tx)                                            \
+    for ( item_size = 0, item_index = 0, item = NULL;                                                                            \
+        !!( item = dap_chain_datum_tx_item_get(tx, &item_index, (byte_t*)item + item_size, item_type, &item_size) );\
+        item_index = 0 )
 /**
  * Create empty transaction
  *
@@ -161,12 +176,8 @@ int dap_chain_datum_tx_get_fee_value (dap_chain_datum_tx_t *a_tx, uint256_t *a_v
  * @param a_tx
  * @return
  */
-DAP_STATIC_INLINE dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_chain_datum_tx_t *a_tx)
+DAP_STATIC_INLINE dap_hash_fast_t dap_chain_node_datum_tx_calc_hash(dap_chain_datum_tx_t *a_tx)
 {
-    dap_chain_hash_fast_t *tx_hash = DAP_NEW_Z(dap_chain_hash_fast_t);
-    if (!tx_hash) {
-        return NULL;
-    }
-    dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), tx_hash);
-    return tx_hash;
+    dap_hash_fast_t l_res;
+    return dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_res), l_res;
 }

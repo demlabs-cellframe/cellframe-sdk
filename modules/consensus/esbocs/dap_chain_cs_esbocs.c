@@ -2000,7 +2000,7 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
     switch (a_directive->type) {
     case DAP_CHAIN_ESBOCS_DIRECTIVE_KICK:
     case DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT: {
-        dap_chain_addr_t *l_key_addr = (dap_chain_addr_t *)(((dap_tsd_t *)a_directive->tsd)->data);
+        dap_chain_addr_t *l_key_addr = (dap_chain_addr_t *)((dap_tsd_t *)a_directive->tsd)->data;
         int l_status = dap_chain_net_srv_stake_key_delegated(l_key_addr);
         const char *l_key_str = dap_chain_addr_to_str_static(l_key_addr);
         if (l_status == 0) {
@@ -2128,7 +2128,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     dap_chain_esbocs_message_t *l_message = (dap_chain_esbocs_message_t *)l_ch_pkt->data;
     size_t l_message_size = l_ch_pkt->hdr.data_size;
     if (l_message_size < sizeof(dap_chain_esbocs_message_t) ||
-            l_message_size > DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE + PKT_SIGN_N_HDR_OVERHEAD ||
+            l_message_size > DAP_CHAIN_ATOM_MAX_SIZE + PKT_SIGN_N_HDR_OVERHEAD ||
             l_message_size != sizeof(*l_message) + l_message->hdr.sign_size + l_message->hdr.message_size) {
         log_it(L_WARNING, "Invalid message size %zu, drop this packet", l_message_size);
         return false;

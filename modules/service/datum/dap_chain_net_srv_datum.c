@@ -254,9 +254,9 @@ void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
         log_it(L_DEBUG, "Invalid tx cond datum hash");
         return;
     }
-    int l_tx_out_cond_size;
+    size_t l_tx_out_cond_size = 0;
     dap_chain_tx_out_cond_t *l_cond_out = (dap_chain_tx_out_cond_t *)
-            dap_chain_datum_tx_item_get(l_tx_cond, NULL, TX_ITEM_TYPE_OUT_COND, &l_tx_out_cond_size);
+            dap_chain_datum_tx_item_get(l_tx_cond, NULL, NULL, TX_ITEM_TYPE_OUT_COND, &l_tx_out_cond_size);
     if (!l_cond_out || l_cond_out->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY) {
         log_it(L_DEBUG, "Condition with required subtype SRV_PAY not found in requested tx");
     }
