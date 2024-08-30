@@ -60,7 +60,7 @@ typedef struct dap_nonconsensus_private {
 #define PVT(a) ((a) ? (dap_nonconsensus_private_t *)(a)->_internal : NULL)
 
 // Atomic element organization callbacks
-static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t, dap_hash_fast_t *a_atom_hash); //    Accept new event in gdb
+static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t, dap_hash_fast_t *a_atom_hash, bool a_atom_new); //    Accept new event in gdb
 static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t, dap_hash_fast_t *a_atom_hash); //    Verify new event in gdb
 static size_t s_nonconsensus_callback_atom_get_static_hdr_size(void); //    Get gdb event header size
 
@@ -129,7 +129,7 @@ static void s_changes_callback_notify(dap_store_obj_t *a_obj, void *a_arg)
         return;
     dap_hash_fast_t l_hash = {};
     dap_chain_hash_fast_from_hex_str(a_obj->key, &l_hash);
-    s_nonconsensus_callback_atom_add(l_chain, (dap_chain_datum_t *)a_obj->value, a_obj->value_len, &l_hash);
+    s_nonconsensus_callback_atom_add(l_chain, (dap_chain_datum_t *)a_obj->value, a_obj->value_len, &l_hash, false);
 }
 
 int s_nonconsensus_callback_created(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_chain_cfg)
@@ -266,7 +266,7 @@ static void s_nonconsensus_ledger_load(dap_chain_t *a_chain)
         // load ledger
         dap_hash_fast_t l_hash = {};
         dap_chain_hash_fast_from_hex_str(it->key, &l_hash);
-        s_nonconsensus_callback_atom_add(a_chain, it->value, it->value_len, &l_hash);
+        s_nonconsensus_callback_atom_add(a_chain, it->value, it->value_len, &l_hash, false);
         log_it(L_DEBUG,"Load mode, doesn't save item %s:%s", it->key, l_nochain_pvt->group_datums);
     }
     dap_global_db_objs_delete(l_values, l_values_count);
@@ -308,7 +308,7 @@ static size_t s_nonconsensus_callback_datums_pool_proc(dap_chain_t * a_chain, da
  * @param a_atom_size atom size
  * @return dap_chain_atom_verify_res_t
  */
-static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash)
+static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash, bool UNUSED_ARG a_atom_new)
 {
     if (NULL == a_chain) {
         log_it(L_WARNING, "Arguments is NULL for s_nonconsensus_callback_atom_add");

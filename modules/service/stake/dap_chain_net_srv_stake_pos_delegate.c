@@ -607,7 +607,7 @@ void dap_chain_net_srv_stake_purge(dap_chain_net_t *a_net)
 {
     dap_ledger_t *l_ledger = a_net->pub.ledger;
     char *l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
-    dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
+    dap_global_db_erase_table(l_gdb_group, NULL, NULL);
     DAP_DELETE(l_gdb_group);
     s_stake_net_clear(a_net);
 }
