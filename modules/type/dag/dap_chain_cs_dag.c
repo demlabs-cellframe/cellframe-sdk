@@ -1307,7 +1307,8 @@ static void s_json_dag_pack_event(json_object * a_json_out, dap_chain_cs_dag_eve
     json_object * json_obj_event_i = json_object_new_object();                            
     char buf[DAP_TIME_STR_SIZE];
     dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, a_event_item->event->header.ts_created);
-    json_object_object_add(json_obj_event_i, "event", json_object_new_string(dap_itoa(i)));
+    json_object_object_add(json_obj_event_i, "#", json_object_new_string(dap_itoa(i)));
+    json_object_object_add(json_obj_event_i, "event number", json_object_new_uint64(a_event_item->event_number));
     json_object_object_add(json_obj_event_i, "hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&a_event_item->hash)));
     json_object_object_add(json_obj_event_i, "ts_create", json_object_new_string(buf));
     json_object_array_add(a_json_out, json_obj_event_i);

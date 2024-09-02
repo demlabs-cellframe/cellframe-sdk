@@ -285,8 +285,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction history
     dap_cli_server_cmd_add("tx_history", com_tx_history, "Transaction history (for address or by hash)",
-            "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} [-net <net_name>] [-chain <chain_name>] [-limit] [-offset]\n"
-            "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset]\n");
+            "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} [-net <net_name>] [-chain <chain_name>] [-limit] [-offset] [-head]\n"
+            "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset] [-head]\n");
 
 	// Ledger info
     dap_cli_server_cmd_add("ledger", com_ledger, "Ledger information",

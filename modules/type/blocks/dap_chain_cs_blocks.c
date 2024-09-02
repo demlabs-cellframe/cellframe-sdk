@@ -192,7 +192,7 @@ int dap_chain_cs_blocks_init()
             "block -net <net_name> [-chain <chain_name>] dump <block_hash>\n"
                 "\t\tDump block info\n\n"
 
-            "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset]"
+            "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset] [-head]"
             " [-from_hash <block_hash>] [-to_hash <block_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]"
             " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>}] [-unspent]]\n"
                 "\t\t List blocks\n\n"
@@ -985,7 +985,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 char l_buf[DAP_TIME_STR_SIZE];
                 json_object* json_obj_bl_cache = json_object_new_object();
                 dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
-                json_object_object_add(json_obj_bl_cache, "block",json_object_new_uint64(i_tmp));
+                json_object_object_add(json_obj_bl_cache, "#",json_object_new_uint64(i_tmp));
+                json_object_object_add(json_obj_bl_cache, "block number",json_object_new_uint64(l_block_cache->block_number));
                 json_object_object_add(json_obj_bl_cache, "hash",json_object_new_string(l_block_cache->block_hash_str));
                 json_object_object_add(json_obj_bl_cache, "ts_create",json_object_new_string(l_buf));
                 json_object_array_add(json_arr_bl_cache_out, json_obj_bl_cache);
