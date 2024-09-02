@@ -440,6 +440,7 @@ int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_add
     int rc = dap_link_manager_link_update(a_addr, a_host, a_port);
     if (rc)
         log_it(L_ERROR, "Can't update link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_addr));
+    log_it(L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added", NODE_ADDR_FP_ARGS(a_addr));
     return rc;
 }
 
@@ -472,8 +473,10 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
     }
     dap_stream_ch_chain_net_pkt_hdr_t l_announce = { .version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION,
                                                      .net_id  = l_net->pub.id };
-    dap_stream_ch_pkt_send_by_addr(&a_link->addr, DAP_STREAM_CH_CHAIN_NET_ID, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
-                                   &l_announce, sizeof(l_announce));
+    if(dap_stream_ch_pkt_send_by_addr(&a_link->addr, DAP_STREAM_CH_CHAIN_NET_ID, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
+                                   &l_announce, sizeof(l_announce))) {
+                                   dap_link_manager_accounting_link_in_net(l_net->pub.id.uint64, &a_link->addr, false);
+                                   }
 }
 
 static bool s_net_check_link_is_permanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
@@ -2169,7 +2172,6 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
     // Decrees initializing
     dap_chain_net_decree_init(l_net);
-
     l_net->pub.config = l_cfg;
     return 0;
 }
@@ -2368,37 +2370,32 @@ bool s_net_load(void *a_arg)
             l_chain->callback_created(l_chain, l_net->pub.config);
 
      if ( dap_config_get_item_bool_default(g_config, "server", "enabled", false) ) {
-        if ( !l_net_pvt->node_info->ext_port ) {
-            char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
-            uint16_t l_ext_port = 0;
-            const char *l_ext_addr = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
-            if (!l_ext_addr) {
-                log_it(L_INFO, "External address is not set, will be detected automatically");
-            } else {
-                struct sockaddr_storage l_saddr = { };
-                if ( 0 > dap_net_parse_config_address(l_ext_addr, l_host, &l_ext_port, &l_saddr, NULL) )
-                    log_it(L_ERROR, "Invalid server address \"%s\", fix config and restart node", l_ext_addr);
-                else {
-                    uint8_t l_hostlen = dap_strlen(l_host);
-                    l_net_pvt->node_info->ext_port = l_ext_port;
-                    l_net_pvt->node_info->ext_host_len = dap_strncpy(l_net_pvt->node_info->ext_host, l_host, l_hostlen) - l_net_pvt->node_info->ext_host;
-                }
+        char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
+        uint16_t l_ext_port = 0;
+        const char *l_ext_addr = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
+        if (l_ext_addr) {
+            struct sockaddr_storage l_saddr = { };
+            if ( 0 > dap_net_parse_config_address(l_ext_addr, l_host, &l_ext_port, &l_saddr, NULL) )
+                log_it(L_ERROR, "Invalid server address \"%s\", fix config and restart node", l_ext_addr);
+            else {
+                uint8_t l_hostlen = dap_strlen(l_host);
+                l_net_pvt->node_info->ext_port = l_ext_port;
+                l_net_pvt->node_info->ext_host_len = dap_strncpy(l_net_pvt->node_info->ext_host, l_host, l_hostlen) - l_net_pvt->node_info->ext_host;
             }
-            if ( !l_net_pvt->node_info->ext_port ) {
-                const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
-                l_net_pvt->node_info->ext_port =
-                    ( l_listening && dap_net_parse_config_address(*l_listening, NULL, &l_ext_port, NULL, NULL) > 0 && l_ext_port )
-                        ? l_ext_port
-                        : dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079); // TODO: default port?
-            }
-        } // otherwise, we're in seed list - seed config predominates server config thus disambiguating the settings
-        
-        if (l_net_pvt->node_info->ext_host_len) {
-            log_it(L_INFO, "Server is configured with external address %s : %u",
-               l_net_pvt->node_info->ext_host, l_net_pvt->node_info->ext_port);
         }
-    } else
-        log_it(L_INFO, "Server is disabled");
+#ifdef DAP_TRY_DEFAULT_PORT
+        log_it(L_INFO, "External address is not set, will be detected automatically");
+        if ( !l_net_pvt->node_info->ext_port ) {
+            const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
+            l_net_pvt->node_info->ext_port =
+                ( l_listening && dap_net_parse_config_address(*l_listening, NULL, &l_ext_port, NULL, NULL) > 0 && l_ext_port )
+                    ? l_ext_port
+                    : dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079);
+        }
+#endif
+        log_it(L_INFO, "Server is configured with external address %s : %u",
+            l_net_pvt->node_info->ext_host_len ? l_net_pvt->node_info->ext_host : "", l_net_pvt->node_info->ext_port);
+    }
 
     l_net_pvt->node_info->address.uint64 = g_node_addr.uint64;
 
@@ -2591,7 +2588,11 @@ static void s_sync_timer_callback(void *a_arg)
             l_net_pvt->sync_context.state = l_net_pvt->sync_context.last_state = SYNC_STATE_WAITING;
         } else {
             l_net_pvt->sync_context.cur_chain = l_net_pvt->sync_context.cur_chain->next;
-            log_it(L_DEBUG, "[%s:%d] Go to next chain %p", __FUNCTION__, __LINE__, l_net_pvt->sync_context.cur_chain);
+            if (l_net_pvt->sync_context.cur_chain)
+                log_it(L_DEBUG, "[%s:%d] Go to next chain \"%s\" for net %s", __FUNCTION__, __LINE__,
+                        l_net_pvt->sync_context.cur_chain->name, l_net_pvt->sync_context.cur_chain->net_name);
+            else 
+                log_it(L_DEBUG, "[%s:%d] Go to next chain: <NULL>",  __FUNCTION__, __LINE__);
             if (!l_net_pvt->sync_context.cur_chain) {
                 dap_chain_net_state_t l_prev_state = l_net_pvt->state;
                 if (l_net_pvt->sync_context.last_state == SYNC_STATE_SYNCED) {
@@ -2610,7 +2611,11 @@ static void s_sync_timer_callback(void *a_arg)
         if (l_net_pvt->sync_context.cur_chain->callback_load_from_gdb) {
             // This type of chain is GDB based and not synced by chains protocol
             l_net_pvt->sync_context.cur_chain = l_net_pvt->sync_context.cur_chain->next;
-            log_it(L_DEBUG, "[%s:%d] Go to next chain %p", __FUNCTION__, __LINE__, l_net_pvt->sync_context.cur_chain);
+            if (l_net_pvt->sync_context.cur_chain)
+                log_it(L_DEBUG, "[%s:%d] Go to next chain \"%s\" for net %s", __FUNCTION__, __LINE__,
+                        l_net_pvt->sync_context.cur_chain->name, l_net_pvt->sync_context.cur_chain->net_name);
+            else 
+                log_it(L_DEBUG, "[%s:%d] Go to next chain: <NULL>",  __FUNCTION__, __LINE__);
             l_net_pvt->sync_context.last_state = SYNC_STATE_SYNCED;
             return;
         }
@@ -3374,7 +3379,14 @@ uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num)
     return uint256_0;
 }
 
-void dap_chain_net_announce_addrs(dap_chain_net_t *a_net)
+
+void dap_chain_net_announce_addr_all()
+{
+    for (dap_chain_net_item_t *it = s_net_items; it; it = it->hh.next)
+        dap_chain_net_announce_addr(it->chain_net);
+}
+
+void dap_chain_net_announce_addr(dap_chain_net_t *a_net)
 {
     dap_return_if_fail(a_net);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);

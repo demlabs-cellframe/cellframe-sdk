@@ -97,7 +97,7 @@ static void s_threshold_free(dap_chain_cs_dag_t *a_dag);
 static dap_chain_cs_dag_event_item_t *s_dag_proc_treshold(dap_chain_cs_dag_t *a_dag);
 
 // Atomic element organization callbacks
-static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t *a_atom_hash);                      //    Accept new event in dag
+static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t *a_atom_hash, bool a_atom_new);                      //    Accept new event in dag
 static dap_chain_atom_ptr_t s_chain_callback_atom_add_from_treshold(dap_chain_t * a_chain, size_t *a_event_size_out);                    //    Accept new event in dag from treshold
 static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t *a_atom_hash);                   //    Verify new event in dag
 static size_t s_chain_callback_atom_get_static_hdr_size(void);                               //    Get dag event header size
@@ -452,7 +452,7 @@ static int s_sort_event_item(dap_chain_cs_dag_event_item_t* a, dap_chain_cs_dag_
  * @param a_atom_size
  * @return 0 if verified and added well, otherwise if not
  */
-static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash)
+static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash, bool a_atom_new)
 {
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
@@ -517,7 +517,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     case ATOM_ACCEPT: {
         dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_event->header.cell_id);
         if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
-            if ( dap_chain_atom_save(l_cell, a_atom, a_atom_size, &l_event_hash) < 0 ) {
+            if ( dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_event_hash : NULL) < 0 ) {
                 log_it(L_ERROR, "Can't save atom to file");
                 ret = ATOM_REJECT;
                 break;
@@ -700,7 +700,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     dap_hash_fast(l_event, l_event_size, &l_event_hash);
     bool l_res = false;
     if (l_dag->is_add_directly) {
-        dap_chain_atom_verify_res_t l_verify_res = s_chain_callback_atom_add(a_chain, l_event, l_event_size, &l_event_hash);
+        dap_chain_atom_verify_res_t l_verify_res = s_chain_callback_atom_add(a_chain, l_event, l_event_size, &l_event_hash, true);
         DAP_DELETE(l_event);
         if (l_verify_res != ATOM_ACCEPT) {
             log_it(L_ERROR, "Can't add new event to the file, atom verification result %d", l_verify_res);
@@ -945,7 +945,7 @@ dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
                     dap_chain_hash_fast_to_str_static(&l_event_item->hash));
             dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_dag->chain, l_event_item->event->header.cell_id);
             if ( !l_event_item->mapped_region ) {
-                if ( dap_chain_atom_save(l_cell, (const byte_t*)l_event_item->event, l_event_item->event_size, &l_event_item->hash) < 0 ) {
+                if ( dap_chain_atom_save(l_cell, (const byte_t*)l_event_item->event, l_event_item->event_size, NULL) < 0 ) {
                     log_it(L_CRITICAL, "Can't move atom from threshold to file");
                     res = false;
                     break;
@@ -1421,7 +1421,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     json_object_object_add(json_obj_round,"verification status", json_object_new_string(l_buf));
                     // If not verify only mode we add
                     if ( ! l_verify_only ){
-                        if (s_chain_callback_atom_add(l_chain, l_event, l_event_size, &l_event_hash)!= ATOM_ACCEPT) { // Add new atom in chain
+                        if (s_chain_callback_atom_add(l_chain, l_event, l_event_size, &l_event_hash, true)!= ATOM_ACCEPT) { // Add new atom in chain
                             snprintf(l_buf, 150, "Event %s not added in chain\n", l_objs[i].key);
                             json_object_object_add(json_obj_round,"status add", json_object_new_string(l_buf));
                         } else {
