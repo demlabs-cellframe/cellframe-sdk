@@ -15,7 +15,7 @@ dap_hash_fast_t dap_chain_block_test_add_new_block (dap_hash_fast_t *a_prev_bloc
     dap_chain_block_t * l_block = dap_chain_block_new(a_prev_block_hash, &l_block_size);
     dap_assert_PIF(l_block != NULL, "Creating of block:");
     dap_hash_fast(l_block, l_block_size, &l_block_hash);
-    dap_chain_atom_verify_res_t ret_val = a_chain->callback_atom_add(a_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash);
+    dap_chain_atom_verify_res_t ret_val = a_chain->callback_atom_add(a_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash, false);
     dap_assert_PIF( (ret_val == ATOM_ACCEPT || ret_val == ATOM_FORK), "Add block into chain: ");
 
     if (a_block)
@@ -35,9 +35,10 @@ bool dap_chain_block_test_compare_chain_hash_lists(dap_chain_t* a_chain, dap_lis
     dap_list_t *l_branch_temp = NULL;
     dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size_from_iter);
     for (dap_list_t *l_branch_temp = a_atoms_hash_list; l_branch_temp && l_atom; 
-        l_branch_temp = l_branch_temp->next, l_atom = a_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size_from_iter)){
-        dap_test_msg("Check block %s : num %d and %s", dap_chain_hash_fast_to_str_static(l_iter->cur_hash), l_iter->cur_num,
-                                            dap_chain_hash_fast_to_str_static((dap_hash_fast_t*)l_branch_temp->data));
+        l_branch_temp = l_branch_temp->next, l_atom = a_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size_from_iter)) {
+        char l_branch_hash_str[DAP_HASH_FAST_STR_SIZE];
+        dap_hash_fast_to_str((dap_hash_fast_t *)l_branch_temp->data, l_branch_hash_str, DAP_HASH_FAST_STR_SIZE);
+        dap_test_msg("Check block %s : num %" DAP_UINT64_FORMAT_U " and %s", dap_chain_hash_fast_to_str_static(l_iter->cur_hash), l_iter->cur_num, l_branch_hash_str);
         if (!dap_hash_fast_compare(l_iter->cur_hash, (dap_hash_fast_t*)l_branch_temp->data)){
             a_chain->callback_atom_iter_delete(l_iter);
             return false;
@@ -112,7 +113,7 @@ void dap_chain_blocks_test()
     l_block_hash_copy = DAP_DUP(&l_block_hash);
     l_first_branch_atoms_list = dap_list_append(l_first_branch_atoms_list, l_block_hash_copy);
 
-    dap_chain_atom_verify_res_t ret_val = l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block_double_main_branch, l_block_double_main_branch_size, &l_block_double_main_branch_hash);
+    dap_chain_atom_verify_res_t ret_val = l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block_double_main_branch, l_block_double_main_branch_size, &l_block_double_main_branch_hash, false);
     dap_assert_PIF(ret_val == ATOM_PASS, "Add existing block into middle of main chain. Must be passed: ");
     
     dap_assert_PIF(dap_chain_block_test_compare_chain_hash_lists(l_chain, l_first_branch_atoms_list), "Check chain after atoms adding to the main branch ");
@@ -133,7 +134,7 @@ void dap_chain_blocks_test()
 
     dap_assert_PIF(dap_chain_block_test_compare_chain_hash_lists(l_chain, l_first_branch_atoms_list), "Check branches is not switched: ");
 
-    ret_val = l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block_repeat_first_forked, l_block_repeat_first_forked_size, &l_block_repeat_first_forked_hash);
+    ret_val = l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block_repeat_first_forked, l_block_repeat_first_forked_size, &l_block_repeat_first_forked_hash, false);
     dap_assert_PIF(ret_val == ATOM_PASS, "Add existing first forked block into chain. Must be passed: ");
 
     dap_test_msg("Add third atom to the forked branch...");
@@ -182,7 +183,7 @@ void dap_chain_blocks_test()
     dap_assert_PIF(dap_chain_block_test_compare_chain_hash_lists(l_chain, l_third_branch_atoms_list), "Check branches is switched: ");
 
     
-    ret_val = l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block_repeat_middle_forked, l_block_repeat_middle_forked_size, &l_block_repeat_middle_forked_hash);
+    ret_val = l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block_repeat_middle_forked, l_block_repeat_middle_forked_size, &l_block_repeat_middle_forked_hash, false);
     dap_assert_PIF(ret_val == ATOM_PASS, "Add existing block into middle of forked chain. Must be passed: ");
 
     dap_pass_msg("Fork handling test: ")

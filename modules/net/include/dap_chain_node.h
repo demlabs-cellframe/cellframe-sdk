@@ -56,6 +56,7 @@ typedef struct dap_chain_node_info {
 // using to easy sorting and formin in balancer
 typedef struct dap_chain_node_states_info {
     dap_link_info_t link_info;
+    uint64_t events_count;
     uint64_t atoms_count;
     uint32_t downlinks_count;
     dap_nanotime_t timestamp;

@@ -28,24 +28,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_string.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv.h"
-typedef struct dap_chain_net_srv_order_old
-{
-    uint16_t version;
-    dap_chain_net_srv_uid_t srv_uid; // Service UID
-    byte_t padding; // some padding
-    dap_chain_net_srv_order_direction_t direction; // Order direction - SELL or PURCHASE
-    dap_chain_node_addr_t node_addr; // Node address that servs the order (if present)
-    dap_chain_hash_fast_t tx_cond_hash; // Hash index of conditioned transaction attached with order
-    dap_chain_net_srv_price_unit_uid_t price_unit; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
-    dap_time_t ts_created;
-    dap_time_t ts_expires;
-    uint64_t price; //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
-    char price_ticker[DAP_CHAIN_TICKER_SIZE_MAX]; // Token ticker to pay for service
-    //uint8_t continent;
-    //char region[32];
-    uint32_t ext_size;
-    uint8_t ext[];
-} DAP_ALIGN_PACKED dap_chain_net_srv_order_old_t;
 
 typedef struct dap_chain_net_srv_order
 {
@@ -73,11 +55,11 @@ typedef struct dap_chain_net_srv_order
 int dap_chain_net_srv_order_init();
 void dap_chain_net_srv_order_deinit(void);
 
-size_t dap_chain_net_srv_order_get_size(dap_chain_net_srv_order_t *a_order);
-dap_chain_net_srv_order_t *dap_chain_net_srv_order_read(byte_t *a_order, size_t a_order_size);
+uint64_t dap_chain_net_srv_order_get_size(const dap_chain_net_srv_order_t *a_order);
+const dap_chain_net_srv_order_t *dap_chain_net_srv_order_check(const char *a_order_hash_str, const byte_t *a_order, size_t a_order_size);
 
 bool dap_chain_net_srv_order_set_continent_region(dap_chain_net_srv_order_t **a_order, uint8_t a_continent_num, const char *a_region);
-bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_order, uint8_t *a_continent_num, char **a_region);
+bool dap_chain_net_srv_order_get_continent_region(const dap_chain_net_srv_order_t *a_order, uint8_t *a_continent_num, char **a_region);
 
 const char* dap_chain_net_srv_order_get_country_code(dap_chain_net_srv_order_t *a_order);
 size_t dap_chain_net_srv_order_continents_count(void);
@@ -106,8 +88,7 @@ int dap_chain_net_srv_order_find_all_by(
     dap_list_t** a_output_orders,
     size_t* a_output_orders_count);
 
-int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, const char *a_hash_str);
-
+int dap_chain_net_srv_order_delete_by_hash_str_sync( dap_chain_net_t *a_net, const char *a_hash_str);
 /**
  * @brief dap_chain_net_srv_order_delete_by_hash
  * @param a_net
@@ -158,7 +139,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
 
 char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_order, bool a_common);
 
-void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order, dap_string_t *a_str_out,
+void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_order, dap_string_t *a_str_out,
                                             const char *a_hash_out_type, const char *a_native_ticker);
 
 void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);

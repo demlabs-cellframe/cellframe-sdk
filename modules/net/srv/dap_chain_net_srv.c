@@ -52,7 +52,6 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
-#include "dap_chain_net_tx.h"
 #include "dap_stream_ch_chain_net_srv.h"
 #include "dap_chain_cs_blocks.h"
 #ifdef DAP_MODULES_DYNAMIC
@@ -78,9 +77,9 @@ static int s_cli_net_srv(int argc, char **argv, void **reply);
 static void s_load(const char * a_path);
 static void s_load_all();
 
-static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
+static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner);
-static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
+static int s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 static int s_str_to_price_unit(const char *a_price_unit_str, dap_chain_net_srv_price_unit_uid_t *a_price_unit);
 
@@ -94,18 +93,18 @@ int dap_chain_net_srv_init()
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL);
 
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
-        "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
+        "net_srv -net <net_name> order find [-direction {sell|buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
         " [-price_token <token_ticker>] [-price_min <price_minimum>] [-price_max <price_maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
-        "net_srv -net <net_name> order delete -hash <ip_addr>\n"
+        "net_srv -net <net_name> order delete -hash <order_hash>\n"
         "\tOrder delete\n"
-        "net_srv -net <net_name> order dump -hash <ip_addr>\n"
+        "net_srv -net <net_name> order dump -hash <order_hash>\n"
         "\tOrder dump info\n"
-        "net_srv -net <net_name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>\n"
-        " -price_unit <Price Unit> -price_token <token_ticker> -units <units> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
-        " [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
-        " [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
-        "net_srv get_limits -net <net_name> -srv_uid <Service_UID> -provider_pkey_hash <Service_provider_public_key_hash> -client_pkey_hash <Client_public_key_hash>\n"
+        "net_srv -net <net_name> order create -direction {sell|buy} -srv_uid <service_UID> -price <price>\n"
+        " -price_unit <price_unit> -price_token <token_ticker> -units <units> [-node_addr <node_address>] [-tx_cond <TX_cond_hash>]\n"
+        " [-expires <unix_time_when_expires>] [-cert <cert_name_to_sign_order>]\n"
+        " [{-ext <extension_with_params>|-region <region_name> -continent <continent_name>}]\n"
+        "net_srv get_limits -net <net_name> -srv_uid <service_UID> -provider_pkey_hash <service_provider_public_key_hash> -client_pkey_hash <client_public_key_hash>\n"
         "net_srv report\n"
         "\tGet report about srv usage"
         );
@@ -206,13 +205,13 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
     int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net,
                                                                CHAIN_TYPE_INVALID);
     if ( l_net ) {
-        //char * l_orders_group = dap_chain_net_srv_order_get_gdb_group( l_net );
-
         dap_string_t *l_string_ret = dap_string_new("");
+
         const char *l_order_str = NULL;
-        int l_order_arg_pos = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "order", &l_order_str);
+        dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "order", &l_order_str);
+
         const char *l_get_limits_str = NULL;
-        int l_get_limits_arg_pos = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "get_limits", &l_get_limits_str);
+        dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "get_limits", &l_get_limits_str);
 
         // Order direction
         const char *l_direction_str = NULL;
@@ -314,6 +313,17 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             l_order->continent = l_continent_num;*/
                         char *l_new_order_hash_str = dap_chain_net_srv_order_save(l_net, l_order, false);
                         if (l_new_order_hash_str) {
+                            const char *l_cert_str = NULL;
+                            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_cert_str);
+                            if (!l_cert_str) {
+                                dap_cli_server_cmd_set_reply_text(a_str_reply, "Fee order creation requires parameter -cert");
+                                return -7;
+                            }
+                            dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
+                            if (!l_cert) {
+                                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert %s", l_cert_str);
+                                return -8;
+                            }
                             // delete prev order
                             if(dap_strcmp(l_new_order_hash_str, l_order_hash_hex_str))
                                 dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
@@ -450,6 +460,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                     l_ret = -9 ;
                     dap_string_append(l_string_ret,"need -hash param to obtain what the order we need to dump\n");
                 }
+
             } else if(!dap_strcmp( l_order_str, "create" )) {
                 if (dap_chain_net_get_role(l_net).enums > NODE_ROLE_MASTER) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Node role should be not lower than master\n");
@@ -475,7 +486,6 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             log_it(L_DEBUG, "Created order to buy");
                         } else {
                             log_it(L_WARNING, "Undefined order direction");
-                            dap_string_free(l_string_ret, true);
                             dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong direction of the token was "
                                                                            "specified, possible directions: buy, sell.");
                             return -18;
@@ -486,11 +496,9 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         l_expires = (dap_time_t ) atoll( l_expires_str);
                     if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
-                        dap_string_free(l_string_ret, true);
                         return -21;
                     }else if (!l_srv_uid_str){
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter -srv_uid is required.");
-                        dap_string_free(l_string_ret, true);
                         return -22;
                     }
                     if (l_node_addr_str){
@@ -501,7 +509,6 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             dap_cli_server_cmd_set_reply_text(a_str_reply, "The order has not been created. "
                                                                            "Failed to convert string representation of '%s' "
                                                                            "to node address.", l_node_addr_str);
-                            dap_string_free(l_string_ret, true);
                             return -17;
                         }
                     } else {
@@ -530,42 +537,40 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         l_price_unit.enm = SERV_UNIT_PCS;
                     } else {
                         log_it(L_ERROR, "Undefined price unit");
-                        dap_string_free(l_string_ret, true);
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong unit type sepcified, possible values: B, KB, MB, SEC, DAY, PCS");
                         return -18;
                     } 
-
-
                     
                     strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                     size_t l_ext_len = l_ext? strlen(l_ext) + 1 : 0;
                     // get cert to order sign
                     dap_cert_t *l_cert = NULL;
                     dap_enc_key_t *l_key = NULL;
-                    if(l_order_cert_name) {
+                    if (l_order_cert_name) {
                         l_cert = dap_cert_find_by_name(l_order_cert_name);
-                        if(l_cert) {
+                        if (l_cert) {
                             l_key = l_cert->enc_key;
+                            if (!l_key->priv_key_data || !l_key->priv_key_data_size) {
+                                log_it(L_ERROR, "Certificate '%s' doesn't contain a private key", l_order_cert_name);
+                                dap_cli_server_cmd_set_reply_text(a_str_reply, "Certificate '%s' doesn't contain a private key", l_order_cert_name);
+                                return -25;
+                            }
                         } else {
                             log_it(L_ERROR, "Can't load cert '%s' for sign order", l_order_cert_name);
                             dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert '%s' for sign "
                                                                            "order", l_order_cert_name);
-                            dap_string_free(l_string_ret, true);
                             return -19;
                         }
                     } else {
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "The certificate name was not "
                                                                        "specified. Since version 5.2 it is not possible to "
                                                                        "create unsigned orders.");
-                        dap_string_free(l_string_ret, true);
                         return -20;
                     }
                 // create order
                     char * l_order_new_hash_str = dap_chain_net_srv_order_create(
-                                l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, &l_price, l_price_unit,
-                                l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_units, l_region_str, l_continent_num, l_key);
-                    if(l_cert)
-                        dap_cert_delete(l_cert);
+                        l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, &l_price, l_price_unit,
+                        l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_units, l_region_str, l_continent_num, l_key);
                     if (l_order_new_hash_str)
                         dap_string_append_printf( l_string_ret, "Created order %s\n", l_order_new_hash_str);
                     else {
@@ -573,15 +578,15 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         l_ret = -4;
                     }
                 } else {
-                    dap_string_append_printf( l_string_ret, "Missed some required params\n");
-                    l_ret=-5;
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Missed some required params\n");
+                    return -5;
                 }
             } else if (l_order_str) {
-                dap_string_append_printf(l_string_ret, "Unrecognized subcommand '%s'", l_order_str);
-                l_ret = -14;
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized subcommand '%s'", l_order_str);
+                return -14;
             }
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_ret->str);
-            dap_string_free(l_string_ret, true);
+
         } else if (l_get_limits_str){
             const char *l_provider_pkey_hash_str = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-provider_pkey_hash", &l_provider_pkey_hash_str);
@@ -614,7 +619,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
 
             dap_stream_ch_chain_net_srv_remain_service_store_t *l_remain_service = NULL;
             size_t l_remain_service_size = 0;
-            char *l_remain_limits_gdb_group =  dap_strdup_printf( "%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s",
+            char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s",
                                                                 l_net->pub.gdb_groups_prefix, l_srv_uid.uint64,
                                                                 l_provider_pkey_hash_str);
 
@@ -652,7 +657,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
  * @param a_owner
  * @return
  */
-static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t UNUSED_ARG *a_cond,
+static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t UNUSED_ARG *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner)
 {
     dap_chain_net_t *l_net = a_ledger->net;
@@ -661,11 +666,11 @@ static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (!l_chain->callback_block_find_by_tx_hash)
             continue;
-        dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
+        dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
         if (!l_tx_in_cond)
-            return false;
+            return -1;
         if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
-            return false;
+            return -2;
         size_t l_block_size = 0;
         dap_chain_block_t *l_block = (dap_chain_block_t *)l_chain->callback_block_find_by_tx_hash(
                                                     l_chain, &l_tx_in_cond->header.tx_prev_hash, &l_block_size);
@@ -673,14 +678,14 @@ static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_
             continue;
         dap_sign_t *l_sign_block = dap_chain_block_sign_get(l_block, l_block_size, 0);
         if (!l_sign_block)
-            return false;
+            return -3;
 
         // TX sign is already verified, just compare pkeys
-        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
         dap_sign_t *l_sign_tx = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
-        return dap_sign_compare_pkeys(l_sign_block, l_sign_tx);
+        return dap_sign_compare_pkeys(l_sign_block, l_sign_tx) ? 0 : -5;
     }
-    return false;
+    return -4;
 }
 
 /**
@@ -692,29 +697,30 @@ static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_
  * @param a_owner
  * @return
  */
-static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
+static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     if (a_owner)
-        return true;
+        return 0;
+    size_t l_receipt_size = 0;
     dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
-                                               dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
+                                               dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT, &l_receipt_size);
     if (!l_receipt){
         log_it(L_ERROR, "Can't find receipt.");
-        return false;
+        return -1;
     }
 
     // Check provider sign
-    dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 0);
+    dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt_size, 0);
 
     if (!l_sign){
         log_it(L_ERROR, "Can't get provider sign from receipt.");
-        return false;
+        return -2;
     }
 
     if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, sizeof(l_receipt->receipt_info))){
         log_it(L_ERROR, "Provider sign in receipt not passed verification.");
-        return false;
+        return -3;
     }
 
     // Checking the signature matches the provider's signature
@@ -722,11 +728,11 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
     dap_hash_fast_t l_provider_pkey_hash = {};
     if (!dap_sign_get_pkey_hash(l_sign, &l_provider_pkey_hash)){
         log_it(L_ERROR, "Can't get pkey hash from provider sign.");
-        return false;
+        return -4;
     }
 
-    int l_item_size = 0;
-    uint8_t* l_sig = dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_SIG, &l_item_size);
+    size_t l_item_size = 0;
+    uint8_t* l_sig = dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_SIG, &l_item_size);
     if(!l_sig){
         log_it(L_ERROR, "Can't get item with provider signature from tx");
         return false;
@@ -735,92 +741,93 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
     l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_sig);
     if (!l_sign){
         log_it(L_ERROR, "Provider sign from tx sig_item");
-        return false;
+        return -5;
     }
 
     if(!dap_sign_get_pkey_hash(l_sign, &l_tx_sign_pkey_hash)){
         log_it(L_ERROR, "Can't get pkey hash from tx provider signature");
-        return false;
+        return -6;
     }
 
     if(!dap_hash_fast_compare(&l_tx_sign_pkey_hash, &l_provider_pkey_hash)){
         log_it(L_ERROR, "Provider signature in receipt and tx is different.");
-        return false;
+        return -7;
     }
 
     // Check client sign
-    l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 1);
+    l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt_size, 1);
     if (!l_sign){
         log_it(L_ERROR, "Can't get client signature from receipt.");
-        return false;
+        return -8;
     }
     dap_hash_fast_t l_pkey_hash = {};
     if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)){
         log_it(L_ERROR, "Can't get pkey hash from receipt client signature");
-        return false;
+        return -9;
     }
 
     if(!dap_hash_fast_compare(&l_pkey_hash, &a_cond->subtype.srv_pay.pkey_hash)){
         log_it(L_ERROR, "Client signature in receipt is invalid!");
-        return false;
+        return -10;
     }
 
     // Check price is less than maximum
-    dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
+    dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger , &l_tx_in_cond->header.tx_prev_hash);
     dap_chain_tx_out_cond_t *l_prev_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
 
     uint256_t l_unit_price = {};
-    if (l_receipt->receipt_info.units != 0){
-        DIV_256(l_receipt->receipt_info.value_datoshi, GET_256_FROM_64(l_receipt->receipt_info.units), &l_unit_price);
-    } else {
-        return false;
+    if (!l_receipt->receipt_info.units) {
+        log_it(L_ERROR, "Receipt units can't be a zero");
+        return -11;
     }
+    DIV_256(l_receipt->receipt_info.value_datoshi, GET_256_FROM_64(l_receipt->receipt_info.units), &l_unit_price);
 
     if( !IS_ZERO_256(l_prev_out_cond->subtype.srv_pay.unit_price_max_datoshi) &&
         compare256(l_unit_price, l_prev_out_cond->subtype.srv_pay.unit_price_max_datoshi) > 0){
         log_it(L_ERROR, "Value in receipt is exceed max allowable price.");
-        return false;
+        return -12;
     }
 
     // check remainder on srv pay cond out is valid
     // find 'out' items
-    dap_list_t *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx_in, TX_ITEM_TYPE_OUT_ALL, NULL);
     uint256_t l_value = l_receipt->receipt_info.value_datoshi;
     uint256_t l_cond_out_value = {};
-    dap_chain_addr_t l_network_fee_addr = {};
+    dap_chain_addr_t l_network_fee_addr = {}, l_out_addr = {};
     dap_chain_net_tx_get_fee(a_ledger->net->pub.id, NULL, &l_network_fee_addr);
-    int l_item_idx = 0;
-    for (dap_list_t * l_list_tmp = l_list_out; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_item_idx++) {
-        dap_chain_tx_item_type_t l_type = *(uint8_t *)l_list_tmp->data;
-        switch (l_type) {
+    byte_t *l_item; size_t l_size; int i, l_item_idx = -1;
+    TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, a_tx_in) {
+        ++l_item_idx;
+        switch (*l_item) {
         case TX_ITEM_TYPE_OUT: { // 256
-            dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)l_list_tmp->data;
-            if (dap_chain_addr_compare(&l_tx_out->addr, &l_network_fee_addr)){
-                SUM_256_256(l_value, l_tx_out->header.value, &l_value);
+            dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t*)l_item;
+            l_out_addr = l_tx_out->addr;
+            if (dap_chain_addr_compare(&l_out_addr, &l_network_fee_addr) &&
+                    SUM_256_256(l_value, l_tx_out->header.value, &l_value)) {
+                log_it(L_WARNING, "Integer overflow while sum of outs calculation");
+                return -14;
             }
         } break;
         case TX_ITEM_TYPE_OUT_COND: {
-            dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t *)l_list_tmp->data;
-            if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE){
-                SUM_256_256(l_value, l_tx_out->header.value, &l_value);
+            dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t*)l_item;
+            if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
+                if (SUM_256_256(l_value, l_tx_out->header.value, &l_value)) {
+                    log_it(L_WARNING, "Integer overflow while sum of outs calculation");
+                    return -14;
+                }
             } else if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY){
                 l_cond_out_value = l_tx_out->header.value;
             }
         } break;
-        default: {}
+        default:
+            break;
         }
     }
-
-
-    SUBTRACT_256_256(l_prev_out_cond->header.value, l_value, &l_value);
-    if (compare256(l_value, l_cond_out_value)){
-        log_it(L_ERROR, "Value in tx out is invalid!");
-        dap_list_free(l_list_out);
-        return false;
+    if (SUBTRACT_256_256(l_prev_out_cond->header.value, l_value, &l_value)) {
+        log_it(L_WARNING, "Integer overflow while payback calculation");
+        return -14;
     }
-    dap_list_free(l_list_out);
-    return true;
+    return compare256(l_value, l_cond_out_value) ? log_it(L_ERROR, "Value in tx out is invalid!"), -13 : 0;
 }
 
 dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net_srv_t *a_srv, const char *a_config_section, dap_chain_hash_fast_t* a_order_hash){
@@ -854,18 +861,16 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
 
     dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash(l_net, a_order_hash);
     if (!l_order){
-        log_it(L_ERROR, "Memory allocation error");
+        log_it(L_ERROR, "Can't find order!");
         return NULL;
     }
 
     dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
     if (!l_price) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         DAP_DEL_Z(l_order);
         return NULL;
     }
-
-    uint64_t l_max_price_cfg = dap_config_get_item_uint64_default(g_config, a_config_section, "max_price", 0xFFFFFFFFFFFFFFF);
     if (l_order->node_addr.uint64 != g_node_addr.uint64 &&
         l_order->srv_uid.uint64 != a_srv->uid.uint64) {
         DAP_DELETE(l_price);
@@ -875,7 +880,6 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
 
     l_price->net = l_net;
     l_price->net_name = dap_strdup(l_net->pub.name);
-    uint256_t l_max_price = GET_256_FROM_64(l_max_price_cfg); // Change this value when max price wil be calculated
     if ((IS_ZERO_256(l_order->price) || l_order->units == 0 ) && !a_srv->allow_free_srv){
         log_it(L_ERROR, "Invalid order: units count or price unspecified");
         DAP_DELETE(l_price);
@@ -886,19 +890,6 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
     dap_stpcpy(l_price->token, l_order->price_ticker);
     l_price->units = l_order->units;
     l_price->units_uid = l_order->price_unit;
-    if (!IS_ZERO_256(l_max_price)){
-        uint256_t l_price_unit = uint256_0;
-        DIV_256(l_price->value_datoshi,  GET_256_FROM_64(l_order->units), &l_price_unit);
-        if (compare256(l_price_unit, l_max_price)>0){
-            char *l_price_unit_str = dap_chain_balance_print(l_price_unit), *l_max_price_str = dap_chain_balance_print(l_max_price);
-            log_it(L_ERROR, "Unit price exeeds max permitted value: %s > %s", l_price_unit_str, l_max_price_str);
-            DAP_DELETE(l_price_unit_str);
-            DAP_DELETE(l_max_price_str);
-            DAP_DELETE(l_price);
-            DAP_DEL_Z(l_order);
-            return NULL;
-        }
-    }
 
     l_price->wallet_addr = dap_chain_addr_from_str(l_wallet_addr);
     if(!l_price->wallet_addr){
@@ -980,7 +971,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
     if(!l_sdata) {
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         if (!l_srv) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             pthread_mutex_unlock(&s_srv_list_mutex);
             return NULL;
         }
@@ -990,7 +981,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         if (!l_sdata) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             DAP_DEL_Z(l_srv);
             pthread_mutex_unlock(&s_srv_list_mutex);
             return NULL;
@@ -1022,7 +1013,7 @@ void dap_chain_net_srv_del(dap_chain_net_srv_t *a_srv)
 // sanity check
     dap_return_if_pass(!a_srv);
 // func work
-    service_list_t *l_sdata;
+    service_list_t *l_sdata = NULL;
     // delete srv from hash table
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_FIND(hh, s_srv_list, a_srv, sizeof(dap_chain_net_srv_uid_t), l_sdata);
@@ -1215,7 +1206,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
 }
 
 /**
- * @brief dap_chain_net_srv_issue_receipt
+ * @brief s_str_to_price_unit
  * @param a_str_price_unit
  * @param a_price_unit
  * @return 0 if OK, other if error

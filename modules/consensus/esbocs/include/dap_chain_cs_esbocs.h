@@ -32,7 +32,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_STREAM_CH_ESBOCS_ID                     'E'
 
 #define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           8
-#define DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX          "esbocs"
+#define DAP_CHAIN_ESBOCS_CS_TYPE_STR                "esbocs"
+#define DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX          DAP_CHAIN_ESBOCS_CS_TYPE_STR
 #define DAP_CHAIN_CLUSTER_ID_ESBOCS                 0x8000
 
 #define DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT            0x04
@@ -193,6 +194,7 @@ typedef struct dap_chain_esbocs_session {
     bool round_fast_forward;
     unsigned int listen_ensure;
     bool sync_failed;
+    bool new_round_enqueued;
 
     dap_time_t ts_round_sync_start; // time of start sync
     dap_time_t ts_stage_entry; // time of current stage entrance
@@ -205,6 +207,7 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_esbocs_penalty_item_t *penalty;
     dap_global_db_cluster_t *db_cluster;
     dap_global_db_driver_hash_t db_hash;
+    bool is_actual_hash;
 
     struct dap_chain_esbocs_session *prev, *next;
 } dap_chain_esbocs_session_t;
@@ -218,6 +221,25 @@ typedef struct dap_chain_esbocs_block_collect{
     dap_chain_addr_t * collecting_addr;
     dap_chain_cell_id_t cell_id;
 }dap_chain_esbocs_block_collect_t;
+
+typedef enum s_com_esbocs_err{
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHAIN_TYPE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_CERT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_PVT_KEY_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_MINVALSET_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_FORMAT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_ADD_DEL_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_SUB_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNKNOWN /* MAX */
+} s_com_esbocs_err_t;
 
 #define DAP_CHAIN_ESBOCS(a) ((dap_chain_esbocs_t *)(a)->_inheritor)
 

@@ -31,9 +31,9 @@
 
 typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
 
-typedef void (*dap_chain_cs_dag_callback_t)(dap_chain_cs_dag_t *);
+typedef void (*dap_chain_cs_dag_callback_t)(dap_chain_cs_dag_t *a_dag);
 typedef void (*dap_chain_cs_dag_callback_rc_ptr_t)(dap_chain_cs_dag_t *, int a_rc, void * a_arg);
-typedef int (*dap_chain_cs_dag_callback_event_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_t *,size_t);
+typedef int (*dap_chain_cs_dag_callback_event_t)(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_t *a_event, dap_hash_fast_t *a_event_hash);
 
 typedef dap_chain_cs_dag_event_t * (*dap_chain_cs_dag_callback_event_create_t)(dap_chain_cs_dag_t *,
                                                                                dap_chain_datum_t *,
@@ -73,6 +73,25 @@ typedef struct dap_chain_cs_dag
     void * _pvt;
     void * _inheritor;
 } dap_chain_cs_dag_t;
+
+typedef enum s_com_dag_err{
+    DAP_CHAIN_NODE_CLI_COM_DAG_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_CHAIN_TYPE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_DATUM_DEL_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_EVENT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_SIGN_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_GLOBALDB_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_UNDEF_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_CERT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_FIND_EVENT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_UNDEF_SUB_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_DAG_UNKNOWN /* MAX */
+} s_com_dag_err_t;
 
 #define DAP_CHAIN_CS_DAG(a) ( (dap_chain_cs_dag_t *) (a)->_inheritor)
 

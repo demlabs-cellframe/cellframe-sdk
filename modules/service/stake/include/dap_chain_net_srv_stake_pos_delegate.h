@@ -45,7 +45,6 @@ typedef struct dap_chain_net_srv_stake_item {
     UT_hash_handle hh, ht;
 } dap_chain_net_srv_stake_item_t;
 
-
 typedef struct dap_chain_net_srv_stake_cache_data {
     dap_chain_hash_fast_t tx_hash;
     dap_chain_addr_t signing_addr;

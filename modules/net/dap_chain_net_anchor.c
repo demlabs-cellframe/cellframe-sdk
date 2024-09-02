@@ -40,42 +40,46 @@
 
 #define LOG_TAG "chain_net_anchor"
 
+typedef struct anchor_table{
+    dap_hash_fast_t anchor_hash;
+    dap_chain_datum_anchor_t *anchor;
+    UT_hash_handle hh;
+} anchor_table_t;  
+
 // private function prototypes
 static bool s_verify_pubkeys(dap_sign_t *a_sign, dap_sign_t **a_decree_signs, size_t a_num_of_decree_sign);
 static inline dap_sign_t *s_concate_all_signs_in_array(dap_sign_t *a_in_signs, size_t a_signs_size, size_t *a_sings_count, size_t *a_signs_arr_size);
 
+static bool s_debug_more = false;
+
+int dap_chain_net_anchor_init()
+{
+    s_debug_more = dap_config_get_item_bool_default(g_config, "chain_net", "debug_more", s_debug_more);
+    return 0;
+}
+
 static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_anchor, size_t a_data_size, bool a_load_mode)
 {
-    if (a_data_size < sizeof(dap_chain_datum_anchor_t)) {
-        log_it(L_WARNING, "Anchor size is too small");
-        return -120;
-    }
-    if (dap_chain_datum_anchor_get_size(a_anchor) != a_data_size) {
-        log_it(L_WARNING, "Anchor size is invalid");
-        return -121;
-    }
+    if (a_data_size < sizeof(dap_chain_datum_anchor_t))
+        return log_it(L_WARNING, "Anchor size is too small"), -120;
+
+    if (dap_chain_datum_anchor_get_size(a_anchor) != a_data_size)
+        return log_it(L_WARNING, "Anchor size is invalid, %lu != %lu", dap_chain_datum_anchor_get_size(a_anchor), a_data_size), -121;
+
     int ret_val = 0;
     size_t l_signs_size = a_anchor->header.signs_size;
     //multiple signs reading from datum
-    dap_sign_t *l_signs_block = (dap_sign_t *)((byte_t*)a_anchor->data_n_sign + a_anchor->header.data_size);
+    dap_sign_t *l_signs_block = (dap_sign_t*)(a_anchor->data_n_sign + a_anchor->header.data_size);
 
-    if (!l_signs_size || !l_signs_block) {
-        log_it(L_WARNING, "Anchor data sign not found");
-        return -100;
-    }
-
-    size_t l_signs_count = 0;
-    size_t l_signs_arr_size = 0;
-    dap_sign_t *l_signs_arr = s_concate_all_signs_in_array(l_signs_block, l_signs_size, &l_signs_count, &l_signs_arr_size);
+    if (!l_signs_size || !l_signs_block)
+        return log_it(L_WARNING, "Anchor data sign not found"), -100;
 
     // Find unique pkeys in pkeys set from previous step and check that number of signs > min
     size_t l_num_of_unique_signs = 0;
-    dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_arr, l_signs_arr_size, &l_num_of_unique_signs);
+    dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_block, l_signs_size, &l_num_of_unique_signs);
 
-    if (!l_num_of_unique_signs) {
-        log_it(L_WARNING, "Not enough unique signatures");
-        return -106;
-    }
+    if (!l_num_of_unique_signs || !l_unique_signs)
+        return log_it(L_WARNING, "No unique signatures!"), -106;
     bool l_sign_authorized = false;
     size_t l_signs_size_original = a_anchor->header.signs_size;
     a_anchor->header.signs_size = 0;
@@ -95,7 +99,6 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
         if (l_sign_authorized)
             break;
     }
-    DAP_DELETE(l_signs_arr);
     DAP_DELETE(l_unique_signs);
     a_anchor->header.signs_size = l_signs_size_original;
 
@@ -134,7 +137,7 @@ int dap_chain_net_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t
    return s_anchor_verify(a_net, a_anchor, a_data_size, false);
 }
 
-int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain)
+int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash)
 {
     int ret_val = 0;
 
@@ -165,90 +168,106 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
         return -109;
     }
 
-    if ((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain)) != 0)
-        log_it(L_WARNING, "Decree applying failed");
+    if ((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain)) != 0){
+        debug_if(s_debug_more, L_WARNING, "Decree applying failed");
+        return ret_val;
+    }
+        
+
+    anchor_table_t **l_anchors = dap_chain_net_get_anchors(l_net);
+    anchor_table_t *l_new_anchor = DAP_NEW_Z(anchor_table_t);
+    l_new_anchor->anchor_hash = *a_anchor_hash;
+    l_new_anchor->anchor = a_anchor;
+    HASH_ADD(hh, *l_anchors, anchor_hash, sizeof(l_new_anchor->anchor_hash), l_new_anchor);
 
     return ret_val;
 }
 
-dap_chain_datum_anchor_t * s_find_previous_anchor(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain)
+dap_chain_datum_anchor_t * s_find_previous_anchor(dap_hash_fast_t *a_old_anchor_hash, dap_chain_net_t *a_net)
 {
-    if (!a_anchor || !a_chain){
+    if (!a_old_anchor_hash || !a_net){
         log_it(L_ERROR,"Params are NULL");
         return NULL;
     }
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    
+    dap_chain_net_t *l_net = a_net;
     dap_chain_datum_anchor_t * l_ret_anchor = NULL;
+    dap_chain_datum_anchor_t *l_old_anchor = NULL;
+
+    anchor_table_t **l_anchors_ptr = dap_chain_net_get_anchors(l_net);
+    anchor_table_t *l_anchor = NULL;
+    HASH_FIND(hh, *l_anchors_ptr, a_old_anchor_hash, sizeof(*a_old_anchor_hash), l_anchor);
+    if (!l_old_anchor){
+        log_it(L_WARNING,"Can not find anchor");
+        return NULL;
+    }
+
+    l_old_anchor = l_anchor->anchor;
 
     dap_hash_fast_t l_old_decrere_hash = {};
-    if (dap_chain_datum_anchor_get_hash_from_data(a_anchor, &l_old_decrere_hash) != 0)
+    if (dap_chain_datum_anchor_get_hash_from_data(l_old_anchor, &l_old_decrere_hash) != 0)
         return NULL;
     dap_chain_datum_decree_t *l_old_decree = dap_chain_net_decree_get_by_hash(l_net, &l_old_decrere_hash, NULL);
     uint16_t l_old_decree_type = l_old_decree->header.type;
     uint16_t l_old_decree_subtype = l_old_decree->header.sub_type;
 
-    dap_chain_cell_t *l_cell = a_chain->cells;
-    size_t l_atom_size = 0;
-    dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, 0);
-    dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_LAST, &l_atom_size);
-    while(l_atom && l_atom_size){
+    anchor_table_t *l_anchors = HASH_LAST(*l_anchors_ptr);
+    for(; l_anchors; l_anchors = l_anchors->hh.prev){
         size_t l_datums_count = 0;
-        dap_chain_datum_t **l_datums = a_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
-        dap_chain_datum_t *l_datum, *l_datum2;
-        for(size_t l_datum_n = 0; l_datum_n < l_datums_count; l_datum_n++) {
-            if ( ! (l_datum = l_datums[l_datum_n]) )
-                continue;
 
-            if (l_datum->header.type_id != DAP_CHAIN_DATUM_ANCHOR || a_anchor == (dap_chain_datum_anchor_t *)l_datum->data)
-                continue;
+        dap_chain_datum_anchor_t *l_curr_anchor = l_anchors->anchor;
+        dap_hash_fast_t l_hash = {};
+        if (dap_chain_datum_anchor_get_hash_from_data(l_curr_anchor, &l_hash) != 0)
+            continue;
+        
+        bool l_is_applied = false;
+        dap_chain_datum_decree_t *l_decree = dap_chain_net_decree_get_by_hash(l_net, &l_hash, &l_is_applied);
+        if (!l_decree)
+            continue;
 
-            dap_chain_datum_anchor_t *l_curr_anchor = (dap_chain_datum_anchor_t *)l_datum->data;
-            dap_hash_fast_t l_hash = {};
-            if (dap_chain_datum_anchor_get_hash_from_data(l_curr_anchor, &l_hash) != 0)
-                continue;
+        if (l_decree->header.type == l_old_decree_type && l_old_decree_type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON && 
+            l_old_decree_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE &&
+            l_decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE){
             
-            bool l_is_applied = false;
-            dap_chain_datum_decree_t *l_decree = dap_chain_net_decree_get_by_hash(l_net, &l_hash, &l_is_applied);
-            if (!l_decree)
+            dap_chain_addr_t l_addr_old, l_addr_new = {};
+            if (dap_chain_datum_decree_get_stake_signing_addr(l_old_decree, &l_addr_old)){
                 continue;
+            }
 
-            if (l_decree->header.type == l_old_decree_type && l_old_decree_type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON && 
-                l_old_decree_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE &&
-                l_decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE){
-                
-                dap_chain_addr_t l_addr_old, l_addr_new = {};
-                if (dap_chain_datum_decree_get_stake_signing_addr(l_old_decree, &l_addr_old)){
-                    continue;
-                }
+            if (dap_chain_datum_decree_get_stake_signing_addr(l_decree, &l_addr_new)){
+                continue;
+            }
 
-                if (dap_chain_datum_decree_get_stake_signing_addr(l_decree, &l_addr_new)){
-                    continue;
-                }
-
-                if(dap_chain_addr_compare(&l_addr_old, &l_addr_new)){
-                    l_ret_anchor = l_curr_anchor;
-                    dap_chain_net_decree_reset_applied(l_net, &l_hash);
-                break;
-                }
-            } else if (l_decree->header.type == l_old_decree_type && l_decree->header.sub_type == l_old_decree_subtype){
-                // check addr if l_decree type is stake approve
+            if(dap_chain_addr_compare(&l_addr_old, &l_addr_new)){
                 l_ret_anchor = l_curr_anchor;
                 dap_chain_net_decree_reset_applied(l_net, &l_hash);
-                break;
+            break;
             }
+        } else if (l_decree->header.type == l_old_decree_type && l_decree->header.sub_type == l_old_decree_subtype){
+            // check addr if l_decree type is stake approve
+            l_ret_anchor = l_curr_anchor;
+            dap_chain_net_decree_reset_applied(l_net, &l_hash);
+            break;
         }
-        DAP_DEL_Z(l_datums);
         if (l_ret_anchor)
             break;
-        // go to previous atom
-        l_atom = a_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_PREV, &l_atom_size);
     }
-    a_chain->callback_atom_iter_delete(l_atom_iter);
 
     return l_ret_anchor;
 }
 
-int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain)
+void s_delete_anchor(dap_chain_net_t *a_net, dap_hash_fast_t *a_anchor_hash)
+{
+    anchor_table_t **l_anchors_ptr = dap_chain_net_get_anchors(a_net);
+    anchor_table_t *l_anchor = NULL;
+    HASH_FIND(hh, *l_anchors_ptr, a_anchor_hash, sizeof(*a_anchor_hash), l_anchor);
+    if(l_anchor){
+        HASH_DEL(*l_anchors_ptr, l_anchor);
+        DAP_DEL_Z(l_anchor);
+    }
+}
+
+int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash)
 {
     int ret_val = 0;
 
@@ -287,7 +306,8 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
         {
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:{
                 dap_chain_net_decree_reset_applied(l_net, &l_hash);
-                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor, a_chain);
+                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
+                s_delete_anchor(l_net, a_anchor_hash);
                 if (l_new_anchor){// if previous anchor is founded apply it
                     dap_chain_hash_fast_t l_hash = {0};
                     if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_new_anchor, &l_hash)) != 0){
@@ -317,12 +337,14 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                 }
                 dap_chain_net_srv_stake_key_invalidate(&l_signing_addr);
                 dap_chain_net_decree_reset_applied(l_net, &l_hash);
+                s_delete_anchor(l_net, a_anchor_hash);
             }
             break;
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:{
                 // Find previous anchor with this stake approve and apply it 
                 dap_chain_net_decree_reset_applied(l_net, &l_hash);
-                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor, a_chain);
+                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
+                s_delete_anchor(l_net, a_anchor_hash);
                 if (l_new_anchor){// if previous anchor is founded apply it
                     dap_chain_hash_fast_t l_hash = {0};
                     if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_new_anchor, &l_hash)) != 0){
@@ -338,7 +360,8 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
             break;
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:{
                 dap_chain_net_decree_reset_applied(l_net, &l_hash);
-                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor, a_chain);
+                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
+                s_delete_anchor(l_net, a_anchor_hash);
                 if (l_new_anchor){// if previous anchor is founded apply it
                     dap_chain_hash_fast_t l_hash = {0};
                     if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_new_anchor, &l_hash)) != 0){
@@ -357,7 +380,8 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
             break;
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:{
                 dap_chain_net_decree_reset_applied(l_net, &l_hash);
-                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor, a_chain);
+                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
+                s_delete_anchor(l_net, a_anchor_hash);
                 if (l_new_anchor){// if previous anchor is founded apply it
                     dap_chain_hash_fast_t l_hash = {0};
                     if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_new_anchor, &l_hash)) != 0){
@@ -378,6 +402,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                 // find previous anchor with rewarrd and apply it
                 dap_chain_net_decree_reset_applied(l_net, &l_hash);
                 dap_chain_net_remove_last_reward(dap_chain_net_by_id(a_chain->net_id));
+                s_delete_anchor(l_net, a_anchor_hash);
             }
             break;
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:

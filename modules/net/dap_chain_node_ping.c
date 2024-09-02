@@ -93,7 +93,7 @@ static void* node_ping_proc(void *a_arg)
 
     /*char *host4 = DAP_NEW_SIZE(char, INET_ADDRSTRLEN);
     if (!host4) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = l_addr };
@@ -166,7 +166,7 @@ int start_node_ping(pthread_t *a_thread, struct in_addr a_addr, int a_port, int 
 {
     uint8_t *l_data = DAP_NEW_Z_SIZE(uint8_t, sizeof(struct in_addr) + 2 * sizeof(int));
     if (!l_data) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
     memcpy(l_data, &a_count, sizeof(int));
@@ -280,7 +280,7 @@ static void* node_ping_background_proc(void *a_arg)
     dap_chain_node_addr_t *l_node_addr_tmp;
     l_node_addr_tmp = DAP_NEW(dap_chain_node_addr_t);
     if (!l_node_addr_tmp) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         dap_list_free_full(l_node_list0, NULL);
         DAP_DEL_Z(s_node_addr_ping);
         DAP_DELETE(a_arg);
@@ -293,7 +293,7 @@ static void* node_ping_background_proc(void *a_arg)
 
     l_node_addr_tmp = DAP_NEW(dap_chain_node_addr_t);
     if (!l_node_addr_tmp) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         dap_list_free_full(l_node_list0, NULL);
         DAP_DEL_Z(s_node_addr_ping);
         DAP_DELETE(a_arg);
@@ -323,7 +323,7 @@ int dap_chain_node_ping_background_start(dap_chain_net_t *a_net, dap_list_t *a_n
     while(l_node_list_tmp) {
         dap_chain_node_addr_t *l_addr = DAP_NEW(dap_chain_node_addr_t);
         if (!l_addr) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             dap_list_free_full(l_node_list, NULL);
             return -1;
         }
@@ -336,7 +336,7 @@ int dap_chain_node_ping_background_start(dap_chain_net_t *a_net, dap_list_t *a_n
 //    uint8_t *l_arg = DAP_NEW_SIZE(uint8_t, sizeof(dap_chain_net_t*) + sizeof(dap_list_t*));
 
     if (!l_arg) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         dap_list_free_full(l_node_list, NULL);
         return -1;
     }

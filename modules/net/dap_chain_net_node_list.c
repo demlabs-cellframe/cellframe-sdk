@@ -230,7 +230,7 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
         return a_node_list_request->response;
     }
     struct timespec l_cond_timeout;
-    clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);
+    clock_gettime(CLOCK_REALTIME, &l_cond_timeout);
     l_cond_timeout.tv_sec += a_timeout_ms/1000;
     while (!a_node_list_request->response) {
         int l_wait = pthread_cond_timedwait(&a_node_list_request->wait_cond, &a_node_list_request->wait_mutex, &l_cond_timeout);
@@ -259,7 +259,7 @@ int dap_chain_net_node_list_request(dap_chain_net_t *a_net, uint16_t a_port, boo
     
     struct node_link_request *l_link_node_request = s_node_list_request_init();
     if (!l_link_node_request) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -4;
     };
 

@@ -18,7 +18,7 @@ endif()
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
 
-    set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-esbocs cs-none srv-app srv-app-db srv-datum srv-stake srv-voting srv-bridge srv-xchange")
+    set(CELLFRAME_MODULES "core chains mining network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
@@ -116,19 +116,7 @@ if (CELLFRAME_MODULES MATCHES "cs-block-" OR CELLFRAME_MODULES MATCHES "cs-esboc
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_blocks)
 endif()
 
-# PoA consensus for blocks
-if (CELLFRAME_MODULES MATCHES "cs-block-poa")
-    message("[+] Module 'cs-block-poa'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_block_poa)
-endif()
-
-# PoS consensus for blocks
-if (CELLFRAME_MODULES MATCHES "cs-block-pos")
-    message("[+] Module 'cs-block-pos'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_block_pos)
-endif()
-
-# TON consensus for blocks
+# ESBOCS consensus for blocks
 if (CELLFRAME_MODULES MATCHES "cs-esbocs")
     message("[+] Module 'cs-esbocs'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_esbocs)

@@ -220,6 +220,97 @@ LOCAL char *bytes_to_hex(uint8_t *bytes, uint32_t size);
 
 #define FREE_AND_SET_NULL(p) { free((void *)(p)); (p) = NULL; }
 
+int MMDB_open_memory(const char *const mem, ssize_t size, MMDB_s *const mmdb)
+{
+    if (NULL == mem || size <= 0) {
+        return  MMDB_OUT_OF_MEMORY_ERROR;
+    }
+
+    int status = MMDB_SUCCESS;
+
+    mmdb->file_content = NULL;
+    mmdb->data_section = NULL;
+    mmdb->metadata.database_type = NULL;
+    mmdb->metadata.languages.count = 0;
+    mmdb->metadata.languages.names = NULL;
+    mmdb->metadata.description.count = 0;
+    mmdb->filename = NULL;
+    
+    mmdb->file_size = size;
+    mmdb->file_content = mem;
+
+    
+#ifdef _WIN32
+    WSADATA wsa;
+    WSAStartup(MAKEWORD(2, 2), &wsa);
+#endif
+
+    uint32_t metadata_size = 0;
+    const uint8_t *metadata = find_metadata(mmdb->file_content, mmdb->file_size,
+                                            &metadata_size);
+    if (NULL == metadata) {
+        status = MMDB_INVALID_METADATA_ERROR;
+        goto cleanup;
+    }
+
+    mmdb->metadata_section = metadata;
+    mmdb->metadata_section_size = metadata_size;
+
+    status = read_metadata(mmdb);
+    if (MMDB_SUCCESS != status) {
+        goto cleanup;
+    }
+
+    if (mmdb->metadata.binary_format_major_version != 2) {
+        status = MMDB_UNKNOWN_DATABASE_FORMAT_ERROR;
+        goto cleanup;
+    }
+
+    uint32_t search_tree_size = mmdb->metadata.node_count *
+                                mmdb->full_record_byte_size;
+
+    mmdb->data_section = mmdb->file_content + search_tree_size
+                         + MMDB_DATA_SECTION_SEPARATOR;
+    if (search_tree_size + MMDB_DATA_SECTION_SEPARATOR >
+        (uint32_t)mmdb->file_size) {
+        status = MMDB_INVALID_METADATA_ERROR;
+        goto cleanup;
+    }
+    mmdb->data_section_size = (uint32_t)mmdb->file_size - search_tree_size -
+                              MMDB_DATA_SECTION_SEPARATOR;
+
+    // Although it is likely not possible to construct a database with valid
+    // valid metadata, as parsed above, and a data_section_size less than 3,
+    // we do this check as later we assume it is at least three when doing
+    // bound checks.
+    if (mmdb->data_section_size < 3) {
+        status = MMDB_INVALID_DATA_ERROR;
+        goto cleanup;
+    }
+
+    mmdb->metadata_section = metadata;
+    mmdb->ipv4_start_node.node_value = 0;
+    mmdb->ipv4_start_node.netmask = 0;
+
+    // We do this immediately as otherwise there is a race to set
+    // ipv4_start_node.node_value and ipv4_start_node.netmask.
+    if (mmdb->metadata.ip_version == 6) {
+        status = find_ipv4_start_node(mmdb);
+        if (status != MMDB_SUCCESS) {
+            goto cleanup;
+        }
+    }
+
+ cleanup:
+    if (MMDB_SUCCESS != status) {
+        int saved_errno = errno;
+        free_mmdb_struct(mmdb);
+        errno = saved_errno;
+    }
+    return status;
+}
+
+
 int MMDB_open(const char *const filename, uint32_t flags, MMDB_s *const mmdb)
 {
     int status = MMDB_SUCCESS;

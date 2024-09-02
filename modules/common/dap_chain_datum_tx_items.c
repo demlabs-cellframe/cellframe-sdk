@@ -36,98 +36,6 @@
 
 #define LOG_TAG "dap_chain_datum_tx_items"
 
-static size_t dap_chain_tx_in_get_size(const dap_chain_tx_in_t *a_item)
-{
-    (void) a_item;
-    size_t size = sizeof(dap_chain_tx_in_t); // + item->header.sig_size;
-    return size;
-}
-
-static size_t dap_chain_tx_in_cond_get_size(const dap_chain_tx_in_cond_t *a_item)
-{
-    UNUSED(a_item);
-    size_t size = sizeof(dap_chain_tx_in_cond_t);
-    return size;
-}
-
-static size_t dap_chain_tx_out_old_get_size(const dap_chain_tx_out_old_t *a_item)
-{
-    (void) a_item;
-    size_t size = sizeof(dap_chain_tx_out_old_t);
-    return size;
-}
-
-// 256
-static size_t dap_chain_tx_out_get_size(const dap_chain_tx_out_t *a_item)
-{
-    (void) a_item;
-    size_t size = sizeof(dap_chain_tx_out_t);
-    return size;
-}
-
-// 256
-static size_t dap_chain_tx_out_ext_get_size(const dap_chain_tx_out_ext_t *a_item)
-{
-    (void) a_item;
-    size_t size = sizeof(dap_chain_tx_out_ext_t);
-    return size;
-}
-
-static size_t dap_chain_tx_out_cond_get_size(const dap_chain_tx_out_cond_t *a_item)
-{
-    size_t size = sizeof(dap_chain_tx_out_cond_t) + a_item->tsd_size;
-    return size;
-}
-
-static size_t dap_chain_tx_pkey_get_size(const dap_chain_tx_pkey_t *a_item)
-{
-    size_t size = sizeof(dap_chain_tx_pkey_t) + a_item->header.sig_size;
-    return size;
-}
-
-static size_t dap_chain_tx_sig_get_size(const dap_chain_tx_sig_t *a_item)
-{
-    size_t size = sizeof(dap_chain_tx_sig_t) + a_item->header.sig_size;
-    return size;
-}
-
-static size_t dap_chain_tx_in_ems_get_size(const dap_chain_tx_in_ems_t *a_item)
-{
-    (void) a_item;
-    size_t size = sizeof(dap_chain_tx_in_ems_t);
-    return size;
-}
-
-static size_t dap_chain_tx_in_reward_get_size(const dap_chain_tx_in_reward_t UNUSED_ARG *a_item)
-{
-    size_t size = sizeof(dap_chain_tx_in_reward_t);
-    return size;
-}
-
-static size_t dap_chain_datum_tx_receipt_get_size(const dap_chain_datum_tx_receipt_t *a_item)
-{
-    size_t size = a_item->size;
-    return size;
-}
-
-static size_t dap_chain_tx_tsd_get_size(const dap_chain_tx_tsd_t *a_item)
-{
-    return sizeof(dap_chain_tx_tsd_t) + a_item->header.size;
-}
-
-static size_t dap_chain_tx_voting_get_size(const dap_chain_tx_voting_t *a_item)
-{
-    (void) a_item;
-    size_t size = sizeof(dap_chain_tx_voting_t);
-    return size;
-}
-
-static size_t dap_chain_tx_vote_get_size(const dap_chain_tx_vote_t *a_item)
-{
-    (void) a_item;
-    size_t size = sizeof(dap_chain_tx_vote_t);
-    return size;
-}
 /**
  * Get item type by item name
  *
@@ -189,72 +97,44 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
 }
 
 /**
- * Get item type
- *
- * return type, or TX_ITEM_TYPE_ANY if error
- */
-dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const void *a_item)
-{
-    dap_chain_tx_item_type_t type = a_item ? *(dap_chain_tx_item_type_t *)a_item : TX_ITEM_TYPE_UNKNOWN;
-    return type;
-}
-
-/**
  * Get item size
  *
  * return size, 0 Error
  */
-size_t dap_chain_datum_item_tx_get_size(const void *a_item)
-{
-    dap_chain_tx_item_type_t type = dap_chain_datum_tx_item_get_type(a_item);
-    size_t size = 0;
-    switch (type) {
-    case TX_ITEM_TYPE_IN: // Transaction inputs
-        size = dap_chain_tx_in_get_size((const dap_chain_tx_in_t*) a_item);
-        break;
-    case TX_ITEM_TYPE_OUT_OLD: //64
-        size = dap_chain_tx_out_old_get_size((const dap_chain_tx_out_old_t*) a_item);
-        break;
-    case TX_ITEM_TYPE_OUT: // Transaction outputs
-        size = dap_chain_tx_out_get_size((const dap_chain_tx_out_t*) a_item);
-        break;
-    case TX_ITEM_TYPE_OUT_EXT: // Exchange transaction outputs
-        size = dap_chain_tx_out_ext_get_size((const dap_chain_tx_out_ext_t*) a_item);
-        break;
-    case TX_ITEM_TYPE_RECEIPT: // Receipt:
-        size = dap_chain_datum_tx_receipt_get_size((const dap_chain_datum_tx_receipt_t *)a_item);
-        break;
-    case TX_ITEM_TYPE_IN_COND: // Transaction inputs with condition
-        size = dap_chain_tx_in_cond_get_size((const dap_chain_tx_in_cond_t*) a_item);
-        break;
-    case TX_ITEM_TYPE_OUT_COND: // Condtional output
-        size = dap_chain_tx_out_cond_get_size((const dap_chain_tx_out_cond_t *)a_item);
-        break;
-    case TX_ITEM_TYPE_PKEY: // Transaction public keys
-        size = dap_chain_tx_pkey_get_size((const dap_chain_tx_pkey_t*) a_item);
-        break;
-    case TX_ITEM_TYPE_SIG: // Transaction signatures
-        size = dap_chain_tx_sig_get_size((const dap_chain_tx_sig_t*) a_item);
-        break;
-    case TX_ITEM_TYPE_IN_EMS: // token emission pointer
-        size = dap_chain_tx_in_ems_get_size((const dap_chain_tx_in_ems_t*) a_item);
-        break;
-    case TX_ITEM_TYPE_IN_REWARD: // block emission pointer
-        size = dap_chain_tx_in_reward_get_size((const dap_chain_tx_in_reward_t *)a_item);
-        break;
-    case TX_ITEM_TYPE_TSD:
-        size = dap_chain_tx_tsd_get_size((const dap_chain_tx_tsd_t*)a_item);
-        break;
-    case TX_ITEM_TYPE_VOTING:
-        size = dap_chain_tx_voting_get_size((const dap_chain_tx_voting_t*)a_item);
-        break;
-    case TX_ITEM_TYPE_VOTE:
-        size = dap_chain_tx_vote_get_size((const dap_chain_tx_vote_t*)a_item);
-        break;
-    default:
-        return 0;
+
+size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size) {
+    dap_return_val_if_fail(a_item, TX_ITEM_TYPE_UNKNOWN);
+    size_t l_ret = 0;
+#define m_tx_item_size(t) ( !a_max_size || sizeof(t) <= a_max_size ? sizeof(t) : 0 )
+#define m_tx_item_size_ext(t, size_field)                                                                                       \
+    ( !a_max_size ||                                                                                                            \
+    ( sizeof(t) < a_max_size && a_max_size > ((t*)a_item)->size_field && sizeof(t) <= a_max_size - ((t*)a_item)->size_field )   \
+        ? sizeof(t) + ((t*)a_item)->size_field : 0 );
+
+    switch (*a_item) {
+    case TX_ITEM_TYPE_IN:       return m_tx_item_size(dap_chain_tx_in_t);
+    case TX_ITEM_TYPE_OUT_OLD:  return m_tx_item_size(dap_chain_tx_out_old_t);
+    case TX_ITEM_TYPE_OUT:      return m_tx_item_size(dap_chain_tx_out_t);
+    case TX_ITEM_TYPE_OUT_EXT:  return m_tx_item_size(dap_chain_tx_out_ext_t);
+    case TX_ITEM_TYPE_IN_COND:  return m_tx_item_size(dap_chain_tx_in_cond_t);
+    case TX_ITEM_TYPE_IN_EMS:   return m_tx_item_size(dap_chain_tx_in_ems_t);
+    case TX_ITEM_TYPE_IN_REWARD:return m_tx_item_size(dap_chain_tx_in_reward_t);
+    case TX_ITEM_TYPE_VOTING:   return m_tx_item_size(dap_chain_tx_voting_t);
+    case TX_ITEM_TYPE_VOTE:     return m_tx_item_size(dap_chain_tx_vote_t);
+    // Access data size by struct field
+    case TX_ITEM_TYPE_TSD:           return m_tx_item_size_ext(dap_chain_tx_tsd_t, header.size);
+    case TX_ITEM_TYPE_OUT_COND: return m_tx_item_size_ext(dap_chain_tx_out_cond_t, tsd_size);
+    case TX_ITEM_TYPE_PKEY:         return m_tx_item_size_ext(dap_chain_tx_pkey_t, header.sig_size);
+    case TX_ITEM_TYPE_SIG:           return m_tx_item_size_ext(dap_chain_tx_sig_t, header.sig_size);
+    // Receipt size calculation is non-trivial...
+    case TX_ITEM_TYPE_RECEIPT: {
+        typedef dap_chain_datum_tx_receipt_t t;
+        return !a_max_size || ( sizeof(t) < a_max_size && ((t*)a_item)->size < a_max_size ) ? ((t*)a_item)->size : 0;
     }
-    return size;
+    default: return 0;
+    }
+#undef m_tx_item_size
+#undef m_tx_item_size_ext
 }
 
 /**
@@ -542,7 +422,7 @@ dap_chain_tx_sig_t* dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
  */
 dap_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig)
 {
-    return a_tx_sig && a_tx_sig->header.sig_size ? (dap_sign_t*)a_tx_sig->sig : NULL;
+    return a_tx_sig && a_tx_sig->header.sig_size > sizeof(dap_sign_t) ? (dap_sign_t*)a_tx_sig->sig : NULL;
 }
 
 /**
@@ -571,41 +451,49 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
  * return item data, NULL Error index or bad format transaction
  */
 uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_idx,
-        dap_chain_tx_item_type_t a_type, int *a_item_out_size)
+        byte_t *a_iter, dap_chain_tx_item_type_t a_type, size_t *a_item_out_size)
 {
-    if(!a_tx)
+    if (!a_tx)
         return NULL;
-    uint32_t l_tx_items_pos = 0, l_tx_items_size = a_tx->header.tx_items_size;
-    int l_item_idx = 0;
-    while (l_tx_items_pos < l_tx_items_size) {
-        uint8_t *l_item = a_tx->tx_items + l_tx_items_pos;
-        int l_item_size = dap_chain_datum_item_tx_get_size(l_item);
-        if(!l_item_size)
-            return NULL;
-        // check index
-        if(!a_item_idx || l_item_idx >= *a_item_idx) {
-            // check type
-            dap_chain_tx_item_type_t l_type = dap_chain_datum_tx_item_get_type(l_item);
-            if (a_type == TX_ITEM_TYPE_ANY || a_type == l_type ||
-                    (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT) ||
-                    (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_OLD) ||
-                    (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_COND) ||
-                    (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_EXT) ||
-                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN) ||
-                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_COND) ||
-                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_EMS) ||
-                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_REWARD)) {
-                if(a_item_idx)
-                    *a_item_idx = l_item_idx;
-                if(a_item_out_size)
-                    *a_item_out_size = l_item_size;
-                return l_item;
-            }
+    int i = a_item_idx ? *a_item_idx : 0, j = -1;
+    byte_t  *l_end = a_tx->tx_items + a_tx->header.tx_items_size,
+            *l_begin = i || !a_iter || a_iter < a_tx->tx_items || a_iter > l_end ? a_tx->tx_items : a_iter;
+    size_t l_left_size = (size_t)(l_end - l_begin), l_tx_item_size;
+    byte_t *l_item;
+#define m_item_idx_n_size(item, idx, size) ({       \
+    if (a_item_idx) *a_item_idx = idx;              \
+    if (a_item_out_size) *a_item_out_size = size;   \
+    item;                                           \
+})
+    TX_ITEM_ITER(l_item, l_tx_item_size, l_begin, l_left_size) {
+        if (++j < i)
+            continue;
+        switch (a_type) {
+        case TX_ITEM_TYPE_ANY:
+            break;
+        case TX_ITEM_TYPE_OUT_ALL:
+            switch (*l_item) {
+            case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_OLD: case TX_ITEM_TYPE_OUT_COND: case TX_ITEM_TYPE_OUT_EXT:
+                break;
+            default:
+                continue;
+            } break;
+        case TX_ITEM_TYPE_IN_ALL:
+            switch (*l_item) {
+            case TX_ITEM_TYPE_IN: case TX_ITEM_TYPE_IN_COND: case TX_ITEM_TYPE_IN_EMS: case TX_ITEM_TYPE_IN_REWARD:
+                break;
+            default:
+                continue; 
+            } break;
+        default:
+            if (*l_item == a_type)
+                break;
+            else continue;
         }
-        l_tx_items_pos += l_item_size;
-        l_item_idx++;
+        return m_item_idx_n_size(l_item, j, l_tx_item_size);
     }
-    return NULL;
+    return m_item_idx_n_size(NULL, -1, 0);
+#undef m_item_idx_n_size
 }
 
 /**
@@ -619,33 +507,23 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
 dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count)
 {
     dap_list_t *items_list = NULL;
-    int l_items_count = 0, l_item_idx_start = 0;
-    uint8_t *l_tx_item;
-
-    // Get a_type items from transaction
-    while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL)) != NULL)
-    {
+    uint8_t *l_tx_item = NULL;
+    size_t l_size; int i, q = 0;
+    TX_ITEM_ITER_TX_TYPE(l_tx_item, a_type, l_size, i, a_tx) {
         items_list = dap_list_append(items_list, l_tx_item);
-        ++l_items_count;
-        ++l_item_idx_start;
+        ++q;
     }
-
-    if(a_item_count)
-        *a_item_count = l_items_count;
-
-    return items_list;
+    return (a_item_count ? (*a_item_count = q) : 0), items_list;
 }
 
 uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int a_item_idx)
 {
-    uint8_t *l_tx_item = NULL;
-    int l_item_idx = 0;
-    for (int l_type_idx = 0; l_type_idx <= a_item_idx; ++l_type_idx, ++l_item_idx) {
-        l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, a_type, NULL);
-        if (!l_tx_item)
-            break;
+    uint8_t *l_tx_item = NULL; size_t l_size; int i;
+    TX_ITEM_ITER_TX_TYPE(l_tx_item, a_type, l_size, i, a_tx) {
+        if (!a_item_idx--)
+            return l_tx_item;
     }
-    return l_tx_item;
+    return NULL; 
 }
 
 /**
@@ -656,193 +534,149 @@ uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_t
  * a_out_num[out] found index of item in transaction, -1 if not found
  * return tx_out_cond, or NULL
  */
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_cond_type, int *a_out_num)
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_subtype_t a_cond_subtype, int *a_out_num)
 {
-    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, NULL), *l_item;
-    int l_prev_cond_idx = 0;
-    dap_chain_tx_out_cond_t *l_res = NULL;
-    for (dap_list_t *l_item = l_list_out_items; l_item; l_item = l_item->next, ++l_prev_cond_idx) {
-        // Start from *a_out_num + 1 item if a_out_num != NULL
-        if (a_out_num && l_prev_cond_idx < *a_out_num)
-            continue;
-        if (*(byte_t*)l_item->data == TX_ITEM_TYPE_OUT_COND &&
-                ((dap_chain_tx_out_cond_t*)l_item->data)->header.subtype == a_cond_type) {
-            l_res = l_item->data;
+    int l_idx = a_out_num && *a_out_num > 0 ? -*a_out_num : 0;
+    byte_t *l_item; size_t l_tx_item_size;
+    TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
+        switch (*l_item) {
+        case TX_ITEM_TYPE_OUT_COND:
+            if ( l_idx >= 0 && ((dap_chain_tx_out_cond_t*)l_item)->header.subtype == a_cond_subtype )
+                return (a_out_num ? (*a_out_num = l_idx) : 0), (dap_chain_tx_out_cond_t*)l_item;
+        case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_OLD: case TX_ITEM_TYPE_OUT_EXT:
+            ++l_idx;
+        default:
             break;
         }
     }
-    dap_list_free(l_list_out_items);
-    if (a_out_num) {
-        *a_out_num = l_res ? l_prev_cond_idx : -1;
-    }
-    return l_res;
-}
-
-uint8_t *dap_chain_datum_tx_out_get_by_out_idx(dap_chain_datum_tx_t *a_tx, int a_out_num)
-{
-    uint8_t *l_ret = NULL;
-    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, NULL), *l_item;
-    if (!l_list_out_items)
-        return NULL;
-
-    l_item = dap_list_nth(l_list_out_items, a_out_num);
-
-    if(!l_item){
-        dap_list_free(l_list_out_items);
-        return NULL;
-    }
-
-    l_ret = l_item->data;
-    dap_list_free(l_list_out_items);
-    return l_ret;
-
+    return (a_out_num ? (*a_out_num = -1) : 0), NULL;
 }
 
 void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_items_groups)
 {   
-    if (a_items_groups->items_in) dap_list_free(a_items_groups->items_in);
-    if (a_items_groups->items_in_cond) dap_list_free(a_items_groups->items_in_cond);
-    if (a_items_groups->items_in_reward) dap_list_free(a_items_groups->items_in_reward);
-    if (a_items_groups->items_sig) dap_list_free(a_items_groups->items_sig);
-    if (a_items_groups->items_out) dap_list_free(a_items_groups->items_out);
-    if (a_items_groups->items_out_ext) dap_list_free(a_items_groups->items_out_ext);
-    if (a_items_groups->items_out_cond) dap_list_free(a_items_groups->items_out_cond);
-    if (a_items_groups->items_out_cond_srv_fee) dap_list_free(a_items_groups->items_out_cond_srv_fee);
-    if (a_items_groups->items_out_cond_srv_pay) dap_list_free(a_items_groups->items_out_cond_srv_pay);
-    if (a_items_groups->items_out_cond_srv_xchange) dap_list_free(a_items_groups->items_out_cond_srv_xchange);
-    if (a_items_groups->items_out_cond_srv_stake_pos_delegate) dap_list_free(a_items_groups->items_out_cond_srv_stake_pos_delegate);
-    if (a_items_groups->items_out_cond_srv_stake_lock) dap_list_free(a_items_groups->items_out_cond_srv_stake_lock);
-    if (a_items_groups->items_in_ems) dap_list_free(a_items_groups->items_in_ems);
-    if (a_items_groups->items_vote) dap_list_free(a_items_groups->items_vote);
-    if (a_items_groups->items_voting) dap_list_free(a_items_groups->items_voting);
-    if (a_items_groups->items_tsd) dap_list_free(a_items_groups->items_tsd);
-    if (a_items_groups->items_pkey) dap_list_free(a_items_groups->items_pkey);
-    if (a_items_groups->items_receipt) dap_list_free(a_items_groups->items_receipt);
-    if (a_items_groups->items_unknown) dap_list_free(a_items_groups->items_unknown);
-    if (a_items_groups->items_out_old) dap_list_free(a_items_groups->items_out_old);
-    if (a_items_groups->items_out_cond_unknonwn) dap_list_free(a_items_groups->items_out_cond_unknonwn);
-    if (a_items_groups->items_out_cond_undefined) dap_list_free(a_items_groups->items_out_cond_undefined);
-    if (a_items_groups->items_out_all) dap_list_free(a_items_groups->items_out_all);
-    if (a_items_groups->items_in_all) dap_list_free(a_items_groups->items_in_all);
+    dap_list_free(a_items_groups->items_in);
+    dap_list_free(a_items_groups->items_in_cond);
+    dap_list_free(a_items_groups->items_in_reward);
+    dap_list_free(a_items_groups->items_sig);
+    dap_list_free(a_items_groups->items_out);
+    dap_list_free(a_items_groups->items_out_ext);
+    dap_list_free(a_items_groups->items_out_cond);
+    dap_list_free(a_items_groups->items_out_cond_srv_fee);
+    dap_list_free(a_items_groups->items_out_cond_srv_pay);
+    dap_list_free(a_items_groups->items_out_cond_srv_xchange);
+    dap_list_free(a_items_groups->items_out_cond_srv_stake_pos_delegate);
+    dap_list_free(a_items_groups->items_out_cond_srv_stake_lock);
+    dap_list_free(a_items_groups->items_in_ems);
+    dap_list_free(a_items_groups->items_vote);
+    dap_list_free(a_items_groups->items_voting);
+    dap_list_free(a_items_groups->items_tsd);
+    dap_list_free(a_items_groups->items_pkey);
+    dap_list_free(a_items_groups->items_receipt);
+    dap_list_free(a_items_groups->items_unknown);
+    dap_list_free(a_items_groups->items_out_old);
+    dap_list_free(a_items_groups->items_out_cond_unknonwn);
+    dap_list_free(a_items_groups->items_out_cond_undefined);
+    dap_list_free(a_items_groups->items_out_all);
+    dap_list_free(a_items_groups->items_in_all);
 }
 
 #define DAP_LIST_SAPPEND(X, Y) X = dap_list_append(X,Y)
 bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_res_group)
 {   
-    
     if(!a_tx || !a_res_group)
         return NULL;
     
-    uint32_t l_tx_items_pos = 0, l_tx_items_size = a_tx->header.tx_items_size;
+    byte_t *l_item; size_t l_tx_item_size;
+    TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
+        switch (*l_item) {
+        case TX_ITEM_TYPE_IN:
+            DAP_LIST_SAPPEND(a_res_group->items_in, l_item);
+            DAP_LIST_SAPPEND(a_res_group->items_in_all, l_item);
+            break;
 
-    int l_item_idx = 0;
+        case TX_ITEM_TYPE_IN_COND:
+            DAP_LIST_SAPPEND(a_res_group->items_in_cond, l_item);
+            DAP_LIST_SAPPEND(a_res_group->items_in_all, l_item);
+            break;
 
-    while (l_tx_items_pos < l_tx_items_size) {
+        case TX_ITEM_TYPE_IN_REWARD:
+            DAP_LIST_SAPPEND(a_res_group->items_in_reward, l_item);
+            DAP_LIST_SAPPEND(a_res_group->items_in_all, l_item);
+            break;
 
-        uint8_t *l_item = a_tx->tx_items + l_tx_items_pos;
-        int l_item_size = dap_chain_datum_item_tx_get_size(l_item);
-        
-        if(!l_item_size)
-            return false;
-        
-        dap_chain_tx_item_type_t l_type = dap_chain_datum_tx_item_get_type(l_item);
-        
-        switch (l_type)
-        {
-            case TX_ITEM_TYPE_IN:
-                DAP_LIST_SAPPEND(a_res_group->items_in, l_item);
-                DAP_LIST_SAPPEND(a_res_group->items_in_all, l_item);
+        case TX_ITEM_TYPE_IN_EMS:
+            DAP_LIST_SAPPEND(a_res_group->items_in_ems, l_item);
+            DAP_LIST_SAPPEND(a_res_group->items_in_all, l_item);
+            break;
+
+        case TX_ITEM_TYPE_OUT_OLD:
+            DAP_LIST_SAPPEND(a_res_group->items_out_old, l_item);
+            DAP_LIST_SAPPEND(a_res_group->items_out_all, l_item);
+            break;
+
+        case TX_ITEM_TYPE_OUT_EXT:
+            DAP_LIST_SAPPEND(a_res_group->items_out_ext, l_item);
+            DAP_LIST_SAPPEND(a_res_group->items_out_all, l_item);
+            break;
+
+        case TX_ITEM_TYPE_OUT:
+            DAP_LIST_SAPPEND(a_res_group->items_out, l_item);
+            DAP_LIST_SAPPEND(a_res_group->items_out_all, l_item);
+            break;
+
+        case TX_ITEM_TYPE_OUT_COND: {
+            switch ( ((dap_chain_tx_out_cond_t *)l_item)->header.subtype ) {
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED:
+                DAP_LIST_SAPPEND(a_res_group->items_out_cond_undefined, l_item);
                 break;
-
-            case TX_ITEM_TYPE_IN_COND:
-                DAP_LIST_SAPPEND(a_res_group->items_in_cond, l_item);
-                DAP_LIST_SAPPEND(a_res_group->items_in_all, l_item);
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:
+                DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_pay, l_item);
                 break;
-
-            case TX_ITEM_TYPE_IN_REWARD:
-                DAP_LIST_SAPPEND(a_res_group->items_in_reward, l_item);
-                DAP_LIST_SAPPEND(a_res_group->items_in_all, l_item);
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
+                DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_xchange, l_item);
                 break;
-
-            case TX_ITEM_TYPE_IN_EMS:
-                DAP_LIST_SAPPEND(a_res_group->items_in_ems, l_item);
-                DAP_LIST_SAPPEND(a_res_group->items_in_all, l_item);
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE:
+                DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_stake_pos_delegate, l_item);
                 break;
-
-            case TX_ITEM_TYPE_OUT_OLD:
-                DAP_LIST_SAPPEND(a_res_group->items_out_old, l_item);
-                DAP_LIST_SAPPEND(a_res_group->items_out_all, l_item);
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE:
+                DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_fee, l_item);
                 break;
-
-            case TX_ITEM_TYPE_OUT_EXT:
-                DAP_LIST_SAPPEND(a_res_group->items_out_ext, l_item);
-                DAP_LIST_SAPPEND(a_res_group->items_out_all, l_item);
-                break;
-
-            case TX_ITEM_TYPE_OUT:
-                DAP_LIST_SAPPEND(a_res_group->items_out, l_item);
-                DAP_LIST_SAPPEND(a_res_group->items_out_all, l_item);
-                break;
-
-            case TX_ITEM_TYPE_OUT_COND: {
-                switch ( ((dap_chain_tx_out_cond_t *)l_item)->header.subtype )
-                {
-                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED:
-                        DAP_LIST_SAPPEND(a_res_group->items_out_cond_undefined, l_item);
-                        break;
-                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:
-                        DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_pay, l_item);
-                        break;
-                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
-                        DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_xchange, l_item);
-                        break;
-                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE:
-                        DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_stake_pos_delegate, l_item);
-                        break;
-                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE:
-                        DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_fee, l_item);
-                        break;
-                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK:
-                        DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_stake_lock, l_item);
-                        break;
-                    default:
-                        DAP_LIST_SAPPEND(a_res_group->items_out_cond_unknonwn, l_item);
-                        break;
-                }
-
-                DAP_LIST_SAPPEND(a_res_group->items_out_cond, l_item);
-                DAP_LIST_SAPPEND(a_res_group->items_out_all, l_item);
-                }
-                break;
-
-            case TX_ITEM_TYPE_PKEY:
-                DAP_LIST_SAPPEND(a_res_group->items_pkey, l_item);
-                break;
-            case TX_ITEM_TYPE_SIG:
-                DAP_LIST_SAPPEND(a_res_group->items_sig, l_item);
-                break;
-            case TX_ITEM_TYPE_RECEIPT:
-                DAP_LIST_SAPPEND(a_res_group->items_receipt, l_item);
-                break;
-            case TX_ITEM_TYPE_TSD:
-                DAP_LIST_SAPPEND(a_res_group->items_tsd, l_item);
-                break;
-
-            case TX_ITEM_TYPE_VOTING:
-                DAP_LIST_SAPPEND(a_res_group->items_voting, l_item);
-                break;
-
-            case TX_ITEM_TYPE_VOTE:
-                DAP_LIST_SAPPEND(a_res_group->items_vote, l_item);
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK:
+                DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_stake_lock, l_item);
                 break;
             default:
-                DAP_LIST_SAPPEND(a_res_group->items_unknown, l_item);
+                DAP_LIST_SAPPEND(a_res_group->items_out_cond_unknonwn, l_item);
+                break;
+            }
+            DAP_LIST_SAPPEND(a_res_group->items_out_cond, l_item);
+            DAP_LIST_SAPPEND(a_res_group->items_out_all, l_item);
+            }
+            break;
+
+        case TX_ITEM_TYPE_PKEY:
+            DAP_LIST_SAPPEND(a_res_group->items_pkey, l_item);
+            break;
+        case TX_ITEM_TYPE_SIG:
+            DAP_LIST_SAPPEND(a_res_group->items_sig, l_item);
+            break;
+        case TX_ITEM_TYPE_RECEIPT:
+            DAP_LIST_SAPPEND(a_res_group->items_receipt, l_item);
+            break;
+        case TX_ITEM_TYPE_TSD:
+            DAP_LIST_SAPPEND(a_res_group->items_tsd, l_item);
+            break;
+
+        case TX_ITEM_TYPE_VOTING:
+            DAP_LIST_SAPPEND(a_res_group->items_voting, l_item);
+            break;
+
+        case TX_ITEM_TYPE_VOTE:
+            DAP_LIST_SAPPEND(a_res_group->items_vote, l_item);
+            break;
+        default:
+            DAP_LIST_SAPPEND(a_res_group->items_unknown, l_item);
         }
-        
-        l_tx_items_pos += l_item_size;
-        l_item_idx++;
     }
-    
     return true;
 
 }

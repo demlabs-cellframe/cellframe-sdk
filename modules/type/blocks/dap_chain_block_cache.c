@@ -61,12 +61,12 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash
 
     dap_chain_block_cache_t * l_block_cache = DAP_NEW_Z(dap_chain_block_cache_t);
     if (!l_block_cache) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     l_block_cache->block = a_copy_block ? DAP_DUP_SIZE(a_block, a_block_size) : a_block;
     if (!l_block_cache->block) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         DAP_DEL_Z(l_block_cache);
         return NULL;
     }
@@ -93,7 +93,7 @@ dap_chain_block_cache_t * dap_chain_block_cache_dup(dap_chain_block_cache_t * a_
 {
     dap_chain_block_cache_t *l_ret = DAP_DUP(a_block);
     if (!l_ret) {
-        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
     l_ret->hh = (UT_hash_handle){ }; // Drop hash handle to prevent its usage
@@ -113,7 +113,8 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
         a_block_cache->block_hash = *a_block_hash;
     else
         dap_hash_fast(a_block_cache->block, a_block_cache->block_size, &a_block_cache->block_hash);
-    a_block_cache->block_hash_str = dap_hash_fast_to_str_new(&a_block_cache->block_hash);
+
+    dap_hash_fast_to_str(&a_block_cache->block_hash, a_block_cache->block_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
 
     if (dap_chain_block_meta_extract(a_block_cache->block, a_block_cache->block_size,
                                         &a_block_cache->prev_hash,
@@ -147,7 +148,6 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
  */
 void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache)
 {
-    DAP_DEL_Z(a_block_cache->block_hash_str);
     DAP_DEL_Z(a_block_cache->datum);
     DAP_DEL_Z(a_block_cache->datum_hash);
     DAP_DEL_Z(a_block_cache->links_hash);
@@ -181,7 +181,7 @@ dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
         if (!dap_ledger_tx_hash_is_used_out_item (a_ledger, l_tx_hash, l_out_idx_tmp, NULL)) {
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             if (!l_item) {
-                log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 if (l_list_used_out)
                     dap_list_free_full(l_list_used_out, NULL);
                 return NULL;

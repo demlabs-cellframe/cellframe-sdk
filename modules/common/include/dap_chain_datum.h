@@ -46,9 +46,9 @@
 #define DAP_CHAIN_DATUM_TX_REQUEST          0x0300
 
 /// Smart contract: DVM code section
-#define DAP_CHAIN_DATUM_WASM_CODE            0x0900
+#define DAP_CHAIN_DATUM_WASM_CODE           0x0900
 /// Smart contract: DVM code section
-#define DAP_CHAIN_DATUM_WASM_DATA            0x0901
+#define DAP_CHAIN_DATUM_WASM_DATA           0x0901
 
 /// Smart contract: EVM code section
 #define DAP_CHAIN_DATUM_EVM_CODE            0x0910
@@ -62,13 +62,13 @@
 
 /// Token
 /// Simple token decl
-#define DAP_CHAIN_DATUM_TOKEN_DECL           0xf000
-#define DAP_CHAIN_DATUM_TOKEN_EMISSION       0xf100
-#define DAP_CHAIN_DATUM_TOKEN_DISMISSAL      0xf200
+#define DAP_CHAIN_DATUM_TOKEN               0xf000
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION      0xf100
+#define DAP_CHAIN_DATUM_TOKEN_DISMISSAL     0xf200
 
-#define DAP_CHAIN_DATUM_ANCHOR               0x0a00
+#define DAP_CHAIN_DATUM_ANCHOR              0x0a00
 
-#define DAP_CHAIN_DATUM_CUSTOM               0xffff
+#define DAP_CHAIN_DATUM_CUSTOM              0xffff
 
 #define DAP_DATUM_TYPE_STR(t, s)        \
     switch (t) {                        \
@@ -90,8 +90,8 @@
         s = "DATUM_SIGNER"; break;      \
     case DAP_CHAIN_DATUM_CUSTOM:        \
         s = "DATUM_CUSTOM"; break;      \
-    case DAP_CHAIN_DATUM_TOKEN_DECL:    \
-        s = "DATUM_TOKEN_DECL"; break;  \
+    case DAP_CHAIN_DATUM_TOKEN:    \
+        s = "DATUM_TOKEN"; break;  \
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:\
         s = "DATUM_TOKEN_EMISSION"; break;\
     case DAP_CHAIN_DATUM_DECREE:        \
@@ -134,11 +134,18 @@ typedef struct dap_chain_datum{
  * @param a_datum
  * @return
  */
-DAP_STATIC_INLINE size_t dap_chain_datum_size(const dap_chain_datum_t *a_datum)
+DAP_STATIC_INLINE uint64_t dap_chain_datum_size(const dap_chain_datum_t *a_datum)
 {
     if (!a_datum)
         return 0;
-    return  sizeof(a_datum->header) + a_datum->header.data_size;
+    return (uint64_t)sizeof(a_datum->header) + a_datum->header.data_size;
+}
+
+DAP_STATIC_INLINE void dap_chain_datum_calc_hash(const dap_chain_datum_t *a_datum, dap_hash_fast_t *a_out_hash)
+{
+    if (!a_datum || !a_out_hash)
+        return;
+    dap_hash_fast(a_datum->data, a_datum->header.data_size, a_out_hash);
 }
 
 dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_data, size_t a_data_size);
@@ -151,7 +158,6 @@ DAP_STATIC_INLINE const char *dap_chain_datum_type_id_to_str(uint16_t a_type_id)
     return l_ret;
 }
 
-void dap_chain_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type);
 void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type);
 void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id);
 bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,

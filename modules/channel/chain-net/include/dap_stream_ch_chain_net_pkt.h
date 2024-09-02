@@ -45,6 +45,8 @@
 
 #define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR                          0xff
 
+#define DAP_CHAIN_NET_CH_VALIDATOR_READY_REQUEST_SIZE                   1024
+
 typedef struct stream_ch_chain_net_pkt_hdr {
     uint8_t version;
     byte_t padding;

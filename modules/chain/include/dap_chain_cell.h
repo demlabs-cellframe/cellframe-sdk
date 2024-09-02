@@ -38,6 +38,9 @@ typedef struct dap_chain_cell {
     FILE *file_storage;
     uint8_t file_storage_type;
     dap_list_t *map_range_bounds;
+#ifdef DAP_OS_DARWIN
+    size_t cur_vol_start;
+#endif
     pthread_rwlock_t storage_rwlock;
     UT_hash_handle hh;
 } dap_chain_cell_t;
@@ -77,6 +80,7 @@ dap_chain_cell_t *dap_chain_cell_create_fill(dap_chain_t *a_chain, dap_chain_cel
 dap_chain_cell_t *dap_chain_cell_find_by_id(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id);
 void dap_chain_cell_close(dap_chain_cell_t *a_cell);
 void dap_chain_cell_delete(dap_chain_cell_t *a_cell);
+void dap_chain_cell_delete_all_and_free_file(dap_chain_t *a_chain);
 void dap_chain_cell_delete_all(dap_chain_t *a_chain);
 int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell);
 ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell,const void *a_atom, size_t a_atom_size);

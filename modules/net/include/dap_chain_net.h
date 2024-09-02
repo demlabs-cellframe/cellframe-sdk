@@ -44,6 +44,7 @@ typedef struct dap_chain_node_client dap_chain_node_client_t;
 typedef struct dap_ledger dap_ledger_t;
 typedef struct dap_chain_net_decree dap_chain_net_decree_t;
 typedef struct decree_table decree_table_t;
+typedef struct anchor_table anchor_table_t;
 typedef enum dap_chain_net_state {
     NET_STATE_OFFLINE = 0,
     NET_STATE_LINKS_PREPARE,
@@ -53,7 +54,7 @@ typedef enum dap_chain_net_state {
     NET_STATE_ONLINE
 } dap_chain_net_state_t;
 
-typedef struct dap_chain_net{
+typedef struct dap_chain_net {
     struct {
         dap_chain_net_id_t id;
         char * name;
@@ -180,7 +181,7 @@ dap_chain_net_t *dap_chain_net_iter_start();
 dap_chain_net_t *dap_chain_net_iter_next(dap_chain_net_t*);
 
 int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, dap_hash_fast_t *a_datum_hash);
-char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code);
+const char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code);
 
 void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
 void dap_chain_net_add_nodelist_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
@@ -200,7 +201,8 @@ int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_
 int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
-void dap_chain_net_announce_addrs(dap_chain_net_t *a_net);
+void dap_chain_net_announce_addr(dap_chain_net_t *a_net);
+void dap_chain_net_announce_addr_all();
 char *dap_chain_net_links_dump(dap_chain_net_t*);
 struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t * l_net);
 
@@ -234,3 +236,4 @@ enum dap_chain_net_json_rpc_error_list{
 dap_chain_net_decree_t *dap_chain_net_get_net_decree(dap_chain_net_t *a_net);
 void dap_chain_net_set_net_decree(dap_chain_net_t *a_net, dap_chain_net_decree_t *a_decree);
 decree_table_t **dap_chain_net_get_decrees(dap_chain_net_t *a_net);
+anchor_table_t **dap_chain_net_get_anchors(dap_chain_net_t *a_net);

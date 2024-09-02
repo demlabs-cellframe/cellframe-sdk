@@ -30,6 +30,12 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 
+#ifdef DAP_TPS_TEST
+#define DAP_CHAIN_ATOM_MAX_SIZE (100 * 1024 * 1024)
+#else
+#define DAP_CHAIN_ATOM_MAX_SIZE (256 * 1024) // 256 KB
+#endif
+
 typedef struct dap_chain dap_chain_t;
 
 typedef struct dap_chain_cell dap_chain_cell_t;
@@ -85,7 +91,7 @@ typedef void (*dap_chain_callback_t)(dap_chain_t *);
 typedef int (*dap_chain_callback_new_cfg_t)(dap_chain_t *, dap_config_t *);
 typedef void (*dap_chain_callback_ptr_t)(dap_chain_t *, void * );
 
-typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_t)(dap_chain_t *, dap_chain_atom_ptr_t, size_t, dap_hash_fast_t*);
+typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_t)(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash, bool a_atom_new);
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_form_treshold_t)(dap_chain_t *, size_t *);
 typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_verify_t)(dap_chain_t *, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t*);
 typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)(void);
@@ -98,7 +104,10 @@ typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *);
 
 typedef dap_chain_datum_iter_t * (*dap_chain_datum_callback_iter_create_t)(dap_chain_t *);
 typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_first_t)(dap_chain_datum_iter_t *);
+typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_last_t)(dap_chain_datum_iter_t *);
 typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_next_t)(dap_chain_datum_iter_t *);
+typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_prev_t)(dap_chain_datum_iter_t *);
+typedef dap_chain_datum_t * (*dap_chain_datum_callback_iters)(dap_chain_datum_iter_t *);
 typedef void (*dap_chain_datum_callback_iter_delete_t)(dap_chain_datum_iter_t *);
 
 typedef dap_chain_datum_t** (*dap_chain_callback_atom_get_datum_t)(dap_chain_atom_ptr_t, size_t, size_t * );
@@ -140,6 +149,7 @@ typedef struct dap_chain {
     char *net_name;
     bool is_datum_pool_proc;
     bool is_mapped;
+    atomic_int load_progress; 
     // Nested cells (hashtab by cell_id)
     dap_chain_cell_t *cells;
     dap_chain_cell_id_t active_cell_id;
@@ -198,7 +208,9 @@ typedef struct dap_chain {
     // Iterator callbacks
     dap_chain_datum_callback_iter_create_t callback_datum_iter_create;
     dap_chain_datum_callback_iter_get_first_t callback_datum_iter_get_first;
-    dap_chain_datum_callback_iter_get_first_t callback_datum_iter_get_next;
+    dap_chain_datum_callback_iter_get_last_t callback_datum_iter_get_last;
+    dap_chain_datum_callback_iter_get_next_t callback_datum_iter_get_next;
+    dap_chain_datum_callback_iter_get_prev_t callback_datum_iter_get_prev;
     dap_chain_datum_callback_iter_delete_t callback_datum_iter_delete;
 
     dap_list_t *atom_notifiers;

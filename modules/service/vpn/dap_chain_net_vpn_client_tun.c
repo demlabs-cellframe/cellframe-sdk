@@ -147,20 +147,14 @@ int tun_device_create(char *dev)
     // Create utun socket
     int l_tun_fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
     if( l_tun_fd < 0){
-        l_errno = errno;
-        char l_errbuf[256];
-        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
-        log_it(L_ERROR,"Opening utun device control (SYSPROTO_CONTROL) error: '%s' (code %d)", l_errbuf, l_errno);
+        log_it(L_ERROR,"Opening utun device control (SYSPROTO_CONTROL) error %d: \"%s\"", errno, dap_strerror(errno));
         goto lb_err;
     }
     log_it(L_INFO, "Utun SYSPROTO_CONTROL descriptor obtained");
 
     // Pass control structure to the utun socket
     if( ioctl(l_tun_fd, CTLIOCGINFO, &l_ctl_info ) < 0 ){
-        l_errno = errno;
-        char l_errbuf[256];
-        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
-        log_it(L_ERROR,"Can't execute ioctl(CTLIOCGINFO): '%s' (code %d)", l_errbuf, l_errno);
+        log_it(L_ERROR,"Can't execute ioctl(CTLIOCGINFO) %d: \"%s\"", errno, dap_strerror(errno));
         goto lb_err;
 
     }
@@ -181,11 +175,8 @@ int tun_device_create(char *dev)
         if(l_ret == 0)
             break;
     }
-    if (l_ret < 0){
-        l_errno = errno;
-        char l_errbuf[256];
-        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
-        log_it(L_ERROR,"Can't create utun device: '%s' (code %d)", l_errbuf, l_errno);
+    if (l_ret < 0) {
+        log_it(L_ERROR,"Can't create utun device %d: \"%s\"", errno, dap_strerror(errno));
         goto lb_err;
 
     }
@@ -194,11 +185,8 @@ int tun_device_create(char *dev)
     log_it(L_NOTICE, "Utun device created");
     char l_utunname[20];
     socklen_t l_utunname_len = sizeof(l_utunname);
-    if (getsockopt(l_tun_fd, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, l_utunname, &l_utunname_len) ){
-        l_errno = errno;
-        char l_errbuf[256];
-        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
-        log_it(L_ERROR,"Can't get utun device name: '%s' (code %d)", l_errbuf, l_errno);
+    if (getsockopt(l_tun_fd, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, l_utunname, &l_utunname_len) ) {
+        log_it(L_ERROR,"Can't get utun device name %d: \"%s\"", errno, dap_strerror(errno));
         goto lb_err;
     }
     log_it(L_NOTICE, "Utun device name \"%s\"", l_utunname);
@@ -396,7 +384,7 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
             log_it(L_ERROR, "No remote client for incoming ip packet %s -> %s", l_str_saddr, l_str_daddr);
             break;
         }
-        ch_vpn_pkt_t* pkt_out = DAP_NEW_STACK_SIZE(ch_vpn_pkt_t, sizeof(pkt_out->header) + l_read_bytes);
+        dap_stream_ch_vpn_pkt_t* pkt_out = DAP_NEW_STACK_SIZE(dap_stream_ch_vpn_pkt_t, sizeof(pkt_out->header) + l_read_bytes);
         pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_SEND;
         pkt_out->header.sock_id = s_fd_tun;
         pkt_out->header.op_data.data_size = l_read_bytes;
@@ -629,7 +617,7 @@ int dap_chain_net_vpn_client_tun_status(void)
 
 static void ch_sf_pkt_send(dap_stream_ch_t * a_ch, void * a_data, size_t a_data_size)
 {
-    ch_vpn_pkt_t *l_pkt_out;
+    dap_stream_ch_vpn_pkt_t *l_pkt_out;
     size_t l_pkt_out_size = sizeof(l_pkt_out->header) + a_data_size;
     //log_it(L_DEBUG,"Peer for addr %s found (pkt_size %d)"
     //       ,inet_ntoa(in_daddr), read_ret);
@@ -637,7 +625,7 @@ static void ch_sf_pkt_send(dap_stream_ch_t * a_ch, void * a_data, size_t a_data_
         log_it(L_ERROR, "Try to send to NULL channel");
        return;
     }
-    l_pkt_out = DAP_NEW_SIZE(ch_vpn_pkt_t, l_pkt_out_size);
+    l_pkt_out = DAP_NEW_SIZE(dap_stream_ch_vpn_pkt_t, l_pkt_out_size);
     memset(&l_pkt_out->header,0,sizeof(l_pkt_out->header));
     l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_RECV;
     l_pkt_out->header.sock_id = a_ch->stream->esocket->socket;
@@ -679,11 +667,11 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
     if((ret = /*sendto(ch_sf->raw_l3_sock, pkt_data, pkt_data_size, 0, (struct sockaddr *) &sin, sizeof(sin))*/-1  )
             < 0) {
         //    if((ret = write(raw_server->tun_fd, sf_pkt->data, sf_pkt->header.op_data.data_size))<0){
-        log_it(L_ERROR, "write() returned error %d : '%s'", ret, strerror(errno));
+        log_it(L_ERROR, "write() error %d : \"%s\"", errno, dap_strerror(errno));
         //log_it(ERROR,"raw socket ring buffer overflowed");
-        ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
+        dap_stream_ch_vpn_pkt_t *pkt_out = (dap_stream_ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
         if (!pkt_out) {
-            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             if(in_daddr_str)
                 DAP_DELETE(in_daddr_str);
             if(in_saddr_str)
@@ -714,7 +702,7 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
  * @param a_pkt
  * @param a_pkt_data_size
  */
-int ch_sf_tun_addr_leased(dap_chain_net_srv_ch_vpn_t * a_sf, ch_vpn_pkt_t * a_pkt, size_t a_pkt_data_size)
+int ch_sf_tun_addr_leased(dap_chain_net_srv_ch_vpn_t * a_sf, dap_stream_ch_vpn_pkt_t * a_pkt, size_t a_pkt_data_size)
 {
     if(a_pkt_data_size < (2 * sizeof(struct in_addr))) {
         log_it(L_ERROR, "Too small ADDR_REPLY packet (%zu bytes, need at least %zu", a_pkt_data_size, 2 * sizeof(struct in_addr));

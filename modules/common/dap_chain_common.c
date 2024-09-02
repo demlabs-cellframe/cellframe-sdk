@@ -68,11 +68,11 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
 }
 
 /**
- * @brief dap_chain_addr_to_str
+ * @brief dap_chain_addr_to_str_static
  * @param a_addr
  * @return
  */
-const char *dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
+const char *dap_chain_addr_to_str_static(const dap_chain_addr_t *a_addr)
 {
     dap_return_val_if_pass(!a_addr, NULL);
     if (dap_chain_addr_is_blank(a_addr))
@@ -217,3 +217,21 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
     dap_hash_fast(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_chain_hash_fast_t), &l_checksum);
     return memcmp(a_addr->checksum.raw, l_checksum.raw, sizeof(l_checksum.raw));
 }
+
+void s_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count)
+{
+    json_object* json_obj_lim = json_object_new_object();
+    if (a_offset > 0) {
+        *a_start = a_offset;
+        json_object_object_add(json_obj_lim, "offset", json_object_new_int(*a_start));                
+    }
+    *a_and = a_and_count;
+    if (a_limit > 0) {
+        *a_and = *a_start + a_limit;
+        json_object_object_add(json_obj_lim, "limit", json_object_new_int(*a_and - *a_start));
+    }
+    else
+        json_object_object_add(json_obj_lim, "limit", json_object_new_string("unlimit"));
+    json_object_array_add(a_json_obj_out, json_obj_lim);
+}
+
