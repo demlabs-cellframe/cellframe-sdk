@@ -88,7 +88,7 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 
             dap_chain_t *l_chain = dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 0 });  // zerochain
             l_info->events_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;
-            l_chain =dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 1 });  // mainchain
+            l_chain = dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 1 });  // mainchain
             l_info->atoms_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;
             
             memcpy(l_info->links_addrs, l_linked_node_addrs, (l_info->uplinks_count + l_info->downlinks_count) * sizeof(dap_chain_node_addr_t));
@@ -111,8 +111,8 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
     char *l_gdb_group = dap_strdup_printf("%s%s", a_net->pub.gdb_groups_prefix, s_states_group);
     dap_chain_node_net_states_info_t *l_store_obj = (dap_chain_node_net_states_info_t *)dap_global_db_get_sync(l_gdb_group, a_node_addr_str, &l_data_size, NULL, &l_timestamp);
     if (!l_store_obj || l_data_size != sizeof(dap_chain_node_net_states_info_t) + (l_store_obj->uplinks_count + l_store_obj->downlinks_count) * sizeof(dap_chain_node_addr_t)) {
-        log_it(L_ERROR, "Can't find state about %s node", a_node_addr_str);
-        DAP_DELETE(l_gdb_group);
+        log_it(L_NOTICE, "Can't find state about %s node", a_node_addr_str);
+        DAP_DEL_Z(l_gdb_group);
         return;
     }
     char l_ts[80] = { '\0' };
@@ -440,7 +440,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
     size_t l_node_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_node_count);
     if (!l_node_count || !l_objs) {        
-        log_it(L_ERROR, "Node list in net %s is empty", a_net->pub.name);
+        log_it(L_INFO, "Node list in net %s is empty", a_net->pub.name);
         return NULL;
     }
     char *l_gdb_group = dap_strdup_printf("%s%s", a_net->pub.gdb_groups_prefix, s_states_group);
