@@ -706,7 +706,6 @@ static int s_json_tx_history_pack(json_object** a_json_obj_datum, dap_chain_datu
 
     if (a_srv)
     {
-        char *service_name = NULL;
         bool srv_found = a_datum_iter->uid.uint64 ? true : false;
         //skip if looking for UNKNOWN + it is known
         if (a_look_for_unknown_service && srv_found) {
