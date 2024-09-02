@@ -2370,30 +2370,20 @@ bool s_net_load(void *a_arg)
             l_chain->callback_created(l_chain, l_net->pub.config);
 
     if ( dap_config_get_item_bool_default(g_config, "server", "enabled", false) ) {
-        char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' };
-        uint16_t l_ext_port = 0;
-        const char *l_ext_addr = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
-        if (l_ext_addr) {
-            struct sockaddr_storage l_saddr = { };
-            if ( 0 > dap_net_parse_config_address(l_ext_addr, l_host, &l_ext_port, &l_saddr, NULL) )
-                log_it(L_ERROR, "Invalid server address \"%s\", fix config and restart node", l_ext_addr);
+        char l_local_ip[INET6_ADDRSTRLEN] = { '\0' };
+        uint16_t l_in_port = 0;
+        const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
+        if ( l_listening ) {
+            if ( dap_net_parse_config_address(*l_listening, l_local_ip, &l_in_port, NULL, NULL) < 0 )
+                log_it(L_ERROR, "Invalid server IP address, check [server] section in cellframe-node.cfg");
             else {
-                uint8_t l_hostlen = dap_strlen(l_host);
-                l_net_pvt->node_info->ext_port = l_ext_port;
-                l_net_pvt->node_info->ext_host_len = dap_strncpy(l_net_pvt->node_info->ext_host, l_host, l_hostlen) - l_net_pvt->node_info->ext_host;
-            }
-        } else {
-            log_it(L_INFO, "External address is not set, will be detected automatically");
-            if ( !l_net_pvt->node_info->ext_port ) {
-                const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
-                l_net_pvt->node_info->ext_port =
-                    ( l_listening && dap_net_parse_config_address(*l_listening, l_host, &l_ext_port, NULL, NULL) > 0 && l_ext_port )
-                        ? l_ext_port
-                        : dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079);
+                // power of short-circuit
+                if ( l_in_port || ( l_in_port = dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079 )))
+                    log_it(L_INFO, "Server is enabled on \"%s : %u\"", l_local_ip, l_in_port);
+                if (( l_net_pvt->node_info->ext_port = dap_config_get_item_uint16(g_config, "server", "ext_port") ))
+                    log_it(L_INFO, "Set external port %u for adding in node list", l_net_pvt->node_info->ext_port);
             }
         }
-        log_it(L_INFO, "Server is configured with external address %s : %u",
-            l_net_pvt->node_info->ext_host_len ? l_net_pvt->node_info->ext_host : l_host, l_net_pvt->node_info->ext_port);
     }
 
     l_net_pvt->node_info->address.uint64 = g_node_addr.uint64;
