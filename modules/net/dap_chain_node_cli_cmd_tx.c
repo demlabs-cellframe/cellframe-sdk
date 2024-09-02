@@ -527,14 +527,16 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             
             //tag
             char *service_name = NULL;
+            const char *service_name2 = NULL;
             dap_chain_tx_tag_action_type_t l_action;
             dap_chain_tx_tag_action_type_t l_action2;
             bool srv_found2 = l_datum_iter->uid.uint64 ? true : false;
             l_action2 = l_datum_iter->action; 
             bool srv_found = dap_ledger_tx_service_info(l_ledger, &l_tx_hash, NULL, &service_name, &l_action);
+            service_name2 = dap_ledger_tx_action_str(l_action2);
             if (!(l_action & a_action))
                 continue;
-            if(l_action2) i_tmp++;
+            if((srv_found2)&&(service_name2)) i_tmp++;
             if (a_srv)
             {
               
