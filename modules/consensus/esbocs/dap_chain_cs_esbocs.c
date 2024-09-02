@@ -542,7 +542,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
                                                       l_sync_group, 72 * 3600, true,
                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_session->db_cluster->links_cluster);
-    dap_global_db_del_sync(l_sync_group, NULL);     // Drop table on stratup
+    dap_global_db_erase_table_sync(l_sync_group);     // Drop table on stratup
     DAP_DELETE(l_sync_group);
 
 #ifdef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT

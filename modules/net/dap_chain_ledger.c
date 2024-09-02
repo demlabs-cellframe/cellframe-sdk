@@ -4989,13 +4989,13 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TXS_STR);
-        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
 
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_SPENT_TXS_STR);
-        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
 
@@ -5008,7 +5008,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_BALANCES_STR);
-        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
 
@@ -5036,10 +5036,10 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TOKENS_STR);
-        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_EMISSIONS_STR);
-        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
 
@@ -5051,7 +5051,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_STAKE_LOCK_STR);
-        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
 
@@ -5229,7 +5229,8 @@ static dap_ledger_tx_item_t *tx_item_find_by_addr(dap_ledger_t *a_ledger, const 
     if(!a_addr || !a_tx_first_hash)
         return NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    bool is_tx_found = false;
+
+    bool is_tx_found = false, is_search_started = dap_hash_fast_is_blank(a_tx_first_hash);
     dap_ledger_tx_item_t *l_iter_start = NULL, *l_iter_current, *l_item_tmp;
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     if (!dap_hash_fast_is_blank(a_tx_first_hash)) {

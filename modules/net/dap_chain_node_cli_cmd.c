@@ -785,7 +785,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
         }
 
-        if (!dap_global_db_del_sync(l_group_str, NULL))
+        if (!dap_global_db_erase_table_sync(l_group_str))
         {
             json_object* json_obj_drop = json_object_new_object();
             json_object_object_add(json_obj_drop, "Dropped table", json_object_new_string(l_group_str));
@@ -1897,8 +1897,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         l_wallet = dap_chain_wallet_open(l_file_name, c_wallets_path, &res);
 
                         if (l_wallet) {
-                            l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
-                            const char *l_addr_str = dap_chain_addr_to_str_static(l_addr);
+                            //l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
+                            //const char *l_addr_str = dap_chain_addr_to_str_static(l_addr);
 
                             json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
                             if(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)
@@ -1908,9 +1908,9 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             json_object_object_add(json_obj_wall, "deprecated", json_object_new_string(
                                                                                      strlen(dap_chain_wallet_check_sign(l_wallet))!=0 ?
                                                                                      "true" : "false"));
-                            if (l_addr_str) {
-                                json_object_object_add(json_obj_wall, "addr", json_object_new_string(l_addr_str));
-                            }
+                            //if (l_addr_str) {
+                            //    json_object_object_add(json_obj_wall, "addr", json_object_new_string(l_addr_str));
+                            //}
 
                             dap_chain_wallet_close(l_wallet);
 

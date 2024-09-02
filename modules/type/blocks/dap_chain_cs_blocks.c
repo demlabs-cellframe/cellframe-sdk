@@ -1247,10 +1247,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 };
                 //Clear gdb
                 char *l_group_fee = dap_chain_cs_blocks_get_fee_group(l_net->pub.name);
-                dap_global_db_del_sync(l_group_fee, NULL);
+                dap_global_db_erase_table_sync(l_group_fee);
                 DAP_DELETE(l_group_fee);
                 char *l_group_reward = dap_chain_cs_blocks_get_reward_group(l_net->pub.name);
-                dap_global_db_del_sync(l_group_reward, NULL);
+                dap_global_db_erase_table_sync(l_group_reward);
                 DAP_DELETE(l_group_reward);
 
                 json_object* json_arr_bl_out = json_object_new_array();
