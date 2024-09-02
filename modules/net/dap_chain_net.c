@@ -2382,17 +2382,16 @@ bool s_net_load(void *a_arg)
                 l_net_pvt->node_info->ext_port = l_ext_port;
                 l_net_pvt->node_info->ext_host_len = dap_strncpy(l_net_pvt->node_info->ext_host, l_host, l_hostlen) - l_net_pvt->node_info->ext_host;
             }
+        } else {
+            log_it(L_INFO, "External address is not set, will be detected automatically");
+            if ( !l_net_pvt->node_info->ext_port ) {
+                const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
+                l_net_pvt->node_info->ext_port =
+                    ( l_listening && dap_net_parse_config_address(*l_listening, NULL, &l_ext_port, NULL, NULL) > 0 && l_ext_port )
+                        ? l_ext_port
+                        : dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079);
+            }
         }
-#ifdef DAP_TRY_DEFAULT_PORT
-        log_it(L_INFO, "External address is not set, will be detected automatically");
-        if ( !l_net_pvt->node_info->ext_port ) {
-            const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
-            l_net_pvt->node_info->ext_port =
-                ( l_listening && dap_net_parse_config_address(*l_listening, NULL, &l_ext_port, NULL, NULL) > 0 && l_ext_port )
-                    ? l_ext_port
-                    : dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079);
-        }
-#endif
         log_it(L_INFO, "Server is configured with external address %s : %u",
             l_net_pvt->node_info->ext_host_len ? l_net_pvt->node_info->ext_host : "", l_net_pvt->node_info->ext_port);
     }
