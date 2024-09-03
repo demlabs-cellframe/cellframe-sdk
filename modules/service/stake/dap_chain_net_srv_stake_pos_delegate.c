@@ -204,41 +204,62 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
 {
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_ledger->net->pub.id);
     dap_return_val_if_fail(l_srv_stake, -1);
+#define m_cond_check()                                                                              \
+(                                                                                                   \
+    {                                                                                               \
+        if (l_tx_new_cond->header.subtype != a_cond->header.subtype ||                              \
+                l_tx_new_cond->header.ts_expires != a_cond->header.ts_expires ||                    \
+                dap_chain_net_srv_uid_compare(l_tx_new_cond->header.srv_uid, a_cond->header.srv_uid)\
+                ) {                                                                                 \
+            log_it(L_WARNING, "Conditional out and conditional in have different headers");         \
+            return -3;                                                                              \
+        }                                                                                           \
+        if (l_tx_new_cond->tsd_size != a_cond->tsd_size ||                                          \
+                memcmp(l_tx_new_cond->tsd, a_cond->tsd, a_cond->tsd_size)) {                        \
+            log_it(L_WARNING, "Conditional out and conditional in have different TSD sections");    \
+            return -4;                                                                              \
+        }                                                                                           \
+        if (dap_chain_addr_is_blank(&l_tx_new_cond->subtype.srv_stake_pos_delegate.signing_addr) || \
+                l_tx_new_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 == 0) {       \
+            log_it(L_WARNING, "Not blank address or key fields in order conditional tx");           \
+            return -5;                                                                              \
+        }                                                                                           \
+    }                                                                                               \
+)
+    int l_out_idx = 0;
+    dap_chain_tx_out_cond_t *l_tx_new_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_out_idx);
     // It's a order conditional TX
     if (dap_chain_addr_is_blank(&a_cond->subtype.srv_stake_pos_delegate.signing_addr) ||
             a_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 == 0) {
         if (a_owner)
             return 0;
-        int l_out_idx = 0;
-        dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_out_idx);
-        if (!l_tx_out_cond) {
+        if (!l_tx_new_cond) {
             log_it(L_ERROR, "Condition not found in conditional tx");
             return -2;
         }
-        if (compare256(l_tx_out_cond->header.value, a_cond->header.value)) {
-            char *l_in_value = dap_chain_balance_to_coins(l_tx_out_cond->header.value);
-            char *l_out_value = dap_chain_balance_to_coins(a_cond->header.value);
-            log_it(L_WARNING, "In value %s is not equal to out value %s", l_in_value, l_out_value);
-            DAP_DELETE(l_in_value);
-            DAP_DELETE(l_out_value);
-            return -3;
-        }
-        if (l_tx_out_cond->tsd_size != a_cond->tsd_size ||
-                memcmp(l_tx_out_cond->tsd, a_cond->tsd, a_cond->tsd_size)) {
-            log_it(L_WARNING, "Conditional out and conditional in have different TSD sections");
-            return -4;
-        }
-        if (dap_chain_addr_is_blank(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr) ||
-                l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 == 0) {
-            log_it(L_WARNING, "Not blank address or key fields in order conditional tx");
-            return -5;
+        m_cond_check();
+        if (compare256(l_tx_new_cond->header.value, a_cond->header.value)) {
+            log_it(L_WARNING, "Conditional out and conditional in have different values");
+            return -13;
         }
         return 0;
+    }
+    if (!a_owner) {
+        log_it(L_WARNING, "Trying to spend conditional tx not by owner");
+        return -11;
+    }
+    // Delegation value update (dynamic weight feature)
+    if (l_tx_new_cond) {
+        m_cond_check();
+        if (compare256(l_tx_new_cond->header.value, dap_chain_net_srv_stake_get_allowed_min_value(a_ledger->net->pub.id))) {
+            log_it(L_WARNING, "New conditional out have value %s lower than minimum service required", dap_uint256_to_char(l_tx_new_cond->header.value, NULL));
+            return -14;
+        }
     }
     // It's a delegation conitional TX
     dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
     if (!l_tx_in_cond) {
-        log_it(L_ERROR, "Conditional in item not found in checking tx");
+        log_it(L_ERROR, "Conditional in item not found in previous tx");
         return -6;
     }
     // ATTENTION: It's correct only with single IN_COND TX item
@@ -247,16 +268,12 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
         log_it(L_ERROR, "Blank hash of prev tx in tx_in_cond");
         return -7;
     }
-    if (!a_owner) {
-        log_it(L_WARNING, "Trying to spend conditional tx not by owner");
-        return -11;
-    }
-    if (a_tx_in->header.ts_created < 1706227200) // Jan 26 2024 00:00:00 GMT, old policy rules
+    if (l_tx_new_cond || a_tx_in->header.ts_created < 1706227200) // Jan 26 2024 00:00:00 GMT, old policy rules
         return 0;
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(ht, l_srv_stake->tx_itemlist, l_prev_hash, sizeof(dap_hash_t), l_stake);
     if (l_stake) {
-        log_it(L_WARNING, "Key is active with delegation decree, need to revoke it first");
+        log_it(L_WARNING, "Key %s is empowered for now, need to revoke it first", dap_hash_fast_to_str_static(l_prev_hash));
         return -12;
     }
     return 0;
@@ -793,10 +810,6 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, a_stake_tx_hash);
     if (dap_strcmp(l_tx_ticker, l_delegated_ticker)) {
         log_it(L_WARNING, "Requested conditional transaction have another ticker (not %s)", l_delegated_ticker);
-        return NULL;
-    }
-    if (compare256(l_tx_out_cond->header.value, dap_chain_net_srv_stake_get_allowed_min_value(a_net->pub.id)) == -1) {
-        log_it(L_WARNING, "Requested conditional transaction have not enough funds");
         return NULL;
     }
 
@@ -1892,7 +1905,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
     uint256_t l_allowed_min = dap_chain_net_srv_stake_get_allowed_min_value(l_net->pub.id);
     if (compare256(l_value, l_allowed_min) == -1) {
         const char *l_coin_min_str, *l_value_min_str = dap_uint256_to_char(l_allowed_min, &l_coin_min_str);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Number in '-value' param %s is lower than minimum allowed value %s(%s)",
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Number in '-value' param %s is lower than service minimum allowed value %s(%s)",
                                           l_value_str, l_coin_min_str, l_value_min_str);
         dap_enc_key_delete(l_enc_key);
         return -11;
