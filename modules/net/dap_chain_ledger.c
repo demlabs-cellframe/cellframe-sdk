@@ -5253,11 +5253,6 @@ static dap_ledger_tx_item_t *tx_item_find_by_addr(dap_ledger_t *a_ledger, const 
         // Now work with it
         dap_chain_datum_tx_t *l_tx = l_iter_current->tx;
         dap_chain_hash_fast_t *l_tx_hash = &l_iter_current->tx_hash_fast;
-        // start searching from the next hash after a_tx_first_hash
-        if (!is_search_started) {
-            is_search_started = dap_hash_fast_compare(l_tx_hash, a_tx_first_hash);
-            continue;
-        }
         // Get 'out' items from transaction
         byte_t *it; size_t l_size;
         TX_ITEM_ITER_TX(it, l_size, l_tx) {
