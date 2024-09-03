@@ -4441,7 +4441,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
             pthread_rwlock_unlock(&s_verificators_rwlock);
             if (l_verificator && l_verificator->callback_added)
-                l_verificator->callback_added(a_ledger, a_tx, l_bound_item->cond);
+                l_verificator->callback_added(a_ledger, a_tx, a_tx_hash, l_bound_item->cond);
         } break;
 
         default:
@@ -4494,7 +4494,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
             pthread_rwlock_unlock(&s_verificators_rwlock);
             if (l_verificator && l_verificator->callback_added)
-                l_verificator->callback_added(a_ledger, a_tx, NULL);
+                l_verificator->callback_added(a_ledger, a_tx, a_tx_hash, NULL);
             continue;   // balance raise will be with next conditional transaction
         }
 
