@@ -745,7 +745,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN: {
-        if (!l_chain_pkt_data_size || l_chain_pkt_data_size > sizeof(dap_chain_ch_pkt_t) + DAP_CHAIN_ATOM_MAX_SIZE) {
+        if (!l_chain_pkt_data_size || l_chain_pkt_data_size > sizeof(dap_chain_ch_pkt_t) + DAP_CHAIN_ATOM_MAX_SIZE
+                                                                                         * 5) { // For legacy block sizes
             log_it(L_WARNING, "Incorrect data size %zu in packet %s", l_chain_pkt_data_size,
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
