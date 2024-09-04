@@ -283,12 +283,12 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     //if (dap_ledger_tx_service_info(a_ledger, a_tx_hash, &uid, &service_name, &action))
     if (srv_found)
     {
-        json_object_object_add(json_obj_datum, "service", json_object_new_string(service_name));
+        //json_object_object_add(json_obj_datum, "service", json_object_new_string(service_name));
         json_object_object_add(json_obj_datum, "action", json_object_new_string(dap_ledger_tx_action_str(action)));
     }
     else
     {
-        json_object_object_add(json_obj_datum, "service", json_object_new_string("UNKNOWN"));
+        //json_object_object_add(json_obj_datum, "service", json_object_new_string("UNKNOWN"));
         json_object_object_add(json_obj_datum, "action", json_object_new_string("UNKNOWN"));
     }
 
