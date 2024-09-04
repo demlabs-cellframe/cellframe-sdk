@@ -492,6 +492,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             if (!l_dst_addr_present)
             {
                 json_object_put(j_arr_data);
+                j_arr_data = NULL;
                 json_object_put(j_obj_tx);
                 dap_list_free(l_list_out_items);
                 continue;
@@ -655,18 +656,16 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             json_object_put(j_arr_data);
             j_arr_data = NULL;
             json_object_put(j_obj_tx);
-        }
-        dap_list_free(l_list_out_items);
+        }        
         if (l_is_need_correction && l_corr_object) {
             SUM_256_256(l_corr_value, l_fee_sum, &l_corr_value);
             const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_corr_value, &l_coins_str);
             json_object_object_add(l_corr_object, "recv_coins", json_object_new_string(l_coins_str));
-            json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));            
-            json_object * j_arr_correct = json_object_new_object();            
-            json_object_object_add(j_arr_correct, "correction", l_corr_object);
-            json_object_array_add(json_obj_datum, j_arr_correct);
+            json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));
+            json_object_array_add(j_arr_data, l_corr_object);
             l_is_need_correction = false;
         }
+        dap_list_free(l_list_out_items);
     }
     a_chain->callback_datum_iter_delete(l_datum_iter);
     // delete hashes
