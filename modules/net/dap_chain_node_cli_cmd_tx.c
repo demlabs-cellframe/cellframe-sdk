@@ -175,10 +175,10 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     dap_chain_net_srv_uid_t uid;
     char *service_name;
     dap_chain_tx_tag_action_type_t action;
-    bool srv_found = a_datum_iter->uid.uint64 ? true : false;
-    action = a_datum_iter->action;
+    bool srv_found = a_datum_iter ? a_datum_iter->uid.uint64 ? true : false
+                                  : dap_ledger_tx_service_info(l_ledger, a_tx_hash, &uid, &service_name, &action);
+    if (a_datum_iter)action = a_datum_iter->action;
 
-    //if (dap_ledger_tx_service_info(l_ledger, a_tx_hash, &uid, &service_name, &action))
     if (srv_found)
     {
         //json_object_object_add(json_obj_datum, "service", json_object_new_string(service_name));
