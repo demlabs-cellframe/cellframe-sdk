@@ -2721,7 +2721,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' requires parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'max_weight' requires parameter -net");
                 return -3;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -2738,7 +2738,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-poa_cert", &l_cert_str);
             if (!l_cert_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' requires parameter -poa_cert");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'max_weight' requires parameter -poa_cert");
                 return -3;
             }
             dap_cert_t *l_poa_cert = dap_cert_find_by_name(l_cert_str);
@@ -2753,7 +2753,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-percent", &l_value_str);
             if (!l_value_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' requires parameter -percent");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'max_weight' requires parameter -percent");
                 return -9;
             }
             uint256_t l_value = dap_chain_coins_to_balance(l_value_str);
