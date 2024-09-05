@@ -2756,7 +2756,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' requires parameter -percent");
                 return -9;
             }
-            uint256_t l_value = dap_chain_balance_scan(l_value_str);
+            uint256_t l_value = dap_chain_coins_to_balance(l_value_str);
             if (IS_ZERO_256(l_value)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized number in '-percent' param");
                 return -10;
