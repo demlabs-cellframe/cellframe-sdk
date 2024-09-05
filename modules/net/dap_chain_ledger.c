@@ -64,7 +64,7 @@ typedef struct dap_ledger_verificator {
     int subtype;    // hash key
     dap_ledger_verificator_callback_t callback;
     dap_ledger_updater_callback_t callback_added;
-    dap_ledger_updater_callback_t callback_deleted;
+    dap_ledger_delete_callback_t callback_deleted;
     UT_hash_handle hh;
 } dap_ledger_verificator_t;
 
@@ -4647,7 +4647,7 @@ FIN:
     return l_ret;
 }
 
-void dap_leger_load_end(dap_ledger_t *a_ledger)
+void dap_ledger_load_end(dap_ledger_t *a_ledger)
 {
     pthread_rwlock_wrlock(&PVT(a_ledger)->ledger_rwlock);
     HASH_SORT(PVT(a_ledger)->ledger_items, s_sort_ledger_tx_item);
@@ -5607,7 +5607,7 @@ dap_list_t *dap_ledger_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_to
 
 
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, -1 error, overwise returns 0
-int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_ledger_verificator_callback_t a_callback, dap_ledger_updater_callback_t a_callback_added, dap_ledger_updater_callback_t a_callback_deleted)
+int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_ledger_verificator_callback_t a_callback, dap_ledger_updater_callback_t a_callback_added, dap_ledger_delete_callback_t a_callback_deleted)
 {
     dap_ledger_verificator_t *l_new_verificator = NULL;
     int l_tmp = (int)a_subtype;
