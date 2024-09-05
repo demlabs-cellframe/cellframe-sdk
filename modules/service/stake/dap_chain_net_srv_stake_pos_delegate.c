@@ -704,7 +704,7 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_enc_
                                                                            &l_owner_addr, a_value, &l_value_transfer);
         if (!l_list_used_out) {
             log_it(L_WARNING, "Nothing to pay for delegate (not enough funds)");
-            return NULL;
+            goto tx_fail;
         }
         // add 'in' items to pay for delegate
         uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
@@ -791,13 +791,131 @@ tx_fail:
 }
 
 // Updates staker's funds with delegated key
-static dap_chain_datum_tx_t *s_stake_tx_update(dap_chain_net_t * a_net, dap_hash_fast_t *a_prev_tx_hash, uint256_t a_value, uint256_t a_fee, dap_enc_key_t *a_key)
+static dap_chain_datum_tx_t *s_stake_tx_update(dap_chain_net_t *a_net, dap_hash_fast_t *a_prev_tx_hash, uint256_t a_new_value, uint256_t a_fee, dap_enc_key_t *a_key)
 {
+    dap_return_val_if_fail(a_net && a_key && a_prev_tx_hash && !IS_ZERO_256(a_new_value), NULL);
+
+    const char *l_native_ticker = a_net->pub.native_ticker;
+    char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, l_native_ticker);
+    dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_net->pub.name);
+    uint256_t l_value_transfer = {}, l_fee_transfer = {}; // how many coins to transfer
+    // list of transaction with 'out' items to sell
+    dap_chain_addr_t l_owner_addr;
+    dap_chain_addr_fill_from_key(&l_owner_addr, a_key, a_net->pub.id);
+    uint256_t l_net_fee, l_fee_total = a_fee;
+    dap_chain_addr_t l_net_fee_addr;
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
+    if (l_net_fee_used)
+        SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
+    dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+                                                                      &l_owner_addr, l_fee_total, &l_fee_transfer);
+    if (!l_list_fee_out) {
+        log_it(L_WARNING, "Nothing to pay for fee (not enough funds)");
+        return NULL;
+    }
+    dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(l_ledger, a_prev_tx_hash);
+    if (!l_tx_prev) {
+        log_it(L_ERROR, "Transaction %s not found", dap_hash_fast_to_str_static(a_prev_tx_hash));
+        return NULL;
+    }
+    int l_out_num = 0;
+    dap_chain_tx_out_cond_t *l_cond_prev = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_out_num);
+    if (!l_cond_prev) {
+        log_it(L_ERROR, "Transaction %s is invalid", dap_hash_fast_to_str_static(a_prev_tx_hash));
+        return NULL;
+    }
 
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
+    // add 'in' item to buy from conditional transaction
+    if (1 != dap_chain_datum_tx_add_in_cond_item(&l_tx, a_prev_tx_hash, l_out_num, -1)) {
+        log_it(L_ERROR, "Can't compose the transaction conditional input");
+        goto tx_fail;
+    }
+
+    // add 'in' items to pay fee
+    uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
+    dap_list_free_full(l_list_fee_out, NULL);
+    if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
+        log_it(L_ERROR, "Can't compose the fee transaction input");
+        goto tx_fail;
+    }
+    uint256_t l_value_prev = l_cond_prev->header.value, l_value_back = {};
+    bool l_increasing = compare256(l_value_prev, a_new_value) == 1;
+    if (l_increasing) {
+        uint256_t l_refund_value = {};
+        SUBTRACT_256_256(a_new_value, l_value_prev, &l_refund_value);
+        dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker,
+                                                                           &l_owner_addr, l_refund_value, &l_value_transfer);
+        if (!l_list_used_out) {
+            log_it(L_WARNING, "Nothing to pay for delegate (not enough funds)");
+            return NULL;
+        }
+        // add 'in' items to pay for delegate
+        uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+        dap_list_free_full(l_list_used_out, NULL);
+        if (!EQUAL_256(l_value_to_items, l_value_transfer)) {
+            log_it(L_ERROR, "Can't compose the transaction input");
+            goto tx_fail;
+        }
+        SUBTRACT_256_256(l_value_transfer, l_refund_value, &l_value_back);
+    } else
+        SUBTRACT_256_256(l_value_prev, a_new_value, &l_value_back);
+
+    // add 'out_cond' & 'out_ext' items
+    dap_chain_tx_out_cond_t *l_out_cond = DAP_DUP_SIZE(l_cond_prev, sizeof(dap_chain_tx_out_cond_t) + l_cond_prev->tsd_size);
+    if (!l_out_cond) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        goto tx_fail;
+    }
+    l_out_cond->header.value = a_new_value;
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond);
+    DAP_DELETE(l_out_cond);
+
+    // coin back
+    if (!IS_ZERO_256(l_value_back)) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_value_back, l_delegated_ticker) != 1) {
+            log_it(L_ERROR, "Cant add coin back output");
+            goto tx_fail;
+        }
+    }
+
+    // add fee items
+    if (l_net_fee_used) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, l_native_ticker) != 1) {
+            log_it(L_ERROR, "Cant add net fee output");
+            goto tx_fail;
+        }
+    }
+    if (!IS_ZERO_256(a_fee)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1) {
+            log_it(L_ERROR, "Cant add validator fee output");
+            goto tx_fail;
+        }
+    }
+    uint256_t l_fee_back = {};
+    // fee coin back
+    SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
+    if (!IS_ZERO_256(l_fee_back)) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, l_native_ticker) != 1) {
+            log_it(L_ERROR, "Cant add fee back output");
+            goto tx_fail;
+        }
+    }
+
+    // add 'sign' item
+    if (dap_chain_datum_tx_add_sign_item(&l_tx, a_key) != 1) {
+        log_it(L_ERROR, "Can't add sign output");
+        goto tx_fail;
+    }
+
     return l_tx;
+
+tx_fail:
+    dap_chain_datum_tx_delete(l_tx);
+    return NULL;
 }
 
 static dap_chain_datum_tx_t *s_order_tx_create(dap_chain_net_t * a_net, dap_enc_key_t *a_key,
