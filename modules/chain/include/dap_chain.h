@@ -139,11 +139,12 @@ typedef enum dap_chain_type {
     CHAIN_TYPE_ANCHOR = 8
 } dap_chain_type_t;
 
+// not rotate, use in state machine
 typedef enum dap_chain_sync_state {
-    CHAIN_SYNC_STATE_IDLE,
-    CHAIN_SYNC_STATE_WAITING,
-    CHAIN_SYNC_STATE_SYNCED,
-    CHAIN_SYNC_STATE_ERROR
+    CHAIN_SYNC_STATE_SYNCED = -1,  // chain was synced
+    CHAIN_SYNC_STATE_IDLE = 0,  // do nothink
+    CHAIN_SYNC_STATE_WAITING,  // wait packet in
+    CHAIN_SYNC_STATE_ERROR  // have a error
 } dap_chain_sync_state_t;
 
 typedef struct dap_chain {
