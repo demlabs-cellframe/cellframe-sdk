@@ -2161,9 +2161,8 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         }
         if (!l_chain->callback_get_poa_certs)
             continue;
-        l_net->pub.keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
-        if (l_net->pub.keys)
-            break;
+        if (!l_net->pub.keys)
+            l_net->pub.keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
     }
     if (!l_net->pub.keys)
         log_it(L_WARNING, "PoA certificates for net %s not found", l_net->pub.name);

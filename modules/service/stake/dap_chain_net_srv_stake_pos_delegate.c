@@ -212,7 +212,8 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
     {                                                                                               \
         if (l_tx_new_cond->header.subtype != a_cond->header.subtype ||                              \
                 l_tx_new_cond->header.ts_expires != a_cond->header.ts_expires ||                    \
-                dap_chain_net_srv_uid_compare(l_tx_new_cond->header.srv_uid, a_cond->header.srv_uid)\
+                !dap_chain_net_srv_uid_compare(l_tx_new_cond->header.srv_uid,                       \
+                                               a_cond->header.srv_uid)                              \
                 ) {                                                                                 \
             log_it(L_WARNING, "Conditional out and conditional in have different headers");         \
             return -3;                                                                              \
@@ -230,7 +231,8 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
     }                                                                                               \
 )
     int l_out_idx = 0;
-    dap_chain_tx_out_cond_t *l_tx_new_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_out_idx);
+    dap_chain_tx_out_cond_t *l_tx_new_cond = dap_chain_datum_tx_out_cond_get(
+                                                a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_out_idx);
     // It's a order conditional TX
     if (dap_chain_addr_is_blank(&a_cond->subtype.srv_stake_pos_delegate.signing_addr) ||
             a_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 == 0) {
@@ -267,13 +269,16 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
             log_it(L_WARNING, "Conditional out and conditional in have different node addresses");
             return -16;
         }
-        if (compare256(l_tx_new_cond->header.value, dap_chain_net_srv_stake_get_allowed_min_value(a_ledger->net->pub.id))) {
-            log_it(L_WARNING, "New conditional out have value %s lower than minimum service required", dap_uint256_to_char(l_tx_new_cond->header.value, NULL));
+        if (compare256(l_tx_new_cond->header.value,
+                       dap_chain_net_srv_stake_get_allowed_min_value(a_ledger->net->pub.id)) == -1) {
+            log_it(L_WARNING, "New conditional out have value %s lower than minimum service required",
+                                                    dap_uint256_to_char(l_tx_new_cond->header.value, NULL));
             return -17;
         }
     } else {
         // It's a delegation conitional TX
-        dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
+        dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)
+                                                dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
         if (!l_tx_in_cond) {
             log_it(L_ERROR, "Conditional in item not found in current tx");
             return -6;
@@ -289,7 +294,8 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
         dap_chain_net_srv_stake_item_t *l_stake = NULL;
         HASH_FIND(ht, l_srv_stake->tx_itemlist, l_prev_hash, sizeof(dap_hash_t), l_stake);
         if (l_stake) {
-            log_it(L_WARNING, "Key %s is empowered for now, need to revoke it first", dap_hash_fast_to_str_static(&l_stake->signing_addr.data.hash_fast));
+            log_it(L_WARNING, "Key %s is empowered for now, need to revoke it first",
+                                    dap_hash_fast_to_str_static(&l_stake->signing_addr.data.hash_fast));
             return -12;
         }
     }
@@ -2125,7 +2131,7 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, vo
     uint256_t l_fee = {};
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_str);
     if (!l_wallet_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'invalidate' requires parameter -w");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'update' requires parameter -w");
         return -17;
     }
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-fee", &l_fee_str);
@@ -2227,14 +2233,14 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, vo
     dap_chain_wallet_close(l_wallet);
     dap_enc_key_delete(l_enc_key);
     char *l_out_hash_str = NULL;
-    if (l_tx && (l_out_hash_str = s_stake_tx_put(l_tx, l_net, a_hash_out_type))) {
+    if (l_tx_new && (l_out_hash_str = s_stake_tx_put(l_tx_new, l_net, a_hash_out_type))) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%sDelegated m-tokens value will change. Updating tx hash is %s.", l_sign_str, l_out_hash_str);
         DAP_DELETE(l_out_hash_str);
-        DAP_DELETE(l_tx);
+        DAP_DELETE(l_tx_new);
     } else {
         l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose updating transaction %s, examine log files for details", l_tx_hash_str);
-        DAP_DEL_Z(l_tx);
+        DAP_DEL_Z(l_tx_new);
         return -21;
     }
     return 0;
@@ -2621,7 +2627,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
         l_cmd_num = CMD_DELEGATE;
     }
     // Create tx to change staker's funds for delegated key (if any)
-    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "delegate", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "update", NULL)) {
         l_cmd_num = CMD_UPDATE;
     }
     // Create tx to approve staker's funds freeze
