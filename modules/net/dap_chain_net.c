@@ -117,7 +117,7 @@
 #define F_DAP_CHAIN_NET_SYNC_FROM_ZERO   ( 1 << 8 )
 
 static bool s_debug_more = false;
-static const int s_sync_timer_period = 5000;  // msec
+static const int c_sync_timer_period = 5000;  // msec
 
 struct request_link_info {
     char addr[DAP_HOSTADDR_STRLEN + 1];
@@ -344,7 +344,7 @@ char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net)
 static struct request_link_info *s_balancer_link_from_cfg(dap_chain_net_t *a_net)
 {
     switch (PVT(a_net)->seed_nodes_count) {
-    case 0: return log_it(L_ERROR, "No available links! Add them in net config"), NULL;
+    case 0: return log_it(L_ERROR, "No available links in net %s! Add them in net config", a_net->pub.name), NULL;
     case 1: return PVT(a_net)->seed_nodes_info[0];
     default: return PVT(a_net)->seed_nodes_info[dap_random_uint16() % PVT(a_net)->seed_nodes_count];
     }
@@ -496,7 +496,7 @@ int s_link_manager_link_request(uint64_t a_net_id)
         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
     struct request_link_info *l_balancer_link = s_balancer_link_from_cfg(l_net);
     if (!l_balancer_link) {
-        log_it(L_ERROR, "Can't process balancer link %s request", dap_chain_net_balancer_type_to_str(PVT(l_net)->balancer_type));
+        log_it(L_ERROR, "Can't process balancer link %s request in nte %s", dap_chain_net_balancer_type_to_str(PVT(l_net)->balancer_type), l_net->pub.name);
         return -5;
     }
     return dap_chain_net_balancer_request(l_net, l_balancer_link->addr,  l_balancer_link->port, PVT(l_net)->balancer_type);
@@ -532,35 +532,35 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
         json_object *l_jobj_chain = json_object_new_object();
         json_object *l_jobj_chain_status = NULL;
         json_object *l_jobj_percent = NULL;
-        double l_percent = l_chain->callback_count_atom(l_chain) ?
-                                   (double) (l_chain->callback_count_atom(l_chain) * 100) / l_chain->atom_num_last : 0;
-        if (l_percent > 100)
-            l_percent = 100;
-        char *l_percent_str = dap_strdup_printf("%.3f", l_percent);
-        dap_chain_net_state_t l_state = PVT(a_net)->state;
-        switch (l_state) {
-            case NET_STATE_OFFLINE:
-            case NET_STATE_LINKS_PREPARE:
-            case NET_STATE_LINKS_ESTABLISHED:
-            case NET_STATE_LINKS_CONNECTING:
-                l_jobj_chain_status = json_object_new_string("not synced");
-                l_jobj_percent = json_object_new_string(" - %");
+        
+        switch (l_chain->state) {
+            case CHAIN_SYNC_STATE_ERROR:
+                l_jobj_chain_status = json_object_new_string("error");
+                break;
+            case CHAIN_SYNC_STATE_IDLE:
+                l_jobj_chain_status = json_object_new_string("idle");
+                break;
+            case CHAIN_SYNC_STATE_WAITING:
+                l_jobj_chain_status = json_object_new_string("sync in process");
+                break;
+            case CHAIN_SYNC_STATE_SYNCED:
+                l_jobj_chain_status = json_object_new_string("synced");
                 break;
             default:
-                if (l_chain->state == CHAIN_SYNC_STATE_ERROR)
-                    l_jobj_chain_status = json_object_new_string("error");
-                else if (l_chain->state == CHAIN_SYNC_STATE_IDLE)
-                    l_jobj_chain_status = json_object_new_string("idle");
-                else if (l_chain->state == CHAIN_SYNC_STATE_WAITING)
-                    l_jobj_chain_status = json_object_new_string("sync in process");
-                else if (l_chain->state == CHAIN_SYNC_STATE_SYNCED)
-                    l_jobj_chain_status = json_object_new_string("synced");
-                else
-                    l_jobj_chain_status = json_object_new_string("unknown");
-                l_jobj_percent = json_object_new_string(l_percent_str);
+                l_jobj_chain_status = json_object_new_string("unknown");
                 break;
         }
-        DAP_DELETE(l_percent_str);
+        if (l_chain->state == CHAIN_SYNC_STATE_IDLE) {
+            l_jobj_percent = json_object_new_string(" - %");
+        } else {
+            double l_percent = l_chain->callback_count_atom(l_chain) ?
+                                   (double) (l_chain->callback_count_atom(l_chain) * 100) / l_chain->atom_num_last : 0;
+            if (l_percent > 100)
+                l_percent = 100;
+            char *l_percent_str = dap_strdup_printf("%.3f %c", l_percent, '%');
+            l_jobj_percent = json_object_new_string(l_percent_str);
+            DAP_DELETE(l_percent_str);
+        }
         json_object *l_jobj_current = json_object_new_uint64(l_chain->callback_count_atom(l_chain));
         json_object *l_jobj_total = json_object_new_uint64(l_chain->atom_num_last);
         json_object_object_add(l_jobj_chain, "status", l_jobj_chain_status);
@@ -2284,7 +2284,7 @@ bool s_net_load(void *a_arg)
         log_it(L_WARNING, "Unknown node address type will be defalted to 'auto'");
 
     l_net_pvt->sync_context.sync_idle_time = dap_config_get_item_uint32_default(g_config, "chain", "sync_idle_time", 60);
-    dap_proc_thread_timer_add(NULL, s_sync_timer_callback, l_net, s_sync_timer_period);
+    dap_proc_thread_timer_add(NULL, s_sync_timer_callback, l_net, c_sync_timer_period);
 
     log_it(L_INFO, "Chain network \"%s\" initialized", l_net->pub.name);
 ret:
@@ -3057,10 +3057,20 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
 
     switch (a_type) {
     case DAP_CHAIN_CH_PKT_TYPE_ERROR:
+        if (!l_net_pvt->sync_context.cur_chain) {
+            log_it(L_DEBUG, "Got ERROR paket with NO chain net %s", l_net->pub.name);
+            return;
+        }
+        log_it(L_DEBUG, "Got ERROR paket to %s chain in net %s", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_ERROR;
         return;
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN:
+        if (!l_net_pvt->sync_context.cur_chain) {
+            log_it(L_DEBUG, "Got SYNCED_CHAIN paket with NO chain net %s", l_net->pub.name);
+            return;
+        }
+        log_it(L_DEBUG, "Got SYNCED_CHAIN paket to %s chain net %s", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
         return;
 
@@ -3206,6 +3216,10 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
         return l_curr_chain;
     }
     log_it(L_DEBUG, "Go to next chain: <NULL>");
+    if (l_net_pvt->state_target != NET_STATE_ONLINE) {
+        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+        return NULL;
+    }
     dap_chain_net_state_t l_prev_state = l_net_pvt->state;
     l_net_pvt->state = NET_STATE_ONLINE;
     s_net_states_proc(a_net);
@@ -3239,6 +3253,8 @@ static void s_sync_timer_callback(void *a_arg)
             log_it(L_INFO, "Can't start sync chains in net %s, wait seccond attempt", l_net->pub.name);
             return;
         }
+    } else if (l_net_pvt->state == NET_STATE_ONLINE && l_net_pvt->sync_context.state == CHAIN_SYNC_STATE_SYNCED) {
+        return;
     }
     if (!s_switch_sync_chain(l_net)) {  // return if all chans synced
         log_it(L_DEBUG, "All chains in net %s synced, no need new sync request", l_net->pub.name);
@@ -3309,7 +3325,7 @@ static bool s_net_states_proc(void *a_arg)
     switch ((dap_chain_net_state_t)l_net_pvt->state) {
         // State OFFLINE where we don't do anything
         case NET_STATE_OFFLINE: {
-            log_it(L_NOTICE,"%s.state: NET_STATE_OFFLINE", l_net->pub.name);
+            log_it(L_NOTICE,"%s.state: %s", l_net->pub.name, c_net_states[l_net_pvt->state]);
             // delete all links
             if ( l_net_pvt->state_target != NET_STATE_OFFLINE ){
                 l_net_pvt->state = NET_STATE_LINKS_PREPARE;
@@ -3317,28 +3333,13 @@ static bool s_net_states_proc(void *a_arg)
             }
         } break;
 
-        // Prepare links
-        case NET_STATE_LINKS_PREPARE: {
-            log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_PREPARE", l_net->pub.name);
-        } break;
-
-        case NET_STATE_LINKS_CONNECTING: {
-            log_it(L_INFO, "%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
-            size_t l_used_links = 0;
-        } break;
-
+        case NET_STATE_LINKS_PREPARE:
+        case NET_STATE_LINKS_CONNECTING:
         case NET_STATE_LINKS_ESTABLISHED:
-            log_it(L_INFO,"%s.state: NET_STATE_LINKS_ESTABLISHED", l_net->pub.name);
-            break;
-
         case NET_STATE_SYNC_CHAINS:
-            log_it(L_INFO,"%s.state: NET_STATE_SYNC_CHAINS", l_net->pub.name);
-            break;
-
         case NET_STATE_ONLINE:
-            log_it(L_NOTICE,"%s.state: NET_STATE_ONLINE", l_net->pub.name);
+            log_it(L_INFO,"%s.state: %s", l_net->pub.name, c_net_states[l_net_pvt->state]);
             break;
-
         default:
             log_it(L_DEBUG, "Unprocessed state");
     }
