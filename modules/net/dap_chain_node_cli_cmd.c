@@ -7266,8 +7266,9 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
     bool l_brief = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-brief") != -1) ? true : false;
 
     bool l_is_tx_all = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
+    bool l_is_tx_count = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-count", NULL);
 
-    if (!l_addr_base58 && !l_wallet_name && !l_tx_hash_str && !l_is_tx_all) {
+    if (!l_addr_base58 && !l_wallet_name && !l_tx_hash_str && !l_is_tx_all && !l_is_tx_count) {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_PARAM_ERR,
                                 "tx_history requires parameter '-addr' or '-w' or '-tx'");
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_PARAM_ERR;
@@ -7406,6 +7407,11 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         json_object_array_add(*json_arr_reply, json_arr_history_all);
         json_object_array_add(*json_arr_reply, json_obj_summary);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
+    } else if (l_is_tx_count) {
+        size_t t1 = l_chain->callback_count_atom(l_chain);
+        size_t t2 = l_chain->callback_count_tx(l_chain);
+        if(t1>t2)
+            json_object_array_add(*json_arr_reply, json_object_new_string("empty"));
     }
 
     if (json_obj_out) {
