@@ -30,6 +30,12 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 
+#ifdef DAP_TPS_TEST
+#define DAP_CHAIN_ATOM_MAX_SIZE (100 * 1024 * 1024)
+#else
+#define DAP_CHAIN_ATOM_MAX_SIZE (256 * 1024) // 256 KB
+#endif
+
 typedef struct dap_chain dap_chain_t;
 
 typedef struct dap_chain_cell dap_chain_cell_t;
@@ -85,7 +91,7 @@ typedef void (*dap_chain_callback_t)(dap_chain_t *);
 typedef int (*dap_chain_callback_new_cfg_t)(dap_chain_t *, dap_config_t *);
 typedef void (*dap_chain_callback_ptr_t)(dap_chain_t *, void * );
 
-typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_t)(dap_chain_t *, dap_chain_atom_ptr_t, size_t, dap_hash_fast_t*);
+typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_t)(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash, bool a_atom_new);
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_form_treshold_t)(dap_chain_t *, size_t *);
 typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_verify_t)(dap_chain_t *, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t*);
 typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)(void);

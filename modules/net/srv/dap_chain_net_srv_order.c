@@ -81,13 +81,14 @@ void dap_chain_net_srv_order_deinit()
 
 }
 
-size_t dap_chain_net_srv_order_get_size(const dap_chain_net_srv_order_t *a_order)
+uint64_t dap_chain_net_srv_order_get_size(const dap_chain_net_srv_order_t *a_order)
 {
     if (!a_order || a_order->version != 3)
         return 0;
     dap_sign_t *l_sign = (dap_sign_t *)(a_order->ext_n_sign + a_order->ext_size);
-    size_t l_sign_size = l_sign->header.type.type == SIG_TYPE_NULL ? sizeof(dap_sign_type_t) : dap_sign_get_size(l_sign);
-    return sizeof(dap_chain_net_srv_order_t) + a_order->ext_size + l_sign_size;
+    uint64_t l_sign_size = l_sign->header.type.type == SIG_TYPE_NULL ? sizeof(dap_sign_type_t) : dap_sign_get_size(l_sign);
+    uint64_t l_size_without_sign = (uint64_t)sizeof(dap_chain_net_srv_order_t) + a_order->ext_size;
+    return l_size_without_sign + l_sign_size < l_size_without_sign ? 0 : l_size_without_sign + l_sign_size;
 }
 
 const dap_chain_net_srv_order_t *dap_chain_net_srv_order_check(const char *a_order_hash_str, const byte_t *a_order, size_t a_order_size)

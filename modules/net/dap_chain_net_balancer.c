@@ -91,10 +91,25 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
     const dap_stream_node_addr_t
         *l_curr_addr = &dap_chain_net_get_my_node_info(a_net)->address,
         *l_uplinks = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64, &l_uplinks_count, NULL, true),
-        *l_low_availability = dap_link_manager_get_ignored_addrs(&l_low_availability_count);
+        *l_low_availability = dap_link_manager_get_ignored_addrs(&l_low_availability_count, a_net->pub.id.uint64);
     if(!l_curr_addr->uint64 && !l_uplinks && !l_low_availability) {
         log_it(L_WARNING, "Error forming ignore list in net %s, please check, should be minimum self addr", a_net->pub.name);
         return NULL;
+    }
+    if (dap_log_level_get() <= L_DEBUG ) {
+        char *l_ignored_str = NULL;
+        DAP_NEW_Z_SIZE_RET_VAL(l_ignored_str, char, 50 * (l_uplinks_count + l_low_availability_count + 1) + 200 + strlen(a_net->pub.name), NULL, l_uplinks, l_low_availability);
+        sprintf(l_ignored_str + strlen(l_ignored_str), "Second %zu nodes will be ignored in balancer links preparing in net %s:\n\tSelf:\n\t\t"NODE_ADDR_FP_STR"\n", l_uplinks_count + l_low_availability_count + 1, a_net->pub.name, NODE_ADDR_FP_ARGS(l_curr_addr));
+        sprintf(l_ignored_str + strlen(l_ignored_str), "\tUplinks (%zu):\n", l_uplinks_count);
+        for (size_t i = 0; i < l_uplinks_count; ++i) {
+            sprintf(l_ignored_str + strlen(l_ignored_str), "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_uplinks + i));
+        }
+        sprintf(l_ignored_str + strlen(l_ignored_str), "\tCooling (%zu):\n", l_low_availability_count);
+        for (size_t i = 0; i < l_low_availability_count; ++i) {
+            sprintf(l_ignored_str + strlen(l_ignored_str), "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_low_availability + i));
+        }
+        log_it(L_DEBUG, "%s", l_ignored_str);
+        DAP_DELETE(l_ignored_str);
     }
     l_size = sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * (l_uplinks_count + l_low_availability_count + 1);
 // memory alloc
@@ -122,11 +137,21 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
 static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_chain_net_links_t *a_link_full_node_list, const char* a_host_addr, uint16_t a_host_port)
 {
     char l_err_str[128] = {0};
+    if (dap_log_level_get() <= L_DEBUG ) {
+        char *l_links_str = NULL;
+        DAP_NEW_Z_SIZE_RET(l_links_str, char, (DAP_HOSTADDR_STRLEN + 50) * a_link_full_node_list->count_node + 200 + strlen(a_net->pub.name), NULL);
+        sprintf(l_links_str + strlen(l_links_str), "Second %"DAP_UINT64_FORMAT_U" links was prepared from balancer in net %s:\n", a_link_full_node_list->count_node, a_net->pub.name);
+        for (size_t i = 0; i < a_link_full_node_list->count_node; ++i) {
+            dap_link_info_t *l_link_info = (dap_link_info_t *)a_link_full_node_list->nodes_info + i;
+            sprintf(l_links_str + strlen(l_links_str), "\t"NODE_ADDR_FP_STR " [ %s : %u ]\n",
+               NODE_ADDR_FP_ARGS_S(l_link_info->node_addr), l_link_info->uplink_addr, l_link_info->uplink_port);
+        }
+        log_it(L_DEBUG, "%s", l_links_str);
+        DAP_DELETE(l_links_str);
+    }
     struct json_object *l_json;
     for (size_t i = 0; i < a_link_full_node_list->count_node; ++i) {
         dap_link_info_t *l_link_info = (dap_link_info_t *)a_link_full_node_list->nodes_info + i;
-        log_it(L_DEBUG,"Link " NODE_ADDR_FP_STR " [ %s : %u ] prepare success",
-               NODE_ADDR_FP_ARGS_S(l_link_info->node_addr), l_link_info->uplink_addr, l_link_info->uplink_port);
         if (dap_chain_net_link_add(a_net, &l_link_info->node_addr, l_link_info->uplink_addr, l_link_info->uplink_port))
             continue;
         l_json = s_balancer_states_json_collect(a_net, a_host_addr, a_host_port);
@@ -136,8 +161,6 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_chain_ne
         json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
         dap_notify_server_send_mt(json_object_get_string(l_json));
         json_object_put(l_json);
-        log_it(L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added",
-                 NODE_ADDR_FP_ARGS_S(l_link_info->node_addr));
     }
 }
 

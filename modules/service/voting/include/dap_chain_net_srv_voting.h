@@ -132,6 +132,7 @@ enum DAP_CHAIN_NET_VOTE_VOTING_ERROR{
     
 
     DAP_CHAIN_NET_VOTE_VOTING_UNKNOWN_ERR    
+    DAP_CHAIN_NET_VOTE_VOTING_INTEGER_OVERFLOW
 
 };
 int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t a_hash,

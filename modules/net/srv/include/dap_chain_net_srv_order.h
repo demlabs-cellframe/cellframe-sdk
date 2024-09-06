@@ -55,7 +55,7 @@ typedef struct dap_chain_net_srv_order
 int dap_chain_net_srv_order_init();
 void dap_chain_net_srv_order_deinit(void);
 
-size_t dap_chain_net_srv_order_get_size(const dap_chain_net_srv_order_t *a_order);
+uint64_t dap_chain_net_srv_order_get_size(const dap_chain_net_srv_order_t *a_order);
 const dap_chain_net_srv_order_t *dap_chain_net_srv_order_check(const char *a_order_hash_str, const byte_t *a_order, size_t a_order_size);
 
 bool dap_chain_net_srv_order_set_continent_region(dap_chain_net_srv_order_t **a_order, uint8_t a_continent_num, const char *a_region);
