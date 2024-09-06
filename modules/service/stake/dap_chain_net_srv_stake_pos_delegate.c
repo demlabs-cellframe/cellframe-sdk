@@ -461,9 +461,10 @@ void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint25
     dap_return_if_fail(l_srv_stake);
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
-    dap_return_if_fail(l_stake);
+    if (!l_stake)
+        return; // It's update for non delegated key, it's OK
     HASH_DELETE(ht, l_srv_stake->tx_itemlist, l_stake);
-    l_stake->locked_value = a_new_value;
+    l_stake->locked_value = l_stake->value = a_new_value;
     l_stake->tx_hash = *a_new_tx_hash;
     HASH_ADD(ht, l_srv_stake->tx_itemlist, tx_hash, sizeof(dap_hash_fast_t), l_stake);
     char *l_old_value_str = dap_chain_balance_to_coins(l_stake->locked_value);
@@ -849,7 +850,7 @@ static dap_chain_datum_tx_t *s_stake_tx_update(dap_chain_net_t *a_net, dap_hash_
         goto tx_fail;
     }
     uint256_t l_value_prev = l_cond_prev->header.value, l_value_back = {};
-    bool l_increasing = compare256(l_value_prev, a_new_value) == 1;
+    bool l_increasing = compare256(a_new_value, l_value_prev) == 1;
     if (l_increasing) {
         uint256_t l_refund_value = {};
         SUBTRACT_256_256(a_new_value, l_value_prev, &l_refund_value);
