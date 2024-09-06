@@ -698,7 +698,9 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 
         switch (res) {
             case DAP_CHAIN_NET_VOTE_CREATE_OK: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s successfully added to mempool", l_hash_ret);
+                json_object* json_obj_inf = json_object_new_object();
+                json_object_object_add(json_obj_inf, "Datum add successfully", json_object_new_string(l_hash_ret));
+                json_object_array_add(*json_arr_reply, json_obj_inf);
                 DAP_DELETE(l_hash_ret);
                 return DAP_CHAIN_NET_VOTE_CREATE_OK;
             } break;
@@ -813,15 +815,15 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-option_idx", &l_option_idx_str);
         if (!l_option_idx_str){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'vote' requires parameter -option_idx to be valid.");
-            return -103;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_VOTING_OPTION_IDX_PARAM_NOT_VALID, "Command 'vote' requires parameter -option_idx to be valid.");
+            return -DAP_CHAIN_NET_VOTE_VOTING_OPTION_IDX_PARAM_NOT_VALID;
         }
 
         const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
         dap_chain_wallet_t *l_wallet_fee = dap_chain_wallet_open(l_wallet_str, c_wallets_path,NULL);
         if (!l_wallet_fee) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet %s does not exist", l_wallet_str);
-            return -112;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_VOTING_WALLET_DOES_NOT_EXIST, "Wallet %s does not exist", l_wallet_str);
+            return -DAP_CHAIN_NET_VOTE_VOTING_WALLET_DOES_NOT_EXIST;
         }
 
         uint64_t l_option_idx_count = strtoul(l_option_idx_str, NULL, 10);
@@ -834,7 +836,9 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 
         switch (res) {
             case DAP_CHAIN_NET_VOTE_VOTING_OK: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s successfully added to mempool", l_hash_tx);
+                json_object* json_obj_inf = json_object_new_object();
+                json_object_object_add(json_obj_inf, "Datum add successfully to mempool", json_object_new_string(l_hash_tx));
+                json_object_array_add(*json_arr_reply, json_obj_inf);
                 DAP_DELETE(l_hash_tx);
                 return DAP_CHAIN_NET_VOTE_CREATE_OK;
             } break;
