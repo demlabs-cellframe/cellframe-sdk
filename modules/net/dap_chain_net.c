@@ -2326,7 +2326,7 @@ bool s_net_load(void *a_arg)
     l_gdb_groups_mask = dap_strdup_printf("%s.orders", l_net->pub.gdb_groups_prefix);
     l_net_pvt->common_orders = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                           l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
-                                                          l_gdb_groups_mask, 72, true,
+                                                          l_gdb_groups_mask, 336, true,
                                                           DAP_GDB_MEMBER_ROLE_USER,
                                                           DAP_CLUSTER_TYPE_EMBEDDED);
     if (!l_net_pvt->common_orders) {
@@ -2337,12 +2337,11 @@ bool s_net_load(void *a_arg)
     DAP_DELETE(l_gdb_groups_mask);
     // Node states cluster
     l_gdb_groups_mask = dap_strdup_printf("%s.nodes.states", l_net->pub.gdb_groups_prefix);
-    l_net_pvt->nodes_states = dap_global_db_cluster_add(
-        dap_global_db_instance_get_default(),
-        l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
-        l_gdb_groups_mask, 0, true,
-        DAP_GDB_MEMBER_ROLE_USER,
-        DAP_CLUSTER_TYPE_EMBEDDED);
+    l_net_pvt->nodes_states = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
+                                                        l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
+                                                        l_gdb_groups_mask, 6, true,
+                                                        DAP_GDB_MEMBER_ROLE_USER,
+                                                        DAP_CLUSTER_TYPE_EMBEDDED);
     DAP_DELETE(l_gdb_groups_mask);
     // Nodes and its aliases cluster
     l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes.list",l_net->pub.gdb_groups_prefix);

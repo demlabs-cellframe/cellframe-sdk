@@ -539,7 +539,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     char *l_sync_group = s_get_penalty_group(l_net->pub.id);
     l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
                                                       dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_ESBOCS),
-                                                      l_sync_group, 72 * 3600, true,
+                                                      l_sync_group, 72, true,
                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_session->db_cluster->links_cluster);
     dap_global_db_erase_table_sync(l_sync_group);     // Drop table on stratup
@@ -950,6 +950,9 @@ static dap_list_t *s_validator_check_synced(dap_chain_addr_t *a_addr, dap_list_t
 
 static void s_db_calc_sync_hash(dap_chain_esbocs_session_t *a_session)
 {
+    dap_chain_addr_t l_addr_blank = c_dap_chain_addr_blank;
+    l_addr_blank.net_id = a_session->chain->net_id;
+    dap_chain_net_srv_stake_mark_validator_active(&l_addr_blank, true);  // Mark all validators active for now
     char *l_penalty_group = s_get_penalty_group(a_session->chain->net_id);
     size_t l_penalties_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_penalty_group, &l_penalties_count);
