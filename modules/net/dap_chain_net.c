@@ -553,10 +553,7 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
         if (l_chain->state == CHAIN_SYNC_STATE_IDLE) {
             l_jobj_percent = json_object_new_string(" - %");
         } else {
-            double l_percent = l_chain->callback_count_atom(l_chain) ?
-                                   (double) (l_chain->callback_count_atom(l_chain) * 100) / l_chain->atom_num_last : 0;
-            if (l_percent > 100)
-                l_percent = 100;
+            double l_percent = dap_min((double)l_chain->callback_count_atom(l_chain) * 100 / l_chain->atom_num_last, 100.0);
             char *l_percent_str = dap_strdup_printf("%.3f %c", l_percent, '%');
             l_jobj_percent = json_object_new_string(l_percent_str);
             DAP_DELETE(l_percent_str);
@@ -3072,6 +3069,7 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
         }
         log_it(L_DEBUG, "Got SYNCED_CHAIN paket to %s chain net %s", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
+        l_net_pvt->sync_context.cur_chain->atom_num_last = l_net_pvt->sync_context.cur_chain->callback_count_atom(l_net_pvt->sync_context.cur_chain);
         return;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS: {
