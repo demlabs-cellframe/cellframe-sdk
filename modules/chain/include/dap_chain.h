@@ -139,6 +139,14 @@ typedef enum dap_chain_type {
     CHAIN_TYPE_ANCHOR = 8
 } dap_chain_type_t;
 
+// not rotate, use in state machine
+typedef enum dap_chain_sync_state {
+    CHAIN_SYNC_STATE_SYNCED = -1,  // chain was synced
+    CHAIN_SYNC_STATE_IDLE = 0,  // do nothink
+    CHAIN_SYNC_STATE_WAITING = 1,  // wait packet in
+    CHAIN_SYNC_STATE_ERROR = 2 // have a error
+} dap_chain_sync_state_t;
+
 typedef struct dap_chain {
     pthread_rwlock_t rwlock; // Common rwlock for the whole structure
 
@@ -162,6 +170,8 @@ typedef struct dap_chain {
     uint16_t autoproc_datum_types_count;
     uint16_t *autoproc_datum_types;
     uint64_t atom_num_last;
+
+    dap_chain_sync_state_t  state;
 
     // To hold it in double-linked lists
     struct dap_chain * next;
