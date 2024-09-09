@@ -32,7 +32,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_STREAM_CH_ESBOCS_ID                     'E'
 
 #define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           8
-#define DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX          "esbocs"
+#define DAP_CHAIN_ESBOCS_CS_TYPE_STR                "esbocs"
+#define DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX          DAP_CHAIN_ESBOCS_CS_TYPE_STR
 #define DAP_CHAIN_CLUSTER_ID_ESBOCS                 0x8000
 
 #define DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT            0x04
@@ -206,6 +207,7 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_esbocs_penalty_item_t *penalty;
     dap_global_db_cluster_t *db_cluster;
     dap_global_db_driver_hash_t db_hash;
+    bool is_actual_hash;
 
     struct dap_chain_esbocs_session *prev, *next;
 } dap_chain_esbocs_session_t;

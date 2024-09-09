@@ -63,7 +63,7 @@
 
 //#define __USE_GNU
 
-#if defined(__USE_BSD) || defined(__USE_GNU)
+#if defined(__USE_BSD) || defined(__USE_GNU) || defined(DAP_OS_ANDROID)
 #define S_IREAD S_IRUSR
 #define S_IWRITE S_IWUSR
 #define S_IEXEC S_IXUSR
@@ -352,7 +352,7 @@ static char s_wallets_path[MAX_PATH];
 
 const char* dap_chain_wallet_get_path(dap_config_t * a_config)
 {
-    char *l_cp = NULL;
+    const char *l_cp = NULL;
     if (!a_config)
         a_config = g_config;
     if ( s_wallets_path[0] )                                                /* Is the path to the wallet's store has been defined ? */

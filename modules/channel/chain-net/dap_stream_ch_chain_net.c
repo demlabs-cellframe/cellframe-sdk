@@ -125,20 +125,24 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             return false;
         }
         dap_stream_ch_chain_net_pkt_t *l_ch_chain_net_pkt = (dap_stream_ch_chain_net_pkt_t *)l_ch_pkt->data;
-        if (l_ch_chain_net_pkt->hdr.data_size + sizeof(dap_stream_ch_chain_net_pkt_t) > l_ch_pkt->hdr.data_size) {
+        if ((uint32_t)l_ch_chain_net_pkt->hdr.data_size + sizeof(dap_stream_ch_chain_net_pkt_t) > l_ch_pkt->hdr.data_size) {
             log_it(L_WARNING, "Too small stream channel N packet size %u (expected at least %zu)",
                                     l_ch_pkt->hdr.data_size, l_ch_chain_net_pkt->hdr.data_size + sizeof(dap_stream_ch_chain_net_pkt_t));
             return false;
         }
         dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain_net_pkt->hdr.net_id);
         if (!l_net) {
-            log_it(L_ERROR, "Invalid net id in packet");
+            log_it(L_ERROR, "Invalid net id 0x%016" DAP_UINT64_FORMAT_x " in stream channel N packet", l_ch_chain_net_pkt->hdr.net_id.uint64);
             char l_err_str[] = "ERROR_NET_INVALID_ID";
             dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR ,
                                               l_ch_chain_net_pkt->hdr.net_id, l_err_str, sizeof(l_err_str));
             return false;
         }
         if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR) {
+            if (l_ch_chain_net_pkt->data[l_ch_chain_net_pkt->hdr.data_size - 1] != '\0') {
+                log_it(L_WARNING, "Invalid error string format with no trailing zero");
+                return false;
+            }
             char *l_err_str = (char *)l_ch_chain_net_pkt->data;
             log_it(L_WARNING, "Stream channel N for network communication got error on other side: %s", l_err_str);
             if (a_ch->stream->authorized) {

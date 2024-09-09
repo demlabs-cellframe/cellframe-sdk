@@ -2,19 +2,16 @@ TEMPLATE = aux
 
 
 linux: !android {
-    CONFIG(debug, debug | release): sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target linux rwd -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
-    CONFIG(release, debug | release): sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target linux release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
+    CONFIG(debug, debug | release): sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target linux rwd -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/ -DCELLFRAME_NO_OPTIMIZATION=1
+    CONFIG(release, debug | release): sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target linux release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/ -DCELLFRAME_NO_OPTIMIZATION=1
 
 }
 
 win32 {
-    contains(QMAKE_HOST.os, "Windows") {
-        sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.bat
-    }
-    else {
-        CONFIG(release, debug | release): sdk_build.commands = "$$shell_path($$PWD/../cellframe-sdk/prod_build/build.sh)" --target windows release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
-        CONFIG(debug, debug | release): sdk_build.commands = "$$shell_path($$PWD/../cellframe-sdk/prod_build/build.sh)" --target windows rwd -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
-    }
+    
+    CONFIG(release, debug | release): sdk_build.commands = "$$shell_path($$PWD/../cellframe-sdk/prod_build/build.sh)" --target windows release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
+    CONFIG(debug, debug | release): sdk_build.commands = "$$shell_path($$PWD/../cellframe-sdk/prod_build/build.sh)" --target windows rwd -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
+    
 }
 
 android {

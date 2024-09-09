@@ -134,11 +134,11 @@ typedef struct dap_chain_datum{
  * @param a_datum
  * @return
  */
-DAP_STATIC_INLINE size_t dap_chain_datum_size(const dap_chain_datum_t *a_datum)
+DAP_STATIC_INLINE uint64_t dap_chain_datum_size(const dap_chain_datum_t *a_datum)
 {
     if (!a_datum)
         return 0;
-    return sizeof(a_datum->header) + a_datum->header.data_size;
+    return (uint64_t)sizeof(a_datum->header) + a_datum->header.data_size;
 }
 
 DAP_STATIC_INLINE void dap_chain_datum_calc_hash(const dap_chain_datum_t *a_datum, dap_hash_fast_t *a_out_hash)
