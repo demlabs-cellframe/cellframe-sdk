@@ -1160,7 +1160,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
             l_fee_value = dap_chain_balance_scan(l_fee_value_str);
-            if (!l_fee_value_str || IS_ZERO_256(l_fee_value)) {
+            if (IS_ZERO_256(l_fee_value)) {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block %s collect' requires parameter '-fee' to be valid uint256", l_subcmd_str);
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
