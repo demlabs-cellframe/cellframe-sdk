@@ -700,7 +700,7 @@ static int s_json_tx_history_pack(json_object** a_json_obj_datum, dap_chain_datu
     dap_hash_fast_t l_ttx_hash = {0};
     dap_hash_fast(l_tx, a_datum->header.data_size, &l_ttx_hash);
 
-    char *service_name = NULL;
+    const char *service_name = NULL;
     dap_chain_tx_tag_action_type_t l_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
     //bool srv_found = a_datum_iter->uid.uint64 ? true : false;
     l_action = a_datum_iter->action;
