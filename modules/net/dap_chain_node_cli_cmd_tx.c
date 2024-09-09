@@ -736,6 +736,7 @@ json_object *dap_db_history_tx_all(dap_chain_t *a_chain, dap_chain_net_t *a_net,
                                    size_t a_limit, size_t a_offset, bool out_brief,
 					const char *a_srv, dap_chain_tx_tag_action_type_t a_action, bool a_head)
 {
+
         log_it(L_DEBUG, "Start getting tx from chain");
         size_t
             l_tx_ledger_accepted = 0,
