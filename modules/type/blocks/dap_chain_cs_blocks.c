@@ -103,7 +103,7 @@ static bool s_chain_find_atom(dap_chain_block_cache_t* a_blocks, dap_chain_hash_
 // Callbacks
 static void s_callback_delete(dap_chain_t * a_chain);
 // Accept new block
-static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash);
+static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash, bool a_atom_new);
 //    Verify new block
 static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash);
 
@@ -1155,7 +1155,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                                         "Certificate \"%s\" doesn't contains private key", l_cert_name);
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_CERT_ERR;
             }
-
+            if (!l_fee_value_str) {
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block %s collect' requires parameter '-fee'", l_subcmd_str);
+                return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
+            }
             l_fee_value = dap_chain_balance_scan(l_fee_value_str);
             if (!l_fee_value_str || IS_ZERO_256(l_fee_value)) {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block %s collect' requires parameter '-fee' to be valid uint256", l_subcmd_str);
@@ -1242,17 +1245,14 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                         .block_sign_pkey = l_pub_key,
                         .collecting_addr = l_addr
                 };
-                //Cleare gdb
-                size_t l_objs_fee_count = 0;
-                size_t l_objs_rew_count = 0;
+                //Clear gdb
                 char *l_group_fee = dap_chain_cs_blocks_get_fee_group(l_net->pub.name);
-                char *l_group_rew = dap_chain_cs_blocks_get_reward_group(l_net->pub.name);
-                dap_global_db_obj_t *l_objs_fee = dap_global_db_get_all_sync(l_group_fee, &l_objs_fee_count);
-                dap_global_db_obj_t *l_objs_rew = dap_global_db_get_all_sync(l_group_rew, &l_objs_rew_count);
-                if(l_objs_fee_count)dap_global_db_objs_delete(l_objs_fee,l_objs_fee_count);
-                if(l_objs_rew_count)dap_global_db_objs_delete(l_objs_rew,l_objs_rew_count);
+                dap_global_db_erase_table_sync(l_group_fee);
                 DAP_DELETE(l_group_fee);
-                DAP_DELETE(l_group_rew);
+                char *l_group_reward = dap_chain_cs_blocks_get_reward_group(l_net->pub.name);
+                dap_global_db_erase_table_sync(l_group_reward);
+                DAP_DELETE(l_group_reward);
+
                 json_object* json_arr_bl_out = json_object_new_array();
 
                 for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
@@ -1630,7 +1630,7 @@ static void s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
  * @param a_atom_size
  * @return
  */
-static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom , size_t a_atom_size, dap_hash_fast_t *a_atom_hash)
+static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom , size_t a_atom_size, dap_hash_fast_t *a_atom_hash, bool a_atom_new)
 {
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_block_t * l_block = (dap_chain_block_t *) a_atom;
@@ -1648,7 +1648,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
 #ifndef DAP_CHAIN_BLOCKS_TEST
         if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
-            if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, &l_block_hash)) < 0 ) {
+            if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL)) < 0 ) {
                 log_it(L_ERROR, "Can't save atom to file, code %d", ret);
                 return ATOM_REJECT;
             } else if (a_chain->is_mapped) {
@@ -1732,7 +1732,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
 #ifndef DAP_CHAIN_BLOCKS_TEST
         if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
-            if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, &l_block_hash)) < 0 ) {
+            if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL)) < 0 ) {
                 log_it(L_ERROR, "Can't save atom to file, code %d", ret);
                 return ATOM_REJECT;
             } else if (a_chain->is_mapped) {
@@ -1749,8 +1749,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
         dap_chain_block_cache_t *l_prev_bcache = NULL, *l_tmp = NULL;
-        pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);
-        log_it(L_INFO, "New fork. Previous block hash %s, current block hash %s", dap_chain_hash_fast_to_str_static(&l_block_prev_hash), 
+        pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);        log_it(L_INFO, "New fork. Previous block hash %s, current block hash %s", dap_chain_hash_fast_to_str_static(&l_block_prev_hash), 
                                                                                     l_block_cache->block_hash_str);
         HASH_FIND(hh, PVT(l_blocks)->blocks, &l_block_prev_hash, sizeof(dap_hash_fast_t), l_prev_bcache);
         if (l_prev_bcache){
@@ -2313,8 +2312,8 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
             log_it(L_WARNING, "Empty datum"); /* How might it be? */
             continue;
         }
-        if (l_blocks->block_new_size + l_datum_size > DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE) {
-            log_it(L_DEBUG, "Maximum size exeeded, %zu > %d", l_blocks->block_new_size + l_datum_size, DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE);
+        if (l_blocks->block_new_size + l_datum_size > DAP_CHAIN_ATOM_MAX_SIZE) {
+            log_it(L_DEBUG, "Maximum size exeeded, %zu > %d", l_blocks->block_new_size + l_datum_size, DAP_CHAIN_ATOM_MAX_SIZE);
             break;
         }
         if (!l_blocks->block_new) {

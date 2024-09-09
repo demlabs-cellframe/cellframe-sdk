@@ -107,7 +107,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx_full(dap_enc_key_t *a_key_from, 
     dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_ledger->net->pub.id);
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
     int l_out_idx = 0;
-    dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT, NULL);
+    dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT, NULL);
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_hash_prev, 0);
     dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(a_addr_to, a_value);
@@ -129,7 +129,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx_cond(dap_enc_key_t *a_key_from, 
     dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_ledger->net->pub.id);
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
     int l_out_idx = 0;
-    dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT, NULL);
+    dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT, NULL);
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_hash_prev, 0);
     dap_chain_net_srv_uid_t l_srv_uid = {.uint64 = 1};
@@ -157,7 +157,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_spend_tx_cond(dap_enc_key_t *a_key_
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
      // get previous cond out
     int l_out_idx = 0;
-    dap_chain_tx_out_cond_t *l_tx_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT_COND, NULL);
+    dap_chain_tx_out_cond_t *l_tx_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
 
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_cond_t *l_in_cond = dap_chain_datum_tx_item_in_cond_create(a_hash_prev, 1, 0);
@@ -199,7 +199,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_return_from_tx_cond(dap_chain_hash_
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
      // get previous cond out
     int l_out_idx = 1;
-    dap_chain_tx_out_cond_t *l_tx_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT_COND, NULL);
+    dap_chain_tx_out_cond_t *l_tx_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
 
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_cond_t *l_in_cond = dap_chain_datum_tx_item_in_cond_create(a_hash_prev, 1, 0);
@@ -222,7 +222,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
      // get previous cond out
     int l_out_idx = 0;
-    dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT, NULL);
+    dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT, NULL);
     
     dap_chain_addr_t l_addr_to = {0};
     dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);
@@ -275,7 +275,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_unstake_tx_cond(dap_enc_key_t *a_ke
         return NULL;
 
     l_out_idx = 4;
-    dap_chain_tx_out_ext_t *l_tx_prev_out_ext = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT_EXT, NULL);
+    dap_chain_tx_out_ext_t *l_tx_prev_out_ext = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
 
     dap_chain_addr_t l_addr_to = {0};
     dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);

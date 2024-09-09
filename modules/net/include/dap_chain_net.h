@@ -101,7 +101,6 @@ void dap_chain_net_try_online_all();
 
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
 dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
-void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state);
 dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
@@ -201,7 +200,8 @@ int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_
 int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
-void dap_chain_net_announce_addrs(dap_chain_net_t *a_net);
+void dap_chain_net_announce_addr(dap_chain_net_t *a_net);
+void dap_chain_net_announce_addr_all();
 char *dap_chain_net_links_dump(dap_chain_net_t*);
 struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t * l_net);
 
