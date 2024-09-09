@@ -137,7 +137,7 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
     decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_sought_decree = NULL;
     HASH_FIND(hh, *l_decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
     if (l_sought_decree && l_sought_decree->decree) {
-        log_it(L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
+        debug_if(s_debug_more, L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
         return -123;
     }
 
@@ -270,7 +270,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
         }
     } else {            // Process decree itself
         if (l_new_decree->decree) {
-            log_it(L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
+            debug_if(s_debug_more, L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
             return -123;
         }
         l_new_decree->decree = a_chain->is_mapped ? a_decree : DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
@@ -445,15 +445,23 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 break;
             dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, &l_hash, l_value, &l_node_addr);
             break;
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE: {
             if (dap_chain_datum_decree_get_stake_signing_addr(a_decree, &l_addr)){
                 log_it(L_WARNING,"Can't get signing address from decree.");
                 return -105;
             }
+
+            uint16_t l_current_count = dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL);
+            uint16_t l_min_count = dap_chain_esbocs_get_min_validators_count(a_net->pub.id);
+            if (l_current_count == l_min_count) {
+                log_it(L_WARNING, "Can't invalidate validator cause min validators count %hu will become less than total count for net %s",
+                                                                                l_current_count, a_net->pub.name);
+                return -116;
+            }
             if (!a_apply)
                 break;
             dap_chain_net_srv_stake_key_invalidate(&l_addr);
-            break;
+        } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:
             if (dap_chain_datum_decree_get_stake_min_value(a_decree, &l_value)){
                 log_it(L_WARNING,"Can't get min stake value from decree.");
@@ -463,7 +471,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 break;
             dap_chain_net_srv_stake_set_allowed_min_value(a_net->pub.id, l_value);
             break;
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT: {
             if (dap_chain_datum_decree_get_stake_min_signers_count(a_decree, &l_value)){
                 log_it(L_WARNING,"Can't get min stake value from decree.");
                 return -105;
@@ -477,10 +485,17 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING, "Can't apply this decree to specified chain");
                 return -115;
             }
+            uint16_t l_decree_count = (uint16_t)dap_chain_uint256_to(l_value);
+            uint16_t l_current_count = dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL);
+            if (l_decree_count > l_current_count) {
+                log_it(L_WARNING, "Minimum validators count by decree %hu is greater than total validators count %hu in network %s",
+                                                                            l_decree_count, l_current_count, a_net->pub.name);
+                return -116;
+            }
             if (!a_apply)
                 break;
-            dap_chain_esbocs_set_min_validators_count(l_chain, (uint16_t)dap_chain_uint256_to(l_value));
-            break;
+            dap_chain_esbocs_set_min_validators_count(l_chain, l_decree_count);
+        } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN: {
             if (dap_chain_datum_decree_get_ban_addr(a_decree, &l_ban_addr)) {
                 log_it(L_WARNING, "Can't get ban address from decree.");
