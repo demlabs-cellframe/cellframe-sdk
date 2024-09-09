@@ -89,6 +89,7 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_UNEXPECTED_TOKENIZED_OUT,
     DAP_LEDGER_TX_CHECK_NOT_ENOUGH_FEE,
     DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX,
+    DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX,
     /* Emisssion check return codes */
     DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY,
     DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN,
@@ -145,6 +146,7 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_UNEXPECTED_TOKENIZED_OUT: return "Tokenized out is forbidden for single-channel trandactions";
     case DAP_LEDGER_TX_CHECK_NOT_ENOUGH_FEE: return "Not enough network fee for transaction processing";
     case DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX: return "Not enough sovereign tax provided with current transaction";
+    case DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX: return "Can't find tx in ledger for removing.";
     /* Emisssion check return codes */
     case DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY: return "Value of emission execeeds current token supply";
     case DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN: return "Legacy type of emissions are present for old chains comliance only";

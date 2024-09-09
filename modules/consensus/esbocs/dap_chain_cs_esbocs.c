@@ -539,7 +539,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     char *l_sync_group = s_get_penalty_group(l_net->pub.id);
     l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
                                                       dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_ESBOCS),
-                                                      l_sync_group, 72 * 3600, true,
+                                                      l_sync_group, 72, true,
                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_session->db_cluster->links_cluster);
     dap_global_db_erase_table_sync(l_sync_group);     // Drop table on stratup
@@ -729,6 +729,15 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
     return 0;
 }
 
+int dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id)
+{
+    dap_chain_esbocs_session_t *l_session;
+    DL_FOREACH(s_session_items, l_session)
+        if (l_session->chain->net_id.uint64 == a_net_id.uint64)
+            return PVT(l_session->esbocs)->min_validators_count;
+    return -1;
+}
+
 int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
 {
     dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
@@ -873,7 +882,8 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_
         for (size_t l_current_vld_cnt = 0; l_current_vld_cnt < l_need_vld_cnt; l_current_vld_cnt++) {
             uint256_t l_raw_result;
             uint256_t l_chosen_weight = dap_pseudo_random_get(l_total_weight, &l_raw_result);
-            if (false) { //PVT(a_session->esbocs)->debug) {
+#if DAP_ESBOCS_PRNG_DEBUG
+            if (l_esbocs_pvt->debug) {
                 unsigned l_strlen = 1024, l_off = 0;
                 const char *l_chosen_weight_str, *l_total_weight_str, *l_raw_result_str;
                 char l_str[l_strlen];
@@ -888,6 +898,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_
                 l_off += snprintf(l_str + l_off, l_strlen - l_off, "by number %s", l_raw_result_str);
                 log_it(L_MSG, "%s", l_str);
             }
+#endif
             dap_list_t *l_chosen = NULL;
             uint256_t l_cur_weight = uint256_0;
             for (dap_list_t *it = l_validators; it; it = it->next) {
@@ -950,6 +961,9 @@ static dap_list_t *s_validator_check_synced(dap_chain_addr_t *a_addr, dap_list_t
 
 static void s_db_calc_sync_hash(dap_chain_esbocs_session_t *a_session)
 {
+    dap_chain_addr_t l_addr_blank = c_dap_chain_addr_blank;
+    l_addr_blank.net_id = a_session->chain->net_id;
+    dap_chain_net_srv_stake_mark_validator_active(&l_addr_blank, true);  // Mark all validators active for now
     char *l_penalty_group = s_get_penalty_group(a_session->chain->net_id);
     size_t l_penalties_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_penalty_group, &l_penalties_count);
