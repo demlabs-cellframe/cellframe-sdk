@@ -535,7 +535,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
             
             //tag
-            char *service_name = NULL;
+            const char *service_name = NULL;
             dap_chain_tx_tag_action_type_t l_action;
             bool srv_found = l_datum_iter->uid.uint64 ? true : false;
             l_action = l_datum_iter->action;
