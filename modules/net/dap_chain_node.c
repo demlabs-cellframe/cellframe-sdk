@@ -440,7 +440,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
     size_t l_node_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_node_count);
     if (!l_node_count || !l_objs) {        
-        log_it(L_INFO, "Node list in net %s is empty", a_net->pub.name);
+        log_it(L_ERROR, "Node list in net %s is empty", a_net->pub.name);
         return NULL;
     }
     char *l_gdb_group = dap_strdup_printf("%s%s", a_net->pub.gdb_groups_prefix, s_states_group);
