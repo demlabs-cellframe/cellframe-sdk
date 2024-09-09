@@ -699,7 +699,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         dap_time_t l_time_expire = 0;
         if (l_voting_expire_str)
             l_time_expire = dap_time_from_str_rfc822(l_voting_expire_str);
-        if(!l_time_expire){
+        if(l_voting_expire_str && !l_time_expire){
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong time format. -expire parameter must be in format \"Day Month Year HH:MM:SS Timezone\" e.g. \"19 August 2024 22:00:00 +00\"");
             return -104;
         }
