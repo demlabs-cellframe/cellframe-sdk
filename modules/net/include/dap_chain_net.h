@@ -101,7 +101,6 @@ void dap_chain_net_try_online_all();
 
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
 dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
-void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state);
 dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
