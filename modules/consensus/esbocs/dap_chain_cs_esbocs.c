@@ -2191,7 +2191,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     l_args->session = l_session;
     l_args->message_size = l_message_size;
     memcpy(l_args->message, l_message, l_message_size);
-    dap_proc_thread_callback_add(NULL, s_process_incoming_message, l_args);
+    dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
+    dap_proc_thread_callback_add(l_thread, s_process_incoming_message, l_args);
     return true;
 }
 
@@ -2752,7 +2753,8 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             l_args->session = a_session;
             l_args->message_size = l_message_size + l_sign_size;
             memcpy(l_args->message, l_message, l_message_size + l_sign_size);
-            dap_proc_thread_callback_add(NULL, s_process_incoming_message, l_args);
+            dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
+            dap_proc_thread_callback_add(l_thread, s_process_incoming_message, l_args);
         }
     }
     DAP_DELETE(l_message);
