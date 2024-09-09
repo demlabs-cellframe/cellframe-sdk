@@ -535,7 +535,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
             
             //tag
-            const char *service_name = NULL;
+            char *service_name = NULL;
             dap_chain_tx_tag_action_type_t l_action;
             bool srv_found = l_datum_iter->uid.uint64 ? true : false;
             l_action = l_datum_iter->action;
@@ -700,7 +700,7 @@ static int s_json_tx_history_pack(json_object** a_json_obj_datum, dap_chain_datu
     dap_hash_fast_t l_ttx_hash = {0};
     dap_hash_fast(l_tx, a_datum->header.data_size, &l_ttx_hash);
 
-    const char *service_name = NULL;
+    char *service_name = NULL;
     dap_chain_tx_tag_action_type_t l_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
     //bool srv_found = a_datum_iter->uid.uint64 ? true : false;
     l_action = a_datum_iter->action;
@@ -760,7 +760,18 @@ json_object *dap_db_history_tx_all(dap_chain_t *a_chain, dap_chain_net_t *a_net,
         bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
         // load transactions
         dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
-    
+        dap_chain_cell_t *l_cell, *l_iter_tmp;
+        HASH_ITER(hh, a_chain->cells, l_cell, l_iter_tmp) {
+            for (dap_list_t *it = l_cell->map_range_bounds; it; it = it->next) {
+                int error = madvise(it->data, it->next->data - it->data, MADV_SEQUENTIAL);
+                log_it(L_MSG, "MADV_SEQ %d", error);
+                int error2 = madvise(it->data, it->next->data - it->data, MADV_POPULATE_READ);
+                log_it(L_MSG, "MADV_POPL_READ %d", error2);
+                int error3 = madvise(it->data, it->next->data - it->data, MADV_WILLNEED);
+                log_it(L_MSG, "MADV_WILLNEED %d", error3);
+                it = it->next;
+            }
+        }
         dap_chain_datum_callback_iters  iter_begin;
         dap_chain_datum_callback_iters  iter_direc;
         iter_begin = a_head ? a_chain->callback_datum_iter_get_first
