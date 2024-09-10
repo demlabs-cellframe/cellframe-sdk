@@ -2139,7 +2139,39 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item)
         json_object_object_add(l_json_obj_out, "bytes", json_object_new_int(a_token_item->auth_pkeys[i]->header.size));
         json_object_array_add(l_json_arr_pkeys, l_json_obj_out);
     }
+    json_object *l_json_arr_tx_recv_allow = json_object_new_array();
+    for (size_t i = 0; i < a_token_item->tx_recv_allow_size; i++) {
+        dap_chain_addr_t l_addr = a_token_item->tx_recv_allow[i];
+        const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
+        json_object_array_add(l_json_arr_tx_recv_allow, json_object_new_string(l_addr_str));
+    }
+    json_object *l_json_arr_tx_recv_block = json_object_new_array();
+    for (size_t i = 0; i < a_token_item->tx_recv_block_size; i++) {
+        dap_chain_addr_t l_addr = a_token_item->tx_recv_block[i];
+        const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
+        json_object_array_add(l_json_arr_tx_recv_block, json_object_new_string(l_addr_str));
+    }
+    json_object *l_json_arr_tx_send_allow = json_object_new_array();
+    for (size_t i = 0; i < a_token_item->tx_send_allow_size; i++) {
+        dap_chain_addr_t l_addr = a_token_item->tx_send_allow[i];
+        const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
+        json_object_array_add(l_json_arr_tx_send_allow, json_object_new_string(l_addr_str));
+    }
+    json_object *l_json_arr_tx_send_block = json_object_new_array();
+    for (size_t i = 0; i < a_token_item->tx_send_block_size; i++) {
+        dap_chain_addr_t l_addr = a_token_item->tx_send_block[i];
+        const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
+        json_object_array_add(l_json_arr_tx_send_block, json_object_new_string(l_addr_str));
+    }
     json_object_object_add(json_obj_datum, "Signatures public keys", l_json_arr_pkeys);
+    a_token_item->tx_recv_allow_size ? json_object_object_add(json_obj_datum, "tx_recv_allow", l_json_arr_tx_recv_allow) :
+        json_object_put(l_json_arr_tx_recv_allow);
+    a_token_item->tx_recv_block_size ? json_object_object_add(json_obj_datum, "tx_recv_block", l_json_arr_tx_recv_block) :
+        json_object_put(l_json_arr_tx_recv_block);
+    a_token_item->tx_send_allow_size ? json_object_object_add(json_obj_datum, "tx_send_allow", l_json_arr_tx_send_allow) :
+        json_object_put(l_json_arr_tx_send_allow);
+    a_token_item->tx_send_block_size ? json_object_object_add(json_obj_datum, "tx_send_block", l_json_arr_tx_send_block) :
+        json_object_put(l_json_arr_tx_send_block);
     json_object_object_add(json_obj_datum, "Total emissions", json_object_new_int(HASH_COUNT(a_token_item->token_emissions)));
     return json_obj_datum;
 }
