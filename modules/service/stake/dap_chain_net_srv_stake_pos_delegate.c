@@ -1250,6 +1250,15 @@ char *s_staker_order_create(dap_chain_net_t *a_net, uint256_t a_value, dap_hash_
     return l_order_hash_str;
 }
 
+static int time_compare_orders(const void *a, const void *b) {
+    dap_global_db_obj_t *obj_a = (dap_global_db_obj_t*)a;
+    dap_global_db_obj_t *obj_b = (dap_global_db_obj_t*)b;
+
+    if (obj_a->timestamp < obj_b->timestamp) return -1;
+    if (obj_a->timestamp > obj_b->timestamp) return 1;
+    return 0;
+}
+
 static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, void **a_str_reply, const char *a_hash_out_type)
 {
     enum {
@@ -1599,6 +1608,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                                         dap_chain_net_srv_order_get_common_group(l_net);
             size_t l_orders_count = 0;
             dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
+            qsort(l_orders, l_orders_count, sizeof(dap_global_db_obj_t), time_compare_orders);
             for (size_t i = 0; i < l_orders_count; i++) {
                 const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_orders[i].key, l_orders[i].value, l_orders[i].value_len);
                 if (!l_order) {
