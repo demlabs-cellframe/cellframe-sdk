@@ -2736,12 +2736,12 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             dap_chain_esbocs_message_t *l_message_signed = DAP_REALLOC(l_message, l_message_size + l_sign_size);
             if ( !l_message_signed )
                 return DAP_DELETE(l_sign), DAP_DELETE(l_message), log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            memcpy(l_message_signed->msg_n_sign + a_data_size, l_sign, l_sign_size);
+            l_message = l_message_signed;
+            memcpy(l_message->msg_n_sign + a_data_size, l_sign, l_sign_size);
             DAP_DELETE(l_sign);
-            
             if (l_validator->node_addr.uint64 != a_session->my_addr.uint64) {
                 dap_stream_ch_pkt_send_by_addr(&l_validator->node_addr, DAP_STREAM_CH_ESBOCS_ID,
-                                               a_message_type, l_message_signed, l_message_size + l_sign_size);
+                                               a_message_type, l_message, l_message_size + l_sign_size);
                 continue;
             }
             /*struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args,
@@ -2756,7 +2756,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             l_args->message_size = l_message_size + l_sign_size;
             memcpy(l_args->message, l_message, l_message_size + l_sign_size);
             dap_proc_thread_callback_add(a_session->proc_thread, s_process_incoming_message, l_args);*/
-            s_session_packet_in(a_session, &a_session->my_addr, l_message_signed, l_message_size + l_sign_size);
+            s_session_packet_in(a_session, &a_session->my_addr, (byte_t*)l_message, l_message_size + l_sign_size);
         }
     }
     DAP_DELETE(l_message);
