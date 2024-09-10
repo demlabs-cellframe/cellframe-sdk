@@ -3378,18 +3378,21 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                             bool a_check_for_removing)
 {
     dap_return_val_if_fail(a_ledger && a_tx && a_tx_hash, DAP_LEDGER_CHECK_INVALID_ARGS);
-    if (!dap_chain_net_get_load_mode(a_ledger->net) && !a_from_threshold && !a_check_for_removing) {
+    if (!a_from_threshold) {
         dap_ledger_tx_item_t *l_ledger_item = NULL;
         pthread_rwlock_rdlock(&PVT(a_ledger)->ledger_rwlock);
         HASH_FIND(hh, PVT(a_ledger)->ledger_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_ledger_item);
         pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
-        if (l_ledger_item) {     // transaction already present in the cache list
+        if (l_ledger_item && !a_check_for_removing ) {     // transaction already present in the cache list
             if (s_debug_more) {
                 log_it(L_WARNING, "Transaction %s already present in the cache", dap_chain_hash_fast_to_str_static(a_tx_hash));
                 if (a_tag) *a_tag = l_ledger_item->cache_data.tag;
                 if (a_action) *a_action = l_ledger_item->cache_data.action;
             }
             return DAP_LEDGER_CHECK_ALREADY_CACHED;
+        } else if (!l_ledger_item && a_check_for_removing) {     // transaction already present in the cache list
+            debug_if(s_debug_more, L_WARNING, "Transaction %s not present in the cache. Can not delete it. Skip.", dap_chain_hash_fast_to_str_static(a_tx_hash));
+            return DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX;
         }
     }
 /*

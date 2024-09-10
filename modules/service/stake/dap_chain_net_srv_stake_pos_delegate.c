@@ -505,13 +505,17 @@ int dap_chain_net_srv_stake_mark_validator_active(dap_chain_addr_t *a_signing_ad
     dap_return_val_if_fail(a_signing_addr, -1);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_signing_addr->net_id);
     dap_return_val_if_fail(l_srv_stake, -3);
-    dap_chain_net_srv_stake_item_t *l_stake = NULL;
-    HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
-    if (l_stake) { // public key delegated for this network
+    dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp;
+    if (!dap_hash_fast_is_blank(&a_signing_addr->data.hash_fast)) {
+        // Mark a single validator
+        HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
+        if (!l_stake) // public key isn't delegated for this network
+            return -2;
         l_stake->is_active = a_on_off;
-        return 0;
-    }
-    return -2;
+    } else // Mark all validators
+        HASH_ITER(hh, l_srv_stake->itemlist, l_stake, l_tmp)
+            l_stake->is_active = a_on_off;
+    return 0;
 }
 
 int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_node_addr)
@@ -2721,7 +2725,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' requires parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'max_weight' requires parameter -net");
                 return -3;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -2738,7 +2742,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-poa_cert", &l_cert_str);
             if (!l_cert_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' requires parameter -poa_cert");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'max_weight' requires parameter -poa_cert");
                 return -3;
             }
             dap_cert_t *l_poa_cert = dap_cert_find_by_name(l_cert_str);
@@ -2753,10 +2757,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-percent", &l_value_str);
             if (!l_value_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' requires parameter -percent");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'max_weight' requires parameter -percent");
                 return -9;
             }
-            uint256_t l_value = dap_chain_balance_scan(l_value_str);
+            uint256_t l_value = dap_chain_coins_to_balance(l_value_str);
             if (IS_ZERO_256(l_value)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized number in '-percent' param");
                 return -10;
@@ -2944,7 +2948,8 @@ dap_chain_net_srv_stake_item_t *dap_chain_net_srv_stake_check_pkey_hash(dap_chai
     return NULL;
 }
 
-size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_t *a_in_active_count){
+size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_t *a_in_active_count)
+{
     dap_chain_net_srv_stake_t *l_stake_rec = s_srv_stake_by_net_id(a_net_id);
     if (!l_stake_rec)
         return 0;
