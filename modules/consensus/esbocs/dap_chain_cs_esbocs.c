@@ -2707,7 +2707,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
     dap_chain_esbocs_message_t *l_message = NULL;
     DAP_NEW_Z_SIZE_RET(l_message, dap_chain_esbocs_message_t, l_message_size, NULL);
     *l_message = (dap_chain_esbocs_message_t) {
-        (dap_chain_esbocs_message_hdr_t) { 
+        .hdr = (dap_chain_esbocs_message_hdr_t) { 
             .version = DAP_CHAIN_ESBOCS_PROTOCOL_VERSION,
             .type = a_message_type, 
             .attempt_num = a_session->cur_round.attempt_num, 
@@ -2716,32 +2716,32 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             .ts_created = dap_time_now(),
             .net_id = a_session->chain->net_id,
             .chain_id = a_session->chain->id,
-            .candidate_hash = *a_block_hash }
+            .candidate_hash = *a_block_hash
+        }
     };
-    
-    dap_chain_esbocs_message_t *l_message_tmp = a_data && a_data_size
-        ? memcpy(l_message->msg_n_sign, a_data, a_data_size), l_message
-        : l_message;
+    if (a_data && a_data_size)
+        memcpy(l_message->msg_n_sign, a_data, a_data_size);
 
     for (dap_list_t *it = a_validators; it; it = it->next) {
         dap_chain_esbocs_validator_t *l_validator = it->data;
         if ( l_validator->is_synced || a_message_type == DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC ) {
             debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Send pkt type 0x%x to "NODE_ADDR_FP_STR, a_message_type,
                                                            NODE_ADDR_FP_ARGS_S(l_validator->node_addr));
-            l_message_tmp->hdr.recv_addr = l_validator->node_addr;
-            l_message_tmp->hdr.sign_size = 0;
+            l_message->hdr.recv_addr = l_validator->node_addr;
+            l_message->hdr.sign_size = 0;
             dap_sign_t *l_sign = dap_sign_create(PVT(a_session->esbocs)->blocks_sign_key,
-                                                 l_message_tmp, l_message_size, 0);
+                                                 l_message, l_message_size, 0);
             size_t l_sign_size = dap_sign_get_size(l_sign);
-            l_message_tmp->hdr.sign_size = l_sign_size;
-            if ( !( l_message = DAP_REALLOC(l_message_tmp, l_message_size + l_sign_size) ) )
-                return DAP_DELETE(l_sign), DAP_DELETE(l_message_tmp), log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            memcpy(l_message->msg_n_sign + a_data_size, l_sign, l_sign_size);
+            l_message->hdr.sign_size = l_sign_size;
+            dap_chain_esbocs_message_t *l_message_signed = DAP_REALLOC(l_message, l_message_size + l_sign_size);
+            if ( !l_message_signed )
+                return DAP_DELETE(l_sign), DAP_DELETE(l_message), log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            memcpy(l_message_signed->msg_n_sign + a_data_size, l_sign, l_sign_size);
             DAP_DELETE(l_sign);
             
             if (l_validator->node_addr.uint64 != a_session->my_addr.uint64) {
                 dap_stream_ch_pkt_send_by_addr(&l_validator->node_addr, DAP_STREAM_CH_ESBOCS_ID,
-                                               a_message_type, l_message, l_message_size + l_sign_size);
+                                               a_message_type, l_message_signed, l_message_size + l_sign_size);
                 continue;
             }
             /*struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args,
@@ -2756,7 +2756,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             l_args->message_size = l_message_size + l_sign_size;
             memcpy(l_args->message, l_message, l_message_size + l_sign_size);
             dap_proc_thread_callback_add(a_session->proc_thread, s_process_incoming_message, l_args);*/
-            s_session_packet_in(a_session, &a_session->my_addr, l_message, l_message_size + l_sign_size);
+            s_session_packet_in(a_session, &a_session->my_addr, l_message_signed, l_message_size + l_sign_size);
         }
     }
     DAP_DELETE(l_message);
