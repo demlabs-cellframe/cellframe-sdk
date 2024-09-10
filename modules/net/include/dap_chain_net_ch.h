@@ -27,18 +27,18 @@
 #include <pthread.h>
 #include <stdint.h>
 #include "dap_stream_ch.h"
-#include "dap_stream_ch_chain_net_pkt.h"
+#include "dap_chain_net_ch_pkt.h"
 
-typedef struct dap_stream_ch_chain_net dap_stream_ch_chain_net_t;
+typedef struct dap_chain_net_ch dap_chain_net_ch_t;
 
-typedef void (*dap_stream_ch_chain_net_callback_packet_t)(
-        dap_stream_ch_chain_net_t *, uint8_t, dap_stream_ch_chain_net_pkt_t *, size_t , void *);
+typedef void (*dap_chain_net_ch_callback_packet_t)(
+        dap_chain_net_ch_t *, uint8_t, dap_chain_net_ch_pkt_t *, size_t , void *);
 
-typedef struct dap_stream_ch_chain_net {
-    dap_stream_ch_chain_net_callback_packet_t notify_callback;
+typedef struct dap_chain_net_ch {
+    dap_chain_net_ch_callback_packet_t notify_callback;
     dap_stream_ch_t *ch;
     void *notify_callback_arg;
-} dap_stream_ch_chain_net_t;
+} dap_chain_net_ch_t;
 
 typedef struct dap_chain_ch_validator_test{
     struct{
@@ -61,10 +61,10 @@ typedef struct dap_chain_ch_validator_test{
 #define D_SIGN 0x40//data signed
 #define F_CERT 0x80//faund sert
 
-#define DAP_STREAM_CH_CHAIN_NET_ID 'N'
-#define DAP_STREAM_CH_CHAIN_NET(a) ((dap_stream_ch_chain_net_t *) ((a)->internal) )
+#define DAP_CHAIN_NET_CH_ID 'N'
+#define DAP_STREAM_CH_CHAIN_NET(a) ((dap_chain_net_ch_t *) ((a)->internal) )
 
-dap_chain_node_addr_t dap_stream_ch_chain_net_from_session_data_extract_node_addr(uint32_t a_session_id);
+dap_chain_node_addr_t dap_chain_net_ch_from_session_data_extract_node_addr(uint32_t a_session_id);
 
-int dap_stream_ch_chain_net_init();
-void dap_stream_ch_chain_net_deinit();
+int dap_chain_net_ch_init();
+void dap_chain_net_ch_deinit();

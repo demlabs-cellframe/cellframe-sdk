@@ -90,8 +90,8 @@
 #include "dap_notify_srv.h"
 #include "dap_chain_ledger.h"
 #include "dap_global_db.h"
-#include "dap_stream_ch_chain_net_pkt.h"
-#include "dap_stream_ch_chain_net.h"
+#include "dap_chain_net_ch_pkt.h"
+#include "dap_chain_net_ch.h"
 #include "dap_chain_ch.h"
 #include "dap_stream_ch.h"
 #include "dap_stream.h"
@@ -257,7 +257,7 @@ int dap_chain_net_init()
     dap_ledger_init();
     dap_chain_ch_init();
     dap_chain_net_anchor_init();
-    dap_stream_ch_chain_net_init();
+    dap_chain_net_ch_init();
     dap_chain_node_client_init();
     dap_chain_net_srv_voting_init();
     dap_http_ban_list_client_init();
@@ -370,13 +370,13 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
     PVT(a_net)->state_target = a_new_state;
     if (a_new_state == NET_STATE_OFFLINE) {
         char l_err_str[] = "ERROR_NET_IS_OFFLINE";
-        size_t l_error_size = sizeof(dap_stream_ch_chain_net_pkt_t) + sizeof(l_err_str);
-        dap_stream_ch_chain_net_pkt_t *l_error = DAP_NEW_STACK_SIZE(dap_stream_ch_chain_net_pkt_t, l_error_size);
+        size_t l_error_size = sizeof(dap_chain_net_ch_pkt_t) + sizeof(l_err_str);
+        dap_chain_net_ch_pkt_t *l_error = DAP_NEW_STACK_SIZE(dap_chain_net_ch_pkt_t, l_error_size);
         l_error->hdr.version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION;
         l_error->hdr.net_id = a_net->pub.id;
         l_error->hdr.data_size = sizeof(l_err_str);
         memcpy(l_error->data, l_err_str, sizeof(l_err_str));
-        dap_cluster_broadcast(PVT(a_net)->nodes_cluster->links_cluster, DAP_STREAM_CH_CHAIN_NET_ID,
+        dap_cluster_broadcast(PVT(a_net)->nodes_cluster->links_cluster, DAP_CHAIN_NET_CH_ID,
                               DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR, l_error, l_error_size, NULL, 0);
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, false);
         dap_chain_esbocs_stop_timer(a_net->pub.id);
@@ -471,9 +471,9 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
     if(l_net_pvt->state == NET_STATE_LINKS_CONNECTING ){
         l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
     }
-    dap_stream_ch_chain_net_pkt_hdr_t l_announce = { .version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION,
+    dap_chain_net_ch_pkt_hdr_t l_announce = { .version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION,
                                                      .net_id  = l_net->pub.id };
-    if(dap_stream_ch_pkt_send_by_addr(&a_link->addr, DAP_STREAM_CH_CHAIN_NET_ID, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
+    if(dap_stream_ch_pkt_send_by_addr(&a_link->addr, DAP_CHAIN_NET_CH_ID, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
                                    &l_announce, sizeof(l_announce))) {
                                    dap_link_manager_accounting_link_in_net(l_net->pub.id.uint64, &a_link->addr, false);
                                    }

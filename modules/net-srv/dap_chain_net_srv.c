@@ -52,7 +52,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
-#include "dap_stream_ch_chain_net_srv.h"
+#include "dap_chain_net_srv_ch.h"
 #include "dap_chain_cs_blocks.h"
 #ifdef DAP_MODULES_DYNAMIC
 #include "dap_modules_dynamic_cdb.h"
@@ -196,7 +196,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
 
     int l_report = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "report", NULL);
     if (l_report) {
-        const char *l_report_str = dap_stream_ch_chain_net_srv_create_statistic_report();
+        const char *l_report_str = dap_chain_net_srv_ch_create_statistic_report();
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_report_str);
         DAP_DEL_Z(l_report_str);
         return 0;
@@ -617,13 +617,13 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                 return -22;
             }
 
-            dap_stream_ch_chain_net_srv_remain_service_store_t *l_remain_service = NULL;
+            dap_chain_net_srv_ch_remain_service_store_t *l_remain_service = NULL;
             size_t l_remain_service_size = 0;
             char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s",
                                                                 l_net->pub.gdb_groups_prefix, l_srv_uid.uint64,
                                                                 l_provider_pkey_hash_str);
 
-            l_remain_service = (dap_stream_ch_chain_net_srv_remain_service_store_t*) dap_global_db_get_sync(l_remain_limits_gdb_group, l_client_pkey_hash_str, &l_remain_service_size, NULL, NULL);
+            l_remain_service = (dap_chain_net_srv_ch_remain_service_store_t*) dap_global_db_get_sync(l_remain_limits_gdb_group, l_client_pkey_hash_str, &l_remain_service_size, NULL, NULL);
             DAP_DELETE(l_remain_limits_gdb_group);
 
             if(!l_remain_service || !l_remain_service_size){
@@ -994,9 +994,9 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
             l_srv->allow_free_srv = dap_config_get_item_bool_default(g_config, a_config_section, "allow_free_srv", false);
         }
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
-        dap_stream_ch_chain_net_srv_init(l_srv);
+        dap_chain_net_srv_ch_init(l_srv);
         if (l_net)
-            dap_ledger_tx_add_notify(l_net->pub.ledger, dap_stream_ch_chain_net_srv_tx_cond_added_cb, NULL);
+            dap_ledger_tx_add_notify(l_net->pub.ledger, dap_chain_net_srv_ch_tx_cond_added_cb, NULL);
     }else{
         log_it(L_ERROR, "Already present service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
     }

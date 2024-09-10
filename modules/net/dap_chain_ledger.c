@@ -1948,7 +1948,7 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
     uint32_t l_counter = 0;
     size_t l_arr_start = 0;
     size_t l_arr_end = 0;
-    s_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, HASH_COUNT(l_ledger_pvt->threshold_txs));
+    dap_chain_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, HASH_COUNT(l_ledger_pvt->threshold_txs));
 
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     if (a_threshold_hash) {
@@ -2017,7 +2017,7 @@ json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, siz
     dap_ledger_wallet_balance_t *l_balance_item, *l_balance_tmp;
     size_t l_arr_start = 0;
     size_t l_arr_end = 0;
-    s_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, HASH_COUNT(l_ledger_pvt->balance_accounts));
+    dap_chain_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, HASH_COUNT(l_ledger_pvt->balance_accounts));
 
     size_t i_tmp = 0;
     if (a_head)
@@ -5808,36 +5808,21 @@ dap_list_t *dap_ledger_get_list_tx_cond_outs(dap_ledger_t *a_ledger, const char 
         : ( dap_list_free_full(l_list_used_out, NULL), NULL );
 }
 
-void dap_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_ledger_tx_add_notify_t a_callback, void *a_arg) {
-    if (!a_ledger) {
-        log_it(L_ERROR, "NULL ledger passed to dap_ledger_tx_add_notify()");
-        return;
-    }
-    if (!a_callback) {
-        log_it(L_ERROR, "NULL callback passed to dap_ledger_tx_add_notify()");
-        return;
-    }
-    dap_ledger_tx_notifier_t *l_notifier = DAP_NEW(dap_ledger_tx_notifier_t);
-    if (!l_notifier){
-        log_it(L_ERROR, "Can't allocate memory for notifier in dap_ledger_tx_add_notify()");
-        return;
-    }
-    l_notifier->callback = a_callback;
-    l_notifier->arg = a_arg;
+void dap_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_ledger_tx_add_notify_t a_callback, void *a_arg)
+{
+    dap_return_if_fail(a_ledger && a_callback);
+    dap_ledger_tx_notifier_t *l_notifier;
+    DAP_NEW_Z_RET(l_notifier, dap_ledger_tx_notifier_t, NULL);
+    *l_notifier = (dap_ledger_tx_notifier_t) { .callback = a_callback, .arg = a_arg };
     PVT(a_ledger)->tx_add_notifiers = dap_list_append(PVT(a_ledger)->tx_add_notifiers, l_notifier);
 }
 
 void dap_ledger_bridged_tx_notify_add(dap_ledger_t *a_ledger, dap_ledger_bridged_tx_notify_t a_callback, void *a_arg)
 {
-    if (!a_ledger || !a_callback)
-        return;
-    dap_ledger_bridged_tx_notifier_t *l_notifier = DAP_NEW_Z(dap_ledger_bridged_tx_notifier_t);
-    if (!l_notifier) {
-        log_it(L_ERROR, "Can't allocate memory for notifier in dap_ledger_tx_add_notify()");
-        return;
-    }
-    l_notifier->callback = a_callback;
-    l_notifier->arg = a_arg;
+    dap_return_if_fail(a_ledger && a_callback);
+    dap_ledger_bridged_tx_notifier_t *l_notifier;
+    DAP_NEW_Z_RET(l_notifier, dap_ledger_bridged_tx_notifier_t, NULL);
+    *l_notifier = (dap_ledger_bridged_tx_notifier_t) { .callback = a_callback, .arg = a_arg };
     PVT(a_ledger)->bridged_tx_notifiers = dap_list_append(PVT(a_ledger)->bridged_tx_notifiers , l_notifier);
 }
 
@@ -5861,4 +5846,13 @@ const char *dap_ledger_tx_calculate_main_ticker(dap_ledger_t *a_ledger, dap_chai
     if (a_ledger_rc)
         *a_ledger_rc = l_rc;
     return s_main_ticker;
+}
+
+dap_list_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger)
+{
+    dap_list_t *ret = NULL;
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    return ret;
 }

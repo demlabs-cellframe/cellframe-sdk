@@ -40,23 +40,23 @@
 #include "dap_common.h"
 #include "dap_chain_net_srv.h"
 
-typedef struct dap_stream_ch_chain_net_srv dap_stream_ch_chain_net_srv_t;
+typedef struct dap_chain_net_srv_ch dap_chain_net_srv_ch_t;
 
-typedef void (*dap_stream_ch_chain_net_srv_callback_packet_t)(dap_stream_ch_chain_net_srv_t *, uint8_t,
+typedef void (*dap_chain_net_srv_ch_callback_packet_t)(dap_chain_net_srv_ch_t *, uint8_t,
         dap_stream_ch_pkt_t *, void *);
 
-typedef struct dap_stream_ch_chain_net_srv {
+typedef struct dap_chain_net_srv_ch {
     dap_chain_net_srv_uid_t srv_uid;
     dap_stream_ch_t *ch;
     dap_stream_ch_uuid_t ch_uuid;
-    dap_stream_ch_chain_net_srv_callback_packet_t notify_callback;
+    dap_chain_net_srv_ch_callback_packet_t notify_callback;
     void *notify_callback_arg;
-} dap_stream_ch_chain_net_srv_t;
+} dap_chain_net_srv_ch_t;
 
-#define DAP_STREAM_CH_CHAIN_NET_SRV(a) ((dap_stream_ch_chain_net_srv_t *) ((a)->internal) )
-#define DAP_STREAM_CH_NET_SRV_ID 'R'
+#define DAP_STREAM_CH_CHAIN_NET_SRV(a) ((dap_chain_net_srv_ch_t *) ((a)->internal) )
+#define DAP_CHAIN_NET_SRV_CH_ID 'R'
 
-int dap_stream_ch_chain_net_srv_init(dap_chain_net_srv_t *a_srv);
+int dap_chain_net_srv_ch_init(dap_chain_net_srv_t *a_srv);
 
-void dap_stream_ch_chain_net_srv_tx_cond_added_cb(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chan_ledger_notify_opcodes_t a_opcode);
-char *dap_stream_ch_chain_net_srv_create_statistic_report();
+void dap_chain_net_srv_ch_tx_cond_added_cb(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chan_ledger_notify_opcodes_t a_opcode);
+char *dap_chain_net_srv_ch_create_statistic_report();

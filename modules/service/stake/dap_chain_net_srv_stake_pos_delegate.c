@@ -37,7 +37,7 @@
 #include "dap_chain_cs_esbocs.h"
 #include "rand/dap_rand.h"
 #include "dap_chain_node_client.h"
-#include "dap_stream_ch_chain_net_pkt.h"
+#include "dap_chain_net_ch_pkt.h"
 #include "json_object.h"
 #include "dap_cli_server.h"
 #include "dap_chain_net_srv_order.h"
@@ -2551,11 +2551,11 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
     }
     log_it(L_NOTICE, "Stream connection established");
 
-    uint8_t l_ch_id = DAP_STREAM_CH_CHAIN_NET_ID;
+    uint8_t l_ch_id = DAP_CHAIN_NET_CH_ID;
     dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
 
     randombytes(l_test_data, sizeof(l_test_data));
-    rc = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
+    rc = dap_chain_net_ch_pkt_write(l_ch_chain,
                                             DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST,
                                             a_net->pub.id,
                                             l_test_data, sizeof(l_test_data));

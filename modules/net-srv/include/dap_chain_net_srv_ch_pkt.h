@@ -80,56 +80,56 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_UNKNOWN                    0xffffffff
 // TYPE_REQUEST
-typedef struct dap_stream_ch_chain_net_srv_pkt_request_hdr{
+typedef struct dap_chain_net_srv_ch_pkt_request_hdr{
     dap_chain_net_id_t net_id;// Network id wheither to request
     dap_chain_hash_fast_t tx_cond; // Conditioned transaction with paymemt for
     dap_chain_net_srv_uid_t srv_uid;
     char token[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_chain_hash_fast_t client_pkey_hash;
     dap_chain_hash_fast_t order_hash;
-} DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_request_hdr_t;
+} DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_request_hdr_t;
 
-typedef struct dap_stream_ch_chain_net_srv_pkt_request{
-    dap_stream_ch_chain_net_srv_pkt_request_hdr_t hdr;
+typedef struct dap_chain_net_srv_ch_pkt_request{
+    dap_chain_net_srv_ch_pkt_request_hdr_t hdr;
     uint8_t data[];
-} DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_request_t;
+} DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_request_t;
 
 // Custom service data packet
-typedef struct dap_stream_ch_chain_net_srv_pkt_data_hdr{
+typedef struct dap_chain_net_srv_ch_pkt_data_hdr{
     uint8_t version;
     uint16_t data_size;
     uint8_t padding;
     uint32_t usage_id;
     dap_chain_net_srv_uid_t srv_uid;
-} DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_data_hdr_t;
+} DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_data_hdr_t;
 
-typedef struct dap_stream_ch_chain_net_srv_pkt_data{
-    dap_stream_ch_chain_net_srv_pkt_data_hdr_t hdr;
+typedef struct dap_chain_net_srv_ch_pkt_data{
+    dap_chain_net_srv_ch_pkt_data_hdr_t hdr;
     uint8_t data[];
-} DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_data_t;
+} DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_data_t;
 
 
-typedef struct dap_stream_ch_chain_net_srv_pkt_success_hdr{
+typedef struct dap_chain_net_srv_ch_pkt_success_hdr{
     uint32_t usage_id;
     dap_chain_net_id_t net_id;
     dap_chain_net_srv_uid_t srv_uid;
-} DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_success_hdr_t;
+} DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_success_hdr_t;
 
-typedef struct dap_stream_ch_chain_net_srv_pkt_success{
-    dap_stream_ch_chain_net_srv_pkt_success_hdr_t hdr;
+typedef struct dap_chain_net_srv_ch_pkt_success{
+    dap_chain_net_srv_ch_pkt_success_hdr_t hdr;
     uint8_t custom_data[];
-} DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_success_t;
+} DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_success_t;
 
 // TYPE_RESPONSE_ERROR
-typedef struct dap_stream_ch_chain_net_srv_pkt_error{
+typedef struct dap_chain_net_srv_ch_pkt_error{
     dap_chain_net_id_t net_id;
     dap_chain_net_srv_uid_t srv_uid;
     uint32_t usage_id;
     uint32_t code; // error code
-} DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_error_t;
+} DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_error_t;
 
 // data packet for connectiont test
-typedef struct dap_stream_ch_chain_net_srv_pkt_test {
+typedef struct dap_chain_net_srv_ch_pkt_test {
     uint32_t                usage_id;
     dap_chain_net_id_t      net_id;
     dap_chain_net_srv_uid_t srv_uid;
@@ -140,13 +140,13 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_test {
     uint64_t                data_size_send, data_size_recv, data_size;
     dap_chain_hash_fast_t   data_hash;
     uint8_t                 data[];
-} DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_test_t;
+} DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_test_t;
 
-size_t dap_stream_ch_chain_net_srv_pkt_data_write(dap_stream_ch_t *a_ch,
+size_t dap_chain_net_srv_ch_pkt_data_write(dap_stream_ch_t *a_ch,
                                                   dap_chain_net_srv_uid_t a_srv_uid, uint32_t a_usage_id  ,
                                                   const void * a_data, size_t a_data_size);
 
-DAP_PRINTF_ATTR(4, 5) size_t dap_stream_ch_chain_net_srv_pkt_data_write_f(dap_stream_ch_t *a_ch,
+DAP_PRINTF_ATTR(4, 5) size_t dap_chain_net_srv_ch_pkt_data_write_f(dap_stream_ch_t *a_ch,
                                                                           dap_chain_net_srv_uid_t a_srv_uid,
                                                                           uint32_t a_usage_id,
                                                                           const char *a_str,

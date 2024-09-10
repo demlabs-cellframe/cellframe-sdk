@@ -1,7 +1,7 @@
 
 # Core
 if (CELLFRAME_MODULES MATCHES "core")
-    add_subdirectory(common)
+    add_subdirectory(datum)
 endif()
 
 # Chains
@@ -19,9 +19,7 @@ endif()
 if (CELLFRAME_MODULES MATCHES "network")
     add_subdirectory(mempool)
     add_subdirectory(net)
-    add_subdirectory(net/srv)
-    # Stream channels
-    add_subdirectory(channel/chain-net)
+    add_subdirectory(node)
 endif()
 
 # Mining
@@ -31,7 +29,7 @@ endif()
 
 # Network services
 if (CELLFRAME_MODULES MATCHES "srv")
-    add_subdirectory(channel/chain-net-srv)
+    add_subdirectory(net-srv)
 endif()
 
 # No consensus

@@ -23,7 +23,7 @@ You should have received a copy of the GNU General Public License
 along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "dap_stream_ch_chain_net_srv.h"
+#include "dap_chain_net_srv_ch.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_client.h"
 #include "dap_common.h"
@@ -31,7 +31,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_srv_client"
 
-static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8_t a_pkt_type, dap_stream_ch_pkt_t *a_pkt, void *a_arg);
+static void s_srv_client_pkt_in(dap_chain_net_srv_ch_t *a_ch_chain, uint8_t a_pkt_type, dap_stream_ch_pkt_t *a_pkt, void *a_arg);
 static void s_srv_client_callback_connected(dap_chain_node_client_t *a_node_client, void *a_arg);
 static void s_srv_client_callback_disconnected(dap_chain_node_client_t *a_node_client, void *a_arg);
 static void s_srv_client_callback_deleted(dap_chain_node_client_t *a_node_client, void *a_arg);
@@ -60,7 +60,7 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
         .ext_port = a_port
     };
     l_info->ext_host_len = dap_strncpy(l_info->ext_host, a_addr, INET6_ADDRSTRLEN) - l_info->ext_host;
-    const char l_channels[] = {DAP_STREAM_CH_NET_SRV_ID, '\0'};
+    const char l_channels[] = {DAP_CHAIN_NET_SRV_CH_ID, '\0'};
     l_ret->node_client = dap_chain_node_client_create_n_connect(a_net, l_info, l_channels, &l_callbacks, l_ret);
     l_ret->node_client->notify_callbacks.srv_pkt_in = (dap_stream_ch_callback_packet_t)s_srv_client_pkt_in;
     return l_ret;
@@ -75,9 +75,9 @@ ssize_t dap_chain_net_srv_client_write(dap_chain_net_srv_client_t *a_client, uin
     if (!a_client || !a_client->net_client || dap_client_get_stage(a_client->net_client) != STAGE_STREAM_STREAMING)
         return -1;
     if (a_type == DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST) {
-        dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(a_client->net_client, DAP_STREAM_CH_NET_SRV_ID);
-        dap_stream_ch_chain_net_srv_t *a_ch_chain = DAP_STREAM_CH_CHAIN_NET_SRV(l_ch);
-        dap_stream_ch_chain_net_srv_pkt_request_t *l_request = (dap_stream_ch_chain_net_srv_pkt_request_t *)a_pkt_data;
+        dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(a_client->net_client, DAP_CHAIN_NET_SRV_CH_ID);
+        dap_chain_net_srv_ch_t *a_ch_chain = DAP_STREAM_CH_CHAIN_NET_SRV(l_ch);
+        dap_chain_net_srv_ch_pkt_request_t *l_request = (dap_chain_net_srv_ch_pkt_request_t *)a_pkt_data;
         a_ch_chain->srv_uid.uint64 = l_request->hdr.srv_uid.uint64;
     }
     dap_stream_worker_t *l_stream_worker = dap_client_get_stream_worker(a_client->net_client);
@@ -111,13 +111,13 @@ static void s_srv_client_callback_deleted(dap_chain_node_client_t *a_node_client
     DAP_DELETE(l_srv_client);
 }
 
-static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8_t a_pkt_type, dap_stream_ch_pkt_t *a_pkt, void *a_arg)
+static void s_srv_client_pkt_in(dap_chain_net_srv_ch_t *a_ch_chain, uint8_t a_pkt_type, dap_stream_ch_pkt_t *a_pkt, void *a_arg)
 {
     dap_chain_net_srv_client_t *l_srv_client = (dap_chain_net_srv_client_t *)a_arg;
     switch (a_pkt_type) {
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE: {
-        dap_stream_ch_chain_net_srv_pkt_test_t *l_response = (dap_stream_ch_chain_net_srv_pkt_test_t *)a_pkt->data;
-        size_t l_response_size = l_response->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
+        dap_chain_net_srv_ch_pkt_test_t *l_response = (dap_chain_net_srv_ch_pkt_test_t *)a_pkt->data;
+        size_t l_response_size = l_response->data_size + sizeof(dap_chain_net_srv_ch_pkt_test_t);
         if (a_pkt->hdr.data_size != l_response_size) {
             log_it(L_WARNING, "Wrong response size %u, required %zu", a_pkt->hdr.data_size, l_response_size);
             if (l_srv_client->callbacks.error)
@@ -166,25 +166,25 @@ static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8
     } break;
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS: {
         log_it( L_NOTICE, "Responsed with success");
-        dap_stream_ch_chain_net_srv_pkt_success_t *l_success = (dap_stream_ch_chain_net_srv_pkt_success_t *)a_pkt->data;
+        dap_chain_net_srv_ch_pkt_success_t *l_success = (dap_chain_net_srv_ch_pkt_success_t *)a_pkt->data;
         size_t l_success_size = a_pkt->hdr.data_size;
         if (l_srv_client->callbacks.success) {
             l_srv_client->callbacks.success(l_srv_client, l_success, l_success_size, l_srv_client->callbacks_arg);
         }
     } break;
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR: {
-       if (a_pkt->hdr.data_size == sizeof (dap_stream_ch_chain_net_srv_pkt_error_t)) {
-            dap_stream_ch_chain_net_srv_pkt_error_t *l_err = (dap_stream_ch_chain_net_srv_pkt_error_t *)a_pkt->data;
+       if (a_pkt->hdr.data_size == sizeof (dap_chain_net_srv_ch_pkt_error_t)) {
+            dap_chain_net_srv_ch_pkt_error_t *l_err = (dap_chain_net_srv_ch_pkt_error_t *)a_pkt->data;
             log_it(L_WARNING, "Remote responsed with error code 0x%08X", l_err->code);
             if (l_srv_client->callbacks.error)
                 l_srv_client->callbacks.error(l_srv_client, l_err->code, l_srv_client->callbacks_arg);
         } else {
             log_it(L_ERROR, "Wrong error response size, %u when expected %zu", a_pkt->hdr.data_size,
-                   sizeof ( dap_stream_ch_chain_net_srv_pkt_error_t) );
+                   sizeof ( dap_chain_net_srv_ch_pkt_error_t) );
         }
     } break;
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_DATA: {
-        dap_stream_ch_chain_net_srv_pkt_data_t *l_response = (dap_stream_ch_chain_net_srv_pkt_data_t *)a_pkt->data;
+        dap_chain_net_srv_ch_pkt_data_t *l_response = (dap_chain_net_srv_ch_pkt_data_t *)a_pkt->data;
         log_it(L_DEBUG, "Service client got custom data response");
         if (l_srv_client->callbacks.data)
             l_srv_client->callbacks.data(l_srv_client, l_response->data, l_response->hdr.data_size, l_srv_client->callbacks_arg);

@@ -52,13 +52,13 @@ typedef struct stream_ch_chain_net_pkt_hdr {
     byte_t padding;
     uint16_t data_size;
     dap_chain_net_id_t net_id;
-} DAP_ALIGN_PACKED dap_stream_ch_chain_net_pkt_hdr_t;
+} DAP_ALIGN_PACKED dap_chain_net_ch_pkt_hdr_t;
 
-typedef struct dap_stream_ch_chain_net_pkt{
-    dap_stream_ch_chain_net_pkt_hdr_t hdr;
+typedef struct dap_chain_net_ch_pkt{
+    dap_chain_net_ch_pkt_hdr_t hdr;
     uint8_t data[];
-} DAP_ALIGN_PACKED dap_stream_ch_chain_net_pkt_t;
+} DAP_ALIGN_PACKED dap_chain_net_ch_pkt_t;
 
-size_t dap_stream_ch_chain_net_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, dap_chain_net_id_t a_net_id, const void * a_data, size_t a_data_size);
-DAP_PRINTF_ATTR(4, 5) size_t dap_stream_ch_chain_net_pkt_write_f(dap_stream_ch_t *a_ch, uint8_t a_type, dap_chain_net_id_t a_net_id, const char *a_str, ...);
+size_t dap_chain_net_ch_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, dap_chain_net_id_t a_net_id, const void * a_data, size_t a_data_size);
+DAP_PRINTF_ATTR(4, 5) size_t dap_chain_net_ch_pkt_write_f(dap_stream_ch_t *a_ch, uint8_t a_type, dap_chain_net_id_t a_net_id, const char *a_str, ...);
 

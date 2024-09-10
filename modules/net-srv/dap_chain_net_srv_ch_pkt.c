@@ -34,18 +34,18 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include <dap_common.h>
 #include <dap_stream_pkt.h>
 #include <dap_stream_ch_pkt.h>
-#include "dap_stream_ch_chain_net_srv_pkt.h"
+#include "dap_chain_net_srv_ch_pkt.h"
 
-#define LOG_TAG "dap_stream_ch_chain_net_srv_pkt"
+#define LOG_TAG "dap_chain_net_srv_ch_pkt"
 
 
-size_t dap_stream_ch_chain_net_srv_pkt_data_write(dap_stream_ch_t *a_ch,
+size_t dap_chain_net_srv_ch_pkt_data_write(dap_stream_ch_t *a_ch,
                                                   dap_chain_net_srv_uid_t a_srv_uid, uint32_t a_usage_id  ,
                                                   const void * a_data, size_t a_data_size)
 {
-    dap_stream_ch_chain_net_srv_pkt_data_t  * l_pkt_data;
+    dap_chain_net_srv_ch_pkt_data_t  * l_pkt_data;
     size_t l_pkt_data_size = sizeof (l_pkt_data->hdr) + a_data_size;
-    l_pkt_data = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_data_t, l_pkt_data_size );
+    l_pkt_data = DAP_NEW_Z_SIZE(dap_chain_net_srv_ch_pkt_data_t, l_pkt_data_size );
     l_pkt_data->hdr.version = 1;
     l_pkt_data->hdr.srv_uid = a_srv_uid;
     l_pkt_data->hdr.usage_id = a_usage_id;
@@ -56,14 +56,14 @@ size_t dap_stream_ch_chain_net_srv_pkt_data_write(dap_stream_ch_t *a_ch,
 }
 
 /**
- * @brief dap_stream_ch_chain_net_pkt_write_f
+ * @brief dap_chain_net_ch_pkt_write_f
  * @param a_ch
  * @param a_type
  * @param a_net_id
  * @param a_str
  * @return
  */
-size_t dap_stream_ch_chain_net_srv_pkt_data_write_f(dap_stream_ch_t *a_ch, dap_chain_net_srv_uid_t a_srv_uid, uint32_t a_usage_id, const char *a_str, ...)
+size_t dap_chain_net_srv_ch_pkt_data_write_f(dap_stream_ch_t *a_ch, dap_chain_net_srv_uid_t a_srv_uid, uint32_t a_usage_id, const char *a_str, ...)
 {
 
     va_list ap, ap_copy;
@@ -76,7 +76,7 @@ size_t dap_stream_ch_chain_net_srv_pkt_data_write_f(dap_stream_ch_t *a_ch, dap_c
     char *l_buf = DAP_NEW_Z_SIZE(char, l_buf_size);
     vsprintf(l_buf, a_str, ap_copy);
     va_end(ap_copy);
-    size_t ret = dap_stream_ch_chain_net_srv_pkt_data_write(a_ch, a_srv_uid, a_usage_id, l_buf, l_buf_size);
+    size_t ret = dap_chain_net_srv_ch_pkt_data_write(a_ch, a_srv_uid, a_usage_id, l_buf, l_buf_size);
     DAP_DELETE(l_buf);
     return ret;
 }

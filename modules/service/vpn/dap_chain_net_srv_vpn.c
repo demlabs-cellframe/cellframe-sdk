@@ -196,7 +196,7 @@ static int s_callback_response_error(dap_chain_net_srv_t * a_srv, uint32_t a_usa
 
 static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client,
                     const void * a_receipt_next, size_t a_receipt_next_size);
-static dap_stream_ch_chain_net_srv_remain_service_store_t* s_callback_get_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t usage_id,
+static dap_chain_net_srv_ch_remain_service_store_t* s_callback_get_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t usage_id,
                                          dap_chain_net_srv_client_remote_t * a_srv_client);
 static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t usage_id, dap_chain_net_srv_client_remote_t * a_srv_client);
 static bool s_save_limits(void* arg);
@@ -916,7 +916,7 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
         dap_chain_net_srv_vpn_deinit();
         return -3;
     }
-    dap_stream_ch_proc_add(DAP_STREAM_CH_NET_SRV_ID_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in,
+    dap_stream_ch_proc_add(DAP_CHAIN_NET_SRV_VPN_CH_ID, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in,
             s_ch_packet_out);
 
     // add console command to display vpn statistics
@@ -1077,16 +1077,16 @@ static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t
 static int s_callback_response_error(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client
                                     , const void * a_custom_data, size_t a_custom_data_size )
 {
-    if (a_custom_data_size != sizeof (dap_stream_ch_chain_net_srv_pkt_error_t)){
-        log_it(L_ERROR, "Wrong custom data size, must be %zd", sizeof(dap_stream_ch_chain_net_srv_pkt_error_t) );
+    if (a_custom_data_size != sizeof (dap_chain_net_srv_ch_pkt_error_t)){
+        log_it(L_ERROR, "Wrong custom data size, must be %zd", sizeof(dap_chain_net_srv_ch_pkt_error_t) );
         return -1;
     }
-    dap_stream_ch_chain_net_srv_pkt_error_t * l_err = (dap_stream_ch_chain_net_srv_pkt_error_t *)a_custom_data;
+    dap_chain_net_srv_ch_pkt_error_t * l_err = (dap_chain_net_srv_ch_pkt_error_t *)a_custom_data;
     log_it(L_WARNING,"Response error code 0x%08X", l_err->code);
     return 0;
 }
 
-static dap_stream_ch_chain_net_srv_remain_service_store_t* s_callback_get_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t a_usage_id,
+static dap_chain_net_srv_ch_remain_service_store_t* s_callback_get_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t a_usage_id,
                                          dap_chain_net_srv_client_remote_t * a_srv_client)
 {
     UNUSED(a_srv);
@@ -1115,9 +1115,9 @@ static dap_stream_ch_chain_net_srv_remain_service_store_t* s_callback_get_remain
     DAP_DEL_Z(l_server_pkey_hash);
     char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
     debug_if(s_debug_more, L_DEBUG, "Checkout user %s in group %s", l_user_key, l_remain_limits_gdb_group);
-    dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
+    dap_chain_net_srv_ch_remain_service_store_t* l_remain_service = NULL;
     size_t l_remain_service_size = 0;
-    l_remain_service = (dap_stream_ch_chain_net_srv_remain_service_store_t*) dap_global_db_get_sync(l_remain_limits_gdb_group, l_user_key, &l_remain_service_size, NULL, NULL);
+    l_remain_service = (dap_chain_net_srv_ch_remain_service_store_t*) dap_global_db_get_sync(l_remain_limits_gdb_group, l_user_key, &l_remain_service_size, NULL, NULL);
     DAP_DELETE(l_remain_limits_gdb_group);
     DAP_DELETE(l_user_key);
     return l_remain_service;
@@ -1194,7 +1194,7 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
     char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
     debug_if(s_debug_more, L_DEBUG, "Save user %s remain service into group %s", l_user_key, l_remain_limits_gdb_group);
 
-    dap_stream_ch_chain_net_srv_remain_service_store_t l_remain_service = {};
+    dap_chain_net_srv_ch_remain_service_store_t l_remain_service = {};
     dap_sign_t * l_receipt_sign = NULL;
     if (l_srv_session->usage_active->receipt_next && !l_srv_session->usage_active->is_grace){
         l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( l_srv_session->usage_active->receipt_next, l_srv_session->usage_active->receipt_next->size, 1);
@@ -1427,7 +1427,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 char *l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
                 log_it( L_NOTICE, "No activate receipt in usage for user %s, switch off write callback for channel", l_user_key);
                 DAP_DELETE(l_user_key);
-                dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
+                dap_chain_net_srv_ch_pkt_error_t l_err = { };
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
                 dap_stream_ch_pkt_write_unsafe(a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
@@ -1491,7 +1491,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 char *l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
                 log_it( L_NOTICE, "No activate receipt in usage for user %s, switch off write callback for channel", l_user_key);
                 DAP_DELETE(l_user_key);
-                dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
+                dap_chain_net_srv_ch_pkt_error_t l_err = { };
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
                 dap_stream_ch_pkt_write_unsafe( a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
@@ -1810,7 +1810,7 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 if(s_raw_server){
                     s_ch_packet_in_vpn_address_request(a_ch, l_usage);
                 }else{
-                    dap_stream_ch_chain_net_srv_pkt_error_t l_err={0};
+                    dap_chain_net_srv_ch_pkt_error_t l_err={0};
                     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_IN_CLIENT_MODE;
                     dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR,
                                                     &l_err, sizeof (l_err));
@@ -2189,7 +2189,7 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
 
     l_net_id.uint64 = strtoul(l_net_id_str, NULL, 10);
 
-    dap_stream_ch_chain_net_srv_remain_service_store_t *l_remain_service = NULL;
+    dap_chain_net_srv_ch_remain_service_store_t *l_remain_service = NULL;
     const char *l_cert_name = dap_config_get_item_str_default(g_config, "srv_vpn", "receipt_sign_cert", NULL);
     if (l_cert_name){
         dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
@@ -2225,7 +2225,7 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
         char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s", l_net->pub.gdb_groups_prefix, (uint64_t)DAP_CHAIN_NET_SRV_VPN_ID, l_server_pkey_hash);
         log_it(L_DEBUG, "Checkout user %s in group %s", l_user_pkey_hash_str, l_remain_limits_gdb_group);
         size_t l_remain_service_size = 0;
-        l_remain_service = (dap_stream_ch_chain_net_srv_remain_service_store_t*) dap_global_db_get_sync(l_remain_limits_gdb_group, l_user_pkey_hash_str, &l_remain_service_size, NULL, NULL);
+        l_remain_service = (dap_chain_net_srv_ch_remain_service_store_t*) dap_global_db_get_sync(l_remain_limits_gdb_group, l_user_pkey_hash_str, &l_remain_service_size, NULL, NULL);
         DAP_DELETE(l_remain_limits_gdb_group);
 
         // Create JSON responce

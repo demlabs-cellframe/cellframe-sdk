@@ -26,7 +26,7 @@
 
 #include "dap_chain_ledger.h"
 #include "dap_math_ops.h"
-#include "dap_stream_ch_chain_net.h"
+#include "dap_chain_net_ch.h"
 #include "dap_chain_datum_decree.h"
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID 0x13
