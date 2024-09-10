@@ -7411,6 +7411,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         json_object * json_count_obj= json_object_new_object();
         json_object_object_add(json_count_obj, "Number of transaction", json_object_new_uint64(l_chain->callback_count_tx(l_chain)));
         json_object_array_add(*json_arr_reply, json_count_obj);
+        return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     }
 
     if (json_obj_out) {
