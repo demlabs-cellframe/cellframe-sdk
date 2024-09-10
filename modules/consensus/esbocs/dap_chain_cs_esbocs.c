@@ -2718,8 +2718,9 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             .chain_id = a_session->chain->id,
             .candidate_hash = *a_block_hash }
     };
+    
     dap_chain_esbocs_message_t *l_message_tmp = a_data && a_data_size
-        ? memcpy(l_message->msg_n_sign, a_data, a_data_size)
+        ? memcpy(l_message->msg_n_sign, a_data, a_data_size), l_message
         : l_message;
 
     for (dap_list_t *it = a_validators; it; it = it->next) {
