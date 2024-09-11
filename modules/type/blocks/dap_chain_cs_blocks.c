@@ -1098,8 +1098,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     char *l_decree_hash_str = s_blocks_decree_set_reward(l_net, l_chain, l_value, l_cert);
                     if (l_decree_hash_str) {
                         //добавить вывод
-                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_OK, "Decree with hash %s created to set basic block sign reward", l_decree_hash_str);
+                        json_object *json_obj_out = json_object_new_object();
+                        sprintf(l_tmp_buff,"Decree with hash %s created to set basic block sign reward", l_decree_hash_str);
+                        json_object_object_add(json_obj_out, "message", json_object_new_string(l_tmp_buff));
+                        json_object_array_add(*json_arr_reply, json_obj_out);
                         DAP_DELETE(l_decree_hash_str);
+                        break;
                     } else {
                         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_SIGN_ERR, "Basic block sign reward setting failed. Examine log file for details");
                         return DAP_CHAIN_NODE_CLI_COM_BLOCK_SIGN_ERR;
