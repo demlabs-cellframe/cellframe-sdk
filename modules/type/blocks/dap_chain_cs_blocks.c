@@ -518,10 +518,10 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object *a_jso
                 SUBTRACT_256_256(l_collect_value, l_collect_tax, &l_collect_value);
             }
         }
-        char *l_total_str = dap_chain_balance_to_coins(l_total_value);
-        char *l_profit_str = dap_chain_balance_to_coins(l_collect_value);
-        char *l_tax_str = dap_chain_balance_to_coins(l_collect_tax);
-        char *l_fee_str = dap_chain_balance_to_coins(l_collect_fee);
+        char *l_total_str = dap_chain_balance_coins_print(l_total_value);
+        char *l_profit_str = dap_chain_balance_coins_print(l_collect_value);
+        char *l_tax_str = dap_chain_balance_coins_print(l_collect_tax);
+        char *l_fee_str = dap_chain_balance_coins_print(l_collect_fee);
         sprintf(l_tmp_buff,"Total prepared value: %s %s, where profit is %s, tax is %s, fee is %s\n",
                                  l_total_str, a_net->pub.native_ticker, l_profit_str, l_tax_str, l_fee_str);
         DAP_DEL_MULTY(l_total_str, l_profit_str, l_tax_str, l_fee_str);

@@ -401,8 +401,8 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
     if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-reinvest", &l_reinvest_percent_str)
     && NULL != l_reinvest_percent_str) {
-        l_reinvest_percent = dap_chain_coins_to_balance(l_reinvest_percent_str);
-        if (compare256(l_reinvest_percent, dap_chain_coins_to_balance("100.0")) == 1)
+        l_reinvest_percent = dap_chain_balance_coins_scan(l_reinvest_percent_str);
+        if (compare256(l_reinvest_percent, dap_chain_balance_coins_scan("100.0")) == 1)
             return REINVEST_ARG_ERROR;
         if (IS_ZERO_256(l_reinvest_percent)) {
             int l_reinvest_percent_int = atoi(l_reinvest_percent_str);
@@ -1078,9 +1078,9 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
         }
 
         if (s_debug_more) {
-            char *str1 = dap_chain_balance_to_coins(a_cond->header.value);
-            char *str2 = dap_chain_balance_to_coins(l_value_delegated);
-            char *str3 = dap_chain_balance_to_coins(l_blank_out_value);
+            char *str1 = dap_chain_balance_coins_print(a_cond->header.value);
+            char *str2 = dap_chain_balance_coins_print(l_value_delegated);
+            char *str3 = dap_chain_balance_coins_print(l_blank_out_value);
             log_it(L_INFO, "hold/take_value: %s, delegated_value: %s, burning_value: %s", str1,	str2, str3);
             DAP_DEL_MULTY(str1, str2, str3);
         }

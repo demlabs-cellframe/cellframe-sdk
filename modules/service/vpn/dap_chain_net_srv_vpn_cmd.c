@@ -299,7 +299,7 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply)
             l_status_txt = "VPN client status unknown";
             break;
         }
-        char *l_value_str = dap_chain_balance_to_coins(l_value_datoshi);
+        char *l_value_str = dap_chain_balance_coins_print(l_value_datoshi);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nused:\nwallet:%s\nreceipt:%s %s", l_status_txt,
                 l_wallet_name, l_value_str, l_str_token);
         DAP_DELETE(l_value_str);

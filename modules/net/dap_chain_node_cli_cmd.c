@@ -4523,7 +4523,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
 				dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
                 strcpy((char *)l_tsd_section.ticker_token_from, l_params->ext.delegated_token_from);
 //				l_tsd_section.token_from = dap_hash_fast();
-				l_tsd_section.emission_rate = dap_chain_coins_to_balance("0.001");//	TODO: 'm' 1:1000 tokens
+				l_tsd_section.emission_rate = dap_chain_balance_coins_scan("0.001");//	TODO: 'm' 1:1000 tokens
 				dap_tsd_t * l_tsd = dap_tsd_create_scalar(
 														DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK, l_tsd_section);
 				l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
@@ -5769,8 +5769,8 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply)
         char *l_remain_coins_str = NULL; 
         char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(&l_data_tx->tx_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        l_remain_coins_str = dap_chain_balance_to_coins(l_out_cond->header.value);
-        l_remain_datoshi_str = dap_chain_balance_print(l_out_cond->header.value);
+        l_remain_coins_str = dap_chain_balance_coins_print(l_out_cond->header.value);
+        l_remain_datoshi_str = dap_chain_balance_datoshi_print(l_out_cond->header.value);
         json_object *l_jobj_hash = json_object_new_string(l_hash_str);
         json_object *l_jobj_remain = json_object_new_object();
         json_object *l_jobj_remain_coins = json_object_new_string(l_remain_coins_str);
@@ -5786,8 +5786,8 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply)
         l_tx_count++;
         SUM_256_256(l_total_value, l_out_cond->header.value, &l_total_value);
     }
-    char *l_total_datoshi_str = dap_chain_balance_to_coins(l_total_value);
-    char *l_total_coins_str = dap_chain_balance_print(l_total_value);
+    char *l_total_datoshi_str = dap_chain_balance_coins_print(l_total_value);
+    char *l_total_coins_str = dap_chain_balance_datoshi_print(l_total_value);
     json_object *l_jobj_total = json_object_new_object();
     json_object *l_jobj_total_datoshi = json_object_new_string(l_total_datoshi_str);
     json_object *l_jobj_total_coins = json_object_new_string(l_total_coins_str);

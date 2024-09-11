@@ -154,7 +154,7 @@ int dap_chain_net_srv_stake_net_add(dap_chain_net_id_t a_net_id)
     dap_chain_net_srv_stake_t *l_srv_stake;
     DAP_NEW_Z_RET_VAL(l_srv_stake, dap_chain_net_srv_stake_t, -1, NULL);
     l_srv_stake->net_id = a_net_id;
-    l_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
+    l_srv_stake->delegate_allowed_min = dap_chain_balance_coins_scan("1.0");
     dap_list_t *l_list_last = dap_list_last(s_srv_stake_list);
     s_srv_stake_list = dap_list_append(s_srv_stake_list, l_srv_stake);
     if (l_list_last == dap_list_last(s_srv_stake_list)) {
@@ -216,8 +216,8 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
             return -2;
         }
         if (compare256(l_tx_out_cond->header.value, a_cond->header.value)) {
-            char *l_in_value = dap_chain_balance_to_coins(l_tx_out_cond->header.value);
-            char *l_out_value = dap_chain_balance_to_coins(a_cond->header.value);
+            char *l_in_value = dap_chain_balance_coins_print(l_tx_out_cond->header.value);
+            char *l_out_value = dap_chain_balance_coins_print(a_cond->header.value);
             log_it(L_WARNING, "In value %s is not equal to out value %s", l_in_value, l_out_value);
             DAP_DELETE(l_in_value);
             DAP_DELETE(l_out_value);
@@ -378,8 +378,8 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
                 l_stake->sovereign_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
                 l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
                 l_stake->sovereign_tax = dap_tsd_get_scalar(l_tsd, uint256_t);
-                if (compare256(l_stake->sovereign_tax, dap_chain_coins_to_balance("1.0")) == 1)
-                    l_stake->sovereign_tax = dap_chain_coins_to_balance("1.0");
+                if (compare256(l_stake->sovereign_tax, dap_chain_balance_coins_scan("1.0")) == 1)
+                    l_stake->sovereign_tax = dap_chain_balance_coins_scan("1.0");
             }
         }
     }
@@ -1349,8 +1349,8 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Validator order creation requires parameter -tax");
             return -9;
         }
-        uint256_t l_tax = dap_chain_coins_to_balance(l_tax_str);
-        if (compare256(l_tax, dap_chain_coins_to_balance("100.0")) == 1 ||
+        uint256_t l_tax = dap_chain_balance_coins_scan(l_tax_str);
+        if (compare256(l_tax, dap_chain_balance_coins_scan("100.0")) == 1 ||
                 compare256(l_tax, GET_256_FROM_64(100)) == -1) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Tax must be lower or equal than 100%% and higher or equal than 1.0e-16%%");
             return -10;
@@ -1428,8 +1428,8 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Staker order creation requires parameter -tax");
             return -9;
         }
-        uint256_t l_tax = dap_chain_coins_to_balance(l_tax_str);
-        if (compare256(l_tax, dap_chain_coins_to_balance("100.0")) == 1 ||
+        uint256_t l_tax = dap_chain_balance_coins_scan(l_tax_str);
+        if (compare256(l_tax, dap_chain_balance_coins_scan("100.0")) == 1 ||
                 compare256(l_tax, GET_256_FROM_64(100)) == -1) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Tax must be lower or equal than 100%% and higher or equal than 1.0e-16%%");
             return -10;
@@ -1874,7 +1874,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
             l_node_addr = l_order->node_addr;
         }
         DAP_DELETE(l_order);
-        if (compare256(l_sovereign_tax, dap_chain_coins_to_balance("100.0")) == 1 ||
+        if (compare256(l_sovereign_tax, dap_chain_balance_coins_scan("100.0")) == 1 ||
                 compare256(l_sovereign_tax, GET_256_FROM_64(100)) == -1) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Tax must be lower or equal than 100%% and higher or equal than 1.0e-16%%");
             dap_enc_key_delete(l_enc_key);
@@ -2127,11 +2127,11 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE], l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_to_str(&a_stake->tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
     dap_chain_hash_fast_to_str(&a_stake->signing_addr.data.hash_fast, l_pkey_hash_str, sizeof(l_pkey_hash_str));
-    char *l_balance = dap_chain_balance_to_coins(a_stake->value);
+    char *l_balance = dap_chain_balance_coins_print(a_stake->value);
     uint256_t l_rel_weight, l_tmp;
     MULT_256_256(a_stake->value, GET_256_FROM_64(100), &l_tmp);
     DIV_256_COIN(l_tmp, a_total_weight, &l_rel_weight);
-    char *l_rel_weight_str = dap_chain_balance_to_coins(l_rel_weight);
+    char *l_rel_weight_str = dap_chain_balance_coins_print(l_rel_weight);
     char l_active_str[32] = {};
     if (dap_chain_esbocs_started(a_stake->signing_addr.net_id))
         snprintf(l_active_str, 32, "\tActive: %s\n", a_stake->is_active ? "true" : "false");
@@ -2139,7 +2139,7 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
                 "null" : dap_chain_addr_to_str_static(&a_stake->sovereign_addr);
     uint256_t l_sov_tax_percent = uint256_0;
     MULT_256_256(a_stake->sovereign_tax, GET_256_FROM_64(100), &l_sov_tax_percent);
-    char *l_sov_tax_str = dap_chain_balance_to_coins(l_sov_tax_percent);
+    char *l_sov_tax_str = dap_chain_balance_coins_print(l_sov_tax_percent);
     dap_string_append_printf(a_string, "Pkey hash: %s\n"
                                         "\tStake value: %s\n"
                                         "\tRelated weight: %s%%\n"
@@ -2756,12 +2756,12 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' requires parameter -percent");
                 return -9;
             }
-            uint256_t l_value = dap_chain_coins_to_balance(l_value_str);
+            uint256_t l_value = dap_chain_balance_coins_scan(l_value_str);
             if (IS_ZERO_256(l_value)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized number in '-percent' param");
                 return -10;
             }
-            if (compare256(l_value, dap_chain_coins_to_balance("100.0")) >= 0) {
+            if (compare256(l_value, dap_chain_balance_coins_scan("100.0")) >= 0) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Percent must be lower than 100%%");
                 return -29;
             }

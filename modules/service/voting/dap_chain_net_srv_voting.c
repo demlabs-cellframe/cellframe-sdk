@@ -1002,7 +1002,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             uint256_t l_weight_percentage = {};
 
             DIV_256_COIN(l_results[i].weights, l_total_weight, &l_weight_percentage);
-            MULT_256_COIN(l_weight_percentage, dap_chain_coins_to_balance("100.0"), &l_weight_percentage);
+            MULT_256_COIN(l_weight_percentage, dap_chain_balance_coins_scan("100.0"), &l_weight_percentage);
             const char *l_weight_percentage_str = dap_uint256_decimal_to_round_char(l_weight_percentage, 2, true);
             const char *l_w_coins, *l_w_datoshi = dap_uint256_to_char(l_results[i].weights, &l_w_coins);
             dap_string_append_printf(l_str_out, "\nVotes: %"DAP_UINT64_FORMAT_U" (%.2f%%)\nWeight: %s (%s) %s (%s%%)\n",
