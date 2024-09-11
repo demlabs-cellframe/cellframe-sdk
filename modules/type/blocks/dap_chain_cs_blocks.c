@@ -213,7 +213,7 @@ int dap_chain_cs_blocks_init()
             " -poa_cert <poa_cert_name> -value <value>\n"
                 "\t\t Set base reward for sign for one block at one minute\n\n"
 
-            "block -net <net_name> [-chain <chain_name>] reward show"
+            "block -net <net_name> [-chain <chain_name>] reward show\n"
                 "\t\t Show base reward for sign for one block at one minute\n\n"
 
             "block -net <net_name> [-chain <chain_name>] reward collect"
