@@ -2428,7 +2428,8 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE], l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_to_str(&a_stake->tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
     dap_chain_hash_fast_to_str(&a_stake->signing_addr.data.hash_fast, l_pkey_hash_str, sizeof(l_pkey_hash_str));
-    char *l_balance = dap_chain_balance_to_coins(a_stake->value);
+    char *l_balance = dap_chain_balance_to_coins(a_stake->locked_value);
+    char *l_effective_weight = dap_chain_balance_to_coins(a_stake->value);
     uint256_t l_rel_weight, l_tmp;
     MULT_256_256(a_stake->value, GET_256_FROM_64(100), &l_tmp);
     DIV_256_COIN(l_tmp, a_total_weight, &l_rel_weight);
@@ -2443,16 +2444,18 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     char *l_sov_tax_str = dap_chain_balance_to_coins(l_sov_tax_percent);
     dap_string_append_printf(a_string, "Pkey hash: %s\n"
                                         "\tStake value: %s\n"
+                                        "\tEffective value: %s\n"
                                         "\tRelated weight: %s%%\n"
                                         "\tTx hash: %s\n"
                                         "\tNode addr: "NODE_ADDR_FP_STR"\n"
                                         "\tSovereign addr: %s\n"
                                         "\tSovereign tax: %s%%\n"
                                         "%s\n",
-                             l_pkey_hash_str, l_balance, l_rel_weight_str,
+                             l_pkey_hash_str, l_balance, l_effective_weight, l_rel_weight_str,
                              l_tx_hash_str, NODE_ADDR_FP_ARGS_S(a_stake->node_addr),
                              l_sov_addr_str, l_sov_tax_str, l_active_str);
     DAP_DELETE(l_balance);
+    DAP_DELETE(l_effective_weight);
     DAP_DELETE(l_rel_weight_str);
     DAP_DELETE(l_sov_tax_str);
 }
@@ -2595,7 +2598,7 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
     return l_overall_correct;
 }
 
-uint256_t dap_chain_net_srv_stake_get_total_weight(dap_chain_net_id_t a_net_id)
+uint256_t dap_chain_net_srv_stake_get_total_weight(dap_chain_net_id_t a_net_id, uint256_t *a_locked_weight)
 {
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_net_id);
     dap_return_val_if_fail(l_srv_stake, uint256_0);
@@ -2604,6 +2607,8 @@ uint256_t dap_chain_net_srv_stake_get_total_weight(dap_chain_net_id_t a_net_id)
         if (it->signing_addr.net_id.uint64 != a_net_id.uint64)
             continue;
         SUM_256_256(l_total_weight, it->value, &l_total_weight);
+        if (a_locked_weight)
+            SUM_256_256(*a_locked_weight, it->locked_value, a_locked_weight);
     }
     return l_total_weight;
 }
@@ -2859,7 +2864,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 
                 dap_string_t *l_reply_str = dap_string_new("");
                 size_t l_inactive_count = 0, l_total_count = 0;
-                uint256_t l_total_weight = dap_chain_net_srv_stake_get_total_weight(l_net->pub.id);
+                uint256_t l_total_locked_weight = {}, l_total_weight = dap_chain_net_srv_stake_get_total_weight(l_net->pub.id, &l_total_locked_weight);
                 if (l_stake)
                     s_srv_stake_print(l_stake, l_total_weight, l_reply_str);
                 else
@@ -2876,9 +2881,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                         dap_string_append_printf(l_reply_str, "Total keys count: %zu\n", l_total_count);
                     if (dap_chain_esbocs_started(l_net->pub.id))
                         dap_string_append_printf(l_reply_str, "Inactive keys count: %zu\n", l_inactive_count);
-                    const char *l_total_weight_coins, *l_total_weight_str =
-                            dap_uint256_to_char(l_total_weight, &l_total_weight_coins);
+                    const char *l_total_weight_coins, *l_total_weight_str = dap_uint256_to_char(l_total_locked_weight, &l_total_weight_coins);
                     dap_string_append_printf(l_reply_str, "Total weight: %s (%s)\n", l_total_weight_coins, l_total_weight_str);
+                    l_total_weight_str = dap_uint256_to_char(l_total_weight, &l_total_weight_coins);
+                    dap_string_append_printf(l_reply_str, "Total effective weight: %s (%s)\n", l_total_weight_coins, l_total_weight_str);
                 }
 
                 const char *l_delegate_min_str; dap_uint256_to_char(dap_chain_net_srv_stake_get_allowed_min_value(l_net->pub.id),
