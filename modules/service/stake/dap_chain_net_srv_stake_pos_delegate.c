@@ -483,7 +483,7 @@ void dap_chain_net_srv_stake_set_allowed_min_value(dap_chain_net_id_t a_net_id, 
     l_srv_stake->delegate_allowed_min = a_value;
     for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next)
         if (dap_hash_fast_is_blank(&it->tx_hash))
-            it->value = a_value;
+            it->locked_value = it->value = a_value;
 }
 
 void dap_chain_net_srv_stake_set_percent_max(dap_chain_net_id_t a_net_id, uint256_t a_value)
