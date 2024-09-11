@@ -2729,8 +2729,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
                                                            NODE_ADDR_FP_ARGS_S(l_validator->node_addr));
             l_message->hdr.recv_addr = l_validator->node_addr;
             l_message->hdr.sign_size = 0;
-            dap_sign_t *l_sign = dap_sign_create(PVT(a_session->esbocs)->blocks_sign_key,
-                                                 l_message, l_message_size, 0);
+            dap_sign_t *l_sign = dap_sign_create( PVT(a_session->esbocs)->blocks_sign_key, l_message, l_message_size, 0 );
             size_t l_sign_size = dap_sign_get_size(l_sign);
             l_message->hdr.sign_size = l_sign_size;
             dap_chain_esbocs_message_t *l_message_signed = DAP_REALLOC(l_message, l_message_size + l_sign_size);
