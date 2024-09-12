@@ -1283,6 +1283,19 @@ char *s_staker_order_create(dap_chain_net_t *a_net, uint256_t a_value, dap_hash_
     return l_order_hash_str;
 }
 
+int json_object_compare_by_timestamp(const void *a, const void *b) {
+    struct json_object *obj_a = *(struct json_object **)a;
+    struct json_object *obj_b = *(struct json_object **)b;
+
+    struct json_object *timestamp_a = json_object_object_get(obj_a, "timestamp");
+    struct json_object *timestamp_b = json_object_object_get(obj_b, "timestamp");
+
+    int64_t time_a = json_object_get_int64(timestamp_a);
+    int64_t time_b = json_object_get_int64(timestamp_b);
+
+    return time_a - time_b;
+}
+
 typedef enum s_cli_srv_stake_order_err{
     DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_OK = 0,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_MEMORY_ERR,
@@ -1721,8 +1734,18 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             dap_global_db_objs_delete(l_orders, l_orders_count);
             DAP_DELETE(l_gdb_group_str);
         }
-        if (!json_object_array_length(l_json_arr_reply))
+        size_t json_array_lenght = json_object_array_length(l_json_arr_reply);
+        if (!json_array_lenght)
             json_object_array_add(l_json_arr_reply, json_object_new_string( "No orders found"));
+        else {
+            //sort by time
+            json_object_array_sort(l_json_arr_reply, json_object_compare_by_timestamp);
+            // Remove the timestamp
+            for (int i = 0; i < json_array_lenght; i++) {
+                struct json_object *obj = json_object_array_get_idx(l_json_arr_reply, i);
+                json_object_object_del(obj, "timestamp");
+            }
+        }
         json_object_array_add(*json_arr_reply, l_json_arr_reply);
     } break;
 

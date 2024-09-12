@@ -584,6 +584,8 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         char buf_time[DAP_TIME_STR_SIZE];
         dap_time_to_str_rfc822(buf_time, DAP_TIME_STR_SIZE, a_order->ts_created);
         json_object_object_add(a_json_obj_out, "created", json_object_new_string(buf_time));
+        //timestamp remove after sort
+        json_object_object_add(a_json_obj_out, "timestamp", json_object_new_uint64(a_order->ts_created));
         char buf_srv_uid[64];
         sprintf(buf_srv_uid, "0x%016"DAP_UINT64_FORMAT_X"", a_order->srv_uid.uint64);
         json_object_object_add(a_json_obj_out, "srv_uid", json_object_new_string(buf_srv_uid));
