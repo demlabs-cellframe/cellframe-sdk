@@ -55,6 +55,7 @@ typedef enum s_cli_srv_stake_err{
     DAP_CHAIN_NODE_CLI_SRV_STAKE_HASH_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_WRONG_HASH_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_NEED_TX_NOT_OUTPUT_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_NO_TX_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_HASH_ADDR_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_NO_NODE_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_NODE_BAD_SIZE_ERR,
@@ -1564,7 +1565,8 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
         }
         json_object * l_json_obj_create_val = json_object_new_object();
         json_object_object_add(l_json_obj_create_val, "status", json_object_new_string("success"));
-        json_object_object_add(l_json_obj_create_val, "sign", json_object_new_string(l_sign_str));
+        if (dap_strcmp(l_sign_str, ""))
+            json_object_object_add(l_json_obj_create_val, "sign", json_object_new_string(l_sign_str));
         json_object_object_add(l_json_obj_create_val, "order_hash", json_object_new_string(l_order_hash_str));
         json_object_object_add(l_json_obj_create_val, "tx_hash", json_object_new_string(l_tx_hash_str));
         json_object_array_add(*json_arr_reply, l_json_obj_create_val);
@@ -2363,6 +2365,9 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
     dap_chain_node_info_t *l_remote_node_info = NULL;
     dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_net->pub.name);
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
+    if (!l_tx) {
+        return -11;
+    }
     int l_overall_correct = false;
 
     int l_prev_cond_idx = 0;
@@ -2506,13 +2511,13 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
     switch (l_cmd_num) {
 
         case CMD_ORDER:
-            return s_cli_srv_stake_order(a_argc, a_argv, l_arg_index + 1, *json_arr_reply, l_hash_out_type);
+            return s_cli_srv_stake_order(a_argc, a_argv, l_arg_index + 1, a_str_reply, l_hash_out_type);
 
         case CMD_DELEGATE:
-            return s_cli_srv_stake_delegate(a_argc, a_argv, l_arg_index + 1, *json_arr_reply, l_hash_out_type);
+            return s_cli_srv_stake_delegate(a_argc, a_argv, l_arg_index + 1, a_str_reply, l_hash_out_type);
 
         case CMD_INVALIDATE:
-            return s_cli_srv_stake_invalidate(a_argc, a_argv, l_arg_index + 1, *json_arr_reply, l_hash_out_type);
+            return s_cli_srv_stake_invalidate(a_argc, a_argv, l_arg_index + 1, a_str_reply, l_hash_out_type);
 
         case CMD_CHECK:
         {
@@ -2566,6 +2571,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             case -10:
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_SRV_STAKE_SEND_PKT_ERR,"Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST packet");
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_SEND_PKT_ERR;
+                break;
+            case -11:
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_SRV_STAKE_NO_TX_ERR,"Can't find conditional tx");
+                return DAP_CHAIN_NODE_CLI_SRV_STAKE_NO_TX_ERR;
                 break;
             default:
                 break;

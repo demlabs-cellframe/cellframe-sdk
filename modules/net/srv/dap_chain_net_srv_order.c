@@ -597,7 +597,7 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
             json_object_object_add(a_json_obj_out, "price_unit", json_object_new_string(dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit)));
         if ( a_order->node_addr.uint64) {
             char buf_node_addr[64];
-            sprintf(buf_node_addr, ""NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS_S(a_order->node_addr));
+            sprintf(buf_node_addr, ""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(a_order->node_addr));
             json_object_object_add(a_json_obj_out, "node_addr", json_object_new_string(buf_node_addr));
         }
 
@@ -607,7 +607,7 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         if(dap_chain_net_srv_order_get_continent_region(a_order, &l_continent_num, &l_region))
             l_continent_str = dap_chain_net_srv_order_continent_to_str(l_continent_num);
         char buf_location[64];
-        sprintf(buf_location, "%s - %s\n", l_continent_str ? l_continent_str : "None" , l_region ? l_region : "None");
+        sprintf(buf_location, "%s - %s", l_continent_str ? l_continent_str : "None" , l_region ? l_region : "None");
         json_object_object_add(a_json_obj_out, "node_location", json_object_new_string(buf_location));
         DAP_DELETE(l_region);
 
@@ -618,8 +618,8 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         char *l_ext_out = a_order->ext_size ? DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 1) : NULL;
         if(l_ext_out) {
             dap_bin2hex(l_ext_out, a_order->ext_n_sign, a_order->ext_size);
-            char buf_ext[64];
-            sprintf(buf_ext, "0x%s\n", l_ext_out);
+            char buf_ext[a_order->ext_size*2+3];
+            sprintf(buf_ext, "0x%s", l_ext_out);
             json_object_object_add(a_json_obj_out, "ext", json_object_new_string(buf_ext));
         }
         else
