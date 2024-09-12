@@ -200,7 +200,7 @@ static void s_net_node_link_prepare_error(int a_error_code, void *a_arg){
            l_node_info->ext_port, a_error_code);
 }
 
-static struct node_link_request *s_node_list_request_init ()
+static struct node_link_request* s_node_list_request_init()
 {
     struct node_link_request *l_node_list_request = DAP_NEW_Z(struct node_link_request);
     if (!l_node_list_request)
@@ -209,14 +209,14 @@ static struct node_link_request *s_node_list_request_init ()
     InitializeCriticalSection(&l_node_list_request->wait_crit_sec);
     InitializeConditionVariable(&l_node_list_request->wait_cond);
 #else
-    l_node_list_request->wait_mutex = PTHREAD_MUTEX_INITIALIZER;
-#ifndef DAP_OS_DARWIN
+    pthread_mutex_init(&l_node_list_request->wait_mutex, NULL);
+#ifdef DAP_OS_DARWIN
+    pthread_cond_init(&l_node_list_request->wait_cond, NULL);
+#else
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-    pthread_cond_init(&l_node_list_request->wait_cond, &attr);
-#else
-    l_node_list_request->wait_cond = PTHREAD_COND_INITIALIZER;
+    pthread_cond_init(&l_node_list_request->wait_cond, &attr);    
 #endif
 #endif
     return l_node_list_request;
@@ -249,7 +249,7 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
         return pthread_mutex_unlock(&a_node_list_request->wait_mutex), a_node_list_request->response;
     struct timespec l_cond_timeout;
 #ifdef DAP_OS_DARWIN
-    l_cond_timeout = { .tv_sec = a_timeout_ms / 1000 };
+    l_cond_timeout = (struct timespec){ .tv_sec = a_timeout_ms / 1000 };
 #else
     clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);
     l_cond_timeout.tv_sec += a_timeout_ms / 1000;
@@ -257,7 +257,7 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
     while (!a_node_list_request->response) {
         switch (
 #ifdef DAP_OS_DARWIN
-            pthread_cond_timedwait_relative_np(&l_node_list_request->wait_cond, &l_node_list_request->wait_mutex, &l_cond_timeout)
+            pthread_cond_timedwait_relative_np(&a_node_list_request->wait_cond, &a_node_list_request->wait_mutex, &l_cond_timeout)
 #else
             pthread_cond_timedwait(&a_node_list_request->wait_cond, &a_node_list_request->wait_mutex, &l_cond_timeout)
 #endif

@@ -32,7 +32,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 struct node_link_request {
     dap_chain_node_info_t *link_info;
     dap_chain_net_t *net;
-    int response;
 #ifdef DAP_OS_WINDOWS
     CONDITION_VARIABLE wait_cond;
     CRITICAL_SECTION wait_crit_sec;
@@ -40,13 +39,15 @@ struct node_link_request {
     pthread_cond_t wait_cond;
     pthread_mutex_t wait_mutex;
 #endif
+    int response;
 };
+
 /**
 * @brief dap_chain_net_node_list_get_gdb_group
 * @param a_net
 * @return
 */
-DAP_STATIC_INLINE char *dap_chain_net_node_list_get_gdb_group(dap_chain_net_t * a_net)
+DAP_STATIC_INLINE char* dap_chain_net_node_list_get_gdb_group(dap_chain_net_t * a_net)
 {
     return a_net ? dap_strdup_printf("%s.service.orders",a_net->pub.gdb_groups_prefix) : NULL;
 }
