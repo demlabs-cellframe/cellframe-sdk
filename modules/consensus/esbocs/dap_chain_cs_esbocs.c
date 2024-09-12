@@ -31,12 +31,12 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
-#include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
+#include "dap_cli_server.h"
 #include "dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "dap_chain_cs_esbocs"
@@ -75,6 +75,9 @@ static void s_message_chain_add(dap_chain_esbocs_session_t * a_session,
                                 dap_chain_addr_t *a_signing_addr);
 
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
+static int s_callback_stop(dap_chain_t *a_chain);
+static int s_callback_start(dap_chain_t *a_chain);
+static int s_callback_purge(dap_chain_t *a_chain);
 static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks);
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg);
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
@@ -177,7 +180,11 @@ DAP_STATIC_INLINE uint16_t s_get_round_skip_timeout(dap_chain_esbocs_session_t *
 
 int dap_chain_cs_esbocs_init()
 {
-    dap_chain_cs_add(DAP_CHAIN_ESBOCS_CS_TYPE_STR, s_callback_new);
+    dap_chain_cs_callbacks_t l_callbacks = { .callback_init = s_callback_new,
+                                             .callback_stop = s_callback_stop,
+                                             .callback_start = s_callback_start,
+                                             .callback_purge = s_callback_purge };
+    dap_chain_cs_add(DAP_CHAIN_ESBOCS_CS_TYPE_STR, l_callbacks);
     dap_stream_ch_proc_add(DAP_STREAM_CH_ESBOCS_ID,
                            NULL,
                            NULL,
@@ -205,7 +212,8 @@ void dap_chain_cs_esbocs_deinit(void)
 
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
-    dap_chain_cs_type_create("blocks", a_chain, a_chain_cfg);
+    dap_chain_set_cs_type(a_chain, "blocks");
+    dap_chain_cs_class_create(a_chain, a_chain_cfg);
 
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     int l_ret = 0;
@@ -305,8 +313,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         if (!IS_ZERO_256(l_preset_reward))
             dap_chain_net_add_reward(l_net, l_preset_reward, 0);
     }
-    l_blocks->chain->callback_created = s_callback_created;
-
     return 0;
 
 lb_err:
@@ -634,27 +640,29 @@ uint256_t dap_chain_esbocs_get_fee(dap_chain_net_id_t a_net_id)
     return uint256_0;
 }
 
-void dap_chain_esbocs_stop_timer(dap_chain_net_id_t a_net_id)
+static int s_callback_stop(dap_chain_t *a_chain)
 {
     dap_chain_esbocs_session_t *l_session;
     DL_FOREACH(s_session_items, l_session) {
-        if (l_session->chain->net_id.uint64 == a_net_id.uint64 &&
+        if (l_session->chain == a_chain &&
             l_session->cs_timer) {
-            log_it(L_INFO, "Stop consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_net_id)->pub.name, l_session->chain->name);
+            log_it(L_INFO, "Stop consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_chain->net_id)->pub.name, l_session->chain->name);
             l_session->cs_timer = false;
         }
     }
+    return 0;
 }
 
-void dap_chain_esbocs_start_timer(dap_chain_net_id_t a_net_id)
+static int s_callback_start(dap_chain_t *a_chain)
 {
     dap_chain_esbocs_session_t *l_session;
     DL_FOREACH(s_session_items, l_session) {
-        if (l_session->chain->net_id.uint64 == a_net_id.uint64) {
-            log_it(L_INFO, "Start consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_net_id)->pub.name, l_session->chain->name);
+        if (l_session->chain == a_chain) {
+            log_it(L_INFO, "Start consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_chain->net_id)->pub.name, l_session->chain->name);
             l_session->cs_timer = true;
         }
     }
+    return 0;
 }
 
 bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr)
@@ -713,19 +721,27 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    if (a_new_value)
-        l_esbocs_pvt->min_validators_count = a_new_value;
-    else {
-        dap_hash_fast_t l_stake_tx_hash = {};
-        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
-        for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
-            dap_chain_esbocs_validator_t *l_validator = it->data;
-            dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
-                                                 l_weight, &l_validator->node_addr);
-        }
-        l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
+    if (!a_new_value)
+        return -2;
+    l_esbocs_pvt->min_validators_count = a_new_value;
+    return 0;
+}
+
+static int s_callback_purge(dap_chain_t *a_chain)
+{
+    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    dap_hash_fast_t l_stake_tx_hash = {};
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
+    for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
+        dap_chain_esbocs_validator_t *l_validator = it->data;
+        dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
+                                             l_weight, &l_validator->node_addr);
     }
+    l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
     return 0;
 }
 

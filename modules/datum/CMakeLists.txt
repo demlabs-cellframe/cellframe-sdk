@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
-project (dap_chain_common)
+project (dap_chain_datum)
   
-file(GLOB DAP_CHAIN_COMMON_SRCS  *.c)
-file(GLOB DAP_CHAIN_COMMON_HEADERS include/*.h)
+file(GLOB DAP_CHAIN_DATUM_SRCS  *.c)
+file(GLOB DAP_CHAIN_DATUM_HEADERS include/*.h)
 
-add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_COMMON_SRCS} ${DAP_CHAIN_COMMON_HEADERS})
+add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_DATUM_SRCS} ${DAP_CHAIN_DATUM_HEADERS})
 
 if(BUILD_CELLFRAME_SDK_TESTS)
     add_subdirectory(tests)
@@ -16,10 +16,10 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..
 
 
 if (INSTALL_SDK)
-set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_COMMON_HEADERS}")
+set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_DATUM_HEADERS}")
 INSTALL(TARGETS ${PROJECT_NAME} 
-        LIBRARY DESTINATION lib/modules/common/
-        ARCHIVE DESTINATION lib/modules/common/
-        PUBLIC_HEADER DESTINATION include/modules/common/
+        LIBRARY DESTINATION lib/modules/datum/
+        ARCHIVE DESTINATION lib/modules/datum/
+        PUBLIC_HEADER DESTINATION include/modules/datum/
 )
 endif()

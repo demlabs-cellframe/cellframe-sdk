@@ -32,8 +32,6 @@
 #ifdef DAP_OS_LINUX
 #include <dlfcn.h>
 #endif
-#include "json.h"
-#include "json_object.h"
 #include <pthread.h>
 #include <dirent.h>
 #include "uthash.h"
@@ -53,7 +51,7 @@
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_srv_ch.h"
-#include "dap_chain_cs_blocks.h"
+
 #ifdef DAP_MODULES_DYNAMIC
 #include "dap_modules_dynamic_cdb.h"
 #endif
@@ -62,20 +60,7 @@
 
 #define LOG_TAG "chain_net_srv"
 
-typedef struct service_list {
-    dap_chain_net_srv_uid_t uid;
-    dap_chain_net_srv_t * srv;
-    char name[32];
-    UT_hash_handle hh;
-} service_list_t;
-
-// list of active services
-static service_list_t *s_srv_list = NULL;
-// for separate access to s_srv_list
-static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int s_cli_net_srv(int argc, char **argv, void **reply);
-static void s_load(const char * a_path);
-static void s_load_all();
 
 static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner);
@@ -95,73 +80,25 @@ int dap_chain_net_srv_init()
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
         "net_srv -net <net_name> order find [-direction {sell|buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
         " [-price_token <token_ticker>] [-price_min <price_minimum>] [-price_max <price_maximum>]\n"
-        "\tOrders list, all or by UID and/or class\n"
+            "\tOrders list, all or by UID and/or class\n"
         "net_srv -net <net_name> order delete -hash <order_hash>\n"
-        "\tOrder delete\n"
+            "\tOrder delete\n"
         "net_srv -net <net_name> order dump -hash <order_hash>\n"
-        "\tOrder dump info\n"
+            "\tOrder dump info\n"
         "net_srv -net <net_name> order create -direction {sell|buy} -srv_uid <service_UID> -price <price>\n"
         " -price_unit <price_unit> -price_token <token_ticker> -units <units> [-node_addr <node_address>] [-tx_cond <TX_cond_hash>]\n"
         " [-expires <unix_time_when_expires>] [-cert <cert_name_to_sign_order>]\n"
         " [{-ext <extension_with_params>|-region <region_name> -continent <continent_name>}]\n"
+            "\tCreate general service order (VPN as usually)"
         "net_srv get_limits -net <net_name> -srv_uid <service_UID> -provider_pkey_hash <service_provider_public_key_hash> -client_pkey_hash <client_public_key_hash>\n"
+            "\tShow service billing info"
         "net_srv report\n"
-        "\tGet report about srv usage"
+            "\tGet report about srv usage"
         );
-
-    s_load_all();
-
+    dap_ledger_tx_add_notify(a_net->pub.ledger, dap_chain_net_srv_ch_tx_cond_added_cb, NULL);
+    dap_chain_net_srv_ch_init();
     return 0;
 }
-
-/**
- * @brief s_load_all
- */
-void s_load_all()
-{
-    char * l_net_dir_str = dap_strdup_printf("%s/service.d", dap_config_path());
-    DIR * l_net_dir = opendir( l_net_dir_str);
-    if ( l_net_dir ) {
-        struct dirent * l_dir_entry = NULL;
-        while ( (l_dir_entry = readdir(l_net_dir) )!= NULL ){
-            if (l_dir_entry->d_name[0]=='\0' || l_dir_entry->d_name[0]=='.')
-                continue;
-            // don't search in directories
-            char l_full_path[MAX_PATH + 1] = {0};
-            snprintf(l_full_path, sizeof(l_full_path), "%s/%s", l_net_dir_str, l_dir_entry->d_name);
-            if(dap_dir_test(l_full_path)) {
-                continue;
-            }
-            // search only ".cfg" files
-            if(strlen(l_dir_entry->d_name) > 4) { // It has non zero name excluding file extension
-                if(strncmp(l_dir_entry->d_name + strlen(l_dir_entry->d_name) - 4, ".cfg", 4) != 0) {
-                    // its not .cfg file
-                    continue;
-                }
-            }
-            log_it(L_DEBUG,"Service config %s try to load", l_dir_entry->d_name);
-            //char* l_dot_pos = rindex(l_dir_entry->d_name,'.');
-            char* l_dot_pos = strchr(l_dir_entry->d_name,'.');
-            if ( l_dot_pos )
-                *l_dot_pos = '\0';
-            s_load(l_full_path );
-        }
-        closedir(l_net_dir);
-    }
-    DAP_DELETE (l_net_dir_str);
-}
-
-/**
- * @brief s_load
- * @param a_name
- */
-static void s_load(const char * a_path)
-{
-    log_it ( L_INFO, "Service config %s", a_path);
-    // TODO open service
-}
-
-
 /**
  * @brief dap_chain_net_srv_deinit
  */
@@ -878,7 +815,6 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
         return NULL;
     }
 
-    l_price->net = l_net;
     l_price->net_name = dap_strdup(l_net->pub.name);
     if ((IS_ZERO_256(l_order->price) || l_order->units == 0 ) && !a_srv->allow_free_srv){
         log_it(L_ERROR, "Invalid order: units count or price unspecified");
@@ -935,14 +871,6 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
     return l_price;
 }
 
-int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section)
-{
-
-
-
-    return 0;
-}
-
 /**
  * @brief dap_chain_net_srv_add
  * @param a_uid
@@ -951,56 +879,22 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
  * @param a_callback_response_error
  * @return
  */
-dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
-                                           const char *a_config_section,
-                                           dap_chain_net_srv_callbacks_t* a_callbacks)
+dap_chain_net_srv_t *dap_chain_net_srv_create(const char *a_config_section, dap_chain_net_srv_callbacks_t *a_network_callbacks)
 
 {
-    service_list_t *l_sdata = NULL;
-    dap_chain_net_srv_t * l_srv = NULL;
-    dap_chain_net_srv_uid_t l_uid = {.uint64 = a_uid.uint64 }; // Copy to let then compiler to pass args via registers not stack
-    const char* l_net_name_str = dap_config_get_item_str_default(g_config, a_config_section, "net", "");
-    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name_str);
-    if(!l_net && a_uid.uint64 == 1){
-        log_it(L_ERROR, "Can't find net [%s]. Check configuration file.", l_net_name_str);
+    dap_chain_net_srv_t *l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
+    if (!l_srv) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
-
-    pthread_mutex_lock(&s_srv_list_mutex);
-    HASH_FIND(hh, s_srv_list, &l_uid, sizeof(l_uid), l_sdata);
-    if(!l_sdata) {
-        l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
-        if (!l_srv) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            pthread_mutex_unlock(&s_srv_list_mutex);
-            return NULL;
-        }
-        l_srv->uid.uint64 = a_uid.uint64;
-        if (a_callbacks)
-            l_srv->callbacks = *a_callbacks;
-        pthread_mutex_init(&l_srv->banlist_mutex, NULL);
-        l_sdata = DAP_NEW_Z(service_list_t);
-        if (!l_sdata) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            DAP_DEL_Z(l_srv);
-            pthread_mutex_unlock(&s_srv_list_mutex);
-            return NULL;
-        }
-        l_sdata->uid = l_uid;
-        strncpy(l_sdata->name, a_config_section, sizeof(l_sdata->name) - 1);
-        l_sdata->srv = l_srv;
-        if (a_uid.uint64 == 1){
-            l_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", DAP_CHAIN_NET_SRV_GRACE_PERIOD_DEFAULT);
-            l_srv->allow_free_srv = dap_config_get_item_bool_default(g_config, a_config_section, "allow_free_srv", false);
-        }
-        HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
-        dap_chain_net_srv_ch_init(l_srv);
-        if (l_net)
-            dap_ledger_tx_add_notify(l_net->pub.ledger, dap_chain_net_srv_ch_tx_cond_added_cb, NULL);
-    }else{
-        log_it(L_ERROR, "Already present service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
+    pthread_mutex_init(&l_srv->banlist_mutex, NULL);
+    pthread_mutex_init(&l_srv->grace_mutex, NULL);
+    if (a_network_callbacks)
+        l_srv->callbacks = *a_network_callbacks;
+    if (a_config_section) {
+        l_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", DAP_CHAIN_NET_SRV_GRACE_PERIOD_DEFAULT);
+        l_srv->allow_free_srv = dap_config_get_item_bool_default(g_config, a_config_section, "allow_free_srv", false);
     }
-    pthread_mutex_unlock(&s_srv_list_mutex);
     return l_srv;
 }
 
@@ -1011,181 +905,23 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
 void dap_chain_net_srv_del(dap_chain_net_srv_t *a_srv)
 {
 // sanity check
-    dap_return_if_pass(!a_srv);
-// func work
-    service_list_t *l_sdata = NULL;
-    // delete srv from hash table
-    pthread_mutex_lock(&s_srv_list_mutex);
-    HASH_FIND(hh, s_srv_list, a_srv, sizeof(dap_chain_net_srv_uid_t), l_sdata);
-    if(l_sdata) {
-        // grace table clean
-        dap_chain_net_srv_grace_usage_t *l_gdata, *l_gdata_tmp;
-        pthread_mutex_lock(&a_srv->grace_mutex);
-        HASH_ITER(hh, a_srv->grace_hash_tab, l_gdata, l_gdata_tmp)
-        {
-            HASH_DEL(a_srv->grace_hash_tab, l_gdata);
-            DAP_DELETE(l_gdata);
-        } 
-        pthread_mutex_unlock(&a_srv->grace_mutex);
-
-        HASH_DEL(s_srv_list, l_sdata);
-        pthread_mutex_destroy(&a_srv->banlist_mutex);
-        DAP_DELETE(a_srv);
-        DAP_DELETE(l_sdata);
+    dap_return_if_fail(a_srv);
+// grace table clean
+    dap_chain_net_srv_grace_usage_t *l_gdata, *l_gdata_tmp;
+    pthread_mutex_lock(&a_srv->grace_mutex);
+    pthread_mutex_lock(&a_srv->banlist_mutex);
+    HASH_ITER(hh, a_srv->grace_hash_tab, l_gdata, l_gdata_tmp) {
+        HASH_DEL(a_srv->grace_hash_tab, l_gdata);
+        DAP_DELETE(l_gdata);
     }
-    pthread_mutex_unlock(&s_srv_list_mutex);
-}
-
-/**
- * @brief dap_chain_net_srv_call_write_all
- * @param a_client
- */
-void dap_chain_net_srv_call_write_all(dap_stream_ch_t * a_client)
-{
-    service_list_t *l_sdata, *l_sdata_tmp;
-    pthread_mutex_lock(&s_srv_list_mutex);
-    HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
-    {
-        if (l_sdata->srv->callbacks.stream_ch_write)
-            l_sdata->srv->callbacks.stream_ch_write(l_sdata->srv, a_client);
+    dap_chain_net_srv_banlist_item_t *it, *tmp;
+    HASH_ITER(hh, a_srv->ban_list, it, tmp) {
+        HASH_DEL(a_srv->ban_list, it);
+        DAP_DELETE(it);
     }
-    pthread_mutex_unlock(&s_srv_list_mutex);
-}
-
-/**
- * @brief dap_chain_net_srv_call_opened_all
- * @param a_client
- */
-void dap_chain_net_srv_call_opened_all(dap_stream_ch_t * a_client)
-{
-    service_list_t *l_sdata, *l_sdata_tmp;
-    pthread_mutex_lock(&s_srv_list_mutex);
-    HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
-    {
-        if (l_sdata->srv->callbacks.stream_ch_opened)
-            l_sdata->srv->callbacks.stream_ch_opened(l_sdata->srv, a_client);
-    }
-    pthread_mutex_unlock(&s_srv_list_mutex);
-}
-
-void dap_chain_net_srv_call_closed_all(dap_stream_ch_t * a_client)
-{
-    service_list_t *l_sdata, *l_sdata_tmp;
-    pthread_mutex_lock(&s_srv_list_mutex);
-    HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
-    {
-        if (l_sdata->srv->callbacks.stream_ch_closed)
-            l_sdata->srv->callbacks.stream_ch_closed(l_sdata->srv, a_client);
-    }
-    pthread_mutex_unlock(&s_srv_list_mutex);
-}
-
-
-
-/**
- * @brief dap_chain_net_srv_del_all
- * @param a_srv
- */
-void dap_chain_net_srv_del_all(void)
-{
-    service_list_t *l_sdata, *l_sdata_tmp;
-    pthread_mutex_lock(&s_srv_list_mutex);
-    HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
-    {
-        // Clang bug at this, l_sdata should change at every loop cycle
-        HASH_DEL(s_srv_list, l_sdata);
-        pthread_mutex_destroy(&l_sdata->srv->banlist_mutex);
-        DAP_DELETE(l_sdata->srv);
-        DAP_DELETE(l_sdata);
-    }
-    pthread_mutex_unlock(&s_srv_list_mutex);
-}
-
-/**
- * @brief dap_chain_net_srv_get
- * @param a_uid
- * @return
- */
-dap_chain_net_srv_t *dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid)
-{
-    service_list_t *l_sdata = NULL;
-    pthread_mutex_lock(&s_srv_list_mutex);
-    HASH_FIND(hh, s_srv_list, &a_uid, sizeof(dap_chain_net_srv_uid_t), l_sdata);
-    pthread_mutex_unlock(&s_srv_list_mutex);
-    return (l_sdata) ? l_sdata->srv : NULL;
-}
-
-/**
- * @brief dap_chain_net_srv_get_by_name
- * @param a_client
- */
-dap_chain_net_srv_t* dap_chain_net_srv_get_by_name(const char *a_name)
-{
-    if(!a_name)
-        return NULL;
-    dap_chain_net_srv_t *l_srv = NULL;
-    service_list_t *l_sdata, *l_sdata_tmp;
-    pthread_mutex_lock(&s_srv_list_mutex);
-    HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
-    {
-        if(!dap_strcmp(l_sdata->name, a_name))
-            l_srv = l_sdata->srv;
-    }
-    pthread_mutex_unlock(&s_srv_list_mutex);
-    return l_srv;
-}
-
-/**
- * @brief dap_chain_net_srv_count
- * @return
- */
- size_t dap_chain_net_srv_count(void)
-{
-    size_t l_count = 0;
-    service_list_t *l_sdata, *l_sdata_tmp;
-    pthread_mutex_lock(&s_srv_list_mutex);
-    HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
-    {
-        l_count++;
-    }
-    pthread_mutex_unlock(&s_srv_list_mutex);
-    return l_count;
-}
-
-/**
- * @brief dap_chain_net_srv_list
- * @return
- */
-const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void)
-{
-    static dap_chain_net_srv_uid_t *l_srv_uids = NULL;
-    static size_t l_count_last = 0;
-    size_t l_count_cur = 0;
-    dap_list_t *l_list = NULL;
-    service_list_t *l_sdata, *l_sdata_tmp;
-    pthread_mutex_lock(&s_srv_list_mutex);
-    // count the number of services and save them in list
-    HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
-    {
-        l_list = dap_list_append(l_list, l_sdata);
-        l_count_cur++;
-    }
-    // fill the output array
-    if(l_count_cur > 0) {
-        if(l_count_cur != l_count_last) {
-            DAP_DELETE(l_srv_uids);
-            l_srv_uids = DAP_NEW_SIZE(dap_chain_net_srv_uid_t, sizeof(dap_chain_net_srv_uid_t) * l_count_cur);
-        }
-        for(size_t i = 0; i < l_count_cur; i++) {
-            service_list_t *l_sdata = l_list->data;
-            memcpy(l_srv_uids + i, &l_sdata->uid, sizeof(dap_chain_net_srv_uid_t));
-        }
-    }
-    // save new number of services
-    l_count_last = l_count_cur;
-    pthread_mutex_unlock(&s_srv_list_mutex);
-    dap_list_free(l_list);
-    return l_srv_uids;
+    pthread_mutex_unlock(&a_srv->grace_mutex);
+    pthread_mutex_unlock(&a_srv->banlist_mutex);
+    DAP_DELETE(a_srv);
 }
 
 /**

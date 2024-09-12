@@ -98,10 +98,6 @@
 #include "dap_stream_ch_pkt.h"
 #include "rand/dap_rand.h"
 #include "json_object.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
-#include "dap_chain_net_srv_xchange.h"
-#include "dap_chain_cs_esbocs.h"
-#include "dap_chain_net_srv_voting.h"
 #include "dap_global_db_cluster.h"
 #include "dap_link_manager.h"
 #include "dap_stream_cluster.h"
@@ -259,7 +255,6 @@ int dap_chain_net_init()
     dap_chain_net_anchor_init();
     dap_chain_net_ch_init();
     dap_chain_node_client_init();
-    dap_chain_net_srv_voting_init();
     dap_http_ban_list_client_init();
     dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
@@ -366,6 +361,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
                                 PVT(a_net)->state == a_new_state ? "have" : "going to", dap_chain_net_state_to_str(a_new_state));
         return 0;
     }
+    dap_chain_t *l_chain;
     //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
     PVT(a_net)->state_target = a_new_state;
     if (a_new_state == NET_STATE_OFFLINE) {
@@ -379,7 +375,8 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         dap_cluster_broadcast(PVT(a_net)->nodes_cluster->links_cluster, DAP_CHAIN_NET_CH_ID,
                               DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR, l_error, l_error_size, NULL, 0);
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, false);
-        dap_chain_esbocs_stop_timer(a_net->pub.id);
+        DL_FOREACH(a_net->pub.chains, l_chain)
+            dap_chain_cs_stop(l_chain);
     } else if (PVT(a_net)->state == NET_STATE_OFFLINE) {
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
         for (uint16_t i = 0; i < PVT(a_net)->permanent_links_count; ++i) {
@@ -391,7 +388,8 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
             PVT(a_net)->state = NET_STATE_LINKS_CONNECTING;
         }
         if (a_new_state == NET_STATE_ONLINE)
-            dap_chain_esbocs_start_timer(a_net->pub.id);
+            DL_FOREACH(a_net->pub.chains, l_chain)
+                dap_chain_cs_start(l_chain);
     }
     return dap_proc_thread_callback_add(NULL, s_net_states_proc, a_net);
 }
@@ -916,17 +914,11 @@ void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
  */
 void dap_chain_net_purge(dap_chain_net_t *l_net)
 {
-    dap_chain_net_srv_stake_purge(l_net);
-    dap_chain_net_decree_deinit(l_net);
+    dap_chain_net_srv_purge_all(l_net);
     dap_ledger_purge(l_net->pub.ledger, false);
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
-        if (l_chain->callback_purge) {
-            l_chain->callback_purge(l_chain);
-        }
-        if (!dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
-            dap_chain_esbocs_set_min_validators_count(l_chain, 0);
-        }
+        dap_chain_purge(l_chain);
         dap_chain_load_all(l_chain);
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
@@ -1361,15 +1353,19 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp(l_get_str, "fee") == 0) {
                 json_object *l_jobj_fees = json_object_new_object();
-                json_object *l_jobj_network_name = json_object_new_string(l_net->pub.name);
-                if (!l_jobj_fees || !l_jobj_network_name) {
+                if (!l_jobj_fees) {
                     json_object_put(l_jobj_return);
-                    json_object_put(l_jobj_fees);
-                    json_object_put(l_jobj_network_name);
                     dap_json_rpc_allocation_error;
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
-                json_object_object_add(l_jobj_fees, "network", l_jobj_network_name);
+                json_object_object_add(l_jobj_return, "fees", l_jobj_fees);
+                json_object *l_jobj_network_name = json_object_new_string(l_net->pub.name);
+                if (!l_jobj_network_name) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_fees, "network_name", l_jobj_network_name);
                 // Network fee
                 uint256_t l_network_fee = {};
                 dap_chain_addr_t l_network_fee_addr = {};
@@ -1377,47 +1373,56 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 const char *l_network_fee_coins_str, *l_network_fee_balance_str =
                     dap_uint256_to_char(l_network_fee, &l_network_fee_coins_str);
                 json_object *l_jobj_network =  json_object_new_object();
+                if (!l_jobj_network) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_fees, "network_fee", l_jobj_network);
                 json_object *l_jobj_fee_coins = json_object_new_string(l_network_fee_coins_str);
-                json_object *l_jobj_fee_balance = json_object_new_string(l_network_fee_balance_str);
-                json_object *l_jobj_native_ticker = json_object_new_string(l_net->pub.native_ticker);
-                json_object *l_jobj_fee_addr = json_object_new_string(dap_chain_addr_to_str_static(&l_network_fee_addr));
-                if (!l_jobj_network || !l_jobj_fee_coins || !l_jobj_fee_balance || !l_jobj_native_ticker || !l_jobj_fee_addr) {
-                    json_object_put(l_jobj_fees);
-                    json_object_put(l_jobj_network);
-                    json_object_put(l_jobj_fee_coins);
-                    json_object_put(l_jobj_fee_balance);
-                    json_object_put(l_jobj_native_ticker);
-                    json_object_put(l_jobj_fee_addr);
+                if (!l_jobj_fee_coins) {
                     json_object_put(l_jobj_return);
                     dap_json_rpc_allocation_error;
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 json_object_object_add(l_jobj_network, "coins", l_jobj_fee_coins);
+                json_object *l_jobj_fee_balance = json_object_new_string(l_network_fee_balance_str);
+                if (!l_jobj_fee_balance) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
                 json_object_object_add(l_jobj_network, "balance", l_jobj_fee_balance);
+                json_object *l_jobj_native_ticker = json_object_new_string(l_net->pub.native_ticker);
+                if (!l_jobj_native_ticker) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
                 json_object_object_add(l_jobj_network, "ticker", l_jobj_native_ticker);
+                json_object *l_jobj_fee_addr = json_object_new_string(dap_chain_addr_to_str_static(&l_network_fee_addr));
+                if (!l_jobj_native_ticker) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
                 json_object_object_add(l_jobj_network, "addr", l_jobj_fee_addr);
-                json_object_object_add(l_jobj_fees, "network", l_jobj_network);
-                //Get validators fee
-                json_object *l_jobj_validators = dap_chain_net_srv_stake_get_fee_validators_json(l_net);
-                if (!l_jobj_validators) {
-                    json_object_put(l_jobj_fees);
+
+                json_object *l_services = json_object_new_array();
+                if (!l_services) {
                     json_object_put(l_jobj_return);
                     dap_json_rpc_allocation_error;
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
-                //Get services fee
-                json_object *l_jobj_xchange = dap_chain_net_srv_xchange_print_fee_json(l_net); //Xchaneg fee
-                if (!l_jobj_xchange) {
-                    json_object_put(l_jobj_validators);
-                    json_object_put(l_jobj_fees);
-                    json_object_put(l_jobj_return);
-                    dap_json_rpc_allocation_error;
-                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                }
-                json_object_object_add(l_jobj_fees, "validators", l_jobj_validators);
-                json_object_object_add(l_jobj_fees, "xchange", l_jobj_xchange);
-                json_object_object_add(l_jobj_return, "fees", l_jobj_fees);
+                json_object_object_add(l_jobj_fees, "service_fees", l_services);
+
+                dap_list_t *l_service_fees = dap_chain_net_srv_get_fee_all(l_net);
+                for (dap_list_t *it = l_service_fees; it; it = it->next)
+                    json_object_array_add(l_services, it->data);
+                dap_list_free(l_service_fees);
+
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
+
             } else if (strcmp(l_get_str,"id") == 0 ){
                 json_object *l_jobj_net_name = json_object_new_string(l_net->pub.name);
                 char *l_id_str = dap_strdup_printf("0x%016"DAP_UINT64_FORMAT_X, l_net->pub.id.uint64);
@@ -2192,7 +2197,7 @@ bool s_net_load(void *a_arg)
     if (s_chain_net_reload_ledger_cache_once(l_net)) {
         log_it(L_WARNING,"Start one time ledger cache reloading");
         dap_ledger_purge(l_net->pub.ledger, false);
-        dap_chain_net_srv_stake_purge(l_net);
+        dap_chain_net_srv_purge_all(l_net);
     } else
         dap_chain_net_srv_stake_load_cache(l_net);
 
@@ -2205,7 +2210,7 @@ bool s_net_load(void *a_arg)
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
         if (!dap_chain_load_all(l_chain)) {
             log_it (L_NOTICE, "Loaded chain files");
-            if ( DAP_CHAIN_PVT(l_chain)->need_reorder ) 
+            if ( DAP_CHAIN_PVT(l_chain)->need_reorder ) // # unsafe crutch, need to escape reorder usage
             {
                 log_it(L_DAP, "Reordering chain files for chain %s", l_chain->name);
                 if (l_chain->callback_atom_add_from_treshold) {
@@ -2215,15 +2220,11 @@ bool s_net_load(void *a_arg)
                 dap_chain_save_all(l_chain);
                 
                 DAP_CHAIN_PVT(l_chain)->need_reorder = false;
-                if (l_chain->callback_purge) {
-                    dap_chain_net_decree_purge(l_net);
-                    l_chain->callback_purge(l_chain);
-                    dap_ledger_purge(l_net->pub.ledger, false);
-                    l_net->pub.fee_value = uint256_0;
-                    l_net->pub.fee_addr = c_dap_chain_addr_blank;
-                    dap_chain_load_all(l_chain);
-                } else
-                    log_it(L_WARNING, "No purge callback for chain %s, can't reload it with correct order", l_chain->name);
+                dap_chain_purge(l_chain);
+                dap_ledger_purge(l_net->pub.ledger, false);
+                l_net->pub.fee_value = uint256_0;
+                l_net->pub.fee_addr = c_dap_chain_addr_blank;
+                dap_chain_load_all(l_chain);
             }
             if (l_chain->callback_atom_add_from_treshold) {
                 while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
@@ -2365,8 +2366,7 @@ bool s_net_load(void *a_arg)
     }
 
     DL_FOREACH(l_net->pub.chains, l_chain)
-        if (l_chain->callback_created)
-            l_chain->callback_created(l_chain, l_net->pub.config);
+        dap_chain_cs_load(l_chain, l_net->pub.config);
 
     if ( dap_config_get_item_bool_default(g_config, "server", "enabled", false) ) {
         char l_local_ip[INET6_ADDRSTRLEN] = { '\0' };

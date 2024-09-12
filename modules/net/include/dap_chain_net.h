@@ -32,8 +32,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_string.h"
 #include "dap_list.h"
 #include "dap_chain_common.h"
-#include "dap_chain.h"
 #include "dap_chain_node.h"
+#include "dap_chain.h"
 #include "dap_global_db_cluster.h"
 #include "dap_json_rpc_errors.h"
 

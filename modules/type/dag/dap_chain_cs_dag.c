@@ -91,8 +91,8 @@ typedef struct dap_chain_cs_dag_pvt {
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
 
 static int s_chain_cs_dag_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
-static void s_chain_cs_dag_delete(dap_chain_t *a_chain);
-static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain);
+static int s_chain_cs_dag_delete(dap_chain_t *a_chain);
+static int s_chain_cs_dag_purge(dap_chain_t *a_chain);
 static void s_threshold_free(dap_chain_cs_dag_t *a_dag);
 static dap_chain_cs_dag_event_item_t *s_dag_proc_treshold(dap_chain_cs_dag_t *a_dag);
 
@@ -146,7 +146,10 @@ static bool s_seed_mode = false, s_debug_more = false, s_threshold_enabled = fal
 int dap_chain_cs_dag_init()
 {
     srand((unsigned int) time(NULL));
-    dap_chain_cs_type_add( "dag", s_chain_cs_dag_new );
+    dap_chain_cs_class_callbacks_t l_callbacks = { .callback_init = s_chain_cs_dag_new,
+                                                   .callback_delete = s_chain_cs_dag_delete,
+                                                   .callback_purge = s_chain_cs_dag_purge };
+    dap_chain_cs_class_add("dag", l_callbacks);
     s_seed_mode         = dap_config_get_item_bool_default(g_config, "general", "seed_mode",        false);
     s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
     s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
@@ -207,9 +210,6 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&PVT(l_dag)->events_mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
-
-    a_chain->callback_delete = s_chain_cs_dag_delete;
-    a_chain->callback_purge = s_dap_chain_cs_dag_purge;
 
     // Atom element callbacks
     a_chain->callback_atom_add = s_chain_callback_atom_add ;  // Accept new element in chain
@@ -334,7 +334,7 @@ static void s_threshold_free(dap_chain_cs_dag_t *a_dag)
     pthread_mutex_unlock(&l_pvt->events_mutex);
 }
 
-static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
+static int s_chain_cs_dag_purge(dap_chain_t *a_chain)
 {
     dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_chain));
     pthread_mutex_lock(&l_dag_pvt->events_mutex);
@@ -367,6 +367,7 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
     }
     pthread_mutex_unlock(&l_dag_pvt->events_mutex);
     dap_chain_cell_delete_all(a_chain);
+    return 0;
 }
 
 /**
@@ -374,9 +375,9 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
  * @param a_dag
  * @return
  */
-static void s_chain_cs_dag_delete(dap_chain_t * a_chain)
+static int s_chain_cs_dag_delete(dap_chain_t * a_chain)
 {
-    s_dap_chain_cs_dag_purge(a_chain);
+    s_chain_cs_dag_purge(a_chain);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     pthread_mutex_destroy(& PVT(l_dag)->events_mutex);
     if(l_dag->callback_delete )
@@ -385,6 +386,7 @@ static void s_chain_cs_dag_delete(dap_chain_t * a_chain)
         DAP_DELETE(l_dag->_inheritor);
     if(l_dag->_pvt)
         DAP_DELETE(l_dag->_pvt);
+    return 0;
 }
 
 

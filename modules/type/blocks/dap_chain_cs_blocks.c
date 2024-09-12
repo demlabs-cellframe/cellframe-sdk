@@ -29,10 +29,13 @@
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 #include "dap_cli_server.h"
-#include "dap_chain_node_cli_cmd.h"
+#include "dap_chain_datum.h"
+#include "dap_chain_datum_decree.h"
+#include "dap_chain_net.h"
 #include "dap_chain_mempool.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_cs_esbocs.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "dap_chain_cs_blocks"
 
@@ -101,7 +104,7 @@ static void s_bft_consensus_setup(dap_chain_cs_blocks_t * a_blocks);
 static bool s_chain_find_atom(dap_chain_block_cache_t* a_blocks, dap_chain_hash_fast_t* a_atom_hash);
 
 // Callbacks
-static void s_callback_delete(dap_chain_t * a_chain);
+static int s_callback_delete(dap_chain_t * a_chain);
 // Accept new block
 static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash, bool a_atom_new);
 //    Verify new block
@@ -142,7 +145,7 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_prev(dap_chain_datum_i
 
 static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_count);
 
-static void s_callback_cs_blocks_purge(dap_chain_t *a_chain);
+static int s_callback_cs_blocks_purge(dap_chain_t *a_chain);
 
 static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size);
 
@@ -164,10 +167,15 @@ static bool s_debug_more = false;
  */
 int dap_chain_cs_blocks_init()
 {
+    dap_chain_cs_class_callbacks_t l_callbacks = { .callback_init = s_chain_cs_blocks_new,
+                                                   .callback_delete = s_callback_delete,
+                                                   .callback_purge = s_callback_cs_blocks_purge };
+    dap_chain_cs_class_add("blocks", l_callbacks);
+
     dap_chain_block_init();
-    dap_chain_cs_type_add("blocks", s_chain_cs_blocks_new);
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
+
     dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains",
         "New block create, fill and complete commands:\n"
             "block -net <net_name> [-chain <chain_name>] new\n"
@@ -260,8 +268,6 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     a_chain->_inheritor = l_cs_blocks;
     l_cs_blocks->chain = a_chain;
 
-    a_chain->callback_delete = s_callback_delete;
-
     // Atom element callbacks
     a_chain->callback_atom_add = s_callback_atom_add ;  // Accept new element in chain
     a_chain->callback_atom_verify = s_callback_atom_verify ;  // Verify new element in chain
@@ -292,7 +298,6 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     a_chain->callback_calc_reward = s_callback_calc_reward;
 
     a_chain->callback_add_datums = s_callback_add_datums;
-    a_chain->callback_purge = s_callback_cs_blocks_purge;
 
     a_chain->callback_count_atom = s_callback_count_atom;
     a_chain->callback_get_atoms = s_callback_get_atoms;
@@ -1398,7 +1403,7 @@ static dap_list_t *s_block_parse_str_list(char *a_hash_str, size_t *a_hash_size,
  * @details Destructor for blocks consensus chain
  * @param a_chain
  */
-static void s_callback_delete(dap_chain_t * a_chain)
+static int s_callback_delete(dap_chain_t * a_chain)
 {
     s_callback_cs_blocks_purge(a_chain);
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
@@ -1412,9 +1417,10 @@ static void s_callback_delete(dap_chain_t * a_chain)
     DAP_DEL_Z(l_blocks->_inheritor);
     DAP_DEL_Z(l_blocks->_pvt);
     log_it(L_INFO, "Block destructed");
+    return 0;
 }
 
-static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
+static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
 
@@ -1450,6 +1456,7 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
     dap_chain_cell_delete_all(a_chain);
+    return 0;
 }
 
 /**

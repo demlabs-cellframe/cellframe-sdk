@@ -38,22 +38,17 @@
 #include "utlist.h"
 
 #include "dap_chain_common.h"
-#include "dap_chain_datum.h"
-#include "dap_events.h"
+#include "dap_chain_net_decree.h"
 #include "dap_math_ops.h"
 #include "dap_list.h"
 #include "dap_hash.h"
 #include "dap_enc_base58.h"
-#include "dap_string.h"
 #include "dap_strfuncs.h"
 #include "dap_config.h"
-#include "dap_cert.h"
-#include "dap_timerfd.h"
 #include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_token.h"
 #include "dap_global_db.h"
 #include "dap_chain_ledger.h"
-#include "json.h"
 #include "json_object.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
@@ -5075,6 +5070,8 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     pthread_rwlock_unlock(&l_ledger_pvt->stake_lock_rwlock);
 
     l_ledger_pvt->load_end = false;
+
+    dap_chain_net_decree_purge(a_ledger->net);
 }
 
 /**

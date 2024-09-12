@@ -25,19 +25,32 @@
 
 #include "dap_chain.h"
 
-typedef struct dap_chain_cs dap_chain_cs_t;
+typedef struct dap_chain_cs_callbacks {
+    dap_chain_callback_new_cfg_t callback_init;
+    dap_chain_callback_new_cfg_t callback_load;
+    dap_chain_callback_t callback_stop;
+    dap_chain_callback_t callback_start;
+    dap_chain_callback_t callback_purge;
+} dap_chain_cs_callbacks_t;
 
-typedef struct dap_chain_cs{
-    dap_chain_callback_new_t callback_init;
-    dap_chain_cs_t * prev;
-    dap_chain_cs_t * next;
-} dap_chain_cs_t;
+typedef struct dap_chain_cs_class_callbacks {
+    dap_chain_callback_new_cfg_t callback_init;
+    dap_chain_callback_t callback_delete;
+    dap_chain_callback_t callback_purge;
+} dap_chain_cs_class_callbacks_t;
+
 
 int dap_chain_cs_init(void);
 void dap_chain_cs_deinit(void);
 
-void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_callback_init);
-int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
+void dap_chain_cs_class_add(const char *a_cs_str, dap_chain_cs_class_callbacks_t a_callbacks);
+int dap_chain_cs_class_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
+int dap_chain_cs_class_delete(dap_chain_t *a_chain);
+int dap_chain_cs_class_purge(dap_chain_t *a_chain);
 
-void dap_chain_cs_type_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_callback_init);
-int dap_chain_cs_type_create(const char *a_type, dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
+void dap_chain_cs_add(const char *a_cs_str, dap_chain_cs_callbacks_t a_callbacks);
+int dap_chain_cs_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
+int dap_chain_cs_load(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
+int dap_chain_cs_stop(dap_chain_t *a_chain);
+int dap_chain_cs_start(dap_chain_t *a_chain);
+int dap_chain_cs_purge(dap_chain_t *a_chain);

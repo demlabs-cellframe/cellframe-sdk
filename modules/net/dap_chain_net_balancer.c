@@ -24,12 +24,13 @@ You should have received a copy of the GNU General Public License
 along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "dap_net.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_chain_net.h"
 #include "http_status_code.h"
 #include "dap_chain_node_client.h"
-#include "dap_chain_node_dns_client.h"
-#include "dap_net.h"
+#include "dap_dns_client.h"
+#include "dap_dns_server.h"
 #include "dap_client_http.h"
 #include "dap_enc_base64.h"
 #include "dap_notify_srv.h"
@@ -57,6 +58,11 @@ static_assert(sizeof(dap_chain_net_links_t) + sizeof(dap_chain_node_info_old_t) 
 static const size_t s_max_links_response_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_links_t)) / sizeof(dap_chain_node_info_old_t);
 static const dap_time_t s_request_period = 5; // sec
 static dap_balancer_request_info_t* s_request_info_items = NULL;
+
+int dap_chain_net_balancer_init()
+{
+    return dap_dns_zone_register("dnsroot", dap_chain_net_balancer_dns_issue_link);  // root resolver
+}
 
 /**
  * @brief forming json file with balancer info: class networkName nodeAddress hostAddress hostPort

@@ -38,7 +38,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net_srv_ch.h"
 #include "dap_chain_net_srv_ch_pkt.h"
 #include "dap_stream_ch_proc.h"
-
+#include "dap_chain_srv.h"
 
 #define LOG_TAG "dap_chain_net_srv_ch"
 #define SRV_PAY_GDB_GROUP "local.srv_pay"
@@ -85,7 +85,6 @@ static void s_stream_ch_new(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
 static void s_start_receipt_timeout_timer(dap_chain_net_srv_usage_t *a_usage);
 static bool s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
-static bool s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 
 static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item);
 
@@ -163,12 +162,10 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_chain_n
  * @param a_srv - inited service
  * @return
  */
-int dap_chain_net_srv_ch_init(dap_chain_net_srv_t *a_srv)
+int dap_chain_net_srv_ch_init()
 {
     log_it(L_NOTICE,"Chain network services channel initialized");
-    dap_stream_ch_proc_add(DAP_CHAIN_NET_SRV_CH_ID, s_stream_ch_new,s_stream_ch_delete, s_stream_ch_packet_in, s_stream_ch_packet_out);
-    pthread_mutex_init(&a_srv->grace_mutex, NULL);
-
+    dap_stream_ch_proc_add(DAP_CHAIN_NET_SRV_CH_ID, s_stream_ch_new,s_stream_ch_delete, s_stream_ch_packet_in, NULL);
     return 0;
 }
 
@@ -189,7 +186,7 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch , void* arg)
 {
     (void ) arg;
     a_ch->internal=DAP_NEW_Z(dap_chain_net_srv_ch_t);
-    dap_chain_net_srv_ch_t * l_ch_chain_net_srv = DAP_STREAM_CH_CHAIN_NET_SRV(a_ch);
+    dap_chain_net_srv_ch_t * l_ch_chain_net_srv = DAP_CHAIN_NET_SRV_CH(a_ch);
     l_ch_chain_net_srv->ch_uuid = a_ch->uuid;
     l_ch_chain_net_srv->ch = a_ch;
     if (a_ch->stream->session && !a_ch->stream->session->_inheritor)
@@ -198,8 +195,6 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch , void* arg)
         log_it( L_ERROR, "No session at all!");
     else
         log_it(L_ERROR, "Session inheritor is already present!");
-
-    dap_chain_net_srv_call_opened_all( a_ch);
 }
 
 
@@ -224,7 +219,6 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , UNUSED_ARG void *a_arg)
         l_srv->callbacks.save_remain_service(l_srv, l_srv_session->usage_active->id, l_srv_session->usage_active->client);
     }
 
-    dap_chain_net_srv_call_closed_all(a_ch);
     if (a_ch->stream->session && a_ch->stream->session->_inheritor)
         dap_chain_net_srv_stream_session_delete(a_ch->stream->session );
     DAP_DEL_Z(a_ch->internal);
@@ -310,7 +304,7 @@ char *dap_chain_net_srv_ch_create_statistic_report()
     return dap_string_free(l_ret, false);
 }
 
-void dap_chain_net_srv_ch_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED_ARG dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chan_ledger_notify_opcodes_t a_opcode)
+void dap_chain_net_srv_ch_tx_cond_added_cb(UNUSED_ARG void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ledger_notify_opcodes_t a_opcode)
 {
 // sanity check
     dap_return_if_pass(!a_tx);
@@ -325,7 +319,7 @@ void dap_chain_net_srv_ch_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED_ARG da
         log_it(L_ERROR, "Can't find dap_chain_tx_out_cond_t in dap_chain_datum_tx_t");
         return;
     }
-    dap_chain_net_srv_t *l_net_srv = dap_chain_net_srv_get(l_out_cond->header.srv_uid);
+    dap_chain_net_srv_t *l_net_srv = dap_chain_srv_get(a_ledger->net->pub.id, l_out_cond->header.srv_uid);
     if (!l_net_srv) {
         log_it(L_ERROR, "Can't find dap_chain_net_srv_t uid 0x%016"DAP_UINT64_FORMAT_X"", l_out_cond->header.srv_uid.uint64);
         return;
@@ -350,12 +344,33 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
     assert(a_ch);
     dap_chain_net_srv_ch_pkt_error_t l_err;
     memset(&l_err, 0, sizeof(l_err));
-    dap_chain_net_srv_t *l_srv = NULL;
 
     dap_chain_net_srv_stream_session_t *l_srv_session = a_ch->stream && a_ch->stream->session ?
                                                         (dap_chain_net_srv_stream_session_t *)a_ch->stream->session->_inheritor : NULL;
-    l_srv = dap_chain_net_srv_get( a_request->hdr.srv_uid );
-    dap_chain_net_t * l_net = dap_chain_net_by_id( a_request->hdr.net_id );
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_request->hdr.net_id);
+    if (!l_net) {
+        // Network not found
+        log_it( L_ERROR, "Can't find net with id 0x%016"DAP_UINT64_FORMAT_x"", a_request->hdr.srv_uid.uint64);
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NOT_FOUND;
+        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        return false;
+    }
+    dap_chain_net_srv_t *l_srv = dap_chain_srv_get(a_request->hdr.net_id, a_request->hdr.srv_uid);
+    if (!l_srv) {
+        log_it(L_ERROR, "Service 0x016%" DAP_UINT64_FORMAT_x " not found", a_request->hdr.srv_uid.uint64);
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
+        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        return false;
+    }
+    l_srv->uid = a_request->hdr.srv_uid;
+    bool l_check_role = dap_chain_net_get_role(l_net).enums > NODE_ROLE_MASTER;  // check role
+    if (l_check_role) {
+        log_it(L_ERROR, "You can't provide service with ID %" DAP_UINT64_FORMAT_U " in net %s. Node role should be not lower than master\n",
+                                                    l_srv->uid.uint64, l_net->pub.name);
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ROLE_TOO_LOW;
+        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        return false;
+    }
 
     l_err.net_id.uint64 = a_request->hdr.net_id.uint64;
     l_err.srv_uid.uint64 = a_request->hdr.srv_uid.uint64;
@@ -367,9 +382,8 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
     if (dap_hash_fast_is_blank(&a_request->hdr.order_hash)){
         log_it( L_ERROR, "No order hash in request.");
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND;
-        if(a_ch)
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-        if (l_srv && l_srv->callbacks.response_error)
+        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        if (l_srv->callbacks.response_error)
             l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
         return false;
     }
@@ -377,9 +391,8 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
     if (dap_hash_fast_is_blank(&a_request->hdr.tx_cond)){
         log_it( L_ERROR, "No transaction hash in request.");
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND;
-        if(a_ch)
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-        if (l_srv && l_srv->callbacks.response_error)
+        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        if (l_srv->callbacks.response_error)
             l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
         return false;
     }
@@ -387,43 +400,28 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
     char l_order_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
     dap_chain_hash_fast_to_str(&a_request->hdr.order_hash, l_order_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
     log_it(L_MSG, "Got order with hash %s.", l_order_hash_str);
-
-    if ( ! l_net ) {
-        // Network not found
-        log_it( L_ERROR, "Can't find net with id 0x%016"DAP_UINT64_FORMAT_x"", a_request->hdr.srv_uid.uint64);
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NOT_FOUND;
-        if(a_ch)
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-        if (l_srv && l_srv->callbacks.response_error)
+    dap_chain_net_srv_price_t * l_price = NULL;
+    bool l_specific_order_free = false;
+    l_price = dap_chain_net_srv_get_price_from_order(l_srv, "srv_vpn", &a_request->hdr.order_hash);
+    if (!l_price){
+        log_it(L_ERROR, "Can't get price from order!");
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND;
+        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        if (l_srv->callbacks.response_error)
             l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
         return false;
     }
 
-    bool l_check_role = dap_chain_net_get_role(l_net).enums > NODE_ROLE_MASTER;  // check role
-    if ( ! l_srv || l_check_role) // Service not found
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
-
-    if ( l_err.code || !l_srv_session){
-        debug_if(
-            l_check_role, L_ERROR,
-            "You can't provide service with ID %" DAP_UINT64_FORMAT_U " in net %s. Node role should be not lower than master\n", l_srv ?
-            l_srv->uid.uint64 : 0, l_net->pub.name
-            );
-        if(a_ch)
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-        if (l_srv && l_srv->callbacks.response_error)
-            l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-        return false;
-    }
+    if (IS_ZERO_256(l_price->value_datoshi))
+        l_specific_order_free = true;
 
     dap_chain_net_srv_usage_t *l_usage = NULL;
     l_usage = dap_chain_net_srv_usage_add(l_srv_session, l_net, l_srv);
     if ( !l_usage ){ // Usage can't add
         log_it( L_WARNING, "Can't add usage");
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_CANT_ADD_USAGE;
-        if(a_ch)
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-        if (l_srv && l_srv->callbacks.response_error)
+        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        if (l_srv->callbacks.response_error)
             l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
         return false;
     }
@@ -434,9 +432,8 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
     if (!l_usage->client) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
-        if(a_ch)
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-        if (l_srv && l_srv->callbacks.response_error)
+        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        if (l_srv->callbacks.response_error)
             l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
         dap_chain_net_srv_usage_delete(l_srv_session);
         return false;
@@ -451,26 +448,6 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
     l_usage->service = l_srv;
     l_usage->client_pkey_hash = a_request->hdr.client_pkey_hash;
     l_usage->receipt_timeout_timer_start_callback = s_start_receipt_timeout_timer;
-
-    dap_chain_net_srv_price_t * l_price = NULL;
-    bool l_specific_order_free = false;
-    l_price = dap_chain_net_srv_get_price_from_order(l_srv, "srv_vpn", &a_request->hdr.order_hash);
-    if (!l_price){
-        log_it(L_ERROR, "Can't get price from order!");
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND;
-        if(a_ch)
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-        if (l_srv && l_srv->callbacks.response_error)
-            l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-        // DAP_DEL_Z(l_usage->client);
-        // DAP_DEL_Z(l_usage);
-        return false;
-    }
-
-    if (IS_ZERO_256(l_price->value_datoshi)){
-        l_specific_order_free = true;
-    }
-
     l_usage->price = l_price;
 
     if (!l_specific_order_free){
@@ -480,9 +457,8 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
         if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
             log_it(L_ERROR, "Can't start service because net %s is offline.", l_net->pub.name);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
-            if(a_ch)
-                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-            if (l_srv && l_srv->callbacks.response_error)
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+            if (l_srv->callbacks.response_error)
                 l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
             dap_chain_net_srv_usage_delete(l_srv_session);
             return false;
@@ -494,24 +470,22 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
         if (!l_grace) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
-            if(a_ch)
-                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-            if (l_srv && l_srv->callbacks.response_error)
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+            if (l_srv->callbacks.response_error)
                 l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-            // DAP_DEL_Z(l_usage->client);
-            // DAP_DEL_Z(l_usage);
+            DAP_DEL_Z(l_usage->client);
+            DAP_DEL_Z(l_usage);
             return false;
         }
         l_grace->request = DAP_DUP_SIZE(a_request, a_request_size);
         if (!l_grace->request) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
-            if(a_ch)
-                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-            if (l_srv && l_srv->callbacks.response_error)
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+            if (l_srv->callbacks.response_error)
                 l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-            // DAP_DEL_Z(l_usage->client);
-            // DAP_DEL_Z(l_usage);
+            DAP_DEL_Z(l_usage->client);
+            DAP_DEL_Z(l_usage);
             DAP_DEL_Z(l_grace);
             return false;
         }
@@ -531,12 +505,11 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
         if(!l_success) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
-            if(a_ch)
-                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-            if (l_srv && l_srv->callbacks.response_error)
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+            if (l_srv->callbacks.response_error)
                 l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-            // DAP_DEL_Z(l_usage->client);
-            // DAP_DEL_Z(l_usage);
+            DAP_DEL_Z(l_usage->client);
+            DAP_DEL_Z(l_usage);
             return false;
         }
         l_success->hdr.usage_id = l_usage->id;
@@ -549,7 +522,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
     }else {
         log_it( L_INFO, "Free service sharing is not allowed. Service stop. If you want to share service for free switch on this function in configuration file.");
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
-        if (l_srv && l_srv->callbacks.response_error)
+        if (l_srv->callbacks.response_error)
             l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
     }
     return true;
@@ -1251,7 +1224,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         return false;
     }
 
-    dap_chain_net_srv_ch_t * l_ch_chain_net_srv = DAP_STREAM_CH_CHAIN_NET_SRV(a_ch);
+    dap_chain_net_srv_ch_t * l_ch_chain_net_srv = DAP_CHAIN_NET_SRV_CH(a_ch);
     if (l_ch_chain_net_srv->notify_callback) {
         l_ch_chain_net_srv->notify_callback(l_ch_chain_net_srv, l_ch_pkt->hdr.type, l_ch_pkt, l_ch_chain_net_srv->notify_callback_arg);
         return false; // It's a client behind this
@@ -1728,17 +1701,4 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     if(l_ch_chain_net_srv->notify_callback)
         l_ch_chain_net_srv->notify_callback(l_ch_chain_net_srv, l_ch_pkt->hdr.type, l_ch_pkt, l_ch_chain_net_srv->notify_callback_arg);
     return true;
-}
-
-/**
- * @brief s_stream_ch_packet_out
- * @param a_ch
- * @param a_arg
- */
-static bool s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg)
-{
-    dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
-    // Callback should note that after write action it should restore write flag if it has more data to send on next iteration
-    dap_chain_net_srv_call_write_all( a_ch);
-    return false;
 }

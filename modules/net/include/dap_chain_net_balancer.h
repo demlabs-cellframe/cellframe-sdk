@@ -30,11 +30,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_BALANCER_PROTOCOL_VERSION 2
 #define DAP_BALANCER_MAX_REPLY_SIZE 2048
 
-typedef struct dap_chain_net_links {
-    uint64_t count_node;
-    byte_t nodes_info[];
-} DAP_ALIGN_PACKED dap_chain_net_links_t;
-
 typedef enum dap_balancer_type {
     DAP_CHAIN_NET_BALANCER_TYPE_HTTP,
     DAP_CHAIN_NET_BALANCER_TYPE_DNS

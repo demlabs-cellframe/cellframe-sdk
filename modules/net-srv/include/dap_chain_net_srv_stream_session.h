@@ -23,16 +23,12 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 #pragma once
 
-#include "pthread.h"
-#include "uthash.h"
 #include "dap_stream_session.h"
 #include "dap_hash.h"
-#include "dap_chain.h"
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_receipt.h"
-#include "dap_chain_wallet.h"
-
+#include "dap_chain_net.h"
 
 #define RECEIPT_SIGN_MAX_ATTEMPT 3
 typedef struct dap_chain_net_srv dap_chain_net_srv_t;
@@ -44,7 +40,7 @@ typedef struct dap_chain_net_srv_usage{
     pthread_rwlock_t rwlock;
     time_t ts_created; // Created timpestamp
     dap_chain_net_t * net; // Chain network where everything happens
-    dap_chain_net_srv_t * service; // Service that used
+    dap_chain_net_srv_t *service; // Service that used
 
     dap_chain_datum_tx_receipt_t* receipt;
     dap_chain_datum_tx_receipt_t* receipt_next; // Receipt on the next units amount

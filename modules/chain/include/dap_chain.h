@@ -87,7 +87,7 @@ typedef enum dap_chain_iter_op {
 
 typedef dap_chain_t* (*dap_chain_callback_new_t)(void);
 
-typedef void (*dap_chain_callback_t)(dap_chain_t *);
+typedef int (*dap_chain_callback_t)(dap_chain_t *);
 typedef int (*dap_chain_callback_new_cfg_t)(dap_chain_t *, dap_config_t *);
 typedef void (*dap_chain_callback_ptr_t)(dap_chain_t *, void * );
 
@@ -169,10 +169,6 @@ typedef struct dap_chain {
 
     pthread_rwlock_t cell_rwlock;
 
-    dap_chain_callback_new_cfg_t callback_created;
-    dap_chain_callback_t callback_delete;
-    dap_chain_callback_t callback_purge;
-
     dap_chain_callback_atom_t callback_atom_add;
     dap_chain_callback_atom_form_treshold_t callback_atom_add_from_treshold;
     dap_chain_callback_atom_verify_t callback_atom_verify;
@@ -227,9 +223,10 @@ typedef struct dap_chain_atom_notifier {
 } dap_chain_atom_notifier_t;
 
 typedef struct dap_chain_pvt {
-    dap_chain_t * chain;
-    char * file_storage_dir;
-    char * cs_name;
+    dap_chain_t *chain;
+    char *file_storage_dir;
+    char *cs_name;
+    char *cs_type;
     bool cs_started;
     int celled;
     bool need_reorder;
@@ -252,15 +249,14 @@ int dap_chain_init(void);
 void dap_chain_deinit(void);
 
 dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id);
+void dap_chain_set_cs_type(dap_chain_t *a_chain, const char *a_cs_type);
+int dap_chain_purge(dap_chain_t *a_chain);
 
-int dap_chain_load_all (dap_chain_t * a_chain);
-int dap_chain_save_all (dap_chain_t * a_chain);
-bool dap_chain_has_file_store(dap_chain_t * a_chain);
+int dap_chain_load_all(dap_chain_t *a_chain);
+int dap_chain_save_all(dap_chain_t *a_chain);
+bool dap_chain_has_file_store(dap_chain_t *a_chain);
 
-//dap_chain_t * dap_chain_open(const char * a_file_storage,const char * a_file_cache);
-void dap_chain_info_dump_log(dap_chain_t * a_chain);
-
-dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id);
+dap_chain_t *dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id);
 dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net_id_t a_chain_net_id, const char *a_chain_cfg_name);
 
 void dap_chain_delete(dap_chain_t * a_chain);

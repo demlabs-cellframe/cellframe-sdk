@@ -35,9 +35,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 typedef struct dap_chain_net_srv_client dap_chain_net_srv_client_t;
 
 typedef void   (*dap_chain_net_srv_client_callback_t)(dap_chain_net_srv_client_t *, void *);
-typedef void   (*dap_chain_net_srv_client_callback_check_t)(dap_chain_net_srv_client_t *, dap_stream_ch_chain_net_srv_pkt_test_t *, void *);
+typedef void   (*dap_chain_net_srv_client_callback_check_t)(dap_chain_net_srv_client_t *, dap_chain_net_srv_ch_pkt_test_t *, void *);
 typedef dap_chain_datum_tx_receipt_t * (*dap_chain_net_srv_client_callback_sign_t)(dap_chain_net_srv_client_t *, dap_chain_datum_tx_receipt_t *, void *);
-typedef void   (*dap_chain_net_srv_client_callback_success_t)(dap_chain_net_srv_client_t *, dap_stream_ch_chain_net_srv_pkt_success_t *, size_t, void *);
+typedef void   (*dap_chain_net_srv_client_callback_success_t)(dap_chain_net_srv_client_t *, dap_chain_net_srv_ch_pkt_success_t *, size_t, void *);
 typedef void   (*dap_chain_net_srv_client_callback_error_t)(dap_chain_net_srv_client_t *, int, void *);
 typedef void   (*dap_chain_net_srv_client_data_t)(dap_chain_net_srv_client_t *, uint8_t *, size_t, void *);
 

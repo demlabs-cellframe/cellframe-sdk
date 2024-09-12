@@ -53,7 +53,7 @@
 #include "dap_enc_base58.h"
 
 #include "dap_stream_ch_pkt.h"
-#include "dap_stream_ch_proc.h"
+#include "dap_chain_wallet.h"
 #include "dap_chain_net_srv_ch.h"
 
 #include "dap_chain_common.h"

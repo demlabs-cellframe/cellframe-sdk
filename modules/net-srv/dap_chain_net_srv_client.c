@@ -76,7 +76,7 @@ ssize_t dap_chain_net_srv_client_write(dap_chain_net_srv_client_t *a_client, uin
         return -1;
     if (a_type == DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST) {
         dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(a_client->net_client, DAP_CHAIN_NET_SRV_CH_ID);
-        dap_chain_net_srv_ch_t *a_ch_chain = DAP_STREAM_CH_CHAIN_NET_SRV(l_ch);
+        dap_chain_net_srv_ch_t *a_ch_chain = DAP_CHAIN_NET_SRV_CH(l_ch);
         dap_chain_net_srv_ch_pkt_request_t *l_request = (dap_chain_net_srv_ch_pkt_request_t *)a_pkt_data;
         a_ch_chain->srv_uid.uint64 = l_request->hdr.srv_uid.uint64;
     }

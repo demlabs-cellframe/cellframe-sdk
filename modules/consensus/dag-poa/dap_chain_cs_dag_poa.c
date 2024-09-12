@@ -110,8 +110,9 @@ static bool s_debug_more = false;
  */
 int dap_chain_cs_dag_poa_init()
 {
-    // Add consensus constructor
-    dap_chain_cs_add("dag_poa", s_callback_new);
+    dap_chain_cs_callbacks_t l_callbacks = { .callback_init = s_callback_new,
+                                             .callback_load = s_callback_created };
+    dap_chain_cs_add("dag_poa", l_callbacks); // Add consensus constructor
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, "DAG PoA commands",
         "dag_poa event sign -net <net_name> [-chain <chain_name>] -event <event_hash> [-H {hex | base58(default)}]\n"
@@ -339,9 +340,10 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
  * @param a_chain dap_chain_t chain object
  * @param a_chain_cfg chain config object
  */
-static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
+static int s_callback_new(dap_chain_t *a_chain, dap_config_t * a_chain_cfg)
 {
-    if (dap_chain_cs_type_create("dag", a_chain, a_chain_cfg)) {
+    dap_chain_set_cs_type(a_chain, "dag");
+    if (dap_chain_cs_class_create(a_chain, a_chain_cfg)) {
         log_it(L_ERROR, "Couldn't init DAG");
         return -1;
     }
@@ -394,7 +396,6 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         }
     }
     log_it(L_NOTICE,"Initialized DAG-PoA consensus with %u/%u minimum consensus",l_poa_pvt->auth_certs_count,l_poa_pvt->auth_certs_count_verify);
-    l_dag->chain->callback_created = s_callback_created;
 
     if (!l_dag->is_add_directly && l_poa_pvt->auto_round_complete) {
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);

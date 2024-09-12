@@ -26,7 +26,7 @@
 #include "dap_list.h"
 #include "dap_chain_common.h"
 #include "dap_chain.h"
-#include "dap_client.h"
+#include "dap_net.h"
 
 typedef struct dap_chain_net dap_chain_net_t;
 

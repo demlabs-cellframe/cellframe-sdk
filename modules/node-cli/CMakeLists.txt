@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.10)
-project (dap_chain_node)
+project (dap_chain_node_cli)
   
 
-file(GLOB DAP_CHAIN_NODE_SRCS *.c)
+file(GLOB DAP_CHAIN_NODE_CLI_SRCS *.c)
 
-file(GLOB DAP_CHAIN_NODE_HEADERS include/*.h)
+file(GLOB DAP_CHAIN_NODE_CLI_HEADERS include/*.h)
 
 #if (ANDROID)
-#    set(DAP_CHAIN_NODE_HEADERS ${DAP_CHAIN_NODE_HEADERS}
+#    set(DAP_CHAIN_NODE_CLI_HEADERS ${DAP_CHAIN_NODE_CLI_HEADERS}
 #        android/ifaddrs-android.h
 #    )
 #endif()
@@ -26,7 +26,7 @@ if(WIN32)
   add_compile_definitions(_GNU_SOURCE)
 endif()
 
-add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NODE_SRCS} ${DAP_CHAIN_NODE_HEADERS} ${IPUTILS_SRCS} ${IPUTILS_HEADERS})
+add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NODE_CLI_SRCS} ${DAP_CHAIN_NODE_CLI_HEADERS} ${IPUTILS_SRCS} ${IPUTILS_HEADERS})
 
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_client dap_io dap_notify_srv dap_cli_server dap_chain dap_chain_wallet
                                         dap_chain_mempool dap_global_db dap_chain_cs_esbocs dap_json_rpc)
@@ -43,10 +43,10 @@ if (!WIN32)
 endif()
 
 if (INSTALL_SDK)
-set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_NODE_HEADERS}")
+set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_NODE_CLI_HEADERS}")
 INSTALL(TARGETS ${PROJECT_NAME} 
-        LIBRARY DESTINATION lib/modules/node/
-        ARCHIVE DESTINATION lib/modules/node/
-        PUBLIC_HEADER DESTINATION include/modules/node/
+        LIBRARY DESTINATION lib/modules/node-cli/
+        ARCHIVE DESTINATION lib/modules/node-cli/
+        PUBLIC_HEADER DESTINATION include/modules/node-cli/
 )
 endif()

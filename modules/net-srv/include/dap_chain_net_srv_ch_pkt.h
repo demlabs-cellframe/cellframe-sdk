@@ -30,8 +30,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
-
-#include "dap_chain_net_srv_stream_session.h"
+#include "dap_common.h"
+#include "dap_stream.h"
+#include "dap_chain_common.h"
 
 // Ch pkt types
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST                       0x01
@@ -76,6 +77,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND            0x00000600
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH                 0x00000BAD
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR         0x00BADA55
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ROLE_TOO_LOW               0x00000010
 
 
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_UNKNOWN                    0xffffffff
