@@ -2743,7 +2743,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
                                                a_message_type, l_message, l_message_size + l_sign_size);
                 continue;
             }
-            /*struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args,
+            struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args,
                                                           sizeof(struct esbocs_msg_args) + l_message_size + l_sign_size);
             if (!l_args) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -2754,8 +2754,8 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             l_args->session = a_session;
             l_args->message_size = l_message_size + l_sign_size;
             memcpy(l_args->message, l_message, l_message_size + l_sign_size);
-            dap_proc_thread_callback_add(a_session->proc_thread, s_process_incoming_message, l_args);*/
-            s_session_packet_in(a_session, &a_session->my_addr, (byte_t*)l_message, l_message_size + l_sign_size);
+            dap_proc_thread_callback_add(a_session->proc_thread, s_process_incoming_message, l_args);
+            //s_session_packet_in(a_session, &a_session->my_addr, (byte_t*)l_message, l_message_size + l_sign_size);
         }
     }
     DAP_DELETE(l_message);
