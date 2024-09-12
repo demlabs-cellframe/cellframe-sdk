@@ -180,8 +180,9 @@ typedef struct dap_chain_esbocs_penalty_item {
 #define DAP_CHAIN_ESBOCS_PENALTY_KICK   3U      // Number of missed rounds to kick
 
 typedef struct dap_chain_esbocs_session {
-    pthread_mutex_t mutex;
+    //pthread_mutex_t mutex;
     bool cs_timer;
+    dap_proc_thread_t *proc_thread;
     dap_chain_block_t *processing_candidate;
 
     dap_chain_t *chain;
