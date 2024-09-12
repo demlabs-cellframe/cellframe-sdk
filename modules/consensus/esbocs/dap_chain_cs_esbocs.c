@@ -2752,7 +2752,12 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             l_args->session = a_session;
             l_args->message_size = l_message_size + l_sign_size;
             memcpy(l_args->message, l_message, l_message_size + l_sign_size);
-            dap_proc_thread_callback_add(dap_worker_get_current()->proc_queue_input, s_process_incoming_message, l_args);
+            // dap_worker_get_current return NULL
+            dap_worker_t *l_new_worker = dap_events_worker_get_auto();
+            if (l_new_worker)
+                dap_proc_thread_callback_add(l_new_worker->proc_queue_input, s_process_incoming_message, l_args);
+            else
+                log_it(L_ERROR, "Can't find worker to add s_process_incoming_message");
         }
     }
     DAP_DELETE(l_message);
