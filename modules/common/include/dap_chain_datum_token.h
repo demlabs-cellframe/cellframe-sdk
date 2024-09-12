@@ -30,6 +30,7 @@
 #include "dap_string.h"
 #include "dap_tsd.h"
 #include "dap_strfuncs.h"
+#include "json_object.h"
 
 
 // Token declaration
@@ -499,13 +500,32 @@ typedef struct dap_chain_datum_token_emission {
 #define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_UNIQUE_ID         0x000F
 #define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_BASE_TX_HASH      0x0010
 
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_STAKING "STAKING"
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_STAKE_CROSSCHAIN "CONTRACT"
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_STAKE_CROSSCHAINV2 "CONTRACT_NFT"
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_HARVEST "HARVEST"
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_ADDLIQ "ADDLIQ"
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_EMSFIX "EMSFIX"
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_BONUS "BONUS"
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_UNSTAKE_FINALIZATION "UNSTAKE"
+
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_BRIDGE "BRIDGE"
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_BRIDGE_TRANSFER "TO_WALLET"
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_BRIDGE_COMMISSION_OLD "COMISSION"
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_BRIDGE_COMMISSION "COMMISSION"
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_BRIDGE_CROSSCHAIN "CROSSCHAIN"
+
+
 extern const char *c_dap_chain_datum_token_emission_type_str[];
+
 
 /// TDS op funcs
 dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token,  size_t a_token_size);
 void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags);
+void dap_chain_datum_token_flags_dump_to_json(json_object * json_obj_out, uint16_t a_flags);
 
 void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size, const char *a_hash_out_type);
+void dap_chain_datum_token_certs_dump_to_json(json_object *a_json_obj_out, byte_t * a_data_n_tsd, size_t a_certs_size, const char *a_hash_out_type);
 dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_count, size_t * a_signs_valid);
 dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial, size_t *a_token_size);
 

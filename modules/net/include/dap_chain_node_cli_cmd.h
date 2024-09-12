@@ -7,9 +7,9 @@
  * Copyright  (c) 2019
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
- DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+ DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -40,10 +40,11 @@ dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(dap_chain_net_t * a_net,
 
 int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int a_argc,
                                                            char **a_argv,
-                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net);
+                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net,
+                                                           dap_chain_type_t a_default_chain_type);
 
 int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index,int a_argc, char **a_argv, char ** a_str_reply,
-                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net);
+                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net, dap_chain_type_t a_default_type);
 
 /**
  * global_db command
@@ -106,7 +107,30 @@ int com_token_update_sign(int argc, char ** argv, void ** reply);
  */
 int com_token_emit (int a_argc,  char **a_argv, void **reply);
 
+typedef enum s_com_tx_wallet_err{
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_FOUND_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_TO_LONG_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ADDR_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ALREADY_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ACTIVE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_BACKUP_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PROTECTION_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_HASH_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CHAIN_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INTERNAL_ERR,
 
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
+} s_com_tx_wallet_err_t;
 /**
  * com_tx_create command
  *
@@ -119,9 +143,11 @@ int com_tx_wallet(int a_argc, char **a_argv, void **reply);
  *
  * Create transaction
  */
-int com_tx_create(int a_argc, char **a_argv, void **reply);
-int com_tx_create_json(int a_argc, char **a_argv, void **reply);
-int com_tx_cond_create(int a_argc, char **a_argv, void **reply);
+int com_tx_create(int a_argc, char **a_argv, void **a_str_reply);
+int com_tx_create_json(int a_argc, char **a_argv, void **a_str_reply);
+int com_tx_cond_create(int a_argc, char **a_argv, void **a_str_reply);
+int com_tx_cond_remove(int a_argc, char **a_argv, void **a_str_reply);
+int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_str_reply);
 
 /**
  * tx_verify command
@@ -149,7 +175,7 @@ typedef enum s_com_tx_history_err{
 
     /* add custom codes here */
 
-    DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
+    //DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
 } s_com_tx_history_err_t;
 
 char *dap_chain_node_cli_com_tx_history_err(int a_code);

@@ -129,15 +129,13 @@ static void s_dns_client_esocket_error_callback(dap_events_socket_t * a_esocket,
 static bool s_dns_client_esocket_timeout_callback(void * a_arg)
 {
     assert(a_arg);
-    dap_events_socket_uuid_t * l_es_uuid_ptr = (dap_events_socket_uuid_t *) a_arg;
-    assert(l_es_uuid_ptr);
-
+    dap_events_socket_uuid_t l_es_uuid = DAP_POINTER_TO_SIZE(a_arg);
 
     dap_worker_t * l_worker = dap_worker_get_current(); // We're in own esocket context
     assert(l_worker);
 
     dap_events_socket_t * l_es;
-    if((l_es = dap_context_find(l_worker->context,*l_es_uuid_ptr) ) != NULL){ // If we've not closed this esocket
+    if((l_es = dap_context_find(l_worker->context, l_es_uuid) ) != NULL){ // If we've not closed this esocket
         struct dns_client * l_dns_client = (struct dns_client*) l_es->_inheritor;
         log_it(L_WARNING,"DNS request timeout, bad network?");
         if(! l_dns_client->is_callbacks_called ){
@@ -146,7 +144,6 @@ static bool s_dns_client_esocket_timeout_callback(void * a_arg)
         }
         dap_events_socket_remove_and_delete_unsafe( l_es, false);
     }
-    DAP_DEL_Z(l_es_uuid_ptr);
     return false;
 }
 
@@ -174,15 +171,8 @@ static void s_dns_client_esocket_worker_assign_callback(dap_events_socket_t * a_
 {
     struct dns_client * l_dns_client = (struct dns_client*) a_esocket->_inheritor;
     dap_events_socket_write_unsafe(a_esocket,l_dns_client->dns_request.data, l_dns_client->dns_request.size );
-
-    dap_events_socket_uuid_t * l_es_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
-    if (!l_es_uuid_ptr) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return;
-    }
-    *l_es_uuid_ptr = a_esocket->uuid;
     dap_timerfd_start_on_worker(a_worker, dap_config_get_item_uint64_default(g_config,"dns_client","request_timeout",10)*1000,
-                                 s_dns_client_esocket_timeout_callback,l_es_uuid_ptr);
+                                 s_dns_client_esocket_timeout_callback, DAP_SIZE_TO_POINTER(a_esocket->uuid));
 
 }
 

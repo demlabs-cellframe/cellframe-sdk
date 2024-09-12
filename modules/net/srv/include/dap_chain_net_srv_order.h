@@ -28,7 +28,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_string.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv.h"
-
 typedef struct dap_chain_net_srv_order_old
 {
     uint16_t version;
@@ -104,10 +103,10 @@ int dap_chain_net_srv_order_find_all_by(
     const dap_chain_net_srv_price_unit_uid_t a_price_unit,
     const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
     const uint256_t a_price_min, const uint256_t a_price_max,
-    dap_chain_net_srv_order_t** a_output_orders,
+    dap_list_t** a_output_orders,
     size_t* a_output_orders_count);
 
-int dap_chain_net_srv_order_delete_by_hash_str_sync( dap_chain_net_t * a_net,const char * a_hash_str );
+int dap_chain_net_srv_order_delete_by_hash_str_sync( dap_chain_net_t * a_net,const char * a_hash_str);
 
 /**
  * @brief dap_chain_net_srv_order_delete_by_hash
@@ -115,7 +114,7 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync( dap_chain_net_t * a_net,con
  * @param a_hash
  * @return
  */
-DAP_STATIC_INLINE int dap_chain_net_srv_order_delete_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_hash )
+DAP_STATIC_INLINE int dap_chain_net_srv_order_delete_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_hash)
 {
     char l_hash_str[DAP_CHAIN_HASH_FAST_SIZE * 2 + 4];
     dap_chain_hash_fast_to_str(a_hash,l_hash_str,sizeof(l_hash_str)-1);
@@ -173,6 +172,11 @@ DAP_STATIC_INLINE char * dap_chain_net_srv_order_get_gdb_group(dap_chain_net_t *
 DAP_STATIC_INLINE char *dap_chain_net_srv_order_get_common_group(dap_chain_net_t * a_net)
 {
     return a_net ? dap_strdup_printf("%s.orders", a_net->pub.gdb_groups_prefix) : NULL;
+}
+
+DAP_STATIC_INLINE char * dap_chain_net_srv_order_removed_get_gdb_group(dap_chain_net_t * a_net)
+{
+    return a_net ? dap_strdup_printf("%s.service.removed-orders",a_net->pub.gdb_groups_prefix) : NULL;
 }
 
 /**

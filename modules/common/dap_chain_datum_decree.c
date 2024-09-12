@@ -96,7 +96,10 @@ int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, ui
         return -1;
     }
     dap_tsd_t* l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER);
-    return l_tsd ? ({ _dap_tsd_get_scalar(l_tsd, a_min_owners_num); 0; }) : 1;
+    uint256_t l_val = uint256_0;
+    _dap_tsd_get_scalar(l_tsd, &l_val);
+    *a_min_owners_num = (uint16_t)dap_chain_uint256_to(l_val);
+    return *a_min_owners_num ? 0 : 1;
 }
 
 int dap_chain_datum_decree_get_stake_tx_hash(dap_chain_datum_decree_t *a_decree, dap_hash_fast_t *a_tx_hash)

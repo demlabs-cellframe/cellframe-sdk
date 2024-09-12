@@ -4,9 +4,9 @@
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
- DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+ DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -780,12 +780,17 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
 void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
 {
     char l_node_addr_str[INET_ADDRSTRLEN] = {};
+    //if (a_node_client->callbacks.disconnected) {
+    //    a_node_client->callbacks.disconnected(a_node_client, a_node_client->callbacks_arg);
+    //}
     inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     log_it(L_INFO, "Closing node client to uplink %s:%d ["NODE_ADDR_FP_STR"]",
                     l_node_addr_str, a_node_client->info->hdr.ext_port, NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
 
-    if (a_node_client->sync_timer)
+    if (a_node_client->sync_timer) {
         dap_timerfd_delete_unsafe(a_node_client->sync_timer);
+        a_node_client->sync_timer = NULL;
+    }
     if (a_node_client->reconnect_timer)
         dap_timerfd_delete_mt(a_node_client->reconnect_timer->worker, a_node_client->reconnect_timer->esocket_uuid);
     if (a_node_client->callbacks.delete)
@@ -891,7 +896,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
 #ifndef DAP_OS_WINDOWS
     // prepare for signal waiting
     struct timespec l_cond_timeout;
-    clock_gettime( CLOCK_MONOTONIC, &l_cond_timeout);
+    clock_gettime( CLOCK_REALTIME, &l_cond_timeout);
     l_cond_timeout.tv_sec += a_timeout_ms/1000;
     // signal waiting
     dap_chain_node_client_state_t l_clinet_state = a_client->state;

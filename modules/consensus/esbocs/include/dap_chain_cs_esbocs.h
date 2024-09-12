@@ -24,6 +24,7 @@
 #define DAP_CHAIN_BLOCKS_SESSION_ROUND_ID_SIZE		8
 #define DAP_CHAIN_BLOCKS_SESSION_MESSAGE_ID_SIZE	8
 
+//#define DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT     // Uncomment it for enable directve supporting
 #define DAP_CHAIN_ESBOCS_DIRECTIVE_VERSION          1
 #define DAP_CHAIN_ESBOCS_DIRECTIVE_KICK             0x10
 #define DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT             0x11
@@ -184,6 +185,15 @@ typedef struct dap_chain_esbocs_session {
     struct dap_chain_esbocs_session *prev;
 } dap_chain_esbocs_session_t;
 
+typedef struct dap_chain_esbocs_block_collect{
+    uint256_t collectiong_level;
+    uint256_t minimum_fee;
+    dap_chain_t *chain;
+    dap_enc_key_t * blocks_sign_key;
+    dap_pkey_t * block_sign_pkey;
+    dap_chain_addr_t * collecting_addr;
+}dap_chain_esbocs_block_collect_t;
+
 #define DAP_CHAIN_ESBOCS(a) ((dap_chain_esbocs_t *)(a)->_inheritor)
 
 int dap_chain_cs_esbocs_init();
@@ -195,3 +205,5 @@ void dap_chain_esbocs_start_timer(dap_chain_net_id_t a_net_id);
 dap_pkey_t *dap_chain_esbocs_get_sign_pkey(dap_chain_net_id_t a_net_id);
 uint256_t dap_chain_esbocs_get_fee(dap_chain_net_id_t a_net_id);
 bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id);
+void dap_chain_esbocs_add_block_collect(dap_chain_block_t *a_block_ptr, size_t a_block_size,
+                                        dap_chain_esbocs_block_collect_t *a_block_collect_params,int a_type);

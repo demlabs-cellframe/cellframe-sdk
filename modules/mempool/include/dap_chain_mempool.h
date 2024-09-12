@@ -101,6 +101,7 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
                                        dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, const char *a_ticker, dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_private_key,
                                        const char *a_hash_out_type, uint256_t a_value_fee);
 
+dap_chain_datum_t *dap_chain_mempool_datum_get(dap_chain_t *a_chain, const char *a_emission_hash_str);
 dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_chain, const char *a_emission_hash_str);
 dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_chain_t *a_chain, byte_t *a_data, size_t a_size);
 char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_key_from, const dap_chain_addr_t* a_addr_to, dap_list_t *a_block_list,

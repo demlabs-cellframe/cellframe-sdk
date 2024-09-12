@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -186,10 +186,7 @@ extern const dap_chain_addr_t c_dap_chain_addr_blank;
 
 enum dap_chain_srv_unit_enum {
     SERV_UNIT_UNDEFINED = 0 ,
-    SERV_UNIT_MB = 0x00000001, // megabytes
     SERV_UNIT_SEC = 0x00000002, // seconds
-    SERV_UNIT_DAY = 0x00000003,  // days
-    SERV_UNIT_KB = 0x00000010,  // kilobytes
     SERV_UNIT_B = 0x00000011,   // bytes
     SERV_UNIT_PCS = 0x00000022  // pieces
 };
@@ -199,10 +196,7 @@ DAP_STATIC_INLINE const char *dap_chain_srv_unit_enum_to_str(dap_chain_srv_unit_
 {
     switch (a_unit_enum) {
     case SERV_UNIT_UNDEFINED: return "UNDEFINED";
-    case SERV_UNIT_MB: return "MB";
     case SERV_UNIT_SEC: return "SEC";
-    case SERV_UNIT_DAY: return "DAY";
-    case SERV_UNIT_KB: return "KB";
     case SERV_UNIT_B: return "B";
     case SERV_UNIT_PCS: return "PCS";
     default: return "UNDEFINED";
@@ -212,14 +206,8 @@ DAP_STATIC_INLINE const char *dap_chain_srv_unit_enum_to_str(dap_chain_srv_unit_
 DAP_STATIC_INLINE dap_chain_srv_unit_enum_t dap_chain_srv_str_to_unit_enum(char* a_price_unit_str) {
     if (!a_price_unit_str)
         return SERV_UNIT_UNDEFINED;
-    if (!dap_strcmp(a_price_unit_str, "MB")){
-        return SERV_UNIT_MB;
-    } else if (!dap_strcmp(a_price_unit_str, "SEC")){
+    if (!dap_strcmp(a_price_unit_str, "SEC")){
         return SERV_UNIT_SEC;
-    } else if (!dap_strcmp(a_price_unit_str, "DAY")){
-        return SERV_UNIT_DAY;
-    } else if (!dap_strcmp(a_price_unit_str, "KB")){
-        return SERV_UNIT_KB;
     } else if (!dap_strcmp(a_price_unit_str, "B")){
         return SERV_UNIT_B;
     } else if (!dap_strcmp(a_price_unit_str, "PCS")){
@@ -319,6 +307,7 @@ DAP_STATIC_INLINE uint256_t dap_chain_uint256_from_uint128(uint128_t a_from)
     return GET_256_FROM_128(a_from);
 }
 
+
 uint64_t dap_chain_uint128_to(uint128_t a_from);
 // 256
 uint64_t dap_chain_uint256_to(uint256_t a_from);
@@ -328,6 +317,11 @@ uint64_t dap_chain_uint256_to(uint256_t a_from);
 #define dap_chain_balance_to_coins(a) dap_uint256_decimal_to_char(a)
 #define dap_chain_coins_to_balance(a) dap_uint256_scan_decimal(a)
 
+DAP_STATIC_INLINE uint64_t dap_chain_balance_to_coins_uint64(uint256_t val) 
+{
+    DIV_256_COIN(val, dap_chain_coins_to_balance("1000000000000000000.0"), &val);
+    return val._lo.a;
+}
 
 /**
  * @brief dap_chain_hash_to_str

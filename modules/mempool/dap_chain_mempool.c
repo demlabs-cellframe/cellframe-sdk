@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
- DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+ DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -384,7 +384,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
 
     // Check and apply sovereign tax for this key
     uint256_t l_value_tax = {};
-    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_sign_pkey_hash);
+    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_blocks->chain->net_id, &l_sign_pkey_hash);
     if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
                 !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
         MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
@@ -513,7 +513,7 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
     }
     // Check and apply sovereign tax for this key
     uint256_t l_value_tax = {};
-    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_sign_pkey_hash);
+    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_blocks->chain->net_id, &l_sign_pkey_hash);
     if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
                 !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
         MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
@@ -1161,6 +1161,24 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_
     dap_chain_datum_token_emission_t *l_ret = dap_chain_datum_emission_read(l_emission->data, &l_emission_size);
     DAP_DELETE(l_emission);
     return l_ret;
+}
+
+dap_chain_datum_t *dap_chain_mempool_datum_get(dap_chain_t *a_chain, const char *a_datum_hash_str)
+{
+    size_t l_datum_size;
+    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
+                                                    a_datum_hash_str, &l_datum_size, NULL, NULL );
+    if (!l_datum) {
+        char *l_emission_hash_str_from_base58 = dap_enc_base58_to_hex_str_from_str(a_datum_hash_str);
+        l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
+                                    l_emission_hash_str_from_base58, &l_datum_size, NULL, NULL );
+        DAP_DELETE(l_emission_hash_str_from_base58);
+    }
+    
+    DAP_DELETE(l_gdb_group);
+    
+    return l_datum;
 }
 
 dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_chain_t *a_chain, byte_t *a_data, size_t a_size)

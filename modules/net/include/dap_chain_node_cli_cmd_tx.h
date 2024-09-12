@@ -6,9 +6,9 @@
  * Copyright  (c) 2019
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
- DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+ DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -24,6 +24,7 @@
 #pragma once
 
 #include "dap_chain.h"
+#include "dap_chain_ledger.h"
 #include "dap_chain_common.h"
 #include "uthash.h"
 #include "json.h"
@@ -40,8 +41,17 @@ void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **l_
  * return history json
  */
 json_object * dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain, const char *a_hash_out_type, dap_chain_net_t * l_net);
-json_object * dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, const char *a_hash_out_type, const char * l_addr_str);
+
+json_object * dap_db_history_addr(dap_chain_addr_t * a_addr,  
+                                    dap_chain_t * a_chain, 
+                                    const char *a_hash_out_type, 
+                                    const char * l_addr_str, 
+                                    bool a_brief,
+                                    const char *a_srv,
+                                    dap_chain_tx_tag_action_type_t a_action);
+
 json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
+                                        bool a_brief_out,
                                         dap_hash_fast_t * l_atom_hash,
                                         dap_chain_datum_tx_t * l_tx,
                                         dap_chain_t * a_chain, 
@@ -49,7 +59,15 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                                         dap_chain_net_t * l_net,
                                         int l_ret_code,
                                         bool *accepted_tx);
-json_object* dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t* l_net, const char *l_hash_out_type, json_object * json_obj_summary);
+
+json_object* dap_db_history_tx_all(dap_chain_t *l_chain, 
+                                    dap_chain_net_t* l_net, 
+                                    bool brief, 
+                                    const char *l_hash_out_type, 
+                                    json_object * json_obj_summary, 
+                                    const char *a_srv,
+                                    size_t a_limit, size_t a_offset,
+                                    dap_chain_tx_tag_action_type_t a_action);
 
 /**
  * ledger command
@@ -57,6 +75,24 @@ json_object* dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t* l_net,
  */
 int com_ledger(int a_argc, char ** a_argv, void **reply);
 
+typedef enum s_com_ledger_err{
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_INCOMPATIBLE_PARAMS_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_WALLET_ADDR_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_TRESHOLD_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_LACK_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_FIND_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_ID_NET_ADDR_DIF_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_UNKNOWN /* MAX */
+} s_com_ledger_err_t;
 /**
  * token command
  *

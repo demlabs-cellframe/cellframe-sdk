@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -32,12 +32,13 @@
 typedef struct dap_chain_cell {
     dap_chain_cell_id_t id;
     dap_chain_t * chain;
-
     char file_storage_path[MAX_PATH];
-    FILE * file_storage; /// @param file_cache @brief Cache for raw blocks
-    uint8_t file_storage_type; /// @param file_storage_type  @brief Is file_storage is raw, compressed or smth else
+    char *map, *map_pos, *map_end;
+    FILE *file_storage;
+    //size_t offset;
+    uint8_t file_storage_type; /// @param file_storage_type  @brief Is file_storage raw, compressed or smth else
     pthread_rwlock_t storage_rwlock;
-
+    dap_list_t *map_range_bounds;
     UT_hash_handle hh;
 } dap_chain_cell_t;
 

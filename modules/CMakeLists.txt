@@ -111,3 +111,13 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-stake")
     add_subdirectory(service/stake)
 endif()
+
+# Service for polls and voting
+if (CELLFRAME_MODULES MATCHES "srv-voting")
+    add_subdirectory(service/voting)
+endif()
+
+# Service for bridge
+if (CELLFRAME_MODULES MATCHES "srv-bridge")
+    add_subdirectory(service/bridge)
+endif()

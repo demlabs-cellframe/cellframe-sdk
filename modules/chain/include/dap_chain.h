@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -115,20 +115,20 @@ typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t 
 typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *count_verify);
 typedef void (*dap_chain_callback_set_min_validators_count)(dap_chain_t *a_chain,  uint16_t a_new_value);
 typedef uint256_t (*dap_chain_callback_get_minimum_fee)(dap_chain_t *a_chain);
+typedef uint256_t (*dap_chain_callback_get_collectiong_level)(dap_chain_t *a_chain);
 typedef dap_enc_key_t* (*dap_chain_callback_get_signing_certificate)(dap_chain_t *a_chain);
 typedef void (*dap_chain_callback_load_from_gdb)(dap_chain_t *a_chain);
 typedef uint256_t (*dap_chain_callback_calc_reward)(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
 
 typedef enum dap_chain_type {
-    CHAIN_TYPE_FIRST,
-    CHAIN_TYPE_TOKEN,
-    CHAIN_TYPE_EMISSION,
-    CHAIN_TYPE_TX,
-    CHAIN_TYPE_CA,
-    CHAIN_TYPE_SIGNER,
-    CHAIN_TYPE_LAST,
-    CHAIN_TYPE_DECREE,
-    CHAIN_TYPE_ANCHOR
+    CHAIN_TYPE_INVALID = -1,
+    CHAIN_TYPE_TOKEN = 1,
+    CHAIN_TYPE_EMISSION = 2,
+    CHAIN_TYPE_TX = 3,
+    CHAIN_TYPE_CA = 4,
+    CHAIN_TYPE_SIGNER = 5,
+    CHAIN_TYPE_DECREE = 7,
+    CHAIN_TYPE_ANCHOR = 8
 } dap_chain_type_t;
 
 typedef struct dap_chain {
@@ -140,7 +140,7 @@ typedef struct dap_chain {
     char *name;
     char *net_name;
     bool is_datum_pool_proc;
-
+    bool is_mapped;
     // Nested cells (hashtab by cell_id)
     dap_chain_cell_t *cells;
     dap_chain_cell_id_t active_cell_id;
@@ -196,6 +196,7 @@ typedef struct dap_chain {
     dap_chain_callback_get_poa_certs callback_get_poa_certs;
     dap_chain_callback_set_min_validators_count callback_set_min_validators_count;
     dap_chain_callback_get_minimum_fee callback_get_minimum_fee;
+    dap_chain_callback_get_collectiong_level callback_get_collectiong_level;
     dap_chain_callback_get_signing_certificate callback_get_signing_certificate;
     dap_chain_callback_calc_reward callback_calc_reward;
     dap_chain_callback_load_from_gdb callback_load_from_gdb;
@@ -250,3 +251,4 @@ bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_
 ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t a_atom_size, dap_chain_cell_id_t a_cell_id);
 int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name);
 const char* dap_chain_get_path(dap_chain_t *a_chain);
+const char* dap_chain_type_to_str(dap_chain_type_t a_chain_type);

@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
- DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+ DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
@@ -563,36 +563,28 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         DAP_DELETE(l_sync_request);
         return true;
     }
-    dap_chain_atom_ptr_t l_atom_copy = (dap_chain_atom_ptr_t)l_pkt_item->pkt_data;
-    uint64_t l_atom_copy_size = l_pkt_item->pkt_data_size;
-    dap_hash_fast(l_atom_copy, l_atom_copy_size, &l_atom_hash);
-    dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy, l_atom_copy_size);
+    dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)l_pkt_item->pkt_data;
+    l_pkt_item->pkt_data = NULL;
+    uint64_t l_atom_size = l_pkt_item->pkt_data_size;
+    dap_hash_fast(l_atom, l_atom_size, &l_atom_hash);
+    dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size);
     char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {[0]='\0'};
     dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str));
     switch (l_atom_add_res) {
     case ATOM_PASS:
-        if (s_debug_more){
-            log_it(L_WARNING, "Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",  l_atom_hash_str, l_chain->net_name, l_chain->name);
-        }
+        debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",  l_atom_hash_str, l_chain->net_name, l_chain->name);
         dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
-        DAP_DELETE(l_atom_copy);
         break;
     case ATOM_MOVE_TO_THRESHOLD:
-        if (s_debug_more) {
-            log_it(L_INFO, "Thresholded atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
-        }
+        debug_if(s_debug_more, L_INFO, "Thresholded atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
         dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+        l_atom = NULL; // Prevent from deleting, ownership moved
         break;
     case ATOM_ACCEPT:
-        if (s_debug_more) {
-            log_it(L_INFO,"Accepted atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
-        }
-        int l_res = dap_chain_atom_save(l_chain, l_atom_copy, l_atom_copy_size, l_sync_request->request_hdr.cell_id);
-        if(l_res < 0) {
-            log_it(L_ERROR, "Can't save atom %s to the file", l_atom_hash_str);
-        } else {
-            dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
-        }
+        debug_if(s_debug_more, L_INFO,"Accepted atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
+        dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+        if ( !l_chain->is_mapped )
+            l_atom = NULL; // Prevent from deleting, ownership moved
         break;
     case ATOM_REJECT: {
         if (s_debug_more) {
@@ -600,15 +592,14 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
             dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
             log_it(L_WARNING,"Atom with hash %s for %s:%s rejected", l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
-        DAP_DELETE(l_atom_copy);
         break;
     }
     default:
-        DAP_DELETE(l_atom_copy);
         log_it(L_CRITICAL, "Wtf is this ret code? %d", l_atom_add_res);
         break;
     }
-    DAP_DEL_Z(l_sync_request);
+    DAP_DELETE(l_atom);
+    DAP_DELETE(l_sync_request);
     return true;
 }
 
@@ -857,10 +848,9 @@ static void s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global
         debug_if(s_debug_more, L_ERROR, "Can't save GlobalDB request, code %d", a_rc);
         l_sync_req->last_err = a_rc;
         dap_worker_exec_callback_inter(a_global_db_context->queue_worker_callback_input[l_sync_req->worker->id],
-                                    s_gdb_in_pkt_error_worker_callback, l_sync_req);
+                                    s_gdb_in_pkt_error_worker_callback, DAP_DUP(l_sync_req));
     }else{
         debug_if(s_debug_more, L_DEBUG, "Added new GLOBAL_DB synchronization record");
-        DAP_DELETE(l_sync_req);
     }
 }
 
@@ -905,18 +895,19 @@ static void s_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net
 
 static bool s_chain_timer_callback(void *a_arg)
 {
+    dap_events_socket_uuid_t l_arg = DAP_POINTER_TO_SIZE(a_arg);
     dap_worker_t *l_worker = dap_worker_get_current();
-    dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_worker), *(dap_stream_ch_uuid_t*)a_arg);
+    dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_worker), l_arg);
     if (!l_ch) {
-        dap_chain_net_del_downlink((dap_stream_ch_uuid_t*)a_arg);
-        DAP_DELETE(a_arg);
+        dap_chain_net_del_downlink(&l_arg);
+        //DAP_DELETE(a_arg);
         return false;
     }
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     if (!l_ch_chain) {
         log_it(L_CRITICAL, "Channel without chain, dump it");
-        dap_chain_net_del_downlink((dap_stream_ch_uuid_t*)a_arg);
-        DAP_DELETE(a_arg);
+        dap_chain_net_del_downlink(&l_arg);
+        //DAP_DELETE(a_arg);
         return false;
     }
     if (l_ch_chain->timer_shots++ >= DAP_SYNC_TICKS_PER_SECOND * DAP_CHAIN_NODE_SYNC_TIMEOUT) {
@@ -926,12 +917,12 @@ static bool s_chain_timer_callback(void *a_arg)
                 l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT, NULL, 0,
                                                       l_ch_chain->callback_notify_arg);
         }
-        DAP_DELETE(a_arg);
+        //DAP_DELETE(a_arg);
         l_ch_chain->activity_timer = NULL;
         return false;
     }
     if (l_ch_chain->state != CHAIN_STATE_WAITING && l_ch_chain->sent_breaks) {
-        s_stream_ch_packet_out(l_ch, a_arg);
+        s_stream_ch_packet_out(l_ch, &l_arg);
         if (l_ch_chain->activity_timer == NULL)
             return false;
     }
@@ -966,10 +957,9 @@ static void s_chain_timer_reset(dap_stream_ch_chain_t *a_ch_chain)
 
 void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain)
 {
-    dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&DAP_STREAM_CH(a_ch_chain)->uuid);
     a_ch_chain->activity_timer = dap_timerfd_start_on_worker(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker,
                                                              1000 / DAP_SYNC_TICKS_PER_SECOND,
-                                                             s_chain_timer_callback, (void *)l_uuid);
+                                                             s_chain_timer_callback, DAP_SIZE_TO_POINTER(DAP_STREAM_CH(a_ch_chain)->uuid) );
     a_ch_chain->sent_breaks = 0;
 }
 
@@ -1493,7 +1483,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             }
             s_ch_chain_get_idle(l_ch_chain);
             if (l_ch_chain->activity_timer) {
-                DAP_DELETE(l_ch_chain->activity_timer->callback_arg);
+                //DAP_DELETE(l_ch_chain->activity_timer->callback_arg);
                 dap_timerfd_delete_unsafe(l_ch_chain->activity_timer);
                 l_ch_chain->activity_timer = NULL;
             }
@@ -2023,7 +2013,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
         s_ch_chain_go_idle(l_ch_chain);
         if (l_ch_chain->activity_timer) {
             if (!a_arg) {
-                DAP_DELETE(l_ch_chain->activity_timer->callback_arg);
+                //DAP_DELETE(l_ch_chain->activity_timer->callback_arg);
                 dap_timerfd_delete_unsafe(l_ch_chain->activity_timer);
             }
             l_ch_chain->activity_timer = NULL;

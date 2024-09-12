@@ -69,7 +69,7 @@ bool dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info,dap_cha
         return false;
     }
     // wait handshake
-    int timeout_ms = 4000;
+    int timeout_ms = 8000;
     int res = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
     dap_chain_node_client_close_mt(l_client);
     if (res) {
@@ -122,7 +122,7 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name)
     size_t l_nodes_count = 0;
     uint64_t l_blocks_events = 0;
     // read all node
-    l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
+    l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes - 6, &l_nodes_count);
     if (!l_nodes_count || !l_objs)
         return;
 

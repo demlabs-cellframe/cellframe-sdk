@@ -7,9 +7,9 @@
  * Copyright  (c) 2017-2023
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -28,4 +28,4 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_json_rpc_errors.h"
 
-json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx);
+json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx,dap_chain_net_id_t *a_net_id);

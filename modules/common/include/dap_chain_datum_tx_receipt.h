@@ -50,7 +50,6 @@ typedef struct dap_chain_datum_tx_receipt {
     byte_t exts_n_signs[]; // Signatures, first from provider, second from client
 } DAP_ALIGN_PACKED dap_chain_datum_tx_receipt_t;
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif

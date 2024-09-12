@@ -6,9 +6,9 @@
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP (Demlabs Application Protocol) the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP (Demlabs Application Protocol) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -211,6 +211,10 @@ static void s_event_broadcast_from_context(dap_global_db_context_t *a_context, v
     dap_chain_cs_dag_event_round_broadcast_t *l_arg = a_arg;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->dag->chain->net_id);
     dap_chain_net_sync_gdb_broadcast(a_context, l_arg->obj, l_net);
+}
+
+static void s_clean_dag_event_round_broadcast(void *a_arg) {
+    dap_chain_cs_dag_event_round_broadcast_t *l_arg = a_arg;
     dap_store_obj_free_one(l_arg->obj);
     DAP_DELETE(a_arg);
 }
@@ -219,7 +223,7 @@ static bool s_event_broadcast_send(dap_chain_cs_dag_event_round_broadcast_t *a_a
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_arg->dag->chain->net_id);
     if (dap_chain_net_get_state(l_net) != NET_STATE_SYNC_GDB)
-        dap_global_db_context_exec(s_event_broadcast_from_context, a_arg);
+        dap_global_db_context_exec(s_event_broadcast_from_context, a_arg, s_clean_dag_event_round_broadcast);
     else if (a_arg->attempts++ < 10)
         return true;
     return false;

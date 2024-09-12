@@ -50,10 +50,9 @@ int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t *a_anchor, size_t a_dat
         return -121;
     }
     int ret_val = 0;
-    dap_chain_datum_anchor_t *l_anchor = a_anchor;
-    size_t l_signs_size = l_anchor->header.signs_size;
+    size_t l_signs_size = a_anchor->header.signs_size;
     //multiple signs reading from datum
-    dap_sign_t *l_signs_block = (dap_sign_t *)((byte_t*)l_anchor->data_n_sign + l_anchor->header.data_size);
+    dap_sign_t *l_signs_block = (dap_sign_t *)((byte_t*)a_anchor->data_n_sign + a_anchor->header.data_size);
 
     if (!l_signs_size || !l_signs_block)
     {
@@ -84,7 +83,7 @@ int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t *a_anchor, size_t a_dat
 
     dap_hash_fast_t l_decree_hash = {};
     dap_chain_datum_decree_t *l_decree = NULL;
-    if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash)) != 0)
+    if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(a_anchor, &l_decree_hash)) != 0)
     {
         DAP_DELETE(l_signs_arr);
         DAP_DELETE(l_unique_signs);
@@ -138,9 +137,9 @@ int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t *a_anchor, size_t a_dat
         if (s_verify_pubkeys(l_unique_signs[i], l_unique_decree_signs, l_num_of_unique_decree_signs))
         {
             // 3. verify sign
-            size_t l_verify_data_size = l_anchor->header.data_size + sizeof(dap_chain_datum_anchor_t);
-            l_anchor->header.signs_size = l_signs_size_for_current_sign;
-            if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, l_anchor, l_verify_data_size))
+            size_t l_verify_data_size = a_anchor->header.data_size + sizeof(dap_chain_datum_anchor_t);
+            a_anchor->header.signs_size = l_signs_size_for_current_sign;
+            if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, a_anchor, l_verify_data_size))
             {
                 l_signs_verify_counter++;
             }
@@ -148,9 +147,9 @@ int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t *a_anchor, size_t a_dat
             // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
             l_signs_size_for_current_sign += l_sign_max_size;
     }
+    a_anchor->header.signs_size = l_signs_size_for_current_sign;
     DAP_DELETE(l_unique_decree_signs);
     DAP_DELETE(l_decree_signs_arr);
-    l_anchor->header.signs_size = l_signs_size_for_current_sign;
 
     if(!l_signs_verify_counter)
     {
