@@ -4815,7 +4815,11 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
     }
 
     l_signs_emission = l_params->signs_emission;
-    l_signs_total = l_params->signs_total;
+    if ((l_signs_total = dap_ledger_token_get_auth_signs_total(l_net->pub.ledger, l_params->ticker)) == 0) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "The updated token '%s' was not found in the '%s' network ledger.",
+            l_params->ticker, l_params->net->pub.name);
+        return -11;
+    }
     l_total_supply = l_params->total_supply;
     l_chain = l_params->chain;
     l_net = l_params->net;
