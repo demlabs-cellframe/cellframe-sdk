@@ -200,7 +200,7 @@ static void s_net_node_link_prepare_error(int a_error_code, void *a_arg){
            l_node_info->ext_port, a_error_code);
 }
 
-static struct node_link_request *s_node_list_request_init ()
+static struct node_link_request* s_node_list_request_init()
 {
     struct node_link_request *l_node_list_request = DAP_NEW_Z(struct node_link_request);
     if (!l_node_list_request)
@@ -209,14 +209,14 @@ static struct node_link_request *s_node_list_request_init ()
     InitializeCriticalSection(&l_node_list_request->wait_crit_sec);
     InitializeConditionVariable(&l_node_list_request->wait_cond);
 #else
-    l_node_list_request->wait_mutex = PTHREAD_MUTEX_INITIALIZER;
-#ifndef DAP_OS_DARWIN
+    pthread_mutex_init(&l_node_list_request->wait_mutex, NULL);
+#ifdef DAP_OS_DARWIN
+    pthread_cond_init(&l_node_list_request->wait_cond, NULL);
+#else
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-    pthread_cond_init(&l_node_list_request->wait_cond, &attr);
-#else
-    l_node_list_request->wait_cond = PTHREAD_COND_INITIALIZER;
+    pthread_cond_init(&l_node_list_request->wait_cond, &attr);    
 #endif
 #endif
     return l_node_list_request;
