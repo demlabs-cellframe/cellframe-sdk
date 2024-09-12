@@ -811,8 +811,10 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
 
         if (!l_objs || !l_objs_count)
         {
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_DATA_IN_GROUP,"No data in group %s.", l_group_str);
-            return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_DATA_IN_GROUP;
+            char *l_str_tmp = dap_strdup_printf("No data in group '%s' or group not found.", l_group_str);
+            json_object *l_jobj_msg = json_object_new_string(l_str_tmp);
+            json_object_array_add(*json_arr_reply, l_jobj_msg);
+            return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         }
 
         json_object* json_arr_keys = json_object_new_array();
