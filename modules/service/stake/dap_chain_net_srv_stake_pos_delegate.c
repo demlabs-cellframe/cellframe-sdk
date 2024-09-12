@@ -1741,7 +1741,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             //sort by time
             json_object_array_sort(l_json_arr_reply, json_object_compare_by_timestamp);
             // Remove the timestamp
-            for (int i = 0; i < json_array_lenght; i++) {
+            for (size_t i = 0; i < json_array_lenght; i++) {
                 struct json_object *obj = json_object_array_get_idx(l_json_arr_reply, i);
                 json_object_object_del(obj, "timestamp");
             }
