@@ -179,7 +179,7 @@ int dap_chain_net_srv_xchange_init()
          "\tDisable eXchange service\n\n"
     "Hint:\n"
     "\texample coins amount syntax  (only natural) 1.0 123.4567\n"
-    "\texample datoshi amount syntax (only integer) 1 20 7e+10 0.4321e+4\n"
+    "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n"
     );
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
     dap_chain_net_srv_callbacks_t l_srv_callbacks = {};

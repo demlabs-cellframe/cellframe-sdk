@@ -110,7 +110,7 @@ int dap_chain_net_srv_init()
 
         "Hint:\n"
         "\texample coins amount syntax  (only natural) 1.0 123.4567\n"
-        "\texample datoshi amount syntax (only integer) 1 20 7e+10 0.4321e+4\n\n"
+        "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n"
         );
 
     s_load_all();

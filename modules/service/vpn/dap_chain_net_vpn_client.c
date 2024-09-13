@@ -760,7 +760,7 @@ int dap_chain_net_vpn_client_init(dap_config_t * g_config)
             "vpn_client check result -net <net_name> [-H hex|base58(default)]\n\n"
             "Hint:\n"
             "\texample coins amount syntax  (only natural) 1.0 123.4567\n"
-            "\texample datoshi amount syntax (only integer) 1 20 7e+10 0.4321e+4\n\n"
+            "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n"
             );
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };

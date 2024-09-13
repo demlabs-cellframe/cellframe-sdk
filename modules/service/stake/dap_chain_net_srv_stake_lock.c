@@ -257,7 +257,7 @@ int dap_chain_net_srv_stake_lock_init()
                             "[-chain <chain_name>]\n\n"
                             "Hint:\n"
                             "\texample value_coins (only natural) 1.0 123.4567\n"
-                            "\texample value_datoshi (only integer) 1 20 7e+10 0.4321e+4\n"
+                            "\texample value_datoshi (only integer) 1 20 0.4321e+4\n"
     );
     s_debug_more = dap_config_get_item_bool_default(g_config, "ledger", "debug_more", false);
 

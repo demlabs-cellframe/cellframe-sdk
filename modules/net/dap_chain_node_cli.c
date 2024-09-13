@@ -219,7 +219,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             
             "Hint:\n"
             "\texample coins amount syntax  (only natural) 1.0 123.4567\n"
-            "\texample datoshi amount syntax (only integer) 1 20 7e+10 0.4321e+4\n\n");
+            "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
 
     dap_cli_server_cmd_add("token_update_sign", com_token_decl_sign, "Token update add sign and new sign",
                                         "token_update_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs list> -new_certs <certs list>\n"
@@ -237,7 +237,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "\t-addr <addr> } [-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n\nAvailable"
                             "Hint:\n"
                             "\texample coins amount syntax  (only natural) 1.0 123.4567\n"
-                            "\texample datoshi amount syntax (only integer) 1 20 7e+10 0.4321e+4\n\n");
+                            "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
 
     dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool",
                            "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset]\n"
@@ -277,7 +277,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n\n"
                 "Hint:\n"
                 "\texample coins amount syntax  (only natural) 1.0 123.4567\n"
-                "\texample datoshi amount syntax (only integer) 1 20 7e+10 0.4321e+4\n\n");
+                "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction",
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
@@ -285,13 +285,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 " -cert <pub_cert_name> -value <value> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n\n" 
                 "Hint:\n"
                 "\texample coins amount syntax  (only natural) 1.0 123.4567\n"
-                "\texample datoshi amount syntax (only integer) 1 20 7e+10 0.4321e+4\n\n");
+                "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
         dap_cli_server_cmd_add ("tx_cond_remove", com_tx_cond_remove, "Remove cond transactions and return funds from condition outputs to wallet",
                 "tx_cond_remove -net <net_name> -hashes <hash1,hash2...> -w <wallet_name>"
                 " -fee <value> -srv_uid <numeric_uid>\n" 
                 "Hint:\n"
                 "\texample coins amount syntax  (only natural) 1.0 123.4567\n"
-                "\texample datoshi amount syntax (only integer) 1 20 7e+10 0.4321e+4\n\n");
+                "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
         dap_cli_server_cmd_add ("tx_cond_unspent_find", com_tx_cond_unspent_find, "Find cond transactions by wallet",
                                         "tx_cond_unspent_find -net <net_name> -srv_uid <numeric_uid> -w <wallet_name> \n" );
 
@@ -357,7 +357,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "Displays information about the parameters of the decrees in the network.\n\n"
             "Hint:\n"
             "\texample coins amount syntax  (only natural) 1.0 123.4567\n"
-            "\texample datoshi amount syntax (only integer) 1 20 7e+10 0.4321e+4\n\n");
+            "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",

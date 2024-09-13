@@ -134,7 +134,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
          "\tCheck remote validator\n\n"
     "Hint:\n"
     "\texample coins amount syntax  (only natural) 1.0 123.4567\n"
-    "\texample datoshi amount syntax (only integer) 1 20 7e+10 0.4321e+4\n"
+    "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n"
     );
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
@@ -2749,10 +2749,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate not found");
                 return -25;
             }
-            // if (!s_srv_stake_is_poa_cert(l_net, l_poa_cert->enc_key)) {
-            //     dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate is not PoA root one");
-            //     return -26;
-            // }
+            if (!s_srv_stake_is_poa_cert(l_net, l_poa_cert->enc_key)) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate is not PoA root one");
+                return -26;
+            }
 
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-percent", &l_value_str);
             if (!l_value_str) {
