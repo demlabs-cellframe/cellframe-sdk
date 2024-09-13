@@ -393,6 +393,10 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             }
         }
     }
+    if (!l_poa_pvt->auth_certs_count) {
+        log_it(L_ERROR, "Can't find any cert in \"dag_poa\" consensus");
+        return -1;
+    }
     log_it(L_NOTICE,"Initialized DAG-PoA consensus with %u/%u minimum consensus",l_poa_pvt->auth_certs_count,l_poa_pvt->auth_certs_count_verify);
     l_dag->chain->callback_created = s_callback_created;
 

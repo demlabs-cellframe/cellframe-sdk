@@ -208,7 +208,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     dap_chain_cs_type_create("blocks", a_chain, a_chain_cfg);
 
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    int l_ret = 0;
+    int l_ret = 0, l_inited_cert;
     dap_chain_esbocs_t *l_esbocs = NULL;
     DAP_NEW_Z_RET_VAL(l_esbocs, dap_chain_esbocs_t, -5, NULL);
 
@@ -241,6 +241,10 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     }
 
     const char *l_auth_certs_prefix = dap_config_get_item_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_prefix");
+    if (!l_auth_certs_prefix) {
+        l_ret = -6;
+        goto lb_err;
+    }
     uint16_t l_node_addrs_count;
     const char **l_addrs = dap_config_get_array_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "validators_addrs", &l_node_addrs_count);
     if (l_node_addrs_count < l_esbocs_pvt->min_validators_count) {
@@ -266,6 +270,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         }
         dap_chain_addr_t l_signing_addr;
         log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
+        l_inited_cert++;
         dap_chain_addr_fill_from_key(&l_signing_addr, l_cert_cur->enc_key, a_chain->net_id);
 
         l_esbocs_pvt->emergency_validator_addrs = dap_list_append(l_esbocs_pvt->emergency_validator_addrs,
@@ -297,6 +302,10 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, &l_stake_tx_hash,
                                                  l_weight, &l_signer_node_addr);
         }
+    }
+    if (!l_inited_cert) {
+        l_ret = -1;
+        goto lb_err;
     }
     // Preset reward for block signs, before first reward decree
     const char *l_preset_reward_str = dap_config_get_item_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "preset_reward");
