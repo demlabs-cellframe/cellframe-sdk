@@ -759,7 +759,7 @@ int dap_chain_net_vpn_client_init(dap_config_t * g_config)
             "vpn_client check -addr <ip_addr> -port <port> -net <net_name>\n"
             "vpn_client check result -net <net_name> [-H hex|base58(default)]\n\n"
             "Hint:\n"
-            "\texample coins amount syntax  (only natural) 1.0 123.4567\n"
+            "\texample coins amount syntax (only natural) 1.0 123.4567\n"
             "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n"
             );
 
