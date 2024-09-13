@@ -112,5 +112,4 @@ typedef enum s_com_token_err{
  *
  */
 int cmd_decree(int a_argc, char **a_argv, void **a_str_reply);
-void to_map_1(bool a_t, dap_chain_t *a_chain);
 

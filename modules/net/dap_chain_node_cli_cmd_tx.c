@@ -46,7 +46,6 @@
 #include "dap_chain_mempool.h"
 #include "dap_math_convert.h"
 #include "dap_json_rpc_errors.h"
-#include <sys/mman.h>
 
 #define LOG_TAG "chain_node_cli_cmd_tx"
 
@@ -737,26 +736,6 @@ static int s_json_tx_history_pack(json_object** a_json_obj_datum, dap_chain_datu
         ++*a_rejected;
     }
     return 0;
-
-}
-void to_map_1(bool a_t, dap_chain_t *a_chain){
-    dap_chain_cell_t *l_cell, *l_iter_tmp;
-    HASH_ITER(hh, a_chain->cells, l_cell, l_iter_tmp) {
-            for (dap_list_t *it = l_cell->map_range_bounds; it; it = it->next) {
-                if (a_t){
-                    int error = madvise(it->data, it->next->data - it->data, MADV_SEQUENTIAL);
-                    log_it(L_MSG, "MADV_SEQ %d", error);
-                    //int error2 = madvise(it->data, it->next->data - it->data, MADV_POPULATE_READ);
-                    //log_it(L_MSG, "MADV_POPL_READ %d", error2);
-
-                } else {
-                    int error3 = madvise(it->data, it->next->data - it->data, MADV_WILLNEED);
-                    log_it(L_MSG, "MADV_WILLNEED %d", error3);
-                }               
-                
-                it = it->next;
-            }
-        }
 
 }
 
