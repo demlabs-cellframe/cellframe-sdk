@@ -254,7 +254,10 @@ int dap_chain_net_srv_stake_lock_init()
                 "stake_lock hold -net <net_name> -w <wallet_name> -time_staking <YYMMDD> -token <ticker> -value <value> -fee <value>"
                             "[-chain <chain_name>] [-reinvest <percentage>]\n"
                 "stake_lock take -net <net_name> -w <wallet_name> -tx <transaction_hash> -fee <value>"
-                            "[-chain <chain_name>]\n"
+                            "[-chain <chain_name>]\n\n"
+                            "Hint:\n"
+                            "\texample value_coins (only natural) 1.0 123.4567\n"
+                            "\texample value_datoshi (only integer) 1 20 7e+10 0.4321e+4\n"
     );
     s_debug_more = dap_config_get_item_bool_default(g_config, "ledger", "debug_more", false);
 
@@ -332,8 +335,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
         return TOKEN_ERROR;
     }
 
-    if ((!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-coins", &l_coins_str) || NULL == l_coins_str) &&
-            (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-value", &l_coins_str) || NULL == l_coins_str))
+    if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-value", &l_coins_str) || !l_coins_str)
         return COINS_ARG_ERROR;
 
     if (IS_ZERO_256( (l_value = dap_chain_balance_scan(l_coins_str)) ))

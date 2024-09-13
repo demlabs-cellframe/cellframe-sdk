@@ -106,7 +106,11 @@ int dap_chain_net_srv_init()
         " [{-ext <extension_with_params>|-region <region_name> -continent <continent_name>}]\n"
         "net_srv get_limits -net <net_name> -srv_uid <service_UID> -provider_pkey_hash <service_provider_public_key_hash> -client_pkey_hash <client_public_key_hash>\n"
         "net_srv report\n"
-        "\tGet report about srv usage"
+        "\tGet report about srv usage\n\n"
+
+        "Hint:\n"
+        "\texample coins amount syntax  (only natural) 1.0 123.4567\n"
+        "\texample datoshi amount syntax (only integer) 1 20 7e+10 0.4321e+4\n\n"
         );
 
     s_load_all();

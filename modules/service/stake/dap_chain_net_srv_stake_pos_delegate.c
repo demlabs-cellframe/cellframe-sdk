@@ -131,7 +131,10 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "srv_stake max_weight -net <net_name> [-chain <chain_name>] -poa_cert <poa_cert_name> -percent <value>\n"
         "\tSets maximum validator related weight (in percent)\n"
     "srv_stake check -net <net_name> -tx <tx_hash>\n"
-         "\tCheck remote validator"
+         "\tCheck remote validator\n\n"
+    "Hint:\n"
+    "\texample coins amount syntax  (only natural) 1.0 123.4567\n"
+    "\texample datoshi amount syntax (only integer) 1 20 7e+10 0.4321e+4\n"
     );
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
