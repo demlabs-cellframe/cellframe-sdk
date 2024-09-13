@@ -2732,7 +2732,11 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             l_args->message_size = l_message_size + l_sign_size;
             memcpy(l_args->message, l_message, l_message_size + l_sign_size);
             dap_proc_thread_callback_add(a_session->proc_thread, s_process_incoming_message, l_args);
+<<<<<<< HEAD
+        }
+=======
 \        }
+>>>>>>> 1ba3c33fc3c96dd1deb6614419b50d8dc026126b
     }
     DAP_DELETE(l_message);
 }
