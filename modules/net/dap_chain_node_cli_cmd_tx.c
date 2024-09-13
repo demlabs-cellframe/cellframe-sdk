@@ -513,7 +513,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     l_dst_token = l_native_ticker;
                 } else
                     l_dst_token = l_src_token;
-                break;
             default:
                 break;
             }
