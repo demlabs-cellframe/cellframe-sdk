@@ -5279,7 +5279,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_reply)
 
     uint256_t l_value_per_unit_max = {};
     char *l_hash_str = dap_chain_mempool_tx_create_cond(l_net, l_key_from, l_key_cond, l_token_ticker,
-                                                        l_value, l_value_per_unit_max, l_price_unit,
+                                                        l_value_datoshi, l_value_per_unit_max, l_price_unit,
                                                         l_srv_uid, l_value_fee, NULL, 0, l_hash_out_type);
     dap_chain_wallet_close(l_wallet);
     dap_enc_key_delete(l_key_from);
