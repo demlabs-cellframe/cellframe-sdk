@@ -514,9 +514,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 } else
                     l_dst_token = l_src_token;
                 break;
-            case TX_ITEM_TYPE_IN_EMS:
-                log_it(L_MSG, "that is");
-                break;
             default:
                 break;
             }
@@ -657,7 +654,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_corr_value, &l_coins_str);
             json_object_object_add(l_corr_object, "recv_coins", json_object_new_string(l_coins_str));
             json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));
-
             json_object * j_arr_correct = json_object_new_object();            
             json_object_object_add(j_arr_correct, "correction", l_corr_object);
             json_object_array_add(json_obj_datum, j_arr_correct);
