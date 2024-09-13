@@ -767,8 +767,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         }
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out);
         DAP_DELETE(l_tx_out);
-    } else // mark price order as ready
-        memset(&a_price->order_hash, 0, sizeof(dap_hash_fast_t));
+    } 
 
     // transfer buying coins
     if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_seller_addr, l_datoshi_buy, a_price->token_buy) == -1) {
@@ -2793,7 +2792,7 @@ dap_chain_net_srv_xchange_purchase_error_t dap_chain_net_srv_xchange_purchase(da
         // Create conditional transaction
         char *l_ret = NULL;
         dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_exchange(l_price, a_wallet, a_value, a_fee);
-        if (l_tx && !dap_hash_fast_is_blank(&l_price->order_hash)) {
+        if (l_tx ) {
             l_ret = s_xchange_tx_put(l_tx, a_net);
         }
         DAP_DELETE(l_price);
