@@ -1795,7 +1795,8 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
     xchange_tx_type_t l_tx_type = dap_chain_net_srv_xchange_tx_get_type(a_net->pub.ledger, a_tx, &l_out_cond_item, &l_cond_idx, &l_out_prev_cond_item);
 
     bool l_is_closed = dap_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_tx_hash, l_cond_idx, NULL);
-    if ((a_filter_by_status == TX_STATUS_ACTIVE && l_is_closed) || (a_filter_by_status == TX_STATUS_INACTIVE && !l_is_closed))
+    if ((a_filter_by_status == TX_STATUS_ACTIVE && l_is_closed) || (a_filter_by_status == TX_STATUS_INACTIVE && !l_is_closed)
+     || (a_filter_by_status == TX_STATUS_ACTIVE && l_tx_type == TX_TYPE_INVALIDATE))
         return false;
 
     if(l_out_prev_cond_item && l_out_prev_cond_item->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE)
