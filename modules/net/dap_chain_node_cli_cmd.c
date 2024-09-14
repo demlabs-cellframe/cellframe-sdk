@@ -4043,6 +4043,7 @@ typedef struct _dap_cli_token_additional_params {
     const char* flags;
     const char* delegated_token_from;
     const char* total_signs_valid;
+    const char *total_supply_change;
     const char* datum_type_allowed;
     const char* datum_type_blocked;
     const char* tx_receiver_allowed;
@@ -4105,7 +4106,17 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, void **a_st
     // Token type
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-type", &a_params->type_str);
 
-    if (a_params->type_str) {
+    if (a_update_token)
+    {
+        dap_chain_datum_token_t* l_current_token = dap_ledger_token_ticker_check(a_params->net->pub.ledger, a_params->ticker);
+        if (!l_current_token) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "The updated token '%s' was not found in the '%s' network ledger.",
+                a_params->ticker, a_params->net->pub.name);
+            return -7;
+        }
+        a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
+        a_params->subtype = l_current_token->subtype;
+    } else if (a_params->type_str) {
         if (strcmp(a_params->type_str, "private") == 0) {
             a_params->type = a_update_token ? DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE : DAP_CHAIN_DATUM_TOKEN_TYPE_DECL; // 256
             a_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE;
@@ -4118,7 +4129,7 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, void **a_st
         } else if (strcmp(a_params->type_str, "public_simple") == 0 && !a_update_token) {
             a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
             a_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC; // 256
-        } else if (!a_update_token) {
+        } else  {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Unknown token type %s was specified. Supported types:\n"
                         "   private_simple\n"
@@ -4126,16 +4137,7 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, void **a_st
                         "   CF20\n"
                         "Default token type is private_simple.\n", a_params->type_str);
             return -1;
-        } else {
-           dap_cli_server_cmd_set_reply_text(a_str_reply,
-                           "Unknown token type %s was specified. Supported types:\n"
-                       "   private\n"
-                       "   CF20\n", a_params->type_str);
-           return -1;
         }
-    } else if (a_update_token) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,"update_token command requires parameter:\n-type <CF20 or private>");
-        return -1;
     }
 
 
@@ -4164,21 +4166,19 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, void **a_st
             return -6;
         }
     }
-    // Total supply value
-    const char* l_total_supply_str = NULL;
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_supply", &l_total_supply_str);
-    if (l_total_supply_str){
-        a_params->total_supply = dap_chain_balance_scan(l_total_supply_str);
-    } else if (!a_update_token) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "'-total_supply' must be unsigned integer value that fits in 32 bytes\n"
-                                                       "If your token is type native (CF20) you can use value 0 for infinite total_supply.");
-        return -4;
-    } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "'-total_supply' must be unsigned integer value that fits in 32 bytes\n"
-                                                       "You are update a token, be careful!\n"
-                                                       "You can reset total_supply and make it infinite for native (CF20) tokens only, if set 0"
-                                                       "for private tokens, you must specify the same or more total_supply.");
-        return -4;
+    if (!a_update_token) {
+        // Total supply value
+        const char* l_total_supply_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_supply", &l_total_supply_str);
+        if (l_total_supply_str){
+            a_params->total_supply = dap_chain_balance_scan(l_total_supply_str);
+        } else {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "'-total_supply' must be unsigned integer value that fits in 32 bytes\n"
+                                                        "You are update a token, be careful!\n"
+                                                        "You can reset total_supply and make it infinite for native (CF20) tokens only, if set 0"
+                                                        "for private tokens, you must specify the same or more total_supply.");
+            return -4;
+        }
     }
     // Total supply value
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-decimals", &a_params->decimals_str);
@@ -4190,6 +4190,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
 {
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flags", &a_params->ext.flags);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_signs_valid", &a_params->ext.total_signs_valid);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_supply_change", &a_params->ext.total_supply_change);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-delegated_token_from", &a_params->ext.delegated_token_from);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-datum_type_allowed", &a_params->ext.datum_type_allowed);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-datum_type_blocked", &a_params->ext.datum_type_blocked);
@@ -4265,7 +4266,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
 
     const char* l_new_certs_str = NULL;
     const char* l_remove_signs = NULL;
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-new_certs", &l_new_certs_str);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-add_certs", &l_new_certs_str);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-remove_certs", &l_remove_signs);
     const char *l_description  = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-description", &l_description);
@@ -4314,6 +4315,13 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
         l_tsd_total_size += dap_tsd_size(l_desc_token);
         a_params->ext.parsed_tsd_size += dap_tsd_size(l_desc_token);
     }
+    if (a_params->ext.total_supply_change) {
+        uint256_t l_total_supply = dap_chain_balance_scan(a_params->ext.total_supply_change);
+        dap_tsd_t *l_tsd_change_total_supply = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_total_supply);
+        l_tsd_list = dap_list_append(l_tsd_list, l_tsd_change_total_supply);
+        l_tsd_total_size += dap_tsd_size(l_tsd_change_total_supply);
+        a_params->ext.parsed_tsd_size += dap_tsd_size(l_tsd_change_total_supply);
+    }
     size_t l_tsd_offset = 0;
     a_params->ext.parsed_tsd = DAP_NEW_SIZE(byte_t, l_tsd_total_size);
     if(l_tsd_total_size && !a_params->ext.parsed_tsd) {
@@ -4346,35 +4354,25 @@ static int s_token_decl_check_params(int a_argc, char **a_argv, void **a_str_rep
         return l_parse_params;
 
     //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL uses decimals parameter
-    if (a_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE
-            ||	a_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE) {
-        if(!a_params->decimals_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-decimals'", a_update_token ? "token_update" : "token_decl");
-            return -3;
-        } else if (dap_strcmp(a_params->decimals_str, "18")) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                              "%s support '-decimals' to be 18 only", a_update_token ? "token_update" : "token_decl");
-            return -4;
-        }
-    } else if (	a_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE){
+    if (!a_update_token) {
         //// check l_decimals in CF20 token TODO: At the moment the checks are the same.
         if(!a_params->decimals_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-decimals'", a_update_token ? "token_update" : "token_decl");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl requires parameter '-decimals'");
             return -3;
         } else if (dap_strcmp(a_params->decimals_str, "18")) {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                              "%s support '-decimals' to be 18 only", a_update_token ? "token_update" : "token_decl");
+                                                "token_decl support '-decimals' to be 18 only");
             return -4;
         }
     }
 
-    if (!a_params->signs_emission){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-signs_emission'", a_update_token ? "token_update" : "token_decl");
+    if (!a_params->signs_emission && !a_update_token) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl requires parameter '-signs_emission'");
         return -5;
     }
 
     if (!a_params->signs_total && !a_update_token){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-signs_total'", a_update_token ? "token_update" : "token_decl");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl requires parameter '-signs_total'");
         return -7;
     }
 
@@ -4815,13 +4813,9 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
     }
 
     l_net = l_params->net;
-    l_signs_emission = l_params->signs_emission;
-    if ((l_signs_total = dap_ledger_token_get_auth_signs_total(l_net->pub.ledger, l_params->ticker)) == 0) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "The updated token '%s' was not found in the '%s' network ledger.",
-            l_params->ticker, l_params->net->pub.name);
-        return -11;
-    }
-    l_total_supply = l_params->total_supply;
+    l_signs_emission = 0;
+    l_signs_total = 0;
+    l_total_supply = uint256_0;
     l_chain = l_params->chain;
     l_ticker = l_params->ticker;
     l_hash_out_type = l_params->hash_out_type;
@@ -4838,28 +4832,25 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
                 return -1;
             }
             l_datum_token->version = 2;
-            l_datum_token->type = l_params->type;
+            l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
             l_datum_token->subtype = l_params->subtype;
             if (l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE) {
                 log_it(L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_params->ext.tsd_total_size);
                 snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
-                // l_datum_token->header_native_update.flags = l_params->ext.parsed_flags;
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
                 l_datum_token->header_native_update.tsd_total_size = l_params->ext.tsd_total_size;
-                l_datum_token->header_native_update.decimals = atoi(l_params->decimals_str);
+                l_datum_token->header_native_update.decimals = 0;
                 l_datum_data_offset = l_params->ext.tsd_total_size;
             } else { // if (l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) {
                 log_it(L_DEBUG,"Prepared TSD sections for private token on %zd total size", l_params->ext.tsd_total_size);
                 snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
-                // l_datum_token->header_private_update.flags = l_params->ext.parsed_flags;
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
                 l_datum_token->header_private_update.tsd_total_size = l_params->ext.tsd_total_size;
-                l_datum_token->header_private_update.decimals = atoi(l_params->decimals_str);
+                l_datum_token->header_private_update.decimals = 0;
                 l_datum_data_offset = l_params->ext.tsd_total_size;
             }
-            // Add TSD sections in the end
             // Add TSD sections in the end
             if (l_params->ext.tsd_total_size) {
                 memcpy(l_datum_token->tsd_n_signs, l_params->ext.parsed_tsd, l_params->ext.parsed_tsd_size);
@@ -4881,16 +4872,13 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
             l_datum_token->total_supply = l_total_supply;
             l_datum_token->signs_valid = l_signs_emission;
             if (l_params->decimals_str)
-                l_datum_token->header_simple.decimals = atoi(l_params->decimals_str);
+                l_datum_token->header_simple.decimals = 0;
         }break;
         default:
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                               "Unknown token type");
             return -8;
     }
-    // If we have more certs than we need signs - use only first part of the list
-    if(l_certs_count > l_signs_total)
-        l_certs_count = l_signs_total;
     // Sign header with all certificates in the list and add signs to the end of TSD cetions
     uint16_t l_sign_counter = 0;
     l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
