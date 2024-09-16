@@ -877,7 +877,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_missed_hash) {
             l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_LAST, NULL);
             dap_chain_ch_miss_info_t l_miss_info = { .missed_hash = l_request->hash_from,
-                                                     .last_hash = *l_iter->cur_hash,
+                                                     .last_hash = l_iter->cur_hash ? *l_iter->cur_hash : (dap_hash_fast_t){0},
                                                      .last_num = l_iter->cur_num };
             dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS,
                                           l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id,

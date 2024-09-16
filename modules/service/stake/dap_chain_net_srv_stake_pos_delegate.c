@@ -1377,7 +1377,10 @@ char *s_fee_order_create(dap_chain_net_t *a_net, uint256_t *a_fee, dap_enc_key_t
     return l_order_hash_str;
 }
 
-struct validator_odrer_ext {
+#define VALIDATOR_ORDER_CURRENT_VERSION 2
+static const s_validator_order_ext_size [VALIDATOR_ORDER_CURRENT_VERSION] = {64, };
+
+struct validator_order_ext {
     uint256_t tax;
     uint256_t value_max;
 } DAP_ALIGN_PACKED;
@@ -1391,7 +1394,7 @@ char *s_validator_order_create(dap_chain_net_t *a_net, uint256_t a_value_min, ui
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, a_net->pub.native_ticker);
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 =  SERV_UNIT_PCS};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS };
-    struct validator_odrer_ext l_order_ext = { a_tax, a_value_max };
+    struct validator_order_ext l_order_ext = { a_tax, a_value_max };
     dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_compose(a_net, l_dir, l_uid, a_node_addr,
                                                             l_tx_hash, &a_value_min, l_unit, l_delegated_ticker, 0,
                                                             (const uint8_t *)&l_order_ext, sizeof(l_order_ext),
@@ -1518,6 +1521,14 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value_min <256 bit integer>");
             return -6;
         }
+        uint256_t l_allowed_min = dap_chain_net_srv_stake_get_allowed_min_value(l_net->pub.id);
+        if (compare256(l_value_min, l_allowed_min) == -1) {
+            const char *l_allowed_min_coin_str = NULL;
+            const char *l_allowed_min_datoshi_str = dap_uint256_to_char(l_allowed_min, &l_allowed_min_coin_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Number in '-value_min' param %s is lower than service minimum allowed value %s(%s)",
+                                            l_value_min_str, l_allowed_min_coin_str, l_allowed_min_datoshi_str);
+            return -120;
+        }
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value_max", &l_value_max_str);
         if (!l_value_max_str) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Validator order creation requires parameter -value_max");
@@ -1527,6 +1538,17 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
         if (IS_ZERO_256(l_value_max)) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value_max <256 bit integer>");
             return -8;
+        }
+        if (compare256(l_value_max, l_allowed_min) == -1) {
+            const char *l_allowed_min_coin_str = NULL;
+            const char *l_allowed_min_datoshi_str = dap_uint256_to_char(l_allowed_min, &l_allowed_min_coin_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Number in '-value_max' param %s is lower than service minimum allowed value %s(%s)",
+                                            l_value_max_str, l_allowed_min_coin_str, l_allowed_min_datoshi_str);
+            return -140;
+        }
+        if (compare256(l_value_max, l_value_min) == -1) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Number in '-value_min' should be equal or less than number in '-value_max'");
+            return -150;
         }
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tax", &l_tax_str);
         if (!l_tax_str) {
@@ -1785,7 +1807,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                     if (l_order->direction == SERV_DIR_SELL) {
                         dap_string_append(l_reply_str, "Value in this order type means minimum value of m-tokens for validator acceptable for key delegation with supplied tax\n"
                                                        "Order external params:\n");
-                        struct validator_odrer_ext *l_ext = (struct validator_odrer_ext *)l_order->ext_n_sign;
+                        struct validator_order_ext *l_ext = (struct validator_order_ext *)l_order->ext_n_sign;
                         const char *l_coins_str;
                         dap_uint256_to_char(l_ext->tax, &l_coins_str);
                         dap_string_append_printf(l_reply_str, "  tax:              %s%%\n", l_coins_str);
@@ -2015,13 +2037,13 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
             } else
                 dap_chain_addr_fill_from_key(&l_sovereign_addr, l_enc_key, l_net->pub.id);
 
-            if (l_order->ext_size != sizeof(struct validator_odrer_ext)) {
+            if (l_order->ext_size != sizeof(struct validator_order_ext)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order has invalid size");
                 dap_enc_key_delete(l_enc_key);
                 DAP_DELETE(l_order);
                 return -26;
             }
-            struct validator_odrer_ext *l_ext = (struct validator_odrer_ext *)l_order->ext_n_sign;
+            struct validator_order_ext *l_ext = (struct validator_order_ext *)l_order->ext_n_sign;
             l_sovereign_tax = l_ext->tax;
             if (l_order_hash_str && compare256(l_value, l_order->price) == -1) {
                 const char *l_coin_min_str, *l_value_min_str =
