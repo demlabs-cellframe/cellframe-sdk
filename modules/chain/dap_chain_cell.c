@@ -109,11 +109,11 @@ int dap_chain_cell_init(void)
 
 #ifndef DAP_OS_WINDOWS
 DAP_STATIC_INLINE void s_cell_reclaim_cur_volume(dap_chain_cell_t *a_cell) {
-    if ( dap_chain_net_get_load_mode( dap_chain_net_by_id(a_cell->chain->net_id) )
+    if (
 #ifdef MADV_PAGEOUT
-    && madvise(a_cell->map, (size_t)(a_cell->map_end - a_cell->map), MADV_PAGEOUT)
+    madvise(a_cell->map, (size_t)(a_cell->map_end - a_cell->map), MADV_PAGEOUT) &&
 #endif
-    && madvise(a_cell->map, (size_t)(a_cell->map_end - a_cell->map), MADV_DONTNEED) )
+    madvise(a_cell->map, (size_t)(a_cell->map_end - a_cell->map), MADV_DONTNEED) )
         log_it(L_ERROR, "Unable to reclaim the previous volume, errno %d: \"%s\"", errno, dap_strerror(errno));
 }
 #endif
@@ -131,7 +131,7 @@ DAP_STATIC_INLINE int s_cell_file_write_header(dap_chain_cell_t *a_cell)
     return fwrite(&l_hdr, sizeof(l_hdr), 1, a_cell->file_storage) ? fflush(a_cell->file_storage) : -1;
 }
 
-DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_fpos) {
+DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_fpos, bool a_load) {
     int l_fildes = fileno(a_cell->file_storage);
 #ifdef DAP_OS_WINDOWS
     HANDLE hSection = NULL;
@@ -171,7 +171,8 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
     if ( !NT_SUCCESS(err) )
         return NtClose(hSection), log_it(L_ERROR, "NtMapViewOfSection() failed, status %lx", err), -1;
 #else
-    s_cell_reclaim_cur_volume(a_cell);
+    if (a_load)
+        s_cell_reclaim_cur_volume(a_cell);
     if (( a_cell->map = mmap(NULL, l_map_size, PROT_READ|PROT_WRITE, MAP_PRIVATE,
                              fileno(a_cell->file_storage), l_volume_start) ) == MAP_FAILED )
         return log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be mapped, errno %d",
@@ -183,7 +184,7 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
     a_cell->map_pos = a_cell->map + l_offset;
     a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map);
     a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map_end = a_cell->map + l_map_size);
-    if ( dap_chain_net_get_load_mode (dap_chain_net_by_id(a_cell->chain->net_id)) )
+    if (a_load)
         madvise(a_cell->map, l_map_size, MADV_SEQUENTIAL);
     return 0;
 }
@@ -262,7 +263,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
         fflush(l_file);
     }
 
-    if ( a_chain->is_mapped && s_cell_map_new_volume(l_cell, 0) ) {
+    if ( a_chain->is_mapped && s_cell_map_new_volume(l_cell, 0, true) ) {
         CLEANUP_AND_RET;
     }
 #undef CLEANUP_AND_RET
@@ -457,7 +458,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         for ( l_el_size = 0; l_pos < l_full_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
             l_vol_rest = (uint64_t)( a_cell->map_end - a_cell->map_pos );
             if ( l_vol_rest <= sizeof(uint64_t) || l_vol_rest - sizeof(uint64_t) <= *(uint64_t*)a_cell->map_pos)
-                if ( s_cell_map_new_volume(a_cell, l_pos) )
+                if ( s_cell_map_new_volume(a_cell, l_pos, true) )
                     break;
             if (*(uint64_t*)a_cell->map_pos > l_full_size - l_pos ) {
                 log_it(L_ERROR, "Atom size exeeds file remainder: %zu > %zu. "
@@ -523,7 +524,7 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
         debug_if (s_debug_more, L_DEBUG, "Before filling volume for atom size %ld, stream pos of %s is %lu, map pos is %lu, space left in map %lu",
                       a_atom_size, a_cell->file_storage_path, l_pos, (size_t)(a_cell->map_pos - a_cell->map), (size_t)(a_cell->map_end - a_cell->map_pos));
         if ( a_atom_size + sizeof(uint64_t) > (size_t)(a_cell->map_end - a_cell->map_pos) )
-            if ( s_cell_map_new_volume(a_cell, (size_t)l_pos) )
+            if ( s_cell_map_new_volume(a_cell, (size_t)l_pos, false) )
                 return -2;
     }
     
