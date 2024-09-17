@@ -2031,9 +2031,8 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         }
         if (!l_chain->callback_get_poa_certs)
             continue;
-        l_net->pub.keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
-        if (l_net->pub.keys)
-            break;
+        if (!l_net->pub.keys)
+            l_net->pub.keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
     }
     if (!l_net->pub.keys)
         log_it(L_WARNING, "PoA certificates for net %s not found", l_net->pub.name);
@@ -2111,7 +2110,7 @@ bool s_net_load(void *a_arg)
         l_chain = l_chain->next;
     }
     l_net_pvt->load_mode = false;
-    dap_leger_load_end(l_net->pub.ledger);
+    dap_ledger_load_end(l_net->pub.ledger);
 
     // Do specific role actions post-chain created
     l_net_pvt->state_target = NET_STATE_OFFLINE;
@@ -3221,7 +3220,7 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
     l_net_pvt->state = NET_STATE_ONLINE;
     s_net_states_proc(a_net);
     if(l_prev_state == NET_STATE_SYNC_CHAINS)
-        dap_leger_load_end(a_net->pub.ledger);
+        dap_ledger_load_end(a_net->pub.ledger);
     return NULL;
 }
 
@@ -3315,7 +3314,7 @@ static bool s_net_states_proc(void *a_arg)
     assert(l_net_pvt);
     if (l_net_pvt->state_target == NET_STATE_OFFLINE) {
         if(l_net_pvt->state == NET_STATE_SYNC_CHAINS)
-            dap_leger_load_end(l_net->pub.ledger);
+            dap_ledger_load_end(l_net->pub.ledger);
         l_net_pvt->state = NET_STATE_OFFLINE;
     }
 
