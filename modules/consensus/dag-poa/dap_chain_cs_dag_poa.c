@@ -83,7 +83,6 @@ typedef struct dap_chain_cs_dag_poa_pvt {
 
 static void s_callback_delete(dap_chain_cs_dag_t * a_dag);
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
-static void s_poa_round_clean(void *a_arg);
 static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_cfg);
 static int s_callback_event_verify(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_t *a_dag_event, dap_hash_fast_t *a_event_hash);
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
@@ -99,7 +98,6 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
 static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply);
 
 static bool s_seed_mode = false;
-static dap_interval_timer_t s_poa_round_timer = NULL;
 static bool s_debug_more = false;
 
 /**
@@ -396,15 +394,13 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     log_it(L_NOTICE,"Initialized DAG-PoA consensus with %u/%u minimum consensus",l_poa_pvt->auth_certs_count,l_poa_pvt->auth_certs_count_verify);
     l_dag->chain->callback_created = s_callback_created;
 
-    if (!l_dag->is_add_directly && l_poa_pvt->auto_round_complete) {
-        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
-        if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
-            if (!s_poa_round_timer) {
-                s_poa_round_timer = dap_interval_timer_create(600 * 1000, s_poa_round_clean, a_chain);
-                log_it(L_MSG, "DAG-PoA: Round timer is started");
-            }
-            DAP_CHAIN_PVT(a_chain)->cs_started = true;
+    if ( !l_dag->is_add_directly && l_poa_pvt->auto_round_complete ) {
+        switch ( dap_chain_net_get_role(dap_chain_net_by_id(a_chain->net_id)).enums ) {
+            case NODE_ROLE_ROOT_MASTER:
+            case NODE_ROLE_ROOT:
+                DAP_CHAIN_PVT(a_chain)->cs_started = true;
+            default:
+                break;
         }
     }
 
@@ -437,50 +433,33 @@ static bool s_poa_round_check_callback_round_clean(dap_global_db_instance_t *a_d
                                                    const size_t a_values_total, const size_t a_values_count,
                                                    dap_global_db_obj_t *a_values, void *a_arg)
 {
-    dap_chain_cs_dag_t *l_dag = (dap_chain_cs_dag_t *)a_arg;
+    struct round_timer_arg *l_arg = (struct round_timer_arg*)a_arg;
+    dap_chain_cs_dag_t *l_dag = l_arg->dag;
     dap_chain_cs_dag_poa_t *l_poa = DAP_CHAIN_CS_DAG_POA(l_dag);
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
-
-    if (a_values_count) {
-        for (size_t i = 0; i < a_values_count; i++) {
-            if (!strcmp(DAG_ROUND_CURRENT_KEY, a_values[i].key))
-                continue;
-            if (a_values[i].value_len <= sizeof(dap_chain_cs_dag_event_round_item_t) + sizeof(dap_chain_cs_dag_event_t)) {
-                log_it(L_WARNING, "Too small round item in DAG PoA rounds GDB group");
-                dap_global_db_del_sync(a_group, a_values[i].key);
-                continue;
-            }
-            dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)a_values[i].value;
-            uint64_t l_time_diff = dap_nanotime_now() - l_event_round_item->round_info.ts_update;
-            uint64_t l_timeuot = dap_nanotime_from_sec(l_poa_pvt->confirmations_timeout + l_poa_pvt->wait_sync_before_complete + 10);
-            uint64_t l_round_id = ((dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs)->header.round_id;
-            if (((int64_t)l_time_diff > 0 && l_time_diff > l_timeuot) || l_round_id <= l_dag->round_completed) {
-                pthread_rwlock_rdlock(&l_poa_pvt->rounds_rwlock);
-                struct round_timer_arg *l_arg = NULL;
-                HASH_FIND(hh, l_poa_pvt->active_rounds, &l_round_id, sizeof(uint64_t), l_arg);
-                pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
-                if (l_arg) {
-                    log_it(L_INFO, "Event %s is from currently active round [id %"DAP_UINT64_FORMAT_U"]", a_values[i].key, l_round_id);
-                    continue;
-                }
-                dap_global_db_del_sync(a_group, a_values[i].key);
-                log_it(L_DEBUG, "DAG-PoA: Remove event %s from round %"DAP_UINT64_FORMAT_U" %s.",
-                       a_values[i].key, l_round_id, l_time_diff > l_timeuot ? "by timer" : "owing to round completion");
-            }
+    for (size_t i = 0; i < a_values_count; ++i) {
+        if (!strcmp(DAG_ROUND_CURRENT_KEY, a_values[i].key))
+            continue;
+        if (a_values[i].value_len <= sizeof(dap_chain_cs_dag_event_round_item_t) + sizeof(dap_chain_cs_dag_event_t)) {
+            log_it(L_WARNING, "Incorrect round item size, dump it");
+            dap_global_db_del_sync(a_group, a_values[i].key);
+            continue;
+        }
+        dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t*)a_values[i].value;
+        uint64_t l_round_id = ((dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs)->header.round_id;
+        if ( dap_nanotime_now() - l_event_round_item->round_info.ts_update > dap_nanotime_from_sec(l_poa_pvt->wait_sync_before_complete
+                                                                                                   + l_poa_pvt->confirmations_timeout + 10) )
+        {
+            log_it(L_INFO, "Remove event %s, round %"DAP_UINT64_FORMAT_U" timeout", a_values[i].key, l_round_id);
+            dap_global_db_del_sync(a_group, a_values[i].key);
+        }
+        else if (l_arg->round_id == l_round_id)
+        {
+            log_it(L_INFO, "Remove event %s, round %"DAP_UINT64_FORMAT_U" complete", a_values[i].key, l_round_id);
+            dap_global_db_del_sync(a_group, a_values[i].key);
         }
     }
-    return true;
-}
-
-/**
- * @brief Timer callback for round check
- * @param a_chain Chain object
- * @return Always true
- */
-static void s_poa_round_clean(void *a_arg)
-{
-    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG((dap_chain_t *)a_arg);
-    dap_global_db_get_all(l_dag->gdb_group_events_round_new, 0, s_poa_round_check_callback_round_clean, l_dag);
+    return DAP_DELETE(l_arg), true;
 }
 
 static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_t *a_event,
@@ -601,14 +580,13 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
 {
     if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS) 
         return false;
-    struct round_timer_arg *l_arg = (struct round_timer_arg *)a_arg;
+    struct round_timer_arg *l_arg = (struct round_timer_arg*)a_arg;
     dap_chain_cs_dag_t *l_dag = l_arg->dag;
     uint64_t l_round_id = l_arg->round_id;
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(DAP_CHAIN_CS_DAG_POA(l_dag));
     pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
     HASH_DEL(l_poa_pvt->active_rounds, l_arg);
     pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
-    DAP_DELETE(a_arg);
     uint16_t l_max_signs_count = 0;
     dap_list_t *l_dups_list = NULL;
     for (size_t i = 0; i < a_values_count; i++) {
@@ -624,6 +602,7 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
         }
     }
     dap_chain_cs_dag_event_round_item_t *l_chosen_item = s_round_event_choose_dup(l_dups_list, l_max_signs_count);
+    dap_list_free(l_dups_list);
     if (l_chosen_item) {
         size_t l_event_size = l_chosen_item->event_size;
         dap_chain_cs_dag_event_t *l_new_atom = (dap_chain_cs_dag_event_t *)l_chosen_item->event_n_signs;
@@ -636,8 +615,10 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
             dap_hash_fast_t l_atom_hash = {};
             dap_hash_fast(l_new_atom, l_event_size, &l_atom_hash);
             dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size, &l_atom_hash, true);
-            if (l_res == ATOM_ACCEPT)
-                s_poa_round_clean(l_dag->chain);
+            if (l_res == ATOM_ACCEPT) {
+                dap_global_db_get_all(l_dag->gdb_group_events_round_new, 0, s_poa_round_check_callback_round_clean, l_arg);
+                l_arg = NULL; // Prvent from deleting
+            }
             log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" %s",
                    l_event_hash_hex_str, l_round_id, dap_chain_atom_verify_res_str[l_res]);
         } else {
@@ -651,8 +632,7 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
         log_it(L_WARNING, "No candidates for round id %"DAP_UINT64_FORMAT_U, l_round_id);
 
     }
-    dap_list_free(l_dups_list);
-    return true;
+    return DAP_DELETE(l_arg), true;
 }
 
 /**
@@ -662,37 +642,25 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
  */
 static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_arg)
 {
-    dap_chain_cs_dag_t *l_dag = a_callback_arg->dag;
-    dap_global_db_get_all(l_dag->gdb_group_events_round_new, 0, s_callback_round_event_to_chain_callback_get_round_item, a_callback_arg);
-    return false;
+    return dap_global_db_get_all(a_callback_arg->dag->gdb_group_events_round_new, 0, s_callback_round_event_to_chain_callback_get_round_item, a_callback_arg),
+        false;
 }
 
-static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_id)
+static void s_round_event_cs_done(dap_chain_cs_dag_t *a_dag, uint64_t a_round_id)
 {
     dap_chain_cs_dag_poa_t *l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
     struct round_timer_arg *l_callback_arg = NULL;
+    unsigned l_round_id = (unsigned)a_round_id;
     pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
-    HASH_FIND(hh, l_poa_pvt->active_rounds, &a_round_id, sizeof(uint64_t), l_callback_arg);
+    HASH_FIND_BYHASHVALUE(hh, l_poa_pvt->active_rounds, &l_round_id, sizeof(l_round_id), l_round_id, l_callback_arg);
     if (!l_callback_arg) {
-        l_callback_arg = DAP_NEW_Z(struct round_timer_arg);
-        if (!l_callback_arg) {
-            pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            return;
-        }
-        l_callback_arg->dag = a_dag;
-        l_callback_arg->round_id = a_round_id;
-        HASH_ADD(hh, l_poa_pvt->active_rounds, round_id, sizeof(uint64_t), l_callback_arg);
-        // Placement into chain by confirmation timer
-        if (!dap_timerfd_start(PVT(l_poa)->confirmations_timeout * 1000, (dap_timerfd_callback_t)s_callback_round_event_to_chain, l_callback_arg)) {
-            HASH_DEL(l_poa_pvt->active_rounds, l_callback_arg);
-            pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
-            DAP_DELETE(l_callback_arg);
-            log_it(L_ERROR,"Can't run timer for round ID %"DAP_UINT64_FORMAT_U, a_round_id);
-            return;
-        }
-        log_it(L_NOTICE,"Run timer for %d sec for round ID %"DAP_UINT64_FORMAT_U, PVT(l_poa)->confirmations_timeout, a_round_id);
+        struct round_timer_arg l_tmp = { a_dag, a_round_id };
+        l_callback_arg = DAP_DUP( &l_tmp );
+        if ( !dap_timerfd_start(PVT(l_poa)->confirmations_timeout * 1000, (dap_timerfd_callback_t)s_callback_round_event_to_chain, l_callback_arg) )
+            return DAP_DELETE(l_callback_arg), pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock), log_it(L_CRITICAL, "Timer creation failed");
+        HASH_ADD_BYHASHVALUE(hh, l_poa_pvt->active_rounds, round_id, sizeof(l_round_id), l_round_id, l_callback_arg);
+        log_it(L_INFO, "Round %"DAP_UINT64_FORMAT_U" timer started for %d s", a_round_id, PVT(l_poa)->confirmations_timeout);
     }
     pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
 }
@@ -709,22 +677,41 @@ static bool s_callback_sync_all_on_start(dap_global_db_instance_t *a_dbi, int a_
 
 static void s_round_changes_notify(dap_store_obj_t *a_obj, void *a_arg)
 {
-    dap_chain_cs_dag_t *l_dag = (dap_chain_cs_dag_t *)a_arg;
-    assert(l_dag);
+    assert(a_arg);
+    dap_chain_cs_dag_t *l_dag = (dap_chain_cs_dag_t*)a_arg;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_dag->chain->net_id);
-    log_it(L_DEBUG, "%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%zu",
-        l_net->pub.name, l_dag->chain->name, dap_store_obj_get_type(a_obj), a_obj->group, a_obj->key, a_obj->value_len);
-    if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_ADD) {
-        if (dap_strcmp(a_obj->key, DAG_ROUND_CURRENT_KEY))  // check key for round increment, if no than process event
-            s_callback_event_round_sync(l_dag, dap_store_obj_get_type(a_obj), a_obj->group, a_obj->key, a_obj->value, a_obj->value_len);
-        else
-            log_it(L_INFO, "Global round ID: %lu", *(uint64_t*)a_obj->value);
+    dap_global_db_optype_t l_type = dap_store_obj_get_type(a_obj);
+    log_it(L_DEBUG, "%s.%s: op_code '%c', group \"%s\", key \"%s\", value_size %zu",
+        l_net->pub.name, l_dag->chain->name, l_type, a_obj->group, a_obj->key, a_obj->value_len);
+    if ( !dap_strcmp(a_obj->key, DAG_ROUND_CURRENT_KEY) )
+        return;
+    switch ( l_type ) {
+    case DAP_GLOBAL_DB_OPTYPE_ADD:
+        s_callback_event_round_sync(l_dag, l_type, a_obj->group, a_obj->key, a_obj->value, a_obj->value_len);
+        break;
+    default:
+        //if (s_debug_more)
+        {
+            dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(DAP_CHAIN_CS_DAG_POA(l_dag));
+            pthread_rwlock_rdlock(&l_poa_pvt->rounds_rwlock);
+            if (l_poa_pvt->active_rounds) {
+                dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t*)a_obj->value;
+                dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)(l_round_item->event_n_signs, l_round_item->event_size);
+                unsigned l_round_id = (unsigned)l_event->header.round_id;
+                struct round_timer_arg *l_round_arg = NULL;
+                HASH_FIND_BYHASHVALUE(hh, l_poa_pvt->active_rounds, &l_round_id, sizeof(l_round_id), l_round_id, l_round_arg);
+                if (l_round_arg)
+                    log_it(L_WARNING, "! Event %s being processed in round %u was just deleted! Check extended gdb log",
+                                      a_obj->key, l_round_id);
+            }
+            pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
+        } break;
     }
 }
 
 static void s_timer_process_callback(void *a_arg)
 {
-    dap_chain_node_mempool_process_all((dap_chain_t *)a_arg, false);
+    dap_chain_node_mempool_process_all( (dap_chain_t*)a_arg, false );
 }
 
 /**
@@ -756,19 +743,15 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     dap_global_db_cluster_add_notify_callback(l_dag_cluster, s_round_changes_notify, l_dag);
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_dag_cluster);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_dag_cluster->links_cluster);
-
-    byte_t *l_current_round = dap_global_db_get_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
-    l_dag->round_current = l_current_round ? *(uint64_t*)l_current_round : 0;
-    DAP_DELETE(l_current_round);
-    log_it(L_INFO, "Current round id %"DAP_UINT64_FORMAT_U, l_dag->round_current);
-
+    l_dag->round_current = 0;
     PVT(l_poa)->mempool_timer = dap_interval_timer_create(15000, s_timer_process_callback, a_chain);
 
-    dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
-    if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
-        l_dag->round_completed = l_dag->round_current++;
-        log_it(L_MSG, "Round complete ID %"DAP_UINT64_FORMAT_U", current ID %"DAP_UINT64_FORMAT_U, l_dag->round_completed, l_dag->round_current);
-        dap_global_db_get_all(l_dag->gdb_group_events_round_new, 0, s_callback_sync_all_on_start, l_dag);
+    switch ( dap_chain_net_get_role(l_net).enums ) {
+        case NODE_ROLE_ROOT_MASTER:
+        case NODE_ROLE_ROOT:
+            dap_global_db_get_all(l_dag->gdb_group_events_round_new, 0, s_callback_sync_all_on_start, l_dag);
+        default:
+            break;
     }
     return 0;
 }
@@ -780,7 +763,6 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
  */
 static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 {
-    dap_interval_timer_delete(s_poa_round_timer);
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA ( a_dag );
 
     if ( l_poa->_pvt ) {
@@ -819,26 +801,19 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t* a_event_size)
 {
     dap_return_val_if_fail(a_dag && a_dag->chain && DAP_CHAIN_CS_DAG_POA(a_dag), NULL);
-    dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
-    if ( PVT(l_poa)->events_sign_cert == NULL){
+    dap_chain_cs_dag_poa_t *l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
+    if ( !PVT(l_poa)->events_sign_cert )
         log_it(L_ERROR, "Can't sign event with events_sign_cert in [dag-poa] section");
-        return  NULL;
-    }
-    if ( s_seed_mode || (a_hashes && a_hashes_count) ){
+    else if ( s_seed_mode || (a_hashes && a_hashes_count) ) {
         if ( !PVT(l_poa)->callback_pre_sign || !PVT(l_poa)->callback_pre_sign->callback) {
-            dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new(a_dag->chain->id, a_dag->chain->cells->id, a_dag->round_current,
+            return dap_chain_cs_dag_event_new(a_dag->chain->id, a_dag->chain->cells->id, a_dag->round_current,
                                                                             a_datum, PVT(l_poa)->events_sign_cert->enc_key,
                                                                             a_hashes, a_hashes_count, a_event_size);
-            return l_event;
         } else {
             dap_chain_cs_dag_event_t *l_event = dap_chain_cs_dag_event_new(a_dag->chain->id, a_dag->chain->cells->id, a_dag->round_current,
-                                                                           a_datum, NULL,
-                                                                           a_hashes, a_hashes_count, a_event_size);
-            int ret = PVT(l_poa)->callback_pre_sign->callback(a_dag->chain, l_event, *a_event_size, PVT(l_poa)->callback_pre_sign->arg);
-            if (ret) {
-                DAP_DELETE(l_event);
-                return NULL;
-            }
+                                                                           a_datum, NULL, a_hashes, a_hashes_count, a_event_size);
+            if ( PVT(l_poa)->callback_pre_sign->callback(a_dag->chain, l_event, *a_event_size, PVT(l_poa)->callback_pre_sign->arg) )
+                return DAP_DELETE(l_event), NULL;
             *a_event_size = dap_chain_cs_dag_event_sign_add(&l_event, *a_event_size, PVT(l_poa)->events_sign_cert->enc_key);
             return l_event;
         }
@@ -849,11 +824,8 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
 static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_op_code, const char *a_group,
                                         const char *a_key, const void *a_value, const size_t a_value_size)
 {
-    if (a_op_code != DAP_GLOBAL_DB_OPTYPE_ADD || !a_key || !a_value || !a_value_size)
-        return 0;
-
-    if (!strcmp(DAG_ROUND_CURRENT_KEY, a_key))
-        return 0;
+    dap_return_val_if_pass(a_op_code != DAP_GLOBAL_DB_OPTYPE_ADD || !a_key || !a_value
+                           || !a_value_size || !strcmp(DAG_ROUND_CURRENT_KEY, a_key), 0);
 
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
@@ -867,32 +839,15 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
     dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)a_value;
     size_t l_event_size = l_round_item->event_size;
     dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
-    if (!l_event) {
-        log_it(L_CRITICAL, "Memory allocation failed");
-        return -1;
-    }
-    if (l_event->header.round_id < a_dag->round_completed) {
-        struct round_timer_arg *l_round_active = NULL;
-        uint64_t l_round_id = l_event->header.round_id;
-        pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
-        HASH_FIND(hh, l_poa_pvt->active_rounds, &l_round_id, sizeof(uint64_t), l_round_active);
-        pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
-        if (!l_round_active) {
-            log_it(L_DEBUG, "DAG event came from too old round [last complete id %"DAP_UINT64_FORMAT_U" > %"DAP_UINT64_FORMAT_U"], skip it",
-                   a_dag->round_completed, l_event->header.round_id);
-            DAP_DELETE(l_event);
-            return -2;
-        }
-    }
-    if (dap_chain_cs_dag_event_sign_exists(l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key)
-            || dap_chain_cs_dag_event_round_sign_exists(l_round_item, l_poa_pvt->events_sign_cert->enc_key)) {
-        // if my sign exists
-        if (l_poa_pvt->auto_round_complete &&
-                s_round_event_ready_minimum_check(a_dag, l_event, l_event_size, (char *)a_key))
-            // cs done (minimum signs & verify passed)
-            s_round_event_cs_done(a_dag, l_event->header.round_id);
-        DAP_DELETE(l_event);
-        return 0;
+    if (!l_event)
+        return log_it(L_CRITICAL, "Memory allocation failed"), -1;
+
+    if ( dap_chain_cs_dag_event_sign_exists(l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key)
+        || dap_chain_cs_dag_event_round_sign_exists(l_round_item, l_poa_pvt->events_sign_cert->enc_key)
+        && l_poa_pvt->auto_round_complete
+        && s_round_event_ready_minimum_check(a_dag, l_event, l_event_size, (char*)a_key) )
+    {
+        return s_round_event_cs_done(a_dag, l_event->header.round_id), DAP_DELETE(l_event), 0;
     }
 
     size_t l_event_size_new = 0;
@@ -901,24 +856,22 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
         log_it(L_DEBUG, "Refresh current round ID [%lu -> %lu]", a_dag->round_current, l_event->header.round_id);
         a_dag->round_current = l_event->header.round_id;
     }
-    if (!l_poa_pvt->callback_pre_sign || !l_poa_pvt->callback_pre_sign->callback ||
-             !(ret = l_poa_pvt->callback_pre_sign->callback(a_dag->chain, l_event, l_event_size,
-                                                      l_poa_pvt->callback_pre_sign->arg))) {
+    if ( !l_poa_pvt->callback_pre_sign || !l_poa_pvt->callback_pre_sign->callback
+        || !(ret = l_poa_pvt->callback_pre_sign->callback(a_dag->chain, l_event, l_event_size,
+                                                          l_poa_pvt->callback_pre_sign->arg)) )
+    {
         l_event_size_new = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key);
-        //char *l_event_new_hash_hex_str;
-        //dap_get_data_hash_str_static(l_event, l_event_size_new, l_event_new_hash_hex_str);
-        dap_chain_cs_dag_event_gdb_set(a_dag, /*l_event_new_hash_hex_str*/ (char*)a_key, l_event, l_event_size_new, l_round_item);
+        dap_chain_cs_dag_event_gdb_set(a_dag, (char*)a_key, l_event, l_event_size_new, l_round_item);
     } else { // set sign for reject
         l_round_item = DAP_DUP_SIZE(a_value, a_value_size);
         if (dap_chain_cs_dag_event_round_sign_add(&l_round_item, a_value_size, l_poa_pvt->events_sign_cert->enc_key)) {
-            log_it(L_NOTICE,"Can't sign event %s, because sign rejected by pre_sign callback, ret code=%d", a_key, ret);
+            log_it(L_NOTICE,"Can't sign event %s, because sign rejected by pre_sign callback, ret code %d", a_key, ret);
             l_round_item->round_info.reject_count++;
-            dap_chain_cs_dag_event_gdb_set(a_dag, (char *)a_key, l_event, l_event_size, l_round_item);
+            dap_chain_cs_dag_event_gdb_set(a_dag, (char*)a_key, l_event, l_event_size, l_round_item);
         }
         DAP_DELETE(l_round_item);
     }
-    DAP_DELETE(l_event);
-    return 0;
+    return DAP_DELETE(l_event), ret;
 }
 
 /**
