@@ -111,7 +111,7 @@ int dap_chain_cell_init(void)
 DAP_STATIC_INLINE void s_cell_reclaim_cur_volume(dap_chain_cell_t *a_cell) {
     if (
 #ifdef MADV_PAGEOUT
-    madvise(a_cell->map, (size_t)(a_cell->map_end - a_cell->map), MADV_PAGEOUT) &&
+    //madvise(a_cell->map, (size_t)(a_cell->map_end - a_cell->map), MADV_PAGEOUT) &&
 #endif
     madvise(a_cell->map, (size_t)(a_cell->map_end - a_cell->map), MADV_DONTNEED) )
         log_it(L_ERROR, "Unable to reclaim the previous volume, errno %d: \"%s\"", errno, dap_strerror(errno));
