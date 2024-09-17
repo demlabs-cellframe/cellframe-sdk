@@ -265,7 +265,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
                     log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
                 else
                     log_it(L_ERROR, "Can't find cert \"%s\" possibly for address \"%s\"", l_cert_name, l_addrs[i]);
-                continue;
+                l_ret = -6;
+                goto lb_err;
             }
         }
         dap_chain_addr_t l_signing_addr;
