@@ -4316,7 +4316,15 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
         a_params->ext.parsed_tsd_size += dap_tsd_size(l_desc_token);
     }
     if (a_params->ext.total_supply_change) {
-        uint256_t l_total_supply = dap_chain_balance_scan(a_params->ext.total_supply_change);
+        uint256_t l_total_supply = uint256_0;
+        if (dap_strcmp(a_params->ext.total_supply_change, "INF")) {
+            uint256_t l_total_supply = dap_chain_balance_scan(a_params->ext.total_supply_change);
+            if (IS_ZERO_256(l_total_supply)) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Unable to convert value '%s' to uint256_t, use INF, number, or integer.0e+degree to represent infinity",
+                                                  a_params->ext.total_supply_change);
+                return -2;
+            }
+        }
         dap_tsd_t *l_tsd_change_total_supply = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_total_supply);
         l_tsd_list = dap_list_append(l_tsd_list, l_tsd_change_total_supply);
         l_tsd_total_size += dap_tsd_size(l_tsd_change_total_supply);
