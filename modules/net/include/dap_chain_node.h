@@ -67,6 +67,18 @@ typedef dap_stream_node_addr_t dap_chain_node_addr_t;
 #define dap_chain_node_addr_from_str dap_stream_node_addr_from_str
 #define dap_chain_node_addr_is_blank dap_stream_node_addr_is_blank
 
+typedef enum dap_chain_node_cli_cmd_values_parse_net_chain_err_to_json {
+    DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_INTERNAL_COMMAND_PROCESSING = 101,
+    DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_STR_IS_NUL = 102,
+    DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND = 103,
+    DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND = 104,
+    DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_STR_IS_NULL = 105,
+    DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CONFIG_DEFAULT_DATUM = 106,
+    DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CONVERT_BASE58_TO_ADDR_WALLET = 107,
+    DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_FAST_AND_BASE58_ADDR,
+    DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE
+} dap_chain_node_cli_cmd_values_parse_net_chain_err_to_json;
+
 /**
  * Calculate size of struct dap_chain_node_info_t
  */
@@ -90,3 +102,7 @@ bool dap_chain_node_mempool_autoproc_init();
 inline static void dap_chain_node_mempool_autoproc_deinit() {}
 dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_ignored, size_t a_ignored_count);
 dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr);
+int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int a_argc,
+                                                           char **a_argv,
+                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net,
+                                                           dap_chain_type_t a_default_chain_type);

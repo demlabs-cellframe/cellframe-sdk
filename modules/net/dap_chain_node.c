@@ -45,6 +45,7 @@
 #include "dap_chain_node.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_ledger.h"
+#include "dap_cli_server.h"
 
 #define LOG_TAG "dap_chain_node"
 
@@ -488,4 +489,77 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
     DAP_DELETE(l_gdb_group);
     dap_global_db_objs_delete(l_objs, l_node_count);
     return l_ret;
+}
+
+int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int a_argc,
+                                                           char **a_argv,
+                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net,
+                                                           dap_chain_type_t a_default_chain_type) {
+    const char * l_chain_str = NULL;
+    const char * l_net_str = NULL;
+
+    // Net name
+    if(a_net)
+        dap_cli_server_cmd_find_option_val(a_argv, *a_arg_index, a_argc, "-net", &l_net_str);
+    else {
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_INTERNAL_COMMAND_PROCESSING,
+                               "Error in internal command processing.");
+        return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_INTERNAL_COMMAND_PROCESSING;
+    }
+
+    // Select network
+    if(!l_net_str) {
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_STR_IS_NUL, "%s requires parameter '-net'", a_argv[0]);
+        return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_STR_IS_NUL;
+    }
+
+    if((*a_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
+        char l_str_to_reply_chain[500] = {0};
+        char *l_str_to_reply = NULL;
+        sprintf(l_str_to_reply_chain, "%s can't find network \"%s\"\n", a_argv[0], l_net_str);
+        l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
+        dap_string_t* l_net_str = dap_cli_list_net();
+        l_str_to_reply = dap_strcat2(l_str_to_reply,l_net_str->str);
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND, "%s", l_str_to_reply);
+        DAP_DELETE(l_str_to_reply);
+        dap_string_free(l_net_str, true);
+        return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND;
+    }
+
+    // Chain name
+    if(a_chain) {
+        dap_cli_server_cmd_find_option_val(a_argv, *a_arg_index, a_argc, "-chain", &l_chain_str);
+
+        // Select chain
+        if(l_chain_str) {
+            if ((*a_chain = dap_chain_net_get_chain_by_name(*a_net, l_chain_str)) == NULL) { // Can't find such chain
+                char l_str_to_reply_chain[500] = {0};
+                char *l_str_to_reply = NULL;
+                sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
+                        a_argv[0], l_net_str, l_chain_str);
+                l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
+                dap_chain_t * l_chain;
+                dap_chain_net_t * l_chain_net = *a_net;
+                l_str_to_reply = dap_strcat2(l_str_to_reply,"\nAvailable chains:\n");
+                DL_FOREACH(l_chain_net->pub.chains, l_chain) {
+                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\t");
+                    l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
+                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
+                }
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND, l_str_to_reply);
+                return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND;
+            }
+        } else if (a_default_chain_type != CHAIN_TYPE_INVALID) {
+            if ((*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type)) != NULL) {
+                return 0;
+            } else {
+                dap_json_rpc_error_add(
+                        DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE,
+                        "Unable to get the default chain of type %s for the network.", dap_chain_type_to_str(a_default_chain_type));
+                return DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE;
+
+            }
+        }
+    }
+    return 0;
 }

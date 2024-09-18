@@ -27,23 +27,28 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain.h"
 
 // Process service decree
-typedef void (*dap_chain_net_srv_callback_decree_t)(dap_chain_t *a_chain, int a_decree_type, ...);
+typedef void (*dap_chain_srv_callback_decree_t)(dap_chain_t *a_chain, int a_decree_type, dap_tsd_t *params);
 // Purge service callback
-typedef int (*dap_chain_net_srv_callback_purge_t)(void);
+typedef int (*dap_chain_srv_callback_purge_t)(void);
 // Get fee service callback
-typedef json_object * (*dap_chain_net_srv_callback_get_fee)(void);
+typedef json_object * (*dap_chain_srv_callback_get_fee)(void);
 // Hardfork service callback
-typedef int (*dap_chain_net_srv_callback_hardfork_t)(void);
+typedef int (*dap_chain_srv_callback_hardfork_t)(void);
+// Delete service callback
+typedef int (*dap_chain_srv_callback_delete_t)(void *);
 
 typedef struct dap_chain_static_srv_callbacks {
     // Decree processing
-    dap_chain_net_srv_callback_decree_t decree;
+    dap_chain_srv_callback_decree_t decree;
     // Purge
-    dap_chain_net_srv_callback_purge_t purge;
+    dap_chain_srv_callback_purge_t purge;
     // Get service fee
-    dap_chain_net_srv_callback_get_fee get_fee_descr;
+    dap_chain_srv_callback_get_fee get_fee_descr;
     // Hardfork
-    dap_chain_net_srv_callback_hardfork_t hardfork;
+    dap_chain_srv_callback_hardfork_t hardfork;
+    // Delete for internal service clean exit
+    dap_chain_srv_callback_delete_t delete;
+    // And no more =)
 } dap_chain_static_srv_callbacks_t;
 
 // Fees section
@@ -80,12 +85,19 @@ DAP_STATIC_INLINE const char *dap_chain_srv_fee_type_to_str(dap_chain_srv_fee_ty
     }
 }
 
+DAP_STATIC_INLINE int dap_chain_srv_init() { return 0; };
+void dap_chain_srv_deinit();
+
 int dap_chain_srv_add(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_uid, const char *a_name,
-                      dap_chain_static_srv_callbacks_t *a_static_callbacks, void *a_highlevel);
+                      dap_chain_static_srv_callbacks_t *a_static_callbacks, void *a_service_internal);
 
-void dap_chain_srv_del_all(void);
+int dap_chain_srv_delete(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_uid);
+void *dap_chain_srv_get_internal(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_srv_id);
+uint64_t dap_chain_srv_get_uid_by_name(const char *a_name);
+size_t dap_chain_srv_count(dap_chain_net_id_t a_net_id);
+dap_list_t *dap_chain_srv_list(dap_chain_net_id_t a_net_id);
 
-void *dap_chain_srv_get(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_srv_id);
-void *dap_chain_srv_get_by_name(dap_chain_net_id_t a_net_id, const char *a_name);
-size_t dap_chain_srv_count(void);
-const dap_chain_net_srv_uid_t *dap_chain_srv_list(void);
+int dap_chain_srv_purge(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_srv_uid);
+int dap_chain_srv_purge_all(dap_chain_net_id_t a_net_id);
+void dap_chain_srv_hardfork_all(dap_chain_net_id_t a_net_id);
+json_object *dap_chain_srv_get_fees(dap_chain_net_id_t a_net_id);

@@ -138,16 +138,14 @@ typedef struct dap_chain_net_srv_ch_vpn_info
     UT_hash_handle hh;
 }dap_chain_net_srv_ch_vpn_info_t;
 
-typedef struct dap_chain_net_srv_vpn_item_ipv4{
+typedef struct dap_chain_net_srv_vpn_item_ipv4 {
     struct in_addr addr;
     struct dap_chain_net_srv_vpn_item_ipv4 * next;
 } dap_chain_net_srv_vpn_item_ipv4_t;
 
-typedef struct dap_chain_net_srv_vpn
-{
+typedef struct dap_chain_net_srv_vpn {
     dap_chain_net_srv_vpn_item_ipv4_t * ipv4_unleased;
     dap_chain_net_srv_ch_vpn_t * ch_vpn_ipv4;
-    dap_chain_net_srv_t * parent;
 } dap_chain_net_srv_vpn_t;
 
 #define CH_VPN(a) ((dap_chain_net_srv_ch_vpn_t *) ((a)->internal) )

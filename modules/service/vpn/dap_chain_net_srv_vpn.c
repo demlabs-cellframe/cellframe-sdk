@@ -89,22 +89,20 @@ typedef struct iphdr dap_os_iphdr_t;
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_pkt.h"
+#include "dap_stream_worker.h"
 
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv.h"
-#include "dap_chain_net_srv_client.h"
+#include "dap_chain_srv.h"
 #include "dap_chain_net_srv_vpn.h"
 #include "dap_chain_net_srv_stream_session.h"
-#include "dap_chain_net_vpn_client.h"
 #include "dap_chain_net_vpn_client_tun.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
-#include "dap_chain_node_cli.h"
 #include "dap_chain_ledger.h"
 #include "dap_events.h"
 
 #include "dap_http_simple.h"
 #include "http_status_code.h"
-#include "json-c/json.h"
 
 #define LOG_TAG "dap_chain_net_srv_vpn"
 
@@ -857,7 +855,7 @@ static int s_vpn_tun_init()
  * @param g_config
  * @return
  */
-static int s_vpn_service_create(dap_config_t * g_config)
+static int s_vpn_service_create(dap_config_t *a_config)
 {
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
     dap_chain_net_srv_callbacks_t l_srv_callbacks = {};
@@ -869,22 +867,21 @@ static int s_vpn_service_create(dap_config_t * g_config)
     l_srv_callbacks.save_remain_service = s_callback_save_remain_service;
 
 
-    dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_vpn", &l_srv_callbacks);
+    dap_chain_net_srv_t *l_srv = dap_chain_net_srv_create(a_config, "srv_vpn", &l_srv_callbacks);
     if (!l_srv){
-        log_it(L_CRITICAL, "VPN service initialization failed.");
+        log_it(L_CRITICAL, "VPN service initialization failed");
         return -2;
     }
+    dap_chain_srv_add(l_uid)
 
-    dap_chain_net_srv_vpn_t* l_srv_vpn  = DAP_NEW_Z( dap_chain_net_srv_vpn_t);
+    dap_chain_net_srv_vpn_t* l_srv_vpn  = DAP_NEW_Z(dap_chain_net_srv_vpn_t);
     if(!l_srv_vpn) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
-    l_srv->_internal = l_srv_vpn;
-    l_srv_vpn->parent = l_srv;
-
+    l_srv->_pvt = l_srv_vpn;
     // Read if we need to dump all pkt operations
-    s_debug_more= dap_config_get_item_bool_default(g_config,"srv_vpn", "debug_more",false);
+    s_debug_more = dap_config_get_item_bool_default(g_config, "srv_vpn", "debug_more", false);
     return 0;
 
 }

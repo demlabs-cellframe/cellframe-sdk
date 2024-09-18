@@ -75,20 +75,21 @@
 #include "dap_worker.h"
 #include "dap_proc_thread.h"
 #include "dap_enc_http.h"
+#include "dap_cli_server.h"
 #include "dap_chain_common.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
+#include "dap_chain_node_client.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_node_list.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_anchor.h"
 #include "dap_chain_net_decree.h"
 #include "dap_chain_net_balancer.h"
-#include "dap_chain_node_client.h"
-#include "dap_chain_node_cli_cmd.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_srv.h"
 #include "dap_global_db.h"
 #include "dap_chain_net_ch_pkt.h"
 #include "dap_chain_net_ch.h"
@@ -914,7 +915,7 @@ void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
  */
 void dap_chain_net_purge(dap_chain_net_t *l_net)
 {
-    dap_chain_net_srv_purge_all(l_net);
+    dap_chain_srv_purge_all(l_net->pub.id);
     dap_ledger_purge(l_net->pub.ledger, false);
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
@@ -1408,18 +1409,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 }
                 json_object_object_add(l_jobj_network, "addr", l_jobj_fee_addr);
 
-                json_object *l_services = json_object_new_array();
-                if (!l_services) {
-                    json_object_put(l_jobj_return);
-                    dap_json_rpc_allocation_error;
-                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                }
-                json_object_object_add(l_jobj_fees, "service_fees", l_services);
-
-                dap_list_t *l_service_fees = dap_chain_net_srv_get_fee_all(l_net);
-                for (dap_list_t *it = l_service_fees; it; it = it->next)
-                    json_object_array_add(l_services, it->data);
-                dap_list_free(l_service_fees);
+                json_object_object_add(l_jobj_fees, "service_fees", dap_chain_srv_get_fees(l_net->pub.id));
 
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
 
@@ -2197,9 +2187,9 @@ bool s_net_load(void *a_arg)
     if (s_chain_net_reload_ledger_cache_once(l_net)) {
         log_it(L_WARNING,"Start one time ledger cache reloading");
         dap_ledger_purge(l_net->pub.ledger, false);
-        dap_chain_net_srv_purge_all(l_net);
-    } else
-        dap_chain_net_srv_stake_load_cache(l_net);
+        dap_chain_srv_purge_all(l_net->pub.id);
+    }
+    // else dap_chain_net_srv_stake_load_cache(l_net); // TODO rework ledger and staking caches
 
     // load chains
     dap_chain_t *l_chain = l_net->pub.chains;

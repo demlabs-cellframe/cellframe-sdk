@@ -27,9 +27,7 @@
 #include <pthread.h>
 #include "dap_stream_ch_pkt.h"
 #include "dap_chain_common.h"
-#include "dap_chain.h"
-#include "dap_chain_datum_tx.h"
-#include "dap_chain_ledger.h"
+#include "dap_chain_net_srv.h"
 
 typedef struct dap_chain_net_srv_ch dap_chain_net_srv_ch_t;
 
@@ -49,5 +47,5 @@ typedef struct dap_chain_net_srv_ch {
 
 int dap_chain_net_srv_ch_init();
 
-void dap_chain_net_srv_ch_tx_cond_added_cb(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ledger_notify_opcodes_t a_opcode);
+int dap_chain_net_srv_ch_grace_control(dap_chain_net_srv_t *a_net_srv, dap_hash_fast_t *a_tx_hash);
 char *dap_chain_net_srv_ch_create_statistic_report();

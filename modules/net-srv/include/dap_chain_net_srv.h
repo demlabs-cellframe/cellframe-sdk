@@ -159,17 +159,14 @@ typedef struct dap_chain_net_srv {
 
     dap_chain_net_srv_grace_usage_t *grace_hash_tab;
     pthread_mutex_t grace_mutex;
-
-    // Pointer to inheritor object
-    //void *_inheritor;
-    // Pointer to internal service structure
-    //void *_internal;
+    // Pointer to privatel service structure
+    void *_pvt;
 } dap_chain_net_srv_t;
 
 int dap_chain_net_srv_init();
 void dap_chain_net_srv_deinit(void);
 
-dap_chain_net_srv_t *dap_chain_net_srv_create(const char *a_config_section, dap_chain_net_srv_callbacks_t *a_network_callbacks);
+dap_chain_net_srv_t *dap_chain_net_srv_create(dap_config_t *a_config, const char *a_config_section, dap_chain_net_srv_callbacks_t *a_network_callbacks);
 
 dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
                                                                dap_chain_net_srv_price_t * a_price,
