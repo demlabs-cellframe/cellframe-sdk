@@ -236,15 +236,23 @@ DAP_STATIC_INLINE uint256_t dap_chain_uint256_from_uint128(uint128_t a_from)
     return GET_256_FROM_128(a_from);
 }
 
-#define dap_chain_balance_print dap_uint256_uninteger_to_char
-#define dap_chain_balance_scan(a_balance) (strchr(a_balance, '.') && !strchr(a_balance, '+')) ? dap_uint256_scan_decimal(a_balance) : dap_uint256_scan_uninteger(a_balance)
-#define dap_chain_balance_to_coins dap_uint256_decimal_to_char
-#define dap_chain_coins_to_balance dap_uint256_scan_decimal
+#define dap_chain_balance_datoshi_print dap_uint256_uninteger_to_char
+#define dap_chain_balance_coins_print dap_uint256_decimal_to_char
+#define dap_chain_balance_datoshi_scan dap_uint256_scan_uninteger
+#define dap_chain_balance_coins_scan dap_uint256_scan_decimal
 #define dap_chain_uint256_to dap_uint256_to_uint64
+
+DAP_STATIC_INLINE uint256_t dap_chain_balance_scan(const char *a_balance)
+{
+    uint256_t l_ret = dap_chain_balance_datoshi_scan(a_balance);
+    if (IS_ZERO_256(l_ret))
+        return dap_chain_balance_coins_scan(a_balance);
+    return l_ret;
+}
 
 DAP_STATIC_INLINE uint64_t dap_chain_balance_to_coins_uint64(uint256_t val)
 {
-    DIV_256_COIN(val, dap_chain_coins_to_balance("1000000000000000000.0"), &val);
+    DIV_256_COIN(val, dap_chain_balance_coins_scan("1000000000000000000.0"), &val);
     return val._lo.a;
 }
 
