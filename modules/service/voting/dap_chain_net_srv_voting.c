@@ -443,10 +443,10 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
                 dap_list_free(l_tsd_list);
                 // change vote & move it to the end of list
                 l_voting->votes = dap_list_remove_link(l_voting->votes, it);
-                DAP_DELETE(it->data);
                 l_voting->votes = dap_list_append(l_voting->votes, l_vote_item);
                 char l_vote_hash_str[DAP_HASH_FAST_STR_SIZE];
                 dap_hash_fast_to_str(&((dap_chain_net_vote_t *)it->data)->vote_hash, l_vote_hash_str, DAP_HASH_FAST_STR_SIZE);
+                DAP_DELETE(it->data);
                 log_it(L_INFO, "Vote %s of voting %s has been changed", l_vote_hash_str, dap_hash_fast_to_str_static(&l_voting->voting_hash));
                 return DAP_LEDGER_CHECK_OK;
             }
@@ -674,7 +674,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         dap_time_t l_time_expire = 0;
         if (l_voting_expire_str)
             l_time_expire = dap_time_from_str_rfc822(l_voting_expire_str);
-        if(!l_time_expire){
+        if(l_voting_expire_str && !l_time_expire){
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong time format. -expire parameter must be in format \"Day Month Year HH:MM:SS Timezone\" e.g. \"19 August 2024 22:00:00 +00\"");
             return -104;
         }
