@@ -132,7 +132,10 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "srv_stake max_weight -net <net_name> [-chain <chain_name>] -poa_cert <poa_cert_name> -percent <value>\n"
         "\tSets maximum validator related weight (in percent)\n"
     "srv_stake check -net <net_name> -tx <tx_hash>\n"
-        "\tCheck remote validator"
+         "\tCheck remote validator\n\n"
+    "Hint:\n"
+    "\texample coins amount syntax (only natural) 1.0 123.4567\n"
+    "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n"
     );
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
@@ -467,8 +470,8 @@ void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint25
     l_stake->locked_value = l_stake->value = a_new_value;
     l_stake->tx_hash = *a_new_tx_hash;
     HASH_ADD(ht, l_srv_stake->tx_itemlist, tx_hash, sizeof(dap_hash_fast_t), l_stake);
-    char *l_old_value_str = dap_chain_balance_to_coins(l_stake->locked_value);
-    const char *l_new_value_str; dap_uint256_to_char(a_new_value, &l_new_value_str);
+    char *l_old_value_str = dap_chain_balance_coins_print(l_stake->locked_value);
+    const char *l_new_value_str = dap_uint256_to_char(a_new_value, &l_new_value_str);
     log_it(L_NOTICE, "Updated key with fingerprint %s and locked value %s to new locked value %s for node " NODE_ADDR_FP_STR,
                             dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_old_value_str,
                                 l_new_value_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
@@ -3050,10 +3053,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate not found");
                 return -25;
             }
-            // if (!s_srv_stake_is_poa_cert(l_net, l_poa_cert->enc_key)) {
-            //     dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate is not PoA root one");
-            //     return -26;
-            // }
+            if (!s_srv_stake_is_poa_cert(l_net, l_poa_cert->enc_key)) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate is not PoA root one");
+                return -26;
+            }
 
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-percent", &l_value_str);
             if (!l_value_str) {

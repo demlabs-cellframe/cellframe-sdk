@@ -5149,7 +5149,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_reply)
     const char * l_token_ticker = NULL;
     const char * l_wallet_str = NULL;
     const char * l_cert_str = NULL;
-    const char * l_value_datoshi_str = NULL;
+    const char * l_value_str = NULL;
     const char * l_value_fee_str = NULL;
     const char * l_net_name = NULL;
     const char * l_unit_str = NULL;
@@ -5173,7 +5173,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_reply)
     // Public certifiacte of condition owner
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_str);
     // value datoshi
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &l_value_datoshi_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &l_value_str);
     // fee
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_value_fee_str);
     // net
@@ -5195,7 +5195,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_reply)
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_CERT, "tx_cond_create requires parameter '-cert'");
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_CERT;
     }
-    if(!l_value_datoshi_str) {
+    if(!l_value_str) {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_VALUE, "tx_cond_create requires parameter '-value'");
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_VALUE;
     }
@@ -5231,10 +5231,10 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_reply)
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_RECOGNIZE_UNIT;
     }
 
-    l_value_datoshi = dap_chain_balance_scan(l_value_datoshi_str);
+    l_value_datoshi = dap_chain_balance_scan(l_value_str);
     if(IS_ZERO_256(l_value_datoshi)) {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_RECOGNIZE_VALUE,
-                               "Can't recognize value '%s' as a number", l_value_datoshi_str);
+                               "Can't recognize value '%s' as a number", l_value_str);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_RECOGNIZE_VALUE;
     }
 
