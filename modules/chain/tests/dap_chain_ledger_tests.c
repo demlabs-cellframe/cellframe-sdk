@@ -247,7 +247,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_
     SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &value_change);
     dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, value_change, s_token_ticker);
     uint256_t a_delegated_value = {};
-    MULT_256_COIN(a_value, dap_chain_coins_to_balance("0.1"), &a_delegated_value);
+    MULT_256_COIN(a_value, dap_chain_balance_coins_scan("0.1"), &a_delegated_value);
     dap_chain_tx_out_ext_t *l_out_delegated = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, a_delegated_value, s_delegated_token_ticker);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_ems);
@@ -450,7 +450,7 @@ void dap_ledger_test_create_delegate_key_approve_decree()
     SUBTRACT_256_256(value_change, dap_chain_uint256_from(s_fee), &value_change);
     dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, value_change, s_token_ticker);
     uint256_t a_delegated_value = {};
-    MULT_256_COIN(a_value, dap_chain_coins_to_balance("0.1"), &a_delegated_value);
+    MULT_256_COIN(a_value, dap_chain_balance_coins_scan("0.1"), &a_delegated_value);
     dap_chain_tx_out_ext_t *l_out_delegated = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, a_delegated_value, s_delegated_token_ticker);
     dap_chain_tx_out_cond_t *l_cond_fee = dap_chain_datum_tx_item_out_cond_create_fee(dap_chain_uint256_from(s_fee));
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
@@ -474,7 +474,7 @@ void dap_ledger_test_create_delegate_key_approve_decree()
 uint256_t dap_ledger_test_print_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr)
 {
     uint256_t l_balance_after = dap_ledger_calc_balance(a_ledger, a_addr, s_token_ticker);
-    char *l_balanse_str = dap_chain_balance_print(l_balance_after);
+    char *l_balanse_str = dap_chain_balance_datoshi_print(l_balance_after);
     dap_test_msg("Balance = %s %s", l_balanse_str, s_token_ticker);
     DAP_DELETE(l_balanse_str);
     return l_balance_after;
@@ -483,7 +483,7 @@ uint256_t dap_ledger_test_print_balance(dap_ledger_t *a_ledger, const dap_chain_
 uint256_t dap_ledger_test_print_delegate_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr)
 {
     uint256_t l_balance_after = dap_ledger_calc_balance(a_ledger, a_addr, s_delegated_token_ticker);
-    char *l_balanse_str = dap_chain_balance_print(l_balance_after);
+    char *l_balanse_str = dap_chain_balance_datoshi_print(l_balance_after);
     dap_test_msg("Balance = %s %s", l_balanse_str, s_delegated_token_ticker);
     DAP_DELETE(l_balanse_str);
     return l_balance_after;
@@ -1027,7 +1027,7 @@ void dap_ledger_test_run(void){
     // Declarate delegated token
     dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
     strcpy((char *)l_tsd_section.ticker_token_from, s_token_ticker);
-    l_tsd_section.emission_rate = dap_chain_coins_to_balance("0.1");//	TODO: 'm' 1:10 tokens
+    l_tsd_section.emission_rate = dap_chain_balance_coins_scan("0.1");//	TODO: 'm' 1:10 tokens
     dap_tsd_t * l_tsd = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK, l_tsd_section);
     l_token_decl = dap_ledger_test_create_datum_decl(l_cert, &l_token_decl_size, s_delegated_token_ticker,
                                                      uint256_0, (byte_t*)l_tsd, dap_tsd_size(l_tsd), DAP_CHAIN_DATUM_TOKEN_FLAG_NONE);

@@ -193,14 +193,14 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply)
         break;
     case CMD_INIT: {
             const char * l_str_token = NULL; // token name
-            const char * l_str_value_datoshi = NULL;
+            const char * l_str_value = NULL;
             const char * l_str_wallet = NULL; // wallet name
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_str_wallet);
             if(!l_str_wallet)
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_str_wallet);
 
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token", &l_str_token);
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_str_value_datoshi);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_str_value);
 
             if(!l_str_wallet) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet not defined, use -w <wallet_name> or -wallet <wallet_name> parameter");
@@ -210,11 +210,11 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Token not defined, use -token <token_name> parameter");
                 break;
             }
-            if(!l_str_value_datoshi) {
+            if(!l_str_value) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Value of datoshi not defined, use -value <value of datoshi> parameter");
                 break;
             }
-            uint256_t l_a_value_datoshi = dap_chain_balance_scan(l_str_value_datoshi);
+            uint256_t l_a_value_datoshi = dap_chain_balance_scan(l_str_value);
             if(IS_ZERO_256(l_a_value_datoshi)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Value of datoshi have to be more then 0");
                 break;
@@ -299,7 +299,7 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply)
             l_status_txt = "VPN client status unknown";
             break;
         }
-        char *l_value_str = dap_chain_balance_to_coins(l_value_datoshi);
+        char *l_value_str = dap_chain_balance_coins_print(l_value_datoshi);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nused:\nwallet:%s\nreceipt:%s %s", l_status_txt,
                 l_wallet_name, l_value_str, l_str_token);
         DAP_DELETE(l_value_str);

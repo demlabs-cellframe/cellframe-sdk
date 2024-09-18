@@ -288,8 +288,8 @@ char *dap_stream_ch_chain_net_srv_create_statistic_report()
             continue;
         }
         client_statistic_value_t *l_value = (client_statistic_value_t *)l_objs[i].value;
-        char *l_payed_datoshi = dap_chain_balance_print(l_value->payed.datoshi_value);
-        char *l_grace_datoshi = dap_chain_balance_print(l_value->grace.datoshi_value);
+        char *l_payed_datoshi = dap_chain_balance_datoshi_print(l_value->payed.datoshi_value);
+        char *l_grace_datoshi = dap_chain_balance_datoshi_print(l_value->grace.datoshi_value);
         dap_string_append_printf(
             l_ret, "SRV UID: %.18s\nClient pkey hash: %s\n "
             "\tpayed:\n\t\tusing time:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes sent:\t\t%"DAP_UINT64_FORMAT_U

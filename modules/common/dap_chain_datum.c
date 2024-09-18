@@ -103,7 +103,7 @@ void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datu
         }
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: {     // 256
             uint256_t l_t = uint256_0;
-            char *l_balance = dap_chain_balance_print(_dap_tsd_get_scalar(l_tsd, &l_t));
+            char *l_balance = dap_chain_balance_datoshi_print(_dap_tsd_get_scalar(l_tsd, &l_t));
             json_object_object_add(json_obj_out, "total_supply", json_object_new_string(l_balance));
             DAP_DELETE(l_balance);
             continue;
@@ -144,7 +144,7 @@ void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datu
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK: {
             char *balance = NULL;
             dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
-            balance = dap_chain_balance_to_coins(l_tsd_section->emission_rate);
+            balance = dap_chain_balance_coins_print(l_tsd_section->emission_rate);
             json_object_object_add(json_obj_out, "ticker_token_from", json_object_new_string((char *)l_tsd_section->ticker_token_from));
             json_object_object_add(json_obj_out, "emission_rate", json_object_new_string(balance));
             DAP_DEL_Z(balance);

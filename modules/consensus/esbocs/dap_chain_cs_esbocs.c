@@ -475,7 +475,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
     l_esbocs_pvt->collecting_addr = dap_chain_addr_from_str(dap_config_get_item_str(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "fee_addr"));
-    l_esbocs_pvt->collecting_level = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "collecting_level",
+    l_esbocs_pvt->collecting_level = dap_chain_balance_coins_scan(dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "collecting_level",
                                                                                                 dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "set_collect_fee", "10.0")));
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
     for (dap_list_t *it = l_validators; it; it = it->next) {
@@ -3091,7 +3091,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -val_count", l_subcmd_strs[l_subcmd]);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR;
             }
-            uint256_t l_value = dap_chain_balance_scan(l_value_str);
+            uint256_t l_value = dap_uint256_scan_uninteger(l_value_str);
             if (IS_ZERO_256(l_value)) {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR,"Unrecognized number in '-val_count' param");
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR;

@@ -176,7 +176,10 @@ int dap_chain_net_srv_xchange_init()
     "srv_xchange enable\n"
          "\tEnable eXchange service\n"
     "srv_xchange disable\n"
-         "\tDisable eXchange service\n"
+         "\tDisable eXchange service\n\n"
+    "Hint:\n"
+    "\texample coins amount syntax (only natural) 1.0 123.4567\n"
+    "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n"
     );
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
     dap_chain_net_srv_callbacks_t l_srv_callbacks = {};
@@ -488,7 +491,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
                                                                        &l_seller_addr, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
         log_it(L_WARNING, "Nothing to change from %s (not enough funds in %s (%s))",
-               dap_chain_addr_to_str_static( &l_seller_addr), a_price->token_sell, dap_chain_balance_print(l_value_need));
+               dap_chain_addr_to_str_static( &l_seller_addr), a_price->token_sell, dap_chain_balance_datoshi_print(l_value_need));
         return NULL;
     }
 
@@ -636,7 +639,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
                                                                        &l_buyer_addr, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_WARNING, "Nothing to change from %s (not enough funds in %s (%s))",
-               dap_chain_addr_to_str_static( &l_buyer_addr), a_price->token_buy, dap_chain_balance_print(l_value_need));
+               dap_chain_addr_to_str_static( &l_buyer_addr), a_price->token_buy, dap_chain_balance_datoshi_print(l_value_need));
         return NULL;
     }
     bool l_pay_with_native = !dap_strcmp(a_price->token_sell, l_native_ticker);
@@ -905,18 +908,18 @@ uint64_t dap_chain_net_srv_xchange_get_order_completion_rate(dap_chain_net_t *a_
 
         SUBTRACT_256_256(l_out_cond->header.value, l_out_cond_last_tx->header.value, &l_percent_completed);
         DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
-        MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
+        MULT_256_COIN(l_percent_completed, dap_chain_balance_coins_scan("100.0"), &l_percent_completed);
     } else {
         dap_chain_tx_out_cond_t *l_out_prev_cond_item = NULL;
         xchange_tx_type_t tx_type = dap_chain_net_srv_xchange_tx_get_type(a_net->pub.ledger, l_last_tx, NULL, NULL, &l_out_prev_cond_item);
         if (tx_type == TX_TYPE_EXCHANGE){
             SUBTRACT_256_256(l_out_cond->header.value, uint256_0, &l_percent_completed);
             DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
-            MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
+            MULT_256_COIN(l_percent_completed, dap_chain_balance_coins_scan("100.0"), &l_percent_completed);
         } else if (tx_type == TX_TYPE_INVALIDATE){
             SUBTRACT_256_256(l_out_cond->header.value, l_out_prev_cond_item->header.value, &l_percent_completed);
             DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
-            MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
+            MULT_256_COIN(l_percent_completed, dap_chain_balance_coins_scan("100.0"), &l_percent_completed);
         }
     }
 
@@ -1262,7 +1265,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -rate");
                 return -8;
             }
-            uint256_t l_rate = dap_chain_coins_to_balance(l_val_rate_str);
+            uint256_t l_rate = dap_chain_balance_coins_scan(l_val_rate_str);
             const char *l_fee_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_fee_str);
             if (!l_fee_str) {
@@ -1591,7 +1594,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
 
             uint64_t l_percent_completed = dap_chain_net_srv_xchange_get_order_completion_rate(l_net, l_order_tx_hash);
 
-            l_cp_rate = dap_chain_balance_to_coins(l_price->rate); // must be free'd
+            l_cp_rate = dap_chain_balance_coins_print(l_price->rate); // must be free'd
 
             char l_tmp_buf[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_tx->header.ts_created);
@@ -1807,7 +1810,7 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
                 log_it(L_ERROR, "Can't find conditional output");
                 return false;
             }
-            char *l_rate_str = dap_chain_balance_to_coins(l_out_cond_item->subtype.srv_xchange.rate);
+            char *l_rate_str = dap_chain_balance_coins_print(l_out_cond_item->subtype.srv_xchange.rate);
             const char *l_amount_str, *l_amount_datoshi_str = dap_uint256_to_char(l_out_cond_item->header.value, &l_amount_str);
 
             dap_string_append_printf(a_reply_str, "Hash: %s\n", l_tx_hash_str);
@@ -1894,8 +1897,8 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
             if ( dap_hash_fast_is_blank(&l_order_hash) )
                 l_order_hash = l_in_cond->header.tx_prev_hash;
 
-            char *l_value_from_str = dap_chain_balance_to_coins(l_out_prev_cond_item->header.value);
-            char *l_value_from_datoshi_str = dap_chain_balance_print(l_out_prev_cond_item->header.value);
+            char *l_value_from_str = dap_chain_balance_coins_print(l_out_prev_cond_item->header.value);
+            char *l_value_from_datoshi_str = dap_chain_balance_datoshi_print(l_out_prev_cond_item->header.value);
 
             dap_string_append_printf(a_reply_str, "Hash: %s\n", l_tx_hash_str);
             if(a_print_ts){
@@ -2136,7 +2139,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
                 char l_tmp_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_tx->header.ts_created);
-                l_cp_rate = dap_chain_balance_to_coins(l_price->rate);
+                l_cp_rate = dap_chain_balance_coins_print(l_price->rate);
 
                 const char *l_amount_coins_str = NULL,
                      *l_amount_datoshi_str = l_out_cond_last_tx ? dap_uint256_to_char(l_out_cond_last_tx->header.value, &l_amount_coins_str) : NULL;
