@@ -975,50 +975,49 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
     case CMD_ADD: {
         int l_res = -10;
+        uint16_t l_port = 0;
         if (l_addr_str || l_hostname) {
             if (!dap_chain_net_is_my_node_authorized(l_net)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
                 return l_res;
             }
             // We're in authorized list, add directly
-            uint16_t l_port = 0;
             struct sockaddr_storage l_verifier = { };
             if ( 0 > dap_net_parse_config_address(l_hostname, l_node_info->ext_host, &l_port, &l_verifier, NULL) ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't parse host string %s", l_hostname);
                 return -6;
             }
-            if (!l_node_info->ext_port) {
-                if (l_port)
-                    l_node_info->ext_port = l_port;
-                else {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Host port is absent");
-                    return -7;
-                }
-            }
+            if ( !l_node_info->ext_port && !(l_node_info->ext_port = l_port) )
+                return dap_cli_server_cmd_set_reply_text(a_str_reply, "Unspecified port"), -7;
+
             l_node_info->ext_host_len = dap_strlen(l_node_info->ext_host);
             l_res = dap_chain_node_info_save(l_net, l_node_info);
-            if (l_res)
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add node %s, error %d", l_addr_str, l_res);
-            else
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully added node %s", l_addr_str);
-            return l_res;
+            return dap_cli_server_cmd_set_reply_text(a_str_reply, l_res ? "Can't add node %s, error %d" : "Successfully added node %s", l_addr_str, l_res), l_res;
         }
         // Synchronous request, wait for reply
-        l_res = dap_chain_net_node_list_request(l_net,
-            l_port_str ? strtoul(l_port_str, NULL, 10) : dap_chain_net_get_my_node_info(l_net)->ext_port,
-            true, 'a');
-        switch (l_res)
+        if ( !(l_port = l_node_info->ext_port) 
+             && !(l_port = dap_chain_net_get_my_node_info(l_net)->ext_port)
+             && !(l_port = dap_config_get_item_int16(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT)) )
         {
-            case 1: dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully added"); return 0;
-            case 2: dap_cli_server_cmd_set_reply_text(a_str_reply, "No server"); break;
-            case 3: dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your address node to node list"); break;
-            case 4: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr"); break;
-            case 5: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node"); break;
-            case 6: dap_cli_server_cmd_set_reply_text(a_str_reply, "The node already exists"); break;
-            case 7: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request"); break;
-            default:dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res); break;
+            if ( dap_config_get_item_bool_default(g_config, "server", "enabled", false) ) {
+                const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
+                if ( l_listening && dap_net_parse_config_address(*l_listening, NULL, &l_port, NULL, NULL) < 0 )
+                    return dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid server IP address, check [server] section in cellframe-node.cfg"), -8;
+            }
+            if (!l_port)
+                return dap_cli_server_cmd_set_reply_text(a_str_reply, "Unspecified port"), -9; 
         }
-        return l_res;
+        switch ( l_res = dap_chain_net_node_list_request(l_net, l_port, true, 'a') )
+        {
+            case 1: return dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully added"), 0;
+            case 2: return dap_cli_server_cmd_set_reply_text(a_str_reply, "No server"), l_res;
+            case 3: return dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your address node to node list"), l_res;
+            case 4: return dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr"), l_res;
+            case 5: return dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node"), l_res;
+            case 6: return dap_cli_server_cmd_set_reply_text(a_str_reply, "The node already exists"), l_res;
+            case 7: return dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request"), l_res;
+            default:return dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res), l_res;
+        }
     }
 
     case CMD_DEL: {
