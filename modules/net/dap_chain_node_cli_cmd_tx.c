@@ -797,6 +797,7 @@ json_object *dap_db_history_tx_all(dap_chain_t *a_chain, dap_chain_net_t *a_net,
             l_count++;            
         }        
         log_it(L_DEBUG, "END getting tx from chain");
+        a_chain->callback_datum_iter_delete(l_datum_iter);
 
         json_object_object_add(json_obj_summary, "network", json_object_new_string(a_net->pub.name));
         json_object_object_add(json_obj_summary, "chain", json_object_new_string(a_chain->name));
