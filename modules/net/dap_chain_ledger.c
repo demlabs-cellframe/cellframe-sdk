@@ -64,7 +64,7 @@ typedef struct dap_ledger_verificator {
     int subtype;    // hash key
     dap_ledger_verificator_callback_t callback;
     dap_ledger_updater_callback_t callback_added;
-    dap_ledger_updater_callback_t callback_deleted;
+    dap_ledger_delete_callback_t callback_deleted;
     UT_hash_handle hh;
 } dap_ledger_verificator_t;
 
@@ -3378,18 +3378,21 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                             bool a_check_for_removing)
 {
     dap_return_val_if_fail(a_ledger && a_tx && a_tx_hash, DAP_LEDGER_CHECK_INVALID_ARGS);
-    if (!dap_chain_net_get_load_mode(a_ledger->net) && !a_from_threshold && !a_check_for_removing) {
+    if (!a_from_threshold) {
         dap_ledger_tx_item_t *l_ledger_item = NULL;
         pthread_rwlock_rdlock(&PVT(a_ledger)->ledger_rwlock);
         HASH_FIND(hh, PVT(a_ledger)->ledger_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_ledger_item);
         pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
-        if (l_ledger_item) {     // transaction already present in the cache list
+        if (l_ledger_item && !a_check_for_removing ) {     // transaction already present in the cache list
             if (s_debug_more) {
                 log_it(L_WARNING, "Transaction %s already present in the cache", dap_chain_hash_fast_to_str_static(a_tx_hash));
                 if (a_tag) *a_tag = l_ledger_item->cache_data.tag;
                 if (a_action) *a_action = l_ledger_item->cache_data.action;
             }
             return DAP_LEDGER_CHECK_ALREADY_CACHED;
+        } else if (!l_ledger_item && a_check_for_removing) {     // transaction already present in the cache list
+            debug_if(s_debug_more, L_WARNING, "Transaction %s not present in the cache. Can not delete it. Skip.", dap_chain_hash_fast_to_str_static(a_tx_hash));
+            return DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX;
         }
     }
 /*
@@ -4441,7 +4444,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
             pthread_rwlock_unlock(&s_verificators_rwlock);
             if (l_verificator && l_verificator->callback_added)
-                l_verificator->callback_added(a_ledger, a_tx, l_bound_item->cond);
+                l_verificator->callback_added(a_ledger, a_tx, a_tx_hash, l_bound_item->cond);
         } break;
 
         default:
@@ -4494,7 +4497,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
             pthread_rwlock_unlock(&s_verificators_rwlock);
             if (l_verificator && l_verificator->callback_added)
-                l_verificator->callback_added(a_ledger, a_tx, NULL);
+                l_verificator->callback_added(a_ledger, a_tx, a_tx_hash, NULL);
             continue;   // balance raise will be with next conditional transaction
         }
 
@@ -4647,7 +4650,7 @@ FIN:
     return l_ret;
 }
 
-void dap_leger_load_end(dap_ledger_t *a_ledger)
+void dap_ledger_load_end(dap_ledger_t *a_ledger)
 {
     pthread_rwlock_wrlock(&PVT(a_ledger)->ledger_rwlock);
     HASH_SORT(PVT(a_ledger)->ledger_items, s_sort_ledger_tx_item);
@@ -5607,7 +5610,7 @@ dap_list_t *dap_ledger_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_to
 
 
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, -1 error, overwise returns 0
-int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_ledger_verificator_callback_t a_callback, dap_ledger_updater_callback_t a_callback_added, dap_ledger_updater_callback_t a_callback_deleted)
+int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_ledger_verificator_callback_t a_callback, dap_ledger_updater_callback_t a_callback_added, dap_ledger_delete_callback_t a_callback_deleted)
 {
     dap_ledger_verificator_t *l_new_verificator = NULL;
     int l_tmp = (int)a_subtype;
