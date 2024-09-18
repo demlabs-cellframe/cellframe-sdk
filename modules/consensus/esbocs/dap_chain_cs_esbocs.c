@@ -233,6 +233,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs_pvt->round_attempts_max = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempts_max", 4);
     l_esbocs_pvt->round_attempt_timeout = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempt_timeout", 10);
 
+#ifndef  DAP_LEDGER_TEST
     l_esbocs_pvt->start_validators_min = l_esbocs_pvt->min_validators_count =
             dap_config_get_item_uint16(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "min_validators_count");
     if (!l_esbocs_pvt->min_validators_count) {
@@ -285,6 +286,23 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             l_ret = -4;
             goto lb_err;
         }
+#else
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        dap_chain_addr_t l_signing_addr = (dap_chain_addr_t) {
+            .addr_ver = 0x01,
+            .net_id = {56797},
+            .sig_type = {258},
+            .data = {
+                .key_sv = {
+                    .key_spend = {"\xd7""\x19""\xe3""\xde""9""\xd9""\x29""\x98""\xb7""\xcf""\xe7""\t""*""\xa1""k""S"},
+                    .key_view = {"\xb6""\x19""\xb6""\xb0""\x93""ڝ""6""\xb6""v""@,""\xe7""\xaf""$""\xde"}
+                }
+            },
+            .checksum = {"\xd4""J""k""E""O""j""\x95""\xdf""h""d""\xf0""q""\x88""G""\xc4-5""\x81""\xe7]""\xea""\xf2""\xae""\x0e×""\xc1""L""\x91""\x9c""\x9b""\x99"}
+        };
+        dap_chain_node_addr_t l_signer_node_addr;
+        dap_chain_node_addr_from_str(&l_signer_node_addr, "0123::4567::89AB::CDEF");
+#endif
         dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
         if (!l_validator) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -303,11 +321,13 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, &l_stake_tx_hash,
                                                  l_weight, &l_signer_node_addr);
         }
+#ifndef  DAP_LEDGER_TEST
     }
     if (!l_inited_cert) {
         l_ret = -1;
         goto lb_err;
     }
+#endif
     // Preset reward for block signs, before first reward decree
     const char *l_preset_reward_str = dap_config_get_item_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "preset_reward");
     if (l_preset_reward_str) {
