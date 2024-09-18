@@ -1116,7 +1116,6 @@ void dap_ledger_test_run(void){
     l_check_added_decl_token_for_update = dap_ledger_token_add_check(l_ledger, (byte_t *)l_token_decl_for_update, l_token_decl_for_update_size);
     dap_assert_PIF(l_check_added_decl_token_for_update == 0, "Checking whether it is possible to add a token declaration to ledger.");
     dap_assert_PIF(!dap_ledger_token_add(l_ledger, (byte_t *)l_token_decl_for_update, l_token_decl_for_update_size), "Adding token declaration to ledger.");
-    ///Updating the token with a smaller value. - should fail.
     {
         uint256_t l_smaller_value = dap_chain_uint256_from(30000);
         dap_tsd_t *l_tsd_smaller_value = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY,
@@ -1138,7 +1137,6 @@ void dap_ledger_test_run(void){
                 "Adding token update with a smaller value to ledger.");
         dap_pass_msg("The check that it is not possible to update a token with a smaller total_supply has passed.");
     }
-    ///Updating the token with a larger value. - should pass
     {
         uint256_t l_more_value = dap_chain_uint256_from(70000);
         dap_tsd_t *l_tsd_more_value = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY,
@@ -1160,8 +1158,48 @@ void dap_ledger_test_run(void){
                 "Adding token update with a more value to ledger.");
         dap_pass_msg("Checking that the ability to update a token with a large total_supply is passed.");
     }
-    ///TODO: Update token with 0. - must pass ?
+    {
+        uint256_t l_zero_value = dap_chain_uint256_from(0);
+        dap_tsd_t *l_tsd_zero_value = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY,
+                                                               l_zero_value);
+        byte_t *l_tsd_zero_byte_t = (byte_t *) l_tsd_zero_value;
+        size_t l_tsd_zero_size = dap_tsd_size(l_tsd_zero_value);
+        size_t l_token_upd_zero_value_size = 0;
+        dap_chain_datum_token_t *l_token_upd_zero_value = dap_ledger_test_create_datum_update(l_cert,
+                                                                                                 &l_token_upd_zero_value_size,
+                                                                                                 "bTEST",
+                                                                                                 l_tsd_zero_byte_t,
+                                                                                                 l_tsd_zero_size);
+        int l_check_added_upd_token_more_value = dap_ledger_token_add_check(l_ledger,
+                                                                               (byte_t *) l_token_upd_zero_value,
+                                                                               l_token_upd_zero_value_size);
+        dap_assert_PIF(l_check_added_upd_token_more_value == 0, "Token update with a zero value total_supply passed check.");
+        dap_assert_PIF(
+                !dap_ledger_token_add(l_ledger, (byte_t *) l_token_upd_zero_value, l_token_upd_zero_value_size),
+                "Adding token update with a zero value total_supply to ledger.");
+        dap_pass_msg("Checking that the ability to update a token with a zero total_supply is passed.");
+    }
 
-    ///TODO: Updating token with 0 total_supply large value - should fail ?
+    {
+        uint256_t l_no_zero_value = dap_chain_uint256_from(1000);
+        dap_tsd_t *l_tsd_no_zero_value = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY,
+                                                               l_no_zero_value);
+        byte_t *l_tsd_zero_byte_t = (byte_t *) l_tsd_no_zero_value;
+        size_t l_tsd_zero_size = dap_tsd_size(l_tsd_no_zero_value);
+        size_t l_token_upd_zero_value_size = 0;
+        dap_chain_datum_token_t *l_token_upd_zero_value = dap_ledger_test_create_datum_update(l_cert,
+                                                                                                 &l_token_upd_zero_value_size,
+                                                                                                 "bTEST",
+                                                                                                 l_tsd_zero_byte_t,
+                                                                                                 l_tsd_zero_size);
+        int l_check_added_upd_token_more_value = dap_ledger_token_add_check(l_ledger,
+                                                                               (byte_t *) l_token_upd_zero_value,
+                                                                               l_token_upd_zero_value_size);
+        dap_assert_PIF(l_check_added_upd_token_more_value != 0, "Checks that the ability to update a token with a non-zero total_supply if the current total_supply is set to zero.");
+        dap_assert_PIF(
+                dap_ledger_token_add(l_ledger, (byte_t *) l_token_upd_zero_value, l_token_upd_zero_value_size),
+                "Adding a token update with a non-zero total_supply value if the current total_supply is set to zero to the ledger.");
+        dap_pass_msg("Checks that the ability to update a token with a non-zero total_supply if the current total_supply is set to zero is passed.");
+    }
 
 }
