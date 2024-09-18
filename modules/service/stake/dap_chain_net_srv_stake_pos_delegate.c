@@ -1393,8 +1393,9 @@ struct validator_order_ext {
 
 struct validator_order_hashes{
     uint16_t delegated_count;
-    dap_hash_str_t delegate_hash;
+    uint64_t size;
     dap_hash_str_t decree_hash;
+    dap_hash_str_t delegate_hash[];
 } DAP_ALIGN_PACKED;
 
 char *s_validator_order_create(dap_chain_net_t *a_net, uint256_t a_value_min, uint256_t a_value_max, uint256_t a_tax,
@@ -1831,8 +1832,12 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                                 if (!l_order_hashes)
                                     dap_string_append_printf(l_reply_str, "  subversion:\t    %d\n  validated:\t    false\n", l_ext->version);
                                 else {
-                                    dap_string_append_printf(l_reply_str, "  subversion:\t    %d\n  validated:\t    %s\n  delegate hash:\t    %s\n  decree hash:\t    %s\n",
-                                    l_ext->version, (l_order_hashes->delegate_hash.s[0] != '\0' && l_order_hashes->decree_hash.s[0] != '\0')  ? "true" : "false", l_order_hashes->delegate_hash.s, l_order_hashes->decree_hash.s);
+                                    dap_string_append_printf(l_reply_str, "  subversion:\t    %d\n  validated:\t    %s\n",
+                                    l_ext->version, (l_order_hashes->delegated_count && l_order_hashes->decree_hash.s[0] != '\0')  ? "true" : "false");
+                                    for (uint16_t i = 0; i < l_order_hashes->delegated_count; ++ i) {
+                                        dap_string_append_printf(l_reply_str, "%s    %s\n", i ? "  delegate hash:" : "\t\t\t", l_order_hashes->delegate_hash[i].s);
+                                    }
+                                    dap_string_append_printf(l_reply_str, "  decree hash:\t    %s\n", l_order_hashes->decree_hash.s);
                                     DAP_DELETE(l_order_hashes);
                                 }
                             }
@@ -2164,16 +2169,20 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
         char *l_delegated_group = s_get_delegated_group(l_net);
         struct validator_order_hashes *l_order_hashes = (struct validator_order_hashes *)dap_global_db_get_sync(l_delegated_group, l_order_hash_str, NULL, NULL, NULL);
         if (l_order_hashes) {
-            if (l_order_hashes->decree_hash.s[0])
-                log_it(L_WARNING, "Caution, order %s already delegated and have decree:\n\tdelegate hash: %s\n\tdecree hash: %s", l_tx_hash_str, l_order_hashes->delegate_hash.s, l_order_hashes->decree_hash.s);
-            else if (l_order_hashes->delegated_count)
-                log_it(L_INFO, "Caution, order %s already have %u delegate candidates:", l_tx_hash_str, l_order_hashes->delegated_count);
+            if (l_order_hashes->decree_hash.s[0]) {
+                log_it(L_WARNING, "Caution, order %s already delegated and have decree %s", l_order_hash_str, l_order_hashes->decree_hash.s);
+            } else if (l_order_hashes->delegated_count) {
+                log_it(L_INFO, "Caution, order %s already have %u delegate candidates.", l_order_hash_str, l_order_hashes->delegated_count);
+            }
+            l_order_hashes->size += sizeof(dap_hash_str_t);
+            l_order_hashes = DAP_REALLOC(l_order_hashes, l_order_hashes->size);
         } else {
-            DAP_NEW_Z_RET_VAL(l_order_hashes, struct validator_order_hashes, -100, l_delegated_group, l_tx_hash_str);
+            DAP_NEW_Z_SIZE_RET_VAL(l_order_hashes, struct validator_order_hashes, sizeof(struct validator_order_hashes) + sizeof(dap_hash_str_t), -100, l_delegated_group, l_tx_hash_str);
+            l_order_hashes->size = sizeof(struct validator_order_hashes) + sizeof(dap_hash_str_t);
         }
-        strncpy(l_order_hashes->delegate_hash.s, l_tx_hash_str, sizeof(l_order_hashes->delegate_hash.s) - 1);
+        strncpy(l_order_hashes->delegate_hash[l_order_hashes->delegated_count].s, l_tx_hash_str, sizeof(dap_hash_str_t) - 1);
         l_order_hashes->delegated_count++;
-        dap_global_db_set(l_delegated_group, l_order_hash_str, l_order_hashes, sizeof(struct validator_order_hashes), false, NULL, NULL);
+        dap_global_db_set(l_delegated_group, l_order_hash_str, l_order_hashes, l_order_hashes->size, false, NULL, NULL);
         DAP_DEL_Z(l_delegated_group);
     }
     const char *c_save_to_take = l_prev_tx ? "" : "SAVE TO TAKE ===>>> ";
@@ -2871,18 +2880,21 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             struct validator_order_hashes *l_order_hashes = NULL;
             const char *l_order_hash_str = NULL;
             for (size_t i = 0; i < l_orders_count; i++) {
-                if (!dap_strcmp(((struct validator_order_hashes *)((l_orders_hashes + i)->value))->delegate_hash.s, l_tx_hash_str)) {
-                    l_order_hashes = (struct validator_order_hashes *)((l_orders_hashes + i)->value);
-                    l_order_hash_str = (l_orders_hashes + i)->key;
-                    break;
+                struct validator_order_hashes *l_cur_hashes = (struct validator_order_hashes *)((l_orders_hashes + i)->value);
+                for (uint16_t j = 0; j < l_cur_hashes->delegated_count; ++j) {
+                    if (!dap_strcmp(l_cur_hashes->delegate_hash[j].s, l_tx_hash_str)) {
+                        l_order_hashes = l_cur_hashes;
+                        l_order_hash_str = (l_orders_hashes + i)->key;
+                        break;
+                    }
                 }
             }
             if (l_order_hashes) {
                 if (!l_order_hashes->delegated_count)
                     log_it(L_WARNING, "Caution, order %s don't have any delegations", l_tx_hash_str);
                 else if (l_order_hashes->decree_hash.s[0])
-                    log_it(L_WARNING, "Caution, order %s already delegated and have decree:\n\tdelegate hash: %s\n\tdecree hash: %s", l_tx_hash_str, l_order_hashes->delegate_hash.s, l_order_hashes->decree_hash.s);
-                strncpy(l_order_hashes->decree_hash.s, l_decree_hash_str, sizeof(l_order_hashes->delegate_hash.s) - 1);
+                    log_it(L_WARNING, "Caution, order %s already delegated and have decree %s", l_tx_hash_str, l_order_hashes->decree_hash.s);
+                strncpy(l_order_hashes->decree_hash.s, l_decree_hash_str, sizeof(l_order_hashes->decree_hash.s) - 1);
                 dap_global_db_set(l_delegated_group, l_order_hash_str, l_order_hashes, sizeof(struct validator_order_hashes), false, NULL, NULL);
             }
             DAP_DEL_MULTY(l_delegated_group, l_decree_hash_str);
