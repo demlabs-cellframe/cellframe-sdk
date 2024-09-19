@@ -937,8 +937,8 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
         if(!l_hash_str){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'results' require the parameter -hash");
-            return -110;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_DUMP_HASH_PARAM_NOT_FOUND, "Command 'results' require the parameter -hash");
+            return -DAP_CHAIN_NET_VOTE_DUMP_HASH_PARAM_NOT_FOUND;
         }
 
         dap_hash_fast_t l_voting_hash = {};
@@ -948,23 +948,23 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         HASH_FIND(hh, s_votings, &l_voting_hash, sizeof(l_voting_hash),l_voting);
         pthread_rwlock_unlock(&s_votings_rwlock);
         if(!l_voting){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find voting with hash %s", l_hash_str);
-            return -111;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_DUMP_CAN_NOT_FIND_VOTE, "Can't find voting with hash %s", l_hash_str);
+            return -DAP_CHAIN_NET_VOTE_DUMP_CAN_NOT_FIND_VOTE;
         }
 
         uint64_t l_options_count = 0;
         l_options_count = dap_list_length(l_voting->voting_params.option_offsets_list);
         if(!l_options_count){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "No options. May be datum is crashed.");
-            return -111;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_DUMP_NO_OPTIONS, "No options. May be datum is crashed.");
+            return -DAP_CHAIN_NET_VOTE_DUMP_NO_OPTIONS;
         }
 
         struct voting_results {uint64_t num_of_votes; uint256_t weights;};
 
         struct voting_results* l_results = DAP_NEW_Z_SIZE(struct voting_results, sizeof(struct voting_results)*l_options_count);
         if(!l_results){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Memlory allocation error!");
-            return -111;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_VOTE_DUMP_MEMORY_ERR, "Memory allocation error!");
+            return -DAP_CHAIN_NET_VOTE_DUMP_MEMORY_ERR;
         }
         dap_list_t* l_list_tmp = l_voting->votes;
         uint256_t l_total_weight = {};
@@ -978,33 +978,48 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 
         uint64_t l_votes_count = 0;
         l_votes_count = dap_list_length(l_voting->votes);
-        dap_string_t *l_str_out = dap_string_new(NULL);
-        dap_string_append_printf(l_str_out, "Dump of voting %s:\n\n", l_hash_str);
-        dap_string_append_len(l_str_out,
-                              (char*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset),
-                              l_voting->voting_params.voting_question_length);
-        dap_string_append(l_str_out, "\n\n");
-
+        json_object* json_vote_out = json_object_new_object();
+        json_object_object_add(json_vote_out, "hash of voting", 
+                                    json_object_new_string(l_hash_str));
+        json_object_object_add(json_vote_out, "Voting dump", 
+                                    json_object_new_string_len((char*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset),
+                              l_voting->voting_params.voting_question_length));
         if (l_voting->voting_params.voting_expire) {
             char l_tmp_buf[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_voting->voting_params.voting_expire);
-            dap_string_append_printf(l_str_out, "\t Voting expire: %s\n", l_tmp_buf);
-            dap_string_truncate(l_str_out, l_str_out->len - 1);
-            dap_string_append_printf(l_str_out, " (%s)\n", l_voting->voting_params.voting_expire > dap_time_now() ? "active" : "expired");
+            json_object_object_add(json_vote_out, "Voting expire", 
+                                    json_object_new_string(l_tmp_buf));
+            //dap_string_truncate(l_str_out, l_str_out->len - 1);
+            json_object_object_add(json_vote_out, "status", 
+                                    l_voting->voting_params.voting_expire > dap_time_now() ? 
+                                    json_object_new_string("active") :
+                                    json_object_new_string("expired"));
         }
-        if (l_voting->voting_params.votes_max_count)
-            dap_string_append_printf(l_str_out, "\t Votes max count: %"DAP_UINT64_FORMAT_U" (%s)\n", l_voting->voting_params.votes_max_count,
+        if (l_voting->voting_params.votes_max_count){
+            char *l_val = dap_strdup_printf(" %"DAP_UINT64_FORMAT_U" (%s)\n", l_voting->voting_params.votes_max_count,
                                      l_voting->voting_params.votes_max_count <= l_votes_count ? "closed" : "active");
-        dap_string_append_printf(l_str_out, "\t Changing vote is %s available.\n", l_voting->voting_params.vote_changing_allowed ? "" : "not");
-        dap_string_append_printf(l_str_out, "\t A delegated key is%s required to participate in voting. \n", l_voting->voting_params.delegate_key_required ? "" : " not");
-        dap_string_append_printf(l_str_out, "\n\nResults:\n\n");
+            json_object_object_add(json_vote_out, "Votes max count", json_object_new_string(l_val));
+            DAP_DELETE(l_val);
+        }
+        json_object_object_add(json_vote_out, "changing vote status", l_voting->voting_params.vote_changing_allowed ? 
+                                                                        json_object_new_string("available") : 
+                                                                        json_object_new_string("not available"));
+        json_object_object_add(json_vote_out, "delegated voting key status", l_voting->voting_params.delegate_key_required ? 
+                                                                        json_object_new_string("is required") : 
+                                                                        json_object_new_string("not required"));
+        
+        json_object* json_arr_vote_out = json_object_new_array();
         for (uint64_t i = 0; i < dap_list_length(l_voting->voting_params.option_offsets_list); i++){
-            dap_string_append_printf(l_str_out, "%"DAP_UINT64_FORMAT_U")  ", i);
+            json_object* json_vote_obj = json_object_new_object();
+            char *l_val = NULL;
+            l_val = dap_strdup_printf(" %"DAP_UINT64_FORMAT_U")  ", i);
+            json_object_object_add(json_vote_obj, "#", json_object_new_string(l_val));
+            DAP_DELETE(l_val);
             dap_list_t* l_option = dap_list_nth(l_voting->voting_params.option_offsets_list, (uint64_t)i);
             dap_chain_net_vote_option_t* l_vote_option = (dap_chain_net_vote_option_t*)l_option->data;
-            dap_string_append_len(l_str_out,
-                                  (char*)((byte_t*)l_voting->voting_params.voting_tx + l_vote_option->vote_option_offset),
-                                  l_vote_option->vote_option_length);
+            json_object_object_add(json_vote_obj, "voting tx", 
+                                    json_object_new_string_len((char*)((byte_t*)l_voting->voting_params.voting_tx + l_vote_option->vote_option_offset),
+                                  l_vote_option->vote_option_length));            
             float l_percentage = l_votes_count ? ((float)l_results[i].num_of_votes/l_votes_count)*100 : 0;
             uint256_t l_weight_percentage = {};
 
@@ -1012,15 +1027,22 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             MULT_256_COIN(l_weight_percentage, dap_chain_coins_to_balance("100.0"), &l_weight_percentage);
             const char *l_weight_percentage_str = dap_uint256_decimal_to_round_char(l_weight_percentage, 2, true);
             const char *l_w_coins, *l_w_datoshi = dap_uint256_to_char(l_results[i].weights, &l_w_coins);
-            dap_string_append_printf(l_str_out, "\nVotes: %"DAP_UINT64_FORMAT_U" (%.2f%%)\nWeight: %s (%s) %s (%s%%)\n",
+            l_val = dap_strdup_printf("Votes: %"DAP_UINT64_FORMAT_U" (%.2f%%)\nWeight: %s (%s) %s (%s%%)",
                                      l_results[i].num_of_votes, l_percentage, l_w_coins, l_w_datoshi, l_net->pub.native_ticker, l_weight_percentage_str);
+            json_object_object_add(json_vote_obj, "price", json_object_new_string(l_val));
+            DAP_DELETE(l_val);
+            json_object_array_add(json_arr_vote_out, json_vote_obj);
         }
+        json_object_object_add(json_vote_out, "Results", json_arr_vote_out);
         DAP_DELETE(l_results);
-        dap_string_append_printf(l_str_out, "\nTotal number of votes: %"DAP_UINT64_FORMAT_U, l_votes_count);
+        char *l_val = NULL;
+        l_val = dap_strdup_printf(" %"DAP_UINT64_FORMAT_U, l_votes_count);
+        json_object_object_add(json_vote_out, "Total number of votes", json_object_new_string(l_val));
+        DAP_DELETE(l_val);
         const char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
-        dap_string_append_printf(l_str_out, "\nTotal weight: %s (%s) %s\n\n", l_tw_coins, l_tw_datoshi, l_net->pub.native_ticker);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
-        dap_string_free(l_str_out, true);
+        l_val = dap_strdup_printf("%s (%s) %s\n\n", l_tw_coins, l_tw_datoshi, l_net->pub.native_ticker);
+        json_object_object_add(json_vote_out, "Total weight", json_object_new_string(l_val));
+        DAP_DELETE(l_val);
     }break;
     default:{
 

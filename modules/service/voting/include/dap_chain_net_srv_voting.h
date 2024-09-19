@@ -137,6 +137,14 @@ enum DAP_CHAIN_NET_VOTE_VOTING_ERROR{
     DAP_CHAIN_NET_VOTE_VOTING_INTEGER_OVERFLOW
 
 };
+
+enum DAP_CHAIN_NET_VOTE_DUMP_ERROR{
+    DAP_CHAIN_NET_VOTE_DUMP_HASH_PARAM_NOT_FOUND,
+    DAP_CHAIN_NET_VOTE_DUMP_CAN_NOT_FIND_VOTE,
+    DAP_CHAIN_NET_VOTE_DUMP_NO_OPTIONS,
+    DAP_CHAIN_NET_VOTE_DUMP_MEMORY_ERR
+
+};
 int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t a_hash,
                               uint64_t a_option_idx, dap_chain_net_t *a_net, const char *a_hash_out_type,
                               char **a_hash_tx_out);
