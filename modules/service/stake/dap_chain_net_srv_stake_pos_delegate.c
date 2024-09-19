@@ -1396,7 +1396,7 @@ struct validator_order_hashes{
     dap_hash_str_t order_hash;
 } DAP_ALIGN_PACKED;
 
-void dap_chain_net_srv_stake_update_delegation_decree_info(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_add)
+void dap_chain_net_srv_stake_add_delegation_decree_info(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net)
 {
     dap_hash_fast_t l_hash = {0};
     dap_chain_datum_decree_get_hash(a_decree, &l_hash);
@@ -1405,17 +1405,43 @@ void dap_chain_net_srv_stake_update_delegation_decree_info(dap_chain_datum_decre
     char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
     struct validator_order_hashes *l_order_hashes = (struct validator_order_hashes *)dap_global_db_get_sync(l_delegated_group, l_tx_hash_str, NULL, NULL, NULL);
     if (l_order_hashes) {
-        if (a_add) {
-            if (l_order_hashes->decree_hash.s[0])
-                log_it(L_WARNING, "Caution, order %s already have delegation decree %s", l_order_hashes->order_hash.s, l_order_hashes->decree_hash.s);
-            dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_hash);
-            strncpy(l_order_hashes->decree_hash.s, dap_chain_hash_fast_to_str_static(&l_hash), sizeof(l_order_hashes->decree_hash.s) - 1);
-        } else {
-            memset(l_order_hashes->decree_hash.s, 0, sizeof(l_order_hashes->decree_hash.s));
-        }
+        if (l_order_hashes->decree_hash.s[0])
+            log_it(L_WARNING, "Caution, order %s already have delegation decree %s", l_order_hashes->order_hash.s, l_order_hashes->decree_hash.s);
+        dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_hash);
+        strncpy(l_order_hashes->decree_hash.s, dap_chain_hash_fast_to_str_static(&l_hash), sizeof(l_order_hashes->decree_hash.s) - 1);
         dap_global_db_set(l_delegated_group, l_tx_hash_str, l_order_hashes, sizeof(struct validator_order_hashes), false, NULL, NULL);
     } else {
-        log_it(L_WARNING, "Can't find records about tx %s in l_delegated_group", l_tx_hash_str);
+        log_it(L_WARNING, "Can't find records about tx %s in l_delegated_group to add decree information", l_tx_hash_str);
+    }
+    DAP_DEL_MULTY(l_delegated_group, l_tx_hash_str);
+}
+
+void dap_chain_net_srv_stake_remove_delegation_decree_info(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net)
+{
+    dap_hash_fast_t l_hash = {0};
+    dap_chain_addr_t l_signing_addr = {0};
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+    dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_net->pub.id);
+    if (!l_srv_stake) {
+        log_it(L_ERROR, "Specified net %s have no stake service activated", a_net->pub.name);
+        return;
+    }
+    dap_chain_datum_decree_get_stake_signing_addr(a_decree, &l_signing_addr);
+    HASH_FIND(hh, l_srv_stake->itemlist, &l_signing_addr.data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
+    if (!l_stake) {
+        log_it(L_ERROR, "Specified pkey hash is not delegated.");
+        return;
+    }
+
+    char *l_delegated_group = s_get_delegated_group(a_net); 
+    char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_stake->tx_hash);
+    log_it(L_ERROR, "!!!!!!!!!!!!!!! %s", l_tx_hash_str);
+    struct validator_order_hashes *l_order_hashes = (struct validator_order_hashes *)dap_global_db_get_sync(l_delegated_group, l_tx_hash_str, NULL, NULL, NULL);
+    if (l_order_hashes) {
+        memset(l_order_hashes->decree_hash.s, 0, sizeof(l_order_hashes->decree_hash.s));
+        dap_global_db_set(l_delegated_group, l_tx_hash_str, l_order_hashes, sizeof(struct validator_order_hashes), false, NULL, NULL);
+    } else {
+        log_it(L_WARNING, "Can't find records about tx %s in l_delegated_group ro remove decree information", l_tx_hash_str);
     }
     DAP_DEL_MULTY(l_delegated_group, l_tx_hash_str);
 }
@@ -2479,7 +2505,8 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%sAll m-tokens will be returned to "
                                                            "owner. Returning tx hash %s.", l_sign_str, l_out_hash_str);
             char *l_delegated_group = s_get_delegated_group(l_net);
-            dap_global_db_del_sync(l_delegated_group, l_tx_hash_str_tmp);
+            log_it(L_ERROR, "!!!!!!!!! delegetaed delete %s", dap_chain_hash_fast_to_str_static(&l_tx_hash));
+            dap_global_db_del_sync(l_delegated_group, dap_chain_hash_fast_to_str_static(&l_tx_hash));
             DAP_DEL_MULTY(l_out_hash_str, l_tx, l_delegated_group);
         } else {
             l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
