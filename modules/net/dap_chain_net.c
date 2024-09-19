@@ -1899,6 +1899,9 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         return -16;
     }
 
+    // Get list chains name for enabled debug mode
+    bool is_esbocs_debug = dap_config_get_item_bool_default(l_cfg, "esbocs", "consensus_debug", false);
+
     /* *** Chains init by configs *** */
     char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
     DIR * l_chains_dir = opendir(l_chains_path);
@@ -1961,11 +1964,16 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         list_priority *l_chain_prior = l_list->data;
         // Create chain object
         l_chain = dap_chain_load_from_cfg(l_net->pub.name, l_net->pub.id, l_chain_prior->chains_path);
-        if(l_chain)
+        if(l_chain) {
             DL_APPEND(l_net->pub.chains, l_chain);
-        else
+            if (!dap_strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "esbocs") && is_esbocs_debug) {
+                dap_chain_esbocs_change_debug_mode(l_chain, true);
+            }
+        } else {
             log_it(L_WARNING, "Can't process chain from config %s", l_chain_prior->chains_path);
+        }
         DAP_DELETE (l_chain_prior->chains_path);
+        // Enabled debug for name
         l_list = dap_list_next(l_list);
     }
     dap_list_free_full(l_prior_list, NULL);
