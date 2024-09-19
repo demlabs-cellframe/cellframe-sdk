@@ -57,16 +57,15 @@ typedef struct dap_chain_cs_dag_poa_presign_callback{
     void *arg;
 } dap_chain_cs_dag_poa_presign_callback_t;
 
-typedef struct dap_chain_cs_dag_poa_event_item {
+typedef struct dap_chain_cs_dag_poa_round_item {
     dap_chain_hash_fast_t datum_hash;
-    dap_chain_cs_dag_event_t *event;
     dap_chain_cs_dag_t *dag;
     UT_hash_handle hh;
-} dap_chain_cs_dag_poa_event_item_t;
+} dap_chain_cs_dag_poa_round_item_t;
 
 typedef struct dap_chain_cs_dag_poa_pvt {
     pthread_rwlock_t rounds_rwlock;
-    dap_chain_cs_dag_poa_event_item_t *event_items;
+    dap_chain_cs_dag_poa_round_item_t *event_items;
     dap_cert_t *events_sign_cert, **auth_certs;
     char *auth_certs_prefix;
     uint16_t auth_certs_count, auth_certs_count_verify; // Number of signatures, needed for event verification
@@ -84,12 +83,12 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_cfg);
 static int s_callback_event_verify(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_t *a_dag_event, dap_hash_fast_t *a_event_hash);
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t* a_event_size);
-static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_event_item_t *a_arg);
+static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_round_item_t *a_arg);
 static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_op_code, const char *a_group,
                                         const char *a_key, const void *a_value, const size_t a_value_size);
 static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_t *a_event,
                                               size_t a_event_size, char *a_event_hash_hex_str);
-static void s_round_event_cs_done(dap_chain_cs_dag_poa_event_item_t *a_event_item);
+static void s_round_event_cs_done(dap_chain_cs_dag_poa_round_item_t *a_event_item);
 
 // CLI commands
 static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply);
@@ -288,9 +287,8 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
                         }
                         ret = 0;
                         if (l_event_is_ready && l_poa_pvt->auto_round_complete) { // cs done (minimum signs & verify passed) 
-                            dap_chain_cs_dag_poa_event_item_t l_event_item = {
+                            dap_chain_cs_dag_poa_round_item_t l_event_item = {
                                 .datum_hash = l_round_item->round_info.datum_hash,
-                                .event = l_event,
                                 .dag = l_dag
                             };
                             s_round_event_cs_done(&l_event_item);
@@ -537,7 +535,7 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
 {
     if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS) 
         return false;
-    dap_chain_cs_dag_poa_event_item_t *l_arg = (dap_chain_cs_dag_poa_event_item_t*)a_arg;
+    dap_chain_cs_dag_poa_round_item_t *l_arg = (dap_chain_cs_dag_poa_round_item_t*)a_arg;
     dap_chain_cs_dag_t *l_dag = l_arg->dag;
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(DAP_CHAIN_CS_DAG_POA(l_dag));
     pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
@@ -615,16 +613,16 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
  * @param a_callback_arg
  * @return
  */
-static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_event_item_t *a_callback_arg)
+static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_round_item_t *a_callback_arg)
 {
     return dap_global_db_get_all(a_callback_arg->dag->gdb_group_events_round_new, 0, s_callback_round_event_to_chain_callback_get_round_item, a_callback_arg),
         false;
 }
 
-static void s_round_event_cs_done(dap_chain_cs_dag_poa_event_item_t *a_event_item)
+static void s_round_event_cs_done(dap_chain_cs_dag_poa_round_item_t *a_event_item)
 {
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT( DAP_CHAIN_CS_DAG_POA(a_event_item->dag) );
-    dap_chain_cs_dag_poa_event_item_t *l_event_item = NULL;
+    dap_chain_cs_dag_poa_round_item_t *l_event_item = NULL;
     pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
     HASH_FIND(hh, l_poa_pvt->event_items, &a_event_item->datum_hash, sizeof(dap_hash_fast_t), l_event_item);
     if (!l_event_item) {
@@ -670,7 +668,7 @@ static void s_round_changes_notify(dap_store_obj_t *a_obj, void *a_arg)
         if (l_poa_pvt->event_items) {
             dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t*)a_obj->value;
             dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)(l_round_item->event_n_signs);
-            dap_chain_cs_dag_poa_event_item_t *l_event_item = NULL;
+            dap_chain_cs_dag_poa_round_item_t *l_event_item = NULL;
             dap_hash_fast_t l_datum_hash = l_round_item->round_info.datum_hash;
             HASH_FIND(hh, l_poa_pvt->event_items, &l_datum_hash, sizeof(l_datum_hash), l_event_item);
             if (l_event_item)
@@ -820,9 +818,8 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
         && l_poa_pvt->auto_round_complete
         && s_round_event_ready_minimum_check(a_dag, l_event, l_event_size, (char*)a_key) )
     {
-        dap_chain_cs_dag_poa_event_item_t *l_event_item = DAP_NEW_Z(dap_chain_cs_dag_poa_event_item_t);
-        *l_event_item = (dap_chain_cs_dag_poa_event_item_t) { .datum_hash = l_round_item->round_info.datum_hash, .dag = a_dag, .event = l_event };
-        return s_round_event_cs_done(l_event_item), DAP_DELETE(l_event), 0;
+        dap_chain_cs_dag_poa_round_item_t l_event_item = { .datum_hash = l_round_item->round_info.datum_hash, .dag = a_dag };
+        return DAP_DELETE(l_event), s_round_event_cs_done(&l_event_item), 0;
     }
 
     size_t l_event_size_new = 0;
