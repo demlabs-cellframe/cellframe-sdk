@@ -545,9 +545,9 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
     pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
     uint16_t l_max_signs_count = 0;
     dap_list_t *l_dups_list = NULL;
-    char *l_key = NULL;
-    size_t i, j, l_expired_vals[a_values_count];
-    for (i = 0, j = 0; i < a_values_count; i++) {
+    size_t i, e, k;
+    const char *l_complete_keys[a_values_count], *l_expired_keys[a_values_count];
+    for (i = 0, e = 0, k = 0; i < a_values_count; i++) {
         if (!strcmp(DAG_ROUND_CURRENT_KEY, a_values[i].key))
             continue;
         if (a_values[i].value_len <= sizeof(dap_chain_cs_dag_event_round_item_t) + sizeof(dap_chain_cs_dag_event_t)) {
@@ -563,43 +563,46 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
             l_dups_list = dap_list_append(l_dups_list, l_round_item);
             if (l_event->header.signs_count > l_max_signs_count)
                 l_max_signs_count = l_event->header.signs_count;
-            l_key = a_values[i].key;
+            l_complete_keys[k++] = a_values[i].key;
         }
         else if ( dap_nanotime_from_sec(l_poa_pvt->wait_sync_before_complete + l_poa_pvt->confirmations_timeout + 10)
                  < dap_nanotime_now() - l_round_item->round_info.ts_update )
         {
-            l_expired_vals[j++] = i;
+            l_expired_keys[e++] = a_values[i].key;
         }
     }
     dap_chain_cs_dag_event_round_item_t *l_chosen_item = s_round_event_choose_dup(l_dups_list, l_max_signs_count);
     dap_list_free(l_dups_list);
-    char *l_datum_hash_str = dap_hash_fast_to_str_static(&l_arg->datum_hash);
+    const char *l_datum_hash_str = dap_hash_fast_to_str_static(&l_arg->datum_hash);
     if (l_chosen_item) {
         size_t l_event_size = l_chosen_item->event_size;
         dap_chain_cs_dag_event_t *l_new_atom = (dap_chain_cs_dag_event_t *)l_chosen_item->event_n_signs;
-        char *l_event_hash_hex_str;
-        dap_get_data_hash_str_static(l_new_atom, l_event_size, l_event_hash_hex_str);
+        dap_hash_fast_t l_atom_hash;
+        dap_hash_fast(l_new_atom, l_event_size, &l_atom_hash);
+        const char *l_event_hash_hex_str = dap_hash_fast_to_str_static(&l_atom_hash);
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_new_atom, l_event_size);
         int l_verify_datum = dap_chain_net_verify_datum_for_add(l_dag->chain, l_datum, &l_chosen_item->round_info.datum_hash);
         if (!l_verify_datum) {
-            dap_hash_fast_t l_atom_hash;
-            dap_hash_fast(l_new_atom, l_event_size, &l_atom_hash);
             dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size, &l_atom_hash, true);
             if (l_res == ATOM_ACCEPT) {
-                log_it(L_INFO, "Remove event %s with datum %s, round complete", l_key, l_datum_hash_str);
-                dap_global_db_del_sync(a_group, l_key);
-                for (; j; --j) {
-                    dap_global_db_obj_t *l_expired_obj = a_values + l_expired_vals[j - 1];
-                    log_it(L_INFO, "Event %s with datum %s has expired, dump it", l_expired_obj->key, l_datum_hash_str);
-                    dap_global_db_del_sync(a_group, l_expired_obj->key);
+                for (; k; --k) {
+                    log_it(L_INFO, "Remove event %s with datum %s, round complete", l_complete_keys[k - 1], l_datum_hash_str);
+                    dap_global_db_del_sync(a_group, l_complete_keys[k - 1]);
+                }
+                for (; e; --e) {
+                    log_it(L_INFO, "Event %s with datum %s has expired, dump it", l_expired_keys[e - 1], l_datum_hash_str);
+                    dap_global_db_del_sync(a_group,  l_expired_keys[e - 1]);
                 }
             }
             log_it(L_INFO, "Event %s with datum %s is %s",
-                           l_event_hash_hex_str, l_datum_hash_str, dap_chain_atom_verify_res_str[l_res]);
+                           &l_event_hash_hex_str, l_datum_hash_str, dap_chain_atom_verify_res_str[l_res]);
         } else {
-            dap_global_db_del_sync(a_group, l_key);
             log_it(L_ERROR, "Event %s is not chained: datum %s doesn't pass verification, error \"%s\"",
-                            l_event_hash_hex_str, l_datum_hash_str, dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
+                            &l_event_hash_hex_str, l_datum_hash_str, dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
+            for (; k; --k) {
+                log_it(L_INFO, "Remove event %s with unverified datum %s", l_complete_keys[k - 1], l_datum_hash_str);
+                dap_global_db_del_sync(a_group, l_complete_keys[k - 1]);
+            }
         }
     } else /* !l_chosen_item */
         log_it(L_WARNING, "No valid candidates to wrap datum %s in current round #%"DAP_UINT64_FORMAT_U"",
@@ -666,7 +669,7 @@ static void s_round_changes_notify(dap_store_obj_t *a_obj, void *a_arg)
         pthread_rwlock_rdlock(&l_poa_pvt->rounds_rwlock);
         if (l_poa_pvt->event_items) {
             dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t*)a_obj->value;
-            dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)(l_round_item->event_n_signs, l_round_item->event_size);
+            dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)(l_round_item->event_n_signs);
             dap_chain_cs_dag_poa_event_item_t *l_event_item = NULL;
             dap_hash_fast_t l_datum_hash = l_round_item->round_info.datum_hash;
             HASH_FIND(hh, l_poa_pvt->event_items, &l_datum_hash, sizeof(l_datum_hash), l_event_item);
