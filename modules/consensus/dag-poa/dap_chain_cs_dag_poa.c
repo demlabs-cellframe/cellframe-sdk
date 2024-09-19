@@ -659,24 +659,8 @@ static void s_round_changes_notify(dap_store_obj_t *a_obj, void *a_arg)
     switch ( l_type ) {
     case DAP_GLOBAL_DB_OPTYPE_ADD:
         s_callback_event_round_sync(l_dag, l_type, a_obj->group, a_obj->key, a_obj->value, a_obj->value_len);
-        break;
     default:
-    //if (s_debug_more)
-    {
-        dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(DAP_CHAIN_CS_DAG_POA(l_dag));
-        pthread_rwlock_rdlock(&l_poa_pvt->rounds_rwlock);
-        if (l_poa_pvt->event_items) {
-            dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t*)a_obj->value;
-            dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)(l_round_item->event_n_signs);
-            dap_chain_cs_dag_poa_round_item_t *l_event_item = NULL;
-            dap_hash_fast_t l_datum_hash = l_round_item->round_info.datum_hash;
-            HASH_FIND(hh, l_poa_pvt->event_items, &l_datum_hash, sizeof(l_datum_hash), l_event_item);
-            if (l_event_item)
-                log_it(L_WARNING, "Event %s with datum %s from current round was just deleted! Check extended gdb log",
-                                    a_obj->key, dap_hash_fast_to_str_static(&l_datum_hash));
-        }
-        pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
-    } break;
+        break;
     }
 }
 
