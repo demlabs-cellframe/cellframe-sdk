@@ -159,9 +159,6 @@ typedef struct dap_chain_net_pvt{
     uint16_t permanent_links_count;
     dap_link_info_t **permanent_links;
 
-    uint16_t authorized_nodes_count;
-    dap_stream_node_addr_t *authorized_nodes_addrs;
-
     uint16_t seed_nodes_count;
     struct request_link_info **seed_nodes_info;
 
@@ -1695,7 +1692,6 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
         HASH_DELETE(hh2, s_net_ids, l_net_item);
         DAP_DELETE(l_net_item);
     }
-    DAP_DEL_Z(PVT(a_net)->authorized_nodes_addrs);
     DAP_DEL_Z(PVT(a_net)->node_info);
     if (a_net->pub.ledger) {
         dap_ledger_purge(a_net->pub.ledger, true);
@@ -1861,21 +1857,6 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         return -16;
     }
 
-    const char **l_authorized_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "authorized_nodes_addrs", &l_net_pvt->authorized_nodes_count);
-    if (!l_net_pvt->authorized_nodes_count)
-        log_it(L_WARNING, "Can't read PoA nodes addresses");
-    else
-        l_net_pvt->authorized_nodes_addrs = DAP_NEW_Z_COUNT(dap_chain_node_addr_t, l_net_pvt->authorized_nodes_count);
-    for (i = 0; i < l_net_pvt->authorized_nodes_count; ++i) {
-        dap_chain_node_addr_t l_addr;
-        if (dap_stream_node_addr_from_str(&l_addr, l_authorized_nodes_addrs[i])) {
-            log_it(L_ERROR, "Incorrect format of node address \"%s\", fix net config and restart node", l_authorized_nodes_addrs[i]);
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -17;
-        }
-        l_net_pvt->authorized_nodes_addrs[i].uint64 = l_addr.uint64;
-    }
     const char **l_seed_nodes_hosts = dap_config_get_array_str(l_cfg, "general", "seed_nodes_hosts", &l_net_pvt->seed_nodes_count);
     if (!l_net_pvt->seed_nodes_count)
          l_seed_nodes_hosts  = dap_config_get_array_str(l_cfg, "general", "bootstrap_hosts", &l_net_pvt->seed_nodes_count);
@@ -2349,8 +2330,10 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 int dap_chain_net_add_auth_nodes_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster)
 {
     dap_return_val_if_fail(a_net && a_cluster, -1);
-    for (uint16_t i = 0; i < PVT(a_net)->authorized_nodes_count; i++)
-        dap_global_db_cluster_member_add(a_cluster, PVT(a_net)->authorized_nodes_addrs + i, DAP_GDB_MEMBER_ROLE_ROOT);
+    for (dap_chain_t *l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next){
+        for (uint16_t i = 0; i < l_chain->authorized_nodes_count; i++)
+            dap_global_db_cluster_member_add(a_cluster, l_chain->authorized_nodes_addrs + i, DAP_GDB_MEMBER_ROLE_ROOT);
+    }
     return 0;
 }
 
