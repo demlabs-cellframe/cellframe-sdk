@@ -579,7 +579,7 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
         dap_chain_cs_dag_event_t *l_new_atom = (dap_chain_cs_dag_event_t *)l_chosen_item->event_n_signs;
         dap_hash_fast_t l_atom_hash;
         dap_hash_fast(l_new_atom, l_event_size, &l_atom_hash);
-        const char *l_event_hash_hex_str = dap_hash_fast_to_str_static(&l_atom_hash);
+        char l_event_hash_hex_str[DAP_HASH_FAST_STR_SIZE]; dap_hash_fast_to_str(&l_atom_hash, l_event_hash_hex_str, DAP_HASH_FAST_STR_SIZE);
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_new_atom, l_event_size);
         int l_verify_datum = dap_chain_net_verify_datum_for_add(l_dag->chain, l_datum, &l_chosen_item->round_info.datum_hash);
         if (!l_verify_datum) {
