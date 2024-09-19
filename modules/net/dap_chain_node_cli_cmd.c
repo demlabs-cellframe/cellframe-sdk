@@ -3613,7 +3613,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
         ret = DAP_COM_MEMPOOL_PROC_LIST_ERROR_FALSE_VERIFY;
     } else {
         if (l_chain->callback_add_datums) {
-            if (l_chain->callback_add_datums(a_chain, &l_datum, 1) == 0) {
+            if (l_chain->callback_add_datums(l_chain, &l_datum, 1) == 0) {
                 json_object *l_jobj_verify_status = json_object_new_boolean(FALSE);
                 if (!l_jobj_verify_status) {
                     json_object_put(l_jobj_verify_status);
