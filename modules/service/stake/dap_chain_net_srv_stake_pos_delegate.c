@@ -111,7 +111,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "srv_stake order remove -net <net_name> -order <order_hash>\n"
         "\tRemove order with specified hash\n"
             "\t\t === Commands for work with stake delegate ===\n"
-    "srv_stake delegate {-cert <pub_cert_name> -value <datoshi> | "
+    "srv_stake delegate {[-cert <pub_cert_name> | -pkey <pkey> -sign_type <sign_type>] -value <datoshi> | "
                                 "-order <order_hash> {[-tax_addr <wallet_addr_for_tax_collecting>] | "
                                         "-cert <priv_cert_name> [-node_addr <for_validator_node>]}}"
                         " -net <net_name> -w <wallet_name> -fee <value>\n"
@@ -1843,6 +1843,8 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
     const char *l_net_str = NULL,
                *l_wallet_str = NULL,
                *l_cert_str = NULL,
+               *l_pkey_str = NULL,
+               *l_sign_type_str = NULL,
                *l_value_str = NULL,
                *l_fee_str = NULL,
                *l_node_addr_str = NULL,
@@ -1874,9 +1876,16 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
     dap_chain_addr_t l_signing_addr, l_sovereign_addr = {};
     uint256_t l_sovereign_tax = uint256_0;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_str);
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-pkey", &l_pkey_str);
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-sign_type", &l_sign_type_str);
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-order", &l_order_hash_str);
-    if (!l_cert_str && !l_order_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -cert and/or -order");
+    if (!l_cert_str && !l_order_hash_str && !l_pkey_str) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -cert and/or -order and/or -pkey");
+        dap_enc_key_delete(l_enc_key);
+        return -13;
+    }
+    if (l_pkey_str && !l_sign_type_str) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -sign_type for pkey");
         dap_enc_key_delete(l_enc_key);
         return -13;
     }
@@ -1909,6 +1918,21 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
             dap_enc_key_delete(l_enc_key);
             return -20;
         }
+        dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-node_addr", &l_node_addr_str);
+    } else if (l_pkey_str) {
+        dap_chain_hash_fast_t l_hash_public_key = {0};
+        dap_sign_type_t l_type = dap_sign_type_from_str(l_sign_type_str);
+        if (l_type.type == SIG_TYPE_NULL) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong sign type");
+            dap_enc_key_delete(l_enc_key);
+            return -21;
+        }
+        if (dap_chain_hash_fast_from_str(l_pkey_str, &l_hash_public_key)) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid pkey hash format");
+            dap_enc_key_delete(l_enc_key);
+            return -22;
+        }
+        dap_chain_addr_fill(&l_signing_addr, l_type, &l_hash_public_key, l_net->pub.id);
         dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-node_addr", &l_node_addr_str);
     }
     dap_chain_node_addr_t l_node_addr = g_node_addr;
