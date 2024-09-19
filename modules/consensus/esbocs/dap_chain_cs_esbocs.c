@@ -3084,7 +3084,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -val_count", l_subcmd_strs[l_subcmd]);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR;
             }
-            uint256_t l_value = dap_chain_balance_scan(l_value_str);
+            uint256_t l_value = dap_uint256_scan_uninteger(l_value_str);
             if (IS_ZERO_256(l_value)) {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR,"Unrecognized number in '-val_count' param");
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR;
