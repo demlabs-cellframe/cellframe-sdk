@@ -58,7 +58,7 @@ typedef struct dap_chain_cs_dag_poa_presign_callback{
 } dap_chain_cs_dag_poa_presign_callback_t;
 
 typedef struct dap_chain_cs_dag_poa_event_item {
-    dap_chain_hash_fast_t hash, datum_hash;
+    dap_chain_hash_fast_t datum_hash;
     dap_chain_cs_dag_event_t *event;
     dap_chain_cs_dag_t *dag;
     UT_hash_handle hh;
