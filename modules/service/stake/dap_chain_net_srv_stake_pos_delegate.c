@@ -134,6 +134,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "srv_stake check -net <net_name> -tx <tx_hash>\n"
         "\tCheck remote validator"
     );
+    dap_cli_server_cmd_check_add("srv_stake", dap_chain_net_cmd_check);
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
     dap_ledger_service_add(l_uid, "pos_delegate", s_tag_check_key_delegation);
@@ -1455,15 +1456,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
     int l_arg_index = a_arg_index + 1;
     const char *l_net_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
-    if (!l_net_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order' requires parameter -net");
-        return -3;
-    }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-    if (!l_net) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-        return -4;
-    }
 
     switch (l_cmd_num) {
     case CMD_CREATE_FEE: {
@@ -1754,15 +1747,8 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
     case CMD_LIST: {
         const char *l_net_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
-        if (!l_net_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order list' requires parameter -net");
-            return -3;
-        }
         dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-        if (!l_net) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-            return -4;
-        }
+
         dap_string_t *l_reply_str = dap_string_new("");
         for (int i = 0; i < 2; i++) {
             char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(l_net) :
@@ -1844,15 +1830,8 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
                *l_node_addr_str = NULL,
                *l_order_hash_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str);
-    if (!l_net_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -net");
-        return -3;
-    }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-    if (!l_net) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-        return -4;
-    }
+
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_str);
     if (!l_wallet_str) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -w");
@@ -2120,15 +2099,8 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, vo
                *l_tx_hash_str = NULL,
                *l_cert_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str);
-    if (!l_net_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'update' requires parameter -net");
-        return -3;
-    }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-    if (!l_net) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-        return -4;
-    }
+
     uint256_t l_fee = {};
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_str);
     if (!l_wallet_str) {
@@ -2258,15 +2230,8 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
                *l_signing_pkey_hash_str = NULL,
                *l_signing_pkey_type_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str);
-    if (!l_net_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'invalidate' requires parameter -net");
-        return -3;
-    }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-    if (!l_net) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-        return -4;
-    }
+
     uint256_t l_fee = {};
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_str);
     if (!l_wallet_str) {
@@ -2679,10 +2644,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_netst);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tx", &str_tx_hash);
             l_net = dap_chain_net_by_name(l_netst);
-            if (!l_net) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_netst);
-                return -1;
-            }
+
             if (!str_tx_hash) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command check requires parameter -tx");
                 return -2;
@@ -2752,15 +2714,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             const char *l_net_str = NULL, *l_tx_hash_str = NULL, *l_cert_str = NULL;
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
-            if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'approve' requires parameter -net");
-                return -3;
-            }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-            if (!l_net) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-                return -4;
-            }
+
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-poa_cert", &l_cert_str);
             if (!l_cert_str) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'approve' requires parameter -poa_cert");
@@ -2805,15 +2760,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                            *l_pkey_hash_str = NULL;
                 l_arg_index++;
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
-                if (!l_net_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'list keys' requires parameter -net");
-                    return -3;
-                }
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-                if (!l_net) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-                    return -4;
-                }
+
                 dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(l_net->pub.id);
                 if (!l_srv_stake) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified net have no stake service activated");
@@ -2896,15 +2844,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 const char *l_net_str = NULL;
                 l_arg_index++;
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
-                if (!l_net_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'list tx' requires parameter -net");
-                    return -3;
-                }
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-                if (!l_net) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-                    return -4;
-                }
+
                 struct get_tx_cond_pos_del_from_tx * l_args = DAP_NEW_Z(struct get_tx_cond_pos_del_from_tx);
                 if(!l_args) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -2962,15 +2903,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                        *l_value_str = NULL;
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
-            if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' requires parameter -net");
-                return -3;
-            }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-            if (!l_net) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-                return -4;
-            }
+
             dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_ANCHOR);
             if (!l_chain)
                 l_chain =  dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_ANCHOR);
@@ -3024,15 +2958,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                        *l_value_str = NULL;
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
-            if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' requires parameter -net");
-                return -3;
-            }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-            if (!l_net) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-                return -4;
-            }
+
             dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_ANCHOR);
             if (!l_chain)
                 l_chain =  dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_ANCHOR);

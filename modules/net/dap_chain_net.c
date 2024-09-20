@@ -3406,3 +3406,28 @@ decree_table_t **dap_chain_net_get_decrees(dap_chain_net_t *a_net) {
 anchor_table_t **dap_chain_net_get_anchors(dap_chain_net_t *a_net) {
     return a_net ? &(PVT(a_net)->anchors) : NULL;
 }
+
+
+int dap_chain_net_cmd_check(char *a_cmd_name, int a_argc, char **a_argv, void **a_str_reply)
+{
+    char *l_net_str = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, dap_min(1, a_argc), a_argc, "-net", &l_net_str);
+    if (!l_net_str) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command '%s' requires parameter -net", a_cmd_name);
+        return -3;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+    if (!l_net) {
+        
+        dap_string_t *l_reply = dap_string_new("");
+        dap_string_append_printf(l_reply, "Network %s not found, please choose second:\n", l_net_str);
+        dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
+        HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
+            dap_string_append_printf(l_reply, "\t%s\n", l_net_item->name);
+        }
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_reply->str);
+        dap_string_free(l_reply, true);
+        return -4;
+    }
+    return 0;
+}
