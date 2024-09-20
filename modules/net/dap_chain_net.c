@@ -3208,10 +3208,10 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
     }
     l_net_pvt->sync_context.cur_chain = l_curr_chain;
     if (l_curr_chain) {
-        log_it(L_DEBUG, "Go to chain \"%s\" for net %s", l_curr_chain->name, l_curr_chain->net_name);
+        debug_if(s_debug_more, L_DEBUG, "Go to chain \"%s\" for net %s", l_curr_chain->name, l_curr_chain->net_name);
         return l_curr_chain;
     }
-    log_it(L_DEBUG, "Go to next chain: <NULL>");
+    debug_if(s_debug_more, L_DEBUG, "Go to next chain: <NULL>");
     if (l_net_pvt->state_target != NET_STATE_ONLINE) {
         dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
         return NULL;
