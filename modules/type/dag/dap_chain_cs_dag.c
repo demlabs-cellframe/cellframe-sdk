@@ -853,6 +853,10 @@ void s_dag_events_lasts_delete_linked_with_event(dap_chain_cs_dag_t * a_dag, dap
 {
     for (size_t i = 0; i< a_event->header.hash_count; i++) {
         dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) a_event->hashes_n_datum_n_signs) + i;
+        if (!l_hash) {
+            log_it(L_ERROR, "Can't find hash in event");
+            return;
+        }
         dap_chain_cs_dag_event_item_t * l_event_item = NULL;
         dap_chain_cs_dag_pvt_t * l_dag_pvt =  PVT(a_dag);
         HASH_FIND(hh, l_dag_pvt->events_lasts_unlinked ,l_hash ,sizeof (*l_hash),  l_event_item);
