@@ -485,6 +485,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING, "Can't apply this decree to specified chain");
                 return -115;
             }
+            if (!a_apply)
+                break;
             uint16_t l_decree_count = (uint16_t)dap_chain_uint256_to(l_value);
             uint16_t l_current_count = dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL);
             if (l_decree_count > l_current_count) {
@@ -492,8 +494,6 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                                                                             l_decree_count, l_current_count, a_net->pub.name);
                 return -116;
             }
-            if (!a_apply)
-                break;
             dap_chain_esbocs_set_min_validators_count(l_chain, l_decree_count);
         } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN: {
