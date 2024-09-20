@@ -593,10 +593,10 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
                 }
             }
             log_it(L_INFO, "Event %s with datum %s is %s",
-                           &l_event_hash_hex_str, l_datum_hash_str, dap_chain_atom_verify_res_str[l_res]);
+                           l_event_hash_hex_str, l_datum_hash_str, dap_chain_atom_verify_res_str[l_res]);
         } else {
             log_it(L_ERROR, "Event %s is not chained: datum %s doesn't pass verification, error \"%s\"",
-                            &l_event_hash_hex_str, l_datum_hash_str, dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
+                            l_event_hash_hex_str, l_datum_hash_str, dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
             for (; k; --k) {
                 log_it(L_INFO, "Remove event %s with unverified datum %s", l_complete_keys[k - 1], l_datum_hash_str);
                 dap_global_db_del_sync(a_group, l_complete_keys[k - 1]);
