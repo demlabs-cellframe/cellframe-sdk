@@ -2083,11 +2083,15 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         break;
                     case -EBUSY:
                         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ALREADY_ERR,
-                                               "Error: wallet %s is already %sactivated\n", l_wallet_name, l_prefix);
+                                               "Wallet %s is already %sactivated\n", l_wallet_name, l_prefix);
                         break;
                     case -EAGAIN:
                         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR,
-                                "Error: wrong password for wallet %s\n", l_wallet_name);
+                                "Wrong password for wallet %s\n", l_wallet_name);
+                        break;
+                    case -101:
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR,
+                                "Can't active unprotected wallet: %s\n", l_wallet_name);
                         break;
                     default: {
                         char l_buf[512] = { '\0' };
