@@ -280,7 +280,7 @@ void dap_chain_net_srv_stake_lock_deinit()
  * @param output_line
  * @return
  */
-static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
+static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object *a_json_obj_out)
 {
     const char *l_net_str = NULL, *l_ticker_str = NULL, *l_coins_str = NULL,
             *l_wallet_str = NULL, *l_cert_str = NULL, *l_chain_str = NULL,
@@ -302,7 +302,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     dap_chain_addr_t					*l_addr_holder;
     dap_chain_datum_token_t 			*l_delegated_token;
 
-    dap_string_append_printf(output_line, "---> HOLD <---\n");
+    json_object_object_add(a_json_obj_out, "status", json_object_new_string("---> HOLD <---"));
 
     const char *l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-H", &l_hash_out_type);
@@ -316,7 +316,8 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
         return NET_ARG_ERROR;
 
     if (NULL == (l_net = dap_chain_net_by_name(l_net_str))) {
-        dap_string_append_printf(output_line, "'%s'", l_net_str);
+        dap_json_rpc_error_add(NET_ERROR, "%s network not found", l_net_str);
+        //dap_string_append_printf(output_line, "'%s'", l_net_str);
         return NET_ERROR;
     }
 
