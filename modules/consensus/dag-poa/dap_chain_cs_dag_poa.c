@@ -571,7 +571,8 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
     }
     dap_chain_cs_dag_event_round_item_t *l_chosen_item = s_round_event_choose_dup(l_dups_list, l_max_signs_count);
     dap_list_free(l_dups_list);
-    const char *l_datum_hash_str = dap_hash_fast_to_str_static(&l_arg->datum_hash);
+    char l_datum_hash_str[DAP_HASH_FAST_STR_SIZE];
+    dap_hash_fast_to_str(&l_arg->datum_hash, l_datum_hash_str, sizeof(l_datum_hash_str));
     if (l_chosen_item) {
         size_t l_event_size = l_chosen_item->event_size;
         dap_chain_cs_dag_event_t *l_new_atom = (dap_chain_cs_dag_event_t *)l_chosen_item->event_n_signs;
