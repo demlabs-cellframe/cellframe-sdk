@@ -903,7 +903,7 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
         dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_per_unit_max,
-        dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_net_srv_uid_t a_srv_uid,
+        dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_srv_uid_t a_srv_uid,
         uint256_t a_value_fee, const void *a_cond,
         size_t a_cond_size, const char *a_hash_out_type)
 {

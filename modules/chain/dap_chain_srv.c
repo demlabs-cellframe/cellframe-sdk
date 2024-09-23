@@ -28,10 +28,15 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "chain_srv"
 
+struct network_service {
+    dap_chain_net_id_t net_id;
+    void *service;
+};
+
 struct service_list {
-    dap_guuid_t net_uuid; // Unique ID for service with network
+    dap_chain_srv_uid_t uuid; // Unique ID for service
+    dap_list_t *networks;   // List of networks with service enabled
     dap_chain_static_srv_callbacks_t callbacks;
-    void *_internal;
     char name[32];
     UT_hash_handle hh;
 };
@@ -48,22 +53,28 @@ void dap_chain_srv_deinit()
     HASH_ITER(hh, s_srv_list, it, tmp) {
         // Clang bug at this, l_service_item should change at every loop cycle
         HASH_DEL(s_srv_list, it);
-        if (it->callbacks.delete)
-            it->callbacks.delete(it->_internal);
+        dap_list_t *itl, *tmpl;
+        DL_FOREACH_SAFE(it->networks, itl, tmpl) {
+            struct network_service *l_service = itl->data;
+            if (it->callbacks.delete)
+                it->callbacks.delete(l_service->service);
+            else
+                DAP_DEL_Z(l_service->service);
+            DAP_DELETE(l_service);
+            DAP_DELETE(itl);
+        }
         DAP_DELETE(it);
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
 }
 
 
-int dap_chain_srv_add(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_uid, const char *a_name,
-                      dap_chain_static_srv_callbacks_t *a_static_callbacks, void *a_service_internal)
+int dap_chain_srv_add(dap_chain_srv_uid_t a_uid, const char *a_name, dap_chain_static_srv_callbacks_t *a_static_callbacks)
 {
     struct service_list *l_service_item = NULL;
 
-    dap_guuid_t l_uid = dap_guuid_compose(a_net_id.uint64, a_uid.uint64);
     pthread_mutex_lock(&s_srv_list_mutex);
-    HASH_FIND(hh, s_srv_list, &l_uid, sizeof(l_uid), l_service_item);
+    HASH_FIND(hh, s_srv_list, &a_uid, sizeof(a_uid), l_service_item);
     if (l_service_item) {
         log_it(L_ERROR, "Already present service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
         pthread_mutex_unlock(&s_srv_list_mutex);
@@ -75,49 +86,94 @@ int dap_chain_srv_add(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_uid
         pthread_mutex_unlock(&s_srv_list_mutex);
         return -2;
     }
-    l_service_item->net_uuid = l_uid;
+    l_service_item->uuid = a_uid;
     if (a_name)
         dap_strncpy(l_service_item->name, a_name, sizeof(l_service_item->name));
     if (a_static_callbacks)
         l_service_item->callbacks = *a_static_callbacks;
-    l_service_item->_internal = a_service_internal;
-    HASH_ADD(hh, s_srv_list, net_uuid, sizeof(l_uid), l_service_item);
+    HASH_ADD(hh, s_srv_list, uuid, sizeof(a_uid), l_service_item);
     return 0;
 }
 
-static struct service_list *s_service_find(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_srv_uid)
+static struct network_service *s_net_service_find(struct service_list *a_service_item, dap_chain_net_id_t a_net_id)
 {
-    dap_guuid_t l_uuid = dap_guuid_compose(a_net_id.uint64, a_srv_uid.uint64);
+    for (dap_list_t *it = a_service_item->networks; it; it = it->next) {
+        struct network_service *l_service = it->data;
+        if (l_service->net_id.uint64 == a_net_id.uint64)
+            return l_service;
+    }
+    return NULL;
+}
+
+static struct service_list *s_service_find(dap_chain_srv_uid_t a_srv_uid)
+{
     struct service_list *l_service_item = NULL;
     pthread_mutex_lock(&s_srv_list_mutex);
-    HASH_FIND(hh, s_srv_list, &l_uuid, sizeof(dap_guuid_t), l_service_item);
+    HASH_FIND(hh, s_srv_list, &a_srv_uid, sizeof(dap_chain_srv_uid_t), l_service_item);
     pthread_mutex_unlock(&s_srv_list_mutex);
     return l_service_item;
 }
 
-int dap_chain_srv_delete(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_srv_uid)
+static struct service_list *s_find_by_name(const char *a_name)
 {
-    dap_guuid_t l_uuid = dap_guuid_compose(a_net_id.uint64, a_srv_uid.uint64);
+    dap_return_val_if_fail(a_name, NULL);
+    pthread_mutex_lock(&s_srv_list_mutex);
+    for (struct service_list *it = s_srv_list; it; it = it->hh.next) {
+        if (!dap_strcmp(it->name, a_name)) {
+            pthread_mutex_unlock(&s_srv_list_mutex);
+            return it;
+        }
+    }
+    pthread_mutex_unlock(&s_srv_list_mutex);
+    return NULL;
+}
+
+int dap_chain_srv_start(dap_chain_net_id_t a_net_id, const char *a_name, dap_config_t *a_config)
+{
+    struct service_list *l_service = s_find_by_name(a_name);
+    if (!l_service)
+        return -1;
+    void *l_internal_service = NULL;
+    if (l_service->callbacks.start)
+        l_internal_service = l_service->callbacks.start(a_net_id, a_config);
+    struct network_service *l_net_service;
+    DAP_NEW_Z_RET_VAL(l_net_service, struct network_service, -2, NULL);
+    *l_net_service = (struct network_service) { .service = l_internal_service, .net_id = a_net_id };
+    l_service->networks = dap_list_append(l_service->networks, l_net_service);
+    return 0;
+}
+
+int dap_chain_srv_delete(dap_chain_srv_uid_t a_srv_uid)
+{
     struct service_list *l_service_item = NULL;
     pthread_mutex_lock(&s_srv_list_mutex);
-    HASH_FIND(hh, s_srv_list, &l_uuid, sizeof(dap_guuid_t), l_service_item);
+    HASH_FIND(hh, s_srv_list, &a_srv_uid, sizeof(a_srv_uid), l_service_item);
     if (!l_service_item) {
         pthread_mutex_unlock(&s_srv_list_mutex);
         return -1;
     }
     HASH_DEL(s_srv_list, l_service_item);
     pthread_mutex_unlock(&s_srv_list_mutex);
-    if (l_service_item->callbacks.delete)
-        l_service_item->callbacks.delete(l_service_item->_internal);
+    dap_list_t *it, *tmp;
+    DL_FOREACH_SAFE(l_service_item->networks, it, tmp) {
+        struct network_service *l_service = it->data;
+        if (l_service_item->callbacks.delete)
+            l_service_item->callbacks.delete(l_service->service);
+        else
+            DAP_DEL_Z(l_service->service);
+        DAP_DELETE(l_service);
+        DAP_DELETE(it);
+    }
     DAP_DELETE(l_service_item);
     return 0;
 }
 
-int dap_chain_srv_purge(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_srv_uid)
+int dap_chain_srv_purge(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid)
 {
-    struct service_list *l_service_item = s_service_find(a_net_id, a_srv_uid);
-    if (l_service_item && l_service_item->callbacks.purge)
-        return l_service_item->callbacks.purge();
+    struct service_list *l_service_item = s_service_find(a_srv_uid);
+    if (l_service_item && s_net_service_find(l_service_item, a_net_id) &&
+            l_service_item->callbacks.purge)
+        return l_service_item->callbacks.purge(a_net_id);
     return 0;
 }
 
@@ -130,8 +186,8 @@ int dap_chain_srv_purge_all(dap_chain_net_id_t a_net_id)
     int ret = 0;
     pthread_mutex_lock(&s_srv_list_mutex);
     for (struct service_list *it = s_srv_list; it; it = it->hh.next) {
-        if (it->net_uuid.net_id == a_net_id.uint64 && it->callbacks.purge)
-            ret += it->callbacks.purge();
+        if (s_net_service_find(it, a_net_id) && it->callbacks.purge)
+            ret += it->callbacks.purge(a_net_id);
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
     return ret;
@@ -145,8 +201,8 @@ void dap_chain_srv_hardfork_all(dap_chain_net_id_t a_net_id)
 {
     pthread_mutex_lock(&s_srv_list_mutex);
     for (struct service_list *it = s_srv_list; it; it = it->hh.next) {
-        if (it->net_uuid.net_id == a_net_id.uint64 && it->callbacks.hardfork)
-            it->callbacks.hardfork();
+        if (s_net_service_find(it, a_net_id) && it->callbacks.hardfork)
+            it->callbacks.hardfork(a_net_id);
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
 }
@@ -161,8 +217,8 @@ json_object *dap_chain_srv_get_fees(dap_chain_net_id_t a_net_id)
     json_object *ret = json_object_new_array();
     pthread_mutex_lock(&s_srv_list_mutex);
     for (struct service_list *it = s_srv_list; it; it = it->hh.next) {
-        if (it->net_uuid.net_id == a_net_id.uint64 && it->callbacks.get_fee_descr)
-            json_object_array_add(ret, it->callbacks.get_fee_descr());
+        if (s_net_service_find(it, a_net_id) && it->callbacks.get_fee_descr)
+            json_object_array_add(ret, it->callbacks.get_fee_descr(a_net_id));
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
     return ret;
@@ -173,28 +229,24 @@ json_object *dap_chain_srv_get_fees(dap_chain_net_id_t a_net_id)
  * @param a_uid
  * @return
  */
-void *dap_chain_srv_get_internal(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_srv_uid)
+void *dap_chain_srv_get_internal(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid)
 {
-    struct service_list *l_service_item = s_service_find(a_net_id, a_srv_uid);
-    return (l_service_item) ? l_service_item->_internal : NULL;
+    struct service_list *l_service_item = s_service_find(a_srv_uid);
+    if (!l_service_item)
+        return NULL;
+    struct network_service *l_service = s_net_service_find(l_service_item, a_net_id);
+    return l_service ? l_service->service : NULL;
 }
+
 
 /**
  * @brief dap_chain_srv_get_uid_by_name
  * @param a_client
  */
-uint64_t dap_chain_srv_get_uid_by_name(const char *a_name)
+dap_chain_srv_uid_t dap_chain_srv_get_uid_by_name(const char *a_name)
 {
-    dap_return_val_if_fail(a_name, 0);
-    pthread_mutex_lock(&s_srv_list_mutex);
-    for (struct service_list *it = s_srv_list; it; it = it->hh.next) {
-        if (!dap_strcmp(it->name, a_name)) {
-            pthread_mutex_unlock(&s_srv_list_mutex);
-            return it->net_uuid.srv_id;
-        }
-    }
-    pthread_mutex_unlock(&s_srv_list_mutex);
-    return 0;
+    struct service_list *l_service = s_find_by_name(a_name);
+    return l_service ? l_service->uuid : c_dap_chain_srv_uid_null;
 }
 
 /**
@@ -206,7 +258,7 @@ size_t dap_chain_srv_count(dap_chain_net_id_t a_net_id)
     size_t l_count = 0;
     pthread_mutex_lock(&s_srv_list_mutex);
     for (struct service_list *it = s_srv_list; it; it = it->hh.next)
-        if (it->net_uuid.net_id == a_net_id.uint64)
+        if (s_net_service_find(it, a_net_id))
             l_count++;
     pthread_mutex_unlock(&s_srv_list_mutex);
     return l_count;
@@ -222,8 +274,8 @@ dap_list_t *dap_chain_srv_list(dap_chain_net_id_t a_net_id)
     pthread_mutex_lock(&s_srv_list_mutex);
     // Iterate services and save them to list
     for (struct service_list *it = s_srv_list; it; it = it->hh.next)
-        if (it->net_uuid.net_id == a_net_id.uint64)
-            l_list = dap_list_append(l_list, DAP_DUP(&it->net_uuid));
+        if (s_net_service_find(it, a_net_id))
+            l_list = dap_list_append(l_list, DAP_DUP(&it->uuid));
     pthread_mutex_unlock(&s_srv_list_mutex);
     return l_list;
 }

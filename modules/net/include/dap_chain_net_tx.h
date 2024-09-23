@@ -65,22 +65,22 @@ typedef void (dap_chain_net_tx_hash_callback_t)(dap_chain_net_t* a_net, dap_chai
 dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
                                                      dap_chain_net_tx_search_type_t a_search_type);
 
-dap_list_t * dap_chain_net_get_tx_cond_chain(dap_chain_net_t * a_net, dap_hash_fast_t * a_tx_hash, dap_chain_net_srv_uid_t a_srv_uid);
+dap_list_t * dap_chain_net_get_tx_cond_chain(dap_chain_net_t * a_net, dap_hash_fast_t * a_tx_hash, dap_chain_srv_uid_t a_srv_uid);
 
 void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_type_t a_search_type ,dap_chain_net_tx_hash_callback_t a_tx_callback, void * a_arg);
 
 
-dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_net_srv_uid_t a_srv_uid,
+dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_srv_uid_t a_srv_uid,
                                                       const dap_time_t a_time_from, const dap_time_t a_time_to,
                                                      const dap_chain_net_tx_search_type_t a_search_type);
-dap_list_t * dap_chain_net_get_tx_cond_all_for_addr(dap_chain_net_t * a_net, dap_chain_addr_t * a_addr, dap_chain_net_srv_uid_t a_srv_uid);
+dap_list_t * dap_chain_net_get_tx_cond_all_for_addr(dap_chain_net_t * a_net, dap_chain_addr_t * a_addr, dap_chain_srv_uid_t a_srv_uid);
 
 dap_list_t * dap_chain_net_get_tx_all_from_tx(dap_chain_net_t * a_net, dap_hash_fast_t * l_tx_hash);
 
 
 
 
-dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_net_srv_uid_t a_srv_uid,
+dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_srv_uid_t a_srv_uid,
                                                       const dap_time_t a_time_from, const dap_time_t a_time_to,
                                                      const dap_chain_net_tx_search_type_t a_search_type);
 void dap_chain_datum_tx_spends_item_free(dap_chain_datum_tx_spends_item_t * a_items);

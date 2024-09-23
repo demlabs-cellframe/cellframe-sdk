@@ -2783,7 +2783,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         json_object_object_add(l_jobj_datum, "main_ticker", l_jobj_main_ticker);
                         json_object_object_add(l_jobj_datum, "ledger_rc", l_jobj_ledger_rc);
 
-                        dap_chain_net_srv_uid_t uid;
+                        dap_chain_srv_uid_t uid;
                         char *service_name;
                         dap_chain_tx_tag_action_type_t action;
                         if (dap_ledger_deduct_tx_tag(a_net->pub.ledger, l_tx, &service_name, &uid, &action))
@@ -5131,7 +5131,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_reply)
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_SRV_UID, "tx_cond_create requires parameter '-srv_uid'");
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_SRV_UID;
     }
-    dap_chain_net_srv_uid_t l_srv_uid = {};
+    dap_chain_srv_uid_t l_srv_uid = {};
     l_srv_uid.uint64 = strtoll(l_srv_uid_str, NULL, 10);
     if (!l_srv_uid.uint64) {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_FIND_SERVICE_UID, "Can't find service UID %s ", l_srv_uid_str);
@@ -5302,7 +5302,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **reply)
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_SRV_UID;
     }
 
-    dap_chain_net_srv_uid_t l_srv_uid = {};
+    dap_chain_srv_uid_t l_srv_uid = {};
     l_srv_uid.uint64 = strtoll(l_srv_uid_str, NULL, 10);
     if (!l_srv_uid.uint64) {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_SERVICE_UID, "Can't find service UID %s ", l_srv_uid_str);
@@ -5597,7 +5597,7 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply)
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_INVALID_PARAMETER_SRV_UID;
     }
 
-    dap_chain_net_srv_uid_t l_srv_uid = {};
+    dap_chain_srv_uid_t l_srv_uid = {};
     l_srv_uid.uint64 = strtoll(l_srv_uid_str, NULL, 10);
     if (!l_srv_uid.uint64) {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_SERVICE_UID,
@@ -6000,7 +6000,7 @@ static bool s_json_get_srv_uid(struct json_object *a_json, const char *a_key_ser
         // Read service as name
         const char *l_service = s_json_get_text(a_json, a_key_service);
         if (l_service)
-            *a_out = dap_chain_srv_get_uid_by_name(l_service);
+            *a_out = dap_chain_srv_get_uid_by_name(l_service).uint64;
     }
     return false;
 }
@@ -6270,7 +6270,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply)
                     log_it(L_ERROR, "Json TX: bad price_unit in OUT_COND_SUBTYPE_SRV_PAY");
                     break;
                 }
-                dap_chain_net_srv_uid_t l_srv_uid;
+                dap_chain_srv_uid_t l_srv_uid;
                 if(!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid.uint64)){
                     // Default service DAP_CHAIN_NET_SRV_VPN_ID
                     l_srv_uid.uint64 = 0x0000000000000001;
@@ -6302,7 +6302,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply)
                 break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
 
-                dap_chain_net_srv_uid_t l_srv_uid;
+                dap_chain_srv_uid_t l_srv_uid;
                 if(!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
                     // Default service DAP_CHAIN_NET_SRV_XCHANGE_ID
                     l_srv_uid.uint64 = 0x2;
@@ -6339,7 +6339,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply)
             }
                 break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE:{
-                dap_chain_net_srv_uid_t l_srv_uid;
+                dap_chain_srv_uid_t l_srv_uid;
                 if(!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
                     // Default service DAP_CHAIN_NET_SRV_STAKE_ID
                     l_srv_uid.uint64 = 0x13;
@@ -6422,7 +6422,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply)
         }
             break;
         case TX_ITEM_TYPE_RECEIPT: {
-            dap_chain_net_srv_uid_t l_srv_uid;
+            dap_chain_srv_uid_t l_srv_uid;
             if(!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
                 log_it(L_ERROR, "Json TX: bad service_id in TYPE_RECEIPT");
                 break;

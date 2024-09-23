@@ -57,7 +57,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_CH_NOT_FOUND       0x00000101
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_IN_CLIENT_MODE     0x00000102
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NOT_FOUND          0x00000200
-#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NO_LEDGER          0x00000201
+//#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NO_LEDGER          0x00000201
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE         0x00000202
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_CANT_ADD_USAGE             0x00000300
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND          0x00000400
@@ -85,7 +85,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 typedef struct dap_chain_net_srv_ch_pkt_request_hdr{
     dap_chain_net_id_t net_id;// Network id wheither to request
     dap_chain_hash_fast_t tx_cond; // Conditioned transaction with paymemt for
-    dap_chain_net_srv_uid_t srv_uid;
+    dap_chain_srv_uid_t srv_uid;
     char token[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_chain_hash_fast_t client_pkey_hash;
     dap_chain_hash_fast_t order_hash;
@@ -102,7 +102,7 @@ typedef struct dap_chain_net_srv_ch_pkt_data_hdr{
     uint16_t data_size;
     uint8_t padding;
     uint32_t usage_id;
-    dap_chain_net_srv_uid_t srv_uid;
+    dap_chain_srv_uid_t srv_uid;
 } DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_data_hdr_t;
 
 typedef struct dap_chain_net_srv_ch_pkt_data{
@@ -114,7 +114,7 @@ typedef struct dap_chain_net_srv_ch_pkt_data{
 typedef struct dap_chain_net_srv_ch_pkt_success_hdr{
     uint32_t usage_id;
     dap_chain_net_id_t net_id;
-    dap_chain_net_srv_uid_t srv_uid;
+    dap_chain_srv_uid_t srv_uid;
 } DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_success_hdr_t;
 
 typedef struct dap_chain_net_srv_ch_pkt_success{
@@ -125,7 +125,7 @@ typedef struct dap_chain_net_srv_ch_pkt_success{
 // TYPE_RESPONSE_ERROR
 typedef struct dap_chain_net_srv_ch_pkt_error{
     dap_chain_net_id_t net_id;
-    dap_chain_net_srv_uid_t srv_uid;
+    dap_chain_srv_uid_t srv_uid;
     uint32_t usage_id;
     uint32_t code; // error code
 } DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_error_t;
@@ -134,7 +134,7 @@ typedef struct dap_chain_net_srv_ch_pkt_error{
 typedef struct dap_chain_net_srv_ch_pkt_test {
     uint32_t                usage_id;
     dap_chain_net_id_t      net_id;
-    dap_chain_net_srv_uid_t srv_uid;
+    dap_chain_srv_uid_t srv_uid;
     int32_t                 time_connect_ms;
     dap_nanotime_t          recv_time1, recv_time2, send_time1, send_time2;
     char                    host_send[DAP_HOSTADDR_STRLEN], host_recv[DAP_HOSTADDR_STRLEN];
@@ -145,11 +145,11 @@ typedef struct dap_chain_net_srv_ch_pkt_test {
 } DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_test_t;
 
 size_t dap_chain_net_srv_ch_pkt_data_write(dap_stream_ch_t *a_ch,
-                                                  dap_chain_net_srv_uid_t a_srv_uid, uint32_t a_usage_id  ,
+                                                  dap_chain_srv_uid_t a_srv_uid, uint32_t a_usage_id  ,
                                                   const void * a_data, size_t a_data_size);
 
 DAP_PRINTF_ATTR(4, 5) size_t dap_chain_net_srv_ch_pkt_data_write_f(dap_stream_ch_t *a_ch,
-                                                                          dap_chain_net_srv_uid_t a_srv_uid,
+                                                                          dap_chain_srv_uid_t a_srv_uid,
                                                                           uint32_t a_usage_id,
                                                                           const char *a_str,
                                                                           ...);

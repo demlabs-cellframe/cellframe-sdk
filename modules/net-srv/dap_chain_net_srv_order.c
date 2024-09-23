@@ -243,7 +243,7 @@ int8_t dap_chain_net_srv_order_continent_to_num(const char *a_continent_str)
 char * dap_chain_net_srv_order_create(
         dap_chain_net_t * a_net,
         dap_chain_net_srv_order_direction_t a_direction,
-        dap_chain_net_srv_uid_t a_srv_uid, // Service UID
+        dap_chain_srv_uid_t a_srv_uid, // Service UID
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
         dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
         uint256_t *a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
@@ -270,7 +270,7 @@ char * dap_chain_net_srv_order_create(
 
 dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_net,
         dap_chain_net_srv_order_direction_t a_direction,
-        dap_chain_net_srv_uid_t a_srv_uid, // Service UID
+        dap_chain_srv_uid_t a_srv_uid, // Service UID
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
         dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
         uint256_t *a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
@@ -406,7 +406,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_find_by_hash_str(dap_chain_ne
  * @return
  */
 int dap_chain_net_srv_order_find_all_by(dap_chain_net_t *a_net, const dap_chain_net_srv_order_direction_t a_direction,
-                                        const dap_chain_net_srv_uid_t a_srv_uid,
+                                        const dap_chain_srv_uid_t a_srv_uid,
                                         const dap_chain_net_srv_price_unit_uid_t a_price_unit, const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
                                         const uint256_t a_price_min, const uint256_t a_price_max,
                                         dap_list_t **a_output_orders, size_t *a_output_orders_count)

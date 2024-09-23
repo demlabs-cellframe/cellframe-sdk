@@ -110,15 +110,13 @@ typedef struct dap_chain_addr{
     dap_chain_hash_fast_t checksum;
 } DAP_ALIGN_PACKED dap_chain_addr_t;
 
-#define DAP_CHAIN_NET_SRV_UID_SIZE 8
-
 typedef union {
-    uint8_t raw[DAP_CHAIN_NET_SRV_UID_SIZE];
+    uint8_t raw[8];
     uint64_t raw_ui64;
     uint64_t uint64;
-} dap_chain_net_srv_uid_t;
+} dap_chain_srv_uid_t;
 
-extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null;
+extern const dap_chain_srv_uid_t c_dap_chain_srv_uid_null;
 extern const dap_chain_cell_id_t c_dap_chain_cell_id_null;
 extern const dap_chain_addr_t c_dap_chain_addr_blank;
 
@@ -203,7 +201,7 @@ const char *dap_chain_addr_to_str_static(const dap_chain_addr_t *a_addr);
 dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 
-dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
+dap_chain_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
 
 void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t a_net_id);
 int dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id);

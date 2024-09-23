@@ -328,7 +328,7 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
         // where to take coins for service
         dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(l_wallet_from, a_net->pub.id);
         dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = SERV_UNIT_SEC };
-        dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
+        dap_chain_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
         uint256_t l_value = dap_chain_uint256_from(a_value_datoshi);
         uint256_t l_zero = {};
         char *l_tx_cond_hash_str = dap_chain_mempool_tx_create_cond(a_net, l_enc_key, l_client_key, a_token_ticker,
@@ -444,7 +444,7 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
     // dap_chain_net_srv_order_t 
     dap_list_t* l_orders = NULL;
     size_t l_orders_num = 0;
-    dap_chain_net_srv_uid_t l_srv_uid = { { 0 } };
+    dap_chain_srv_uid_t l_srv_uid = { { 0 } };
     uint256_t l_price_min = {};
     uint256_t l_price_max = {};
     dap_chain_net_srv_price_unit_uid_t l_price_unit = { { 0 } };
@@ -760,7 +760,7 @@ int dap_chain_net_vpn_client_init(dap_config_t * g_config)
             "vpn_client check result -net <net_name> [-H hex|base58(default)]\n"
             );
 
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
     /*if(!dap_chain_net_srv_remote_init(l_uid, s_callback_requested,
             s_callback_response_success, s_callback_response_error,
             s_callback_receipt_next_success,

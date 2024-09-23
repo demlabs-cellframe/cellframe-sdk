@@ -82,7 +82,7 @@ typedef struct dap_chain_tx_out_cond {
         /// When time expires this output could be used only by transaction owner
         dap_time_t ts_expires;
         /// Service uid that only could be used for this out
-        dap_chain_net_srv_uid_t srv_uid;
+        dap_chain_srv_uid_t srv_uid;
 #if DAP_CHAIN_NET_SRV_UID_SIZE == 8
         byte_t padding[8];
 #endif

@@ -35,14 +35,14 @@
 
 typedef struct cond_all_with_spends_by_srv_uid_arg{
     dap_chain_datum_tx_spends_items_t * ret;
-    dap_chain_net_srv_uid_t srv_uid;
+    dap_chain_srv_uid_t srv_uid;
     dap_time_t time_from;
     dap_time_t time_to;
 } cond_all_with_spends_by_srv_uid_arg_t;
 
 typedef struct cond_all_by_srv_uid_arg{
     dap_list_t * ret;
-    dap_chain_net_srv_uid_t srv_uid;
+    dap_chain_srv_uid_t srv_uid;
     dap_time_t time_from;
     dap_time_t time_to;
 } cond_all_by_srv_uid_arg_t;
@@ -99,7 +99,7 @@ static void s_tx_cond_all_with_spends_by_srv_uid_callback(dap_chain_net_t* a_net
  * @param a_search_type
  * @return Hash lists of dap_chain_datum_tx_item_t with conditional transaction and it spending if present
  */
-dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_net_srv_uid_t a_srv_uid,
+dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_srv_uid_t a_srv_uid,
                                                       const dap_time_t a_time_from, const dap_time_t a_time_to,
                                                      const dap_chain_net_tx_search_type_t a_search_type)
 {
@@ -226,7 +226,7 @@ struct get_tx_cond_all_from_tx
     dap_chain_datum_tx_t * tx_last;
     dap_hash_fast_t tx_last_hash;
     int tx_last_cond_idx;
-    dap_chain_net_srv_uid_t srv_uid;
+    dap_chain_srv_uid_t srv_uid;
 };
 
 /**
@@ -295,7 +295,7 @@ static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum
  * @param a_srv_uid Service UID from witch cond output the chain begin
  * @return List of conditioned transactions followin each other one by one as they do as spends
  */
-dap_list_t * dap_chain_net_get_tx_cond_chain(dap_chain_net_t * a_net, dap_hash_fast_t * a_tx_hash, dap_chain_net_srv_uid_t a_srv_uid)
+dap_list_t * dap_chain_net_get_tx_cond_chain(dap_chain_net_t * a_net, dap_hash_fast_t * a_tx_hash, dap_chain_srv_uid_t a_srv_uid)
 {
     struct get_tx_cond_all_from_tx * l_args = DAP_NEW_Z(struct get_tx_cond_all_from_tx);
     if (!l_args) {
@@ -318,7 +318,7 @@ struct get_tx_cond_all_for_addr
     dap_list_t * ret;
     dap_chain_tx_t * tx_all_hh; // Transactions hash table for target address
     const dap_chain_addr_t * addr;
-    dap_chain_net_srv_uid_t srv_uid;
+    dap_chain_srv_uid_t srv_uid;
 };
 
 /**
@@ -412,7 +412,7 @@ static void s_get_tx_cond_all_for_addr_callback(dap_chain_net_t* a_net, dap_chai
  * @param a_srv_uid
  * @return List of dap_chain_tx_t (don't forget to free it)
  */
-dap_list_t * dap_chain_net_get_tx_cond_all_for_addr(dap_chain_net_t * a_net, dap_chain_addr_t * a_addr, dap_chain_net_srv_uid_t a_srv_uid)
+dap_list_t * dap_chain_net_get_tx_cond_all_for_addr(dap_chain_net_t * a_net, dap_chain_addr_t * a_addr, dap_chain_srv_uid_t a_srv_uid)
 {
     struct get_tx_cond_all_for_addr * l_args = DAP_NEW_Z(struct get_tx_cond_all_for_addr);
     if (!l_args) {
@@ -450,7 +450,7 @@ static void s_tx_cond_all_by_srv_uid_callback(UNUSED_ARG dap_chain_net_t* a_net,
  * @param a_search_type
  * @return
  */
-dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_net_srv_uid_t a_srv_uid,
+dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_srv_uid_t a_srv_uid,
                                                       const dap_time_t a_time_from, const dap_time_t a_time_to,
                                                      const dap_chain_net_tx_search_type_t a_search_type)
 {

@@ -38,7 +38,7 @@ typedef struct dap_chain_datum_decree {
         dap_time_t ts_created;
         uint16_t type;
         union {
-            dap_chain_net_srv_uid_t srv_id;
+            dap_chain_srv_uid_t srv_id;
             struct {
                 dap_chain_net_id_t net_id;
                 dap_chain_id_t chain_id;

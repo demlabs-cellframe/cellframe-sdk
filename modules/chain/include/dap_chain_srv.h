@@ -24,20 +24,26 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #pragma once
 
-#include "dap_chain.h"
+#include "dap_config.h"
+#include "dap_chain_common.h"
+#include "dap_tsd.h"
 
+// Start service callback
+typedef void * (*dap_chain_srv_callback_start_t)(dap_chain_net_id_t a_net_id, dap_config_t *a_config);
 // Process service decree
-typedef void (*dap_chain_srv_callback_decree_t)(dap_chain_t *a_chain, int a_decree_type, dap_tsd_t *params);
+typedef void (*dap_chain_srv_callback_decree_t)(dap_chain_net_id_t a_net_id, int a_decree_type, dap_tsd_t *a_params, size_t a_params_size);
 // Purge service callback
-typedef int (*dap_chain_srv_callback_purge_t)(void);
+typedef int (*dap_chain_srv_callback_purge_t)(dap_chain_net_id_t a_net_id);
 // Get fee service callback
-typedef json_object * (*dap_chain_srv_callback_get_fee)(void);
+typedef json_object * (*dap_chain_srv_callback_get_fee)(dap_chain_net_id_t a_net_id);
 // Hardfork service callback
-typedef int (*dap_chain_srv_callback_hardfork_t)(void);
+typedef int (*dap_chain_srv_callback_hardfork_t)(dap_chain_net_id_t a_net_id);
 // Delete service callback
-typedef int (*dap_chain_srv_callback_delete_t)(void *);
+typedef void (*dap_chain_srv_callback_delete_t)(void *);
 
 typedef struct dap_chain_static_srv_callbacks {
+    // Init
+    dap_chain_srv_callback_start_t start;
     // Decree processing
     dap_chain_srv_callback_decree_t decree;
     // Purge
@@ -65,14 +71,12 @@ typedef enum dap_chain_srv_fee_type {
     SERIVCE_FEE_NATIVE_PERCENT
 } dap_chain_srv_fee_type_t;
 
-typedef struct dap_chain_srv_fee_item {
+typedef struct dap_chain_srv_fee {
     // Sevice fee
-    uint16_t fee_type;
-    uint256_t fee;
-    dap_chain_addr_t fee_addr; // Addr collector
-
-    UT_hash_handle hh;
-} dap_chain_srv_fee_item_t;
+    uint16_t type;
+    uint256_t value;
+    dap_chain_addr_t addr; // Addr collector
+} dap_chain_srv_fee_t;
 
 DAP_STATIC_INLINE const char *dap_chain_srv_fee_type_to_str(dap_chain_srv_fee_type_t a_fee_type)
 {
@@ -88,16 +92,15 @@ DAP_STATIC_INLINE const char *dap_chain_srv_fee_type_to_str(dap_chain_srv_fee_ty
 DAP_STATIC_INLINE int dap_chain_srv_init() { return 0; };
 void dap_chain_srv_deinit();
 
-int dap_chain_srv_add(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_uid, const char *a_name,
-                      dap_chain_static_srv_callbacks_t *a_static_callbacks, void *a_service_internal);
-
-int dap_chain_srv_delete(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_uid);
-void *dap_chain_srv_get_internal(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_srv_id);
-uint64_t dap_chain_srv_get_uid_by_name(const char *a_name);
+int dap_chain_srv_add(dap_chain_srv_uid_t a_uid, const char *a_name, dap_chain_static_srv_callbacks_t *a_static_callbacks);
+int dap_chain_srv_start(dap_chain_net_id_t a_net_id, const char *a_name, dap_config_t *a_config);
+int dap_chain_srv_delete(dap_chain_srv_uid_t a_uid);
+void *dap_chain_srv_get_internal(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_id);
+dap_chain_srv_uid_t dap_chain_srv_get_uid_by_name(const char *a_name);
 size_t dap_chain_srv_count(dap_chain_net_id_t a_net_id);
 dap_list_t *dap_chain_srv_list(dap_chain_net_id_t a_net_id);
 
-int dap_chain_srv_purge(dap_chain_net_id_t a_net_id, dap_chain_net_srv_uid_t a_srv_uid);
+int dap_chain_srv_purge(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid);
 int dap_chain_srv_purge_all(dap_chain_net_id_t a_net_id);
 void dap_chain_srv_hardfork_all(dap_chain_net_id_t a_net_id);
 json_object *dap_chain_srv_get_fees(dap_chain_net_id_t a_net_id);

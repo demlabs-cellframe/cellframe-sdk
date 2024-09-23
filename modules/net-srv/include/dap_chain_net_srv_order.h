@@ -32,7 +32,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 typedef struct dap_chain_net_srv_order
 {
     uint16_t version;
-    dap_chain_net_srv_uid_t srv_uid; // Service UID
+    dap_chain_srv_uid_t srv_uid; // Service UID
 #if DAP_CHAIN_NET_SRV_UID_SIZE == 8
     byte_t padding[8];
 #endif
@@ -81,7 +81,7 @@ DAP_STATIC_INLINE dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_ha
 int dap_chain_net_srv_order_find_all_by(
     dap_chain_net_t* a_net,
     const dap_chain_net_srv_order_direction_t a_direction,
-    const dap_chain_net_srv_uid_t a_srv_uid,
+    const dap_chain_srv_uid_t a_srv_uid,
     const dap_chain_net_srv_price_unit_uid_t a_price_unit,
     const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
     const uint256_t a_price_min, const uint256_t a_price_max,
@@ -104,7 +104,7 @@ DAP_STATIC_INLINE int dap_chain_net_srv_order_delete_by_hash(dap_chain_net_t * a
 
 char *dap_chain_net_srv_order_create(dap_chain_net_t * a_net,
         dap_chain_net_srv_order_direction_t a_direction,
-        dap_chain_net_srv_uid_t a_srv_uid, // Service UID
+        dap_chain_srv_uid_t a_srv_uid, // Service UID
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
         dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
         uint256_t *a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
@@ -122,7 +122,7 @@ char *dap_chain_net_srv_order_create(dap_chain_net_t * a_net,
 dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
         dap_chain_net_t *a_net,
         dap_chain_net_srv_order_direction_t a_direction,
-        dap_chain_net_srv_uid_t a_srv_uid, // Service UID
+        dap_chain_srv_uid_t a_srv_uid, // Service UID
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
         dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
         uint256_t *a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.

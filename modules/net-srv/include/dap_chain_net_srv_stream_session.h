@@ -54,7 +54,7 @@ typedef struct dap_chain_net_srv_usage{
     dap_timerfd_t *receipts_timeout_timer;
     void (*receipt_timeout_timer_start_callback)(struct dap_chain_net_srv_usage *a_usage);
     int receipt_sign_req_cnt;
-    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+
     bool is_active;
     bool is_free;
     bool is_grace;

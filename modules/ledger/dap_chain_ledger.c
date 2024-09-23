@@ -69,7 +69,7 @@ typedef struct dap_chain_ledger_votings_callbacks {
 } dap_chain_ledger_votings_callbacks_t;
 
 typedef struct dap_ledger_service_info {
-    dap_chain_net_srv_uid_t service_uid;    // hash key
+    dap_chain_srv_uid_t service_uid;    // hash key
     char tag_str[32];   // tag string name
     dap_ledger_tag_check_callback_t callback; //callback for check if a tx for particular service
     UT_hash_handle hh;
@@ -161,7 +161,7 @@ typedef struct dap_ledger_tx_item {
         byte_t multichannel;
         dap_time_t ts_spent;
         byte_t pad[7];
-        dap_chain_net_srv_uid_t tag; //tag (or service this tx is belong to)
+        dap_chain_srv_uid_t tag; //tag (or service this tx is belong to)
         dap_chain_tx_tag_action_type_t action;
         // TODO dynamically allocates the memory in order not to limit the number of outputs in transaction
         dap_chain_hash_fast_t tx_hash_spent_fast[MAX_OUT_ITEMS]; // spent outs list
@@ -406,7 +406,7 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
     return true;
 }
 
-int dap_ledger_service_add(dap_chain_net_srv_uid_t a_uid, char *tag_str, dap_ledger_tag_check_callback_t a_callback)
+int dap_ledger_service_add(dap_chain_srv_uid_t a_uid, char *tag_str, dap_ledger_tag_check_callback_t a_callback)
 {
     
     dap_ledger_service_info_t *l_new_sinfo = NULL;
@@ -452,10 +452,10 @@ int dap_ledger_init()
     pthread_rwlock_init(&s_services_rwlock, NULL);
 
     //register native ledger services
-    dap_chain_net_srv_uid_t l_uid_transfer = { .uint64 = DAP_CHAIN_NET_SRV_TRANSFER_ID };
+    dap_chain_srv_uid_t l_uid_transfer = { .uint64 = DAP_CHAIN_NET_SRV_TRANSFER_ID };
     dap_ledger_service_add(l_uid_transfer, "transfer", s_tag_check_transfer);
 
-    dap_chain_net_srv_uid_t l_uid_breward = { .uint64 = DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID };
+    dap_chain_srv_uid_t l_uid_breward = { .uint64 = DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID };
     dap_ledger_service_add(l_uid_breward, "block_reward", s_tag_check_block_reward);
     return 0;
 }
@@ -3278,7 +3278,7 @@ dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *
 }
 
 bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, 
-                                dap_chain_net_srv_uid_t *a_uid, char **a_service_name,  dap_chain_tx_tag_action_type_t *a_action)
+                                dap_chain_srv_uid_t *a_uid, char **a_service_name,  dap_chain_tx_tag_action_type_t *a_action)
 {
     //find tx
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
@@ -3307,7 +3307,7 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
 }
 
 
-bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, char **a_service_name, dap_chain_net_srv_uid_t *a_tag, dap_chain_tx_tag_action_type_t *a_action)
+bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, char **a_service_name, dap_chain_srv_uid_t *a_tag, dap_chain_tx_tag_action_type_t *a_action)
 {
     dap_ledger_service_info_t *l_sinfo_current, *l_sinfo_tmp;
 
@@ -3368,7 +3368,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                             dap_list_t **a_list_bound_items,
                             dap_list_t **a_list_tx_out,
                             char *a_main_ticker,
-                            dap_chain_net_srv_uid_t *a_tag,
+                            dap_chain_srv_uid_t *a_tag,
                             dap_chain_tx_tag_action_type_t *a_action,
                             bool a_check_for_removing)
 {
@@ -4283,7 +4283,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     dap_chain_hash_fast_to_str(a_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
 
     int l_ret_check;
-    dap_chain_net_srv_uid_t l_tag =  { .uint64 = 0 }; 
+    dap_chain_srv_uid_t l_tag =  { .uint64 = 0 }; 
     dap_chain_tx_tag_action_type_t l_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
 
     if( (l_ret_check = s_tx_cache_check(a_ledger, a_tx, a_tx_hash, a_from_threshold,
@@ -4663,7 +4663,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_list_t *l_list_bound_items = NULL;
     dap_list_t *l_list_tx_out = NULL;
-    dap_chain_net_srv_uid_t l_tag =  { .uint64 = 0 };
+    dap_chain_srv_uid_t l_tag =  { .uint64 = 0 };
     char l_main_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX] = { '\0' };
 
     char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -5371,7 +5371,7 @@ const dap_chain_datum_tx_t* dap_ledger_tx_find_by_pkey(dap_ledger_t *a_ledger,
  * @param a_srv_uid
  * @return
  */
-dap_list_t* dap_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid)
+dap_list_t* dap_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger, dap_chain_srv_uid_t a_srv_uid)
 {
     dap_list_t * l_ret = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);

@@ -47,10 +47,10 @@ typedef struct {
     time_t limits_ts; //Time provided for using the service
 } dap_chain_net_srv_ch_remain_service_store_t;
 
-typedef struct dap_chain_net_srv_abstract
-{
+typedef struct dap_chain_net_srv_abstract {
     uint8_t class; //Class of service (once or permanent)
-    dap_chain_net_srv_uid_t type_id; //Type of service
+    dap_chain_srv_uid_t type_id; //Type of service
+    char decription[128];
     union {
         struct {
             int bandwith;
@@ -61,32 +61,18 @@ typedef struct dap_chain_net_srv_abstract
          int value;
          } another_srv;*/
     } proposal_params;
+} dap_chain_net_srv_abstract_t;
 
-    //size_t pub_key_data_size;
-    //void * pub_key_data;
-
-    uint256_t price; //  service price, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
-    uint8_t price_units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
-    char decription[128];
-}DAP_ALIGN_PACKED dap_chain_net_srv_abstract_t;
-
-typedef struct dap_chain_net_srv_price
-{
-//    dap_chain_wallet_t *wallet;
-    dap_chain_addr_t *wallet_addr;
-    dap_cert_t *receipt_sign_cert;
-    char *net_name;
-    dap_chain_net_t *net;
+typedef struct dap_chain_net_srv_price {
     uint256_t value_datoshi;
     char token[DAP_CHAIN_TICKER_SIZE_MAX];
     uint64_t units;
     dap_chain_net_srv_price_unit_uid_t units_uid;
-    struct dap_chain_net_srv_price *next;
-    struct dap_chain_net_srv_price *prev;
 } dap_chain_net_srv_price_t;
 
 typedef struct dap_chain_net_srv dap_chain_net_srv_t;
 typedef struct dap_chain_net_srv_usage dap_chain_net_srv_usage_t;
+typedef struct dap_chain_net_srv_order dap_chain_net_srv_order_t;
 
 typedef struct dap_chain_net_srv_grace {
     dap_stream_worker_t *stream_worker;
@@ -97,8 +83,7 @@ typedef struct dap_chain_net_srv_grace {
     size_t request_size;
 } dap_chain_net_srv_grace_t;
 
-typedef struct dap_chain_net_srv_client_remote
-{
+typedef struct dap_chain_net_srv_client_remote {
     dap_stream_ch_t * ch; // Use ONLY in own context, not thread-safe
     time_t ts_created;
     dap_stream_worker_t * stream_worker;
@@ -148,25 +133,32 @@ typedef struct dap_chain_net_srv_grace_usage {
 } dap_chain_net_srv_grace_usage_t;
 
 typedef struct dap_chain_net_srv {
-    dap_chain_net_srv_abstract_t srv_common;
-    dap_chain_net_srv_uid_t uid;
+    dap_chain_srv_uid_t uid;
+    dap_chain_net_id_t net_id;
+
     bool allow_free_srv;
-    uint32_t grace_period;
+    dap_chain_addr_t wallet_addr;
+    dap_cert_t *receipt_sign_cert;
+
     pthread_mutex_t banlist_mutex;
     dap_chain_net_srv_banlist_item_t *ban_list;
 
     dap_chain_net_srv_callbacks_t callbacks;
 
+    uint32_t grace_period;
     dap_chain_net_srv_grace_usage_t *grace_hash_tab;
     pthread_mutex_t grace_mutex;
-    // Pointer to privatel service structure
+    // Pointer to private service structure
     void *_pvt;
+    // For python wrappers
+    void *_inheritor;
 } dap_chain_net_srv_t;
 
 int dap_chain_net_srv_init();
 void dap_chain_net_srv_deinit(void);
 
-dap_chain_net_srv_t *dap_chain_net_srv_create(dap_config_t *a_config, const char *a_config_section, dap_chain_net_srv_callbacks_t *a_network_callbacks);
+dap_chain_net_srv_t *dap_chain_net_srv_create(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid, dap_config_t *a_config, dap_chain_net_srv_callbacks_t *a_network_callbacks);
+void dap_chain_net_srv_del(dap_chain_net_srv_t *a_srv);
 
 dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
                                                                dap_chain_net_srv_price_t * a_price,
@@ -175,7 +167,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
 int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_config_section);
 
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section);
-dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net_srv_t *a_srv, const char *a_config_section, dap_chain_hash_fast_t* a_order_hash);
+dap_chain_net_srv_price_t *dap_chain_net_srv_get_price_from_order(dap_chain_net_srv_t *a_service, dap_chain_net_srv_order_t *a_order);
 
 DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chain_net_srv_price_unit_uid_t a_uid )
 {
@@ -199,20 +191,12 @@ DAP_STATIC_INLINE dap_chain_net_srv_price_unit_uid_t dap_chain_net_srv_price_uni
     return l_price_unit;
 }
 
-DAP_STATIC_INLINE bool dap_chain_net_srv_uid_compare(dap_chain_net_srv_uid_t a, dap_chain_net_srv_uid_t b)
+DAP_STATIC_INLINE bool dap_chain_net_srv_uid_compare(dap_chain_srv_uid_t a, dap_chain_srv_uid_t b)
 {
-#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
     return a.uint64 == b.uint64;
-#else // DAP_CHAIN_NET_SRV_UID_SIZE == 16
-    return !memcmp(&a, &b, DAP_CHAIN_NET_SRV_UID_SIZE);
-#endif
 }
 
-DAP_STATIC_INLINE bool dap_chain_net_srv_uid_compare_scalar(const dap_chain_net_srv_uid_t a_uid1, const uint64_t a_id)
+DAP_STATIC_INLINE bool dap_chain_net_srv_uid_compare_scalar(const dap_chain_srv_uid_t a_uid1, const uint64_t a_id)
 {
-#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
     return a_uid1.uint64 == a_id;
-#else
-    return compare128(a_uid1.uint128, GET_128_FROM_64(a_id));
-#endif
 }

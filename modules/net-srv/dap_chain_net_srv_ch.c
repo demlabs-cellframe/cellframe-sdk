@@ -42,6 +42,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_mempool.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_net_srv.h"
+#include "dap_chain_net_srv_order.h"
 
 #define LOG_TAG "dap_chain_net_srv_ch"
 #define SRV_PAY_GDB_GROUP "local.srv_pay"
@@ -350,7 +351,6 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
         return false;
     }
-    l_srv->uid = a_request->hdr.srv_uid;
     bool l_check_role = dap_chain_net_get_role(l_net).enums > NODE_ROLE_MASTER;  // check role
     if (l_check_role) {
         log_it(L_ERROR, "You can't provide service with ID %" DAP_UINT64_FORMAT_U " in net %s. Node role should be not lower than master\n",
@@ -387,21 +387,28 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
 
     char l_order_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
     dap_chain_hash_fast_to_str(&a_request->hdr.order_hash, l_order_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-    log_it(L_MSG, "Got order with hash %s.", l_order_hash_str);
-    dap_chain_net_srv_price_t * l_price = NULL;
-    bool l_specific_order_free = false;
-    l_price = dap_chain_net_srv_get_price_from_order(l_srv, "srv_vpn", &a_request->hdr.order_hash);
-    if (!l_price){
-        log_it(L_ERROR, "Can't get price from order!");
+    log_it(L_MSG, "Got order with hash %s", l_order_hash_str);
+    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash(l_net, &a_request->hdr.order_hash);
+    if (!l_order) {
+        log_it(L_ERROR, "Can't find order %s", l_order_hash_str);
+        return false;
+    }
+    if (l_order->node_addr.uint64 != g_node_addr.uint64 ||
+        l_order->srv_uid.uint64 != l_srv->uid.uint64) {
+        DAP_DELETE(l_order);
+        return false;
+    }
+    bool l_specific_order_free = IS_ZERO_256(l_order->price) || l_order->units == 0;
+    dap_chain_net_srv_price_t *l_price = dap_chain_net_srv_get_price_from_order(l_srv, l_order);
+    DAP_DELETE(l_order);
+    if (!l_price) {
+        log_it(L_ERROR, "Can't get price from order %s", l_order_hash_str);
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND;
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
         if (l_srv->callbacks.response_error)
             l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
         return false;
     }
-
-    if (IS_ZERO_256(l_price->value_datoshi))
-        l_specific_order_free = true;
 
     dap_chain_net_srv_usage_t *l_usage = NULL;
     l_usage = dap_chain_net_srv_usage_add(l_srv_session, l_net, l_srv);
@@ -483,7 +490,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
         l_grace->usage          = l_usage;
         if (!s_grace_period_start(l_grace))
             return false;
-    } else if (l_specific_order_free && l_srv->allow_free_srv){
+    } else if (l_srv->allow_free_srv){
         // Start service for free
         log_it( L_INFO, "Can't find a valid pricelist. Service provide for free");
         l_usage->is_free = true;
@@ -516,6 +523,103 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
     return true;
 }
 
+static int s_tx_cond_check(dap_chain_datum_tx_t *a_tx, dap_chain_net_srv_usage_t *a_usage)
+{
+    dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
+    if (!l_tx_out_cond) { // No conditional output
+        log_it( L_WARNING, "No conditional output");
+        return DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_COND_OUT ;
+    }
+    // Check cond output if it equesl or not to request
+    if (!dap_chain_net_srv_uid_compare(l_tx_out_cond->header.srv_uid, a_usage->service->uid)) {
+        log_it( L_WARNING, "Wrong service uid in request, tx expect to close its output with 0x%016"DAP_UINT64_FORMAT_X,
+                l_tx_out_cond->header.srv_uid.uint64 );
+        return DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_WRONG_SRV_UID  ;
+    }
+
+    const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
+    if (!l_ticker) {
+        log_it( L_ERROR, "Token ticker not found for tx cond hash %s", dap_hash_fast_to_str_static(&a_usage->tx_cond_hash));
+        return DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
+    }
+    log_it(L_MSG, "Using price from order %s", dap_chain_hash_fast_to_str_static(&a_usage->static_order_hash));
+    dap_chain_net_srv_price_t *l_price = a_usage->price;
+    if (dap_strcmp(l_price->token, l_ticker) != 0) {
+        log_it( L_WARNING, "Token ticker in the pricelist and tx do not match");
+        return DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+    }
+    if (l_price->units_uid.enm != l_tx_out_cond->subtype.srv_pay.unit.enm) {
+        log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
+        return DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+    }
+    if (!l_price->units) {
+        log_it( L_WARNING, "Units in pricelist is zero");
+        return DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+    }
+    uint256_t l_unit_price = {};
+    DIV_256(l_price->value_datoshi, GET_256_FROM_64(l_price->units), &l_unit_price);
+    if (!IS_ZERO_256(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) &&
+            compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) > 0) {
+        log_it( L_WARNING, "Unit price in pricelist is greater than max allowable.");
+        return DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+    }
+    return 0;
+}
+
+static bool s_process_remain_service(dap_chain_net_srv_usage_t *a_usage, dap_stream_ch_t *a_ch)
+{
+    dap_chain_net_srv_ch_remain_service_store_t* l_remain_service = NULL;
+    l_remain_service = a_usage->service->callbacks.get_remain_service(a_usage->service, a_usage->id, a_usage->client);
+    dap_chain_srv_unit_enum_t l_unit_type = a_usage->price->units_uid.enm;
+    if (!l_remain_service || a_usage->is_active ||
+            !((l_remain_service->limits_ts && l_unit_type == SERV_UNIT_SEC) ||
+            (l_remain_service->limits_bytes && l_unit_type == SERV_UNIT_B)))
+        return false;
+    // Accept connection, set limits and start service
+    dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_usage->client->ch->stream->session->_inheritor;
+    switch (l_unit_type) {
+        case SERV_UNIT_SEC:
+            l_srv_session->limits_ts = l_remain_service->limits_ts;
+            break;
+        case SERV_UNIT_B:
+            l_srv_session->limits_bytes = l_remain_service->limits_bytes;
+            break;
+    }
+    char *l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
+    log_it(L_INFO, "User %s has %ld %s remain service. Start service without paying.", l_user_key,
+                    l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes,
+                    dap_chain_srv_unit_enum_to_str(l_unit_type));
+    DAP_DELETE(l_user_key);
+    size_t l_success_size = sizeof (dap_chain_net_srv_ch_pkt_success_hdr_t );
+    dap_chain_net_srv_ch_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_chain_net_srv_ch_pkt_success_t,
+                                                                          l_success_size);
+    if (!l_success) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        dap_chain_net_srv_ch_pkt_error_t l_err = { .code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR,
+                                                   .net_id = a_usage->service->net_id,
+                                                   .srv_uid = a_usage->service->uid };
+        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        if (a_usage->service && a_usage->service->callbacks.response_error)
+            a_usage->service->callbacks.response_error(a_usage->service, 0, NULL, &l_err, sizeof(l_err));
+    } else {
+        l_success->hdr.usage_id = a_usage->id;
+        l_success->hdr.net_id.uint64 = a_usage->net->pub.id.uint64;
+        l_success->hdr.srv_uid.uint64 = a_usage->service->uid.uint64;
+        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
+
+        // create and fill first receipt
+        a_usage->receipt = dap_chain_datum_tx_receipt_create(
+                    a_usage->service->uid, a_usage->price->units_uid, a_usage->price->units, a_usage->price->value_datoshi, NULL, 0);
+        if (a_usage->service->callbacks.response_success)
+            a_usage->service->callbacks.response_success(a_usage->service, a_usage->id,
+                                                                a_usage->client, a_usage->receipt,
+                                                                sizeof(dap_chain_datum_tx_receipt_t) + a_usage->receipt->size + a_usage->receipt->exts_size);
+        DAP_DELETE(l_success);
+    }
+    DAP_DELETE(l_remain_service);
+    return true;
+}
+
 static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 {
 // sanity check
@@ -536,14 +640,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
     dap_ledger_t * l_ledger = l_net->pub.ledger;
     dap_chain_datum_tx_t * l_tx = NULL;
-    dap_chain_tx_out_cond_t * l_tx_out_cond = NULL;
     dap_chain_net_srv_price_t * l_price = NULL;
-    if ( !l_ledger ){ // No ledger
-        log_it( L_WARNING, "No Ledger");
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NO_LEDGER ;
-        s_grace_error(a_grace, l_err);
-        return false;
-    }
 
     l_tx = a_grace->usage->is_waiting_new_tx_cond ? NULL : dap_ledger_tx_find_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
     if (!l_tx) { // No tx cond transaction, start grace-period
@@ -650,90 +747,21 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             return false;
         }
 
-        a_grace->usage->tx_cond = l_tx;
-
-        l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL );
-
-        if ( ! l_tx_out_cond ) { // No conditioned output
-            log_it( L_WARNING, "No conditioned output");
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_COND_OUT ;
-            s_grace_error(a_grace, l_err);
-            return false;
-        }
-
-        // Check cond output if it equesl or not to request
-        if (!dap_chain_net_srv_uid_compare(l_tx_out_cond->header.srv_uid, a_grace->usage->service->uid)) {
-            log_it( L_WARNING, "Wrong service uid in request, tx expect to close its output with 0x%016"DAP_UINT64_FORMAT_X,
-                    l_tx_out_cond->header.srv_uid.uint64 );
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_WRONG_SRV_UID  ;
-            s_grace_error(a_grace, l_err);
-            return false;
-        }
-
-        const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
-        if (!l_ticker) {
-            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
-            dap_hash_fast_to_str(&a_grace->usage->tx_cond_hash, l_hash_str, sizeof(l_hash_str));
-            log_it( L_ERROR, "Token ticker not found for tx cond hash %s", l_hash_str);
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
-            s_grace_error(a_grace, l_err);
-            return false;
-        }
-        dap_stpcpy(a_grace->usage->token_ticker, l_ticker);
-
-        char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&a_grace->usage->static_order_hash);
-        log_it(L_MSG, "Using price from order %s.", l_order_hash_str);
-        DAP_DELETE(l_order_hash_str);
-        if ((l_price = a_grace->usage->price)){
-            if (l_price->net->pub.id.uint64  != a_grace->usage->net->pub.id.uint64){
-                log_it( L_WARNING, "Pricelist is not for net %s.", a_grace->usage->net->pub.name);
-                l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
-                s_grace_error(a_grace, l_err);
-                return false;
-            }
-
-            if (dap_strcmp(l_price->token, l_ticker) != 0){
-                log_it( L_WARNING, "Token ticker in the pricelist and tx do not match");
-                l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
-                s_grace_error(a_grace, l_err);
-                return false;
-            }
-
-            if (l_price->units_uid.enm != l_tx_out_cond->subtype.srv_pay.unit.enm){
-                log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
-                l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
-                s_grace_error(a_grace, l_err);
-                return false;
-            }
-
-            uint256_t l_unit_price = {};
-            if (l_price->units != 0){
-                DIV_256(l_price->value_datoshi, GET_256_FROM_64(l_price->units), &l_unit_price);
-            } else {
-                log_it( L_WARNING, "Units in pricelist is zero. ");
-                l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
-                s_grace_error(a_grace, l_err);
-                return false;
-            }
-
-            if(IS_ZERO_256(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
-                compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
-            } else {
-                log_it( L_WARNING, "Unit price in pricelist is greater than max allowable.");
-                l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
-                s_grace_error(a_grace, l_err);
-                return false;
-            }
-        }
-
-
-        if ( !l_price ) {
-            log_it( L_WARNING, "Request can't be processed because no acceptable price in pricelist for token %s in network %s",
-                    l_ticker, l_net->pub.name );
+        if (a_grace->usage->price) {
+            log_it(L_WARNING, "Request can't be processed because no acceptable price found in network %s", l_net->pub.name );
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
             s_grace_error(a_grace, l_err);
             return false;
         }
+
+        l_err.code = s_tx_cond_check(l_tx, a_grace->usage);
+        if (l_err.code) {
+            s_grace_error(a_grace, l_err);
+            return false;
+        }
+
+        a_grace->usage->tx_cond = l_tx;
+
         int ret;
         if ((ret = a_grace->usage->service->callbacks.requested(a_grace->usage->service, a_grace->usage->id, a_grace->usage->client, a_grace->request, a_grace->request_size)) != 0) {
             log_it( L_WARNING, "Request canceled by service callback, return code %d", ret);
@@ -742,59 +770,10 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             return false;
         }
 
-//        memcpy(&a_grace->usage->client_pkey_hash, &l_tx_out_cond->subtype.srv_pay.pkey_hash, sizeof(dap_chain_hash_fast_t));
-
-        if(!a_grace->usage->receipt){
-            dap_chain_net_srv_ch_remain_service_store_t* l_remain_service = NULL;
-            l_remain_service = a_grace->usage->service->callbacks.get_remain_service(a_grace->usage->service, a_grace->usage->id, a_grace->usage->client);
-            if (l_remain_service && !a_grace->usage->is_active &&
-                ((l_remain_service->limits_ts && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_SEC)  || 
-                (l_remain_service->limits_bytes && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_B))){
-                // Accept connection, set limits and start service
-                dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_grace->usage->client->ch->stream->session->_inheritor;
-                switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
-                    case SERV_UNIT_SEC:
-                        l_srv_session->limits_ts = l_remain_service->limits_ts;
-                        break;
-                    case SERV_UNIT_B:
-                        l_srv_session->limits_bytes = l_remain_service->limits_bytes;
-                        break;
-                }
-                char *l_user_key = dap_chain_hash_fast_to_str_new(&a_grace->usage->client_pkey_hash);
-                log_it(L_INFO, "User %s has %ld %s remain service. Start service without paying.", l_user_key, 
-                                l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, 
-                                dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
-                DAP_DELETE(l_user_key);
-                size_t l_success_size = sizeof (dap_chain_net_srv_ch_pkt_success_hdr_t );
-                dap_chain_net_srv_ch_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_chain_net_srv_ch_pkt_success_t,
-                                                                                      l_success_size);
-                if(!l_success) {
-                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
-                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
-                    if(l_ch)
-                        dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-                    if (a_grace->usage->service && a_grace->usage->service->callbacks.response_error)
-                        a_grace->usage->service->callbacks.response_error(a_grace->usage->service, 0, NULL, &l_err, sizeof(l_err));
-                } else {
-                    l_success->hdr.usage_id = a_grace->usage->id;
-                    l_success->hdr.net_id.uint64 = a_grace->usage->net->pub.id.uint64;
-                    l_success->hdr.srv_uid.uint64 = a_grace->usage->service->uid.uint64;
-                    dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
-
-                    // create and fill first receipt
-                    a_grace->usage->receipt = dap_chain_datum_tx_receipt_create(
-                                a_grace->usage->service->uid, l_price->units_uid, l_price->units, l_price->value_datoshi, NULL, 0);
-                    if (a_grace->usage->service->callbacks.response_success)
-                        a_grace->usage->service->callbacks.response_success(a_grace->usage->service, a_grace->usage->id,
-                                                                            a_grace->usage->client, a_grace->usage->receipt,
-                                                                            sizeof(dap_chain_datum_tx_receipt_t) + a_grace->usage->receipt->size + a_grace->usage->receipt->exts_size);
-                    DAP_DELETE(l_success);
-                }
-                DAP_DELETE(a_grace->request);
-                DAP_DELETE(a_grace);
-                DAP_DELETE(l_remain_service);
-                return false;
-            }
+        if (!a_grace->usage->receipt && s_process_remain_service(a_grace->usage, l_ch)) {
+            DAP_DELETE(a_grace->request);
+            DAP_DELETE(a_grace);
+            return false;
         }
 
         if (a_grace->usage->receipt_next && !a_grace->usage->is_waiting_first_receipt_sign){
@@ -941,250 +920,140 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
     l_err.net_id.uint64 = l_net->pub.id.uint64;
     l_err.srv_uid.uint64 = l_grace->usage->service->uid.uint64;
 
-    dap_ledger_t * l_ledger = l_net->pub.ledger;
-    dap_chain_datum_tx_t * l_tx = NULL;
-    dap_chain_tx_out_cond_t * l_tx_out_cond = NULL;
+    dap_ledger_t *l_ledger = l_net->pub.ledger;
+    dap_chain_datum_tx_t *l_tx = NULL;
 
-    if ( !l_ledger ){ // No ledger
-        log_it( L_WARNING, "No Ledger");
-        RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NO_LEDGER);
-    }
     log_it(L_INFO, "Grace period is over! Check tx in ledger.");
     l_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_grace->usage->tx_cond_hash);
-    if ( ! l_tx ){ // No tx cond transaction, start grace-period
-        log_it( L_WARNING, "No tx cond transaction");
+    if (!l_tx ) { // No tx cond transaction, start grace-period
+        log_it( L_WARNING, "No tx cond transaction %s", dap_hash_fast_to_str_static(&l_grace->usage->tx_cond_hash));
         RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND);
-    } else { // Start service in normal pay mode
-        if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
-            log_it(L_ERROR, "Can't pay service because net %s is offline.", l_net->pub.name);
-            RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE);
+    }
+    log_it(L_INFO, "Tx %s is found in ledger", dap_hash_fast_to_str_static(&l_grace->usage->tx_cond_hash));
+    // Start service in normal pay mode
+    if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+        log_it(L_ERROR, "Can't pay service because net %s is offline.", l_net->pub.name);
+        RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE);
+    }
+    dap_chain_net_srv_price_t *l_price = l_grace->usage->price;
+    if (!l_price) {
+        log_it(L_WARNING, "Request can't be processed because no acceptable price in network %s", l_net->pub.name );
+        RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN);
+    }
+    int err = s_tx_cond_check(l_tx, l_grace->usage);
+    if (err)
+        RET_WITH_DEL_A_GRACE(err);
+    l_grace->usage->tx_cond = l_tx;
+
+    int ret;
+    if ((ret = l_grace->usage->service->callbacks.requested(l_grace->usage->service, l_grace->usage->id, l_grace->usage->client, l_grace->request, l_grace->request_size)) != 0) {
+        log_it( L_WARNING, "Request canceled by service callback, return code %d", ret);
+        RET_WITH_DEL_A_GRACE((uint32_t) ret);
+    }
+
+    if (!l_grace->usage->receipt && s_process_remain_service(l_grace->usage, l_ch))
+        RET_WITH_DEL_A_GRACE(0);
+
+    // make receipt or tx
+    char *l_receipt_hash_str;
+    dap_chain_datum_tx_receipt_t *l_receipt = NULL;
+    if (l_grace->usage->receipt_next){
+        l_receipt = l_grace->usage->receipt_next;
+    } else if (l_grace->usage->receipt){
+        l_receipt = l_grace->usage->receipt;
+    } else {
+        log_it(L_INFO, "Send first receipt to sign");
+        l_grace->usage->receipt = dap_chain_net_srv_issue_receipt(l_grace->usage->service, l_grace->usage->price, NULL, 0);
+        l_grace->usage->is_waiting_first_receipt_sign = true;
+        // start timeout timer
+        l_grace->usage->receipt_timeout_timer_start_callback(l_grace->usage);
+        if (l_grace->usage->receipt )
+            dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+                                   l_grace->usage->receipt, l_grace->usage->receipt->size);
+        else{
+            log_it(L_WARNING, "Can't sign the receipt.");
+            RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_UNDEFINED);
         }
 
-        log_it(L_INFO, "Tx is found in ledger.");
-        l_grace->usage->tx_cond = l_tx;
+        RET_WITH_DEL_A_GRACE(0);
+    }
+    if (!l_receipt) {
+        log_it(L_ERROR, "Receipt is not present, finish grace");
+        RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_IS_NOT_PRESENT);
+    }
+    size_t l_receipt_size = l_receipt->size;
 
-        l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL );
-
-        if ( ! l_tx_out_cond ) { // No conditioned output
-            log_it( L_WARNING, "No conditioned output");
-            RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_COND_OUT);
-        }
-
-        // Check cond output if it equesl or not to request
-        if (!dap_chain_net_srv_uid_compare(l_tx_out_cond->header.srv_uid, l_grace->usage->service->uid)) {
-            log_it( L_WARNING, "Wrong service uid in request, tx expect to close its output with 0x%016"DAP_UINT64_FORMAT_X,
-                   l_tx_out_cond->header.srv_uid.uint64 );
-            RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_WRONG_SRV_UID);
-        }
-
-        dap_chain_net_srv_price_t * l_price = NULL;
-        const char * l_ticker = NULL;
-        l_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_grace->usage->tx_cond_hash);
-        dap_stpcpy(l_grace->usage->token_ticker, l_ticker);
-
-        
-        char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_grace->usage->static_order_hash);
-        log_it(L_MSG, "Using price from order %s.", l_order_hash_str);
-        DAP_DELETE(l_order_hash_str);
-        if ((l_price = l_grace->usage->price)){
-            if (l_price->net->pub.id.uint64  != l_grace->usage->net->pub.id.uint64){
-                log_it( L_WARNING, "Pricelist is not for net %s.", l_grace->usage->net->pub.name);
-                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN);
+    // get a second signature - from the client (first sign in server, second sign in client)
+    dap_sign_t * l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( l_receipt, l_receipt_size, 1);
+    if ( ! l_receipt_sign ){
+        log_it(L_WARNING, "Tx already in chain, but receipt is not signed by client. Finish grace and wait receipt sign responce.");
+        RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_NO_SIGN);
+    }
+    dap_get_data_hash_str_static(l_receipt, l_receipt_size, l_receipt_hash_str);
+    dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
+        // Form input transaction
+    char *l_hash_str = dap_hash_fast_to_str_new(&l_grace->usage->tx_cond_hash);
+    log_it(L_NOTICE, "Trying create input tx cond from tx %s with active receipt", l_hash_str);
+    DAP_DEL_Z(l_hash_str);
+    int ret_status = 0;
+    char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(l_grace->usage->net, &l_grace->usage->tx_cond_hash, &l_grace->usage->service->wallet_addr,
+                                                                    l_grace->usage->service->receipt_sign_cert->enc_key,
+                                                                    l_receipt, "hex", &ret_status);
+    if (!ret_status) {
+        dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_grace->usage->tx_cond_hash);
+        log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
+        DAP_DELETE(l_tx_in_hash_str);
+    } else {
+        if(ret_status == DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_ENOUGH){
+            log_it(L_ERROR, "Tx cond have not enough funds");
+            if (l_waiting_new_tx_in_ledger){
+                log_it(L_ERROR, "New tx cond have not enough funds. Waiting for end of service.");
+                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NEW_TX_COND_NOT_ENOUGH);
             }
 
-            if (dap_strcmp(l_price->token, l_ticker) != 0){
-                log_it( L_WARNING, "Token ticker in the pricelist and tx do not match");
-                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN);
-            }
-
-            if (l_price->units_uid.enm != l_tx_out_cond->subtype.srv_pay.unit.enm) {
-                log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
-                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN);
-            }
-
-            uint256_t l_unit_price = {};
-            if (l_price->units != 0){
-                DIV_256(l_price->value_datoshi, GET_256_FROM_64(l_price->units), &l_unit_price);
-            } else {
-                log_it( L_WARNING, "Units in pricelist is zero. ");
-                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN);
-            }
-
-            if(IS_ZERO_256(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
-                compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
-            } else {
-                log_it( L_WARNING, "Unit price in pricelist is greater than max allowable.");
-                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN);
-            }
-        }
-
-
-        if ( !l_price ) {
-            log_it( L_WARNING, "Request can't be processed because no acceptable price in pricelist for token %s in network %s",
-                   l_ticker, l_net->pub.name );
-            RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN);
-        }
-
-        int ret;
-        if ((ret = l_grace->usage->service->callbacks.requested(l_grace->usage->service, l_grace->usage->id, l_grace->usage->client, l_grace->request, l_grace->request_size)) != 0) {
-            log_it( L_WARNING, "Request canceled by service callback, return code %d", ret);
-            RET_WITH_DEL_A_GRACE((uint32_t) ret);
-        }
-
-        if (!l_grace->usage->receipt){
-            // get remain units from DB
-            dap_chain_net_srv_ch_remain_service_store_t* l_remain_service = NULL;
-            l_remain_service = l_grace->usage->service->callbacks.get_remain_service(l_grace->usage->service, l_grace->usage->id, l_grace->usage->client);
-            if (l_remain_service && !l_grace->usage->is_active &&
-                ((l_remain_service->limits_ts && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_SEC)  || 
-                (l_remain_service->limits_bytes && l_tx_out_cond->subtype.srv_pay.unit.enm == SERV_UNIT_B))){
-                // Accept connection, set limits and start service
-                dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) l_grace->usage->client->ch->stream->session->_inheritor;
-                switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
-                    case SERV_UNIT_SEC:
-                        l_srv_session->limits_ts = l_remain_service->limits_ts;
-                        break;
-                    case SERV_UNIT_B:
-                        l_srv_session->limits_bytes = l_remain_service->limits_bytes;
-                        break;
-                }
-                char *l_user_key = dap_chain_hash_fast_to_str_new(&l_grace->usage->client_pkey_hash);
-                log_it(L_INFO, "User %s has %ld %s remain service. Start service without paying.", l_user_key,
-                            l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, 
-                            dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
-                DAP_DELETE(l_user_key);
-                size_t l_success_size = sizeof (dap_chain_net_srv_ch_pkt_success_hdr_t );
-                dap_chain_net_srv_ch_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_chain_net_srv_ch_pkt_success_t,
-                                                                                      l_success_size);
-                if(!l_success) {
-                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
-                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
-                    if(l_ch)
-                        dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-                    if (l_grace->usage->service && l_grace->usage->service->callbacks.response_error)
-                        l_grace->usage->service->callbacks.response_error(l_grace->usage->service, 0, NULL, &l_err, sizeof(l_err));
-                } else {
-                    l_success->hdr.usage_id = l_grace->usage->id;
-                    l_success->hdr.net_id.uint64 = l_grace->usage->net->pub.id.uint64;
-                    l_success->hdr.srv_uid.uint64 = l_grace->usage->service->uid.uint64;
-                    dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
-
-                    // create and fill limits and first receipt
-                    l_grace->usage->receipt = dap_chain_datum_tx_receipt_create(
-                                l_grace->usage->service->uid, l_price->units_uid, l_price->units, l_price->value_datoshi, NULL, 0);
-                    // l_grace->usage->is_waiting_first_receipt_sign = true;
-                    if (l_grace->usage->service->callbacks.response_success)
-                        l_grace->usage->service->callbacks.response_success(l_grace->usage->service, l_grace->usage->id,
-                                                                            l_grace->usage->client, l_grace->usage->receipt,
-                                                                            sizeof(dap_chain_datum_tx_receipt_t) + l_grace->usage->receipt->size + l_grace->usage->receipt->exts_size);
-                    DAP_DELETE(l_success);
-                }
-                DAP_DELETE(l_remain_service);
+            dap_chain_net_srv_grace_t* l_grace_new = DAP_NEW_Z(dap_chain_net_srv_grace_t);
+            if (!l_grace_new) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 RET_WITH_DEL_A_GRACE(0);
             }
-        }
-
-        // make receipt or tx
-        char *l_receipt_hash_str;
-        dap_chain_datum_tx_receipt_t *l_receipt = NULL;
-        if (l_grace->usage->receipt_next){
-            l_receipt = l_grace->usage->receipt_next;
-        } else if (l_grace->usage->receipt){
-            l_receipt = l_grace->usage->receipt;
-        } else {
-            log_it(L_INFO, "Send first receipt to sign");
-            l_grace->usage->receipt = dap_chain_net_srv_issue_receipt(l_grace->usage->service, l_grace->usage->price, NULL, 0);
-            l_grace->usage->is_waiting_first_receipt_sign = true;
-            // start timeout timer
-            l_grace->usage->receipt_timeout_timer_start_callback(l_grace->usage);
-            if (l_grace->usage->receipt )
-                dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
-                                       l_grace->usage->receipt, l_grace->usage->receipt->size);
-            else{
-                log_it(L_WARNING, "Can't sign the receipt.");
-                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_UNDEFINED);
-            }
-
-            RET_WITH_DEL_A_GRACE(0);
-        }
-        if (!l_receipt) {
-            log_it(L_ERROR, "Receipt is not present, finish grace");
-            RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_IS_NOT_PRESENT);
-        }
-        size_t l_receipt_size = l_receipt->size;
-
-        // get a second signature - from the client (first sign in server, second sign in client)
-        dap_sign_t * l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( l_receipt, l_receipt_size, 1);
-        if ( ! l_receipt_sign ){
-            log_it(L_WARNING, "Tx already in chain, but receipt is not signed by client. Finish grace and wait receipt sign responce.");
-            RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_NO_SIGN);
-        }
-        dap_get_data_hash_str_static(l_receipt, l_receipt_size, l_receipt_hash_str);
-        dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
-            // Form input transaction
-        char *l_hash_str = dap_hash_fast_to_str_new(&l_grace->usage->tx_cond_hash);
-        log_it(L_NOTICE, "Trying create input tx cond from tx %s with active receipt", l_hash_str);
-        DAP_DEL_Z(l_hash_str);
-        int ret_status = 0;
-        char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(l_grace->usage->net, &l_grace->usage->tx_cond_hash, l_grace->usage->price->wallet_addr,
-                                                                        l_grace->usage->price->receipt_sign_cert->enc_key,
-                                                                        l_receipt, "hex", &ret_status);
-        if (!ret_status) {
-            dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_grace->usage->tx_cond_hash);
-            log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
-            DAP_DELETE(l_tx_in_hash_str);
-        } else {
-            if(ret_status == DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_ENOUGH){
-                log_it(L_ERROR, "Tx cond have not enough funds");
-                if (l_waiting_new_tx_in_ledger){
-                    log_it(L_ERROR, "New tx cond have not enough funds. Waiting for end of service.");
-                    RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NEW_TX_COND_NOT_ENOUGH);
-                }
-
-                dap_chain_net_srv_grace_t* l_grace_new = DAP_NEW_Z(dap_chain_net_srv_grace_t);
-                if (!l_grace_new) {
-                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                    RET_WITH_DEL_A_GRACE(0);
-                }
-                // Parse the request
-                l_grace_new->request = DAP_NEW_Z_SIZE(dap_chain_net_srv_ch_pkt_request_t, sizeof(dap_chain_net_srv_ch_pkt_request_t));
-                if (!l_grace_new->request) {
-                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                    DAP_DEL_Z(l_grace_new);
-                    RET_WITH_DEL_A_GRACE(0);
-                }
-                l_grace_new->request->hdr.net_id = a_grace_item->grace->usage->net->pub.id;
-                dap_stpcpy(l_grace_new->request->hdr.token, a_grace_item->grace->usage->token_ticker);
-                l_grace_new->request->hdr.srv_uid = a_grace_item->grace->usage->service->uid;
-                l_grace_new->request->hdr.tx_cond = a_grace_item->grace->usage->tx_cond_hash;
-                l_grace_new->request_size = sizeof(dap_chain_net_srv_ch_pkt_request_t);
-                l_grace_new->ch_uuid = a_grace_item->grace->usage->client->ch->uuid;
-                l_grace_new->stream_worker = a_grace_item->grace->usage->client->ch->stream_worker;
-                l_grace_new->usage = a_grace_item->grace->usage;
-                l_grace_new->usage->is_waiting_new_tx_cond = true;
-
-                if (s_grace_period_start(l_grace_new)){
-                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ENOUGH;
-                    dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-                    if (l_grace->usage->service->callbacks.response_error)
-                        l_grace->usage->service->callbacks.response_error(l_grace->usage->service,l_grace->usage->id, l_grace->usage->client,&l_err,sizeof (l_err));
-                }
-                DAP_DELETE(l_tx_in_hash_str);
+            // Parse the request
+            l_grace_new->request = DAP_NEW_Z_SIZE(dap_chain_net_srv_ch_pkt_request_t, sizeof(dap_chain_net_srv_ch_pkt_request_t));
+            if (!l_grace_new->request) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                DAP_DEL_Z(l_grace_new);
                 RET_WITH_DEL_A_GRACE(0);
-            } else {
-                log_it(L_ERROR, "Can't create input tx cond transaction!");
-                memset(&l_grace->usage->tx_cond_hash, 0, sizeof(l_grace->usage->tx_cond_hash));
-                if (l_grace->usage->receipt_next){
-                    DAP_DEL_Z(l_grace->usage->receipt_next);
-                } else if (l_grace->usage->receipt){
-                    DAP_DEL_Z(l_grace->usage->receipt);
-                }
-                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
+            }
+            l_grace_new->request->hdr.net_id = a_grace_item->grace->usage->net->pub.id;
+            dap_stpcpy(l_grace_new->request->hdr.token, a_grace_item->grace->usage->price->token);
+            l_grace_new->request->hdr.srv_uid = a_grace_item->grace->usage->service->uid;
+            l_grace_new->request->hdr.tx_cond = a_grace_item->grace->usage->tx_cond_hash;
+            l_grace_new->request_size = sizeof(dap_chain_net_srv_ch_pkt_request_t);
+            l_grace_new->ch_uuid = a_grace_item->grace->usage->client->ch->uuid;
+            l_grace_new->stream_worker = a_grace_item->grace->usage->client->ch->stream_worker;
+            l_grace_new->usage = a_grace_item->grace->usage;
+            l_grace_new->usage->is_waiting_new_tx_cond = true;
+
+            if (s_grace_period_start(l_grace_new)){
+                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ENOUGH;
                 dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
                 if (l_grace->usage->service->callbacks.response_error)
                     l_grace->usage->service->callbacks.response_error(l_grace->usage->service,l_grace->usage->id, l_grace->usage->client,&l_err,sizeof (l_err));
-                DAP_DELETE(l_tx_in_hash_str);
             }
+            DAP_DELETE(l_tx_in_hash_str);
+            RET_WITH_DEL_A_GRACE(0);
+        } else {
+            log_it(L_ERROR, "Can't create input tx cond transaction!");
+            memset(&l_grace->usage->tx_cond_hash, 0, sizeof(l_grace->usage->tx_cond_hash));
+            if (l_grace->usage->receipt_next){
+                DAP_DEL_Z(l_grace->usage->receipt_next);
+            } else if (l_grace->usage->receipt){
+                DAP_DEL_Z(l_grace->usage->receipt);
+            }
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
+            dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+            if (l_grace->usage->service->callbacks.response_error)
+                l_grace->usage->service->callbacks.response_error(l_grace->usage->service,l_grace->usage->id, l_grace->usage->client,&l_err,sizeof (l_err));
+            DAP_DELETE(l_tx_in_hash_str);
         }
     }
     l_grace->usage->is_grace = false;
@@ -1422,8 +1291,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             DAP_DEL_Z(l_hash_str);
             DAP_DEL_Z(l_user_key);
             int ret_status = 0;
-            char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(l_usage->net, &l_usage->tx_cond_hash, l_usage->price->wallet_addr,
-                                                                            l_usage->price->receipt_sign_cert->enc_key,
+            char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(l_usage->net, &l_usage->tx_cond_hash, &l_usage->service->wallet_addr,
+                                                                            l_usage->service->receipt_sign_cert->enc_key,
                                                                             l_receipt, "hex", &ret_status);
             if (!ret_status) {
                 dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_usage->tx_cond_hash);
@@ -1451,7 +1320,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                         break;
                     }
                     l_grace->request->hdr.net_id = l_usage->net->pub.id;
-                    dap_stpcpy(l_grace->request->hdr.token, l_usage->token_ticker);
+                    dap_stpcpy(l_grace->request->hdr.token, l_usage->price->token);
                     l_grace->request->hdr.srv_uid = l_usage->service->uid;
                     l_grace->request->hdr.tx_cond = l_usage->tx_cond_hash;
                     l_ch_chain_net_srv->srv_uid.uint64 = l_grace->request->hdr.srv_uid.uint64;
@@ -1480,7 +1349,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                         return true;
                     }
                     l_grace->request->hdr.net_id = l_usage->net->pub.id;
-                    dap_stpcpy(l_grace->request->hdr.token, l_usage->token_ticker);
+                    dap_stpcpy(l_grace->request->hdr.token, l_usage->price->token);
                     l_grace->request->hdr.srv_uid = l_usage->service->uid;
                     l_grace->request->hdr.tx_cond = l_usage->tx_cond_hash;
                     l_ch_chain_net_srv->srv_uid.uint64 = l_grace->request->hdr.srv_uid.uint64;

@@ -255,7 +255,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         l_ret = -2;
         goto lb_err;
     }
-    dap_chain_net_srv_stake_net_add(a_chain->net_id);
     uint16_t l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     for (size_t i = 0; i < l_auth_certs_count; i++) {

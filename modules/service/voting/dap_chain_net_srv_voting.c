@@ -120,7 +120,7 @@ int dap_chain_net_srv_voting_init()
                             "voting dump -net <net_name> -hash <voting_hash>\n");
 
     
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
     dap_ledger_service_add(l_uid, "voting", s_tag_check_voting);
 
     return 0;

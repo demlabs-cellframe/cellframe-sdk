@@ -32,7 +32,7 @@
 #include "dap_list.h"
 #include "dap_sign.h"
 #include "dap_time.h"
-#include "dap_chain_net_srv.h"
+#include "dap_chain_srv.h"
 #include "dap_chain_ledger.h"
 #include "dap_common.h"
 #include "dap_hash.h"
@@ -40,9 +40,7 @@
 #include "dap_string.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
-#include "dap_chain_datum_decree.h"
 #include "dap_chain_net_tx.h"
-#include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_xchange.h"
 #include "uthash.h"
 #include "dap_cli_server.h"
@@ -55,25 +53,18 @@ typedef enum tx_opt_status {
     TX_STATUS_INACTIVE
 } tx_opt_status_t;
 
-static dap_chain_net_srv_fee_item_t *s_service_fees = NULL; // Governance statements for networks
-static pthread_rwlock_t s_service_fees_rwlock = PTHREAD_RWLOCK_INITIALIZER;
-
-static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
+static void s_callback_decree(dap_chain_net_id_t a_net_id, int a_decree_type, dap_tsd_t *a_params, size_t a_params_size);
+static void *s_callback_start(dap_chain_net_id_t a_net_id, dap_config_t *a_config);
 static int s_xchange_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                             dap_chain_datum_tx_t *a_tx_in, bool a_owner);
-const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid = {.uint64= DAP_CHAIN_NET_SRV_XCHANGE_ID};
+const dap_chain_srv_uid_t c_dap_chain_net_srv_xchange_uid = { .uint64= DAP_CHAIN_NET_SRV_XCHANGE_ID };
 
-
+json_object *s_print_fee_json(dap_chain_net_id_t a_net_id);
 static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply);
-static int s_callback_requested(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
-static int s_callback_response_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
-static int s_callback_response_error(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
-static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
 static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx, tx_opt_status_t a_filter_by_status, bool a_append_prev_hash, bool a_print_status,bool a_print_ts);
 dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_order, uint256_t *a_fee, bool a_ret_is_invalid);
 
-static dap_chain_net_srv_xchange_t *s_srv_xchange;
 static bool s_debug_more = false;
 
 
@@ -178,31 +169,18 @@ int dap_chain_net_srv_xchange_init()
     "srv_xchange disable\n"
          "\tDisable eXchange service\n"
     );
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
-    dap_chain_net_srv_callbacks_t l_srv_callbacks = {};
-    l_srv_callbacks.requested = s_callback_requested;
-    l_srv_callbacks.response_success = s_callback_response_success;
-    l_srv_callbacks.response_error = s_callback_response_error;
-    l_srv_callbacks.receipt_next_success = s_callback_receipt_next_success;
-    l_srv_callbacks.decree = s_callback_decree;
 
-    //register service for tagging
-    dap_ledger_service_add(l_uid, "xchange", s_tag_check_xchange);
-
-
-    dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_xchange", &l_srv_callbacks);
-    s_srv_xchange = DAP_NEW_Z(dap_chain_net_srv_xchange_t);
-    if (!s_srv_xchange || !l_srv) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return -1;
+    dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start, .decree = s_callback_decree, .get_fee_descr = s_print_fee_json };
+    int ret = dap_chain_srv_add(c_dap_chain_net_srv_xchange_uid, "srv_xchange", &l_srv_callbacks);
+    if (ret) {
+        log_it(L_ERROR, "Can't register eXchange service");
+        return ret;
     }
-    l_srv->_internal = s_srv_xchange;
-    s_srv_xchange->parent = l_srv;
-    s_srv_xchange->enabled = false;
+    //register service for tagging
+    dap_ledger_service_add(c_dap_chain_net_srv_xchange_uid, "xchange", s_tag_check_xchange);
     s_debug_more = dap_config_get_item_bool_default(g_config, "srv_xchange", "debug_more", s_debug_more);
 
-
-    /*************************/
+#ifdef DAP_XCHANGE_TEST
     /*int l_fee_type = dap_config_get_item_int64_default(g_config, "srv_xchange", "fee_type", (int)SERIVCE_FEE_NATIVE_PERCENT);
     uint256_t l_fee_value = dap_chain_coins_to_balance(dap_config_get_item_str_default(g_config, "srv_xchange", "fee_value", "0.02"));
     const char *l_wallet_addr = dap_config_get_item_str_default(g_config, "srv_xchange", "wallet_addr", NULL);
@@ -219,16 +197,19 @@ int dap_chain_net_srv_xchange_init()
     l_fee->fee_addr = *dap_chain_addr_from_str(l_wallet_addr);
     l_fee->net_id = dap_chain_net_by_name(l_net_str)->pub.id;
     HASH_ADD(hh, s_service_fees, net_id, sizeof(l_fee->net_id), l_fee);*/
-
+#endif
     return 0;
+}
+
+static void *s_callback_start(dap_chain_net_id_t UNUSED_ARG a_net_id, dap_config_t UNUSED_ARG *a_config)
+{
+    dap_chain_srv_fee_t *l_service_internal = DAP_NEW_Z(dap_chain_srv_fee_t);
+    return l_service_internal;
 }
 
 void dap_chain_net_srv_xchange_deinit()
 {
-    if(!s_srv_xchange)
-        return;
-    dap_chain_net_srv_del(s_srv_xchange->parent);
-    DAP_DEL_Z(s_srv_xchange);
+    dap_chain_srv_delete(c_dap_chain_net_srv_xchange_uid);
 }
 
 /**
@@ -363,68 +344,49 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
  * @param a_decree
  * @param a_decree_size
  */
-static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size)
+static void s_callback_decree(dap_chain_net_id_t a_net_id, int a_decree_type, dap_tsd_t *a_params, size_t a_params_size)
 {
 
-//    TODO: finish function
-    pthread_rwlock_wrlock(&s_service_fees_rwlock);
-    dap_chain_net_srv_fee_item_t *l_fee = NULL;
-//    switch(a_decree->header.action){
-//        case DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE:{
-//            HASH_FIND(hh,s_service_fees,&a_net->pub.id, sizeof(a_net->pub.id), l_fee);
-//            if(l_fee == NULL){
-//                log_it(L_WARNING,"Decree update for net id 0x%016" DAP_UINT64_FORMAT_X" when such id can't find in hash table", a_net->pub.id.uint64);
-//                pthread_rwlock_unlock(&s_service_fees_rwlock);
-//                return;
-//            }
-//        }break;
-//        case DAP_CHAIN_DATUM_DECREE_ACTION_CREATE:{
-//            HASH_FIND(hh,s_service_fees,&a_net->pub.id, sizeof(a_net->pub.id), l_fee);
-//            if (l_fee) {
-//                log_it(L_WARNING, "Decree create for net id 0x%016" DAP_UINT64_FORMAT_X" when such id already in hash table", a_net->pub.id.uint64);
-//                pthread_rwlock_unlock(&s_service_fees_rwlock);
-//                return;
-//            }
-//            l_fee = DAP_NEW_Z(dap_chain_net_srv_fee_item_t);
-//            l_fee->net_id = a_net->pub.id;
-//            HASH_ADD(hh, s_service_fees, net_id, sizeof(l_fee->net_id), l_fee);
-//        } break;
-//    }
-//    size_t l_tsd_offset = 0;
-//    TODO: move to ACTION_CREATE
-//    while(l_tsd_offset < (a_decree_size - sizeof(a_decree->header)) ){
-//        dap_tsd_t *l_tsd = (dap_tsd_t*) (a_decree->data_n_signs + l_tsd_offset);
-//        switch((dap_chain_net_srv_fee_tsd_type_t)l_tsd->type) {
-//        case TSD_FEE_TYPE:
-//            l_fee->fee_type = dap_tsd_get_scalar(l_tsd, uint16_t);
-//            break;
-//        case TSD_FEE:
-//            l_fee->fee = dap_tsd_get_scalar(l_tsd, uint256_t);
-//            break;
-//        case TSD_FEE_ADDR:
-//            l_fee->fee_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
-//        default:
-//            break;
-//        }
-//        l_tsd_offset += dap_tsd_size(l_tsd);
-//    }
-//    pthread_rwlock_unlock(&s_service_fees_rwlock);
+    dap_chain_srv_fee_t *l_fee = dap_chain_srv_get_internal(a_net_id, c_dap_chain_net_srv_xchange_uid);
+    if (l_fee == NULL) {
+        log_it(L_WARNING, "Decree for net id 0x%016" DAP_UINT64_FORMAT_X " which haven't xchange service registered", a_net_id.uint64);
+        return;
+    }
+    size_t l_tsd_offset = 0;
+    switch (a_decree_type) {
+    //case XCHANGE_CTRL_FEE_UPDATE: {
+    default:
+        while (l_tsd_offset < a_params_size) {
+            dap_tsd_t *l_tsd = (dap_tsd_t *)((byte_t *)a_params + l_tsd_offset);
+            switch((dap_chain_srv_fee_tsd_type_t)l_tsd->type) {
+            case TSD_FEE_TYPE:
+                l_fee->type = dap_tsd_get_scalar(l_tsd, uint16_t);
+                break;
+            case TSD_FEE:
+                l_fee->value = dap_tsd_get_scalar(l_tsd, uint256_t);
+                break;
+            case TSD_FEE_ADDR:
+                l_fee->addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
+            default:
+                break;
+            }
+            l_tsd_offset += dap_tsd_size(l_tsd);
+        }
+        break;
+    }
 }
 
-bool dap_chain_net_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_fee, dap_chain_addr_t *a_addr, uint16_t *a_type)
+bool dap_chain_net_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr, uint16_t *a_type)
 {
-    pthread_rwlock_wrlock(&s_service_fees_rwlock);
-    dap_chain_net_srv_fee_item_t *l_fee = NULL;
-    HASH_FIND(hh,s_service_fees, &a_net_id, sizeof(a_net_id), l_fee);
-    pthread_rwlock_unlock(&s_service_fees_rwlock);
-    if (!l_fee || IS_ZERO_256(l_fee->fee))
+    dap_chain_srv_fee_t *l_fee = dap_chain_srv_get_internal(a_net_id, c_dap_chain_net_srv_xchange_uid);
+    if (!l_fee || IS_ZERO_256(l_fee->value))
         return false;
     if (a_type)
-        *a_type = l_fee->fee_type;
+        *a_type = l_fee->type;
     if (a_addr)
-        *a_addr = l_fee->fee_addr;
-    if (a_fee)
-        *a_fee = l_fee->fee;
+        *a_addr = l_fee->addr;
+    if (a_value)
+        *a_value = l_fee->value;
     return true;
 }
 
@@ -439,7 +401,7 @@ static dap_chain_datum_tx_receipt_t *s_xchange_receipt_create(dap_chain_net_srv_
     memcpy(l_ext, &a_datoshi_buy, sizeof(uint256_t));
     strcpy((char *)&l_ext[sizeof(uint256_t)], a_price->token_buy);
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 = SERV_UNIT_UNDEFINED};
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
     uint256_t l_datoshi_sell = {};
     if (!IS_ZERO_256(a_price->rate)){
         DIV_256_COIN(a_datoshi_buy, a_price->rate, &l_datoshi_sell);
@@ -516,7 +478,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     // add 'out_cond' & 'out' items
 
     {
-        dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
+        dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
         dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_uid, a_price->net->pub.id, a_price->datoshi_sell,
                                                                                                 a_price->net->pub.id, a_price->token_buy, a_price->rate,
                                                                                                 &l_seller_addr, NULL, 0);
@@ -1967,7 +1929,7 @@ void s_tx_is_order_check(UNUSED_ARG dap_chain_net_t* a_net, dap_chain_datum_tx_t
 
 static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 {
-    enum {CMD_NONE = 0, CMD_ORDER, CMD_ORDERS, CMD_PURCHASE, CMD_ENABLE, CMD_DISABLE, CMD_TX_LIST, CMD_TOKEN_PAIR };
+    enum {CMD_NONE = 0, CMD_ORDER, CMD_ORDERS, CMD_PURCHASE, CMD_TX_LIST, CMD_TOKEN_PAIR };
     int l_arg_index = 1, l_cmd_num = CMD_NONE;
 
     if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "order", NULL)) {
@@ -1978,12 +1940,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "purchase", NULL)) {
         l_cmd_num = CMD_PURCHASE;
-    }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "enable", NULL)) {
-        l_cmd_num = CMD_ENABLE;
-    }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "disable", NULL)) {
-        l_cmd_num = CMD_DISABLE;
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "tx_list", NULL)) {
         l_cmd_num = CMD_TX_LIST;
@@ -2228,13 +2184,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 }
             }
         } break;
-        case CMD_ENABLE: {
-            s_srv_xchange->enabled = true;
-        } break;
-        case CMD_DISABLE: {
-            s_srv_xchange->enabled = false;
-        } break;
-        case CMD_TX_LIST: {
+
+    case CMD_TX_LIST: {
             const char *l_net_str = NULL, *l_time_begin_str = NULL, *l_time_end_str = NULL;
             const char *l_status_str = NULL, *l_addr_str = NULL;  /* @RRL:  #6294 */
             int     l_opt_status, l_show_tx_nr = 0;
@@ -2602,39 +2553,19 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
     return 0;
 }
 
-static int s_callback_requested(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size)
+json_object *s_print_fee_json(dap_chain_net_id_t a_net_id)
 {
-    return 0;
-}
-
-static int s_callback_response_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size)
-{
-    return 0;
-}
-
-static int s_callback_response_error(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size)
-{
-    return 0;
-}
-
-static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size)
-{
-    return 0;
-}
-
-json_object *dap_chain_net_srv_xchange_print_fee_json(dap_chain_net_t *a_net) {
-    if (!a_net)
-        return NULL;
     uint256_t l_fee = {0};
     dap_chain_addr_t l_addr = {0};
     uint16_t l_type = 0;
-    if (dap_chain_net_srv_xchange_get_fee(a_net->pub.id, &l_fee, &l_addr, &l_type)) {
+    if (dap_chain_net_srv_xchange_get_fee(a_net_id, &l_fee, &l_addr, &l_type)) {
         const char *l_fee_coins, *l_fee_balance = dap_uint256_to_char(l_fee, &l_fee_coins);
         json_object *l_jobj_xchange = json_object_new_object();
+        json_object_object_add(l_jobj_xchange, "service",   json_object_new_string("eXchange"));
         json_object_object_add(l_jobj_xchange, "coin",      json_object_new_string(l_fee_coins));
         json_object_object_add(l_jobj_xchange, "balance",   json_object_new_string(l_fee_balance));
         json_object_object_add(l_jobj_xchange, "addr",      json_object_new_string(dap_chain_addr_to_str_static(&l_addr)));
-        json_object_object_add(l_jobj_xchange, "type",      json_object_new_string(dap_chain_net_srv_fee_type_to_str((dap_chain_net_srv_fee_type_t)l_type)));
+        json_object_object_add(l_jobj_xchange, "type",      json_object_new_string(dap_chain_srv_fee_type_to_str((dap_chain_srv_fee_type_t)l_type)));
         return l_jobj_xchange;
     } else {
         return json_object_new_string("service has not announced a commission fee");
@@ -2654,7 +2585,7 @@ void dap_chain_net_srv_xchange_print_fee(dap_chain_net_t *a_net, dap_string_t *a
                                                "\t\tAddr: %s\n"
                                                "\t\tType: %s\n",
                                 l_fee_coins, l_fee_balance, dap_chain_addr_to_str_static(&l_addr),
-                                dap_chain_net_srv_fee_type_to_str((dap_chain_net_srv_fee_type_t)l_type));
+                                dap_chain_srv_fee_type_to_str((dap_chain_srv_fee_type_t)l_type));
     } else {
         dap_string_append_printf(a_string_ret, "\txchange:\n"
                                                "\t\tThe xchanger service has not announced a commission fee.\n");

@@ -294,7 +294,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-price_max", &l_price_max_str);
 
                 dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
-                dap_chain_net_srv_uid_t l_srv_uid={{0}};
+                dap_chain_srv_uid_t l_srv_uid={{0}};
                 uint256_t l_price_min = {};
                 uint256_t l_price_max = {};
                 dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
@@ -360,7 +360,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                 } else {
                     dap_list_t * l_orders = NULL;
                     size_t l_orders_num = 0;
-                    dap_chain_net_srv_uid_t l_srv_uid={{0}};
+                    dap_chain_srv_uid_t l_srv_uid={{0}};
                     uint256_t l_price_min = {};
                     uint256_t l_price_max = {};
                     dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
@@ -403,7 +403,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                 const char *l_order_cert_name = NULL;
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_order_cert_name);
                 if ( l_srv_uid_str && l_price_str && l_price_token_str && l_price_unit_str && l_units_str) {
-                    dap_chain_net_srv_uid_t l_srv_uid={{0}};
+                    dap_chain_srv_uid_t l_srv_uid={{0}};
                     dap_chain_node_addr_t l_node_addr={0};
                     dap_chain_hash_fast_t l_tx_cond_hash={{0}};
                     dap_time_t l_expires = 0; // TS when the service expires
@@ -540,7 +540,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                 return -16;
             }
 
-            dap_chain_net_srv_uid_t l_srv_uid={{0}};
+            dap_chain_srv_uid_t l_srv_uid={{0}};
             if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
                 dap_string_free(l_string_ret, true);
@@ -737,107 +737,26 @@ static void s_pay_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t 
     dap_chain_net_srv_ch_grace_control(l_net_srv, a_tx_in_hash);
 }
 
-dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net_srv_t *a_srv, const char *a_config_section, dap_chain_hash_fast_t* a_order_hash){
-
-    const char *l_wallet_addr = dap_config_get_item_str_default(g_config, a_config_section, "wallet_addr", NULL);
-    const char *l_cert_name = dap_config_get_item_str_default(g_config, a_config_section, "receipt_sign_cert", NULL);
-    const char *l_net_name = dap_config_get_item_str_default(g_config, a_config_section, "net", NULL);
-    if (!l_wallet_addr){
-        log_it(L_CRITICAL, "Wallet addr is not defined. Check node configuration file.");
-        return NULL;
-    }
-    if (!l_cert_name){
-        log_it(L_CRITICAL, "Receipt sign certificate is not defined. Check node configuration file.");
-        return NULL;
-    }
-    if (!l_net_name){
-        log_it(L_CRITICAL, "Net for is not defined. Check node configuration file.");
-        return NULL;
-    }
-    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
-    if (!l_net) {
-        log_it(L_CRITICAL, "Can't find net %s. Check node configuration file.", l_net_name);
-        return NULL;
-    }
-
-    dap_chain_node_addr_t *l_node_addr = NULL;
-    l_node_addr = &g_node_addr;//dap_chain_net_get_cur_addr(l_net);
-    if (!l_node_addr){
-        return NULL;
-    }
-
-    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash(l_net, a_order_hash);
-    if (!l_order){
-        log_it(L_ERROR, "Can't find order!");
-        return NULL;
-    }
-
+dap_chain_net_srv_price_t *dap_chain_net_srv_get_price_from_order(dap_chain_net_srv_t *a_service, dap_chain_net_srv_order_t *a_order)
+{
     dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
     if (!l_price) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        DAP_DEL_Z(l_order);
         return NULL;
     }
-    if (l_order->node_addr.uint64 != g_node_addr.uint64 &&
-        l_order->srv_uid.uint64 != a_srv->uid.uint64) {
-        DAP_DELETE(l_price);
-        DAP_DEL_Z(l_order);
-        return NULL;
-    }
-
-    l_price->net_name = dap_strdup(l_net->pub.name);
-    if ((IS_ZERO_256(l_order->price) || l_order->units == 0 ) && !a_srv->allow_free_srv){
-        log_it(L_ERROR, "Invalid order: units count or price unspecified");
-        DAP_DELETE(l_price);
-        DAP_DEL_Z(l_order);
-        return NULL;
-    }
-    l_price->value_datoshi = l_order->price;
-    dap_stpcpy(l_price->token, l_order->price_ticker);
-    l_price->units = l_order->units;
-    l_price->units_uid = l_order->price_unit;
-
-    l_price->wallet_addr = dap_chain_addr_from_str(l_wallet_addr);
-    if(!l_price->wallet_addr){
-        log_it(L_ERROR, "Can't get wallet addr from wallet_addr in config file.");
-        DAP_DELETE(l_price);
-        DAP_DEL_Z(l_order);
-        return NULL;
-    }
-
-    l_price->receipt_sign_cert = dap_cert_find_by_name(l_cert_name);
-    if(!l_price->receipt_sign_cert){
-        log_it(L_ERROR, "Can't find cert %s.", l_cert_name);
-        DAP_DEL_Z(l_order);
-        DAP_DELETE(l_price);
-        return NULL;
-    }
-
-    dap_hash_fast_t order_pkey_hash = {};
-    dap_hash_fast_t price_pkey_hash = {};
-    dap_sign_get_pkey_hash((dap_sign_t*)(l_order->ext_n_sign + l_order->ext_size), &order_pkey_hash);
-    size_t l_key_size = 0;
-    uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_price->receipt_sign_cert->enc_key, &l_key_size);
-    if (!l_pub_key || !l_key_size)
-    {
-        log_it(L_ERROR, "Can't get pkey from cert %s.", l_cert_name);
-        DAP_DEL_Z(l_order);
-        DAP_DELETE(l_price);
-        return NULL;
-    }
-
-    dap_hash_fast(l_pub_key, l_key_size, &price_pkey_hash);
-    DAP_DELETE(l_pub_key);
-
-    if (!dap_hash_fast_compare(&order_pkey_hash, &price_pkey_hash))
-    {
+    l_price->value_datoshi = a_order->price;
+    dap_stpcpy(l_price->token, a_order->price_ticker);
+    l_price->units = a_order->units;
+    l_price->units_uid = a_order->price_unit;
+    dap_hash_fast_t l_order_pkey_hash = {};
+    dap_sign_get_pkey_hash((dap_sign_t*)(a_order->ext_n_sign + a_order->ext_size), &l_order_pkey_hash);
+    dap_hash_fast_t l_price_pkey_hash = {};
+    dap_cert_get_pkey_hash(a_service->receipt_sign_cert, &l_price_pkey_hash);
+    if (!dap_hash_fast_compare(&l_order_pkey_hash, &l_price_pkey_hash)) {
         log_it(L_ERROR, "pkey in order not equal to pkey in config.");
-        DAP_DEL_Z(l_order);
         DAP_DELETE(l_price);
         return NULL;
     }
-
-    DAP_DELETE(l_order);
     return l_price;
 }
 
@@ -849,9 +768,9 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
  * @param a_callback_response_error
  * @return
  */
-dap_chain_net_srv_t *dap_chain_net_srv_create(const char *a_config_section, dap_chain_net_srv_callbacks_t *a_network_callbacks)
-
+dap_chain_net_srv_t *dap_chain_net_srv_create(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid, dap_config_t *a_config, dap_chain_net_srv_callbacks_t *a_network_callbacks)
 {
+    const char *l_billing_section_name = "billing";
     dap_chain_net_srv_t *l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
     if (!l_srv) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -861,10 +780,44 @@ dap_chain_net_srv_t *dap_chain_net_srv_create(const char *a_config_section, dap_
     pthread_mutex_init(&l_srv->grace_mutex, NULL);
     if (a_network_callbacks)
         l_srv->callbacks = *a_network_callbacks;
-    if (a_config_section) {
-        l_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", DAP_CHAIN_NET_SRV_GRACE_PERIOD_DEFAULT);
-        l_srv->allow_free_srv = dap_config_get_item_bool_default(g_config, a_config_section, "allow_free_srv", false);
+    l_srv->net_id = a_net_id;
+    l_srv->uid = a_srv_uid;
+    l_srv->allow_free_srv = dap_config_get_item_bool_default(a_config, l_billing_section_name, "allow_free_srv", false);
+    if (l_srv->allow_free_srv)
+        return l_srv;
+    l_srv->grace_period = dap_config_get_item_uint32_default(a_config, l_billing_section_name, "grace_period", DAP_CHAIN_NET_SRV_GRACE_PERIOD_DEFAULT);
+    const char *l_wallet_addr_str = dap_config_get_item_str(a_config, "wallet_addr", NULL);
+    if (!l_wallet_addr_str) {
+        log_it(L_ERROR, "Wallet address is not defined. Check service configuration file.");
+        DAP_DELETE(l_srv);
+        return NULL;
     }
+    dap_chain_addr_t *l_wallet_addr = dap_chain_addr_from_str(l_wallet_addr_str);
+    if(l_wallet_addr) {
+        log_it(L_ERROR, "Can't get wallet addr from wallet_addr in config file.");
+        DAP_DELETE(l_srv);
+        return NULL;
+    }
+    l_srv->wallet_addr = *l_wallet_addr;
+    DAP_DELETE(l_wallet_addr);
+    const char *l_cert_name = dap_config_get_item_str_default(a_config, l_billing_section_name, "receipt_sign_cert", NULL);
+    if (!l_cert_name) {
+        log_it(L_ERROR, "Receipt sign certificate is not defined. Check node configuration file.");
+        DAP_DELETE(l_srv);
+        return NULL;
+    }
+    dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
+    if (!l_cert) {
+        log_it(L_ERROR, "Can't find cert %s.", l_cert_name);
+        DAP_DEL_Z(l_srv);
+        return NULL;
+    }
+    if (!l_cert->enc_key || !l_cert->enc_key->priv_key_data || !l_cert->enc_key->priv_key_data_size) {
+        log_it(L_ERROR, "Certificate %s doesn't contain a private key", l_cert_name);
+        DAP_DEL_Z(l_srv);
+        return NULL;
+    }
+    l_srv->receipt_sign_cert = l_cert;
     return l_srv;
 }
 
@@ -908,7 +861,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
     dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(
                     a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi, a_ext, a_ext_size);
     // Sign with our wallet
-    return dap_chain_datum_tx_receipt_sign_add(l_receipt, a_price->receipt_sign_cert->enc_key);
+    return dap_chain_datum_tx_receipt_sign_add(l_receipt, a_srv->receipt_sign_cert->enc_key);
 }
 
 /**

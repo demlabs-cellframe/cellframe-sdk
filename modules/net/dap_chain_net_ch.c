@@ -229,7 +229,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             size_t l_orders_num = 0;
             dap_chain_ch_validator_test_t *send = NULL;
             dap_chain_net_srv_price_unit_uid_t l_price_unit = { { 0 } };
-            dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
+            dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
             uint256_t l_price_min = {};
             uint256_t l_price_max = {};
             uint8_t flags = 0;

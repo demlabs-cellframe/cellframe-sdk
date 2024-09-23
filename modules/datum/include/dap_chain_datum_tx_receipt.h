@@ -28,7 +28,7 @@
 #include "dap_chain_common.h"
 
 typedef struct dap_chain_receipt_info {
-    dap_chain_net_srv_uid_t srv_uid; // Service UID
+    dap_chain_srv_uid_t srv_uid; // Service UID
 #if DAP_CHAIN_NET_SRV_UID_SIZE == 8
     uint64_t addition;
 #endif
@@ -56,7 +56,7 @@ typedef struct dap_chain_datum_tx_receipt {
 extern "C" {
 #endif
 
-dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create(dap_chain_net_srv_uid_t srv_uid,
+dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create(dap_chain_srv_uid_t srv_uid,
                                                                   dap_chain_net_srv_price_unit_uid_t units_type,
                                                                     uint64_t units, uint256_t value_datoshi, const void * a_ext, size_t a_ext_size);
 

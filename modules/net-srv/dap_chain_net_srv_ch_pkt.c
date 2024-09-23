@@ -40,7 +40,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 
 size_t dap_chain_net_srv_ch_pkt_data_write(dap_stream_ch_t *a_ch,
-                                                  dap_chain_net_srv_uid_t a_srv_uid, uint32_t a_usage_id  ,
+                                                  dap_chain_srv_uid_t a_srv_uid, uint32_t a_usage_id  ,
                                                   const void * a_data, size_t a_data_size)
 {
     dap_chain_net_srv_ch_pkt_data_t  * l_pkt_data;
@@ -63,7 +63,7 @@ size_t dap_chain_net_srv_ch_pkt_data_write(dap_stream_ch_t *a_ch,
  * @param a_str
  * @return
  */
-size_t dap_chain_net_srv_ch_pkt_data_write_f(dap_stream_ch_t *a_ch, dap_chain_net_srv_uid_t a_srv_uid, uint32_t a_usage_id, const char *a_str, ...)
+size_t dap_chain_net_srv_ch_pkt_data_write_f(dap_stream_ch_t *a_ch, dap_chain_srv_uid_t a_srv_uid, uint32_t a_usage_id, const char *a_str, ...)
 {
 
     va_list ap, ap_copy;

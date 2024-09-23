@@ -191,7 +191,7 @@ json_object *dap_chain_datum_tx_item_out_cond_fee_to_json(dap_chain_tx_out_cond_
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pkey_t *a_key, dap_chain_srv_uid_t a_srv_uid,
                                                                              uint256_t a_value, uint256_t a_value_max_per_unit,
                                                                              dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                              const void *a_params, size_t a_params_size);
@@ -203,7 +203,7 @@ json_object *dap_chain_datum_tx_item_out_cond_srv_pay_to_json(dap_chain_tx_out_c
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_id_t a_sell_net_id,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_srv_uid_t a_srv_uid, dap_chain_net_id_t a_sell_net_id,
                                                                              uint256_t a_value_sell, dap_chain_net_id_t a_buy_net_id,
                                                                              const char *a_token, uint256_t a_value_rate, const dap_chain_addr_t *a_seller_addr,
                                                                              const void *a_params, uint32_t a_params_size);
@@ -219,14 +219,14 @@ DAP_STATIC_INLINE uint32_t dap_chain_datum_tx_item_out_cond_create_srv_stake_get
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                            dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
                                                                            dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax);
 
 json_object *dap_chain_datum_tx_item_out_cond_srv_stake_to_json(dap_chain_tx_out_cond_t* a_srv_stake);
 
 // Create cond out
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_net_srv_uid_t a_srv_uid,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_srv_uid_t a_srv_uid,
                                                                                   uint256_t a_value, uint64_t a_time_staking,
                                                                                   uint256_t a_reinvest_percent,
                                                                                   uint32_t a_flags);

@@ -37,7 +37,7 @@
 
 #define LOG_TAG "dap_chain_common"
 
-const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null = {0};
+const dap_chain_srv_uid_t c_dap_chain_srv_uid_null = {0};
 const dap_chain_cell_id_t c_dap_chain_cell_id_null = {0};
 const dap_chain_addr_t c_dap_chain_addr_blank = {0};
 
@@ -111,9 +111,9 @@ bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr)
  * @param a_net_str
  * @return
  */
-dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str( const char * a_net_srv_uid_str)
+dap_chain_srv_uid_t dap_chain_net_srv_uid_from_str( const char * a_net_srv_uid_str)
 {
-    dap_chain_net_srv_uid_t l_ret={{0}};
+    dap_chain_srv_uid_t l_ret={{0}};
     size_t l_net_srv_uid_str_len = strlen( a_net_srv_uid_str);
     if (l_net_srv_uid_str_len >2){
         a_net_srv_uid_str+=2;
