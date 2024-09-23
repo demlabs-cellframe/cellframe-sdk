@@ -458,7 +458,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     return STAKE_NO_ERROR;
 }
 
-static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
+static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object* json_obj_out)
 {
     const char *l_net_str, *l_ticker_str, *l_wallet_str, *l_tx_str, *l_tx_burning_str, *l_chain_str, *l_value_fee_str;
     l_net_str = l_ticker_str = l_wallet_str = l_tx_str = l_tx_burning_str = l_chain_str = l_value_fee_str = NULL;
@@ -479,21 +479,25 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     dap_chain_t							*l_chain;
     dap_chain_datum_token_t				*l_delegated_token;
 
-    dap_string_append_printf(output_line, "---> TAKE <---\n");
+    json_object_object_add(json_obj_out, "statke type", json_object_new_string("---> TAKE <---"));
 
     const char *l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
-    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type, "base58"))
+    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type, "base58")) {
+        dap_json_rpc_error_add(HASH_TYPE_ARG_ERROR, "invalid parameter hash");
         return HASH_TYPE_ARG_ERROR;
+    }        
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str)
-    ||	NULL == l_net_str)
+    ||	NULL == l_net_str) {
+        dap_json_rpc_error_add(NET_ARG_ERROR, "stake_lock command requires parameter -net");
         return NET_ARG_ERROR;
+    }        
 
     if (NULL == (l_net = dap_chain_net_by_name(l_net_str))) {
-        dap_string_append_printf(output_line, "'%s'", l_net_str);
+        dap_json_rpc_error_add(NET_ERROR, "Can't find network %s", l_net_str);
         return NET_ERROR;
     }
 
@@ -502,23 +506,32 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
         l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
     else
         l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
-    if(!l_chain)
+    if(!l_chain) {
+        dap_json_rpc_error_add(CHAIN_ERROR, "stake_lock command requires parameter '-chain'.\n"
+                                                                        "you can set default datum type in chain configuration file");
         return CHAIN_ERROR;
+    }        
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_str)
-    ||	NULL == l_tx_str)
+    ||	NULL == l_tx_str) {
+        dap_json_rpc_error_add(TX_ARG_ERROR, "stake_lock command requires parameter -tx");
         return TX_ARG_ERROR;
+    }        
 
-    if (dap_chain_hash_fast_from_str(l_tx_str, &l_tx_hash))
+    if (dap_chain_hash_fast_from_str(l_tx_str, &l_tx_hash)){
+        dap_json_rpc_error_add(HASH_IS_BLANK_ERROR, "stake_lock command requires parameter -tx");
         return HASH_IS_BLANK_ERROR;
-
+    }
+        
     l_ledger = l_net->pub.ledger;
 
     l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_tx_hash);
 
     if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK,
-                                                                 &l_prev_cond_idx)))
+                                                                 &l_prev_cond_idx))) {
+        dap_json_rpc_error_add(NO_TX_ERROR, "stake_lock command requires parameter -tx");
         return NO_TX_ERROR;
+    }        
 
     if (l_tx_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK)
         return NO_VALID_SUBTYPE_ERROR;
@@ -559,9 +572,12 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
     if (NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path, NULL)))
         return WALLET_OPEN_ERROR;
-    else
-        dap_string_append(output_line, dap_chain_wallet_check_sign(l_wallet));
-
+    else {
+        dap_json_rpc_error_add(NET_ARG_ERROR, "net parameter error");
+    }
+        json_object_object_add(json_obj_out, "check sign status", 
+                                json_object_new_string( dap_chain_wallet_check_sign(l_wallet) ?
+                                                        dap_chain_wallet_check_sign(l_wallet) : "ok"));
 
     if (NULL == (l_owner_key = dap_chain_wallet_get_key(l_wallet, 0))) {
         dap_chain_wallet_close(l_wallet);
@@ -594,15 +610,16 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
                                           l_ticker_str, l_tx_out_cond->header.value, l_value_fee,
                                           l_delegated_ticker_str, l_value_delegated,&res);
     if(res == -3)
-        dap_string_append_printf(output_line, "Total fee more than stake\n");
+        json_object_object_add(json_obj_out, "check sign status", 
+                                json_object_new_string( dap_chain_wallet_check_sign(l_wallet) ?
+                                                        dap_chain_wallet_check_sign(l_wallet) : "ok"));
 
     dap_enc_key_delete(l_owner_key);  // need wallet close??
     // Processing will be made according to autoprocess policy
     if (NULL == (l_datum_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type)))
         return ADD_DATUM_TX_TAKE_ERROR;
 
-    dap_string_append_printf(output_line, "TAKE_TX_DATUM_HASH = %s\n", l_datum_hash_str);
-
+    json_object_object_add(json_obj_out, "TAKE_TX_DATUM_HASH", json_object_new_string(l_datum_hash_str));
     DAP_DEL_Z(l_datum_hash_str);
     DAP_DEL_Z(l_datum);
 
