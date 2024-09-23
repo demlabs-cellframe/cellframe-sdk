@@ -434,7 +434,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         dap_chain_t * l_chain = NULL;
         dap_chain_net_t * l_net = NULL;
 
-        if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply, &arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_INVALID) < 0)
+        if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_INVALID) < 0)
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
 
         const char *l_cell_str = NULL, *l_chain_str = NULL;
@@ -6910,7 +6910,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
     // Validator's fee
     if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &str_tmp)) {
         if (!str_tmp) {
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE, "tx_create requires parameter '-fee'");
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE, "tx_create requires parameter '-fee'");
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE;
         }
         l_value_fee = dap_chain_balance_scan(str_tmp);
@@ -7160,7 +7160,7 @@ int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply)
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_REQUIRE_PARAMETER_TX, "tx_verify requires parameter '-tx'");
         return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_REQUIRE_PARAMETER_TX;
     }
-    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply, &l_arg_index, a_argc, a_argv, &l_chain, &l_net,
+    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &l_arg_index, a_argc, a_argv, &l_chain, &l_net,
                                                            CHAIN_TYPE_TX);
     if (!l_net || !l_chain) {
         return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_NET_CHAIN_UNDEFINED;
