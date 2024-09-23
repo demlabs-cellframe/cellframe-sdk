@@ -1181,7 +1181,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 : dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
             if (l_hash_tx) {
                 json_object* json_obj_out = json_object_new_object();
-                char *l_val = dap_strdup_printf(l_val, "TX for %s collection created successfully, hash = %s\n", l_subcmd_str, l_hash_tx);
+                char *l_val = dap_strdup_printf("TX for %s collection created successfully, hash = %s\n", l_subcmd_str, l_hash_tx);
                 json_object_object_add(json_obj_out, "status", json_object_new_string(l_val));
                 DAP_DELETE(l_val);
                 json_object_array_add(*json_arr_reply, json_obj_out);
