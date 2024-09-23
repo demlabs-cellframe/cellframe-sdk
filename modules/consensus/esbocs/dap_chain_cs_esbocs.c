@@ -206,7 +206,10 @@ void dap_chain_cs_esbocs_deinit(void)
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_cs_type_create("blocks", a_chain, a_chain_cfg);
-
+//patch for tests
+#ifdef  DAP_LEDGER_TEST
+    return 0;
+#endif
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     int l_ret = 0, l_inited_cert;
     dap_chain_esbocs_t *l_esbocs = NULL;
@@ -265,7 +268,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
                     log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
                 else
                     log_it(L_ERROR, "Can't find cert \"%s\" possibly for address \"%s\"", l_cert_name, l_addrs[i]);
-                l_ret = -6;
+                l_ret = -8;
                 goto lb_err;
             }
         }
@@ -305,7 +308,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         }
     }
     if (!l_inited_cert) {
-        l_ret = -1;
+        l_ret = -7;
         goto lb_err;
     }
     // Preset reward for block signs, before first reward decree
@@ -320,10 +323,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     return 0;
 
 lb_err:
-//patch for tests
-#ifdef  DAP_LEDGER_TEST
-    return 0;
-#endif
     dap_list_free_full(l_esbocs_pvt->poa_validators, NULL);
     DAP_DEL_MULTY(l_esbocs_pvt, l_esbocs);
     l_blocks->_inheritor = NULL;
