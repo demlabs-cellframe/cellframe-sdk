@@ -534,45 +534,62 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, js
         return NO_TX_ERROR;
     }        
 
-    if (l_tx_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK)
+    if (l_tx_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+        dap_json_rpc_error_add(NO_VALID_SUBTYPE_ERROR, "wrong subtype for transaction");
         return NO_VALID_SUBTYPE_ERROR;
+    }
 
     if (dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx, NULL)) {
+        dap_json_rpc_error_add(IS_USED_OUT_ERROR, "tx hash is used out");
         return IS_USED_OUT_ERROR;
     }
 
-    if (NULL == (l_ticker_str = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash)))
+    if (NULL == (l_ticker_str = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash))) {
+        dap_json_rpc_error_add(TX_TICKER_ERROR, "ticker not found");
         return TX_TICKER_ERROR;
+    }
 
     if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX ||
             l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT) {
 
         dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_ticker_str);
 
-        if (NULL == (l_delegated_token = dap_ledger_token_ticker_check(l_ledger, l_delegated_ticker_str)))
+        if (NULL == (l_delegated_token = dap_ledger_token_ticker_check(l_ledger, l_delegated_ticker_str))) {
+            dap_json_rpc_error_add(NO_DELEGATED_TOKEN_ERROR, " %s delegated token not found", l_delegated_ticker_str);
             return NO_DELEGATED_TOKEN_ERROR;
+        }
 
         uint256_t l_emission_rate = dap_ledger_token_get_emission_rate(l_ledger, l_delegated_ticker_str);
 
         if (IS_ZERO_256(l_emission_rate) ||
                 MULT_256_COIN(l_tx_out_cond->header.value, l_emission_rate, &l_value_delegated) ||
-                IS_ZERO_256(l_value_delegated))
+                IS_ZERO_256(l_value_delegated)) {
+            dap_json_rpc_error_add(COINS_FORMAT_ERROR, "Format -coins <256 bit integer>");
             return COINS_FORMAT_ERROR;
+        }
     }
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_str)
-    ||	!l_wallet_str)
+    ||	!l_wallet_str) {
+        dap_json_rpc_error_add(WALLET_ARG_ERROR, "stake_lock command requires parameter -w");
         return WALLET_ARG_ERROR;
+    }
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-fee", &l_value_fee_str)
-    ||	!l_value_fee_str)
+    ||	!l_value_fee_str) {
+        dap_json_rpc_error_add(FEE_ARG_ERROR, "stake_lock command requires parameter -fee");
         return FEE_ARG_ERROR;
+    }
 
-    if (IS_ZERO_256( (l_value_fee = dap_chain_balance_scan(l_value_fee_str)) ))
+    if (IS_ZERO_256( (l_value_fee = dap_chain_balance_scan(l_value_fee_str)) )) {
+        dap_json_rpc_error_add(FEE_FORMAT_ERROR, "Format -fee <256 bit integer>");
         return FEE_FORMAT_ERROR;
+    }
 
-    if (NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path, NULL)))
+    if (NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path, NULL))) {
+        dap_json_rpc_error_add(WALLET_OPEN_ERROR, " %s can't open wallet", l_wallet_str);
         return WALLET_OPEN_ERROR;
+    }
     else {
         dap_json_rpc_error_add(NET_ARG_ERROR, "net parameter error");
     }
