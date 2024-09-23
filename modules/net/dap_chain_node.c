@@ -429,8 +429,8 @@ static int s_node_states_info_cmp(dap_list_t *a_first, dap_list_t *a_second)
   if(b->events_count > a->events_count && b->events_count - a->events_count > s_cmp_delta_event) return 1;
   if(a->atoms_count > b->atoms_count && a->atoms_count - b->atoms_count > s_cmp_delta_atom) return -1;
   if(b->atoms_count > a->atoms_count && b->atoms_count - a->atoms_count > s_cmp_delta_atom) return 1;
-  if(a->role.enums == NODE_ROLE_ROOT) return -1;
-  if(b->role.enums == NODE_ROLE_ROOT) return 1;
+  if(a->role.enums == NODE_ROLE_ROOT) return 1;
+  if(b->role.enums == NODE_ROLE_ROOT) return -1;
   if(a->downlinks_count < b->downlinks_count) return -1;
   if(b->downlinks_count < a->downlinks_count) return 1;
   return 0;
