@@ -51,28 +51,6 @@ typedef struct dap_chain_net_srv_order
     uint8_t ext_n_sign[];
 } DAP_ALIGN_PACKED dap_chain_net_srv_order_t;
 
-typedef struct dap_chain_net_srv_order_new
-{
-    uint16_t version;
-#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
-    dap_chain_net_srv_uid_t srv_uid DAP_ALIGNED(8); // Service UID
-#else
-    dap_chain_net_srv_uid_t srv_uid;
-#endif
-    dap_chain_net_srv_order_direction_t direction; // Order direction - SELL or PURCHASE
-    dap_chain_node_addr_t node_addr; // Node address that servs the order (if present)
-    dap_chain_hash_fast_t tx_cond_hash; // Hash index of conditioned transaction attached with order
-    dap_chain_net_srv_price_unit_uid_t price_unit; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
-    dap_time_t ts_created;
-    dap_time_t ts_expires;
-    uint256_t price; //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
-    char price_ticker[DAP_CHAIN_TICKER_SIZE_MAX]; // Token ticker to pay for service
-    uint32_t ext_size;
-    uint64_t units;
-    byte_t free_space[120];  // for future changes
-    uint8_t ext_n_sign[];
-} DAP_ALIGN_PACKED dap_chain_net_srv_order_new_t;
-
 // Init/deinit should be call only if private
 int dap_chain_net_srv_order_init();
 void dap_chain_net_srv_order_deinit(void);

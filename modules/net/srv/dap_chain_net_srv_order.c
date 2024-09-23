@@ -33,7 +33,6 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #define LOG_TAG "dap_chain_net_srv_order"
-#define ORDER_PREVIOUS_CHECKED_VERSION 3
 #define ORDER_CURRENT_VERSION 3
 
 /*
@@ -85,7 +84,7 @@ void dap_chain_net_srv_order_deinit()
 
 uint64_t dap_chain_net_srv_order_get_size(const dap_chain_net_srv_order_t *a_order)
 {
-    if (!a_order || (a_order->version != ORDER_PREVIOUS_CHECKED_VERSION && a_order->version != ORDER_CURRENT_VERSION))
+    if (!a_order || a_order->version != ORDER_CURRENT_VERSION)
         return 0;
     dap_sign_t *l_sign = (dap_sign_t *)(a_order->ext_n_sign + a_order->ext_size);
     uint64_t l_sign_size = l_sign->header.type.type == SIG_TYPE_NULL ? sizeof(dap_sign_type_t) : dap_sign_get_size(l_sign);
@@ -97,8 +96,7 @@ const dap_chain_net_srv_order_t *dap_chain_net_srv_order_check(const char *a_ord
 {
     const dap_chain_net_srv_order_t *l_order = (const dap_chain_net_srv_order_t *)a_order;
     dap_return_val_if_fail(l_order && a_order_size >= sizeof(dap_chain_net_srv_order_t) + sizeof(dap_sign_t) &&
-                           (l_order->version == ORDER_PREVIOUS_CHECKED_VERSION || l_order->version == ORDER_CURRENT_VERSION) 
-                           && l_order->direction <= SERV_DIR_SELL, NULL);
+                           l_order->version == ORDER_CURRENT_VERSION && l_order->direction <= SERV_DIR_SELL, NULL);
     size_t l_order_size = dap_chain_net_srv_order_get_size(l_order);
     if (l_order_size != a_order_size)
         return NULL;
