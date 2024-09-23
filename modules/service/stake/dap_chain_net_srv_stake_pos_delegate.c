@@ -1881,11 +1881,12 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                         for (uint16_t k = 0; k < l_delegated_hashes_count; ++k) {
                             if (!strcmp((const char *)(l_delegated_hashes->value), l_orders[j].key)) {
                                 dap_string_append_printf(l_reply_str, "\t\t    %s\n", (l_delegated_hashes + k)->key);
-                                const char *l_current_decree_str = dap_global_db_get_sync(l_hashes_group_str, l_delegated_hashes[k].key, NULL, NULL, NULL);
+                                char *l_current_decree_str = (char *)dap_global_db_get_sync(l_hashes_group_str, l_delegated_hashes[k].key, NULL, NULL, NULL);
                                 dap_string_append_printf(l_decree_str, "\t\t    %s\n", l_current_decree_str ? l_current_decree_str : "");
+                                DAP_DEL_Z(l_current_decree_str);
                             }
                         }
-                        dap_string_append_printf(l_reply_str, l_decree_str->str);
+                        dap_string_append_printf(l_reply_str, "%s", l_decree_str->str);
                         dap_string_free(l_decree_str, true);
                         
                         const char *l_coins_str;
