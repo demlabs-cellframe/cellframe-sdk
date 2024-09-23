@@ -233,10 +233,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs_pvt->round_attempts_max = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempts_max", 4);
     l_esbocs_pvt->round_attempt_timeout = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempt_timeout", 10);
 
-//patch for tests
-#ifdef  DAP_LEDGER_TEST
-    return 0;
-#endif
     l_esbocs_pvt->start_validators_min = l_esbocs_pvt->min_validators_count =
             dap_config_get_item_uint16(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "min_validators_count");
     if (!l_esbocs_pvt->min_validators_count) {
@@ -324,6 +320,10 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     return 0;
 
 lb_err:
+//patch for tests
+#ifdef  DAP_LEDGER_TEST
+    return 0;
+#endif
     dap_list_free_full(l_esbocs_pvt->poa_validators, NULL);
     DAP_DEL_MULTY(l_esbocs_pvt, l_esbocs);
     l_blocks->_inheritor = NULL;
