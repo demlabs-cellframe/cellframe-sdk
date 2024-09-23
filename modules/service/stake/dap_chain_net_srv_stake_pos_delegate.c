@@ -1296,7 +1296,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
     dap_tsd_t *l_tsd = NULL;
 
     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t);
-    l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+    l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t));
     if (!l_tsd) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
@@ -1304,6 +1304,17 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
     l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR;
     l_tsd->size = sizeof(dap_chain_addr_t);
     *(dap_chain_addr_t*)(l_tsd->data) = l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr;
+    l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+
+    l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_node_addr_t);
+    l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, sizeof(dap_tsd_t) + sizeof(dap_chain_node_addr_t));
+    if (!l_tsd) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return NULL;
+    }
+    l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR;
+    l_tsd->size = sizeof(dap_chain_node_addr_t);
+    *(dap_chain_node_addr_t*)(l_tsd->data) = l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr;
     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
 
     l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
