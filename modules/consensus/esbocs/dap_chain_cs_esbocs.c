@@ -427,7 +427,7 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
     assert(l_session->chain == a_chain);
-    pthread_mutex_lock(&l_session->mutex);
+    //pthread_mutex_lock(&l_session->mutex);
     dap_chain_hash_fast_t l_last_block_hash;
     dap_chain_get_atom_last_hash(l_session->chain, a_id, &l_last_block_hash);
     if (!dap_hash_fast_compare(&l_last_block_hash, &l_session->cur_round.last_block_hash) &&
@@ -435,7 +435,7 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
         l_session->new_round_enqueued = true;
         s_session_round_new(l_session);
     }
-    pthread_mutex_unlock(&l_session->mutex);
+    //pthread_mutex_unlock(&l_session->mutex);
     if (!PVT(l_session->esbocs)->collecting_addr)
         return;
     dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
@@ -475,7 +475,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
     l_esbocs_pvt->collecting_addr = dap_chain_addr_from_str(dap_config_get_item_str(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "fee_addr"));
-    l_esbocs_pvt->collecting_level = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "collecting_level",
+    l_esbocs_pvt->collecting_level = dap_chain_balance_coins_scan(dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "collecting_level",
                                                                                                 dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "set_collect_fee", "10.0")));
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
     for (dap_list_t *it = l_validators; it; it = it->next) {
@@ -486,6 +486,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     DAP_NEW_Z_RET_VAL(l_session, dap_chain_esbocs_session_t, -8, NULL);
     l_session->chain = a_chain;
     l_session->esbocs = l_esbocs;
+    l_session->proc_thread = dap_proc_thread_get_auto();
     l_esbocs->session = l_session;
     DL_APPEND(s_session_items, l_session);
     log_it(L_INFO, "Init ESBOCS session for net:%s, chain:%s", a_chain->net_name, a_chain->name);
@@ -539,7 +540,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     char *l_sync_group = s_get_penalty_group(l_net->pub.id);
     l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
                                                       dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_ESBOCS),
-                                                      l_sync_group, 72 * 3600, true,
+                                                      l_sync_group, 72, true,
                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_session->db_cluster->links_cluster);
     dap_global_db_erase_table_sync(l_sync_group);     // Drop table on stratup
@@ -592,11 +593,11 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         log_it(L_ERROR, "This validator is not allowed to work in emergency mode. Use special decree to supply it");
         return -5;
     }
-    pthread_mutex_init(&l_session->mutex, NULL);
+    //pthread_mutex_init(&l_session->mutex, NULL);
     dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session);
     s_session_round_new(l_session);
 
-    l_session->cs_timer = !dap_proc_thread_timer_add(NULL, s_session_proc_state, l_session, 1000);
+    l_session->cs_timer = !dap_proc_thread_timer_add(l_session->proc_thread, s_session_proc_state, l_session, 1000);
     debug_if(l_esbocs_pvt->debug && l_session->cs_timer, L_MSG, "Consensus main timer is started");
 
     DAP_CHAIN_PVT(a_chain)->cs_started = true;
@@ -729,6 +730,15 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
     return 0;
 }
 
+int dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id)
+{
+    dap_chain_esbocs_session_t *l_session;
+    DL_FOREACH(s_session_items, l_session)
+        if (l_session->chain->net_id.uint64 == a_net_id.uint64)
+            return PVT(l_session->esbocs)->min_validators_count;
+    return -1;
+}
+
 int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
 {
     dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
@@ -779,7 +789,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
         log_it(L_INFO, "No session found");
         return;
     }
-    pthread_mutex_lock(&l_session->mutex);
+    //pthread_mutex_lock(&l_session->mutex);
     DL_DELETE(s_session_items, l_session);
     s_session_round_clear(l_session);
     dap_chain_esbocs_sync_item_t *l_sync_item, *l_sync_tmp;
@@ -793,8 +803,8 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
         HASH_DEL(l_session->penalty, l_pen_item);
         DAP_DELETE(l_pen_item);
     }
-    pthread_mutex_unlock(&l_session->mutex);
-    pthread_mutex_destroy(&l_session->mutex);
+    //pthread_mutex_unlock(&l_session->mutex);
+    //pthread_mutex_destroy(&l_session->mutex);
     DAP_DEL_MULTY(l_session, a_blocks->_inheritor); // a_blocks->_inheritor - l_esbocs
 }
 
@@ -873,7 +883,8 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_
         for (size_t l_current_vld_cnt = 0; l_current_vld_cnt < l_need_vld_cnt; l_current_vld_cnt++) {
             uint256_t l_raw_result;
             uint256_t l_chosen_weight = dap_pseudo_random_get(l_total_weight, &l_raw_result);
-            if (false) { //PVT(a_session->esbocs)->debug) {
+#if DAP_ESBOCS_PRNG_DEBUG
+            if (l_esbocs_pvt->debug) {
                 unsigned l_strlen = 1024, l_off = 0;
                 const char *l_chosen_weight_str, *l_total_weight_str, *l_raw_result_str;
                 char l_str[l_strlen];
@@ -888,6 +899,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_
                 l_off += snprintf(l_str + l_off, l_strlen - l_off, "by number %s", l_raw_result_str);
                 log_it(L_MSG, "%s", l_str);
             }
+#endif
             dap_list_t *l_chosen = NULL;
             uint256_t l_cur_weight = uint256_0;
             for (dap_list_t *it = l_validators; it; it = it->next) {
@@ -950,6 +962,9 @@ static dap_list_t *s_validator_check_synced(dap_chain_addr_t *a_addr, dap_list_t
 
 static void s_db_calc_sync_hash(dap_chain_esbocs_session_t *a_session)
 {
+    dap_chain_addr_t l_addr_blank = c_dap_chain_addr_blank;
+    l_addr_blank.net_id = a_session->chain->net_id;
+    dap_chain_net_srv_stake_mark_validator_active(&l_addr_blank, true);  // Mark all validators active for now
     char *l_penalty_group = s_get_penalty_group(a_session->chain->net_id);
     size_t l_penalties_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_penalty_group, &l_penalties_count);
@@ -1017,10 +1032,10 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
 static bool s_session_send_startsync_on_timer(void *a_arg)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
-    pthread_mutex_lock(&l_session->mutex);
+    //pthread_mutex_lock(&l_session->mutex);
     s_session_send_startsync(l_session);
     l_session->sync_timer = NULL;
-    pthread_mutex_unlock(&l_session->mutex);
+    //pthread_mutex_unlock(&l_session->mutex);
     return false;
 }
 
@@ -1447,8 +1462,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             log_it(L_ERROR, "No previous state registered, can't roll back");
             if (!a_session->new_round_enqueued) {
                 a_session->new_round_enqueued = true;
-                dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-                dap_proc_thread_callback_add(l_thread, s_session_round_new, a_session);
+                dap_proc_thread_callback_add(a_session->proc_thread, s_session_round_new, a_session);
             }
         }
     }
@@ -1462,8 +1476,8 @@ static void s_session_proc_state(void *a_arg)
     dap_chain_esbocs_session_t *l_session = a_arg;
     if (!l_session->cs_timer)
         return; // Timer is inactive
-    if (pthread_mutex_trylock(&l_session->mutex) != 0)
-        return; // Session is busy
+    //if (pthread_mutex_trylock(&l_session->mutex) != 0)
+    //    return; // Session is busy
     bool l_cs_debug = PVT(l_session->esbocs)->debug;
     dap_time_t l_time = dap_time_now();
     switch (l_session->state) {
@@ -1481,8 +1495,7 @@ static void s_session_proc_state(void *a_arg)
                                                                         l_session->cur_round.id);
                 if (!l_session->new_round_enqueued) {
                     l_session->new_round_enqueued = true;
-                    dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-                    dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                    dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
                 }
                 break;
             }
@@ -1504,8 +1517,7 @@ static void s_session_proc_state(void *a_arg)
                 l_session->sync_failed = true;
                 if (!l_session->new_round_enqueued) {
                     l_session->new_round_enqueued = true;
-                    dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-                    dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                    dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
                 }
             }
         }
@@ -1571,7 +1583,7 @@ static void s_session_proc_state(void *a_arg)
         break;
     }
 
-    pthread_mutex_unlock(&l_session->mutex);
+    //pthread_mutex_unlock(&l_session->mutex);
 }
 
 static void s_message_chain_add(dap_chain_esbocs_session_t *a_session,
@@ -2173,11 +2185,9 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return false;
     }
-    l_args->addr_from = a_ch->stream->node;
-    l_args->session = l_session;
-    l_args->message_size = l_message_size;
+    *l_args = (struct esbocs_msg_args){ a_ch->stream->node, l_session, l_message_size };
     memcpy(l_args->message, l_message, l_message_size);
-    dap_proc_thread_callback_add(NULL, s_process_incoming_message, l_args);
+    dap_proc_thread_callback_add(l_session->proc_thread, s_process_incoming_message, l_args);
     return true;
 }
 
@@ -2209,10 +2219,11 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
     dap_hash_fast(l_message, a_data_size, &l_data_hash);
 
     if (a_sender_node_addr) { //Process network messages only
-        pthread_mutex_lock(&l_session->mutex);
+        //pthread_mutex_lock(&l_session->mutex);
         if (l_message->hdr.chain_id.uint64 != l_session->chain->id.uint64) {
             debug_if(l_cs_debug, L_MSG, "Invalid chain ID %"DAP_UINT64_FORMAT_U, l_message->hdr.chain_id.uint64);
-            goto session_unlock;
+            //goto session_unlock;
+            return;
         }
         // check hash message dup
         dap_chain_esbocs_message_item_t *l_message_item_temp = NULL;
@@ -2222,7 +2233,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                         " Message rejected: message hash is exists in chain (duplicate)",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_message->hdr.attempt_num);
-            goto session_unlock;
+            //goto session_unlock;
+            return;
         }
         l_message->hdr.sign_size = 0;   // restore header on signing time
         if (dap_sign_verify_all(l_sign, l_sign_size, l_message, l_message_data_size + sizeof(l_message->hdr))) {
@@ -2230,7 +2242,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                         " Message rejected from addr:"NODE_ADDR_FP_STR" not passed verification",
                                             l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                 l_session->cur_round.attempt_num, NODE_ADDR_FP_ARGS(a_sender_node_addr));
-            goto session_unlock;
+            //goto session_unlock;
+            return;
         }
         l_message->hdr.sign_size = l_sign_size; // restore original header
 
@@ -2242,7 +2255,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                                 l_session->chain->net_name, l_session->chain->name,
                                                     l_session->cur_round.id);
                 s_session_sync_queue_add(l_session, l_message, a_data_size);
-                goto session_unlock;
+                //goto session_unlock;
+                return;
             }
         } else if (l_message->hdr.round_id != l_session->cur_round.id) {
             // round check
@@ -2277,7 +2291,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                                     l_session->chain->net_name, l_session->chain->name,
                                                         l_session->cur_round.id, l_message->hdr.attempt_num,
                                                             s_voting_msg_type_to_str(l_message->hdr.type));
-                    goto session_unlock;
+                    //goto session_unlock;
+                    return;
                 }
             }
         }
@@ -2313,7 +2328,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                     " Message rejected: validator key:%s not in the current validators list or not synced yet",
                                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                             l_message->hdr.attempt_num, l_validator_addr_str);
-        goto session_unlock;
+        //goto session_unlock;
+        return;
     }
 
     switch (l_message->hdr.type) {
@@ -2373,8 +2389,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                     l_session->cur_round.sync_attempt = l_sync_attempt - 1;
                     if (!l_session->new_round_enqueued) {
                         l_session->new_round_enqueued = true;
-                        dap_proc_thread_t *l_thread = DAP_PROC_THREAD(dap_context_current());
-                        dap_proc_thread_callback_add(l_thread, s_session_round_new, l_session);
+                        dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
                     }
                 }
             }
@@ -2453,7 +2468,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         l_store = DAP_NEW_Z(dap_chain_esbocs_store_t);
         if (!l_store) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            goto session_unlock;
+            //goto session_unlock;
+            return;
         }
         l_store->candidate_size = l_candidate_size;
         l_store->candidate_hash = *l_candidate_hash;
@@ -2679,9 +2695,9 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
     default:
         break;
     }
-session_unlock:
-    if (a_sender_node_addr) //Process network message
-        pthread_mutex_unlock(&l_session->mutex);
+//session_unlock:
+    //if (a_sender_node_addr) //Process network message
+    //    pthread_mutex_unlock(&l_session->mutex);
 }
 
 static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_message_type, dap_hash_fast_t *a_block_hash,
@@ -2690,44 +2706,44 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
     size_t l_message_size = sizeof(dap_chain_esbocs_message_hdr_t) + a_data_size;
     dap_chain_esbocs_message_t *l_message = NULL;
     DAP_NEW_Z_SIZE_RET(l_message, dap_chain_esbocs_message_t, l_message_size, NULL);
-    l_message->hdr.version = DAP_CHAIN_ESBOCS_PROTOCOL_VERSION;
-    l_message->hdr.type = a_message_type;
-    l_message->hdr.round_id = a_session->cur_round.id;
-    l_message->hdr.attempt_num = a_session->cur_round.attempt_num;
-    l_message->hdr.net_id = a_session->chain->net_id;
-    l_message->hdr.chain_id = a_session->chain->id;
-    l_message->hdr.ts_created = dap_time_now();
-    l_message->hdr.message_size = a_data_size;
-    l_message->hdr.candidate_hash = *a_block_hash;
+    *l_message = (dap_chain_esbocs_message_t) {
+        .hdr = (dap_chain_esbocs_message_hdr_t) { 
+            .version = DAP_CHAIN_ESBOCS_PROTOCOL_VERSION,
+            .type = a_message_type, 
+            .attempt_num = a_session->cur_round.attempt_num, 
+            .round_id = a_session->cur_round.id,
+            .message_size = a_data_size,
+            .ts_created = dap_time_now(),
+            .net_id = a_session->chain->net_id,
+            .chain_id = a_session->chain->id,
+            .candidate_hash = *a_block_hash
+        }
+    };
     if (a_data && a_data_size)
         memcpy(l_message->msg_n_sign, a_data, a_data_size);
 
     for (dap_list_t *it = a_validators; it; it = it->next) {
         dap_chain_esbocs_validator_t *l_validator = it->data;
-        if (l_validator->is_synced ||
-                a_message_type == DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC) {
-            debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Send pkt type 0x%x to "NODE_ADDR_FP_STR,
-                                                            a_message_type, NODE_ADDR_FP_ARGS_S(l_validator->node_addr));
+        if ( l_validator->is_synced || a_message_type == DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC ) {
+            debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Send pkt type 0x%x to "NODE_ADDR_FP_STR, a_message_type,
+                                                           NODE_ADDR_FP_ARGS_S(l_validator->node_addr));
             l_message->hdr.recv_addr = l_validator->node_addr;
             l_message->hdr.sign_size = 0;
-            dap_sign_t *l_sign = dap_sign_create(PVT(a_session->esbocs)->blocks_sign_key, l_message,
-                                                 l_message_size, 0);
+            dap_sign_t *l_sign = dap_sign_create( PVT(a_session->esbocs)->blocks_sign_key, l_message, l_message_size, 0 );
             size_t l_sign_size = dap_sign_get_size(l_sign);
             l_message->hdr.sign_size = l_sign_size;
-            l_message = DAP_REALLOC(l_message, l_message_size + l_sign_size);
-            if (!l_message) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                return;
-            }
+            dap_chain_esbocs_message_t *l_message_signed = DAP_REALLOC(l_message, l_message_size + l_sign_size);
+            if ( !l_message_signed )
+                return DAP_DELETE(l_sign), DAP_DELETE(l_message), log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            l_message = l_message_signed;
             memcpy(l_message->msg_n_sign + a_data_size, l_sign, l_sign_size);
             DAP_DELETE(l_sign);
-            
             if (l_validator->node_addr.uint64 != a_session->my_addr.uint64) {
                 dap_stream_ch_pkt_send_by_addr(&l_validator->node_addr, DAP_STREAM_CH_ESBOCS_ID,
                                                a_message_type, l_message, l_message_size + l_sign_size);
                 continue;
             }
-            struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args,
+            /*struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args,
                                                           sizeof(struct esbocs_msg_args) + l_message_size + l_sign_size);
             if (!l_args) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -2738,7 +2754,8 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             l_args->session = a_session;
             l_args->message_size = l_message_size + l_sign_size;
             memcpy(l_args->message, l_message, l_message_size + l_sign_size);
-            dap_proc_thread_callback_add(NULL, s_process_incoming_message, l_args);
+            dap_proc_thread_callback_add(a_session->proc_thread, s_process_incoming_message, l_args);*/
+            s_session_packet_in(a_session, &a_session->my_addr, (byte_t*)l_message, l_message_size + l_sign_size);
         }
     }
     DAP_DELETE(l_message);
@@ -3091,7 +3108,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -val_count", l_subcmd_strs[l_subcmd]);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR;
             }
-            uint256_t l_value = dap_chain_balance_scan(l_value_str);
+            uint256_t l_value = dap_uint256_scan_uninteger(l_value_str);
             if (IS_ZERO_256(l_value)) {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR,"Unrecognized number in '-val_count' param");
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR;
