@@ -446,8 +446,10 @@ static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_
     log_it(L_INFO, "%s."NODE_ADDR_FP_STR" can't connect for now. %s", l_net ? l_net->pub.name : "(unknown)" ,
             NODE_ADDR_FP_ARGS_S(a_link->addr),
             l_link_is_permanent ? "Setting reconnection pause for it." : "Dropping it.");
-    if (!a_links_count && l_net_pvt->state == NET_STATE_ONLINE)
+    if (!a_links_count && l_net_pvt->state != NET_STATE_OFFLINE) {
         l_net_pvt->state = NET_STATE_LINKS_PREPARE;
+        s_net_states_proc(l_net);
+    }
     return l_link_is_permanent;
 }
 
@@ -3238,6 +3240,7 @@ static void s_sync_timer_callback(void *a_arg)
 {
     dap_chain_net_t *l_net = a_arg;
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    static char l_restart_count = 0;
     if (l_net_pvt->state_target == NET_STATE_OFFLINE) // if offline no need sync
         return;
     l_net_pvt->sync_context.state = s_sync_context_state_forming(l_net->pub.chains);
@@ -3254,6 +3257,7 @@ static void s_sync_timer_callback(void *a_arg)
     }
     if (!s_switch_sync_chain(l_net)) {  // return if all chans synced
         log_it(L_DEBUG, "All chains in net %s synced, no need new sync request", l_net->pub.name);
+        l_restart_count = 0;
         return;
     }
     if (l_net_pvt->sync_context.cur_chain->state == CHAIN_SYNC_STATE_WAITING) {
@@ -3264,6 +3268,11 @@ static void s_sync_timer_callback(void *a_arg)
         log_it(L_DEBUG, "Chain %s in net %s will sync from gdb", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
         return;
+    }
+    // if sync more than 3 mins after online state, change state to SYNC
+    if (l_net_pvt->state == NET_STATE_ONLINE && ++l_restart_count * c_sync_timer_period / 60000 > 3 ) {
+        l_net_pvt->state == NET_STATE_SYNC_CHAINS;
+        s_net_states_proc(l_net);
     }
 
     l_net_pvt->sync_context.cur_cell = l_net_pvt->sync_context.cur_chain->cells;
