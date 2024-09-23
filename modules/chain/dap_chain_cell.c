@@ -542,6 +542,7 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
                                             a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
                                             (size_t)(a_cell->map_pos - a_cell->map));
 #ifdef DAP_OS_DARWIN
+    fflush(a_cell->file_storage);
     if (a_cell->chain->is_mapped) {
         if ( MAP_FAILED == (a_cell->map = mmap(a_cell->map, dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT), PROT_READ|PROT_WRITE,
                                             MAP_PRIVATE|MAP_FIXED, fileno(a_cell->file_storage), a_cell->cur_vol_start)) ) {
@@ -632,7 +633,9 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
     }
     
     if (l_total_res) {
+#ifndef DAP_OS_DARWIN
         fflush(a_cell->file_storage);
+#endif
 #ifdef DAP_OS_WINDOWS
         if (a_cell->chain->is_mapped) {
             off_t l_off = ftello(a_cell->file_storage);
