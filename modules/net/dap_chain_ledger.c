@@ -2563,25 +2563,24 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
         if (strlen(l_entry_name) > 4) {
             if ( strncmp (l_entry_name + strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
                 l_entry_name [strlen(l_entry_name)-4] = 0;
-                log_it(L_DEBUG,"Open chain config \"%s\"...",l_entry_name);
+                log_it(L_DEBUG,"Open chain config \"%s.%s\"...", a_net->pub.name, l_entry_name);
                 l_chains_path = dap_strdup_printf("network/%s/%s", a_net->pub.name, l_entry_name);
                 dap_config_t * l_cfg = dap_config_open(l_chains_path);
                 uint16_t l_whitelist_size, l_blacklist_size, i;
                 const char **l_whitelist = dap_config_get_array_str(l_cfg, "ledger", "hard_accept_list", &l_whitelist_size),
                            **l_blacklist = dap_config_get_array_str(l_cfg, "ledger", "hard_reject_list", &l_blacklist_size);
-                if (l_whitelist_size + l_blacklist_size) {
-                    dap_ledger_hal_item_t **l_uncond_list = DAP_NEW_Z_COUNT(dap_ledger_hal_item_t*, l_whitelist_size + l_blacklist_size);
-                    for (i = 0; i < l_whitelist_size; ++i) {
-                        dap_chain_hash_fast_from_str(l_whitelist[i], &l_uncond_list[i]->hash);
-                        HASH_ADD(hh, l_ledger_pvt->hal_items, hash, sizeof(dap_hash_fast_t), l_uncond_list[i]);
-                    }
-                    for (i = 0; i < l_blacklist_size; ++i) {
-                        dap_chain_hash_fast_from_str(l_blacklist[i], &l_uncond_list[i + l_whitelist_size]->hash);
-                        HASH_ADD(hh, l_ledger_pvt->hrl_items, hash, sizeof(dap_hash_fast_t), l_uncond_list[i + l_whitelist_size]);
-                    }
+                for (i = 0; i < l_blacklist_size; ++i) {
+                    dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
+                    dap_chain_hash_fast_from_str(l_blacklist[i], &l_item->hash);
+                    HASH_ADD(hh, l_ledger_pvt->hrl_items, hash, sizeof(dap_hash_fast_t), l_item);
+                }
+                for (i = 0; i < l_whitelist_size; ++i) {
+                    dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
+                    dap_chain_hash_fast_from_str(l_whitelist[i], &l_item->hash);
+                    HASH_ADD(hh, l_ledger_pvt->hal_items, hash, sizeof(dap_hash_fast_t), l_item);
                 }
                 dap_config_close(l_cfg);
-                log_it(L_DEBUG, "Chain %s has %d datums in HAL and %d datums in HRL", l_entry_name, l_whitelist_size, l_blacklist_size);
+                log_it(L_DEBUG, "Chain %s.%s has %d datums in HAL and %d datums in HRL", a_net->pub.name, l_entry_name, l_whitelist_size, l_blacklist_size);
             }
         }
         DAP_DELETE (l_entry_name);
