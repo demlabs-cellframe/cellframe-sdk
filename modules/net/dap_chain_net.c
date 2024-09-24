@@ -2057,41 +2057,38 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
 
     struct dirent * l_dir_entry;
     while ( (l_dir_entry = readdir(l_chains_dir) )!= NULL ){
-        if (l_dir_entry->d_name[0]=='\0')
+        if (l_dir_entry->d_name[0] == '\0' || !dap_strcmp(l_dir_entry->d_name, "services"))
             continue;
-        char *l_entry_name = dap_strdup(l_dir_entry->d_name);
-        if (!l_entry_name) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            dap_chain_net_delete(l_net);
-            closedir(l_chains_dir);
-            return -8;
-        }
-        if (strlen (l_entry_name) > 4 ){ // It has non zero name excluding file extension
-            if ( strncmp (l_entry_name+ strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
-                l_entry_name [strlen(l_entry_name)-4] = 0;
-                log_it(L_DEBUG,"Open chain config \"%s\"...",l_entry_name);
-                l_chains_path = dap_strdup_printf("network/%s/%s",l_net->pub.name,l_entry_name);
-                dap_config_t * l_cfg_new = dap_config_open(l_chains_path);
-                if(l_cfg_new) {
-                    list_priority *l_chain_prior = DAP_NEW_Z(list_priority);
-                    if (!l_chain_prior) {
-                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                        DAP_DELETE(l_entry_name);
-                        dap_config_close(l_cfg_new);
-                        closedir(l_chains_dir);
-                        dap_chain_net_delete(l_net);
-                        return -9;
-                    }
-                    l_chain_prior->prior = dap_config_get_item_uint16_default(l_cfg_new, "chain", "load_priority", 100);
-                    log_it(L_DEBUG, "Chain priority: %u", l_chain_prior->prior);
-                    l_chain_prior->chains_path = l_chains_path;
-                    // add chain to load list;
-                    l_prior_list = dap_list_append(l_prior_list, l_chain_prior);
+        const char *l_entry_name = l_dir_entry->d_name;
+        if (strlen (l_entry_name) > 4 && // It has non zero name excluding file extension
+                strncmp(l_entry_name + strlen(l_entry_name) - 4, ".cfg", 4) == 0) { // its .cfg file
+            log_it(L_DEBUG,"Open chain config \"%s\"...", l_entry_name);
+            l_chains_path = dap_strdup_printf("network/%s/%s", l_net->pub.name, l_entry_name);
+            if (!l_chains_path) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                closedir(l_chains_dir);
+                dap_chain_net_delete(l_net);
+                return -9;
+            }
+            dap_config_t * l_cfg_new = dap_config_open(l_chains_path);
+            if(l_cfg_new) {
+                list_priority *l_chain_prior = DAP_NEW_Z(list_priority);
+                if (!l_chain_prior) {
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                    DAP_DELETE(l_chains_path);
                     dap_config_close(l_cfg_new);
+                    closedir(l_chains_dir);
+                    dap_chain_net_delete(l_net);
+                    return -9;
                 }
+                l_chain_prior->prior = dap_config_get_item_uint16_default(l_cfg_new, "chain", "load_priority", 100);
+                log_it(L_DEBUG, "Chain priority: %u", l_chain_prior->prior);
+                l_chain_prior->chains_path = l_chains_path;
+                // add chain to load list;
+                l_prior_list = dap_list_append(l_prior_list, l_chain_prior);
+                dap_config_close(l_cfg_new);
             }
         }
-        DAP_DELETE(l_entry_name);
     }
     closedir(l_chains_dir);
 
@@ -2133,6 +2130,36 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
             }
         }
     }
+
+    // Services register & configure
+    dap_chain_srv_start(l_net->pub.id, "eXchange", NULL);        // Harcoded core service starting for exchange capability
+    dap_chain_srv_start(l_net->pub.id, "PoS-delegate", NULL);    // Harcoded core service starting for delegated keys storage
+    char *l_services_path = dap_strdup_printf("%s/network/%s/services", dap_config_path(), l_net->pub.name);
+    DIR *l_service_cfg_dir = opendir(l_services_path);
+    DAP_DEL_Z(l_services_path);
+    while (l_service_cfg_dir && (l_dir_entry = readdir(l_service_cfg_dir)) != NULL) {
+        if (l_dir_entry->d_name[0] == '\0')
+            continue;
+        const char *l_entry_name = l_dir_entry->d_name;
+        size_t l_entry_len = strlen(l_entry_name);
+        if (l_entry_len < 4 || // It has non zero name excluding file extension
+                strncmp(l_entry_name + l_entry_len - 4, ".cfg", 4) != 0) // its not a .cfg file
+            continue;
+        log_it(L_DEBUG, "Opening service config \"%s\"...", l_entry_name);
+        char *l_service_cfg_path = dap_strdup_printf("network/%s/services/%s", l_net->pub.name, l_entry_name);
+        dap_config_t *l_cfg_new = dap_config_open(l_service_cfg_path);
+        if (l_cfg_new) {
+            char *l_service_name = DAP_DUP_SIZE(l_entry_name, l_entry_len - 3);
+            l_service_name[l_entry_len - 4] = 0;
+            dap_chain_srv_start(l_net->pub.id, l_service_name, l_cfg_new);
+            dap_config_close(l_cfg_new);
+            DAP_DELETE(l_service_name);
+        }
+        DAP_DELETE(l_service_cfg_path);
+    }
+    closedir(l_service_cfg_dir);
+    DAP_DELETE(l_services_path);
+
     // LEDGER model
     uint16_t l_ledger_flags = 0;
     switch ( PVT( l_net )->node_role.enums ) {
@@ -2405,7 +2432,7 @@ bool s_net_load(void *a_arg)
     log_it(L_INFO, "Chain network \"%s\" initialized", l_net->pub.name);
 ret:
     if (l_err_code)
-        log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net->pub.name, l_err_code);
+        log_it(L_ERROR, "Loading chains of net %s finished with %d error code.", l_net->pub.name, l_err_code);
     pthread_mutex_lock(&s_net_cond_lock);
     s_net_loading_count--;
     pthread_cond_signal(&s_net_cond);

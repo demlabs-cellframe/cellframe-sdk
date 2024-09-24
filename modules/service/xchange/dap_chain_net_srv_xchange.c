@@ -171,7 +171,7 @@ int dap_chain_net_srv_xchange_init()
     );
 
     dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start, .decree = s_callback_decree, .get_fee_descr = s_print_fee_json };
-    int ret = dap_chain_srv_add(c_dap_chain_net_srv_xchange_uid, "srv_xchange", &l_srv_callbacks);
+    int ret = dap_chain_srv_add(c_dap_chain_net_srv_xchange_uid, "eXchange", &l_srv_callbacks);
     if (ret) {
         log_it(L_ERROR, "Can't register eXchange service");
         return ret;

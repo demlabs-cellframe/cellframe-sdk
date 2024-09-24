@@ -143,7 +143,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
                                                      .purge = s_pos_delegate_purge,
                                                      .get_fee_descr = s_pos_delegate_get_fee_validators_json };
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
-    dap_chain_srv_add(l_uid, "PoSDelegate", &l_callbacks);
+    dap_chain_srv_add(l_uid, "PoS-delegate", &l_callbacks);
     dap_ledger_service_add(l_uid, "pos_delegate", s_tag_check_key_delegation);
     return 0;
 }
