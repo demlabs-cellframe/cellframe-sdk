@@ -341,6 +341,11 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "decree info -net <net_name>\n"
             "Displays information about the parameters of the decrees in the network.\n");
 
+    //Find command
+    dap_cli_server_cmd_add("find", cmd_find, "Searching",
+                           "Searching elements:\n"
+                           "find <datum|atom|node> -net <net_name> [-chain <chain_name>] -hash <hash>");
+
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
                 "exit\n" );

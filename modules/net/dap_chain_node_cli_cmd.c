@@ -3999,6 +3999,88 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply)
     return ret;
 }
 
+int cmd_find(int a_argc, char **a_argv, void **a_reply) {
+    json_object **a_json_reply = (json_object **)a_reply;
+    int arg_index = 1;
+    dap_chain_net_t *l_net = NULL;
+    dap_chain_t *l_chain = NULL;
+    enum _subcmd {SUBCMD_DATUM, SUBCMD_ATOM};
+    enum _subcmd l_cmd = 0;
+    if (a_argv[1]) {
+        if (!dap_strcmp(a_argv[1], "datum")) {
+            l_cmd = SUBCMD_DATUM;
+        }
+        if (!dap_strcmp(a_argv[1], "atom")) {
+            l_cmd = SUBCMD_ATOM;
+        } else {
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD,"Invalid sub command specified. Sub command %s "
+                                                "is not supported.", a_argv[1]);
+            return DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD;
+        }
+        //
+    }
+    int cmd_parse_status = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_INVALID);
+    if (cmd_parse_status != 0){
+        dap_json_rpc_error_add(cmd_parse_status, "Request parsing error (code: %d)", cmd_parse_status);
+            return cmd_parse_status;
+    }
+    switch (l_cmd) {
+        case SUBCMD_DATUM: {
+            const char *l_datum_hash = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_datum_hash);
+            if (!l_datum_hash) {
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED, "The hash of the datum is not specified.");
+                return DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED;
+            }
+        } break;
+        case SUBCMD_ATOM: {
+            const char *l_atom_hash_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_atom_hash_str);
+            dap_hash_fast_t l_atom_hash = {0};
+            if (!l_atom_hash_str) {
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED, "The hash of the atom is not specified.");
+                return DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED;
+            }
+            if (dap_chain_hash_fast_from_str(l_atom_hash_str, &l_atom_hash)) {
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_FIND_ERR_PARSE_HASH, "Failed to convert the value '%s' to a hash.", l_atom_hash_str);
+                return DAP_CHAIN_NODE_CLI_FIND_ERR_PARSE_HASH;
+            }
+            json_object *l_obj_atom = json_object_new_object();
+            json_object *l_obj_atom_hash = json_object_new_string(l_atom_hash_str);
+            json_object_object_add(l_obj_atom, "hash", l_obj_atom_hash);
+            dap_chain_atom_ptr_t l_atom_ptr = NULL;
+            size_t l_atom_size = 0;
+            if (l_chain) {
+                size_t l_atom_size = 0;
+                l_atom_ptr = dap_chain_get_atom_by_hash(l_chain, &l_atom_hash, &l_atom_size);
+            } else {
+                for (l_chain = l_net->pub.chains ; l_chain; l_chain = l_chain->next){
+                    size_t l_atom_size = 0;
+                    l_atom_ptr = dap_chain_get_atom_by_hash(l_chain, &l_atom_hash, &l_atom_size);
+                    if (l_atom_ptr) break;
+                }
+            }
+            json_object *l_obj_source = NULL;
+            json_object *l_jobj_find = NULL;
+            if (l_atom_ptr) {
+                l_obj_source = json_object_new_object();
+                json_object *l_obj_net = json_object_new_string(l_net->pub.name);
+                json_object *l_obj_chain = json_object_new_string(l_chain->name);
+                json_object_object_add(l_obj_source, "net", l_obj_net);
+                json_object_object_add(l_obj_source, "chain", l_obj_chain);
+                l_jobj_find = json_object_new_boolean(TRUE);
+                json_object_object_add(l_obj_atom, "source", l_obj_source);
+                json_object_object_add(l_obj_atom, "dump", l_chain->callback_atom_dump_json(l_chain, l_atom_ptr, l_atom_size));
+            } else {
+                l_jobj_find = json_object_new_boolean(FALSE);
+            }
+            json_object_object_add(l_obj_atom, "find", l_jobj_find);
+            json_object_array_add(*a_json_reply, l_obj_atom);
+        } break;
+    }
+    return DAP_CHAIN_NODE_CLI_FIND_OK;
+}
+
 /**
  * @brief
  *
