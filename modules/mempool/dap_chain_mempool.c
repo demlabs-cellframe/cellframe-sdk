@@ -108,7 +108,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
         uint64_t l_net_id = l_emission ? l_emission->hdr.address.net_id.uint64 : 0;
         DAP_DELETE(l_emission);
         if (l_net_id != a_chain->net_id.uint64) {
-            log_it(L_WARNING, "Datum emission with hash %s NOT placed in mempool: wallet addr net ID %lu != %lu chain net ID",
+            log_it(L_WARNING, "Datum emission with hash %s NOT placed in mempool: wallet addr net ID %llu != %llu chain net ID",
                    l_key_str_out, l_net_id, a_chain->net_id.uint64);
             DAP_DELETE(l_key_str);
             return NULL;

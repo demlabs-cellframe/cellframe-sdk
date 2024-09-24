@@ -802,10 +802,10 @@ tx_fail:
 }
 
 // Updates staker's funds with delegated key
-static dap_chain_datum_tx_t *s_stake_tx_update(dap_chain_net_t *a_net, dap_hash_fast_t *a_prev_tx_hash, uint256_t a_new_value, uint256_t a_fee, dap_enc_key_t *a_key)
+static int s_stake_tx_update(dap_chain_net_t *a_net, dap_hash_fast_t *a_prev_tx_hash, uint256_t a_new_value, uint256_t a_fee, dap_enc_key_t *a_key, dap_chain_datum_tx_t * a_datum_tx_out)
 {
-    dap_return_val_if_fail(a_net && a_key && a_prev_tx_hash && !IS_ZERO_256(a_new_value), NULL);
-
+    dap_return_val_if_fail(a_net && a_key && a_prev_tx_hash && !IS_ZERO_256(a_new_value), -14);
+    int l_ret = 0;
     const char *l_native_ticker = a_net->pub.native_ticker;
     char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, l_native_ticker);
@@ -823,34 +823,39 @@ static dap_chain_datum_tx_t *s_stake_tx_update(dap_chain_net_t *a_net, dap_hash_
                                                                       &l_owner_addr, l_fee_total, &l_fee_transfer);
     if (!l_list_fee_out) {
         log_it(L_WARNING, "Nothing to pay for fee (not enough funds)");
-        return NULL;
+        l_ret = -1;
+        return l_ret;
     }
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(l_ledger, a_prev_tx_hash);
     if (!l_tx_prev) {
         log_it(L_ERROR, "Transaction %s not found", dap_hash_fast_to_str_static(a_prev_tx_hash));
-        return NULL;
+        l_ret = -2;
+        return l_ret;
     }
     int l_out_num = 0;
     dap_chain_tx_out_cond_t *l_cond_prev = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_out_num);
     if (!l_cond_prev) {
         log_it(L_ERROR, "Transaction %s is invalid", dap_hash_fast_to_str_static(a_prev_tx_hash));
-        return NULL;
+        l_ret = -3;
+        return l_ret;
     }
 
     // create empty transaction
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    a_datum_tx_out = dap_chain_datum_tx_create();
 
     // add 'in' item to buy from conditional transaction
-    if (1 != dap_chain_datum_tx_add_in_cond_item(&l_tx, a_prev_tx_hash, l_out_num, -1)) {
+    if (1 != dap_chain_datum_tx_add_in_cond_item(&a_datum_tx_out, a_prev_tx_hash, l_out_num, -1)) {
         log_it(L_ERROR, "Can't compose the transaction conditional input");
+        l_ret = -4;
         goto tx_fail;
     }
 
     // add 'in' items to pay fee
-    uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
+    uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&a_datum_tx_out, l_list_fee_out);
     dap_list_free_full(l_list_fee_out, NULL);
     if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
         log_it(L_ERROR, "Can't compose the fee transaction input");
+        l_ret = -5;
         goto tx_fail;
     }
     uint256_t l_value_prev = l_cond_prev->header.value, l_value_back = {};
@@ -862,13 +867,15 @@ static dap_chain_datum_tx_t *s_stake_tx_update(dap_chain_net_t *a_net, dap_hash_
                                                                            &l_owner_addr, l_refund_value, &l_value_transfer);
         if (!l_list_used_out) {
             log_it(L_WARNING, "Nothing to pay for delegate (not enough funds)");
-            return NULL;
+            l_ret = -6;
+            return l_ret;
         }
         // add 'in' items to pay for delegate
-        uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+        uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&a_datum_tx_out, l_list_used_out);
         dap_list_free_full(l_list_used_out, NULL);
         if (!EQUAL_256(l_value_to_items, l_value_transfer)) {
             log_it(L_ERROR, "Can't compose the transaction input");
+            l_ret = -7;
             goto tx_fail;
         }
         SUBTRACT_256_256(l_value_transfer, l_refund_value, &l_value_back);
@@ -879,30 +886,34 @@ static dap_chain_datum_tx_t *s_stake_tx_update(dap_chain_net_t *a_net, dap_hash_
     dap_chain_tx_out_cond_t *l_out_cond = DAP_DUP_SIZE(l_cond_prev, sizeof(dap_chain_tx_out_cond_t) + l_cond_prev->tsd_size);
     if (!l_out_cond) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        l_ret = -8;
         goto tx_fail;
     }
     l_out_cond->header.value = a_new_value;
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond);
+    dap_chain_datum_tx_add_item(&a_datum_tx_out, (const uint8_t *)l_out_cond);
     DAP_DELETE(l_out_cond);
 
     // coin back
     if (!IS_ZERO_256(l_value_back)) {
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_value_back, l_delegated_ticker) != 1) {
-            log_it(L_ERROR, "Cant add coin back output");
+        if (dap_chain_datum_tx_add_out_ext_item(&a_datum_tx_out, &l_owner_addr, l_value_back, l_delegated_ticker) != 1) {
+            log_it(L_ERROR, "Can't add coin back output");
+            l_ret = -9;
             goto tx_fail;
         }
     }
 
     // add fee items
     if (l_net_fee_used) {
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, l_native_ticker) != 1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&a_datum_tx_out, &l_net_fee_addr, l_net_fee, l_native_ticker) != 1) {
             log_it(L_ERROR, "Cant add net fee output");
+            l_ret = -10;
             goto tx_fail;
         }
     }
     if (!IS_ZERO_256(a_fee)) {
-        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1) {
+        if (dap_chain_datum_tx_add_fee_item(&a_datum_tx_out, a_fee) != 1) {
             log_it(L_ERROR, "Cant add validator fee output");
+            l_ret = -11;
             goto tx_fail;
         }
     }
@@ -910,23 +921,25 @@ static dap_chain_datum_tx_t *s_stake_tx_update(dap_chain_net_t *a_net, dap_hash_
     // fee coin back
     SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
     if (!IS_ZERO_256(l_fee_back)) {
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, l_native_ticker) != 1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&a_datum_tx_out, &l_owner_addr, l_fee_back, l_native_ticker) != 1) {
             log_it(L_ERROR, "Cant add fee back output");
+            l_ret = -12;
             goto tx_fail;
         }
     }
 
     // add 'sign' item
-    if (dap_chain_datum_tx_add_sign_item(&l_tx, a_key) != 1) {
+    if (dap_chain_datum_tx_add_sign_item(&a_datum_tx_out, a_key) != 1) {
         log_it(L_ERROR, "Can't add sign output");
+        l_ret = -13;
         goto tx_fail;
     }
 
-    return l_tx;
+    return l_ret;
 
 tx_fail:
-    dap_chain_datum_tx_delete(l_tx);
-    return NULL;
+    dap_chain_datum_tx_delete(a_datum_tx_out);
+    return l_ret;
 }
 
 static dap_chain_datum_tx_t *s_order_tx_create(dap_chain_net_t * a_net, dap_enc_key_t *a_key,
@@ -940,21 +953,24 @@ static dap_chain_datum_tx_t *s_order_tx_create(dap_chain_net_t * a_net, dap_enc_
 }
 
 // Put the transaction to mempool
-static char *s_stake_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net, const char *a_hash_out_type)
+static int s_stake_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net, const char *a_hash_out_type, char * a_hash_out)
 {
     dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
     if (!l_chain)
-        return NULL;
+        return -3;
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, a_tx, l_tx_size);
     if (!l_datum) {
         log_it(L_CRITICAL, "Not enough memory");
-        return NULL;
+        return -2;
     }
     // Processing will be made according to autoprocess policy
-    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
+    a_hash_out = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
     DAP_DELETE(l_datum);
-    return l_ret;
+    if (!a_hash_out) 
+        return -1;
+    else 
+        return 0;
 }
 
 dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t *a_net, dap_hash_fast_t *a_stake_tx_hash, dap_cert_t *a_cert)
@@ -1126,35 +1142,39 @@ static char *s_stake_decree_put(dap_chain_datum_decree_t *a_decree, dap_chain_ne
     return l_ret;
 }
 
-static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key)
+static int s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key, dap_chain_datum_tx_t *a_tx)
 {
     dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_net->pub.name);
-
+    int l_ret = 0;
     dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
     if (!l_cond_tx) {
         log_it(L_WARNING, "Requested conditional transaction not found");
-        return NULL;
+        l_ret = -1;
+        return l_ret;
     }
     int l_prev_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
                                                   DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
     if (!l_tx_out_cond) {
         log_it(L_WARNING, "Requested conditional transaction requires conditional output");
-        return NULL;
+        l_ret = -2;
+        return l_ret;
     }
     dap_hash_fast_t l_spender_hash = { };
     if (dap_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_hash, l_prev_cond_idx, &l_spender_hash)) {
         char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(&l_spender_hash, l_hash_str, sizeof(l_hash_str));
         log_it(L_WARNING, "Requested conditional transaction is already used out by %s", l_hash_str);
-        return NULL;
+        l_ret = -3;
+        return l_ret;
     }
     dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(l_cond_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
     if (l_in_cond) {
         l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_in_cond->header.tx_prev_hash);
         if (!l_cond_tx) {
             log_it(L_ERROR, "Requested conditional transaction is unchained");
-            return NULL;
+            l_ret = -4;
+            return l_ret;
         }
     }
     // Get sign item
@@ -1168,7 +1188,8 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
     dap_chain_addr_fill_from_key(&l_wallet_addr, a_key, a_net->pub.id);
     if (!dap_chain_addr_compare(&l_owner_addr, &l_wallet_addr)) {
         log_it(L_WARNING, "Trying to invalidate delegating tx with not a owner wallet");
-        return NULL;
+        l_ret = -5;
+        return l_ret;
     }
     const char *l_native_ticker = a_net->pub.native_ticker;
     const char *l_delegated_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, a_tx_hash);
@@ -1183,59 +1204,66 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
                                                                             &l_owner_addr, l_fee_total, &l_fee_transfer);
     if (!l_list_fee_out) {
         log_it(L_WARNING, "Nothing to pay for fee (not enough funds)");
-        return NULL;
+        l_ret = -6;
+        return l_ret;
     }
 
     // create empty transaction
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    a_tx = dap_chain_datum_tx_create();
 
     // add 'in' item to buy from conditional transaction
-    dap_chain_datum_tx_add_in_cond_item(&l_tx, a_tx_hash, l_prev_cond_idx, 0);
+    dap_chain_datum_tx_add_in_cond_item(&a_tx, a_tx_hash, l_prev_cond_idx, 0);
 
     // add 'in' items to pay fee
-    uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
+    uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&a_tx, l_list_fee_out);
     dap_list_free_full(l_list_fee_out, NULL);
     if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
         log_it(L_ERROR, "Can't compose the transaction input");
-        dap_chain_datum_tx_delete(l_tx);
-        return NULL;
+        dap_chain_datum_tx_delete(a_tx);
+        l_ret = -7;
+        return l_ret;
     }
 
     // add 'out_ext' item
-    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_tx_out_cond->header.value, l_delegated_ticker) == -1) {
-        dap_chain_datum_tx_delete(l_tx);
-        log_it(L_ERROR, "Cant add returning coins output");
-        return NULL;
+    if (dap_chain_datum_tx_add_out_ext_item(&a_tx, &l_owner_addr, l_tx_out_cond->header.value, l_delegated_ticker) == -1) {
+        dap_chain_datum_tx_delete(a_tx);
+        log_it(L_ERROR, "Can't add returning coins output");
+        l_ret = -8;
+        return l_ret;
     }
     // add fee items
     if (l_net_fee_used) {
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, l_native_ticker) != 1) {
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+        if (dap_chain_datum_tx_add_out_ext_item(&a_tx, &l_net_fee_addr, l_net_fee, l_native_ticker) != 1) {
+            dap_chain_datum_tx_delete(a_tx);
+            l_ret = -9;
+            return l_ret;
         }
     }
     if (!IS_ZERO_256(a_fee)) {
-        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1) {
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+        if (dap_chain_datum_tx_add_fee_item(&a_tx, a_fee) != 1) {
+            dap_chain_datum_tx_delete(a_tx);
+            l_ret = -10;
+            return l_ret;
         }
     }
     // fee coin back
     uint256_t l_fee_back = {};
     SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
     if(!IS_ZERO_256(l_fee_back)) {
-        if(dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, l_native_ticker) != 1) {
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+        if(dap_chain_datum_tx_add_out_ext_item(&a_tx, &l_owner_addr, l_fee_back, l_native_ticker) != 1) {
+            dap_chain_datum_tx_delete(a_tx);
+            l_ret = -11;
+            return l_ret;
         }
     }
     // add 'sign' items
-    if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key) != 1) {
-        dap_chain_datum_tx_delete(l_tx);
+    if(dap_chain_datum_tx_add_sign_item(&a_tx, a_key) != 1) {
+        dap_chain_datum_tx_delete(a_tx);
         log_it( L_ERROR, "Can't add sign output");
-        return NULL;
+        l_ret = -12;
+        return l_ret;
     }
-    return l_tx;
+    return 0;
 }
 
 static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_net, dap_hash_fast_t *a_stake_tx_hash, dap_cert_t *a_cert)
@@ -1650,10 +1678,11 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
         } else
             dap_chain_addr_fill_from_key(&l_addr, l_enc_key, l_net->pub.id);
         DIV_256(l_tax, GET_256_FROM_64(100), &l_tax);
+        int l_ret = 0, l_switch_ret = 0;
         dap_chain_datum_tx_t *l_tx = s_order_tx_create(l_net, l_enc_key, l_value, l_fee, l_tax, &l_addr);
         DAP_DEL_Z(l_enc_key);
         char *l_tx_hash_str = NULL;
-        if (!l_tx || !(l_tx_hash_str = s_stake_tx_put(l_tx, l_net, a_hash_out_type))) {
+        if (!l_tx || s_stake_tx_put(l_tx, l_net, a_hash_out_type, l_tx_hash_str)) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose transaction for order, examine log files for details");
             DAP_DEL_Z(l_tx);
             return -21;
@@ -2103,7 +2132,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
                                                    l_order_hash_str ? &l_sovereign_addr : NULL, l_sovereign_tax, l_prev_tx);
     dap_enc_key_delete(l_enc_key);
     char *l_tx_hash_str;
-    if (!l_tx || !(l_tx_hash_str = s_stake_tx_put(l_tx, l_net, a_hash_out_type))) {
+    if (!l_tx || s_stake_tx_put(l_tx, l_net, a_hash_out_type, l_tx_hash_str)) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Stake transaction error");
         DAP_DEL_Z(l_tx);
         return -12;
@@ -2234,20 +2263,80 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, vo
         l_sign_str = dap_chain_wallet_check_sign(l_wallet);
     }
     dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
-    dap_chain_datum_tx_t *l_tx_new = s_stake_tx_update(l_net, &l_tx_hash, l_value, l_fee, l_enc_key);
+    int l_ret = 0, l_switch_ret = 0;
+    dap_chain_datum_tx_t *l_tx_new = NULL;
+    l_ret = s_stake_tx_update(l_net, &l_tx_hash, l_value, l_fee, l_enc_key, l_tx_new);
+    switch (l_ret) {
+        case -1: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Nothing to pay for fee (not enough funds)");
+            l_switch_ret =  -41; } break;
+        case -2: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s not found", dap_hash_fast_to_str_static(&l_tx_hash));
+            l_switch_ret = -42; } break;
+        case -3: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s not invalid", dap_hash_fast_to_str_static(&l_tx_hash));
+            l_switch_ret = -43; } break;
+        case -4: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose the transaction conditional input");
+            l_switch_ret = -44; } break;
+        case -5: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose the fee transaction input");
+            l_switch_ret = -45; } break;
+        case -6: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Nothing to pay for delegate (not enough funds)");
+            l_switch_ret = -46; } break;
+        case -7: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose the fee transaction input");
+            l_switch_ret = -47; } break;
+        case -8: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Memory allocation error");
+            l_switch_ret = -48; } break;
+        case -9: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add coin back output");
+            l_switch_ret = -49; } break;
+        case -10: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Cant add net fee output");
+            l_switch_ret = -50; } break;
+        case -11: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Cant add validator fee output");
+            l_switch_ret = -51; } break;
+        case -12: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Cant add fee back output");
+            l_switch_ret = -52; } break;
+        case -13: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add sign output");
+            l_switch_ret = -53; } break;
+        case -14: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Args error");
+            l_switch_ret = -54; } break;
+        default: {} break;
+    }
     dap_chain_wallet_close(l_wallet);
     dap_enc_key_delete(l_enc_key);
+    if (l_switch_ret < 0)
+        return l_switch_ret;
     char *l_out_hash_str = NULL;
-    if (l_tx_new && (l_out_hash_str = s_stake_tx_put(l_tx_new, l_net, a_hash_out_type))) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%sDelegated m-tokens value will change. Updating tx hash is %s.", l_sign_str, l_out_hash_str);
-        DAP_DELETE(l_out_hash_str);
-        DAP_DELETE(l_tx_new);
-    } else {
-        l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose updating transaction %s, examine log files for details", l_tx_hash_str);
-        DAP_DEL_Z(l_tx_new);
-        return -21;
+    l_ret = s_stake_tx_put(l_tx_new, l_net, a_hash_out_type, l_out_hash_str);
+    switch(l_ret) {
+    case -1: {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add datum in mempool");
+        l_switch_ret = -55; } break;
+    case -2: {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Not enough memory");
+        l_switch_ret = -56; } break;
+    case -3: {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find chain");
+        l_switch_ret = -57; } break;
+    default: {} break;
     }
+    DAP_DEL_Z(l_tx_new);
+    if (l_switch_ret < 0) {
+        l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose updating transaction %s", l_tx_hash_str);
+        return l_switch_ret;
+    }
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "%sDelegated m-tokens value will change. Updating tx hash is %s.", l_sign_str, l_out_hash_str);
+    DAP_DELETE(l_out_hash_str);
     return 0;
 }
 
@@ -2379,21 +2468,78 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
             l_sign_str = dap_chain_wallet_check_sign(l_wallet);
         }
         dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
-        dap_chain_datum_tx_t *l_tx = s_stake_tx_invalidate(l_net, &l_tx_hash, l_fee, l_enc_key);
+        int l_ret = 0, l_switch_ret = 0;
+        dap_chain_datum_tx_t *l_tx = NULL;
+        l_ret = s_stake_tx_invalidate(l_net, &l_tx_hash, l_fee, l_enc_key, l_tx);
+        switch(l_ret) {
+        case -1: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Requested conditional transaction not found");
+            l_switch_ret = -41; } break;
+        case -2: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Requested conditional transaction requires conditional output");
+            l_switch_ret = -42; } break;
+        case -3: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Requested conditional transaction is already used out");
+            l_switch_ret = -43; } break;
+        case -4: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Requested conditional transaction is unchained");
+            l_switch_ret = -44; } break;
+        case -5: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Trying to invalidate delegating tx with not a owner wallet");
+            l_switch_ret = -45; } break;
+        case -6: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Nothing to pay for fee (not enough funds)");
+            l_switch_ret = -46; } break;
+        case -7: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose the transaction input");
+            l_switch_ret = -47; } break;
+        case -8: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add returning coins output");
+            l_switch_ret = -48; } break;
+        case -9: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add out ext item");
+            l_switch_ret = -49; } break;
+        case -10: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add fee item");
+            l_switch_ret = -50; } break;
+        case -11: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get fee coin back");
+            l_switch_ret = -51; } break;
+        case -12: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add sign output");
+            l_switch_ret = -52; } break;
+        default: {} break;
+        }
+
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_enc_key);
-        char *l_out_hash_str = NULL;
-        if (l_tx && (l_out_hash_str = s_stake_tx_put(l_tx, l_net, a_hash_out_type))) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%sAll m-tokens will be returned to "
-                                                           "owner. Returning tx hash %s.", l_sign_str, l_out_hash_str);
-            DAP_DELETE(l_out_hash_str);
-            DAP_DELETE(l_tx);
-        } else {
-            l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose invalidation transaction %s, examine log files for details", l_tx_hash_str);
-            DAP_DEL_Z(l_tx);
-            return -21;
+        if (l_switch_ret < 0) {
+            return l_switch_ret;
         }
+        char *l_out_hash_str = NULL;
+        l_ret = s_stake_tx_put(l_tx, l_net, a_hash_out_type, l_out_hash_str);
+        switch(l_ret) {
+        case -1: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add datum in mempool");
+            l_switch_ret = -54; } break;
+        case -2: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Not enough memory");
+            l_switch_ret = -55; } break;
+        case -3: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find chain");
+            l_switch_ret = -56; } break;
+        default: {} break;
+        }
+        DAP_DELETE(l_tx);
+        if (l_switch_ret < 0) {
+            l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose invalidation transaction %s", l_tx_hash_str);
+            return l_switch_ret;
+        }
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%sAll m-tokens will be returned to "
+                                                        "owner. Returning tx hash %s.", l_sign_str, l_out_hash_str);
+        DAP_DELETE(l_out_hash_str);
+        return 0;
     } else {
         dap_cert_t *l_poa_cert = dap_cert_find_by_name(l_poa_cert_str);
         if (!l_poa_cert) {
