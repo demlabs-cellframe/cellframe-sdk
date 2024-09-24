@@ -2806,6 +2806,8 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
         return -101;
     }
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+    if ( dap_ledger_datum_is_blacklisted(l_ledger, *a_datum_hash) )
+        return log_it(L_ERROR, "Datum is blackilsted"), -100;
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
