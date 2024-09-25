@@ -308,49 +308,65 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, js
     dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
-    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type, "base58"))
+    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type, "base58")) {
+        dap_json_rpc_error_add(HASH_TYPE_ARG_ERROR, "invalid parameter hash");
         return HASH_TYPE_ARG_ERROR;
+    }
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str)
-    ||	NULL == l_net_str)
+    ||	NULL == l_net_str) {
+        dap_json_rpc_error_add(NET_ARG_ERROR, "stake_lock command requires parameter -net");
         return NET_ARG_ERROR;
+    }
 
     if (NULL == (l_net = dap_chain_net_by_name(l_net_str))) {
-        dap_json_rpc_error_add(NET_ERROR, "%s network not found", l_net_str);
+        dap_json_rpc_error_add(NET_ERROR, "Can't find network %s", l_net_str);
         //dap_string_append_printf(output_line, "'%s'", l_net_str);
         return NET_ERROR;
     }
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-token", &l_ticker_str)
     || NULL == l_ticker_str
-    || dap_strlen(l_ticker_str) > 8) // for 'm' delegated
+    || dap_strlen(l_ticker_str) > 8) { // for 'm' delegated
+        dap_json_rpc_error_add(TOKEN_ARG_ERROR, "stake_lock command requires parameter -token");
         return TOKEN_ARG_ERROR;
+    }
 
     l_ledger = l_net->pub.ledger;
 
     if (NULL == dap_ledger_token_ticker_check(l_ledger, l_ticker_str)) {
-        dap_string_append_printf(output_line, "'%s'", l_ticker_str);
+        dap_json_rpc_error_add(TOKEN_ERROR, "%s token ticker not found", l_ticker_str);
         return TOKEN_ERROR;
     }
 
     if ((!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-coins", &l_coins_str) || NULL == l_coins_str) &&
-            (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-value", &l_coins_str) || NULL == l_coins_str))
+            (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-value", &l_coins_str) || NULL == l_coins_str)) {
+        dap_json_rpc_error_add(COINS_ARG_ERROR, "stake_lock command requires parameter -coins");
         return COINS_ARG_ERROR;
+    }
 
-    if (IS_ZERO_256( (l_value = dap_chain_balance_scan(l_coins_str)) ))
+    if (IS_ZERO_256( (l_value = dap_chain_balance_scan(l_coins_str)) )) {
+        dap_json_rpc_error_add(COINS_FORMAT_ERROR, "Format -coins <256 bit integer>");
         return COINS_FORMAT_ERROR;
+    }
 
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_ticker_str);
 
-    if (NULL == (l_delegated_token = dap_ledger_token_ticker_check(l_ledger, l_delegated_ticker_str)))
+    if (NULL == (l_delegated_token = dap_ledger_token_ticker_check(l_ledger, l_delegated_ticker_str))) {
+        dap_json_rpc_error_add(NO_DELEGATED_TOKEN_ERROR, " %s delegated token not found", l_delegated_ticker_str);
         return NO_DELEGATED_TOKEN_ERROR;
+    }
 
     uint256_t l_emission_rate = dap_ledger_token_get_emission_rate(l_ledger, l_delegated_ticker_str);
-    if (IS_ZERO_256(l_emission_rate))
+    if (IS_ZERO_256(l_emission_rate)) {
+        dap_json_rpc_error_add(TOKEN_ERROR, " %s token ticker not found", l_delegated_ticker_str);
         return TOKEN_ERROR;
+    }
 
-    if (MULT_256_COIN(l_value, l_emission_rate, &l_value_delegated) || IS_ZERO_256(l_value_delegated))
+    if (MULT_256_COIN(l_value, l_emission_rate, &l_value_delegated) || IS_ZERO_256(l_value_delegated)) {
+        dap_json_rpc_error_add(COINS_FORMAT_ERROR, "Format -coins <256 bit integer>");
         return COINS_FORMAT_ERROR;
+    }
 
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_str);
 
@@ -359,24 +375,36 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, js
         l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
     else
         l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
-    if(!l_chain)
+    if(!l_chain) {
+        dap_json_rpc_error_add(CHAIN_ERROR, "stake_lock command requires parameter '-chain'.\n"
+                                            "you can set default datum type in chain configuration file");
         return CHAIN_ERROR;
+    }
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_str)
-    ||	!l_wallet_str)
+    ||	!l_wallet_str) {
+        dap_json_rpc_error_add(WALLET_ARG_ERROR, "stake_lock command requires parameter -w");
         return WALLET_ARG_ERROR;
+    }
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-fee", &l_value_fee_str)
-    ||	!l_value_fee_str)
+    ||	!l_value_fee_str) {
+        dap_json_rpc_error_add(FEE_ARG_ERROR, "stake_lock command requires parameter -fee");
         return FEE_ARG_ERROR;
+    }
 
-    if (IS_ZERO_256( (l_value_fee = dap_chain_balance_scan(l_value_fee_str)) ))
+    if (IS_ZERO_256( (l_value_fee = dap_chain_balance_scan(l_value_fee_str)) )) {
+        dap_json_rpc_error_add(FEE_FORMAT_ERROR, "Format -fee <256 bit integer>");
         return FEE_FORMAT_ERROR;
+    }
 
     // Read time staking
     if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_staking_str)
-    ||	!l_time_staking_str)
+    ||	!l_time_staking_str) {
+        dap_json_rpc_error_add(TIME_ERROR, "stake_lock command requires parameter '-time_staking' in simplified format YYMMDD\n"
+                                           "Example: \"220610\" == \"10 june 2022 00:00\"");
         return TIME_ERROR;
+    }
 
     if (dap_strlen(l_time_staking_str) != 6)
         return TIME_ERROR;
@@ -590,15 +618,14 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, js
         dap_json_rpc_error_add(WALLET_OPEN_ERROR, " %s can't open wallet", l_wallet_str);
         return WALLET_OPEN_ERROR;
     }
-    else {
-        dap_json_rpc_error_add(NET_ARG_ERROR, "net parameter error");
-    }
+    else
         json_object_object_add(json_obj_out, "check sign status", 
                                 json_object_new_string( dap_chain_wallet_check_sign(l_wallet) ?
                                                         dap_chain_wallet_check_sign(l_wallet) : "ok"));
 
     if (NULL == (l_owner_key = dap_chain_wallet_get_key(l_wallet, 0))) {
         dap_chain_wallet_close(l_wallet);
+        dap_json_rpc_error_add(OWNER_KEY_ERROR, "wallet key is not equal tx owner key");
         return OWNER_KEY_ERROR;
     }
 
@@ -614,6 +641,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, js
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_owner_key);
         DAP_DELETE(l_owner_pkey);
+        dap_json_rpc_error_add(OWNER_KEY_ERROR, "wallet key is not equal tx owner key");
         return OWNER_KEY_ERROR;
     }
     DAP_DELETE(l_owner_pkey);
@@ -621,6 +649,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, js
             l_tx_out_cond->subtype.srv_stake_lock.time_unlock > dap_time_now()) {
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_owner_key);
+        dap_json_rpc_error_add(NOT_ENOUGH_TIME, "Not enough time has passed");
         return NOT_ENOUGH_TIME;
     }
     int res = 0;
@@ -634,8 +663,10 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, js
 
     dap_enc_key_delete(l_owner_key);  // need wallet close??
     // Processing will be made according to autoprocess policy
-    if (NULL == (l_datum_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type)))
+    if (NULL == (l_datum_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type))) {
+        dap_json_rpc_error_add(ADD_DATUM_TX_TAKE_ERROR, "failed to add datum with take-transaction to mempool");
         return ADD_DATUM_TX_TAKE_ERROR;
+    }
 
     json_object_object_add(json_obj_out, "TAKE_TX_DATUM_HASH", json_object_new_string(l_datum_hash_str));
     DAP_DEL_Z(l_datum_hash_str);
