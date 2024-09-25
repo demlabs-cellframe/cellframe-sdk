@@ -2806,6 +2806,8 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
         return -101;
     }
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+    if ( dap_ledger_datum_is_blacklisted(l_ledger, *a_datum_hash) )
+        return log_it(L_ERROR, "Datum is blackilsted"), -100;
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
@@ -3208,10 +3210,10 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
     }
     l_net_pvt->sync_context.cur_chain = l_curr_chain;
     if (l_curr_chain) {
-        log_it(L_DEBUG, "Go to chain \"%s\" for net %s", l_curr_chain->name, l_curr_chain->net_name);
+        debug_if(s_debug_more, L_DEBUG, "Go to chain \"%s\" for net %s", l_curr_chain->name, l_curr_chain->net_name);
         return l_curr_chain;
     }
-    log_it(L_DEBUG, "Go to next chain: <NULL>");
+    debug_if(s_debug_more, L_DEBUG, "Go to next chain: <NULL>");
     if (l_net_pvt->state_target != NET_STATE_ONLINE) {
         dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
         return NULL;
