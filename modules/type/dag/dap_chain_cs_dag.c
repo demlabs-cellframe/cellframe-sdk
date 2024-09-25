@@ -2050,6 +2050,9 @@ static json_object *s_dap_chain_callback_atom_to_json(dap_chain_t *a_chain, dap_
     size_t l_offset =  l_event->header.hash_count*sizeof (dap_chain_hash_fast_t);
     // Nested datum
     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (l_event->hashes_n_datum_n_signs + l_offset);
+    const char *l_datum_type = NULL;
+    DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type)
+    json_object_object_add(l_jobj, "datum_type", l_datum_type);
     dap_chain_datum_dump_json(l_jobj, l_datum, a_hash_out_type, a_chain->net_id);
     json_object *l_jobj_signatures = json_object_new_array();
     l_offset += dap_chain_datum_size(l_datum);
