@@ -4009,8 +4009,7 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply) {
     if (a_argv[1]) {
         if (!dap_strcmp(a_argv[1], "datum")) {
             l_cmd = SUBCMD_DATUM;
-        }
-        if (!dap_strcmp(a_argv[1], "atom")) {
+        } else if (!dap_strcmp(a_argv[1], "atom")) {
             l_cmd = SUBCMD_ATOM;
         } else {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD,"Invalid sub command specified. Sub command %s "
@@ -4024,14 +4023,21 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply) {
         dap_json_rpc_error_add(cmd_parse_status, "Request parsing error (code: %d)", cmd_parse_status);
             return cmd_parse_status;
     }
+    const char *l_hash_out_type = "hex";
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     switch (l_cmd) {
         case SUBCMD_DATUM: {
             const char *l_datum_hash = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_datum_hash);
             if (!l_datum_hash) {
-                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED, "The hash of the datum is not specified.");
-                return DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED;
+                dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash);
+                if (!l_datum_hash) {
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED,
+                                           "The hash of the datum is not specified.");
+                    return DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED;
+                }
             }
+            return _cmd_mempool_check(l_net, l_chain, l_datum_hash, l_hash_out_type, a_reply);
         } break;
         case SUBCMD_ATOM: {
             const char *l_atom_hash_str = NULL;
@@ -4070,7 +4076,7 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply) {
                 json_object_object_add(l_obj_source, "chain", l_obj_chain);
                 l_jobj_find = json_object_new_boolean(TRUE);
                 json_object_object_add(l_obj_atom, "source", l_obj_source);
-                json_object_object_add(l_obj_atom, "dump", l_chain->callback_atom_dump_json(l_chain, l_atom_ptr, l_atom_size));
+                json_object_object_add(l_obj_atom, "dump", l_chain->callback_atom_dump_json(l_chain, l_atom_ptr, l_atom_size, l_hash_out_type));
             } else {
                 l_jobj_find = json_object_new_boolean(FALSE);
             }

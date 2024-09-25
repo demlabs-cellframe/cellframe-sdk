@@ -114,7 +114,7 @@ static size_t s_callback_atom_get_static_hdr_size(void);
 static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);
 static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
                                                                        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
-static json_object *s_callback_atom_dump_json(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom_ptr, size_t a_atom_size);
+static json_object *s_callback_atom_dump_json(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom_ptr, size_t a_atom_size, const char *a_hash_out_type);
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num);
 static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
                                                         dap_chain_hash_fast_t *a_block_hash, int *a_ret_code);
@@ -2063,7 +2063,7 @@ static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_cha
     return l_datum_index->block_cache->block;
 }
 
-static json_object *s_callback_atom_dump_json(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom_ptr, size_t a_atom_size) {
+static json_object *s_callback_atom_dump_json(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom_ptr, size_t a_atom_size, const char *a_hash_out_type) {
     dap_chain_block_t *l_block = (dap_chain_block_t *) a_atom_ptr;
     size_t l_block_size = dap_chain_block_get_size(l_block);
     json_object *l_obj_ret = json_object_new_object();
@@ -2141,7 +2141,7 @@ static json_object *s_callback_atom_dump_json(dap_chain_t *a_chain, dap_chain_at
         dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
         json_object_object_add(l_jobj_datum, "ts_create",json_object_new_string(l_time_buf));
         json_object_object_add(l_jobj_datum, "data_size",json_object_new_int(l_datum->header.data_size));
-        dap_chain_datum_dump_json(l_jobj_datum,l_datum,"hex", a_chain->net_id);
+        dap_chain_datum_dump_json(l_jobj_datum,l_datum, a_hash_out_type, a_chain->net_id);
         json_object_array_add(l_jobj_datums, l_jobj_datum);
         ////
         l_offset += l_datum_size;//dap_chain_datum_size(l_datum);
