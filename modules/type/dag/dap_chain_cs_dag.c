@@ -2029,20 +2029,8 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
 static json_object *s_dap_chain_callback_atom_to_json(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type){
     json_object *l_jobj = json_object_new_object();
     dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)a_atom;
-    char buf[DAP_TIME_STR_SIZE];
     char l_buf[150] = {'\0'};
-//    l_event->header.round_id
-    // Round info
-/*    if ((l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) && l_round_item) {
-        json_object_object_add(json_obj_event,"Round info", json_object_new_string(" "));
-        json_object_object_add(json_obj_event,"tsigns reject", json_object_new_uint64(l_round_item->round_info.reject_count));
-        json_object_object_add(json_obj_event,"ts_update", json_object_new_string(buf));
-        dap_nanotime_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_round_item->round_info.ts_update);
-        json_object_object_add(json_obj_event,"datum_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_round_item->round_info.datum_hash)));
-        json_object_object_add(json_obj_event,"ts_update", json_object_new_string(buf));
-    }*/
     // Header
-//    json_object_object_add(json_obj_event,"Header", json_object_new_string("empty"));
     sprintf(l_buf,"%hu",l_event->header.version);
     json_object_object_add(l_jobj,"version", json_object_new_string(l_buf));
     json_object_object_add(l_jobj,"round ID", json_object_new_uint64(l_event->header.round_id));
@@ -2050,36 +2038,24 @@ static json_object *s_dap_chain_callback_atom_to_json(dap_chain_t *a_chain, dap_
     json_object_object_add(l_jobj,"cell_id", json_object_new_string(l_buf));
     sprintf(l_buf,"0x%016"DAP_UINT64_FORMAT_x"",l_event->header.chain_id.uint64);
     json_object_object_add(l_jobj,"chain_id", json_object_new_string(l_buf));
-    dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
+    dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
     json_object_object_add(l_jobj,"ts_created", json_object_new_string(l_buf));
     // Hash links
-    json_object_object_add(l_jobj,"hashes count", json_object_new_uint64(l_event->header.hash_count));
+    json_object *l_jobj_hash_links = json_object_new_array();
     for (uint16_t i=0; i < l_event->header.hash_count; i++){
         dap_chain_hash_fast_t * l_hash = (dap_chain_hash_fast_t *) (l_event->hashes_n_datum_n_signs + i*sizeof (dap_chain_hash_fast_t));
-        json_object_object_add(l_jobj,"hash", json_object_new_string(dap_chain_hash_fast_to_str_static(l_hash)));
+        json_object_array_add(l_jobj_hash_links, json_object_new_string(dap_chain_hash_fast_to_str_static(l_hash)));
     }
+    json_object_object_add(l_jobj, "hash_links", l_jobj_hash_links);
     size_t l_offset =  l_event->header.hash_count*sizeof (dap_chain_hash_fast_t);
     // Nested datum
     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (l_event->hashes_n_datum_n_signs + l_offset);
-    json_object *l_jobj_datum = json_object_new_object();
-    dap_chain_datum_dump_json(l_jobj_datum, l_datum, a_hash_out_type, a_chain->net_id);
-    json_object_object_add(l_jobj, "datum", l_jobj_datum);
-//    dap_chain_datum_to_json(l_datum);
-    /*size_t l_datum_size =  dap_chain_datum_size(l_datum);
-    const char *l_datum_type = NULL;
-    DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type)
-//    json_object_object_add(l_jobj,"Datum", json_object_new_string("empty"));
-    json_object_object_add(l_jobj_datum,"datum_size", json_object_new_uint64(l_datum_size));
-    sprintf(l_buf,"0x%02hhX",l_datum->header.version_id);
-    json_object_object_add(l_jobj_datum,"version", json_object_new_string(l_buf));
-    json_object_object_add(l-l_jobj_datum,"type_id", json_object_new_string(l_datum_type));
-    dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
-    json_object_object_add(l_jobj_datum,"ts_create", json_object_new_string(buf));
-    json_object_object_add(l_jobj_datum,"data_size", json_object_new_uint64(l_datum->header.data_size));
+    dap_chain_datum_dump_json(l_jobj, l_datum, a_hash_out_type, a_chain->net_id);
+    json_object *l_jobj_signatures = json_object_new_array();
+    l_offset += dap_chain_datum_size(l_datum);
     // Signatures
-//    json_object_object_add(json_obj_event,"signs count", json_object_new_uint64(l_event->header.signs_count));
-    l_offset += l_datum_size;
-    while (l_offset + sizeof (l_event->header) < l_event_size ){
+    while (l_offset + sizeof (l_event->header) < a_atom_size ){
+        json_object *l_jobj_signature = json_object_new_object();
         dap_sign_t * l_sign =(dap_sign_t *) (l_event->hashes_n_datum_n_signs +l_offset);
         size_t l_sign_size = dap_sign_get_size(l_sign);
         if (l_sign_size == 0 ){
@@ -2088,13 +2064,14 @@ static json_object *s_dap_chain_callback_atom_to_json(dap_chain_t *a_chain, dap_
         }
         dap_chain_hash_fast_t l_pkey_hash;
         dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-        const char *l_hash_str = dap_strcmp(l_hash_out_type, "hex")
+        const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
                 : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
-        json_object_object_add(json_obj_event,"type", json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
-        json_object_object_add(json_obj_event,"pkey_hash", json_object_new_string(l_hash_str));
+        json_object_object_add(l_jobj_signature,"type", json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
+        json_object_object_add(l_jobj_signature,"pkey_hash", json_object_new_string(l_hash_str));
+        json_object_array_add(l_jobj_signatures, l_jobj_signature);
         l_offset += l_sign_size;
     }
-    dap_chain_datum_dump_json(json_obj_event, l_datum, l_hash_out_type, l_net->pub.id);*/
+    json_object_object_add(l_jobj, "signatures", l_jobj_signatures);
     return  l_jobj;
 }
