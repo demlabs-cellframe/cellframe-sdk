@@ -459,7 +459,7 @@ dap_link_info_t *dap_chain_net_balancer_dns_issue_link(const char *a_net_name)
 void dap_chain_net_balancer_request(void *a_arg)
 {
 // sanity check
-    dap_return_val_if_pass(!a_arg, -1);
+    dap_return_if_fail(a_arg);
     dap_balancer_link_request_t *l_arg = (dap_balancer_link_request_t*)a_arg;
 // period request check
     dap_balancer_request_info_t *l_item = NULL;
