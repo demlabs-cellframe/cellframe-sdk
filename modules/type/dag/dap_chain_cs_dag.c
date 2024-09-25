@@ -135,7 +135,7 @@ static uint64_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
 static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static uint64_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
-static json_object *s_dap_chain_callback_atom_to_json(dap_chain_t a_chain, dap_chain_atom_ptr_t *a_atom, size_t a_atom_size);
+static json_object *s_dap_chain_callback_atom_to_json(dap_chain_t a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static bool s_seed_mode = false, s_debug_more = false, s_threshold_enabled = false;
@@ -2026,9 +2026,9 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
 }
 
 
-static json_object *s_dap_chain_callback_atom_to_json(dap_chain_t a_chain, dap_chain_atom_ptr_t *a_atom, size_t a_atom_size){
+static json_object *s_dap_chain_callback_atom_to_json(dap_chain_t a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size){
     json_object *l_jobj = json_object_new_object();
-    dap_chain_cs_dag_event_t *l_event = a_atom;
+    dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)a_atom;
     char buf[DAP_TIME_STR_SIZE];
     char l_buf[150] = {'\0'};
 //    l_event->header.round_id
