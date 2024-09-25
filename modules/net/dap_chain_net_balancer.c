@@ -44,15 +44,6 @@ typedef struct dap_balancer_request_info {
     UT_hash_handle hh;
 } dap_balancer_request_info_t;
 
-typedef struct dap_balancer_link_request {
-    const char* host_addr;
-    uint16_t host_port;
-    dap_chain_net_t *net;
-    dap_worker_t *worker;
-    uint16_t required_links_count;
-    dap_balancer_request_info_t *request_info;
-} dap_balancer_link_request_t;
-
 static_assert(sizeof(dap_chain_net_links_t) + sizeof(dap_chain_node_info_old_t) < DAP_BALANCER_MAX_REPLY_SIZE, "DAP_BALANCER_MAX_REPLY_SIZE cannot accommodate information minimum about 1 link");
 static const size_t s_max_links_response_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_links_t)) / sizeof(dap_chain_node_info_old_t);
 static const dap_time_t s_request_period = 5; // sec
@@ -465,66 +456,53 @@ dap_link_info_t *dap_chain_net_balancer_dns_issue_link(const char *a_net_name)
  * @param a_balancer_type - http or DNS
  * @return if ok 0, error - other
  */
-int dap_chain_net_balancer_request(dap_chain_net_t *a_net, const char *a_host_addr, uint16_t a_host_port, int a_balancer_type)
+void dap_chain_net_balancer_request(void *a_arg)
 {
 // sanity check
-    dap_return_val_if_pass(!a_net, -1);
+    dap_return_val_if_pass(!a_arg, -1);
+    dap_balancer_link_request_t *l_arg = (dap_balancer_link_request_t*)a_arg;
 // period request check
     dap_balancer_request_info_t *l_item = NULL;
-    HASH_FIND(hh, s_request_info_items, &a_net->pub.id, sizeof(a_net->pub.id), l_item);
+    HASH_FIND(hh, s_request_info_items, &l_arg->net->pub.id, sizeof(l_arg->net->pub.id), l_item);
     if (!l_item) {
-        DAP_NEW_Z_RET_VAL(l_item, dap_balancer_request_info_t, -2, NULL);
-        l_item->net_id = a_net->pub.id;
+        DAP_NEW_Z_RET(l_item, dap_balancer_request_info_t, NULL);
+        l_item->net_id = l_arg->net->pub.id;
         HASH_ADD(hh, s_request_info_items, net_id, sizeof(l_item->net_id), l_item);
     }
-    if (l_item->request_time + DAP_CHAIN_NET_BALANCER_REQUEST_DELAY > dap_time_now()) {
-        log_it(L_DEBUG, "Who understands life, he is in no hurry. Dear %s, please wait few seconds", a_net->pub.name);
-        return 0;
-    }
+    if (l_item->request_time + DAP_CHAIN_NET_BALANCER_REQUEST_DELAY > dap_time_now())
+        return log_it(L_DEBUG, "Who understands life, he is in no hurry. Dear %s, please wait few seconds", l_arg->net->pub.name);
 // preparing to request
     size_t
         l_ignored_addrs_size = 0,
-        l_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
+        l_required_links_count = dap_link_manager_needed_links_count(l_arg->net->pub.id.uint64);
     dap_chain_net_links_t
-        *l_ignored_addrs = s_get_ignored_node_addrs(a_net, &l_ignored_addrs_size),
-        *l_links = s_get_node_addrs(a_net, l_required_links_count, l_ignored_addrs, false);
+        *l_ignored_addrs = s_get_ignored_node_addrs(l_arg->net, &l_ignored_addrs_size),
+        *l_links = s_get_node_addrs(l_arg->net, l_required_links_count, l_ignored_addrs, false);
 // links from local GDB
     if (l_links) {
-        log_it(L_INFO, "%"DAP_UINT64_FORMAT_U" links successful prepared from global-db in net %s", l_links->count_node, a_net->pub.name);
-        s_balancer_link_prepare_success(a_net, l_links, NULL, 0);
-        if (l_links->count_node >= l_required_links_count) {
-            DAP_DEL_MULTY(l_ignored_addrs, l_links);
-            return 0;
-        }
+        log_it(L_INFO, "%"DAP_UINT64_FORMAT_U" links successful prepared from global-db in net %s", l_links->count_node, l_arg->net->pub.name);
+        s_balancer_link_prepare_success(l_arg->net, l_links, NULL, 0);
+        if (l_links->count_node >= l_required_links_count)
+            return DAP_DEL_MULTY(l_ignored_addrs, l_links);
         l_required_links_count -= l_links->count_node;
         DAP_DELETE(l_links);
     }
 // links from http balancer request
-    if (!a_host_addr || !a_host_port) {
-        log_it(L_INFO, "Can't read seed nodes addresses in net %s, work with local balancer only", a_net->pub.name);
-        DAP_DEL_Z(l_ignored_addrs);
-        return 0;
-    }
-    dap_balancer_link_request_t *l_balancer_request = NULL;
-    DAP_NEW_Z_RET_VAL(l_balancer_request, dap_balancer_link_request_t, -4, NULL);
-    *l_balancer_request = (dap_balancer_link_request_t) {
-        .host_addr = a_host_addr,
-        .host_port = a_host_port,
-        .net = a_net,
-        .worker = dap_worker_get_current(),
-        .required_links_count = l_required_links_count,
-        .request_info = l_item
-    };
+    if (!l_arg->host_addr || !*l_arg->host_addr || !l_arg->host_port)
+        return DAP_DELETE(l_ignored_addrs), log_it(L_INFO, "Can't read seed nodes addresses in net %s, work with local balancer only",
+                                                            l_arg->net->pub.name);
+    l_arg->worker = dap_worker_get_current();
+    l_arg->required_links_count = l_required_links_count;
+    l_arg->request_info = l_item;
     log_it(L_DEBUG, "Start balancer %s request to %s:%u in net %s",
-           dap_chain_net_balancer_type_to_str(a_balancer_type), l_balancer_request->host_addr, l_balancer_request->host_port, a_net->pub.name);
+                    dap_chain_net_balancer_type_to_str(l_arg->type), l_arg->host_addr, l_arg->host_port, l_arg->net->pub.name);
     
-    int ret;
-    if (a_balancer_type == DAP_CHAIN_NET_BALANCER_TYPE_HTTP) {
+    if (l_arg->type == DAP_CHAIN_NET_BALANCER_TYPE_HTTP) {
         char *l_ignored_addrs_str = NULL;
         if (l_ignored_addrs) {
-            DAP_NEW_Z_SIZE_RET_VAL(
+            DAP_NEW_Z_SIZE_RET(
                 l_ignored_addrs_str, char, DAP_ENC_BASE64_ENCODE_SIZE(l_ignored_addrs_size) + 1,
-                -7, l_ignored_addrs, l_balancer_request);
+                l_ignored_addrs, l_arg);
             dap_enc_base64_encode(l_ignored_addrs, l_ignored_addrs_size, l_ignored_addrs_str, DAP_ENC_DATA_TYPE_B64);
             DAP_DELETE(l_ignored_addrs);
         }
@@ -534,38 +512,28 @@ int dap_chain_net_balancer_request(dap_chain_net_t *a_net, const char *a_host_ad
                                                 DAP_BALANCER_URI_HASH,
                                                 DAP_BALANCER_PROTOCOL_VERSION,
                                                 (int)l_required_links_count,
-                                                a_net->pub.name,
+                                                l_arg->net->pub.name,
                                                 l_ignored_addrs_str ? l_ignored_addrs_str : "");
-        ret = dap_client_http_request(l_balancer_request->worker,
-                                                l_balancer_request->host_addr,
-                                                l_balancer_request->host_port,
-                                                "GET",
-                                                "text/text",
-                                                l_request,
-                                                NULL,
-                                                0,
-                                                NULL,
-                                                s_http_balancer_link_prepare_success,
-                                                s_http_balancer_link_prepare_error,
-                                                l_balancer_request,
-                                                NULL) == NULL;
+        if (! dap_client_http_request(l_arg->worker, l_arg->host_addr, l_arg->host_port,
+                                       "GET", "text/text", l_request, NULL, 0, NULL,
+                                       s_http_balancer_link_prepare_success, s_http_balancer_link_prepare_error,
+                                       l_arg, NULL) )
+        {
+            log_it(L_ERROR, "Can't process balancer link %s request in net %s",
+                            dap_chain_net_balancer_type_to_str(l_arg->type), l_arg->net->pub.name);
+        }
         DAP_DEL_MULTY(l_ignored_addrs_str, l_request);
     } else {
-        l_balancer_request->host_port = DNS_LISTEN_PORT;
+        l_arg->host_port = DNS_LISTEN_PORT;
         // TODO: change signature and implementation
-        ret = /* dap_chain_node_info_dns_request(l_balancer_request->worker,
-                                                l_link_node_info->hdr.ext_addr_v4,
-                                                l_link_node_info->hdr.ext_port,
-                                                a_net->pub.name,
-                                                s_dns_balancer_link_prepare_success,
-                                                s_dns_balancer_link_prepare_error,
-                                                l_balancer_request); */ -1;
+        /* dap_chain_node_info_dns_request(l_balancer_request->worker,
+                                            l_link_node_info->hdr.ext_addr_v4,
+                                            l_link_node_info->hdr.ext_port,
+                                            a_net->pub.name,
+                                            s_dns_balancer_link_prepare_success,
+                                            s_dns_balancer_link_prepare_error,
+                                            l_balancer_request); */
     }
-    if (ret) {
-        log_it(L_ERROR, "Can't process balancer link %s request in net %s", dap_chain_net_balancer_type_to_str(a_balancer_type), a_net->pub.name);
-        return -6;
-    }
-    return 0;
 }
 
 /**
