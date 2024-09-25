@@ -48,46 +48,38 @@ dap_chain_cs_dag_event_t *dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, 
                                                      dap_chain_hash_fast_t *a_hashes, size_t a_hashes_count, size_t *a_event_size)
 {
     assert(a_event_size);
-    size_t l_hashes_size = sizeof(*a_hashes)*a_hashes_count;
-    size_t l_datum_size =  dap_chain_datum_size(a_datum);
-    dap_chain_cs_dag_event_t * l_event_new = NULL;
-    size_t l_event_size = sizeof(l_event_new->header)
-            + l_hashes_size
-            + l_datum_size;
-    l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, l_event_size);
-    l_event_new->header.ts_created = dap_time_now();
-    l_event_new->header.cell_id.uint64 = a_cell_id.uint64;
-    l_event_new->header.chain_id.uint64 = a_chain_id.uint64;
-    l_event_new->header.hash_count = a_hashes_count;
-    l_event_new->header.round_id = a_round_id;
+    size_t l_hashes_size = sizeof(*a_hashes) * a_hashes_count,
+        l_datum_size = dap_chain_datum_size(a_datum),
+        l_event_size = sizeof(dap_chain_class_dag_event_hdr_t) + l_hashes_size + l_datum_size;
+    dap_chain_cs_dag_event_t *l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, l_event_size);
+    *l_event_new = (dap_chain_cs_dag_event_t) {
+        { // .round_id = a_round_id,
+            .ts_created = dap_time_now(),
+            .chain_id = a_chain_id,
+            .cell_id = a_cell_id,
+            .hash_count = a_hashes_count
+        }
+    };
 
-    if ( l_hashes_size ){
-        memcpy(l_event_new->hashes_n_datum_n_signs, a_hashes, l_hashes_size );
-    }
-
-    memcpy(l_event_new->hashes_n_datum_n_signs+l_hashes_size, a_datum,l_datum_size );
+    if ( l_hashes_size )
+        memcpy( l_event_new->hashes_n_datum_n_signs, a_hashes, l_hashes_size );
+    memcpy( l_event_new->hashes_n_datum_n_signs + l_hashes_size, a_datum,l_datum_size );
 
     if ( a_key ){
-        dap_sign_t * l_sign = dap_sign_create(a_key, l_event_new, l_event_size, 0);
-        if ( l_sign ){
-            size_t l_sign_size = dap_sign_get_size(l_sign);
-            l_event_size += l_sign_size;
-            l_event_new = (dap_chain_cs_dag_event_t *)DAP_REALLOC(l_event_new, l_event_size);
-            if (!l_event_new) {
-                log_it(L_CRITICAL, "Not enough memeory");
-                DAP_DELETE(l_sign);
-                return NULL;
-            }
-            memcpy(l_event_new->hashes_n_datum_n_signs + l_hashes_size + l_datum_size, l_sign, l_sign_size);
-            l_event_new->header.signs_count++;
-            log_it(L_INFO,"Created event size %zd, signed with sign size %zd", l_event_size, l_sign_size);
-            DAP_DELETE(l_sign);
-        }else {
-            log_it(L_ERROR,"Can't sign dag event!");
-            DAP_DELETE(l_event_new);
-            return NULL;
-        }
-    }else {
+        dap_sign_t *l_sign = dap_sign_create(a_key, l_event_new, l_event_size, 0);
+        if ( !l_sign )
+            return DAP_DELETE(l_event_new), log_it(L_ERROR,"Can't sign dag event!"), NULL;
+        size_t l_sign_size = dap_sign_get_size(l_sign);
+        l_event_size += l_sign_size;
+        dap_chain_cs_dag_event_t *l_event_newer = (dap_chain_cs_dag_event_t*)DAP_REALLOC(l_event_new, l_event_size);
+        if (!l_event_newer) 
+            return DAP_DEL_MULTY(l_event_new, l_sign), log_it(L_CRITICAL, "Not enough memeory"), NULL;
+        l_event_new = l_event_newer;
+        memcpy(l_event_new->hashes_n_datum_n_signs + l_hashes_size + l_datum_size, l_sign, l_sign_size);
+        l_event_new->header.signs_count++;
+        log_it(L_INFO,"Created event size %zd, signed with sign size %zd", l_event_size, l_sign_size);
+        DAP_DELETE(l_sign);
+    } else {
         log_it(L_NOTICE, "Created unsigned dag event");
     }
     if (a_event_size)
@@ -110,9 +102,7 @@ uint64_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_dag_event_t *a
         return 0;
     dap_chain_datum_t *l_datum = (dap_chain_datum_t *)(a_event->hashes_n_datum_n_signs + l_hashes_size);
     uint64_t l_ret = dap_chain_datum_size(l_datum) + l_hashes_size + sizeof(a_event->header);
-    if (a_limit_size && a_limit_size < l_ret)
-        return 0;
-    return l_ret;
+    return a_limit_size && a_limit_size < l_ret ? 0 : l_ret;
 }
 
 /**

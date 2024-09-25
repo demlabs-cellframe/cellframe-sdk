@@ -113,17 +113,12 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
     dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(a_ch);
     if(l_ch_chain_net) {
         dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *)a_arg;
-        if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_TEST) {
-            char *l_data_hash_str;
-            dap_get_data_hash_str_static(l_ch_pkt->data, l_ch_pkt->hdr.data_size, l_data_hash_str);
-            log_it(L_ATT, "Receive test data packet with hash %s", l_data_hash_str);
-            return false;
-        }
-        if (l_ch_pkt->hdr.data_size < sizeof(dap_stream_ch_chain_net_pkt_t)) {
-            log_it(L_WARNING, "Too small stream channel N packet size %u (header size %zu)",
-                                    l_ch_pkt->hdr.data_size, sizeof(dap_stream_ch_chain_net_pkt_t));
-            return false;
-        }
+        if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_TEST)
+            return log_it(L_ATT, "Receive test data packet with hash %s", 
+                                 dap_get_data_hash_str(l_ch_pkt->data, l_ch_pkt->hdr.data_size).s), false;
+        if (l_ch_pkt->hdr.data_size < sizeof(dap_stream_ch_chain_net_pkt_t))
+            return log_it(L_WARNING, "Too small stream channel N packet size %u (header size %zu)",
+                                    l_ch_pkt->hdr.data_size, sizeof(dap_stream_ch_chain_net_pkt_t)), false;
         dap_stream_ch_chain_net_pkt_t *l_ch_chain_net_pkt = (dap_stream_ch_chain_net_pkt_t *)l_ch_pkt->data;
         if ((uint32_t)l_ch_chain_net_pkt->hdr.data_size + sizeof(dap_stream_ch_chain_net_pkt_t) > l_ch_pkt->hdr.data_size) {
             log_it(L_WARNING, "Too small stream channel N packet size %u (expected at least %zu)",
