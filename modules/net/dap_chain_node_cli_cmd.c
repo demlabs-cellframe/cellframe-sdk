@@ -3356,20 +3356,9 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
     bool l_found_in_chains = false;
     int l_ret_code = 0;
     dap_hash_fast_t l_atom_hash = {};
-    if (a_chain)
-        l_datum = s_com_mempool_check_datum_in_chain(a_chain, a_datum_hash);
-    else {
-        dap_chain_t *it = NULL;
-        DL_FOREACH(a_net->pub.chains, it) {
-            l_datum = s_com_mempool_check_datum_in_chain(it, a_datum_hash);
-            if (l_datum) {
-                l_chain_name = it->name;
-                break;
-            }
-        }
-    }
-    if (!l_datum) {
-        l_found_in_chains = true;
+    // FIND in chain
+    {
+        //
         dap_hash_fast_t l_datum_hash;
         if (dap_chain_hash_fast_from_hex_str(a_datum_hash, &l_datum_hash)) {
             dap_json_rpc_error_add(COM_MEMPOOL_CHECK_ERR_INCORRECT_HASH_STR,
@@ -3382,6 +3371,23 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             dap_chain_t *it = NULL;
             DL_FOREACH(a_net->pub.chains, it) {
                 l_datum = it->callback_datum_find_by_hash(it, &l_datum_hash, &l_atom_hash, &l_ret_code);
+                if (l_datum) {
+                    l_chain_name = it->name;
+                    break;
+                }
+            }
+        }
+        if (l_datum)
+            l_found_in_chains = true;
+    }
+    //  FIND in mempool
+    if (!l_found_in_chains) {
+        if (a_chain)
+            l_datum = s_com_mempool_check_datum_in_chain(a_chain, a_datum_hash);
+        else {
+            dap_chain_t *it = NULL;
+            DL_FOREACH(a_net->pub.chains, it) {
+                l_datum = s_com_mempool_check_datum_in_chain(it, a_datum_hash);
                 if (l_datum) {
                     l_chain_name = it->name;
                     break;
