@@ -67,6 +67,7 @@ typedef struct dap_chain_net {
         uint256_t fee_value;            // Net fee
         dap_chain_addr_t fee_addr;
         dap_chain_net_id_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TX
+        uint16_t bridged_networks_count;
         dap_config_t *config;
         bool mempool_autoproc;
     } pub;

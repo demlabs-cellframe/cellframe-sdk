@@ -7069,8 +7069,9 @@ int com_tx_create(int a_argc, char **a_argv, void **reply)
 
     if (l_addr_to->net_id.uint64 != l_net->pub.id.uint64 && !dap_chain_addr_is_blank(l_addr_to)) {
         bool l_found = false;
-        for (dap_list_t *it = l_net->pub.bridged_networks; it; it = it->next) {
-            if (((dap_chain_net_id_t *)it->data)->uint64 == l_addr_to->net_id.uint64) {
+        int i;
+        for (i = 0; i < l_net->pub.bridged_networks_count; ++i) {
+            if (l_net->pub.bridged_networks[i].uint64 == l_addr_to->net_id.uint64) {
                 l_found = true;
                 break;
             }
@@ -7078,8 +7079,8 @@ int com_tx_create(int a_argc, char **a_argv, void **reply)
         if (!l_found) {
             dap_string_t *l_allowed_list = dap_string_new("");
             dap_string_append_printf(l_allowed_list, "0x%016"DAP_UINT64_FORMAT_X, l_net->pub.id.uint64);
-            for (dap_list_t *it = l_net->pub.bridged_networks; it; it = it->next)
-                dap_string_append_printf(l_allowed_list, ", 0x%016"DAP_UINT64_FORMAT_X, ((dap_chain_net_id_t *)it->data)->uint64);
+            for (i = 0; i < l_net->pub.bridged_networks_count; ++i)
+                dap_string_append_printf(l_allowed_list, ", 0x%016"DAP_UINT64_FORMAT_X, l_net->pub.bridged_networks[i].uint64);
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_NETWORK_IS_UNREACHEBLE,
                                    "Destination network ID=0x%"DAP_UINT64_FORMAT_x
                                    " is unreachable. List of available network IDs:\n%s"

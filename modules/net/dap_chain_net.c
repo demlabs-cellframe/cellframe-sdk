@@ -334,13 +334,36 @@ char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net)
     return NULL;
 }
 
+DAP_STATIC_INLINE struct request_link_info *s_net_resolve_host(const char *a_addr) {
+    char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' }; uint16_t l_port = 0;
+    struct sockaddr_storage l_saddr;
+    if ( dap_net_parse_config_address(a_addr, l_host, &l_port, NULL, NULL) < 0
+        || dap_net_resolve_host(l_host, dap_itoa(l_port), false, &l_saddr, NULL) < 0 )
+        return NULL;
+    struct request_link_info *l_ret = DAP_NEW_Z(struct request_link_info);
+    l_ret->port = l_port;
+    dap_strncpy(l_ret->addr, l_host, DAP_HOSTADDR_STRLEN);
+    return l_ret;
+}
+
 static struct request_link_info *s_balancer_link_from_cfg(dap_chain_net_t *a_net)
 {
+    uint16_t l_idx;
     switch (PVT(a_net)->seed_nodes_count) {
     case 0: return log_it(L_ERROR, "No available links in net %s! Add them in net config", a_net->pub.name), NULL;
-    case 1: return PVT(a_net)->seed_nodes_info[0];
-    default: return PVT(a_net)->seed_nodes_info[dap_random_uint16() % PVT(a_net)->seed_nodes_count];
+    case 1:
+        l_idx = 0;
+    break;
+    default:
+        l_idx = dap_random_uint16() % PVT(a_net)->seed_nodes_count;
+    break;
     }
+    if ( !PVT(a_net)->seed_nodes_info[l_idx] ) {
+        // Unresolved before? Let's try again
+        const char **l_seed_nodes_hosts = dap_config_get_array_str(a_net->pub.config, "general", "seed_nodes_hosts", NULL);
+        PVT(a_net)->seed_nodes_info[l_idx] = s_net_resolve_host(l_seed_nodes_hosts[l_idx]);
+    }
+    return PVT(a_net)->seed_nodes_info[l_idx];
 }
 
 dap_chain_node_info_t *dap_chain_net_get_my_node_info(dap_chain_net_t *a_net)
@@ -622,8 +645,7 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     const char  *l_net_name_str = dap_config_get_item_str_default(a_cfg, "general", "name", a_net_name),
                 *l_net_id_str   = dap_config_get_item_str(a_cfg, "general", "id"),
                 *a_node_role    = dap_config_get_item_str(a_cfg, "general", "node-role" ),
-                *a_native_ticker= dap_config_get_item_str(a_cfg, "general", "native_ticker"),
-                *a_net_name     = dap_config_get_item_str(a_cfg, "general", "name" );
+                *a_native_ticker= dap_config_get_item_str(a_cfg, "general", "native_ticker");
     dap_chain_net_id_t l_net_id;
 
     if(!l_net_name_str || !l_net_id_str || dap_chain_net_id_parse(l_net_id_str, &l_net_id))
@@ -1760,13 +1782,17 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         l_net->pub.bridged_networks = DAP_NEW_Z_COUNT(dap_chain_net_id_t, l_net_ids_count);
         unsigned i, j;
         for (i = 0, j = 0; i < l_net_ids_count; ++i) {
-            if (dap_chain_net_id_parse(l_bridged_net_ids[i], &l_net->pub.bridged_networks[j]) != 0)
+            if (dap_chain_net_id_parse(l_bridged_net_ids[i], &l_net->pub.bridged_networks[j]) != 0) {
+                log_it(L_ERROR, "Can't add invalid net id \"%s\" to bridged net list of \"%s\"",
+                                l_bridged_net_ids[i], a_net_name);
                 continue;
+            }   
             ++j;
         }
         l_net->pub.bridged_networks = j && j < i
             ? DAP_REALLOC_COUNT(l_net->pub.bridged_networks, j)
             : ( DAP_DELETE(l_net->pub.bridged_networks), NULL );
+        l_net->pub.bridged_networks_count = j;
     }
 
     const char **l_permanent_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "permanent_nodes_addrs", &l_net_pvt->permanent_links_count);
@@ -1797,27 +1823,25 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     uint16_t l_permalink_hosts_count = 0, i, e;
     const char **l_permanent_links_hosts = dap_config_get_array_str(l_cfg, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
     for (i = 0, e = 0; i < dap_min(l_permalink_hosts_count, l_net_pvt->permanent_links_count); ++i) {
-        char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' }; uint16_t l_port = 0;
-        struct sockaddr_storage l_saddr;
-        if ( dap_net_parse_config_address(l_permanent_links_hosts[i], l_host, &l_port, NULL, NULL) < 0
-            || dap_net_resolve_host(l_host, dap_itoa(l_port), false, &l_saddr, NULL) < 0 )
-        {
+        struct request_link_info *l_tmp = s_net_resolve_host( l_permanent_links_hosts[i] );
+        if ( !l_tmp ) {
             log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config"
                             "or check internet connection and restart node",
                             a_net_name, l_permanent_links_hosts[i]);
             ++e;
             continue;
         }
-        l_net_pvt->permanent_links[i]->uplink_port = l_port;
-        dap_strncpy(l_net_pvt->permanent_links[i]->uplink_addr, l_host, DAP_HOSTADDR_STRLEN);
+        l_net_pvt->permanent_links[i]->uplink_port = l_tmp->port;
+        dap_strncpy(l_net_pvt->permanent_links[i]->uplink_addr, l_tmp->addr, DAP_HOSTADDR_STRLEN);
+        DAP_DELETE(l_tmp);
     }
     if ( i && (e == i) ) {
         log_it(L_ERROR, "%d / %d permanent links are invalid or can't be accessed, fix \"%s\""
                         "network config or check internet connection and restart node",
                         e, i, a_net_name);
-        dap_chain_net_delete(l_net);
-        dap_config_close(l_cfg);
-        return -16;
+        //dap_chain_net_delete(l_net);
+        //dap_config_close(l_cfg);
+        //return -16;
     }
 
     const char **l_authorized_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "authorized_nodes_addrs", &l_net_pvt->authorized_nodes_count);
@@ -1840,41 +1864,28 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
          l_seed_nodes_hosts  = dap_config_get_array_str(l_cfg, "general", "bootstrap_hosts", &l_net_pvt->seed_nodes_count);
     if (!l_net_pvt->seed_nodes_count)
         log_it(L_WARNING, "Can't read seed nodes addresses, work with local balancer only");
-    else if (!(l_net_pvt->seed_nodes_info = DAP_NEW_Z_COUNT(struct request_link_info *, l_net_pvt->seed_nodes_count))) {
+    else if (!( l_net_pvt->seed_nodes_info = DAP_NEW_Z_COUNT(struct request_link_info*, l_net_pvt->seed_nodes_count) )) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         dap_chain_net_delete(l_net);
         dap_config_close(l_cfg);
         return -4;
     }
     for (i = 0, e = 0; i < l_net_pvt->seed_nodes_count; ++i) {
-        char l_host[DAP_HOSTADDR_STRLEN + 1] = { '\0' }; uint16_t l_port = 0;
-        struct sockaddr_storage l_saddr;
-        if ( dap_net_parse_config_address(l_seed_nodes_hosts[i], l_host, &l_port, NULL, NULL) < 0
-            || dap_net_resolve_host(l_host, dap_itoa(l_port), false, &l_saddr, NULL) < 0)
-        {
+        if (!( l_net_pvt->seed_nodes_info[i] = s_net_resolve_host(l_seed_nodes_hosts[i]) )) {
             log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config"
                             "or check internet connection and restart node",
                             a_net_name, l_seed_nodes_hosts[i]);
             ++e;
             continue;
         }
-        l_net_pvt->seed_nodes_info[i] = DAP_NEW_Z(struct request_link_info);
-        if (!l_net_pvt->seed_nodes_info[i]) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -4;
-        }
-        l_net_pvt->seed_nodes_info[i]->port = l_port;
-        dap_strncpy(l_net_pvt->seed_nodes_info[i]->addr, l_host, DAP_HOSTADDR_STRLEN);
     }
     if ( i && (e == i) ) {
         log_it(L_ERROR, "%d / %d seed links are invalid or can't be accessed, fix \"%s\""
                         "network config or check internet connection and restart node",
                         e, i, a_net_name);
-        dap_chain_net_delete(l_net);
-        dap_config_close(l_cfg);
-        return -16;
+        //dap_chain_net_delete(l_net);
+        //dap_config_close(l_cfg);
+        //return -16;
     }
 
     /* *** Chains init by configs *** */
@@ -3327,6 +3338,20 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
         for (uint16_t i = 0; i < PVT(a_net)->permanent_links_count; ++i) {
             dap_link_info_t *l_permalink_info = PVT(a_net)->permanent_links[i];
+            if ( !*l_permalink_info->uplink_addr ) {
+                // Unresolved before? Let's try again
+                const char **l_permanent_nodes_addrs = dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_addrs", NULL);
+                struct request_link_info *l_tmp = s_net_resolve_host(l_permanent_nodes_addrs[i]);
+                if (l_tmp) {
+                    l_permalink_info->uplink_port = l_tmp->port;
+                    dap_strncpy(l_permalink_info->uplink_addr, l_tmp->addr, DAP_HOSTADDR_STRLEN);
+                    DAP_DELETE(l_tmp);
+                } else {
+                    log_it(L_ERROR, "Can't resolve permanent link address %s for net %s, possibly an internet connection issue",
+                                    l_permanent_nodes_addrs[i], a_net->pub.name);
+                    continue;
+                }
+            }
             if (dap_chain_net_link_add(a_net, &l_permalink_info->node_addr, l_permalink_info->uplink_addr, l_permalink_info->uplink_port)) {
                 log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_permalink_info->node_addr));
                 continue;
