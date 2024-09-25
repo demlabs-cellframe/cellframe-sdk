@@ -7,21 +7,22 @@
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
- This file is part of DAP (Distributed Applications Platform) the open source project
+ This file is part of CellFrame SDK the open source project
 
- DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation, either version 3 of the License, or
- (at your option) any later version.
+    CellFrame SDK is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
- DAP is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+    CellFrame SDK is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
- You should have received a copy of the GNU General Public License
- along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
- */
+    You should have received a copy of the GNU General Public License
+    along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 
 #pragma once
 #include <stdint.h>
@@ -33,19 +34,19 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx.h"
-#include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_net.h"
 
 #define DAP_CHAIN_NET_SRV_TRANSFER_ID 0x07
 #define DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID 0x08
 
+typedef struct dap_ledger_tx_item dap_ledger_tx_item_t;
+
 typedef struct dap_ledger {
     dap_chain_net_t *net;
     void *_internal;
 } dap_ledger_t;
 
-typedef struct dap_ledger_tx_item dap_ledger_tx_item_t;
 /**
  * @brief Error codes for accepting a transaction to the ledger.
  */
@@ -204,7 +205,6 @@ typedef void (*dap_ledger_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_d
 typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ledger_notify_opcodes_t a_opcode);
 typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg, dap_ledger_notify_opcodes_t a_opcode);
 typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
-typedef struct dap_chain_net dap_chain_net_t;
 typedef int (*dap_chain_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_apply);
 typedef bool (*dap_chain_ledger_voting_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx);
 typedef bool (*dap_ledger_tag_check_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action);
