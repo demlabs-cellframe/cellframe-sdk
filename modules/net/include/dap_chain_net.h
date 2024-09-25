@@ -54,26 +54,23 @@ typedef enum dap_chain_net_state {
     NET_STATE_ONLINE
 } dap_chain_net_state_t;
 
+static const char s_gdb_nodes_postfix[] = ".nodes.list";
+
 typedef struct dap_chain_net {
     struct {
         dap_chain_net_id_t id;
-        char * name;
-        char * gdb_groups_prefix;
-        char * gdb_nodes;
-
+        char name[DAP_CHAIN_NET_NAME_MAX + 1], gdb_nodes[DAP_CHAIN_NET_NAME_MAX + sizeof(s_gdb_nodes_postfix) + 1];
+        const char *gdb_groups_prefix, *native_ticker;
         dap_list_t *keys;               // List of PoA certs for net
-
-        bool mempool_autoproc;
-
-        dap_chain_t *chains; // double-linked list of chains
-        const char *native_ticker;
+        dap_chain_t *chains;            // double-linked list of chains
         dap_ledger_t *ledger;
-        // Net fee
-        uint256_t fee_value;
+        uint256_t fee_value;            // Net fee
         dap_chain_addr_t fee_addr;
-        dap_list_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TX
+        dap_chain_net_id_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TX
         dap_config_t *config;
+        bool mempool_autoproc;
     } pub;
+    UT_hash_handle hh, hh2;
     uint8_t pvt[];
 } dap_chain_net_t;
 

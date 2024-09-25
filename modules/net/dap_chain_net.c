@@ -184,17 +184,10 @@ typedef struct dap_chain_net_pvt{
     anchor_table_t *anchors;
 } dap_chain_net_pvt_t;
 
-typedef struct dap_chain_net_item{
-    char name[DAP_CHAIN_NET_NAME_MAX + 1];
-    dap_chain_net_id_t net_id;
-    dap_chain_net_t *chain_net;
-    UT_hash_handle hh, hh2;
-} dap_chain_net_item_t;
-
 #define PVT(a) ((dap_chain_net_pvt_t *)a->pvt)
 #define PVT_S(a) ((dap_chain_net_pvt_t *)a.pvt)
 
-static dap_chain_net_item_t *s_net_items = NULL, *s_net_ids = NULL;
+static dap_chain_net_t *s_nets_by_name = NULL, *s_nets_by_id = NULL;
 static pthread_mutex_t s_net_cond_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t s_net_cond = PTHREAD_COND_INITIALIZER;
 static uint16_t s_net_loading_count = 0;
@@ -496,7 +489,7 @@ int s_link_manager_link_request(uint64_t a_net_id)
         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
     struct request_link_info *l_balancer_link = s_balancer_link_from_cfg(l_net);
     if (!l_balancer_link) {
-        log_it(L_ERROR, "Can't process balancer link %s request in nte %s", dap_chain_net_balancer_type_to_str(PVT(l_net)->balancer_type), l_net->pub.name);
+        log_it(L_ERROR, "Can't process balancer link %s request in net %s", dap_chain_net_balancer_type_to_str(PVT(l_net)->balancer_type), l_net->pub.name);
         return -5;
     }
     return dap_chain_net_balancer_request(l_net, l_balancer_link->addr,  l_balancer_link->port, PVT(l_net)->balancer_type);
@@ -507,15 +500,15 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
 // sanity check
     dap_return_val_if_pass(!a_link, -1);
 // func work
-    dap_chain_net_item_t *l_net_item = NULL, *l_tmp = NULL;
     dap_chain_node_info_t *l_node_info = NULL;
-    HASH_ITER(hh, s_net_items, l_net_item, l_tmp)
-        if ((l_node_info = dap_chain_node_info_read(l_net_item->chain_net, &a_link->addr)))
+    for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
+        if (( l_node_info = dap_chain_node_info_read(net, &a_link->addr) ))
             break;
+    }
     if (!l_node_info)
         return -3;
     a_link->uplink.ready = true;
-    if (dap_link_manager_link_update(&a_link->addr, l_node_info->ext_host, l_node_info->ext_port))
+    if ( dap_link_manager_link_update(&a_link->addr, l_node_info->ext_host, l_node_info->ext_port) )
         a_link->uplink.ready = true;
     DAP_DELETE(l_node_info);
     return 0;
@@ -618,18 +611,36 @@ dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
  * @param a_node_role
  * @return dap_chain_net_t*
  */
-static dap_chain_net_t *s_net_new(dap_chain_net_id_t *a_id, const char *a_name,
-                                  const char *a_native_ticker, const char *a_node_role)
+static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
 {
-// sanity check
-    dap_return_val_if_pass(!a_id || !a_name || !a_native_ticker || !a_node_role, NULL);
+    dap_return_val_if_fail(a_cfg, NULL);
     dap_chain_net_t *l_ret = NULL;
-// memory alloc
+    const char  *l_net_name_str = dap_config_get_item_str_default(a_cfg, "general", "name", a_net_name),
+                *l_net_id_str   = dap_config_get_item_str(a_cfg, "general", "id"),
+                *a_node_role    = dap_config_get_item_str(a_cfg, "general", "node-role" ),
+                *a_native_ticker= dap_config_get_item_str(a_cfg, "general", "native_ticker"),
+                *a_net_name     = dap_config_get_item_str(a_cfg, "general", "name" );
+    dap_chain_net_id_t l_net_id;
+
+    if(!l_net_name_str || !l_net_id_str || dap_chain_net_id_parse(l_net_id_str, &l_net_id))
+        return log_it(L_ERROR, "Can't create l_net, can't read name or ID config"), NULL;
+
+    dap_chain_net_t *l_net_sought = NULL;
+    HASH_FIND_STR(s_nets_by_name, l_net_name_str, l_net_sought);
+    if (!l_net_sought)
+        HASH_FIND(hh2, s_nets_by_id, &l_net_id, sizeof(l_net_id), l_net_sought);
+    if (l_net_sought) {
+        log_it(L_ERROR, "Can't create net %s ID %"DAP_UINT64_FORMAT_U", an already existent net "
+                        "%s ID %"DAP_UINT64_FORMAT_U" has the same name or ID.\n"\
+                        "Please, fix your configs and restart node",
+                        l_net_name_str, l_net_id.uint64, l_net_sought->pub.name,
+                        l_net_sought->pub.id.uint64);
+        return NULL;
+    }
     DAP_NEW_Z_SIZE_RET_VAL(l_ret, dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t), NULL, NULL);
     DAP_NEW_Z_SIZE_RET_VAL(PVT(l_ret)->node_info, dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1, NULL, l_ret);
-// func work
-    l_ret->pub.id.uint64 = a_id->uint64;
 
+    l_ret->pub.id = l_net_id;
     if (strcmp (a_node_role, "root_master")==0){
         PVT(l_ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
     } else if (strcmp( a_node_role,"root") == 0){
@@ -645,15 +656,24 @@ static dap_chain_net_t *s_net_new(dap_chain_net_id_t *a_id, const char *a_name,
     }else if (strcmp( a_node_role,"light") == 0){
         PVT(l_ret)->node_role.enums = NODE_ROLE_LIGHT;
     }else{
-        log_it(L_ERROR,"Unknown node role \"%s\" for network '%s'", a_node_role, a_name);
+        log_it(L_ERROR,"Unknown node role \"%s\" for network '%s'", a_node_role, l_net_name_str);
         DAP_DELETE(l_ret);
         return NULL;
     }
-
-    if (!(l_ret->pub.name = dap_strdup(a_name)) ||
-        !(l_ret->pub.native_ticker = dap_strdup( a_native_ticker )))
-            DAP_DEL_MULTY(l_ret->pub.name, l_ret->pub.native_ticker, l_ret);
-    log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, a_name);
+    if (!( l_net_name_str ))
+        return DAP_DELETE(l_ret), log_it(L_ERROR, "Invalid net name, check [general] \"name\" in netconfig"), NULL;
+    dap_strncpy(l_ret->pub.name, l_net_name_str, sizeof(l_ret->pub.name));
+    if (!( l_ret->pub.native_ticker = a_native_ticker ))
+        return DAP_DEL_MULTY(l_ret->pub.name, l_ret),
+               log_it(L_ERROR, "Invalid native ticker, check [general] \"native_ticker\" in %s.cfg",
+                                l_net_name_str),
+                NULL;
+    log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, l_net_name_str);
+    l_ret->pub.config = a_cfg;
+    l_ret->pub.gdb_groups_prefix
+        = dap_config_get_item_str_default( a_cfg, "general", "gdb_groups_prefix", dap_config_get_item_str(a_cfg, "general", "name") );
+    HASH_ADD_STR(s_nets_by_name, pub.name, l_ret);
+    HASH_ADD(hh2, s_nets_by_id, pub.id, sizeof(dap_chain_net_id_t), l_ret);
     return l_ret;
 }
 
@@ -664,15 +684,14 @@ static dap_chain_net_t *s_net_new(dap_chain_net_id_t *a_id, const char *a_name,
 void dap_chain_net_load_all()
 {
     pthread_mutex_lock(&s_net_cond_lock);
-    s_net_loading_count = HASH_COUNT(s_net_items);
+    s_net_loading_count = HASH_COUNT(s_nets_by_name);
     if (!s_net_loading_count) {
         log_it(L_ERROR, "Can't find any nets");
         pthread_mutex_unlock(&s_net_cond_lock);
         return;
     }
-    dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
-    HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp)
-        dap_proc_thread_callback_add(NULL, s_net_load, l_net_items_current->chain_net);
+    for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next)
+        dap_proc_thread_callback_add(NULL, s_net_load, net);
     while (s_net_loading_count)
         pthread_cond_wait(&s_net_cond, &s_net_cond_lock);
     pthread_mutex_unlock(&s_net_cond_lock);
@@ -680,19 +699,16 @@ void dap_chain_net_load_all()
 
 dap_string_t* dap_cli_list_net()
 {
-    dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
     dap_string_t *l_string_ret = dap_string_new("");
     dap_chain_net_t * l_net = NULL;
-    int l_net_i = 0;
-    dap_string_append(l_string_ret,"Available networks and chains:\n");
-    HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
-        l_net = l_net_item->chain_net;
-        dap_string_append_printf(l_string_ret, "\t%s:\n", l_net_item->name);
-        l_net_i++;
-
-        dap_chain_t * l_chain = l_net->pub.chains;
+    unsigned l_net_i = 0;
+    dap_string_append(l_string_ret, "Available networks and chains:\n");
+    for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
+        dap_string_append_printf(l_string_ret, "\t%s:\n", l_net->pub.name);
+        ++l_net_i;
+        dap_chain_t *l_chain = l_net->pub.chains;
         while (l_chain) {
-            dap_string_append_printf(l_string_ret, "\t\t%s\n", l_chain->name );
+            dap_string_append_printf( l_string_ret, "\t\t%s\n", l_chain->name );
             l_chain = l_chain->next;
         }
     }
@@ -959,13 +975,11 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 json_object_object_add(l_jobj_return, "net", l_jobj_net_name);
                 json_object_object_add(l_jobj_return, "chains", l_jobj_chains);
             }else{
-                dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
                 json_object *l_jobj_networks = json_object_new_array();
-                HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
+                for (dap_chain_net_t *l_net = s_nets_by_name; l_net; l_net = l_net->hh.next) {
                     json_object *l_jobj_network = json_object_new_object();
                     json_object *l_jobj_chains = json_object_new_array();
-                    l_net = l_net_item->chain_net;
-                    json_object *l_jobj_network_name = json_object_new_string(l_net_item->name);
+                    json_object *l_jobj_network_name = json_object_new_string(l_net->pub.name);
                     if (!l_jobj_network || !l_jobj_chains || !l_jobj_network_name) {
                         json_object_put(l_jobj_return);
                         json_object_put(l_jobj_network);
@@ -1037,9 +1051,8 @@ static int s_cli_net(int argc, char **argv, void **reply)
 
             json_object *l_jobj_networks = json_object_new_array();
             // show list of nets
-            dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
-            HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
-                json_object *l_jobj_network_name = json_object_new_string(l_net_item->name);
+            for (dap_chain_net_t *l_net = s_nets_by_name; l_net; l_net = l_net->hh.next) {
+                json_object *l_jobj_network_name = json_object_new_string(l_net->pub.name);
                 json_object_array_add(l_jobj_networks, l_jobj_network_name);
             }
             json_object_object_add(l_jobj_return, "networks", l_jobj_networks);
@@ -1658,11 +1671,11 @@ void dap_chain_net_deinit()
 {
     dap_link_manager_deinit();
     dap_chain_net_balancer_deinit();
-    dap_chain_net_item_t *l_current_item, *l_tmp;
-    HASH_ITER(hh, s_net_ids, l_current_item, l_tmp)
-        HASH_DELETE(hh2, s_net_ids, l_current_item);
-    HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
-        dap_chain_net_delete(l_current_item->chain_net);
+    dap_chain_net_t *l_net, *l_tmp;
+    HASH_ITER(hh2, s_nets_by_id, l_net, l_tmp) {
+        HASH_DEL(s_nets_by_name, l_net);
+        HASH_DELETE(hh2, s_nets_by_id, l_net);
+        dap_chain_net_delete(l_net);
     }
     dap_http_ban_list_client_deinit();
 }
@@ -1688,15 +1701,8 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     dap_global_db_cluster_delete(PVT(a_net)->nodes_states);
     dap_global_db_cluster_delete(PVT(a_net)->common_orders);
 
-    dap_chain_net_item_t *l_net_item = NULL;
-    HASH_FIND(hh, s_net_items, a_net->pub.name, strlen(a_net->pub.name), l_net_item);
-    if (l_net_item) {
-        HASH_DEL(s_net_items, l_net_item);
-        HASH_DELETE(hh2, s_net_ids, l_net_item);
-        DAP_DELETE(l_net_item);
-    }
-    DAP_DEL_Z(PVT(a_net)->authorized_nodes_addrs);
-    DAP_DEL_Z(PVT(a_net)->node_info);
+    DAP_DELETE(PVT(a_net)->authorized_nodes_addrs);
+    DAP_DELETE(PVT(a_net)->node_info);
     if (a_net->pub.ledger) {
         dap_ledger_purge(a_net->pub.ledger, true);
         dap_ledger_handle_free(a_net->pub.ledger);
@@ -1707,22 +1713,15 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
 #ifdef DAP_LEDGER_TEST
 int dap_chain_net_test_init()
 {
-    dap_chain_net_id_t l_iddn = {0};
-    sscanf("0xFA0", "0x%16"DAP_UINT64_FORMAT_x, &l_iddn.uint64);
-    dap_chain_net_t *l_net = s_net_new(&l_iddn, "Snet", "TestCoin", "root");
-    
-    
-    // l_net->pub.id.uint64 = l_iddn.uint64;
-    // l_net->pub.native_ticker = "TestCoin";
-    // l_net->pub.name = "Snet";
-
-    dap_chain_net_item_t *l_net_item = DAP_NEW_Z(dap_chain_net_item_t);
-    dap_strncpy(l_net_item->name, "Snet", DAP_CHAIN_NET_NAME_MAX);
-    l_net_item->chain_net = l_net;
-    l_net_item->net_id.uint64 = l_net->pub.id.uint64;
-
-    HASH_ADD(hh2, s_net_ids, net_id, sizeof(l_net_item->net_id), l_net_item);
-
+    dap_chain_net_t *l_net = DAP_NEW_Z_SIZE( sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t) );
+    PVT(l_net)->node_info = DAP_NEW_Z_SIZE( sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1 );
+    l_net->pub.id.uint64 = 0xFA0;
+    strcpy(l_net->pub.name, "Snet");
+    l_net->pub.gdb_groups_prefix = (const char*)l_net->pub.name;
+    l_net->pub.native_ticker = "TestCoin";
+    PVT(l_net)->node_role.enums = NODE_ROLE_ROOT;
+    HASH_ADD(hh2, s_nets_by_id, pub.id, sizeof(dap_chain_net_id_t), l_net);
+    HASH_ADD_STR(s_nets_by_name, pub.name, l_net);
     return 0;
 }
 #endif
@@ -1739,76 +1738,32 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
 {
     char *l_cfg_path = dap_strdup_printf("network/%s", a_net_name);
     dap_config_t *l_cfg = dap_config_open(l_cfg_path);
-    if (!l_cfg) {
-        log_it(L_ERROR,"Can't open default network config %s", l_cfg_path);
-        DAP_DEL_Z(l_cfg_path);
-        return -1;
-    }
     DAP_DELETE(l_cfg_path);
+    if ( !l_cfg )
+        return log_it(L_ERROR,"Can't open default network config %s", l_cfg_path), -1;
 
-    const char *l_net_name_str = dap_config_get_item_str(l_cfg , "general", "name");
-    const char *l_net_id_str = dap_config_get_item_str(l_cfg , "general", "id");
-    dap_chain_net_id_t l_net_id;
-    if(!l_net_name_str || !l_net_id_str || dap_chain_net_id_parse(l_net_id_str, &l_net_id)) {
-        log_it(L_ERROR,"Can't create l_net, can't read name or ID config");
-        return -1;
-    }
+    dap_chain_net_t *l_net = s_net_new(a_net_name, l_cfg);
+    if ( !l_net ) 
+        return log_it(L_ERROR,"Can't create net \"%s\"", a_net_name), dap_config_close(l_cfg), -1;
 
-    dap_chain_net_item_t *l_net_item_finded = NULL;
-    HASH_FIND_STR(s_net_items, l_net_name_str, l_net_item_finded);
-    if (!l_net_item_finded)
-        HASH_FIND(hh2, s_net_ids, &l_net_id, sizeof(l_net_id), l_net_item_finded);
-    if (l_net_item_finded) {
-        log_it(L_ERROR,"Can't create net %s ID %"DAP_UINT64_FORMAT_U", existed net %s ID %"DAP_UINT64_FORMAT_U" has the same name or ID.\n"\
-                "Please, fix your configs and restart node",
-                l_net_name_str, l_net_id.uint64, l_net_item_finded->name,
-                l_net_item_finded->net_id.uint64);
-        dap_config_close(l_cfg);
-        return -2;
-    }
-
-    dap_chain_net_t *l_net = s_net_new(
-                                        &l_net_id,
-                                        dap_config_get_item_str(l_cfg , "general" , "name" ),
-                                        dap_config_get_item_str(l_cfg , "general" , "native_ticker"),
-                                        dap_config_get_item_str(l_cfg , "general" , "node-role" )
-                                       );
-    if(!l_net) {
-        log_it(L_ERROR,"Can't create l_net");
-        dap_config_close(l_cfg);
-        return -1;
-    }
-
-    l_net->pub.gdb_groups_prefix = dap_strdup(
-                dap_config_get_item_str_default(l_cfg, "general", "gdb_groups_prefix",
-                                                dap_config_get_item_str(l_cfg, "general", "name")));
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     l_net_pvt->load_mode = true;
     l_net_pvt->acl_idx = a_acl_idx;
-    // Bridged netwoks allowed to send transactions to
+    // Transaction can be sent to bridged networks
     uint16_t l_net_ids_count = 0;
     const char **l_bridged_net_ids = dap_config_get_array_str(l_cfg, "general", "bridged_network_ids", &l_net_ids_count);
-    for (uint16_t i = 0; i < l_net_ids_count; i++) {
-        dap_chain_net_id_t l_id;
-        if (dap_chain_net_id_parse(l_bridged_net_ids[i], &l_id) != 0)
-            continue;
-        l_net->pub.bridged_networks = dap_list_append(l_net->pub.bridged_networks, DAP_DUP(&l_id));
+    if (l_net_ids_count) {
+        l_net->pub.bridged_networks = DAP_NEW_Z_COUNT(dap_chain_net_id_t, l_net_ids_count);
+        unsigned i, j;
+        for (i = 0, j = 0; i < l_net_ids_count; ++i) {
+            if (dap_chain_net_id_parse(l_bridged_net_ids[i], &l_net->pub.bridged_networks[j]) != 0)
+                continue;
+            ++j;
+        }
+        l_net->pub.bridged_networks = j && j < i
+            ? DAP_REALLOC_COUNT(l_net->pub.bridged_networks, j)
+            : ( DAP_DELETE(l_net->pub.bridged_networks), NULL );
     }
-
-    // Add network to the list
-    dap_chain_net_item_t *l_net_item = DAP_NEW_Z(dap_chain_net_item_t);
-    if (!l_net_item) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        dap_chain_net_delete(l_net);
-        dap_config_close(l_cfg);
-        return -4;
-    }
-    dap_strncpy(l_net_item->name, dap_config_get_item_str(l_cfg, "general", "name"), DAP_CHAIN_NET_NAME_MAX);
-    l_net_item->chain_net = l_net;
-    l_net_item->net_id.uint64 = l_net->pub.id.uint64;
-    
-    HASH_ADD_STR(s_net_items, name, l_net_item);
-    HASH_ADD(hh2, s_net_ids, net_id, sizeof(l_net_item->net_id), l_net_item);
 
     const char **l_permanent_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "permanent_nodes_addrs", &l_net_pvt->permanent_links_count);
     if (l_net_pvt->permanent_links_count) {
@@ -2041,7 +1996,6 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
     // Decrees initializing
     dap_chain_net_decree_init(l_net);
-    l_net->pub.config = l_cfg;
     return 0;
 }
 
@@ -2213,7 +2167,7 @@ bool s_net_load(void *a_arg)
                                                         DAP_CLUSTER_TYPE_EMBEDDED);
     DAP_DELETE(l_gdb_groups_mask);
     // Nodes and its aliases cluster
-    l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes.list",l_net->pub.gdb_groups_prefix);
+    snprintf(l_net->pub.gdb_nodes, sizeof(l_net->pub.gdb_nodes), "%s.%s", l_net->pub.gdb_groups_prefix, s_gdb_nodes_postfix);
     l_net_pvt->nodes_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                          l_net->pub.gdb_nodes, 0, true,
@@ -2369,22 +2323,15 @@ bool dap_chain_net_remove_validator_from_clusters(dap_chain_t *a_chain, dap_stre
 }
 
 size_t dap_chain_net_count() {
-    return HASH_COUNT(s_net_items);
+    return HASH_COUNT(s_nets_by_name);
 }
 
 dap_chain_net_t *dap_chain_net_iter_start() {
-    dap_return_val_if_pass(!s_net_items, NULL);
-    return s_net_items->chain_net;
+    return s_nets_by_name;
 }
 
 dap_chain_net_t *dap_chain_net_iter_next(dap_chain_net_t *a_it) {
-    if (!a_it)
-        return NULL;
-    dap_chain_net_item_t *l_net_sought = NULL;
-    HASH_FIND_STR(s_net_items, a_it->pub.name, l_net_sought);
-    return l_net_sought && l_net_sought->hh.next
-        ? ((dap_chain_net_item_t*)l_net_sought->hh.next)->chain_net 
-        : NULL;
+    return a_it ? a_it->hh.next : NULL;
 }
 
 /**
@@ -2394,10 +2341,10 @@ dap_chain_net_t *dap_chain_net_iter_next(dap_chain_net_t *a_it) {
  */
 dap_chain_net_t *dap_chain_net_by_name(const char *a_name)
 {
-    dap_chain_net_item_t *l_net_item = NULL;
+    dap_chain_net_t *l_net = NULL;
     if (a_name)
-        HASH_FIND(hh, s_net_items, a_name, strlen(a_name), l_net_item);
-    return l_net_item ? l_net_item->chain_net : NULL;
+        HASH_FIND_STR(s_nets_by_name, a_name, l_net);
+    return l_net;
 }
 
 /**
@@ -2418,9 +2365,9 @@ dap_ledger_t * dap_ledger_by_net_name( const char * a_net_name)
  */
 dap_chain_net_t *dap_chain_net_by_id(dap_chain_net_id_t a_id)
 {
-    dap_chain_net_item_t *l_net_item = NULL;
-    HASH_FIND(hh2, s_net_ids, &a_id, sizeof(a_id), l_net_item);
-    return l_net_item ? l_net_item->chain_net : NULL;
+    dap_chain_net_t *l_net = NULL;
+    HASH_FIND(hh2, s_nets_by_id, &a_id, sizeof(a_id), l_net);
+    return l_net;
 }
 
 /**
@@ -2711,14 +2658,13 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
  */
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
 {
-    if (!HASH_COUNT(s_net_items))
+    uint16_t l_cnt = HASH_COUNT(s_nets_by_name);
+    if ( !l_cnt )
         return NULL;
-    uint8_t *l_ret = DAP_NEW_Z_SIZE(uint8_t, HASH_COUNT(s_net_items));
+    uint8_t *l_ret = DAP_NEW_Z_COUNT(uint8_t, l_cnt);
     unsigned i = 0;
-    dap_chain_net_item_t *l_net_cur = NULL, *l_net_tmp = NULL;
-    HASH_ITER(hh, s_net_items, l_net_cur, l_net_tmp) {
-        l_ret[i++] = s_net_check_acl(l_net_cur->chain_net, a_pkey_hash);
-    }
+    for (dap_chain_net_t *l_net = s_nets_by_name; l_net; l_net = l_net->hh.next)
+        l_ret[i++] = s_net_check_acl(l_net, a_pkey_hash);
     return l_ret;
 }
 
@@ -2951,8 +2897,8 @@ uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num)
 
 void dap_chain_net_announce_addr_all()
 {
-    for (dap_chain_net_item_t *it = s_net_items; it; it = it->hh.next)
-        dap_chain_net_announce_addr(it->chain_net);
+    for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next)
+        dap_chain_net_announce_addr(net);
 }
 
 void dap_chain_net_announce_addr(dap_chain_net_t *a_net)
@@ -3014,19 +2960,15 @@ static int s_net_try_online(dap_chain_net_t *a_net)
 void dap_chain_net_try_online_all() {
     int32_t l_ret = 0;
 
-    if(!HASH_COUNT(s_net_items)){
-        log_it(L_ERROR, "Can't find any nets");
-        return;
-    }
-    if (!dap_config_get_item_bool_default(g_config ,"general", "auto_online", false)) {
-        log_it(L_DEBUG, "Auto online is off in config");
-        return;
-    }
-    dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
-    HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp) {
-        if( (l_ret = s_net_try_online(l_net_items_current->chain_net)) ) {
-            log_it(L_ERROR, "Can't try online state for net %s.  Finished with (%d) error code.", l_net_items_current->name, l_ret);
-        }
+    if( !HASH_COUNT(s_nets_by_name) )
+        return log_it(L_ERROR, "Can't find any nets");
+
+    if ( !dap_config_get_item_bool_default(g_config ,"general", "auto_online", false) )
+        return log_it(L_DEBUG, "Auto online is off in config");
+
+    for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
+        if (( l_ret = s_net_try_online(net) ))
+            log_it(L_ERROR, "Can't try online state for net %s.  Finished with (%d) error code.", net, l_ret);
     }
 }
 
