@@ -670,11 +670,25 @@ void dap_chain_net_load_all()
         pthread_mutex_unlock(&s_net_cond_lock);
         return;
     }
+    dap_proc_thread_t *l_net_threads = DAP_NEW_Z_COUNT(dap_proc_thread_t, s_net_loading_count);
+    if (!l_net_threads) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        pthread_mutex_unlock(&s_net_cond_lock);
+        return;
+    }
     dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
-    HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp)
-        dap_proc_thread_callback_add(NULL, s_net_load, l_net_items_current->chain_net);
+    int l_net_counter = 0;
+    uint32_t l_cpu_count = dap_get_cpu_count();
+    HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp) {
+        dap_proc_thread_create(l_net_threads + l_net_counter, dap_random_byte() % l_cpu_count);
+        dap_proc_thread_callback_add(l_net_threads + l_net_counter, s_net_load, l_net_items_current->chain_net);
+        ++l_net_counter;
+    }
     while (s_net_loading_count)
         pthread_cond_wait(&s_net_cond, &s_net_cond_lock);
+    for (int i = 0; i < l_net_counter; ++i)
+        dap_context_stop_n_kill(l_net_threads[i].context);
+    DAP_DELETE(l_net_threads);
     pthread_mutex_unlock(&s_net_cond_lock);
 }
 
