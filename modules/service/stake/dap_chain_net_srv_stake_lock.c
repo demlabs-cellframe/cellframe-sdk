@@ -79,6 +79,7 @@ enum error_code {
     HASH_TYPE_ARG_ERROR         = 41,
     FEE_ARG_ERROR               = 42,
     FEE_FORMAT_ERROR            = 43,
+    COMMAND_NOT_REC             = 44,
 };
 
 typedef struct dap_ledger_token_emission_for_stake_lock_item {
@@ -406,26 +407,35 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, js
         return TIME_ERROR;
     }
 
-    if (dap_strlen(l_time_staking_str) != 6)
+    if (dap_strlen(l_time_staking_str) != 6) {
+        dap_json_rpc_error_add(TIME_ERROR, "stake_lock command Incorrect length of '-time_staking' parameter");
         return TIME_ERROR;
+    }        
 
     char l_time_staking_month_str[3] = {l_time_staking_str[2], l_time_staking_str[3], 0};
     int l_time_staking_month = atoi(l_time_staking_month_str);
-    if (l_time_staking_month < 1 || l_time_staking_month > 12)
-        return TIME_ERROR;
+    if (l_time_staking_month < 1 || l_time_staking_month > 12) {
+        dap_json_rpc_error_add(TIME_ERROR, "stake_lock command Incorrect month value of '-time_staking' parameter");
+        return TIME_ERROR;        
+    }        
 
     char l_time_staking_day_str[3] = {l_time_staking_str[4], l_time_staking_str[5], 0};
     int l_time_staking_day = atoi(l_time_staking_day_str);
-    if (l_time_staking_day < 1 || l_time_staking_day > 31)
+    if (l_time_staking_day < 1 || l_time_staking_day > 31) {
+        dap_json_rpc_error_add(TIME_ERROR, "stake_lock command Incorrect day value of '-time_staking' parameter");
         return TIME_ERROR;
-
+    }
 
     l_time_staking = dap_time_from_str_simplified(l_time_staking_str);
-    if (0 == l_time_staking)
+    if (0 == l_time_staking) {
+        dap_json_rpc_error_add(TIME_ERROR, "stake_lock command Incorrect day value of '-time_staking' parameter");
         return TIME_ERROR;
+    }        
     dap_time_t l_time_now = dap_time_now();
-    if (l_time_staking < l_time_now)
+    if (l_time_staking < l_time_now) {
+        dap_json_rpc_error_add(TIME_ERROR, "time_staking is less then time now");
         return TIME_ERROR;
+    }        
     l_time_staking -= l_time_now;
 
     if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-reinvest", &l_reinvest_percent_str)
@@ -443,20 +453,22 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, js
     }
 
     if(NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path, NULL))) {
-        dap_string_append_printf(output_line, "'%s'", l_wallet_str);
+        dap_json_rpc_error_add(WALLET_OPEN_ERROR, " %s can't open wallet", l_wallet_str);
         return WALLET_OPEN_ERROR;
-    } else {
-        dap_string_append(output_line, dap_chain_wallet_check_sign(l_wallet));
-    }
+    } else 
+        json_object_object_add(a_json_obj_out, "check sign status", 
+                                json_object_new_string( dap_chain_wallet_check_sign(l_wallet) ?
+                                                        dap_chain_wallet_check_sign(l_wallet) : "ok"));
 
     if (compare256(dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_ticker_str), l_value) == -1) {
         dap_chain_wallet_close(l_wallet);
+        dap_json_rpc_error_add(NO_MONEY_ERROR, "the wallet is empty");
         return NO_MONEY_ERROR;
     }
 
     if (NULL == (l_addr_holder = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id))) {
         dap_chain_wallet_close(l_wallet);
-        dap_string_append_printf(output_line, "'%s'", l_wallet_str);
+        dap_json_rpc_error_add(WALLET_ADDR_ERROR, "failed to get wallet address");
         return WALLET_ADDR_ERROR;
     }
 
@@ -473,8 +485,10 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, js
     l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
     DAP_DEL_Z(l_datum);
 
-    if (l_hash_str)
-        dap_string_append_printf(output_line, "TX STAKE LOCK CREATED\nSuccessfully hash = %s\nSave to take!\n", l_hash_str);
+    if (l_hash_str) {
+        json_object_object_add(a_json_obj_out, "status", json_object_new_string("TX STAKE LOCK CREATED\nSuccessfully"));
+        json_object_object_add(a_json_obj_out, "hash", json_object_new_string(l_hash_str));        
+    }
     else {
         DAP_DEL_Z(l_addr_holder);
         return CREATE_LOCK_TX_ERROR;
@@ -867,6 +881,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
  */
 static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply)
 {
+    json_object ** json_arr_reply = (json_object **) a_str_reply;
     enum {
         CMD_NONE, CMD_HOLD, CMD_TAKE
     };
@@ -875,6 +890,7 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply)
     int				l_arg_index		= 1;
     int				l_cmd_num		= CMD_NONE;
     dap_string_t	*output_line	= dap_string_new(NULL);
+    json_object *json_obj_cli = json_object_new_object();
 
     if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "hold", NULL))
         l_cmd_num = CMD_HOLD;
@@ -884,26 +900,23 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply)
     switch (l_cmd_num) {
 
         case CMD_HOLD: {
-            errorCode = s_cli_hold(a_argc, a_argv, l_arg_index + 1, output_line);
+            errorCode = s_cli_hold(a_argc, a_argv, l_arg_index + 1, json_obj_cli);
             } break;
 
         case CMD_TAKE: {
-            errorCode = s_cli_take(a_argc, a_argv, l_arg_index + 1, output_line);
+            errorCode = s_cli_take(a_argc, a_argv, l_arg_index + 1, json_obj_cli);
             } break;
 
         default: {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
-            dap_string_free(output_line, false);
+            dap_json_rpc_error_add(COMMAND_NOT_REC, "Command %s not recognized", a_argv[l_arg_index]);
+            json_object_put(json_obj_cli);
             } return 1;
     }
 
-    if (STAKE_NO_ERROR != errorCode)
-        s_error_handler(errorCode, output_line);
-    else
-        dap_string_append_printf(output_line, "Contribution successfully made");
+    if (STAKE_NO_ERROR == errorCode)
+        json_object_object_add(json_obj_cli, "status command", json_object_new_string("Contribution successfully made"));
 
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", output_line->str);
-    dap_string_free(output_line, true);
+    json_object_array_add(json_arr_reply, json_obj_cli);
 
     return 0;
 }
