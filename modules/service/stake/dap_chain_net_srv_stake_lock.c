@@ -916,7 +916,7 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply)
     if (STAKE_NO_ERROR == errorCode)
         json_object_object_add(json_obj_cli, "status command", json_object_new_string("Contribution successfully made"));
 
-    json_object_array_add(json_arr_reply, json_obj_cli);
+    json_object_array_add(*json_arr_reply, json_obj_cli);
 
     return 0;
 }
