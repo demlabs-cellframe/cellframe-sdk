@@ -798,8 +798,8 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
     if (!l_event)
         return log_it(L_CRITICAL, "Memory allocation failed"), -1;
 
-    if ( dap_chain_cs_dag_event_sign_exists(l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key)
-        || dap_chain_cs_dag_event_round_sign_exists(l_round_item, l_poa_pvt->events_sign_cert->enc_key)
+    if ( (dap_chain_cs_dag_event_sign_exists(l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key)
+        || dap_chain_cs_dag_event_round_sign_exists(l_round_item, l_poa_pvt->events_sign_cert->enc_key))
         && l_poa_pvt->auto_round_complete
         && s_round_event_ready_minimum_check(a_dag, l_event, l_event_size, (char*)a_key) )
     {
