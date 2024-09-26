@@ -54,26 +54,24 @@ typedef enum dap_chain_net_state {
     NET_STATE_ONLINE
 } dap_chain_net_state_t;
 
+static const char s_gdb_nodes_postfix[] = ".nodes.list";
+
 typedef struct dap_chain_net {
     struct {
         dap_chain_net_id_t id;
-        char * name;
-        char * gdb_groups_prefix;
-        char * gdb_nodes;
-
+        char name[DAP_CHAIN_NET_NAME_MAX + 1], gdb_nodes[DAP_CHAIN_NET_NAME_MAX + sizeof(s_gdb_nodes_postfix) + 1];
+        const char *gdb_groups_prefix, *native_ticker;
         dap_list_t *keys;               // List of PoA certs for net
-
-        bool mempool_autoproc;
-
-        dap_chain_t *chains; // double-linked list of chains
-        const char *native_ticker;
+        dap_chain_t *chains;            // double-linked list of chains
         dap_ledger_t *ledger;
-        // Net fee
-        uint256_t fee_value;
+        uint256_t fee_value;            // Net fee
         dap_chain_addr_t fee_addr;
-        dap_list_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TX
+        dap_chain_net_id_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TX
+        uint16_t bridged_networks_count;
         dap_config_t *config;
+        bool mempool_autoproc;
     } pub;
+    UT_hash_handle hh, hh2;
     uint8_t pvt[];
 } dap_chain_net_t;
 
@@ -101,7 +99,6 @@ void dap_chain_net_try_online_all();
 
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
 dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
-void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state);
 dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
@@ -197,7 +194,7 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
  */
 dap_list_t *dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_chain_datum_filter_func_t *a_filter_func, void *a_filter_func_param);
 
-int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
+int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data);
 int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);

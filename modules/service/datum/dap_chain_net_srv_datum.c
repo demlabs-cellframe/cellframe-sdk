@@ -223,8 +223,8 @@ void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
     if ((l_order->price_unit.uint32 != SERV_UNIT_PCS) || (l_order->direction != SERV_DIR_BUY) ||
             (strncmp(l_order->price_ticker, l_price->token, DAP_CHAIN_TICKER_SIZE_MAX)) ||
             (!compare256(l_order->price, l_price->value_datoshi))) {
-        char *l_balance_order = dap_chain_balance_to_coins(l_order->price);
-        char *l_balance_service = dap_chain_balance_to_coins(l_price->value_datoshi);
+        char *l_balance_order = dap_chain_balance_coins_print(l_order->price);
+        char *l_balance_service = dap_chain_balance_coins_print(l_price->value_datoshi);
         log_it(L_DEBUG, "Price from order (%s) is not equal to price from service pricelist (%s)", l_balance_order, l_balance_service);
         DAP_DELETE(l_balance_order);
         DAP_DELETE(l_balance_service);

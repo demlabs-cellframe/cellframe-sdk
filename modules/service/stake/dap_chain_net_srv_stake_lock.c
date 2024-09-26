@@ -254,7 +254,10 @@ int dap_chain_net_srv_stake_lock_init()
                 "stake_lock hold -net <net_name> -w <wallet_name> -time_staking <YYMMDD> -token <ticker> -value <value> -fee <value>"
                             "[-chain <chain_name>] [-reinvest <percentage>]\n"
                 "stake_lock take -net <net_name> -w <wallet_name> -tx <transaction_hash> -fee <value>"
-                            "[-chain <chain_name>]\n"
+                            "[-chain <chain_name>]\n\n"
+                            "Hint:\n"
+                            "\texample value_coins (only natural) 1.0 123.4567\n"
+                            "\texample value_datoshi (only integer) 1 20 0.4321e+4\n"
     );
     s_debug_more = dap_config_get_item_bool_default(g_config, "ledger", "debug_more", false);
 
@@ -332,8 +335,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
         return TOKEN_ERROR;
     }
 
-    if ((!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-coins", &l_coins_str) || NULL == l_coins_str) &&
-            (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-value", &l_coins_str) || NULL == l_coins_str))
+    if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-value", &l_coins_str) || !l_coins_str)
         return COINS_ARG_ERROR;
 
     if (IS_ZERO_256( (l_value = dap_chain_balance_scan(l_coins_str)) ))
@@ -401,8 +403,8 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
     if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-reinvest", &l_reinvest_percent_str)
     && NULL != l_reinvest_percent_str) {
-        l_reinvest_percent = dap_chain_coins_to_balance(l_reinvest_percent_str);
-        if (compare256(l_reinvest_percent, dap_chain_coins_to_balance("100.0")) == 1)
+        l_reinvest_percent = dap_chain_balance_coins_scan(l_reinvest_percent_str);
+        if (compare256(l_reinvest_percent, dap_chain_balance_coins_scan("100.0")) == 1)
             return REINVEST_ARG_ERROR;
         if (IS_ZERO_256(l_reinvest_percent)) {
             int l_reinvest_percent_int = atoi(l_reinvest_percent_str);
@@ -1043,10 +1045,8 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
             if (!l_burning_tx) {
                 char l_burning_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
                 dap_hash_fast_to_str(&l_burning_tx_hash, l_burning_tx_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                char *l_take_tx_hash_str;
-                dap_get_data_hash_str_static(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in), l_take_tx_hash_str);
                 debug_if(s_debug_more, L_ERROR, "[Legacy] Can't find burning tx with hash %s, obtained from the receipt of take tx %s",
-                       l_burning_tx_hash_str, l_take_tx_hash_str);
+                                                l_burning_tx_hash_str, dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
                 return -10;
             }
         } else
@@ -1078,9 +1078,9 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
         }
 
         if (s_debug_more) {
-            char *str1 = dap_chain_balance_to_coins(a_cond->header.value);
-            char *str2 = dap_chain_balance_to_coins(l_value_delegated);
-            char *str3 = dap_chain_balance_to_coins(l_blank_out_value);
+            char *str1 = dap_chain_balance_coins_print(a_cond->header.value);
+            char *str2 = dap_chain_balance_coins_print(l_value_delegated);
+            char *str3 = dap_chain_balance_coins_print(l_blank_out_value);
             log_it(L_INFO, "hold/take_value: %s, delegated_value: %s, burning_value: %s", str1,	str2, str3);
             DAP_DEL_MULTY(str1, str2, str3);
         }
@@ -1111,6 +1111,8 @@ static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datu
         return;
     int l_out_num = 0;
     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, &l_out_num);
+    if (!l_cond)
+        return;
     if (l_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX)
         dap_ledger_emission_for_stake_lock_item_add(a_ledger, a_tx_in_hash);
 }

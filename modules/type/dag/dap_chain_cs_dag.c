@@ -409,7 +409,7 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
     }
     dap_hash_fast_t l_datum_hash;
     dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
-    int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash);
+    int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash, NULL);
     if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)  // && l_ret == 0
         PVT(a_dag)->tx_count++;
     a_event_item->datum_hash = l_datum_hash;
@@ -685,11 +685,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
      * or we have successfully chosen the hash(es) to link with.
      * No additional conditions required.
     */
-    byte_t *l_current_round_bytes = dap_global_db_get_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
-    uint64_t l_current_round = l_current_round_bytes ? *(uint64_t*)l_current_round_bytes : 0;
-    DAP_DEL_Z(l_current_round_bytes);
-    l_dag->round_completed = l_current_round++;
-    l_dag->round_current = l_current_round;
+    ++l_dag->round_id;
     uint64_t l_event_size = 0;
     dap_chain_cs_dag_event_t * l_event = l_dag->callback_cs_event_create
             ? l_dag->callback_cs_event_create(l_dag, a_datum, l_hashes, l_hashes_linked, &l_event_size)
@@ -710,18 +706,15 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         } else
             return true;
     }
-
-    dap_global_db_set_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY,
-                      &l_current_round, sizeof(uint64_t), false);
     dap_chain_cs_dag_event_round_item_t l_round_item = { .round_info.datum_hash = l_datum_hash };
-    char *l_event_hash_hex_str = DAP_NEW_STACK_SIZE(char, DAP_CHAIN_HASH_FAST_STR_SIZE);
+    char l_event_hash_hex_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
     l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_hex_str, l_event, l_event_size, &l_round_item);
     DAP_DELETE(l_event);
     log_it(l_res ? L_INFO : L_ERROR,
-           l_res ? "Event %s placed in the new forming round [id %"DAP_UINT64_FORMAT_U"]"
-                 : "Can't add new event [%s] to the new events round [id %"DAP_UINT64_FORMAT_U"]",
-           l_event_hash_hex_str, l_current_round);
+           l_res ? "Event %s placed into new forming round [id %"DAP_UINT64_FORMAT_U"]"
+                 : "Can't add new event %s to new events round [id %"DAP_UINT64_FORMAT_U"]",
+           l_event_hash_hex_str, l_dag->round_id);
     return l_res;
 }
 
@@ -1287,13 +1280,10 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_i
     return a_datum_iter->cur;
 }
 
-static bool s_json_dag_pack_round(json_object * a_json_out, dap_global_db_obj_t * a_objs, int i){
-    json_object * json_obj_event_i = json_object_new_object();
-    if (!strcmp(DAG_ROUND_CURRENT_KEY, a_objs[i].key)) {
-        json_object_object_add(json_obj_event_i, a_objs[i].key, json_object_new_uint64(*(uint64_t *)a_objs[i].value));
-        json_object_array_add(a_json_out, json_obj_event_i);
+static bool s_json_dag_pack_round(json_object * a_json_out, dap_global_db_obj_t * a_objs, int i) {
+    if ( !strcmp(DAG_ROUND_CURRENT_KEY, a_objs[i].key) )
         return true;
-    }
+    json_object * json_obj_event_i = json_object_new_object();
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
                     ((dap_chain_cs_dag_event_round_item_t *)a_objs[i].value)->event_n_signs;
     char buf[DAP_TIME_STR_SIZE];
@@ -1309,7 +1299,8 @@ static void s_json_dag_pack_event(json_object * a_json_out, dap_chain_cs_dag_eve
     json_object * json_obj_event_i = json_object_new_object();                            
     char buf[DAP_TIME_STR_SIZE];
     dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, a_event_item->event->header.ts_created);
-    json_object_object_add(json_obj_event_i, "event", json_object_new_string(dap_itoa(i)));
+    json_object_object_add(json_obj_event_i, "#", json_object_new_string(dap_itoa(i)));
+    json_object_object_add(json_obj_event_i, "event number", json_object_new_uint64(a_event_item->event_number));
     json_object_object_add(json_obj_event_i, "hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&a_event_item->hash)));
     json_object_object_add(json_obj_event_i, "ts_create", json_object_new_string(buf));
     json_object_array_add(a_json_out, json_obj_event_i);

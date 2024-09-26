@@ -168,7 +168,7 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
         return -109;
     }
 
-    if ((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain)) != 0){
+    if ((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true)) != 0){
         debug_if(s_debug_more, L_WARNING, "Decree applying failed");
         return ret_val;
     }
@@ -315,7 +315,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                         return -109;
                     }
 
-                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain))!=0){
+                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true))!=0){
                         log_it(L_WARNING,"Decree applying failed");
                         return ret_val;
                     }
@@ -351,7 +351,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                         log_it(L_WARNING,"Can not find datum hash in anchor data");
                         return -109;
                     }
-                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain))!=0){
+                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true))!=0){
                         log_it(L_WARNING,"Decree applying failed");
                         return ret_val;
                     }
@@ -368,13 +368,13 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                         log_it(L_WARNING,"Can not find datum hash in anchor data");
                         return -109;
                     }
-                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain))!=0){
+                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true))!=0){
                         log_it(L_WARNING,"Decree applying failed");
                         return ret_val;
                     }
                 } else {
                     dap_chain_addr_t a_addr = {};
-                    dap_chain_net_srv_stake_set_allowed_min_value(a_chain->net_id, dap_chain_coins_to_balance("1.0"));
+                    dap_chain_net_srv_stake_set_allowed_min_value(a_chain->net_id, dap_chain_balance_coins_scan("1.0"));
                 }
             }
             break;
@@ -389,7 +389,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                         return -109;
                     }
 
-                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain))!=0){
+                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true))!=0){
                         log_it(L_WARNING,"Decree applying failed");
                         return ret_val;
                     }

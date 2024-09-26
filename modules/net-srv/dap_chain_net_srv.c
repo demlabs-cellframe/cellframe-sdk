@@ -35,7 +35,6 @@
 #include <pthread.h>
 #include <dirent.h>
 #include "uthash.h"
-#include "utlist.h"
 
 #include "dap_chain_net.h"
 #include "dap_chain_ledger.h"
@@ -93,7 +92,11 @@ int dap_chain_net_srv_init()
         "net_srv get_limits -net <net_name> -srv_uid <service_UID> -provider_pkey_hash <service_provider_public_key_hash> -client_pkey_hash <client_public_key_hash>\n"
             "\tShow service billing info"
         "net_srv report\n"
-            "\tGet report about srv usage"
+            "\tGet report about srv usage\n\n"
+
+        "Hint:\n"
+            "\texample coins amount syntax (only natural) 1.0 123.4567\n"
+            "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n"
         );
     dap_chain_net_srv_ch_init();
     return 0;
@@ -669,6 +672,10 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
     dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger , &l_tx_in_cond->header.tx_prev_hash);
     dap_chain_tx_out_cond_t *l_prev_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
+    if (!l_prev_out_cond) {
+        log_it(L_ERROR, "Can't find datum tx");
+        return -15;
+    }
 
     uint256_t l_unit_price = {};
     if (!l_receipt->receipt_info.units) {

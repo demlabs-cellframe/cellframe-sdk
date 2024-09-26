@@ -352,8 +352,8 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                     } else {
                         uint256_t l_min_fee = dap_chain_esbocs_get_fee(a_chain->net_id);
                         if (compare256(l_tx_fee, l_min_fee) < 0) {
-                            char *l_tx_fee_str = dap_chain_balance_to_coins(l_tx_fee);
-                            char *l_min_fee_str = dap_chain_balance_to_coins(l_min_fee);
+                            char *l_tx_fee_str = dap_chain_balance_coins_print(l_tx_fee);
+                            char *l_min_fee_str = dap_chain_balance_coins_print(l_min_fee);
                             log_it(L_WARNING, "Fee %s is lower than minimum fee %s for tx %s",
                                    l_tx_fee_str, l_min_fee_str, l_objs[i].key);
                             DAP_DELETE(l_tx_fee_str);
