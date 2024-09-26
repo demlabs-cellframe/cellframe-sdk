@@ -2034,7 +2034,10 @@ static json_object *s_dap_chain_callback_atom_to_json(dap_chain_t *a_chain, dap_
     json_object *l_jobj_hash_links = json_object_new_array();
     for (uint16_t i=0; i < l_event->header.hash_count; i++){
         dap_chain_hash_fast_t * l_hash = (dap_chain_hash_fast_t *) (l_event->hashes_n_datum_n_signs + i*sizeof (dap_chain_hash_fast_t));
-        json_object_array_add(l_jobj_hash_links, json_object_new_string(dap_chain_hash_fast_to_str_static(l_hash)));
+        const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
+                                 dap_enc_base58_encode_hash_to_str_static(l_hash) :
+                                 dap_hash_fast_to_str_static(l_hash);
+        json_object_array_add(l_jobj_hash_links, json_object_new_string(l_hash_str));
     }
     json_object_object_add(l_jobj, "hash_links", l_jobj_hash_links);
     size_t l_offset =  l_event->header.hash_count*sizeof (dap_chain_hash_fast_t);
