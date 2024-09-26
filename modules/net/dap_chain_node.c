@@ -82,7 +82,7 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
                 l_downlinks_count = 0,
                 l_info_size = 0;
         // memory alloc first
-            dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, false);
+            dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, true);
             dap_chain_node_net_states_info_t *l_info = NULL;
             l_info_size = sizeof(dap_chain_node_net_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
             DAP_NEW_Z_SIZE_RET(l_info, dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
@@ -97,7 +97,7 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 
             dap_chain_t *l_chain = dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 0 });  // zerochain
             l_info->events_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;
-            l_chain =dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 1 });  // mainchain
+            l_chain = l_chain ? l_chain->next : NULL;  // mainchain
             l_info->atoms_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;
             
             memcpy(l_info->links_addrs, l_linked_node_addrs, (l_info->uplinks_count + l_info->downlinks_count) * sizeof(dap_chain_node_addr_t));
@@ -122,7 +122,7 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
     if (!l_store_obj || l_store_obj->version_info != DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION ||
          l_data_size != s_states_version_size[DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION - 1] + (l_store_obj->uplinks_count + l_store_obj->downlinks_count) * sizeof(dap_chain_node_addr_t))
     {
-        log_it(L_ERROR, "Can't find state about %s node", a_node_addr_str);
+        log_it(L_ERROR, "Can't find state about %s node in net %s", a_node_addr_str, a_net->pub.name);
         DAP_DELETE(l_gdb_group);
         return;
     }

@@ -371,8 +371,10 @@ dap_stream_node_addr_t *dap_chain_net_get_authorized_nodes(dap_chain_net_t *a_ne
 int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr, const char *a_host, uint16_t a_port)
 {
     bool l_is_link_present = dap_link_manager_link_find(a_addr, a_net->pub.id.uint64);
-    if (l_is_link_present || a_addr->uint64 == g_node_addr.uint64)
+    if (l_is_link_present || a_addr->uint64 == g_node_addr.uint64) {
+        debug_if(l_is_link_present, L_DEBUG, "Link to addr "NODE_ADDR_FP_STR" is already persent in net %s", NODE_ADDR_FP_ARGS(a_addr), a_net->pub.name);
         return -3; // Link is already found for this net or link is to yourself
+    }
     if (dap_link_manager_link_create(a_addr, a_net->pub.id.uint64)) {
         log_it(L_ERROR, "Can't create link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_addr));
         return -1;
