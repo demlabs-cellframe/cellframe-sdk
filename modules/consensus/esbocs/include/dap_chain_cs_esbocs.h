@@ -124,6 +124,7 @@ typedef struct dap_chain_esbocs {
     dap_chain_t *chain;
     dap_chain_cs_blocks_t *blocks;
     dap_chain_esbocs_session_t *session;
+    dap_nanotime_t directive_vote_timestamp;
     void *_pvt;
 } dap_chain_esbocs_t;
 

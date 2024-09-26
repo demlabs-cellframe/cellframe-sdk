@@ -2012,6 +2012,7 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
         const char *l_penalty_group = s_get_penalty_group(l_key_addr->net_id);
         const char *l_directive_hash_str = dap_chain_hash_fast_to_str_new(a_directive_hash);
         const char *l_key_hash_str = dap_chain_hash_fast_to_str_new(&l_key_addr->data.hash_fast);
+        
         if (l_status == 1 && a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK) {
             // Offline will be set in gdb notifier for aim of sync supporting
             dap_global_db_set(l_penalty_group, l_key_str, NULL, 0, false, NULL, 0);
@@ -3197,41 +3198,42 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_SESSION;
         }
 
-        int l_validator_count = 0;
-        for (dap_list_t *it = l_session->cur_round.all_validators; it ;it = it->next) {
-            dap_chain_esbocs_validator_t *l_validator = it->data;
-            json_object* l_json_obj_validator = json_object_new_object();
-            char l_node_addr[128] = {};
-            sprintf(l_node_addr, ""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(l_validator->node_addr));
-            json_object_object_add(l_json_obj_validator, "node_addr", json_object_new_string(l_node_addr));
-            switch (dap_chain_net_srv_stake_key_delegated(&l_validator->signing_addr)) {
-                case 0: json_object_object_add(l_json_obj_validator, "status", json_object_new_string("no_stake"));
-                    break;
-                case 1: json_object_object_add(l_json_obj_validator, "status", json_object_new_string("active"));
-                    break;
-                case -1: json_object_object_add(l_json_obj_validator, "status", json_object_new_string("inactive"));
-            }
-            l_validator_count++;
-            json_object_array_add(*json_arr_reply, l_json_obj_validator);
+        const char *l_penalty_group = s_get_penalty_group(l_net->pub.id);
+        size_t l_penalties_count = 0;
+        json_object * l_json_obj_banlist = json_object_new_object();
+        json_object * l_json_arr_banlist = json_object_new_array();
+        dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_penalty_group, &l_penalties_count);
+        for (size_t i = 0; i < l_penalties_count; i++) {
+            dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(l_objs[i].key);
+            json_object_array_add(l_json_arr_banlist, json_object_new_string(dap_chain_addr_to_str_static(l_validator_addr)));
         }
+        if (!json_object_array_length(l_json_arr_banlist)) {
+            json_object_object_add(l_json_obj_banlist, "BANLIST", json_object_new_string("empty"));
+        } else {
+            json_object_object_add(l_json_obj_banlist, "BANLIST", l_json_arr_banlist);
+        }
+        json_object_array_add(*json_arr_reply, l_json_obj_banlist);   
 
         json_object* l_json_obj_status = json_object_new_object();
-        json_object_object_add(l_json_obj_status, "num_validators", json_object_new_int(l_validator_count));
         json_object_object_add(l_json_obj_status, "sync_attempt", json_object_new_uint64(l_session->cur_round.sync_attempt));
         json_object_object_add(l_json_obj_status, "round_id", json_object_new_uint64(l_session->cur_round.id));
         json_object_array_add(*json_arr_reply, l_json_obj_status);   
         {
             dap_chain_datum_iter_t *l_datum_iter = l_session->chain->callback_datum_iter_create(l_session->chain);
             dap_chain_datum_t * l_last_datum =  l_session->chain->callback_datum_iter_get_last(l_datum_iter);
-            char l_time_buf[64] = {'\0'};
-            dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_last_datum->header.ts_create);
-            json_object_object_add(l_json_obj_status, "last_accepted_block_time", json_object_new_string(l_time_buf));
+            if (l_last_datum) {
+                char l_time_buf[64] = {'\0'};
+                dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_last_datum->header.ts_create);
+                json_object_object_add(l_json_obj_status, "last_accepted_block_time", json_object_new_string(l_time_buf));
+            }
             l_session->chain->callback_datum_iter_delete(l_datum_iter);
         }
-        char l_time_buf[64] = {'\0'};
-        dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_session->ts_stage_entry);
-        json_object_object_add(l_json_obj_status, "last_candidate_time", json_object_new_string(l_time_buf));
-        // const char *l_penalty_group = s_get_penalty_group(l_net->pub.id);
+
+        {
+            char l_time_buf[128] = {'\0'};
+            dap_nanotime_to_str_rfc822(l_time_buf, sizeof(l_time_buf), l_objs[l_penalties_count-1].timestamp);
+            json_object_object_add(l_json_obj_status, "last_directive_time", json_object_new_string(l_time_buf));
+        }
         // json_object_object_add(l_json_obj_status, "penalty_group", json_object_new_string(l_penalty_group));
 
         // dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_session->chain);
