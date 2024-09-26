@@ -4063,11 +4063,9 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply) {
             dap_chain_atom_ptr_t l_atom_ptr = NULL;
             size_t l_atom_size = 0;
             if (l_chain) {
-                size_t l_atom_size = 0;
                 l_atom_ptr = dap_chain_get_atom_by_hash(l_chain, &l_atom_hash, &l_atom_size);
             } else {
                 for (l_chain = l_net->pub.chains ; l_chain; l_chain = l_chain->next){
-                    size_t l_atom_size = 0;
                     l_atom_ptr = dap_chain_get_atom_by_hash(l_chain, &l_atom_hash, &l_atom_size);
                     if (l_atom_ptr) break;
                 }
