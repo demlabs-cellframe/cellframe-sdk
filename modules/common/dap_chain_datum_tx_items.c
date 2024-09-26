@@ -537,6 +537,8 @@ uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_t
  */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_subtype_t a_cond_subtype, int *a_out_num)
 {
+    if (!a_tx)
+        return NULL;
     int l_idx = a_out_num && *a_out_num > 0 ? -*a_out_num : 0;
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
