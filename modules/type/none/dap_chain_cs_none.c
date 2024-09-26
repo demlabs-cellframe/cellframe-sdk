@@ -443,7 +443,8 @@ static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_find_by_hash(dap_c
 static json_object *s_nonconsensus_callback_atom_to_json(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type)
 {
     json_object *obj_ret = json_object_new_object();
-    dap_chain_datum_dump_json(obj_ret, a_atom, a_hash_out_type, a_chain->net_id);
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t*)a_atom;
+    dap_chain_datum_dump_json(obj_ret, l_datum, a_hash_out_type, a_chain->net_id);
     return obj_ret;
 }
 
