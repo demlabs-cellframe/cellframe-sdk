@@ -703,7 +703,8 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     return l_ret;
 }
 
-bool s_net_disk_load_notify_callback(void) {
+bool s_net_disk_load_notify_callback(void UNUSED_ARG *a_arg)
+{
     json_object *json_obj = json_object_new_object();
     json_object_object_add(json_obj, "class", json_object_new_string("nets_init"));
     json_object *l_jobj_nets = json_object_new_object();
@@ -739,13 +740,13 @@ void dap_chain_net_load_all()
         pthread_mutex_unlock(&s_net_cond_lock);
         return;
     }
-    dap_timerfd_t *l_nets_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_net_disk_load_notify_callback, NULL);
+    dap_timerfd_t *l_nets_load_notify_timer = dap_timerfd_start(5000, s_net_disk_load_notify_callback, NULL);
     for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next)
         dap_proc_thread_callback_add(NULL, s_net_load, net);
     while (s_net_loading_count)
         pthread_cond_wait(&s_net_cond, &s_net_cond_lock);
     pthread_mutex_unlock(&s_net_cond_lock);
-    s_net_disk_load_notify_callback();
+    s_net_disk_load_notify_callback(NULL);
     dap_timerfd_delete_unsafe(l_nets_load_notify_timer);
 }
 
@@ -1790,10 +1791,12 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
 {
     char *l_cfg_path = dap_strdup_printf("network/%s", a_net_name);
     dap_config_t *l_cfg = dap_config_open(l_cfg_path);
+    if (!l_cfg) {
+        log_it(L_ERROR,"Can't open default network config %s", l_cfg_path);
+        DAP_DELETE(l_cfg_path);
+        return -1;
+    }
     DAP_DELETE(l_cfg_path);
-    if ( !l_cfg )
-        return log_it(L_ERROR,"Can't open default network config %s", l_cfg_path), -1;
-
     dap_chain_net_t *l_net = s_net_new(a_net_name, l_cfg);
     if ( !l_net ) 
         return log_it(L_ERROR,"Can't create net \"%s\"", a_net_name), dap_config_close(l_cfg), -1;
@@ -3007,7 +3010,7 @@ void dap_chain_net_try_online_all() {
 
     for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
         if (( l_ret = s_net_try_online(net) ))
-            log_it(L_ERROR, "Can't try online state for net %s.  Finished with (%d) error code.", net, l_ret);
+            log_it(L_ERROR, "Can't try online state for net %s.  Finished with (%d) error code.", net->pub.name, l_ret);
     }
 }
 
