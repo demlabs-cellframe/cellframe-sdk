@@ -261,7 +261,7 @@ int dap_chain_net_srv_stake_lock_init()
     );
     s_debug_more = dap_config_get_item_bool_default(g_config, "ledger", "debug_more", false);
 
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     dap_ledger_service_add(l_uid, "staking", s_tag_check_staking);
 
     return 0;
@@ -1123,7 +1123,7 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
                                                     dap_time_t a_time_staking, uint256_t a_reinvest_percent,
                                                     const char *a_delegated_ticker_str, uint256_t a_delegated_value)
 {
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     dap_ledger_t * l_ledger = a_net ? dap_ledger_by_net_name( a_net->pub.name ) : NULL;
     // check valid param
     if (!a_net || !l_ledger || !a_key_from ||

@@ -29,10 +29,13 @@
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 #include "dap_cli_server.h"
-#include "dap_chain_node_cli_cmd.h"
+#include "dap_chain_datum.h"
+#include "dap_chain_datum_decree.h"
+#include "dap_chain_net.h"
 #include "dap_chain_mempool.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_cs_esbocs.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "dap_chain_cs_blocks"
 
@@ -43,7 +46,7 @@ typedef struct dap_chain_block_datum_index {
     dap_chain_block_cache_t *block_cache;
     size_t datum_index;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    dap_chain_net_srv_uid_t service_uid;
+    dap_chain_srv_uid_t service_uid;
     dap_chain_tx_tag_action_type_t action;
     UT_hash_handle hh;
 } dap_chain_block_datum_index_t;
@@ -104,7 +107,7 @@ static void s_bft_consensus_setup(dap_chain_cs_blocks_t * a_blocks);
 static bool s_chain_find_atom(dap_chain_block_cache_t* a_blocks, dap_chain_hash_fast_t* a_atom_hash);
 
 // Callbacks
-static void s_callback_delete(dap_chain_t * a_chain);
+static int s_callback_delete(dap_chain_t * a_chain);
 // Accept new block
 static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash, bool a_atom_new);
 //    Verify new block
@@ -125,6 +128,8 @@ static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_cha
 static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t * a_datums_count);
 static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_block_t *)a_atom)->hdr.ts_created; }
 static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
+static int s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
+                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 //    Get blocks
 static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size);
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter_t * a_atom_iter , size_t *a_links_size,
@@ -145,7 +150,7 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_prev(dap_chain_datum_i
 
 static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_count);
 
-static void s_callback_cs_blocks_purge(dap_chain_t *a_chain);
+static int s_callback_cs_blocks_purge(dap_chain_t *a_chain);
 
 static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size);
 
@@ -167,10 +172,15 @@ static bool s_debug_more = false;
  */
 int dap_chain_cs_blocks_init()
 {
+    dap_chain_cs_class_callbacks_t l_callbacks = { .callback_init = s_chain_cs_blocks_new,
+                                                   .callback_delete = s_callback_delete,
+                                                   .callback_purge = s_callback_cs_blocks_purge };
+    dap_chain_cs_class_add("blocks", l_callbacks);
+
     dap_chain_block_init();
-    dap_chain_cs_type_add("blocks", s_chain_cs_blocks_new);
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
+
     dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains",
         "New block create, fill and complete commands:\n"
             "block -net <net_name> [-chain <chain_name>] new\n"
@@ -243,6 +253,7 @@ int dap_chain_cs_blocks_init()
         log_it(L_WARNING, "Can't init blocks cache");
         return -1;
     }
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL);
     log_it(L_NOTICE,"Initialized blocks(m) chain type");
 
     return 0;
@@ -265,8 +276,6 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     }
     a_chain->_inheritor = l_cs_blocks;
     l_cs_blocks->chain = a_chain;
-
-    a_chain->callback_delete = s_callback_delete;
 
     // Atom element callbacks
     a_chain->callback_atom_add = s_callback_atom_add ;  // Accept new element in chain
@@ -298,7 +307,6 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     a_chain->callback_calc_reward = s_callback_calc_reward;
 
     a_chain->callback_add_datums = s_callback_add_datums;
-    a_chain->callback_purge = s_callback_cs_blocks_purge;
 
     a_chain->callback_count_atom = s_callback_count_atom;
     a_chain->callback_get_atoms = s_callback_get_atoms;
@@ -907,7 +915,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             json_object* json_arr_bl_cache_out = json_object_new_array();
             size_t l_start_arr = 0;
             size_t l_arr_end = 0;
-            s_set_offset_limit_json(json_arr_bl_cache_out, &l_start_arr, &l_arr_end, l_limit, l_offset, PVT(l_blocks)->blocks_count);
+            dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_start_arr, &l_arr_end, l_limit, l_offset, PVT(l_blocks)->blocks_count);
             
             size_t i_tmp = 0;
             dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks;
@@ -1402,7 +1410,7 @@ static dap_list_t *s_block_parse_str_list(char *a_hash_str, size_t *a_hash_size,
  * @details Destructor for blocks consensus chain
  * @param a_chain
  */
-static void s_callback_delete(dap_chain_t * a_chain)
+static int s_callback_delete(dap_chain_t * a_chain)
 {
     s_callback_cs_blocks_purge(a_chain);
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
@@ -1416,9 +1424,10 @@ static void s_callback_delete(dap_chain_t * a_chain)
     DAP_DEL_Z(l_blocks->_inheritor);
     DAP_DEL_Z(l_blocks->_pvt);
     log_it(L_INFO, "Block destructed");
+    return 0;
 }
 
-static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
+static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
 
@@ -1454,6 +1463,7 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
     dap_chain_cell_delete_all(a_chain);
+    return 0;
 }
 
 /**
@@ -2475,6 +2485,46 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     }
     DIV_256(l_ret, GET_256_FROM_64(s_block_timediff_unit_size * l_signs_count), &l_ret);
     return l_ret;
+}
+
+/**
+ * @brief s_fee_verificator_callback
+ * @param a_ledger
+ * @param a_tx_out_hash
+ * @param a_cond
+ * @param a_tx_in
+ * @param a_owner
+ * @return
+ */
+static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t UNUSED_ARG *a_cond,
+                                       dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner)
+{
+    dap_chain_net_t *l_net = a_ledger->net;
+    assert(l_net);
+    dap_chain_t *l_chain;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        if (!l_chain->callback_block_find_by_tx_hash)
+            continue;
+        dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
+        if (!l_tx_in_cond)
+            return -1;
+        if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
+            return -2;
+        size_t l_block_size = 0;
+        dap_chain_block_t *l_block = (dap_chain_block_t *)l_chain->callback_block_find_by_tx_hash(
+                                                    l_chain, &l_tx_in_cond->header.tx_prev_hash, &l_block_size);
+        if (!l_block)
+            continue;
+        dap_sign_t *l_sign_block = dap_chain_block_sign_get(l_block, l_block_size, 0);
+        if (!l_sign_block)
+            return -3;
+
+        // TX sign is already verified, just compare pkeys
+        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_sign_t *l_sign_tx = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+        return dap_sign_compare_pkeys(l_sign_block, l_sign_tx) ? 0 : -5;
+    }
+    return -4;
 }
 
 static uint64_t s_callback_count_txs(dap_chain_t *a_chain)

@@ -29,7 +29,7 @@
 #include <unistd.h>
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
-#include "dap_chain_datum_decree.h"
+#include "dap_chain_srv.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
@@ -44,7 +44,6 @@
 #include "dap_notify_srv.h"
 #include <uthash.h>
 #include <pthread.h>
-#include "json.h"
 
 #define LOG_TAG "chain"
 
@@ -73,6 +72,7 @@ int dap_chain_init(void)
     // Cell sharding init
     dap_chain_cell_init();
     dap_chain_cs_init();
+    dap_chain_srv_init();
     //dap_chain_show_hash_blocks_file(g_gold_hash_blocks_file);
     //dap_chain_show_hash_blocks_file(g_silver_hash_blocks_file);
     return 0;
@@ -87,6 +87,7 @@ void dap_chain_deinit(void)
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {
           dap_chain_delete(l_item->chain);
     }
+    dap_chain_srv_deinit();
 }
 
 /**
@@ -144,6 +145,17 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
     return l_ret;
 }
 
+void dap_chain_set_cs_type(dap_chain_t *a_chain, const char *a_cs_type)
+{
+    DAP_CHAIN_PVT(a_chain)->cs_type = dap_strdup(a_cs_type);
+}
+
+int dap_chain_purge(dap_chain_t *a_chain)
+{
+    int ret = dap_chain_cs_class_purge(a_chain);
+    return ret + dap_chain_cs_purge(a_chain);
+}
+
 /**
  * @brief
  * delete dap chain object
@@ -176,8 +188,7 @@ void dap_chain_delete(dap_chain_t * a_chain)
     }
     DAP_DELETE(a_chain->datum_types);
     DAP_DELETE(a_chain->autoproc_datum_types);
-    if (a_chain->callback_delete)
-        a_chain->callback_delete(a_chain);
+    dap_chain_cs_class_delete(a_chain);
     DAP_DEL_Z(a_chain->_inheritor);
     dap_config_close(a_chain->config);
     pthread_rwlock_destroy(&a_chain->rwlock);
@@ -666,29 +677,13 @@ dap_chain_t * dap_chain_init_net_cfg_name(const char * a_chain_net_cfg_name)
     return NULL;
 }
 
-
-
 /**
  * @brief dap_chain_close
  * @param a_chain
  */
 void dap_chain_close(dap_chain_t * a_chain)
 {
-    if(a_chain){
-        if(a_chain->callback_delete)
-            a_chain->callback_delete(a_chain);
-    }else
-        log_it(L_WARNING,"Tried to close null pointer");
-}
-
-
-/**
- * @brief dap_chain_info_dump_log
- * @param a_chain
- */
-void dap_chain_info_dump_log(dap_chain_t * a_chain)
-{
-    UNUSED(a_chain);
+    dap_chain_cs_class_delete(a_chain);
 }
 
 /**

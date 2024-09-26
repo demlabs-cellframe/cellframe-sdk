@@ -89,8 +89,10 @@ static dap_chain_datum_t *s_nonconsensus_callback_datum_iter_get_next(dap_chain_
 static dap_chain_datum_t *s_nonconsensus_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
                                                                    dap_chain_hash_fast_t *a_atom_hash, int *a_ret_code);
 static uint64_t s_nonconsensus_callback_get_count_atom(dap_chain_t *a_chain);
-static int s_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
-static void s_nonconsensus_delete(dap_chain_t *a_chain);
+static int s_nonconsensus_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
+static int s_nonconsensus_callback_delete(dap_chain_t *a_chain);
+static int s_nonconsensus_callback_created(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_chain_cfg);
+static int s_nonconsensus_callback_purge(dap_chain_t *a_chain);
 
 /**
  * @brief dap_chain_cs_gdb_init
@@ -99,7 +101,12 @@ static void s_nonconsensus_delete(dap_chain_t *a_chain);
  */
 int dap_nonconsensus_init(void)
 {
-    dap_chain_cs_add(CONSENSUS_NAME, s_cs_callback_new); // It's a type and CS itself
+    dap_chain_cs_class_callbacks_t l_callbacks = { .callback_delete = s_nonconsensus_callback_delete,
+                                                   .callback_purge = s_nonconsensus_callback_purge };
+    dap_chain_cs_class_add(CONSENSUS_NAME, l_callbacks); // It's a type and CS itself
+    dap_chain_cs_callbacks_t l_cs_callbacks = { .callback_init = s_nonconsensus_callback_new,
+                                                .callback_load = s_nonconsensus_callback_created };
+    dap_chain_cs_add(CONSENSUS_NAME, l_cs_callbacks);
     log_it(L_NOTICE, "Initialized GDB chain items organization class");
     return 0;
 }
@@ -109,9 +116,10 @@ int dap_nonconsensus_init(void)
  *
  * @param a_chain dap_chain_t object
  */
-static void s_nonconsensus_callback_purge(dap_chain_t *a_chain)
+static int s_nonconsensus_callback_purge(dap_chain_t *a_chain)
 {
     PVT(DAP_NONCONSENSUS(a_chain))->is_load_mode = true;
+    return 0;
 }
 
 
@@ -132,7 +140,7 @@ static void s_changes_callback_notify(dap_store_obj_t *a_obj, void *a_arg)
     s_nonconsensus_callback_atom_add(l_chain, (dap_chain_datum_t *)a_obj->value, a_obj->value_len, &l_hash, false);
 }
 
-int s_nonconsensus_callback_created(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_chain_cfg)
+static int s_nonconsensus_callback_created(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_chain_cfg)
 {
     dap_chain_add_mempool_notify_callback(a_chain, s_nonconsensus_callback_mempool_notify, a_chain);
     return 0;
@@ -145,8 +153,9 @@ int s_nonconsensus_callback_created(dap_chain_t *a_chain, dap_config_t UNUSED_AR
  * @param a_chain_cfg dap_config_t config object
  * @return int
  */
-static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_chain_cfg)
+static int s_nonconsensus_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_chain_cfg)
 {
+    dap_chain_set_cs_type(a_chain, CONSENSUS_NAME);
     dap_nonconsensus_t *l_nochain = DAP_NEW_Z(dap_nonconsensus_t);
     if (!l_nochain) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -178,9 +187,6 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
     }
     dap_global_db_cluster_add_notify_callback(l_nonconsensus_cluster, s_changes_callback_notify, a_chain);
 
-    a_chain->callback_delete = s_nonconsensus_delete;
-    a_chain->callback_purge = s_nonconsensus_callback_purge;
-
     // Atom element callbacks
     a_chain->callback_atom_add = s_nonconsensus_callback_atom_add; // Accept new element in chain
     a_chain->callback_atom_verify = s_nonconsensus_callback_atom_verify; // Verify new element in chain
@@ -208,7 +214,6 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
     a_chain->callback_add_datums = s_nonconsensus_callback_datums_pool_proc;
 
     a_chain->callback_load_from_gdb = s_nonconsensus_ledger_load;
-    a_chain->callback_created = s_nonconsensus_callback_created;
 
     return 0;
 }
@@ -218,7 +223,7 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
  *
  * @param a_chain dap_chain_t chain object
  */
-static void s_nonconsensus_delete(dap_chain_t *a_chain)
+static int s_nonconsensus_callback_delete(dap_chain_t *a_chain)
 {
     dap_nonconsensus_t * l_nochain = DAP_NONCONSENSUS(a_chain);
     dap_nonconsensus_private_t *l_nochain_priv = PVT(l_nochain);
@@ -228,6 +233,7 @@ static void s_nonconsensus_delete(dap_chain_t *a_chain)
     DAP_DELETE(l_nochain);
     if (a_chain)
         a_chain->_inheritor = NULL;
+    return 0;
 }
 
 /**

@@ -63,10 +63,10 @@
 #include "dap_stream_ch_pkt.h"
 #include "dap_chain_ch.h"
 #include "dap_chain_ch_pkt.h"
-#include "dap_stream_ch_chain_net.h"
+#include "dap_chain_net_ch.h"
 #include "dap_stream_ch_proc.h"
-#include "dap_stream_ch_chain_net_pkt.h"
-#include "dap_stream_ch_chain_net_srv.h"
+#include "dap_chain_net_ch_pkt.h"
+#include "dap_chain_net_srv_ch.h"
 #include "dap_stream_pkt.h"
 #include "dap_chain_node_client.h"
 
@@ -166,15 +166,15 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
 }
 
 /**
- * @brief s_ch_chain_callback_notify_packet_in2 - for dap_stream_ch_chain_net
+ * @brief s_ch_chain_callback_notify_packet_in2 - for dap_chain_net_ch
  * @param a_ch_chain_net
  * @param a_pkt_type
  * @param a_pkt_net
  * @param a_pkt_data_size
  * @param a_arg
  */
-static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_ch_chain_net, uint8_t a_pkt_type,
-        dap_stream_ch_chain_net_pkt_t *a_pkt_net, size_t a_pkt_net_data_size, void * a_arg)
+static void s_ch_chain_callback_notify_packet_in2(dap_chain_net_ch_t* a_ch_chain_net, uint8_t a_pkt_type,
+        dap_chain_net_ch_pkt_t *a_pkt_net, size_t a_pkt_net_data_size, void * a_arg)
 {
     dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
     switch (a_pkt_type) {
@@ -201,15 +201,15 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
  * @param a_pkt
  * @param a_arg
  */
-static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a_ch_chain, uint8_t a_pkt_type, dap_stream_ch_pkt_t *a_pkt, void * a_arg)
+static void s_ch_chain_callback_notify_packet_R(dap_chain_net_srv_ch_t* a_ch_chain, uint8_t a_pkt_type, dap_stream_ch_pkt_t *a_pkt, void * a_arg)
 {
     UNUSED(a_ch_chain);
     dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
     switch (a_pkt_type) {
     // get new generated current node address
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE: {
-            dap_stream_ch_chain_net_srv_pkt_test_t *l_request = (dap_stream_ch_chain_net_srv_pkt_test_t *) a_pkt->data;
-            size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
+            dap_chain_net_srv_ch_pkt_test_t *l_request = (dap_chain_net_srv_ch_pkt_test_t *) a_pkt->data;
+            size_t l_request_size = l_request->data_size + sizeof(dap_chain_net_srv_ch_pkt_test_t);
             if(a_pkt->hdr.data_size != l_request_size) {
                 log_it(L_WARNING, "Wrong request size, less or more than required");
                 break;
@@ -336,7 +336,7 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
     if (a_node_client->stream_worker) {
         dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_node_client->stream_worker, a_node_client->ch_chain_net_uuid);
         if (l_ch) {
-            dap_stream_ch_chain_net_t *l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(l_ch);
+            dap_chain_net_ch_t *l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(l_ch);
             l_ch_chain_net->notify_callback = NULL;
         }
     }
@@ -441,8 +441,8 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
             l_ret = 0;
             switch (a_ch_id) {
                 //  'N'
-            case DAP_STREAM_CH_CHAIN_NET_ID: {
-                dap_stream_ch_chain_net_t *l_ch_chain   = DAP_STREAM_CH_CHAIN_NET(l_ch);
+            case DAP_CHAIN_NET_CH_ID: {
+                dap_chain_net_ch_t *l_ch_chain   = DAP_STREAM_CH_CHAIN_NET(l_ch);
                 l_ch_chain->notify_callback     = s_ch_chain_callback_notify_packet_in2;
                 l_ch_chain->notify_callback_arg = l_node_client;
                 l_node_client->ch_chain_net         = l_ch;
@@ -450,10 +450,10 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
                 break;
             }
                 //  'R'
-            case DAP_STREAM_CH_NET_SRV_ID: {
-                dap_stream_ch_chain_net_srv_t *l_ch_chain = DAP_STREAM_CH_CHAIN_NET_SRV(l_ch);
+            case DAP_CHAIN_NET_SRV_CH_ID: {
+                dap_chain_net_srv_ch_t *l_ch_chain = DAP_CHAIN_NET_SRV_CH(l_ch);
                 if (l_node_client->notify_callbacks.srv_pkt_in) {
-                    l_ch_chain->notify_callback     = (dap_stream_ch_chain_net_srv_callback_packet_t)l_node_client->notify_callbacks.srv_pkt_in;
+                    l_ch_chain->notify_callback     = (dap_chain_net_srv_ch_callback_packet_t)l_node_client->notify_callbacks.srv_pkt_in;
                     l_ch_chain->notify_callback_arg = l_node_client->callbacks_arg;
                 } else {
                     l_ch_chain->notify_callback     = s_ch_chain_callback_notify_packet_R;

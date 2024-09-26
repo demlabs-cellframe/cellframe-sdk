@@ -1,13 +1,13 @@
-
-# Core
-if (CELLFRAME_MODULES MATCHES "core")
-    add_subdirectory(common)
-endif()
-
 # Chains
 if (CELLFRAME_MODULES MATCHES "chains")
-    add_subdirectory(chain)
+    add_subdirectory(datum)
     add_subdirectory(wallet)
+    add_subdirectory(chain)
+endif()
+
+# Ledger
+if (CELLFRAME_MODULES MATCHES "ledger")
+    add_subdirectory(ledger)
 endif()
 
 # Distributed Hash Tables (DHT)
@@ -15,13 +15,15 @@ if (CELLFRAME_MODULES MATCHES "dht")
     add_subdirectory(dht)
 endif()
 
+# Node
+if (CELLFRAME_MODULES MATCHES "network")
+    add_subdirectory(node-cli)
+endif()
+
 # Network
 if (CELLFRAME_MODULES MATCHES "network")
     add_subdirectory(mempool)
     add_subdirectory(net)
-    add_subdirectory(net/srv)
-    # Stream channels
-    add_subdirectory(channel/chain-net)
 endif()
 
 # Mining
@@ -31,7 +33,7 @@ endif()
 
 # Network services
 if (CELLFRAME_MODULES MATCHES "srv")
-    add_subdirectory(channel/chain-net-srv)
+    add_subdirectory(net-srv)
 endif()
 
 # No consensus
