@@ -181,29 +181,29 @@ void dap_chain_net_srv_deinit(void)
  */
 static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
 {
+    json_object **json_arr_reply = (json_object **)a_str_reply;
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
-
+    json_object* json_obj_net_srv = json_object_new_object();
     const char * l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type, "hex") && dap_strcmp(l_hash_out_type, "base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
+        dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_HASH_ERR, "invalid parameter -H, valid values: -H <hex | base58>");
+        return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_HASH_ERR;
     }
-
 
     int l_report = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "report", NULL);
     if (l_report) {
         const char *l_report_str = dap_stream_ch_chain_net_srv_create_statistic_report();
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_report_str);
+        json_object_object_add(json_obj_net_srv, "report", json_object_new_string(l_report_str));
         DAP_DEL_Z(l_report_str);
-        return 0;
+        return DAP_CHAIN_NET_SRV_CLI_COM_ORDER_OK;
     }
 
-    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net,
-                                                               CHAIN_TYPE_INVALID);
+    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain_for_json( &arg_index, argc, argv, NULL, &l_net, CHAIN_TYPE_INVALID);
+    
     if ( l_net ) {
         dap_string_t *l_string_ret = dap_string_new("");
 
@@ -271,7 +271,9 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                 }
             }
             if(l_continent_str && l_continent_num <= 0) {
+                                
                 dap_string_t *l_string_err = dap_string_new("Unrecognized \"-continent\" option=");
+
                 dap_string_append_printf(l_string_err, "\"%s\". Variants: ", l_continent_str);
                 int i = 0;
                 while(1) {
@@ -284,21 +286,21 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         dap_string_append_printf(l_string_err, ", \"%s\"", l_continent);
                     i++;
                 }
-                dap_string_append_printf(l_string_ret, "%s\n", l_string_err->str);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CONT_ERR, "%s\n", l_string_err->str);
                 dap_string_free(l_string_err, true);
                 l_ret = -1;
             } else if(!dap_strcmp(l_order_str, "update")) {
                 if (!l_order_hash_str) {
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_ERR, "Can't find option '-hash'\n");
                     l_ret = -1;
-                    dap_string_append(l_string_ret, "Can't find option '-hash'\n");
                 } else {
                     dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_hex_str);
                     if(!l_order) {
                         l_ret = -2;
                         if(!dap_strcmp(l_hash_out_type,"hex"))
-                            dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_hex_str);
+                            dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_HASH_ERR, "Can't find order with hash %s\n", l_order_hash_hex_str);
                         else
-                            dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_base58_str);
+                            dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_HASH_ERR, "Can't find order with hash %s\n", l_order_hash_base58_str);
                     } else {
                         if (l_ext) {
                             l_order->ext_size = strlen(l_ext) + 1;
@@ -316,21 +318,21 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             const char *l_cert_str = NULL;
                             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_cert_str);
                             if (!l_cert_str) {
-                                dap_cli_server_cmd_set_reply_text(a_str_reply, "Fee order creation requires parameter -cert");
-                                return -7;
+                                dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_PARAM_CERT_ERR, "Fee order creation requires parameter -cert");
+                                return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_PARAM_CERT_ERR;
                             }
                             dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
                             if (!l_cert) {
-                                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert %s", l_cert_str);
-                                return -8;
+                                dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_LOAD_CERT_ERR, "Can't load cert %s", l_cert_str);
+                                return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_LOAD_CERT_ERR;
                             }
                             // delete prev order
                             if(dap_strcmp(l_new_order_hash_str, l_order_hash_hex_str))
                                 dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
                             DAP_DELETE(l_new_order_hash_str);
-                            dap_string_append_printf(l_string_ret, "order updated\n");
+                            json_object_object_add(json_obj_net_srv, "status command", json_object_new_string("order updated"));
                         } else
-                            dap_string_append_printf(l_string_ret, "Order did not updated\n");
+                            json_object_object_add(json_obj_net_srv, "status command", json_object_new_string("order did not updated"));
                         DAP_DELETE(l_order);
                     }
                 }
@@ -372,15 +374,16 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         l_direction = SERV_DIR_BUY;
                     else {
                         dap_string_free(l_string_ret, true);
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong direction of the token was "
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_PARAM_CERT_ERR, "Wrong direction of the token was "
                                                                        "specified, possible directions: buy, sell.");
-                        return -18;
+                        return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_PARAM_CERT_ERR;
                     }
                 }
 
                 if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
-                    return -21;
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_HEX_ERR, 
+                                                                        "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
+                    return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_HEX_ERR;
                 }
 
                 if ( l_price_min_str )
