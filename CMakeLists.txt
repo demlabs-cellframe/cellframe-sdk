@@ -18,7 +18,7 @@ endif()
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
 
-    set(CELLFRAME_MODULES "core chains mining network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange")
+    set(CELLFRAME_MODULES "core chains ledger node network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
@@ -79,19 +79,24 @@ endif()
 # General chain libs
 if (CELLFRAME_MODULES MATCHES "chains")
     message("[+] Module 'chains'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_common dap_chain dap_global_db dap_chain_wallet)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_datum dap_chain_ledger dap_chain dap_global_db dap_chain_wallet)
+endif()
+
+if (CELLFRAME_MODULES MATCHES "ledger")
+    message("[+] Module 'ledger'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_ledger)
 endif()
 
 # Networking
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_io dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
-        dap_stream dap_stream_ch dap_client dap_cli_server dap_stream_ch_chain_net dap_chain_net dap_chain_net_srv dap_chain_mempool)
+        dap_stream dap_stream_ch dap_client dap_cli_server dap_chain_net dap_chain_net_srv dap_chain_mempool)
 endif()
 
 # Chain net services
 if (CELLFRAME_MODULES MATCHES "srv-" )
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_stream_ch_chain_net_srv)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv)
 endif()
 
 # DAG based consensus(es)
@@ -170,7 +175,6 @@ if (CELLFRAME_MODULES MATCHES "srv-stake")
     message("[+] Module 'srv-stake'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake)
 endif()
-
 
 # Enable service bridge
 if (CELLFRAME_MODULES MATCHES "srv-bridge")

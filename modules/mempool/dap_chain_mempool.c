@@ -786,20 +786,20 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     if (dap_chain_addr_check_sum (a_addr_to)) {
         log_it(L_ERROR, "Wrong address_to checksum");
         if (a_ret_status)
-            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_WRONG_ADDR;
+            *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_WRONG_ADDR;
         return NULL;
     }
     dap_chain_hash_fast_t l_tx_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, a_tx_prev_hash);
     if ( dap_hash_fast_is_blank(&l_tx_final_hash) ) {
         log_it(L_WARNING, "Requested conditional transaction is already used out");
         if (a_ret_status)
-            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_FIND_FINAL_TX_HASH;
+            *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_CANT_FIND_FINAL_TX_HASH;
         return NULL;
     }
     if (dap_strcmp(a_net->pub.native_ticker, dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_final_hash))) {
         log_it(L_WARNING, "Pay for service should be only in native token ticker");
         if (a_ret_status)
-            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_NATIVE_TOKEN;
+            *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_NOT_NATIVE_TOKEN;
         return NULL;
     }
     dap_chain_datum_tx_t *l_tx_cond = dap_ledger_tx_find_by_hash(l_ledger, &l_tx_final_hash);
@@ -808,7 +808,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     if (!l_out_cond) {
         log_it(L_WARNING, "Requested conditioned transaction have no conditioned output");
         if (a_ret_status)
-            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_NO_COND_OUT;
+            *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_NO_COND_OUT;
         return NULL;
     }
 
@@ -823,7 +823,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     if (compare256(l_out_cond->header.value, l_value_send) < 0) {
         log_it(L_WARNING, "Requested conditioned transaction have no enough funds");
         if (a_ret_status)
-            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_ENOUGH;
+            *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_NOT_ENOUGH;
         return NULL;
     }
 
@@ -835,7 +835,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Can`t add tx cond input");
         if (a_ret_status)
-            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_TX_OUT;
+            *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_CANT_ADD_TX_OUT;
         return NULL;
     }
     // add 'out' item
@@ -843,7 +843,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Can`t add tx output");
         if (a_ret_status)
-            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_TX_OUT;
+            *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_CANT_ADD_TX_OUT;
         return NULL;
     }
     // add network fee
@@ -852,7 +852,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
             dap_chain_datum_tx_delete(l_tx);
             log_it( L_ERROR, "Can`t add tx output");
             if (a_ret_status)
-                *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_TX_OUT;
+                *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_CANT_ADD_TX_OUT;
             return NULL;
         }
     }
@@ -862,7 +862,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
             dap_chain_datum_tx_delete(l_tx);
             log_it( L_ERROR, "Can`t add tx output");
             if (a_ret_status)
-                *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_TX_OUT;
+                *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_CANT_ADD_TX_OUT;
             return NULL;
         }
     }
@@ -880,7 +880,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Can't add sign output");
         if (a_ret_status)
-            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_SIGN;
+            *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_CANT_ADD_SIGN;
         return NULL;
     }
     size_t l_tx_size = dap_chain_datum_tx_get_size( l_tx );
@@ -890,7 +890,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
     DAP_DELETE(l_datum);
     if (a_ret_status)
-        *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_SUCCESS;
+        *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_SUCCESS;
     return l_ret;
 }
 
@@ -903,7 +903,7 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
         dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_per_unit_max,
-        dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_net_srv_uid_t a_srv_uid,
+        dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_srv_uid_t a_srv_uid,
         uint256_t a_value_fee, const void *a_cond,
         size_t a_cond_size, const char *a_hash_out_type)
 {

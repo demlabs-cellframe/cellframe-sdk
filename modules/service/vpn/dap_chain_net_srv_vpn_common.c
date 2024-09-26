@@ -38,7 +38,7 @@ static bool s_tag_check_vpn(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
 
 int dap_chain_net_srv_vpn_pre_init()
 {
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
     dap_ledger_service_add(l_uid, "vpn", s_tag_check_vpn);
     return 0;
 }

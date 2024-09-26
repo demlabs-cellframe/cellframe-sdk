@@ -35,7 +35,7 @@
 #define DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_CLIENT    0x01
 #define DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA      0x02
 
-#define DAP_STREAM_CH_NET_SRV_ID_VPN        'S'
+#define DAP_CHAIN_NET_SRV_VPN_CH_ID        'S'
 
 #define VPN_PACKET_OP_CODE_CONNECTED        0x000000a9
 #define VPN_PACKET_OP_CODE_CONNECT          0x000000aa
@@ -109,11 +109,8 @@ typedef struct dap_chain_net_srv_vpn_tun_socket {
  *
  *
  **/
-typedef struct dap_chain_net_srv_ch_vpn
-{
+typedef struct dap_chain_net_srv_ch_vpn {
     uint32_t usage_id;
-    dap_chain_net_srv_t* net_srv;
-    //dap_chain_net_srv_uid_t srv_uid; // Unique ID for service.
     bool is_allowed;
     dap_chain_net_srv_vpn_tun_socket_t * tun_socket;
 
@@ -138,24 +135,23 @@ typedef struct dap_chain_net_srv_ch_vpn_info
     UT_hash_handle hh;
 }dap_chain_net_srv_ch_vpn_info_t;
 
-typedef struct dap_chain_net_srv_vpn_item_ipv4{
+typedef struct dap_chain_net_srv_vpn_item_ipv4 {
     struct in_addr addr;
     struct dap_chain_net_srv_vpn_item_ipv4 * next;
 } dap_chain_net_srv_vpn_item_ipv4_t;
 
-typedef struct dap_chain_net_srv_vpn
-{
+typedef struct dap_chain_net_srv_vpn {
     dap_chain_net_srv_vpn_item_ipv4_t * ipv4_unleased;
     dap_chain_net_srv_ch_vpn_t * ch_vpn_ipv4;
-    dap_chain_net_srv_t * parent;
 } dap_chain_net_srv_vpn_t;
 
 #define CH_VPN(a) ((dap_chain_net_srv_ch_vpn_t *) ((a)->internal) )
+#define SRV_VPN(a) ((dap_chain_net_srv_vpn_t *)(a)->_pvt)
 
 int dap_chain_net_srv_client_vpn_init(dap_config_t * g_config);
 
 int dap_chain_net_srv_vpn_pre_init();
-int dap_chain_net_srv_vpn_init(dap_config_t * g_config);
+int dap_chain_net_srv_vpn_init();
 void dap_chain_net_srv_vpn_deinit(void);
 
 

@@ -58,7 +58,7 @@ int dap_chain_net_srv_datum_init()
     }
     s_srv_datum->uid.uint64 = DAP_CHAIN_NET_SRV_DATUM_ID;
 
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_DATUM_ID };
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_DATUM_ID };
     dap_ledger_service_add(l_uid, "datum", s_tag_check_datum);
     
     return 0;
@@ -220,10 +220,6 @@ void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
         return; // order from another service
     dap_chain_net_srv_price_t *l_price = NULL;
 
-    if (!l_price || l_price->net != l_net) {
-        log_it(L_DEBUG, "Price for net %s is not set", l_net->pub.name);
-        return; // price not set for this network
-    }
     if ((l_order->price_unit.uint32 != SERV_UNIT_PCS) || (l_order->direction != SERV_DIR_BUY) ||
             (strncmp(l_order->price_ticker, l_price->token, DAP_CHAIN_TICKER_SIZE_MAX)) ||
             (!compare256(l_order->price, l_price->value_datoshi))) {

@@ -149,7 +149,7 @@ static bool s_tag_check_bridge(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_t
 
 int dap_chain_net_srv_bridge_init()
 {
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_BRIDGE_ID };
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_BRIDGE_ID };
     dap_ledger_service_add(l_uid, "bridge", s_tag_check_bridge);
     return 0;
 }

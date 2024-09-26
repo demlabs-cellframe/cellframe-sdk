@@ -91,8 +91,8 @@ typedef struct dap_chain_cs_dag_pvt {
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
 
 static int s_chain_cs_dag_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
-static void s_chain_cs_dag_delete(dap_chain_t *a_chain);
-static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain);
+static int s_chain_cs_dag_delete(dap_chain_t *a_chain);
+static int s_chain_cs_dag_purge(dap_chain_t *a_chain);
 static void s_threshold_free(dap_chain_cs_dag_t *a_dag);
 static dap_chain_cs_dag_event_item_t *s_dag_proc_treshold(dap_chain_cs_dag_t *a_dag);
 
@@ -146,7 +146,10 @@ static bool s_seed_mode = false, s_debug_more = false, s_threshold_enabled = fal
 int dap_chain_cs_dag_init()
 {
     srand((unsigned int) time(NULL));
-    dap_chain_cs_type_add( "dag", s_chain_cs_dag_new );
+    dap_chain_cs_class_callbacks_t l_callbacks = { .callback_init = s_chain_cs_dag_new,
+                                                   .callback_delete = s_chain_cs_dag_delete,
+                                                   .callback_purge = s_chain_cs_dag_purge };
+    dap_chain_cs_class_add("dag", l_callbacks);
     s_seed_mode         = dap_config_get_item_bool_default(g_config, "general", "seed_mode",        false);
     s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
     s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
@@ -207,9 +210,6 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&PVT(l_dag)->events_mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
-
-    a_chain->callback_delete = s_chain_cs_dag_delete;
-    a_chain->callback_purge = s_dap_chain_cs_dag_purge;
 
     // Atom element callbacks
     a_chain->callback_atom_add = s_chain_callback_atom_add ;  // Accept new element in chain
@@ -334,7 +334,7 @@ static void s_threshold_free(dap_chain_cs_dag_t *a_dag)
     pthread_mutex_unlock(&l_pvt->events_mutex);
 }
 
-static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
+static int s_chain_cs_dag_purge(dap_chain_t *a_chain)
 {
     dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_chain));
     pthread_mutex_lock(&l_dag_pvt->events_mutex);
@@ -367,6 +367,7 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
     }
     pthread_mutex_unlock(&l_dag_pvt->events_mutex);
     dap_chain_cell_delete_all(a_chain);
+    return 0;
 }
 
 /**
@@ -374,9 +375,9 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
  * @param a_dag
  * @return
  */
-static void s_chain_cs_dag_delete(dap_chain_t * a_chain)
+static int s_chain_cs_dag_delete(dap_chain_t * a_chain)
 {
-    s_dap_chain_cs_dag_purge(a_chain);
+    s_chain_cs_dag_purge(a_chain);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     pthread_mutex_destroy(& PVT(l_dag)->events_mutex);
     if(l_dag->callback_delete )
@@ -385,6 +386,7 @@ static void s_chain_cs_dag_delete(dap_chain_t * a_chain)
         DAP_DELETE(l_dag->_inheritor);
     if(l_dag->_pvt)
         DAP_DELETE(l_dag->_pvt);
+    return 0;
 }
 
 
@@ -1696,7 +1698,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
                         size_t l_arr_start = 0;
                         size_t l_arr_end = 0;
-                        s_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, l_objs_count);
+                        dap_chain_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, l_objs_count);
                         
                         json_object_object_add(json_obj_event_list,"net name", json_object_new_string(l_net->pub.name));
                         json_object_object_add(json_obj_event_list,"chain", json_object_new_string(l_chain->name));
@@ -1721,7 +1723,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
                     size_t l_arr_start = 0;
                     size_t l_arr_end = 0;
-                    s_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, HASH_COUNT(PVT(l_dag)->events));
+                    dap_chain_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, HASH_COUNT(PVT(l_dag)->events));
                     
                     size_t i_tmp = 0;
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
@@ -1761,7 +1763,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
                     size_t l_arr_start = 0;
                     size_t l_arr_end = 0;
-                    s_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, HASH_COUNT(PVT(l_dag)->events_treshold));
+                    dap_chain_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, HASH_COUNT(PVT(l_dag)->events_treshold));
 
                     size_t i_tmp = 0;
                     if (l_head){

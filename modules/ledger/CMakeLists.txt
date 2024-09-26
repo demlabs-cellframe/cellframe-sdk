@@ -1,0 +1,23 @@
+cmake_minimum_required(VERSION 3.10)
+
+project (dap_chain_ledger)
+
+file(GLOB DAP_CHAIN_LEDGER_SRCS *.c)
+file(GLOB DAP_CHAIN_LEDGER_HEADERS include/*.h)
+
+add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_LEDGER_SRCS} ${DAP_CHAIN_LEDGER_HEADERS})
+
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_notify_srv dap_chain dap_chain_wallet dap_global_db dap_json_rpc)
+
+target_include_directories(${PROJECT_NAME} INTERFACE . )
+target_include_directories(${PROJECT_NAME} PUBLIC include)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/uthash/src)
+
+if (INSTALL_SDK)
+set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_LEDGER_HEADERS}")
+INSTALL(TARGETS ${PROJECT_NAME} 
+        LIBRARY DESTINATION lib/modules/ledger/
+        ARCHIVE DESTINATION lib/modules/ledger/
+        PUBLIC_HEADER DESTINATION include/modules/ledger/
+)
+endif() 

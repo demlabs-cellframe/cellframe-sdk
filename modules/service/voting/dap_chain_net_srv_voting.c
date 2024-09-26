@@ -123,7 +123,7 @@ int dap_chain_net_srv_voting_init()
                             "\texample value_datoshi (only integer) 1 20 0.4321e+4\n");
 
     
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
     dap_ledger_service_add(l_uid, "voting", s_tag_check_voting);
 
     return 0;

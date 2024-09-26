@@ -24,7 +24,6 @@
 
 #pragma once
 
-#include "dap_chain_net_srv.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_datum_tx_out_cond.h"
 
@@ -51,12 +50,7 @@ typedef struct dap_srv_xchange_order_ext {
     char token_buy[DAP_CHAIN_TICKER_SIZE_MAX];
 } DAP_ALIGN_PACKED dap_srv_xchange_order_ext_t;
 
-typedef struct dap_chain_net_srv_xchange {
-    dap_chain_net_srv_t *parent;
-    bool enabled;
-} dap_chain_net_srv_xchange_t;
-
-extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid;
+extern const dap_chain_srv_uid_t c_dap_chain_net_srv_xchange_uid;
 
 int dap_chain_net_srv_xchange_init();
 void dap_chain_net_srv_xchange_deinit();
@@ -124,5 +118,5 @@ typedef enum xchange_tx_type{
 }   xchange_tx_type_t;
 
 dap_chain_net_srv_xchange_order_status_t dap_chain_net_srv_xchange_get_order_status(dap_chain_net_t *a_net, dap_hash_fast_t a_order_tx_hash);
-bool dap_chain_net_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_fee, dap_chain_addr_t *a_addr, uint16_t *a_type);
+bool dap_chain_net_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr, uint16_t *a_type);
 xchange_tx_type_t dap_chain_net_srv_xchange_tx_get_type (dap_ledger_t * a_ledger, dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t **a_out_cond_item, int *a_item_idx, dap_chain_tx_out_cond_t **a_out_prev_cond_item);
