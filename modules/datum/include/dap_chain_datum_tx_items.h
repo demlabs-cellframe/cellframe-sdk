@@ -27,11 +27,8 @@
 #include <string.h>
 
 #include "dap_common.h"
-#include "dap_strfuncs.h"
-#include "dap_list.h"
 #include "dap_chain_common.h"
 #include "dap_sign.h"
-#include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in.h"
 #include "dap_chain_datum_tx_out.h"
 #include "dap_chain_datum_tx_out_ext.h"
@@ -43,39 +40,6 @@
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_tx_in_reward.h"
-
-typedef struct dap_chain_datum_tx_item_groups {
-
-    dap_list_t *items_in_all;
-    dap_list_t *items_in;
-    dap_list_t *items_in_cond;
-    dap_list_t *items_in_reward;
-    dap_list_t *items_sig;
-
-    
-    dap_list_t *items_out;
-    dap_list_t *items_out_all;
-    dap_list_t *items_out_old;
-    dap_list_t *items_out_ext;
-    dap_list_t *items_out_cond;
-    dap_list_t *items_out_cond_srv_fee;
-    dap_list_t *items_out_cond_srv_pay;
-    dap_list_t *items_out_cond_srv_xchange;
-    dap_list_t *items_out_cond_srv_stake_pos_delegate;
-    dap_list_t *items_out_cond_srv_stake_lock;
-    dap_list_t *items_out_cond_unknonwn;
-    dap_list_t *items_out_cond_undefined;
-    
-    dap_list_t *items_in_ems;
-    dap_list_t *items_vote;
-    dap_list_t *items_voting;
-    dap_list_t *items_tsd;
-    dap_list_t *items_pkey;
-    dap_list_t *items_receipt;
-
-    dap_list_t *items_unknown;
-
-} dap_chain_datum_tx_item_groups_t;
 
 /**
  * Get item name by item type
@@ -104,9 +68,6 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         default: return "UNDEFINED";
     }
 }
-
-bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_res_group);
-void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_group);
 
 /**
  * Get item type by item name
@@ -251,25 +212,3 @@ json_object* dap_chain_datum_tx_item_sig_to_json(const dap_chain_tx_sig_t *a_sig
 dap_sign_t *dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig);
 
 byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_type, size_t *a_size);
-
-/**
- * Get item from transaction
- *
- * a_tx [in] transaction
- * a_item_idx_start[in/out] start index / found index of item in transaction, if 0 then from beginning
- * a_type[in] type of item being find, if TX_ITEM_TYPE_ANY - any item
- * a_item_out_size size[out] size of returned item
- * return item data, NULL Error index or bad format transaction
- */
-uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
-        byte_t *a_iter, dap_chain_tx_item_type_t a_type, size_t *a_item_out_size);
-// Get Nth item of pointed type
-uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int a_item_idx);
-// Get all item from transaction by type
-dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count);
-// Get conditional out item with it's idx
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_subtype_t a_cond_subtype, int *a_out_num);
-// Get output by output index
-#define dap_chain_datum_tx_out_get_by_out_idx(a_tx, a_out_num) \
-    dap_chain_datum_tx_item_get_nth(a_tx, TX_ITEM_TYPE_OUT_ALL, a_out_num);
-

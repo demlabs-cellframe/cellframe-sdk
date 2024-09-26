@@ -3065,8 +3065,13 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             }
                         }
                         for (dap_list_t *it = l_vote_list; it; it = it->next) {
-                            json_object *l_jobj_vote = dap_chain_datum_tx_item_vote_to_json(
-                                    (dap_chain_tx_vote_t *) it->data, a_net->pub.ledger);
+                            dap_chain_tx_vote_t *l_vote = it->data;
+                            json_object *l_jobj_vote = dap_chain_datum_tx_item_vote_to_json(l_vote);
+                            dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_vote->voting_hash);
+                            char *l_answer_text_str = l_tx ? dap_chain_datum_tx_voting_get_answer_text_by_idx(l_tx, l_vote->answer_idx) : NULL;
+                            json_object *l_answer_text = json_object_new_string(l_answer_text_str ? l_answer_text_str : "{UNDEFINED}");
+                            DAP_DEL_Z(l_answer_text_str);
+                            json_object_object_add(l_jobj_vote, "answer_text", l_answer_text);
                             json_object_array_add(l_jobj_tx_vote, l_jobj_vote);
                         }
                         for (dap_list_t *it = l_voting_list; it; it = it->next) {

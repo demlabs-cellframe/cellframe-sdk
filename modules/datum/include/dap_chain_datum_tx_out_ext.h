@@ -27,7 +27,6 @@
 #include <stdint.h>
 #include "dap_common.h"
 #include "dap_chain_common.h"
-#include "dap_chain_datum_tx.h"
 
 typedef struct dap_chain_tx_out_ext{
     struct {

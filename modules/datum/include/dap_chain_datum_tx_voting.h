@@ -23,14 +23,9 @@
 
 #include <stdint.h>
 #include "dap_chain.h"
-#include "dap_chain_common.h"
-//#include "dap_chain_datum_tx.h"
-//#include "dap_chain_datum_tx_items.h"
-#include "dap_chain_ledger.h"
+#include "dap_chain_datum_tx_tsd.h"
 #include "dap_time.h"
 #include "dap_list.h"
-#include "dap_tsd.h"
-#include "json.h"
 
 #define DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH 200
 #define DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH 100
@@ -89,4 +84,5 @@ json_object *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_
 
 
 dap_chain_tx_vote_t *dap_chain_datum_tx_item_vote_create(dap_chain_hash_fast_t *a_voting_hash, uint64_t *a_answer_idx);
-json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote, dap_ledger_t *a_ledger);
+json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote);
+char *dap_chain_datum_tx_voting_get_answer_text_by_idx(dap_chain_datum_tx_t *a_tx, uint64_t a_idx);

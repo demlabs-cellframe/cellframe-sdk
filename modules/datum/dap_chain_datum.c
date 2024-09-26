@@ -22,6 +22,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include <string.h>
+#include <json.h>
 
 #include "dap_common.h"
 #include "dap_time.h"
@@ -36,6 +37,7 @@
 #include "dap_enc_base58.h"
 #include "dap_sign.h"
 #include "dap_tsd.h"
+#include "dap_json_rpc_errors.h"
 
 #define LOG_TAG "dap_chain_datum"
 
