@@ -46,7 +46,7 @@ typedef struct dap_chain_block_datum_index {
     dap_chain_block_cache_t *block_cache;
     size_t datum_index;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    dap_chain_net_srv_uid_t service_uid;
+    dap_chain_srv_uid_t service_uid;
     dap_chain_tx_tag_action_type_t action;
     UT_hash_handle hh;
 } dap_chain_block_datum_index_t;

@@ -2128,7 +2128,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
             MULT_256_256(l_sovereign_tax, GET_256_FROM_64(100), &l_sovereign_tax);
 #if EXTENDED_SRV_DEBUG
             {
-                char *l_tax_str = dap_chain_balance_to_coins(l_sovereign_tax);
+                char *l_tax_str = dap_chain_balance_coins_print(l_sovereign_tax);
                 char *l_addr_str = dap_chain_addr_to_str_static(&l_sovereign_addr);
                 log_it(L_NOTICE, "Delegation tx params: tax = %s%%, addr = %s", l_tax_str, l_addr_str);
                 DAP_DEL_Z(l_tax_str);
