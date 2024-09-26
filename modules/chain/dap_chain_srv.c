@@ -92,6 +92,7 @@ int dap_chain_srv_add(dap_chain_srv_uid_t a_uid, const char *a_name, dap_chain_s
     if (a_static_callbacks)
         l_service_item->callbacks = *a_static_callbacks;
     HASH_ADD(hh, s_srv_list, uuid, sizeof(a_uid), l_service_item);
+    pthread_mutex_unlock(&s_srv_list_mutex);
     return 0;
 }
 
