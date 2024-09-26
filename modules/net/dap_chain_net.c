@@ -661,6 +661,30 @@ static dap_chain_net_t *s_net_new(dap_chain_net_id_t *a_id, const char *a_name,
     return l_ret;
 }
 
+bool s_net_disk_load_notify_callback(void) {
+    json_object *json_obj = json_object_new_object();
+    json_object_object_add(json_obj, "class", json_object_new_string("nets_init"));
+    json_object *l_jobj_nets = json_object_new_object();
+    dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
+    HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp) {
+        json_object *json_chains = json_object_new_object();
+        for (dap_chain_t *l_chain = l_net_items_current->chain_net->pub.chains; l_chain; l_chain = l_chain->next) {
+            json_object *l_jobj_chain_info = json_object_new_object();
+            json_object *l_jobj_atoms = json_object_new_int(l_chain->callback_count_atom(l_chain));
+            json_object *l_jobj_process = json_object_new_int(l_chain->load_progress);
+            json_object_object_add(l_jobj_chain_info, "count_atoms", l_jobj_atoms);
+            json_object_object_add(l_jobj_chain_info, "load_process", l_jobj_process);
+            json_object_object_add(json_chains, l_chain->name, l_jobj_chain_info);
+            log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]", l_net_items_current->name, l_chain->name, l_chain->id.uint64, l_chain->load_progress);
+        }
+        json_object_object_add(l_jobj_nets, l_net_items_current->name, json_chains);
+    }
+    json_object_object_add(json_obj, "nets", l_jobj_nets);
+    dap_notify_server_send_mt(json_object_get_string(json_obj));
+    json_object_put(json_obj);
+    return true;
+}
+
 /**
  * @brief
  * load network config settings
@@ -675,11 +699,14 @@ void dap_chain_net_load_all()
         return;
     }
     dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
+    dap_timerfd_t* l_nets_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_net_disk_load_notify_callback, NULL);
     HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp)
         dap_proc_thread_callback_add(NULL, s_net_load, l_net_items_current->chain_net);
     while (s_net_loading_count)
         pthread_cond_wait(&s_net_cond, &s_net_cond_lock);
     pthread_mutex_unlock(&s_net_cond_lock);
+    s_net_disk_load_notify_callback();
+    dap_timerfd_delete_unsafe(l_nets_load_notify_timer);
 }
 
 dap_string_t* dap_cli_list_net()
