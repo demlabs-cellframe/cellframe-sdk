@@ -444,6 +444,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             if (!a_apply)
                 break;
             dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, &l_hash, l_value, &l_node_addr);
+            dap_chain_net_srv_stake_add_approving_decree_info(a_decree, a_net);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE: {
             if (dap_chain_datum_decree_get_stake_signing_addr(a_decree, &l_addr)){
@@ -460,6 +461,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
+            dap_chain_net_srv_stake_remove_approving_decree_info(a_net, &l_addr);
             dap_chain_net_srv_stake_key_invalidate(&l_addr);
         } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:

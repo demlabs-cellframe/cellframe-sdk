@@ -87,6 +87,16 @@ static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_t
     return false;
 }
 
+DAP_STATIC_INLINE char *s_get_delegated_group(dap_chain_net_t *a_net)
+{
+    return a_net ? dap_strdup_printf("%s.orders.stake.delegated", a_net->pub.gdb_groups_prefix) : NULL;
+}
+
+DAP_STATIC_INLINE char *s_get_approved_group(dap_chain_net_t *a_net)
+{
+    return a_net ? dap_strdup_printf("%s.orders.stake.approved", a_net->pub.gdb_groups_prefix) : NULL;
+}
+
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
  * @return 0 if everything is okay, lesser then zero if errors
@@ -1384,10 +1394,53 @@ char *s_fee_order_create(dap_chain_net_t *a_net, uint256_t *a_fee, dap_enc_key_t
     return l_order_hash_str;
 }
 
-struct validator_odrer_ext {
+struct validator_order_ext {
     uint256_t tax;
     uint256_t value_max;
 } DAP_ALIGN_PACKED;
+
+void dap_chain_net_srv_stake_add_approving_decree_info(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net)
+{
+    dap_hash_fast_t l_hash = {0};
+    dap_chain_datum_decree_get_hash(a_decree, &l_hash);
+
+    char *l_approved_group = s_get_approved_group(a_net); 
+    const char *l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_hash);
+    char *l_decree_hash_str = NULL;
+    if (dap_global_db_driver_is(l_approved_group, l_tx_hash_str)) {
+        l_decree_hash_str = (char *)dap_global_db_get_sync(l_approved_group, l_tx_hash_str, NULL, NULL, NULL);
+        log_it(L_WARNING, "Caution, tx %s already approved, decree %s", l_tx_hash_str, l_decree_hash_str);
+        DAP_DELETE(l_decree_hash_str);
+    }
+    dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_hash);
+    l_decree_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
+    dap_global_db_set(l_approved_group, l_tx_hash_str, l_decree_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE, false, NULL, NULL);
+    DAP_DEL_MULTY(l_approved_group, l_decree_hash_str);
+}
+
+void dap_chain_net_srv_stake_remove_approving_decree_info(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr)
+{
+// sanity check
+    dap_return_if_pass(!a_net || !a_signing_addr);
+// data preparing
+    dap_hash_fast_t l_hash = {0};
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+    dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_signing_addr->net_id);
+    if (!l_srv_stake) {
+        log_it(L_ERROR, "Specified net %s have no stake service activated", a_net->pub.name);
+        return;
+    }
+    HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
+    if (!l_stake) {
+        log_it(L_ERROR, "Specified pkey hash is not delegated.");
+        return;
+    }
+// func work
+    char *l_delegated_group = s_get_approved_group(a_net); 
+    const char *l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_stake->tx_hash);
+    dap_global_db_del_sync(l_delegated_group, l_tx_hash_str);
+    DAP_DEL_Z(l_delegated_group);
+}
 
 char *s_validator_order_create(dap_chain_net_t *a_net, uint256_t a_value_min, uint256_t a_value_max, uint256_t a_tax,
                                dap_enc_key_t *a_key, const char *a_hash_out_type, dap_chain_node_addr_t a_node_addr)
@@ -1398,7 +1451,7 @@ char *s_validator_order_create(dap_chain_net_t *a_net, uint256_t a_value_min, ui
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, a_net->pub.native_ticker);
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 =  SERV_UNIT_PCS};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS };
-    struct validator_odrer_ext l_order_ext = { a_tax, a_value_max };
+    struct validator_order_ext l_order_ext = { a_tax, a_value_max };
     dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_compose(a_net, l_dir, l_uid, a_node_addr,
                                                             l_tx_hash, &a_value_min, l_unit, l_delegated_ticker, 0,
                                                             (const uint8_t *)&l_order_ext, sizeof(l_order_ext),
@@ -1525,6 +1578,14 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value_min <256 bit integer>");
             return -6;
         }
+        uint256_t l_allowed_min = dap_chain_net_srv_stake_get_allowed_min_value(l_net->pub.id);
+        if (compare256(l_value_min, l_allowed_min) == -1) {
+            const char *l_allowed_min_coin_str = NULL;
+            const char *l_allowed_min_datoshi_str = dap_uint256_to_char(l_allowed_min, &l_allowed_min_coin_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Number in '-value_min' param %s is lower than service minimum allowed value %s(%s)",
+                                            l_value_min_str, l_allowed_min_coin_str, l_allowed_min_datoshi_str);
+            return -27;
+        }
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value_max", &l_value_max_str);
         if (!l_value_max_str) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Validator order creation requires parameter -value_max");
@@ -1534,6 +1595,17 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
         if (IS_ZERO_256(l_value_max)) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value_max <256 bit integer>");
             return -8;
+        }
+        if (compare256(l_value_max, l_allowed_min) == -1) {
+            const char *l_allowed_min_coin_str = NULL;
+            const char *l_allowed_min_datoshi_str = dap_uint256_to_char(l_allowed_min, &l_allowed_min_coin_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Number in '-value_max' param %s is lower than service minimum allowed value %s(%s)",
+                                            l_value_max_str, l_allowed_min_coin_str, l_allowed_min_datoshi_str);
+            return -26;
+        }
+        if (compare256(l_value_max, l_value_min) == -1) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Number in '-value_min' should be equal or less than number in '-value_max'");
+            return -25;
         }
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tax", &l_tax_str);
         if (!l_tax_str) {
@@ -1771,15 +1843,21 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             return -4;
         }
         dap_string_t *l_reply_str = dap_string_new("");
+        size_t l_delegated_hashes_count = 0;
+        char *l_hashes_group_str = s_get_delegated_group(l_net);
+        dap_global_db_obj_t *l_delegated_hashes = dap_global_db_get_all_sync(l_hashes_group_str, &l_delegated_hashes_count);
+        DAP_DEL_Z(l_hashes_group_str);
+        l_hashes_group_str = s_get_approved_group(l_net);
+
         for (int i = 0; i < 2; i++) {
             char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(l_net) :
                                         dap_chain_net_srv_order_get_common_group(l_net);
             size_t l_orders_count = 0;
-            dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
-            for (size_t i = 0; i < l_orders_count; i++) {
-                const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_orders[i].key, l_orders[i].value, l_orders[i].value_len);
+            dap_global_db_obj_t *l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
+            for (size_t j = 0; j < l_orders_count; j++) {
+                const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_orders[j].key, l_orders[j].value, l_orders[j].value_len);
                 if (!l_order) {
-                    log_it(L_WARNING, "Unreadable order %s", l_orders[i].key);
+                    log_it(L_WARNING, "Unreadable order %s", l_orders[j].key);
                     continue;
                 }
                 if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID &&
@@ -1792,10 +1870,28 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                     if (l_order->direction == SERV_DIR_SELL) {
                         dap_string_append(l_reply_str, "Value in this order type means minimum value of m-tokens for validator acceptable for key delegation with supplied tax\n"
                                                        "Order external params:\n");
-                        struct validator_odrer_ext *l_ext = (struct validator_odrer_ext *)l_order->ext_n_sign;
+                        // forming order info record
+                        struct validator_order_ext *l_ext = (struct validator_order_ext *)l_order->ext_n_sign;
+                        bool l_approved = false;
+                        for (uint16_t k = 0; k < l_delegated_hashes_count && !l_approved; ++k) {
+                            l_approved = dap_global_db_driver_is(l_hashes_group_str, l_delegated_hashes[k].key) && !strcmp((const char *)(l_delegated_hashes[k].value), l_orders[j].key);
+                        }
+                        dap_string_append_printf(l_reply_str, "  delegated:\t    %s\n  delegate hash:\n", l_approved ? "true" : "false");
+                        dap_string_t *l_decree_str = dap_string_new("  decree hash:\n");
+                        for (uint16_t k = 0; k < l_delegated_hashes_count; ++k) {
+                            if (!strcmp((const char *)(l_delegated_hashes->value), l_orders[j].key)) {
+                                dap_string_append_printf(l_reply_str, "\t\t    %s\n", (l_delegated_hashes + k)->key);
+                                char *l_current_decree_str = (char *)dap_global_db_get_sync(l_hashes_group_str, l_delegated_hashes[k].key, NULL, NULL, NULL);
+                                dap_string_append_printf(l_decree_str, "\t\t    %s\n", l_current_decree_str ? l_current_decree_str : "");
+                                DAP_DEL_Z(l_current_decree_str);
+                            }
+                        }
+                        dap_string_append_printf(l_reply_str, "%s", l_decree_str->str);
+                        dap_string_free(l_decree_str, true);
+                        
                         const char *l_coins_str;
                         dap_uint256_to_char(l_ext->tax, &l_coins_str);
-                        dap_string_append_printf(l_reply_str, "  tax:              %s%%\n", l_coins_str);
+                        dap_string_append_printf(l_reply_str, "  tax:\t\t    %s%%\n", l_coins_str);
                         dap_uint256_to_char(l_ext->value_max, &l_coins_str);
                         dap_string_append_printf(l_reply_str, "  maximum_value:    %s\n", l_coins_str);
                     } else { // l_order->direction = SERV_DIR_BUY
@@ -1829,6 +1925,8 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             dap_global_db_objs_delete(l_orders, l_orders_count);
             DAP_DELETE(l_gdb_group_str);
         }
+        DAP_DEL_Z(l_hashes_group_str);
+        dap_global_db_objs_delete(l_delegated_hashes, l_delegated_hashes_count);
         if (!l_reply_str->len)
             dap_string_append(l_reply_str, "No orders found");
         *a_str_reply = dap_string_free(l_reply_str, false);
@@ -1850,6 +1948,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
                *l_fee_str = NULL,
                *l_node_addr_str = NULL,
                *l_order_hash_str = NULL;
+    bool l_add_hash_to_gdb = false;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str);
     if (!l_net_str) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -net");
@@ -2022,13 +2121,13 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
             } else
                 dap_chain_addr_fill_from_key(&l_sovereign_addr, l_enc_key, l_net->pub.id);
 
-            if (l_order->ext_size != sizeof(struct validator_odrer_ext)) {
+            if (l_order->ext_size != sizeof(struct validator_order_ext)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order has invalid size");
                 dap_enc_key_delete(l_enc_key);
                 DAP_DELETE(l_order);
                 return -26;
             }
-            struct validator_odrer_ext *l_ext = (struct validator_odrer_ext *)l_order->ext_n_sign;
+            struct validator_order_ext *l_ext = (struct validator_order_ext *)l_order->ext_n_sign;
             l_sovereign_tax = l_ext->tax;
             if (l_order_hash_str && compare256(l_value, l_order->price) == -1) {
                 const char *l_coin_min_str, *l_value_min_str =
@@ -2062,6 +2161,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
                 DAP_DELETE(l_order);
                 return -28;
             }
+            l_add_hash_to_gdb = true;
             l_node_addr = l_order->node_addr;
         }
         DAP_DELETE(l_order);
@@ -2112,6 +2212,14 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
         return -12;
     }
     DAP_DELETE(l_tx);
+    if (l_add_hash_to_gdb) {
+        char *l_delegated_group = s_get_delegated_group(l_net);
+        if (dap_global_db_driver_is(l_delegated_group, l_tx_hash_str)) {
+            log_it(L_WARNING, "Caution, tx %s already exists", l_tx_hash_str);
+        }
+        dap_global_db_set(l_delegated_group, l_tx_hash_str, l_order_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE, false, NULL, NULL);
+        DAP_DEL_Z(l_delegated_group);
+    }
     const char *c_save_to_take = l_prev_tx ? "" : "SAVE TO TAKE ===>>> ";
     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s%sStake transaction %s has done", l_sign_str, c_save_to_take, l_tx_hash_str);
     DAP_DELETE(l_tx_hash_str);
@@ -2242,12 +2350,12 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, vo
     dap_enc_key_delete(l_enc_key);
     char *l_out_hash_str = NULL;
     if (l_tx_new && (l_out_hash_str = s_stake_tx_put(l_tx_new, l_net, a_hash_out_type))) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%sDelegated m-tokens value will change. Updating tx hash is %s.", l_sign_str, l_out_hash_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%sDelegated m-tokens value will change. Updating tx hash is %s .", l_sign_str, l_out_hash_str);
         DAP_DELETE(l_out_hash_str);
         DAP_DELETE(l_tx_new);
     } else {
         l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose updating transaction %s, examine log files for details", l_tx_hash_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose updating transaction %s , examine log files for details", l_tx_hash_str);
         DAP_DEL_Z(l_tx_new);
         return -21;
     }
@@ -2366,7 +2474,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
         if (l_stake) {
             char l_pkey_hash_str[DAP_HASH_FAST_STR_SIZE]; 
             dap_hash_fast_to_str(&l_stake->signing_addr.data.hash_fast, l_pkey_hash_str, DAP_HASH_FAST_STR_SIZE);
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s has active delegated key %s, need to revoke it first",
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s has active delegated key %s , need to revoke it first",
                                               l_tx_hash_str_tmp, l_pkey_hash_str);
             return -30;
         }
@@ -2388,12 +2496,12 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
         char *l_out_hash_str = NULL;
         if (l_tx && (l_out_hash_str = s_stake_tx_put(l_tx, l_net, a_hash_out_type))) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%sAll m-tokens will be returned to "
-                                                           "owner. Returning tx hash %s.", l_sign_str, l_out_hash_str);
-            DAP_DELETE(l_out_hash_str);
-            DAP_DELETE(l_tx);
+                                                           "owner. Returning tx hash %s .", l_sign_str, l_out_hash_str);
+            char *l_delegated_group = s_get_delegated_group(l_net);
+            dap_global_db_del_sync(l_delegated_group, l_tx_hash_str_tmp);
+            DAP_DEL_MULTY(l_out_hash_str, l_tx, l_delegated_group);
         } else {
-            l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose invalidation transaction %s, examine log files for details", l_tx_hash_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose invalidation transaction %s , examine log files for details", l_tx_hash_str_tmp);
             DAP_DEL_Z(l_tx);
             return -21;
         }
@@ -2411,14 +2519,12 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
         char *l_decree_hash_str = NULL;
         if (l_decree && (l_decree_hash_str = s_stake_decree_put(l_decree, l_net))) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified delegated key invalidated. "
-                                                           "Created key invalidation decree %s."
+                                                           "Created key invalidation decree %s . "
                                                            "Try to execute this command with -w to return m-tokens to owner", l_decree_hash_str);
             DAP_DELETE(l_decree);
             DAP_DELETE(l_decree_hash_str);
         } else {
-            char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-            dap_chain_hash_fast_to_str(&l_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't invalidate transaction %s, examine log files for details", l_tx_hash_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't invalidate transaction %s , examine log files for details", l_tx_hash_str_tmp);
             DAP_DEL_Z(l_decree);
             return -21;
         }
@@ -2695,7 +2801,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 return -2;
             }
             if (dap_chain_hash_fast_from_str(str_tx_hash, &l_tx)){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get hash_fast from %s, check that the hash is correct", str_tx_hash);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get hash_fast from %s , check that the hash is correct", str_tx_hash);
                 return -3;
             }
             int res = dap_chain_net_srv_stake_check_validator(l_net, &l_tx, &l_out, 10000, 15000);
