@@ -2602,10 +2602,8 @@ void dap_chain_net_proc_mempool(dap_chain_net_t *a_net)
  */
 int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, dap_hash_fast_t *a_datum_hash)
 {
-    if (!a_datum)
-        return -10;
-    if (!a_chain)
-        return -11;
+    dap_return_val_if_pass(!a_datum, -10);
+    dap_return_val_if_pass(!a_chain, -11);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     switch (a_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TX:
