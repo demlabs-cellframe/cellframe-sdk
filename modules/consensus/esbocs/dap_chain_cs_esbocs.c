@@ -3020,13 +3020,15 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         SUBCMD_UNDEFINED = 0,
         SUBCMD_MIN_VALIDATORS_COUNT,
         SUBCMD_CHECK_SIGNS_STRUCTURE,
-        SUBCMD_EMERGENCY_VALIDATOR
+        SUBCMD_EMERGENCY_VALIDATOR,
+        SUBCMD_STATUS
     } l_subcmd = SUBCMD_UNDEFINED;
     const char *l_subcmd_strs[] = {
         [SUBCMD_UNDEFINED] = NULL,
         [SUBCMD_MIN_VALIDATORS_COUNT] = "min_validators_count",
         [SUBCMD_CHECK_SIGNS_STRUCTURE] = "check_signs_structure",
         [SUBCMD_EMERGENCY_VALIDATOR] = "emergency_validators",
+        [SUBCMD_STATUS] = "status",
     };
 
     const size_t l_subcmd_str_count = sizeof(l_subcmd_strs) / sizeof(char *);
@@ -3068,7 +3070,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             }
         } else if (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "show") > 0)
             l_subcommand_show = true;
-        else
+        else if (l_subcmd != SUBCMD_STATUS)
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNKNOWN,"Unrecognized subcommand '%s'", a_argv[l_arg_index]);
     }
 
@@ -3169,6 +3171,80 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             s_print_emergency_validators(json_obj_out, l_esbocs_pvt->emergency_validator_addrs);
             json_object_array_add(*json_arr_reply, json_obj_out);
         }            
+    } break;
+
+    case SUBCMD_STATUS: {
+        const char * l_net_str = NULL, *l_chain_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+        if (!l_net_str) {
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_NET,"Command '%s' requires parameter -net", l_subcmd_strs[l_subcmd]);
+            return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_NET;
+        }
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &l_chain_str);
+
+        dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+        if (!l_net) {
+            log_it(L_WARNING, "Can't find net %s", l_net_str);
+            return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CANT_FIND_NET;
+        }
+
+        dap_chain_esbocs_session_t *l_session;
+        DL_FOREACH(s_session_items, l_session)
+            if (l_session->chain->net_id.uint64 == l_net->pub.id.uint64)
+                break;
+        if (!l_session) {
+            log_it(L_WARNING, "Session for net %s not found", l_net->pub.name);
+            return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_SESSION;
+        }
+
+        int l_validator_count = 0;
+        for (dap_list_t *it = l_session->cur_round.all_validators; it ;it = it->next) {
+            dap_chain_esbocs_validator_t *l_validator = it->data;
+            json_object* l_json_obj_validator = json_object_new_object();
+            char l_node_addr[128] = {};
+            sprintf(l_node_addr, ""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(l_validator->node_addr));
+            json_object_object_add(l_json_obj_validator, "node_addr", json_object_new_string(l_node_addr));
+            switch (dap_chain_net_srv_stake_key_delegated(&l_validator->signing_addr)) {
+                case 0: json_object_object_add(l_json_obj_validator, "status", json_object_new_string("no_stake"));
+                    break;
+                case 1: json_object_object_add(l_json_obj_validator, "status", json_object_new_string("active"));
+                    break;
+                case -1: json_object_object_add(l_json_obj_validator, "status", json_object_new_string("inactive"));
+            }
+            l_validator_count++;
+            json_object_array_add(*json_arr_reply, l_json_obj_validator);
+        }
+
+        json_object* l_json_obj_status = json_object_new_object();
+        json_object_object_add(l_json_obj_status, "num_validators", json_object_new_int(l_validator_count));
+        json_object_object_add(l_json_obj_status, "sync_attempt", json_object_new_uint64(l_session->cur_round.sync_attempt));
+        json_object_object_add(l_json_obj_status, "round_id", json_object_new_uint64(l_session->cur_round.id));
+        json_object_array_add(*json_arr_reply, l_json_obj_status);   
+        {
+            dap_chain_datum_iter_t *l_datum_iter = l_session->chain->callback_datum_iter_create(l_session->chain);
+            dap_chain_datum_t * l_last_datum =  l_session->chain->callback_datum_iter_get_last(l_datum_iter);
+            char l_time_buf[64] = {'\0'};
+            dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_last_datum->header.ts_create);
+            json_object_object_add(l_json_obj_status, "last_accepted_block_time", json_object_new_string(l_time_buf));
+            l_session->chain->callback_datum_iter_delete(l_datum_iter);
+        }
+        char l_time_buf[64] = {'\0'};
+        dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_session->ts_stage_entry);
+        json_object_object_add(l_json_obj_status, "last_candidate_time", json_object_new_string(l_time_buf));
+        // const char *l_penalty_group = s_get_penalty_group(l_net->pub.id);
+        // json_object_object_add(l_json_obj_status, "penalty_group", json_object_new_string(l_penalty_group));
+
+        // dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_session->chain);
+        // pthread_rwlock_wrlock(&(dap_chain_cs_blocks_pvt_t)(l_blocks)->rwlock);
+        // dap_chain_block_cache_t *l_last_block = HASH_LAST(PVT(l_blocks)->blocks);
+        // pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+
+    //     HASH_FIND(hh, a_session->cur_round.store_items, l_candidate_hash, sizeof(dap_chain_hash_fast_t), l_store);
+    // HASH_FIND(hh, a_session->cur_round.store_items, &a_session->cur_round.attempt_candidate_hash, sizeof(dap_hash_fast_t), l_store);
+
+
+
+        
     } break;
 
     default:
