@@ -475,7 +475,9 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             a_cell->map_pos += l_el_size;
             a_chain->load_progress = (int)((float)l_pos/l_full_size * 100 + 0.5);
         }
+#ifndef DAP_OS_WINDOWS
         s_cell_reclaim_cur_volume(a_cell);
+#endif
     } else { 
         DAP_DELETE(l_hdr);
         size_t l_read = 0;
