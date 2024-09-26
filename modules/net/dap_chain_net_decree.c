@@ -52,7 +52,7 @@ typedef struct decree_table {
 
 // Private fuctions prototype
 static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net);
-static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_load_mode);
+static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_anchored);
 static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply);
 
 static bool s_debug_more = false;
@@ -119,7 +119,7 @@ void dap_chain_net_decree_purge(dap_chain_net_t *a_net)
     dap_chain_net_decree_init(a_net);
 }
 
-static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash, bool a_load_mode)
+static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash, bool a_anchored)
 {
     if (a_data_size < sizeof(dap_chain_datum_decree_t)) {
         log_it(L_WARNING, "Decree size is too small");
@@ -205,7 +205,7 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
     int l_ret = 0;
     switch(a_decree->header.type) {
     case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:
-        l_ret = s_common_decree_handler(a_decree, a_net, false, a_load_mode);
+        l_ret = s_common_decree_handler(a_decree, a_net, false, a_anchored);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
         l_ret = s_service_decree_handler(a_decree, a_net, false);
@@ -227,7 +227,7 @@ int dap_chain_net_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t
     return s_decree_verify(a_net, a_decree, a_data_size, a_decree_hash, false);
 }
 
-int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain)
+int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, bool a_anchored)
 {
     int ret_val = 0;
     dap_chain_net_t *l_net = NULL;
@@ -282,7 +282,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
     // Process decree
     switch(l_new_decree->decree->header.type) {
     case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:
-        ret_val = s_common_decree_handler(l_new_decree->decree, l_net, true, false);
+        ret_val = s_common_decree_handler(l_new_decree->decree, l_net, true, a_anchored);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
         ret_val = s_service_decree_handler(l_new_decree->decree, l_net, true);
@@ -318,12 +318,12 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
 
     size_t l_data_size = dap_chain_datum_decree_get_size(a_decree);
 
-    if ((ret_val = s_decree_verify(l_net, a_decree, l_data_size, a_decree_hash, true)) != 0) {
+    if ((ret_val = s_decree_verify(l_net, a_decree, l_data_size, a_decree_hash, false)) != 0) {
         //log_it(L_ERROR, "Decree verification failed!");
         return ret_val;
     }
 
-    return dap_chain_net_decree_apply(a_decree_hash, a_decree, a_chain);
+    return dap_chain_net_decree_apply(a_decree_hash, a_decree, a_chain, false);
 }
 
 int dap_chain_net_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_decree_hash)
@@ -356,7 +356,7 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net)
     return false;
 }
 
-static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_load_mode)
+static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_anchored)
 {
     uint256_t l_value;
     uint32_t l_sign_type;
@@ -433,10 +433,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING,"Can't get signer node address from decree.");
                 return -108;
             }
-            if (a_load_mode) {
-                assert(!a_apply);
+            if (!a_anchored)
                 break;
-            }
             if (dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr)) {
                 debug_if(s_debug_more, L_WARNING, "Key and node verification error");
                 return -109;
@@ -487,6 +485,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING, "Can't apply this decree to specified chain");
                 return -115;
             }
+            if (!a_anchored)
+                break;
             uint16_t l_decree_count = (uint16_t)dap_chain_uint256_to(l_value);
             uint16_t l_current_count = dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL);
             if (l_decree_count > l_current_count) {

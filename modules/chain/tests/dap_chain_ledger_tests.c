@@ -353,7 +353,7 @@ int dap_ledger_test_create_reward_decree(dap_chain_t *a_chain, dap_chain_net_id_
     dap_hash_fast_t l_decree_hash = {};
     dap_hash_fast(l_decree, l_decree_size, &l_decree_hash);
     // a_chain->callback_atom_add();
-    dap_assert_PIF(dap_chain_net_decree_apply(&l_decree_hash, l_decree, a_chain)==0, "Decree applying:");
+    dap_assert_PIF(dap_chain_net_decree_apply(&l_decree_hash, l_decree, a_chain, false)==0, "Decree applying:");
     return 0;
 }
 

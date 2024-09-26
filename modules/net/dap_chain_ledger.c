@@ -276,8 +276,8 @@ typedef struct dap_ledger_private {
     dap_list_t *bridged_tx_notifiers;
     dap_list_t *tx_add_notifiers;
     dap_ledger_cache_tx_check_callback_t cache_tx_check_callback;
-    // HAL
-    dap_ledger_hal_item_t *hal_items;
+    // White- and blacklist
+    dap_ledger_hal_item_t *hal_items, *hrl_items;
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
@@ -559,6 +559,12 @@ inline static dap_ledger_hal_item_t *s_check_hal(dap_ledger_t *a_ledger, dap_has
     HASH_FIND(hh, PVT(a_ledger)->hal_items, a_hal_hash, sizeof(dap_hash_fast_t), ret);
     debug_if(s_debug_more && ret, L_MSG, "Datum %s is whitelisted", dap_hash_fast_to_str_static(a_hal_hash));
     return ret;
+}
+
+bool dap_ledger_datum_is_blacklisted(dap_ledger_t *a_ledger, dap_hash_fast_t a_hash) {
+    dap_ledger_hal_item_t *ret = NULL;
+    HASH_FIND(hh, PVT(a_ledger)->hrl_items, &a_hash, sizeof(dap_hash_fast_t), ret);
+    return debug_if(s_debug_more && ret, L_MSG, "Datum %s is blacklisted", dap_hash_fast_to_str_static(&a_hash)), !!ret;
 }
 
 inline static dap_ledger_token_item_t *s_ledger_find_token(dap_ledger_t *a_ledger, const char *a_token_ticker)
@@ -2558,27 +2564,24 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
         if (strlen(l_entry_name) > 4) {
             if ( strncmp (l_entry_name + strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
                 l_entry_name [strlen(l_entry_name)-4] = 0;
-                log_it(L_DEBUG,"Open chain config \"%s\"...",l_entry_name);
+                log_it(L_DEBUG,"Open chain config \"%s.%s\"...", a_net->pub.name, l_entry_name);
                 l_chains_path = dap_strdup_printf("network/%s/%s", a_net->pub.name, l_entry_name);
                 dap_config_t * l_cfg = dap_config_open(l_chains_path);
-                uint16_t l_whitelist_size;
-                const char **l_whitelist = dap_config_get_array_str(l_cfg, "ledger", "hard_accept_list", &l_whitelist_size);
-                for (uint16_t i = 0; i < l_whitelist_size; ++i) {
-                    dap_ledger_hal_item_t *l_hal_item = DAP_NEW_Z(dap_ledger_hal_item_t);
-                    if (!l_hal_item) {
-                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                        DAP_DEL_Z(l_ledger_pvt);
-                        DAP_DEL_Z(l_ledger);
-                        dap_config_close(l_cfg);
-                        DAP_DELETE (l_entry_name);
-                        closedir(l_chains_dir);
-                        return NULL;
-                    }
-                    dap_chain_hash_fast_from_str(l_whitelist[i], &l_hal_item->hash);
-                    HASH_ADD(hh, l_ledger_pvt->hal_items, hash, sizeof(l_hal_item->hash), l_hal_item);
+                uint16_t l_whitelist_size, l_blacklist_size, i;
+                const char **l_whitelist = dap_config_get_array_str(l_cfg, "ledger", "hard_accept_list", &l_whitelist_size),
+                           **l_blacklist = dap_config_get_array_str(l_cfg, "ledger", "hard_reject_list", &l_blacklist_size);
+                for (i = 0; i < l_blacklist_size; ++i) {
+                    dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
+                    dap_chain_hash_fast_from_str(l_blacklist[i], &l_item->hash);
+                    HASH_ADD(hh, l_ledger_pvt->hrl_items, hash, sizeof(dap_hash_fast_t), l_item);
+                }
+                for (i = 0; i < l_whitelist_size; ++i) {
+                    dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
+                    dap_chain_hash_fast_from_str(l_whitelist[i], &l_item->hash);
+                    HASH_ADD(hh, l_ledger_pvt->hal_items, hash, sizeof(dap_hash_fast_t), l_item);
                 }
                 dap_config_close(l_cfg);
-                log_it(L_DEBUG, "HAL items count for chain %s : %d", l_entry_name, l_whitelist_size);
+                log_it(L_DEBUG, "Chain %s.%s has %d datums in HAL and %d datums in HRL", a_net->pub.name, l_entry_name, l_whitelist_size, l_blacklist_size);
             }
         }
         DAP_DELETE (l_entry_name);
