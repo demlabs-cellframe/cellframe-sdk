@@ -477,10 +477,10 @@ void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint25
     if (!l_stake)
         return; // It's update for non delegated key, it's OK
     HASH_DELETE(ht, l_srv_stake->tx_itemlist, l_stake);
+    char *l_old_value_str = dap_chain_balance_coins_print(l_stake->locked_value);
     l_stake->locked_value = l_stake->value = a_new_value;
     l_stake->tx_hash = *a_new_tx_hash;
     HASH_ADD(ht, l_srv_stake->tx_itemlist, tx_hash, sizeof(dap_hash_fast_t), l_stake);
-    char *l_old_value_str = dap_chain_balance_coins_print(l_stake->locked_value);
     const char *l_new_value_str; dap_uint256_to_char(a_new_value, &l_new_value_str);
     log_it(L_NOTICE, "Updated key with fingerprint %s and locked value %s to new locked value %s for node " NODE_ADDR_FP_STR,
                             dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_old_value_str,

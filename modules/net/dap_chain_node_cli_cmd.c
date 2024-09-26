@@ -8252,7 +8252,7 @@ static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, void **a_str
     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SIGNER, l_sign->pkey_n_sign, l_sign->header.sign_size);
     if (!l_datum)
         return dap_cli_server_cmd_set_reply_text(a_str_reply, "not created datum"), -1;
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "hash: %s", dap_get_data_hash_str(l_datum->data, l_datum->header.data_size));
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "hash: %s", dap_get_data_hash_str(l_datum->data, l_datum->header.data_size).s);
     return DAP_DELETE(l_datum), l_chain->callback_add_datums(l_chain, &l_datum, 1);
 }
 
