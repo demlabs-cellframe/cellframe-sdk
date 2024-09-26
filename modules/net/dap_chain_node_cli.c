@@ -116,26 +116,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "? [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
-    dap_cli_server_cmd_add ("wallet", com_tx_wallet, "Wallet operations",
-                            "wallet list\n"
-                            "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value> | -restore_legacy <restore_string>] [-net <net_name>] [-force] [-password <password>]\n"
-                            "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
-                            "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
-                            "wallet deactivate -w <wallet_name> -password <password>\n"
-                            "wallet convert -w <wallet_name> -password <password>\n");
-
-
-    // Token commands
     dap_cli_server_cmd_add ("token_update", com_token_update, "Token update",
                             "\nPrivate or CF20 token update\n"
-                            "\nPrivate or CF20 token update\n"
-                            "token_update -net <net_name> [-chain <chain_name>] -token <existing_token_ticker> -type CF20|private -total_supply <any_positive_number_or_zero> -decimals <18>\n"
-                            "-signs_total <the_same_total_as_the_token_you_are_updating> -signs_emission <the_same_total_as_the_token_you_are_updating> -certs <use_the_certificates_of_the_token_you_are_update>\n"
-                            "-flag_set [<Flag_1>][,<Flag_2>]...[,<Flag_N>]...\n"
-                            "-flag_unset [<Flag_1>][,<Flag_2>]...[,<Flag_N>]...\n"
-                            "\t [-<Param_name_1> <Param_Value_1>] [-Param_name_2> <Param_Value_2>] ...[-<Param_Name_N> <Param_Value_N>]\n"
-                            "\t   Update token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
-                            "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
+                            "token_update -net <net_name> [-chain <chain_name>] -token <existing_token_ticker> -type <CF20|private> [-total_supply_change <value>] "
+                            "-certs <name_certs> [-flag_set <flag>] [-flag_unset <flag>] [-total_signs_valid <value>] [-description <value>] "
+                            "[-tx_receiver_allowed <value>] [-tx_receiver_blocked <value>] [-tx_sender_allowed <value>] [-tx_sender_blocked <value>] "
+                            "[-add_cert <name_certs>] [-remove_certs <pkeys_hash>]\n"
                             "==Flags==\n"
                             "\t ALL_BLOCKED:\t Blocked all permissions, usefull add it first and then add allows what you want to allow\n"
                             "\t ALL_ALLOWED:\t Allowed all permissions if not blocked them. Be careful with this mode\n"
@@ -150,14 +136,17 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "\n"
                             "==Params==\n"
                             "General:\n"
+                            "\t -total_supply_change <value>:\t Sets the maximum size of supply token, If supply is not limited, it is set to 0\n"
+                            "\t -certs <name_certs>:\t Use the certificates of the token you are update. Example 'priv_cert1,priv_cert2,priv_cert3'\n"
+                            "Additional:\n"
+                            "\t -description <value>:\t Updated description for this token\n"
+                            "Installing and removing the flag:\n"
                             "\t -flag_set <value>:\t List of flags from <value> to token declaration or update\n"
                             "\t -flag_unset <value>:\t List of flags from <value> to token declaration or update\n"
-                            "\t -total_supply <value>:\t Set total supply - emission's maximum - to the <value>\n"
+                            "Work with the number of signatures required for the issue:\n"
                             "\t -total_signs_valid <value>:\t Set valid signatures count's minimum\n"
-                            "\t -description <value>:\t Updated description for this token\n"
-                            "\nDatum type allowed/blocked:\n"
-                            "\t -datum_type_allowed <value>:\t Set allowed datum type(s)\n"
-                            "\t -datum_type_blocked <value>:\t Set blocked datum type(s)\n"
+                            "\t -add_cert <name_certs>:\t Listing the names of certificates to be added to the token\n"
+                            "\t -remove_certs <pkeys_hash>:\t Enumeration of the hashes of the public key whose certificate is to be removed from the token\n"
                             "\nTx receiver addresses allowed/blocked:\n"
                             "\t -tx_receiver_allowed <value>:\t Set allowed tx receiver(s)\n"
                             "\t -tx_receiver_blocked <value>:\t Set blocked tx receiver(s)\n"
@@ -165,8 +154,17 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "\t -tx_sender_allowed <value>:\t Set allowed tx sender(s)\n"
                             "\t -tx_sender_blocked <value>:\t Set allowed tx sender(s)\n"
                             "\n"
-                            " -total_supply Sets the maximum size of supply token, If supply is not limited, it is set to 0.\n"
-                            );
+    );
+    dap_cli_server_cmd_add ("wallet", com_tx_wallet, "Wallet operations",
+                            "wallet list\n"
+                            "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value> | -restore_legacy <restore_string>] [-net <net_name>] [-force] [-password <password>]\n"
+                            "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
+                            "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
+                            "wallet deactivate -w <wallet_name> -password <password>\n"
+                            "wallet convert -w <wallet_name> -password <password>\n");
+
+
+    // Token commands
 
 
     // Token commands
