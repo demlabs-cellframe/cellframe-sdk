@@ -499,11 +499,15 @@ int s_link_manager_link_request(uint64_t a_net_id)
     if (l_net_pvt->state == NET_STATE_LINKS_PREPARE)
         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
     struct request_link_info *l_balancer_link = s_balancer_link_from_cfg(l_net);
-    if (!l_balancer_link) {
-        log_it(L_ERROR, "Can't process balancer link %s request in nte %s", dap_chain_net_balancer_type_to_str(PVT(l_net)->balancer_type), l_net->pub.name);
-        return -5;
-    }
-    return dap_chain_net_balancer_request(l_net, l_balancer_link->addr,  l_balancer_link->port, PVT(l_net)->balancer_type);
+    if (!l_balancer_link)
+        return log_it(L_ERROR, "Can't process balancer link %s request in net %s", 
+                        dap_chain_net_balancer_type_to_str(PVT(l_net)->balancer_type), l_net->pub.name), -5;
+    dap_balancer_link_request_t *l_arg = DAP_NEW_Z(dap_balancer_link_request_t);
+    l_arg->net = l_net;
+    l_arg->host_addr = (const char*)l_balancer_link->addr;
+    l_arg->host_port = l_balancer_link->port;
+    l_arg->type = PVT(l_net)->balancer_type;
+    return dap_worker_exec_callback_on(dap_worker_get_auto(), dap_chain_net_balancer_request, l_arg), 0;
 }
 
 int s_link_manager_fill_net_info(dap_link_t *a_link)
