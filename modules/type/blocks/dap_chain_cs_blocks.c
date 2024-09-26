@@ -210,11 +210,10 @@ int dap_chain_cs_blocks_init()
 
         "Reward for block signs:\n"
             "block -net <net_name> [-chain <chain_name>] reward set"
-            " -cert <poa_cert_name> -value <value>\n"
+            " -poa_cert <poa_cert_name> -value <value>\n"
                 "\t\t Set base reward for sign for one block at one minute\n\n"
 
-            "block -net <net_name> [-chain <chain_name>] reward show"
-            " -cert <poa_cert_name> -value <value>\n"
+            "block -net <net_name> [-chain <chain_name>] reward show\n"
                 "\t\t Show base reward for sign for one block at one minute\n\n"
 
             "block -net <net_name> [-chain <chain_name>] reward collect"
@@ -1096,12 +1095,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     }
                     char *l_decree_hash_str = s_blocks_decree_set_reward(l_net, l_chain, l_value, l_cert);
                     if (l_decree_hash_str) {
-                        //dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_OK, "Decree with hash %s created to set basic block sign reward", l_decree_hash_str);
                         json_object* json_obj_out = json_object_new_object();
                         char *l_val = dap_strdup_printf("Decree with hash %s created to set basic block sign reward", l_decree_hash_str);
-                        DAP_DELETE(l_decree_hash_str);
-                        json_object_object_add(json_obj_out, "status", json_object_new_string(l_val));
-                        DAP_DELETE(l_val);
+                        json_object_object_add(json_obj_out, "message", json_object_new_string(l_val));
+                        DAP_DEL_MULTY(l_decree_hash_str, l_val);
                         json_object_array_add(*json_arr_reply, json_obj_out);
                     } else {
                         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_BLOCK_SIGN_ERR, "Basic block sign reward setting failed. Examine log file for details");
