@@ -2964,11 +2964,12 @@ void dap_chain_net_announce_addr(dap_chain_net_t *a_net)
     dap_return_if_fail(a_net);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     if ( l_net_pvt->node_info->ext_port ) {
-        dap_chain_net_node_list_request(a_net, l_net_pvt->node_info->ext_port, false, 'a');
         log_it(L_INFO, "Announce our node address "NODE_ADDR_FP_STR" [ %s : %u ] in net %s",
                NODE_ADDR_FP_ARGS_S(g_node_addr),
                l_net_pvt->node_info->ext_host,
                l_net_pvt->node_info->ext_port, a_net->pub.name);
+        dap_chain_net_node_list_request(a_net, l_net_pvt->node_info->ext_port, true, 'a');
+        
     }
 }
 

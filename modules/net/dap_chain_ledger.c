@@ -2697,7 +2697,8 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
     pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
     if (l_token_emission_item) {
         debug_if(s_debug_more, L_WARNING, "Can't add token emission datum of %s %s ( %s ): already present in cache",
-                                    dap_uint256_to_char(l_emission->hdr.value, NULL), l_emission->hdr.ticker, dap_chain_hash_fast_to_str_static(a_emission_hash));
+                                    dap_uint256_to_char(l_emission->hdr.value, NULL), l_emission->hdr.ticker,
+                                    dap_chain_hash_fast_to_str_static(a_emission_hash));
         DAP_DELETE(l_emission);
         return DAP_LEDGER_CHECK_ALREADY_CACHED;
     }

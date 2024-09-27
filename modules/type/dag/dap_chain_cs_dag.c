@@ -458,11 +458,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
 
     dap_chain_hash_fast_t l_event_hash = *a_atom_hash;
-    if(s_debug_more) {
-        char l_event_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
-        dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_str, sizeof(l_event_hash_str));
-        log_it(L_DEBUG, "Processing event: %s ... (size %zd)", l_event_hash_str,a_atom_size);
-    }
+    debug_if(s_debug_more, L_DEBUG, "Processing event: %s ... (size %zd)",  dap_chain_hash_fast_to_str_static(&l_event_hash), a_atom_size);
     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
     // check if we already have this event
     dap_chain_atom_verify_res_t ret = s_dap_chain_check_if_event_is_present(PVT(l_dag)->events, &l_event_hash) ||
@@ -808,12 +804,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_c
         HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
         pthread_mutex_unlock(l_events_mutex);
         if (l_event_search == NULL) {
-            if(s_debug_more) {
-                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-                dap_chain_hash_fast_to_str(l_hash, l_hash_str, sizeof(l_hash_str));
-                log_it(L_WARNING, "Hash %s wasn't in hashtable of previously parsed, event %s goes to threshold",
-                                        l_hash_str, dap_hash_fast_to_str_static(a_atom_hash));
-            }
+            debug_if(s_debug_more, L_WARNING, "Hash %s wasn't in hashtable of previously parsed, event %s goes to threshold",
+                                              dap_hash_fast_to_str_static(l_hash), dap_hash_fast_to_str_static(a_atom_hash));
             res = ATOM_MOVE_TO_THRESHOLD;
             break;
         }

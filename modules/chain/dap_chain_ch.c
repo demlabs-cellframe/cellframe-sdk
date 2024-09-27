@@ -618,11 +618,10 @@ static bool s_sync_in_chains_callback(void *a_arg)
         DAP_DELETE(l_args);
         return false;
     }
-    char *l_atom_hash_str = NULL;
+    
     dap_hash_fast_t l_atom_hash = { }; 
-    dap_hash_fast(l_atom, l_atom_size, &l_atom_hash); 
-    if (s_debug_more)
-        l_atom_hash_str = dap_hash_fast_to_str_static(&l_atom_hash);
+    dap_hash_fast(l_atom, l_atom_size, &l_atom_hash);
+    char *l_atom_hash_str = dap_hash_fast_to_str_static(&l_atom_hash);
     dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size, &l_atom_hash, false);
     bool l_ack_send = false;
     switch (l_atom_add_res) {
