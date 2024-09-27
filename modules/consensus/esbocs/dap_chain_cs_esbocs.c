@@ -2625,6 +2625,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                 l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                     l_message->hdr.attempt_num, l_dirtective_hash_str, l_directive_size);
         }
+        l_session->esbocs->last_directive_vote_timestamp = dap_time_now();
         s_session_directive_process(l_session, l_directive, &l_directive_hash);
     } break;
 
@@ -3194,12 +3195,22 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         }
 
         dap_chain_esbocs_session_t *l_session;
-        DL_FOREACH(s_session_items, l_session)
-            if (l_session->chain->net_id.uint64 == l_net->pub.id.uint64)
-                break;
-        if (!l_session) {
-            log_it(L_WARNING, "Session for net %s not found", l_net->pub.name);
-            return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_SESSION;
+        if (l_chain_str) {
+            DL_FOREACH(s_session_items, l_session)
+                if (!dap_strcmp(l_chain_str, l_session->chain->name))
+                    break;
+            if (!l_session) {
+                log_it(L_WARNING, "Session for net %s chain %s not found", l_net->pub.name, l_chain_str);
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_SESSION;
+            }
+        } else {
+            DL_FOREACH(s_session_items, l_session)
+                if (l_session->chain->net_id.uint64 == l_net->pub.id.uint64)
+                    break;
+            if (!l_session) {
+                log_it(L_WARNING, "Session for net %s not found", l_net->pub.name);
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_SESSION;
+            }
         }
 
         const char *l_penalty_group = s_get_penalty_group(l_net->pub.id);
@@ -3219,6 +3230,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         json_object_array_add(*json_arr_reply, l_json_obj_banlist);   
 
         json_object* l_json_obj_status = json_object_new_object();
+        json_object_object_add(l_json_obj_status, "ban_list_count", json_object_new_int(l_penalties_count));
         json_object_object_add(l_json_obj_status, "sync_attempt", json_object_new_uint64(l_session->cur_round.sync_attempt));
         json_object_object_add(l_json_obj_status, "round_id", json_object_new_uint64(l_session->cur_round.id));
         json_object_array_add(*json_arr_reply, l_json_obj_status);
