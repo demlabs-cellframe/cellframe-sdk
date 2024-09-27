@@ -1354,6 +1354,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                             a_session->chain->net_name, a_session->chain->name,
                                 a_session->cur_round.id, a_session->cur_round.attempt_num, l_candidate_hash_str);
                 }
+                a_session->esbocs->last_directive_vote_timestamp = dap_time_now();
                 s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_DIRECTIVE, &l_directive_hash,
                                     l_directive, l_directive->size, a_session->cur_round.all_validators);
                 DAP_DELETE(l_directive);
@@ -1991,7 +1992,7 @@ static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, d
     s_message_send(a_session, l_type, a_directive_hash, NULL, 0, a_session->cur_round.all_validators);
 }
 
-static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, dap_hash_fast_t *a_directive_hash)
+static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, dap_hash_fast_t *a_directive_hash, dap_chain_esbocs_t* a_esbocs)
 {
     if (!a_directive) {
         log_it(L_ERROR, "Can't apply NULL directive");
@@ -2012,7 +2013,8 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
         const char *l_penalty_group = s_get_penalty_group(l_key_addr->net_id);
         const char *l_directive_hash_str = dap_chain_hash_fast_to_str_new(a_directive_hash);
         const char *l_key_hash_str = dap_chain_hash_fast_to_str_new(&l_key_addr->data.hash_fast);
-        
+        // update last directive accept time 
+        a_esbocs->last_directive_accept_timestamp = dap_time_now();
         if (l_status == 1 && a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK) {
             // Offline will be set in gdb notifier for aim of sync supporting
             dap_global_db_set(l_penalty_group, l_key_str, NULL, 0, false, NULL, 0);
@@ -2399,6 +2401,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
     case DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT: {
         uint8_t *l_candidate = l_message_data;
         size_t l_candidate_size = l_message_data_size;
+        // update last submitted candidate timestamp
+        l_session->esbocs->last_submitted_candidate_timestamp = dap_time_now();
         // check for NULL candidate
         if (!l_candidate_size || dap_hash_fast_is_blank(&l_message->hdr.candidate_hash)) {
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
@@ -2661,7 +2665,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
             if (!l_session->cur_round.directive_applied &&
                     ++l_session->cur_round.votes_for_count * 3 >=
                         dap_list_length(l_session->cur_round.all_validators) * 2) {
-                s_session_directive_apply(l_session->cur_round.directive, &l_session->cur_round.directive_hash);
+                s_session_directive_apply(l_session->cur_round.directive, &l_session->cur_round.directive_hash, l_session->esbocs);
                 l_session->cur_round.directive_applied = true;
                 s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS, dap_time_now());
             }
@@ -3217,12 +3221,17 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         json_object* l_json_obj_status = json_object_new_object();
         json_object_object_add(l_json_obj_status, "sync_attempt", json_object_new_uint64(l_session->cur_round.sync_attempt));
         json_object_object_add(l_json_obj_status, "round_id", json_object_new_uint64(l_session->cur_round.id));
-        json_object_array_add(*json_arr_reply, l_json_obj_status);   
+        json_object_array_add(*json_arr_reply, l_json_obj_status);
+        {
+            char l_time_buf[DAP_TIME_STR_SIZE] = {'\0'};
+            dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_session->esbocs->last_submitted_candidate_timestamp);
+            json_object_object_add(l_json_obj_status, "last_submitted_candidate_timestamp", json_object_new_string(l_time_buf));
+        }
         {
             dap_chain_datum_iter_t *l_datum_iter = l_session->chain->callback_datum_iter_create(l_session->chain);
             dap_chain_datum_t * l_last_datum =  l_session->chain->callback_datum_iter_get_last(l_datum_iter);
             if (l_last_datum) {
-                char l_time_buf[64] = {'\0'};
+                char l_time_buf[DAP_TIME_STR_SIZE] = {'\0'};
                 dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_last_datum->header.ts_create);
                 json_object_object_add(l_json_obj_status, "last_accepted_block_time", json_object_new_string(l_time_buf));
             }
@@ -3230,23 +3239,16 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         }
 
         {
-            char l_time_buf[128] = {'\0'};
-            dap_nanotime_to_str_rfc822(l_time_buf, sizeof(l_time_buf), l_objs[l_penalties_count-1].timestamp);
-            json_object_object_add(l_json_obj_status, "last_directive_time", json_object_new_string(l_time_buf));
+            char l_time_buf[DAP_TIME_STR_SIZE] = {'\0'};
+            dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_session->esbocs->last_directive_accept_timestamp);
+            json_object_object_add(l_json_obj_status, "last_directive_accept_timestamp", json_object_new_string(l_time_buf));
         }
-        // json_object_object_add(l_json_obj_status, "penalty_group", json_object_new_string(l_penalty_group));
 
-        // dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_session->chain);
-        // pthread_rwlock_wrlock(&(dap_chain_cs_blocks_pvt_t)(l_blocks)->rwlock);
-        // dap_chain_block_cache_t *l_last_block = HASH_LAST(PVT(l_blocks)->blocks);
-        // pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-
-    //     HASH_FIND(hh, a_session->cur_round.store_items, l_candidate_hash, sizeof(dap_chain_hash_fast_t), l_store);
-    // HASH_FIND(hh, a_session->cur_round.store_items, &a_session->cur_round.attempt_candidate_hash, sizeof(dap_hash_fast_t), l_store);
-
-
-
-        
+        {
+            char l_time_buf[DAP_TIME_STR_SIZE] = {'\0'};
+            dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_session->esbocs->last_directive_vote_timestamp);
+            json_object_object_add(l_json_obj_status, "last_directive_vote_timestamp", json_object_new_string(l_time_buf));
+        }
     } break;
 
     default:
