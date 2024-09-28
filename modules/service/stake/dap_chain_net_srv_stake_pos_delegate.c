@@ -1434,10 +1434,20 @@ char *s_staker_order_create(dap_chain_net_t *a_net, uint256_t a_value, dap_hash_
     return l_order_hash_str;
 }
 
+static int time_compare_orders(const void *a, const void *b) {
+    dap_global_db_obj_t *obj_a = (dap_global_db_obj_t*)a;
+    dap_global_db_obj_t *obj_b = (dap_global_db_obj_t*)b;
+
+    if (obj_a->timestamp < obj_b->timestamp) return -1;
+    if (obj_a->timestamp > obj_b->timestamp) return 1;
+    return 0;
+}
+
 static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, void **a_str_reply, const char *a_hash_out_type)
 {
     enum {
-        CMD_NONE, CMD_CREATE_FEE, CMD_CREATE_VALIDATOR, CMD_CREATE_STAKER, CMD_UPDATE, CMD_LIST, CMD_REMOVE
+        CMD_NONE, CMD_CREATE_FEE, CMD_CREATE_VALIDATOR, CMD_CREATE_STAKER, CMD_UPDATE, CMD_LIST,
+        CMD_LIST_STAKER, CMD_LIST_VALIDATOR, CMD_LIST_FEE, CMD_REMOVE
     };
     int l_cmd_num = CMD_NONE;
     const char *l_create_type = NULL;
@@ -1762,6 +1772,15 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order list' requires parameter -net");
             return -3;
         }
+        const char * l_list_type = NULL;
+        int l_list_filter = 0;
+        if (dap_cli_server_cmd_check_option(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "staker") >= 0)
+            l_list_filter = CMD_LIST_STAKER;
+        else if (dap_cli_server_cmd_check_option(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "validator") >= 0)
+            l_list_filter = CMD_LIST_VALIDATOR;
+        else if (dap_cli_server_cmd_check_option(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "fee") >= 0)
+            l_list_filter = CMD_LIST_FEE;
+
         dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
@@ -1773,6 +1792,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                                         dap_chain_net_srv_order_get_common_group(l_net);
             size_t l_orders_count = 0;
             dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
+            qsort(l_orders, l_orders_count, sizeof(dap_global_db_obj_t), time_compare_orders);
             for (size_t i = 0; i < l_orders_count; i++) {
                 const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_orders[i].key, l_orders[i].value, l_orders[i].value_len);
                 if (!l_order) {
@@ -1782,6 +1802,23 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                 if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID &&
                         l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS)
                     continue;
+
+                switch (l_list_filter) {
+                    case CMD_LIST_STAKER:
+                        if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS || l_order->direction != SERV_DIR_BUY )
+                            continue;
+                        break;
+                    case CMD_LIST_VALIDATOR:
+                        if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS || l_order->direction != SERV_DIR_SELL)
+                            continue;
+                        break;
+                    case CMD_LIST_FEE:
+                        if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
+                            continue;
+                        break;
+                    default:
+                        break;
+                }
                 // TODO add filters to list (token, address, etc.)
                 dap_string_append(l_reply_str, "\n");
                 dap_chain_net_srv_order_dump_to_string(l_order, l_reply_str, a_hash_out_type, l_net->pub.native_ticker);
