@@ -42,6 +42,9 @@ typedef struct dap_chain_block_datum_index {
     time_t ts_added;
     dap_chain_block_cache_t *block_cache;
     size_t datum_index;
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    dap_chain_net_srv_uid_t service_uid;
+    dap_chain_tx_tag_action_type_t action;
     UT_hash_handle hh;
 } dap_chain_block_datum_index_t;
 
@@ -189,7 +192,7 @@ int dap_chain_cs_blocks_init()
             "block -net <net_name> [-chain <chain_name>] dump <block_hash>\n"
                 "\t\tDump block info\n\n"
 
-            "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset]"
+            "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset] [-head]"
             " [-from_hash <block_hash>] [-to_hash <block_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]"
             " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>}] [-unspent]]\n"
                 "\t\t List blocks\n\n"
@@ -976,7 +979,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 char l_buf[DAP_TIME_STR_SIZE];
                 json_object* json_obj_bl_cache = json_object_new_object();
                 dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
-                json_object_object_add(json_obj_bl_cache, "block",json_object_new_uint64(i_tmp));
+                json_object_object_add(json_obj_bl_cache, "#",json_object_new_uint64(i_tmp));
+                json_object_object_add(json_obj_bl_cache, "block number",json_object_new_uint64(l_block_cache->block_number));
                 json_object_object_add(json_obj_bl_cache, "hash",json_object_new_string(l_block_cache->block_hash_str));
                 json_object_object_add(json_obj_bl_cache, "ts_create",json_object_new_string(l_buf));
                 json_object_array_add(json_arr_bl_cache_out, json_obj_bl_cache);
@@ -1478,10 +1482,12 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             break;
         }
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
-        int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash);
+        dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "0", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
+
+        int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
         l_ret++;
         if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
-            PVT(a_blocks)->tx_count++;
+            PVT(a_blocks)->tx_count++;  
         // Save datum hash -> block_hash link in hash table
         dap_chain_block_datum_index_t *l_datum_index = DAP_NEW_Z(dap_chain_block_datum_index_t);
         if (!l_datum_index) {
@@ -1493,6 +1499,9 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         l_datum_index->datum_hash = *l_datum_hash;
         l_datum_index->ret_code = l_res;
         l_datum_index->datum_index = i;
+        l_datum_index->action = l_datum_index_data.action;
+        l_datum_index->service_uid = l_datum_index_data.uid;
+        dap_strncpy(l_datum_index->token_ticker, l_datum_index_data.token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
         pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
         HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
         pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
@@ -2212,12 +2221,18 @@ static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_bl
         a_datum_iter->cur_hash = &a_datum_index->datum_hash;
         a_datum_iter->cur_atom_hash = &a_datum_index->block_cache->block_hash;
         a_datum_iter->ret_code = a_datum_index->ret_code;
+        a_datum_iter->action = a_datum_index->action;
+        a_datum_iter->uid = a_datum_index->service_uid;    
+        a_datum_iter->token_ticker = dap_strcmp(a_datum_index->token_ticker, "0") ? a_datum_index->token_ticker : NULL;
     } else {
         a_datum_iter->cur = NULL;
         a_datum_iter->cur_hash = NULL;
         a_datum_iter->cur_atom_hash = NULL;
         a_datum_iter->cur_size = 0;
         a_datum_iter->ret_code = 0;
+        a_datum_iter->token_ticker = NULL;
+        a_datum_iter->action = 0;
+        a_datum_iter->uid.uint64 = 0;
     }
     debug_if(a_datum_index && !a_datum_index->block_cache->datum, L_ERROR, "Chains was deleted with errors");
 }
