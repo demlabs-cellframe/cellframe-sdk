@@ -1739,8 +1739,8 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
 #ifdef DAP_LEDGER_TEST
 int dap_chain_net_test_init()
 {
-    dap_chain_net_t *l_net = DAP_NEW_Z_SIZE( sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t) );
-    PVT(l_net)->node_info = DAP_NEW_Z_SIZE( sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1 );
+    dap_chain_net_t *l_net = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t) );
+    PVT(l_net)->node_info = DAP_NEW_Z_SIZE(dap_chain_net_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1 );
     l_net->pub.id.uint64 = 0xFA0;
     strcpy(l_net->pub.name, "Snet");
     l_net->pub.gdb_groups_prefix = (const char*)l_net->pub.name;
