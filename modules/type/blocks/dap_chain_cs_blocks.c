@@ -475,7 +475,7 @@ static void s_cli_meta_hex_print(json_object* a_json_obj_out, const char * a_met
 {
     int l_len = a_meta->hdr.data_size * 2 + 5;
     char *l_str = DAP_NEW_STACK_SIZE(char, l_len);
-    snprintf(l_str, 2, "0x");
+    strcpy(l_str, "0x");
     dap_bin2hex(l_str + 2, a_meta->data, a_meta->hdr.data_size);
     json_object_object_add(a_json_obj_out, a_meta_title, json_object_new_string(l_str));
 }
@@ -758,7 +758,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     json_object_object_add(json_obj_meta, "# -", json_object_new_string(l_hexbuf));
                     int l_len = l_meta->hdr.data_size * 2 + 5;
                     char *l_data_hex = DAP_NEW_STACK_SIZE(char, l_len);
-                    snprintf(l_data_hex, 2, "0x");
+                    strcpy(l_data_hex, "0x");
                     dap_bin2hex(l_data_hex + 2, l_meta->data, l_meta->hdr.data_size);
                     json_object_object_add(json_obj_meta, "Data hex - ", json_object_new_string(l_data_hex)); }
                 }
@@ -1184,9 +1184,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 : dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
             if (l_hash_tx) {
                 json_object* json_obj_out = json_object_new_object();
-                char *l_val = dap_strdup_printf(l_val, "TX for %s collection created successfully, hash = %s\n", l_subcmd_str, l_hash_tx);
-                json_object_object_add(json_obj_out, "status", json_object_new_string(l_val));
-                DAP_DELETE(l_val);
+                char *l_val = dap_strdup_printf("TX for %s collection created successfully, hash = %s\n", l_subcmd_str, l_hash_tx);
+                json_object_object_add(json_obj_out, "status", json_object_new_string(l_val ? l_val : "(null)"));
+                DAP_DEL_Z(l_val);
                 json_object_array_add(*json_arr_reply, json_obj_out);
                 DAP_DELETE(l_hash_tx);
             } else {

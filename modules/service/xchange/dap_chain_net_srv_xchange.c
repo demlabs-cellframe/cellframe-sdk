@@ -1775,7 +1775,6 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
                                          tx_opt_status_t a_filter_by_status,
                                          bool a_print_prev_hash, bool a_print_status, bool a_print_ts)
 {
-    enum{TX_TYPE_NONE, TX_TYPE_ORDER, TX_TYPE_EXCHANGE, TX_TYPE_INVALIDATE};
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
 
     dap_hash_fast_t l_tx_hash = {0};
