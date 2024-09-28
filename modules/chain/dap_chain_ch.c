@@ -618,7 +618,6 @@ static bool s_sync_in_chains_callback(void *a_arg)
         DAP_DELETE(l_args);
         return false;
     }
-    const char *l_atom_hash_str = NULL;
     dap_hash_fast_t l_atom_hash = { }; 
     dap_hash_fast(l_atom, l_atom_size, &l_atom_hash);
     char *l_atom_hash_str = dap_hash_fast_to_str_static(&l_atom_hash);
