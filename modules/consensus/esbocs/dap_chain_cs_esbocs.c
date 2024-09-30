@@ -195,7 +195,9 @@ int dap_chain_cs_esbocs_init()
         "esbocs emergency_validators {add|remove} -net <net_name> [-chain <chain_name>] -cert <poa_cert_name> -pkey_hash <validator_pkey_hash>\n"
             "\tAdd or remove validator by its signature public key hash to list of validators allowed to work in emergency mode\n"
         "esbocs emergency_validators show -net <net_name> [-chain <chain_name>]\n"
-            "\tShow list of validators public key hashes allowed to work in emergency mode\n");
+            "\tShow list of validators public key hashes allowed to work in emergency mode\n"
+        "esbocs status -net <net_name> [-chain <chain_name>]\n"
+            "\tShow current esbocs consensus status\n");
     return 0;
 }
 
