@@ -1124,7 +1124,6 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
         }
 
         // make receipt or tx
-        char *l_receipt_hash_str;
         dap_chain_datum_tx_receipt_t *l_receipt = NULL;
         if (l_grace->usage->receipt_next){
             l_receipt = l_grace->usage->receipt_next;
@@ -1158,8 +1157,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
             log_it(L_WARNING, "Tx already in chain, but receipt is not signed by client. Finish grace and wait receipt sign responce.");
             RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_NO_SIGN);
         }
-        dap_get_data_hash_str_static(l_receipt, l_receipt_size, l_receipt_hash_str);
-        dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
+        dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, dap_get_data_hash_str(l_receipt, l_receipt_size).s, l_receipt, l_receipt_size, false, NULL, NULL);
             // Form input transaction
         char *l_hash_str = dap_hash_fast_to_str_new(&l_grace->usage->tx_cond_hash);
         log_it(L_NOTICE, "Trying create input tx cond from tx %s with active receipt", l_hash_str);
@@ -1447,9 +1445,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         }
 
         // Store receipt if any problems with transactions
-        char *l_receipt_hash_str;
-        dap_get_data_hash_str_static(l_receipt, l_receipt_size, l_receipt_hash_str);
-        dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
+        dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, dap_get_data_hash_str(l_receipt, l_receipt_size).s, l_receipt, l_receipt_size, false, NULL, NULL);
         size_t l_success_size;
         if (!l_usage->is_grace) {
             // Form input transaction

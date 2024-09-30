@@ -204,7 +204,6 @@ typedef struct dap_chain_esbocs_session {
     dap_time_t ts_stage_entry; // time of current stage entrance
 
     dap_chain_esbocs_sync_item_t *sync_items;
-    dap_timerfd_t *sync_timer;
 
     dap_chain_addr_t my_signing_addr;
 
