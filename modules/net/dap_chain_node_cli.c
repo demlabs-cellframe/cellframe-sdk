@@ -342,9 +342,15 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "Displays information about the parameters of the decrees in the network.\n");
 
     //Find command
-    dap_cli_server_cmd_add("find", cmd_find, "Searching",
-                           "Searching elements:\n"
-                           "find <datum|atom|node> -net <net_name> [-chain <chain_name>] -hash <hash>");
+    dap_cli_server_cmd_add("find", cmd_find, "The command searches for the specified elements by the specified attributes",
+                           "find datum -net <net_name> [-chain <chain_name>] -hash <datum_hash>\n"
+                           "\tSearches for datum by hash in the specified network in chains and mempool.\n"
+                           "find atom -net <net_name> [-chain <chain_name>] -hash <atom_hash>\n"
+                           "\tSearches for an atom by hash in a specified network in chains.\n"
+                           "find atom decree -net <net_name> [-chain <chain_name>] -type <type_decree> [-where <chains|mempool>]\n"
+                           "\tSearches for decrees by hash in the specified decree type in the specified network in its chains.\n"
+                           "\tTypes decree: fee, owners, owners_min, stake_approve, stake_invalidate, min_value, "
+                           "min_validators_count, ban, unban, reward, validator_max_weight, emergency_validators, check_signs_structure\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
