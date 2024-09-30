@@ -1268,11 +1268,11 @@ static int s_signs_sort_callback(dap_list_t *a_sign1, dap_list_t *a_sign2)
     return l_ret;
 }
 
-dap_chain_esbocs_directive_t *s_session_directive_ready(dap_chain_esbocs_session_t *a_session)
+static bool s_session_directive_ready(dap_chain_esbocs_session_t *a_session)
 {
     size_t l_list_length = dap_list_length(a_session->cur_round.all_validators);
     if (a_session->cur_round.total_validators_synced * 3 < l_list_length * 2)
-        return NULL; // Not a valid round, less than 2/3 participants
+        return false; // Not a valid round, less than 2/3 participants
     bool l_kick = false;
     dap_chain_esbocs_penalty_item_t *l_item, *l_tmp;
     HASH_ITER(hh, a_session->penalty, l_item, l_tmp) {
@@ -1284,15 +1284,28 @@ dap_chain_esbocs_directive_t *s_session_directive_ready(dap_chain_esbocs_session
         }
         if (l_item->miss_count >= DAP_CHAIN_ESBOCS_PENALTY_KICK && l_key_state == 1) {
             l_kick = true;
-            break;
+            return true;
         }
         if (l_item->miss_count == 0 && l_key_state == -1)
-            break;
+            return false;
     }
     if (!l_item)
-        return NULL;
+        return true;
+}
+
+static dap_chain_esbocs_directive_t* s_session_directive_compose(dap_chain_esbocs_session_t *a_session) {
+    size_t l_list_length = dap_list_length(a_session->cur_round.all_validators);
     debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Current consensus online %hu from %zu is acceptable, so issue the directive",
-                                                    a_session->cur_round.total_validators_synced, l_list_length);
+                                                a_session->cur_round.total_validators_synced, l_list_length);
+                                                    bool l_kick = false;
+    dap_chain_esbocs_penalty_item_t *l_item = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, a_session->penalty, l_item, l_tmp) {
+        int l_key_state = dap_chain_net_srv_stake_key_delegated(&l_item->signing_addr);
+        if (l_item->miss_count >= DAP_CHAIN_ESBOCS_PENALTY_KICK && l_key_state == 1) {
+            l_kick = true;
+            break;
+        }
+    }
     uint32_t l_directive_size = s_directive_calc_size(l_kick ? DAP_CHAIN_ESBOCS_DIRECTIVE_KICK : DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT);
     dap_chain_esbocs_directive_t *l_ret = NULL;
     DAP_NEW_Z_SIZE_RET_VAL(l_ret, dap_chain_esbocs_directive_t, l_directive_size, NULL, NULL);
@@ -1343,7 +1356,8 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             dap_chain_esbocs_directive_t *l_directive = NULL;
 #ifdef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
             if (!a_session->cur_round.directive && !PVT(a_session->esbocs)->emergency_mode)
-                l_directive = s_session_directive_ready(a_session);
+                if (s_session_directive_ready(a_session))
+                    l_directive = s_session_directive_compose(a_session);
 #endif
             if (l_directive) {
                 dap_hash_fast_t l_directive_hash;
@@ -2010,11 +2024,11 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
                                         "KICK" : "LIFT");
             return -3;
         }
+        // update last directive accept time 
+        a_esbocs->last_directive_accept_timestamp = dap_time_now();
         const char *l_penalty_group = s_get_penalty_group(l_key_addr->net_id);
         const char *l_directive_hash_str = dap_chain_hash_fast_to_str_new(a_directive_hash);
         const char *l_key_hash_str = dap_chain_hash_fast_to_str_new(&l_key_addr->data.hash_fast);
-        // update last directive accept time 
-        a_esbocs->last_directive_accept_timestamp = dap_time_now();
         if (l_status == 1 && a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK) {
             // Offline will be set in gdb notifier for aim of sync supporting
             dap_global_db_set(l_penalty_group, l_key_str, NULL, 0, false, NULL, 0);
@@ -3220,7 +3234,9 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_penalty_group, &l_penalties_count);
         for (size_t i = 0; i < l_penalties_count; i++) {
             dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(l_objs[i].key);
-            json_object_array_add(l_json_arr_banlist, json_object_new_string(dap_chain_addr_to_str_static(l_validator_addr)));
+            json_object* l_ban_validator =  json_object_new_object();
+            json_object_object_add(l_ban_validator, "node_addr", json_object_new_string(dap_chain_addr_to_str_static(l_validator_addr)));
+            json_object_array_add(l_json_arr_banlist, l_ban_validator);
         }
         if (!json_object_array_length(l_json_arr_banlist)) {
             json_object_object_add(l_json_obj_banlist, "BANLIST", json_object_new_string("empty"));
@@ -3234,29 +3250,27 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         json_object_object_add(l_json_obj_status, "sync_attempt", json_object_new_uint64(l_session->cur_round.sync_attempt));
         json_object_object_add(l_json_obj_status, "round_id", json_object_new_uint64(l_session->cur_round.id));
         json_object_array_add(*json_arr_reply, l_json_obj_status);
-        {
+        if (l_session->esbocs->last_submitted_candidate_timestamp) {
             char l_time_buf[DAP_TIME_STR_SIZE] = {'\0'};
             dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_session->esbocs->last_submitted_candidate_timestamp);
             json_object_object_add(l_json_obj_status, "last_submitted_candidate_timestamp", json_object_new_string(l_time_buf));
         }
-        {
-            dap_chain_datum_iter_t *l_datum_iter = l_session->chain->callback_datum_iter_create(l_session->chain);
-            dap_chain_datum_t * l_last_datum =  l_session->chain->callback_datum_iter_get_last(l_datum_iter);
-            if (l_last_datum) {
-                char l_time_buf[DAP_TIME_STR_SIZE] = {'\0'};
-                dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_last_datum->header.ts_create);
-                json_object_object_add(l_json_obj_status, "last_accepted_block_time", json_object_new_string(l_time_buf));
-            }
-            l_session->chain->callback_datum_iter_delete(l_datum_iter);
+        dap_chain_datum_iter_t *l_datum_iter = l_session->chain->callback_datum_iter_create(l_session->chain);
+        dap_chain_datum_t * l_last_datum =  l_session->chain->callback_datum_iter_get_last(l_datum_iter);
+        if (l_last_datum) {
+            char l_time_buf[DAP_TIME_STR_SIZE] = {'\0'};
+            dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_last_datum->header.ts_create);
+            json_object_object_add(l_json_obj_status, "last_accepted_block_time", json_object_new_string(l_time_buf));
         }
+        l_session->chain->callback_datum_iter_delete(l_datum_iter);
 
-        {
+        if (l_session->esbocs->last_directive_accept_timestamp) {
             char l_time_buf[DAP_TIME_STR_SIZE] = {'\0'};
             dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_session->esbocs->last_directive_accept_timestamp);
             json_object_object_add(l_json_obj_status, "last_directive_accept_timestamp", json_object_new_string(l_time_buf));
         }
 
-        {
+        if (l_session->esbocs->last_directive_vote_timestamp) {
             char l_time_buf[DAP_TIME_STR_SIZE] = {'\0'};
             dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_session->esbocs->last_directive_vote_timestamp);
             json_object_object_add(l_json_obj_status, "last_directive_vote_timestamp", json_object_new_string(l_time_buf));
