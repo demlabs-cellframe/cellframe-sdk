@@ -939,6 +939,28 @@ static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
     }
 }
 
+void _s_print_chains(json_object *a_obj_chain, dap_chain_t *a_chain) {
+    if (!a_obj_chain || !a_chain)
+        return;
+    json_object_object_add(a_obj_chain, "name", json_object_new_string(a_chain->name));
+    json_object_object_add(a_obj_chain, "consensus", json_object_new_string(DAP_CHAIN_PVT(a_chain)->cs_name));
+
+    if (a_chain->default_datum_types_count) {
+        json_object *l_jobj_default_types = json_object_new_array();
+        if (!l_jobj_default_types) return;
+        for (uint16_t i = 0; i < a_chain->default_datum_types_count; i++) {
+            json_object *l_jobj_type_str = json_object_new_string(s_chain_type_convert_to_string(
+                    a_chain->default_datum_types[i]));
+            if (!l_jobj_type_str) {
+                json_object_put(l_jobj_default_types);
+                return;
+            }
+            json_object_array_add(l_jobj_default_types, l_jobj_type_str);
+        }
+        json_object_object_add(a_obj_chain, "default_types", l_jobj_default_types);
+    }
+}
+
 /**
  * @brief
  * register net* command in cellframe-node-cli interface
@@ -1003,16 +1025,17 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 }
                 dap_chain_t * l_chain = l_net->pub.chains;
                 while (l_chain) {
-                    json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
-                    if (!l_jobj_chain_name) {
+                    json_object *l_obj_chain = json_object_new_object();
+                    if (!l_obj_chain) {
                         json_object_put(l_jobj_return);
                         json_object_put(l_jobj_net_name);
                         json_object_put(l_jobj_chains);
-                        json_object_put(l_jobj_chain_name);
+                        json_object_put(l_obj_chain);
                         dap_json_rpc_allocation_error;
                         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                     }
-                    json_object_array_add(l_jobj_chains, l_jobj_chain_name);
+                    _s_print_chains(l_obj_chain, l_chain);
+                    json_object_array_add(l_jobj_chains, l_obj_chain);
                     l_chain = l_chain->next;
                 }
                 json_object_object_add(l_jobj_return, "net", l_jobj_net_name);
@@ -1036,45 +1059,14 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     dap_chain_t * l_chain = l_net->pub.chains;
                     while (l_chain) {
                         json_object *l_jobj_chain = json_object_new_object();
-                        json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
-                        if (!l_jobj_chain || !l_jobj_chain_name) {
+                        if (!l_jobj_chain) {
                             json_object_put(l_jobj_return);
                             json_object_put(l_jobj_network);
                             json_object_put(l_jobj_chains);
-                            json_object_put(l_jobj_chain);
-                            json_object_put(l_jobj_chain_name);
                             dap_json_rpc_allocation_error;
                             return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                         }
-                        json_object_object_add(l_jobj_chain, "name", l_jobj_chain_name);
-                        if (l_chain->default_datum_types_count) {
-                            json_object *l_jobj_default_types = json_object_new_array();
-                            if (!l_jobj_default_types) {
-                                json_object_put(l_jobj_return);
-                                json_object_put(l_jobj_chain);
-                                json_object_put(l_jobj_chains);
-                                json_object_put(l_jobj_network);
-                                json_object_put(l_jobj_networks);
-                                dap_json_rpc_allocation_error;
-                                return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                            }
-                            for (uint16_t i = 0; i < l_chain->default_datum_types_count; i++) {
-                                json_object *l_jobj_type_str = json_object_new_string(s_chain_type_convert_to_string(
-                                        l_chain->default_datum_types[i]));
-                                if (!l_jobj_type_str) {
-                                    json_object_put(l_jobj_return);
-                                    json_object_put(l_jobj_default_types);
-                                    json_object_put(l_jobj_chain);
-                                    json_object_put(l_jobj_chains);
-                                    json_object_put(l_jobj_network);
-                                    json_object_put(l_jobj_networks);
-                                    dap_json_rpc_allocation_error;
-                                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                                }
-                                json_object_array_add(l_jobj_default_types, l_jobj_type_str);
-                            }
-                            json_object_object_add(l_jobj_chain, "default_types", l_jobj_default_types);
-                        }
+                        _s_print_chains(l_jobj_chain, l_chain);
                         json_object_array_add(l_jobj_chains, l_jobj_chain);
                         l_chain = l_chain->next;
                     }
