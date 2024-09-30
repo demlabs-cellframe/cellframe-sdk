@@ -149,13 +149,7 @@ size_t dap_chain_cs_dag_event_sign_add(dap_chain_cs_dag_event_t **a_event_ptr, s
     if (dap_chain_cs_dag_event_sign_exists(l_event, a_event_size, a_key)) {
         size_t l_pub_key_size = 0;
         uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_key, &l_pub_key_size);
-        dap_hash_fast_t l_pkey_hash = {};
-        dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
-        DAP_DELETE(l_pub_key);
-        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_hash_fast_to_str(&l_pkey_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        log_it(L_DEBUG, "Sign from this key exists: %s", l_hash_str);
-        return 0;
+        return log_it(L_DEBUG, "Already signed with pkey %s", dap_get_data_hash_str(l_pub_key, l_pub_key_size).s), DAP_DELETE(l_pub_key), 0;
     }
     size_t l_event_size_excl_sign = dap_chain_cs_dag_event_calc_size_excl_signs(l_event, a_event_size);
     dap_sign_t *l_sign = dap_sign_create(a_key, l_event, l_event_size_excl_sign, 0);
@@ -192,18 +186,18 @@ static bool s_sign_exists(uint8_t *a_pos, size_t a_len, dap_enc_key_t *a_key)
 
 bool dap_chain_cs_dag_event_sign_exists(dap_chain_cs_dag_event_t *a_event, size_t a_event_size, dap_enc_key_t *a_key)
 {
-    size_t l_hashes_size = a_event->header.hash_count*sizeof(dap_chain_hash_fast_t);
-    dap_chain_datum_t * l_datum = (dap_chain_datum_t*)(a_event->hashes_n_datum_n_signs + l_hashes_size);
-    size_t l_datum_size =  dap_chain_datum_size(l_datum);
-    uint8_t *l_offset = a_event->hashes_n_datum_n_signs + l_hashes_size + l_datum_size;
-    size_t l_signs_size = a_event_size - sizeof(a_event->header) - l_hashes_size - l_datum_size;
-    return s_sign_exists(l_offset, l_signs_size, a_key);
+    size_t l_hashes_size = a_event->header.hash_count * sizeof(dap_chain_hash_fast_t);
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t*)(a_event->hashes_n_datum_n_signs + l_hashes_size);
+    size_t l_datum_size = dap_chain_datum_size(l_datum);
+    return s_sign_exists(a_event->hashes_n_datum_n_signs + l_hashes_size + l_datum_size,
+                        a_event_size - sizeof(a_event->header) - l_hashes_size - l_datum_size,
+                        a_key);
 }
 
 bool dap_chain_cs_dag_event_round_sign_exists(dap_chain_cs_dag_event_round_item_t *a_round_item, dap_enc_key_t *a_key) {
-    uint8_t *l_offset = a_round_item->event_n_signs + (size_t)a_round_item->event_size;
-    size_t l_signs_size = (size_t)a_round_item->data_size - (size_t)a_round_item->event_size;
-    return s_sign_exists(l_offset, l_signs_size, a_key);
+    return s_sign_exists(a_round_item->event_n_signs + a_round_item->event_size,
+                        (size_t)(a_round_item->data_size - a_round_item->event_size),
+                        a_key); 
 }
 
 /**

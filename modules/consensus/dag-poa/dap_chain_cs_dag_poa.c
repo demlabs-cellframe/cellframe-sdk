@@ -792,39 +792,36 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
     if (!l_poa_pvt->auto_confirmation)
         return 0;
 
-    dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)a_value;
+    dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t*)a_value;
+    dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)l_round_item->event_n_signs;
     size_t l_event_size = l_round_item->event_size;
-    dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
-    if (!l_event)
-        return log_it(L_CRITICAL, "Memory allocation failed"), -1;
-
-    if ( (dap_chain_cs_dag_event_sign_exists(l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key)
-        || dap_chain_cs_dag_event_round_sign_exists(l_round_item, l_poa_pvt->events_sign_cert->enc_key))
-        && l_poa_pvt->auto_round_complete
-        && s_round_event_ready_minimum_check(a_dag, l_event, l_event_size, (char*)a_key) )
-    {
-        dap_chain_cs_dag_poa_round_item_t l_event_item = { .datum_hash = l_round_item->round_info.datum_hash, .dag = a_dag };
-        return DAP_DELETE(l_event), s_round_event_cs_done(&l_event_item), 0;
-    }
-
-    size_t l_event_size_new = 0;
-    int ret = 0;
-    if ( !l_poa_pvt->callback_pre_sign || !l_poa_pvt->callback_pre_sign->callback
-        || !(ret = l_poa_pvt->callback_pre_sign->callback(a_dag->chain, l_event, l_event_size,
-                                                          l_poa_pvt->callback_pre_sign->arg)) )
-    {
-        l_event_size_new = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key);
-        dap_chain_cs_dag_event_gdb_set(a_dag, (char*)a_key, l_event, l_event_size_new, l_round_item);
-    } else { // set sign for reject
-        l_round_item = DAP_DUP_SIZE(a_value, a_value_size);
-        if (dap_chain_cs_dag_event_round_sign_add(&l_round_item, a_value_size, l_poa_pvt->events_sign_cert->enc_key)) {
-            log_it(L_NOTICE,"Can't sign event %s, because sign rejected by pre_sign callback, ret code %d", a_key, ret);
-            l_round_item->round_info.reject_count++;
-            dap_chain_cs_dag_event_gdb_set(a_dag, (char*)a_key, l_event, l_event_size, l_round_item);
+    int l_ret = 0;
+    if ( dap_chain_cs_dag_event_sign_exists(l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key) ) {
+        if (l_poa_pvt->auto_round_complete && s_round_event_ready_minimum_check(a_dag, l_event, l_event_size, (char*)a_key) ) {
+            dap_chain_cs_dag_poa_round_item_t l_event_item = { .datum_hash = l_round_item->round_info.datum_hash, .dag = a_dag };
+            return s_round_event_cs_done(&l_event_item), l_ret;
+        } else 
+            return log_it(L_INFO, "Event %s is already signed by us", a_key), l_ret;
+    } else {
+        if ( !l_poa_pvt->callback_pre_sign 
+            || !l_poa_pvt->callback_pre_sign->callback
+            || !(l_ret = l_poa_pvt->callback_pre_sign->callback(a_dag->chain, l_event, l_event_size, l_poa_pvt->callback_pre_sign->arg)) 
+        ) {
+            l_event = DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
+            if (( l_event_size = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key) ))
+                dap_chain_cs_dag_event_gdb_set(a_dag, (char*)a_key, l_event, l_event_size, l_round_item);
+            DAP_DELETE(l_event);
+        } else {
+            l_round_item = DAP_DUP_SIZE(a_value, a_value_size);
+            if ( dap_chain_cs_dag_event_round_sign_add(&l_round_item, a_value_size, l_poa_pvt->events_sign_cert->enc_key) ) {
+                log_it(L_NOTICE,"Can't sign event %s, because sign rejected by pre_sign callback, ret code %d", a_key, l_ret);
+                ++l_round_item->round_info.reject_count;
+                dap_chain_cs_dag_event_gdb_set(a_dag, (char*)a_key, l_event, l_event_size, l_round_item);
+            }
+            DAP_DELETE(l_round_item);
         }
-        DAP_DELETE(l_round_item);
     }
-    return DAP_DELETE(l_event), ret;
+    return l_ret;
 }
 
 /**
