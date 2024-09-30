@@ -107,7 +107,7 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
                                                uint256_t a_value_fee,
                                                const char *a_delegated_ticker_str, uint256_t a_delegated_value,int *res);
 // Callbacks
-static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_out_item);
+static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item);
 static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 
 static inline int s_tsd_str_cmp(const byte_t *a_tsdata, size_t a_tsdsize,  const char *str ) {
@@ -1043,10 +1043,8 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
             if (!l_burning_tx) {
                 char l_burning_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
                 dap_hash_fast_to_str(&l_burning_tx_hash, l_burning_tx_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                char *l_take_tx_hash_str;
-                dap_get_data_hash_str_static(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in), l_take_tx_hash_str);
                 debug_if(s_debug_more, L_ERROR, "[Legacy] Can't find burning tx with hash %s, obtained from the receipt of take tx %s",
-                       l_burning_tx_hash_str, l_take_tx_hash_str);
+                                                l_burning_tx_hash_str, dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
                 return -10;
             }
         } else
@@ -1105,17 +1103,14 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
  * @param a_tx_item_idx
  * @return
  */
-static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_out_item)
+static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item)
 {
     if (a_prev_out_item)  // this is IN_COND tx
         return;
     int l_out_num = 0;
-    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, &l_out_num);
-    if (l_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
-        dap_chain_hash_fast_t l_tx_cond_hash;
-        dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_cond_hash);
-        dap_ledger_emission_for_stake_lock_item_add(a_ledger, &l_tx_cond_hash);
-    }
+    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, &l_out_num);
+    if (l_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX)
+        dap_ledger_emission_for_stake_lock_item_add(a_ledger, a_tx_in_hash);
 }
 
 static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
