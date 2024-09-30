@@ -554,12 +554,11 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
                 l_jobj_chain_status = json_object_new_string("unknown");
                 break;
         }
-        if (PVT(a_net)->state == NET_STATE_LOADING) {
+        if (dap_chain_net_get_load_mode(a_net)) {
             char *l_percent_str = dap_strdup_printf("%d %c", l_chain->load_progress, '%');
             l_jobj_percent = json_object_new_string(l_percent_str);
             DAP_DELETE(l_percent_str);
-        }
-        else if (l_chain->state == CHAIN_SYNC_STATE_IDLE) {
+        } else if (l_chain->state == CHAIN_SYNC_STATE_IDLE) {
             l_jobj_percent = json_object_new_string(" - %");
         } else {
             double l_percent = dap_min((double)l_chain->callback_count_atom(l_chain) * 100 / l_chain->atom_num_last, 100.0);
@@ -3392,7 +3391,7 @@ static bool s_net_states_proc(void *a_arg)
  */
 int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_state)
 {
-    if (PVT(a_net)->state == NET_STATE_LOADING) {
+    if (dap_chain_net_get_load_mode(a_net)) {
         log_it(L_ERROR, "Can't change state of loading network '%s'", a_net->pub.name);
         return -1;
     }
