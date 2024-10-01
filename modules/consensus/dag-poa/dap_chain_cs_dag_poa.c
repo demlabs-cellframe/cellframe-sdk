@@ -631,7 +631,7 @@ static void s_round_event_cs_done(dap_chain_cs_dag_poa_round_item_t *a_event_ite
             return DAP_DELETE(l_event_item), pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock), log_it(L_CRITICAL, "Timer creation failed");
         HASH_ADD(hh, l_poa_pvt->event_items, datum_hash, sizeof(dap_hash_fast_t), l_event_item);
         log_it(L_INFO, "Confirmation timer for datum %s started [%d s]",
-                       dap_chain_hash_fast_to_str_static(&l_event_item->datum_hash), l_poa_pvt->confirmations_timeout);
+                       dap_chain_hash_fast_to_str_static(&l_event_item->datum_hash), a_timeout_s);
     }
     pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
 }
