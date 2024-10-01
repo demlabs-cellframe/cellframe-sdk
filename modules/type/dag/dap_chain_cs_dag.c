@@ -679,7 +679,6 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
      * or we have successfully chosen the hash(es) to link with.
      * No additional conditions required.
     */
-    ++l_dag->round_id;
     uint64_t l_event_size = 0;
     dap_chain_cs_dag_event_t * l_event = l_dag->callback_cs_event_create
             ? l_dag->callback_cs_event_create(l_dag, a_datum, l_hashes, l_hashes_linked, &l_event_size)
@@ -706,9 +705,9 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_hex_str, l_event, l_event_size, &l_round_item);
     DAP_DELETE(l_event);
     log_it(l_res ? L_INFO : L_ERROR,
-           l_res ? "Event %s placed into new forming round [id %"DAP_UINT64_FORMAT_U"]"
-                 : "Can't add new event %s to new events round [id %"DAP_UINT64_FORMAT_U"]",
-           l_event_hash_hex_str, l_dag->round_id);
+           l_res ? "Event %s placed into new forming round"
+                 : "Can't add new event %s to new events round",
+           l_event_hash_hex_str);
     return l_res;
 }
 

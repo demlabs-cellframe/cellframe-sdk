@@ -43,9 +43,9 @@
  * @param a_hashes_count
  * @return
  */
-dap_chain_cs_dag_event_t *dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, uint64_t a_round_id,
-                                                     dap_chain_datum_t *a_datum, dap_enc_key_t *a_key,
-                                                     dap_chain_hash_fast_t *a_hashes, size_t a_hashes_count, size_t *a_event_size)
+dap_chain_cs_dag_event_t *dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
+                                                     dap_chain_datum_t *a_datum, dap_enc_key_t *a_key, dap_chain_hash_fast_t *a_hashes,
+                                                     size_t a_hashes_count, size_t *a_event_size)
 {
     assert(a_event_size);
     size_t l_hashes_size = sizeof(*a_hashes) * a_hashes_count,
@@ -53,7 +53,7 @@ dap_chain_cs_dag_event_t *dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, 
         l_event_size = sizeof(dap_chain_class_dag_event_hdr_t) + l_hashes_size + l_datum_size;
     dap_chain_cs_dag_event_t *l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, l_event_size);
     *l_event_new = (dap_chain_cs_dag_event_t) {
-        { // .round_id = a_round_id,
+        {
             .ts_created = dap_time_now(),
             .chain_id = a_chain_id,
             .cell_id = a_cell_id,
@@ -154,11 +154,13 @@ size_t dap_chain_cs_dag_event_sign_add(dap_chain_cs_dag_event_t **a_event_ptr, s
     size_t l_event_size_excl_sign = dap_chain_cs_dag_event_calc_size_excl_signs(l_event, a_event_size);
     dap_sign_t *l_sign = dap_sign_create(a_key, l_event, l_event_size_excl_sign, 0);
     size_t l_sign_size = dap_sign_get_size(l_sign);
-    *a_event_ptr = l_event = DAP_REALLOC(l_event, a_event_size + l_sign_size);
+    if (! (l_event = DAP_REALLOC(*a_event_ptr, a_event_size + l_sign_size) ))
+        return log_it(L_CRITICAL, "Memory allocation error"), DAP_DELETE(l_sign), a_event_size;
     size_t l_event_size = a_event_size - sizeof(l_event->header);
     memcpy(l_event->hashes_n_datum_n_signs + l_event_size, l_sign, l_sign_size);
     l_event->header.signs_count++;
     DAP_DELETE(l_sign);
+    *a_event_ptr = l_event;
     return a_event_size + l_sign_size;
 }
 
@@ -237,12 +239,14 @@ size_t dap_chain_cs_dag_event_round_sign_add(dap_chain_cs_dag_event_round_item_t
         return 0;
     dap_sign_t * l_sign = dap_sign_create(a_key, &l_round_item->round_info.datum_hash, sizeof(dap_chain_hash_fast_t), 0);
     size_t l_sign_size = dap_sign_get_size(l_sign);
-    size_t l_offset = (size_t)l_round_item->data_size;
-    *a_round_item_ptr = l_round_item = DAP_REALLOC(l_round_item, a_round_item_size+l_sign_size);
-    memcpy(l_round_item->event_n_signs+l_offset, l_sign, l_sign_size);
+    size_t l_offset = l_round_item->data_size;
+    if (! (l_round_item = DAP_REALLOC(*a_round_item_ptr, a_round_item_size + l_sign_size)) )
+        return log_it(L_CRITICAL, "Memory allocaton error"), DAP_DELETE(l_sign), a_round_item_size;
+    memcpy(l_round_item->event_n_signs + l_offset, l_sign, l_sign_size);
     DAP_DELETE(l_sign);
     l_round_item->data_size += (uint32_t)l_sign_size;
-    return a_round_item_size+l_sign_size;
+    *a_round_item_ptr = l_round_item;
+    return a_round_item_size + l_sign_size;
 }
 
 /**
