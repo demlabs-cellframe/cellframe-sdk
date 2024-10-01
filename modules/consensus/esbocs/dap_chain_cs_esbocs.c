@@ -427,7 +427,6 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
     assert(l_session->chain == a_chain);
-    //pthread_mutex_lock(&l_session->mutex);
     dap_chain_hash_fast_t l_last_block_hash;
     dap_chain_get_atom_last_hash(l_session->chain, a_id, &l_last_block_hash);
     if (!dap_hash_fast_compare(&l_last_block_hash, &l_session->cur_round.last_block_hash) &&
@@ -435,7 +434,6 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
         l_session->new_round_enqueued = true;
         s_session_round_new(l_session);
     }
-    //pthread_mutex_unlock(&l_session->mutex);
     if (!PVT(l_session->esbocs)->collecting_addr)
         return;
     dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
@@ -593,9 +591,9 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         log_it(L_ERROR, "This validator is not allowed to work in emergency mode. Use special decree to supply it");
         return -5;
     }
-    //pthread_mutex_init(&l_session->mutex, NULL);
-    dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session);
-    s_session_round_new(l_session);
+    dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session->proc_thread, l_session);
+    //s_session_round_new(l_session);
+    dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
 
     l_session->cs_timer = !dap_proc_thread_timer_add(l_session->proc_thread, s_session_proc_state, l_session, 1000);
     debug_if(l_esbocs_pvt->debug && l_session->cs_timer, L_MSG, "Consensus main timer is started");
@@ -789,7 +787,6 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
         log_it(L_INFO, "No session found");
         return;
     }
-    //pthread_mutex_lock(&l_session->mutex);
     DL_DELETE(s_session_items, l_session);
     s_session_round_clear(l_session);
     dap_chain_esbocs_sync_item_t *l_sync_item, *l_sync_tmp;
@@ -803,8 +800,6 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
         HASH_DEL(l_session->penalty, l_pen_item);
         DAP_DELETE(l_pen_item);
     }
-    //pthread_mutex_unlock(&l_session->mutex);
-    //pthread_mutex_destroy(&l_session->mutex);
     DAP_DEL_MULTY(l_session, a_blocks->_inheritor); // a_blocks->_inheritor - l_esbocs
 }
 
@@ -998,8 +993,9 @@ static void s_db_calc_sync_hash(dap_chain_esbocs_session_t *a_session)
     a_session->is_actual_hash = true;
 }
 
-static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
+static void s_session_send_startsync(void *a_arg)
 {
+    dap_chain_esbocs_session_t *a_session = (dap_chain_esbocs_session_t*)a_arg;
     if (a_session->cur_round.sync_sent)
         return;     // Sync message already was sent
     dap_chain_hash_fast_t l_last_block_hash;
@@ -1027,16 +1023,6 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
                    &l_params, sizeof(struct sync_params),
                    a_session->cur_round.all_validators);
     a_session->cur_round.sync_sent = true;
-}
-
-static bool s_session_send_startsync_on_timer(void *a_arg)
-{
-    dap_chain_esbocs_session_t *l_session = a_arg;
-    //pthread_mutex_lock(&l_session->mutex);
-    s_session_send_startsync(l_session);
-    l_session->sync_timer = NULL;
-    //pthread_mutex_unlock(&l_session->mutex);
-    return false;
 }
 
 static void s_session_update_penalty(dap_chain_esbocs_session_t *a_session)
@@ -1100,11 +1086,6 @@ static bool s_session_round_new(void *a_arg)
     s_session_round_clear(a_session);
     a_session->cur_round.id++;
     a_session->cur_round.sync_attempt++;
-
-    if (a_session->sync_timer) {
-        dap_timerfd_delete_mt(a_session->sync_timer->worker, a_session->sync_timer->esocket_uuid);
-        a_session->sync_timer = NULL;
-    }
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
     a_session->ts_stage_entry = 0;
@@ -1164,7 +1145,8 @@ static bool s_session_round_new(void *a_arg)
                     a_session->chain->net_name, a_session->chain->name,
                         a_session->cur_round.id, l_sync_send_delay);
         if (l_sync_send_delay)
-            a_session->sync_timer = dap_timerfd_start(l_sync_send_delay * 1000, s_session_send_startsync_on_timer, a_session);
+            dap_proc_thread_timer_add_pri(a_session->proc_thread, s_session_send_startsync, a_session,
+                                          l_sync_send_delay * 1000, true, DAP_QUEUE_MSG_PRIORITY_NORMAL);
         else
             s_session_send_startsync(a_session);
     }
@@ -1476,8 +1458,6 @@ static void s_session_proc_state(void *a_arg)
     dap_chain_esbocs_session_t *l_session = a_arg;
     if (!l_session->cs_timer)
         return; // Timer is inactive
-    //if (pthread_mutex_trylock(&l_session->mutex) != 0)
-    //    return; // Session is busy
     bool l_cs_debug = PVT(l_session->esbocs)->debug;
     dap_time_t l_time = dap_time_now();
     switch (l_session->state) {
@@ -1582,8 +1562,6 @@ static void s_session_proc_state(void *a_arg)
     default:
         break;
     }
-
-    //pthread_mutex_unlock(&l_session->mutex);
 }
 
 static void s_message_chain_add(dap_chain_esbocs_session_t *a_session,
@@ -2219,10 +2197,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
     dap_hash_fast(l_message, a_data_size, &l_data_hash);
 
     if (a_sender_node_addr) { //Process network messages only
-        //pthread_mutex_lock(&l_session->mutex);
         if (l_message->hdr.chain_id.uint64 != l_session->chain->id.uint64) {
             debug_if(l_cs_debug, L_MSG, "Invalid chain ID %"DAP_UINT64_FORMAT_U, l_message->hdr.chain_id.uint64);
-            //goto session_unlock;
             return;
         }
         // check hash message dup
@@ -2233,7 +2209,6 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                         " Message rejected: message hash is exists in chain (duplicate)",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_message->hdr.attempt_num);
-            //goto session_unlock;
             return;
         }
         l_message->hdr.sign_size = 0;   // restore header on signing time
@@ -2242,7 +2217,6 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                         " Message rejected from addr:"NODE_ADDR_FP_STR" not passed verification",
                                             l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                 l_session->cur_round.attempt_num, NODE_ADDR_FP_ARGS(a_sender_node_addr));
-            //goto session_unlock;
             return;
         }
         l_message->hdr.sign_size = l_sign_size; // restore original header
@@ -2255,7 +2229,6 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                                 l_session->chain->net_name, l_session->chain->name,
                                                     l_session->cur_round.id);
                 s_session_sync_queue_add(l_session, l_message, a_data_size);
-                //goto session_unlock;
                 return;
             }
         } else if (l_message->hdr.round_id != l_session->cur_round.id) {
@@ -2291,7 +2264,6 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                                     l_session->chain->net_name, l_session->chain->name,
                                                         l_session->cur_round.id, l_message->hdr.attempt_num,
                                                             s_voting_msg_type_to_str(l_message->hdr.type));
-                    //goto session_unlock;
                     return;
                 }
             }
@@ -2328,7 +2300,6 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                     " Message rejected: validator key:%s not in the current validators list or not synced yet",
                                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                             l_message->hdr.attempt_num, l_validator_addr_str);
-        //goto session_unlock;
         return;
     }
 
@@ -2468,7 +2439,6 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         l_store = DAP_NEW_Z(dap_chain_esbocs_store_t);
         if (!l_store) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            //goto session_unlock;
             return;
         }
         l_store->candidate_size = l_candidate_size;
@@ -2695,9 +2665,6 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
     default:
         break;
     }
-//session_unlock:
-    //if (a_sender_node_addr) //Process network message
-    //    pthread_mutex_unlock(&l_session->mutex);
 }
 
 static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_message_type, dap_hash_fast_t *a_block_hash,
@@ -2743,7 +2710,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
                                                a_message_type, l_message, l_message_size + l_sign_size);
                 continue;
             }
-            /*struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args,
+            struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args,
                                                           sizeof(struct esbocs_msg_args) + l_message_size + l_sign_size);
             if (!l_args) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -2754,8 +2721,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             l_args->session = a_session;
             l_args->message_size = l_message_size + l_sign_size;
             memcpy(l_args->message, l_message, l_message_size + l_sign_size);
-            dap_proc_thread_callback_add(a_session->proc_thread, s_process_incoming_message, l_args);*/
-            s_session_packet_in(a_session, &a_session->my_addr, (byte_t*)l_message, l_message_size + l_sign_size);
+            dap_proc_thread_callback_add(a_session->proc_thread, s_process_incoming_message, l_args);
         }
     }
     DAP_DELETE(l_message);
@@ -3108,7 +3074,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -val_count", l_subcmd_strs[l_subcmd]);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR;
             }
-            uint256_t l_value = dap_chain_balance_scan(l_value_str);
+            uint256_t l_value = dap_uint256_scan_uninteger(l_value_str);
             if (IS_ZERO_256(l_value)) {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR,"Unrecognized number in '-val_count' param");
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR;

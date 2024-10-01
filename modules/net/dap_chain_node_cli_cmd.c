@@ -566,8 +566,6 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         switch (l_subcmd) {
             case SUMCMD_GET: // Get value
             {
-                char *l_hash_str;
-                dap_get_data_hash_str_static(l_value, l_value_len, l_hash_str);
                 char *l_value_str = DAP_NEW_Z_SIZE(char, l_value_len * 2 + 2);
                 if(!l_value_str) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -580,7 +578,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                 size_t ret = dap_bin2hex(l_value_str, l_value, l_value_len);
                 json_object_object_add(json_obj_rec, "command status", json_object_new_string("Record found"));
                 json_object_object_add(json_obj_rec, "lenght(byte)", json_object_new_uint64(l_value_len));
-                json_object_object_add(json_obj_rec, "hash", json_object_new_string(l_hash_str));
+                json_object_object_add(json_obj_rec, "hash", json_object_new_string(dap_get_data_hash_str(l_value, l_value_len).s));
                 json_object_object_add(json_obj_rec, "pinned", l_is_pinned ? json_object_new_string("Yes") : json_object_new_string("No") );
                 json_object_object_add(json_obj_rec, "value", json_object_new_string(l_value_str));
                 DAP_DELETE(l_value_str);
@@ -6820,9 +6818,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply)
 
     // Add transaction to mempool
     char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
-    char *l_tx_hash_str;
-    dap_get_data_hash_str_static(l_datum_tx->data, l_datum_tx->header.data_size, l_tx_hash_str);
-    bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx,l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
+    char *l_tx_hash_str = dap_get_data_hash_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
+    bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx, l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
 
     DAP_DEL_Z(l_datum_tx);
     DAP_DELETE(l_gdb_group_mempool_base_tx);
@@ -8248,46 +8245,26 @@ static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, void **a_str
         dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, l_opts_signer[i].name, (const char **) &l_opts_sign[i]);
     }
 
-    if (!l_opts_sign[OPT_CERT]) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s need to be selected", l_opts_signer[OPT_CERT].name);
-        return -1;
-    }
+    if (!l_opts_sign[OPT_CERT])
+        return dap_cli_server_cmd_set_reply_text(a_str_reply, "%s need to be selected", l_opts_signer[OPT_CERT].name), -1;
 
     dap_chain_net_t *l_network = dap_chain_net_by_name(l_opts_sign[OPT_NET]);
-    if (!l_network) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s network not found", l_opts_sign[OPT_NET]);
-        return -1;
-    }
+    if ( !l_network )
+        return dap_cli_server_cmd_set_reply_text(a_str_reply, "%s network not found", l_opts_sign[OPT_NET]), -1;
 
     dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_network, l_opts_sign[OPT_CHAIN]);
-    if (!l_chain) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s chain not found", l_opts_sign[OPT_CHAIN]);
-        return -1;
-    }
+    if (!l_chain)
+        return dap_cli_server_cmd_set_reply_text(a_str_reply, "%s chain not found", l_opts_sign[OPT_CHAIN]), -1;
 
-    int l_ret = 0;
     dap_sign_t *l_sign = NULL;
-    dap_chain_datum_t *l_datum = NULL;
+    if ( !s_get_key_from_file(l_opts_sign[OPT_FILE], l_opts_sign[OPT_MIME], l_opts_sign[OPT_CERT], &l_sign) )
+        return dap_cli_server_cmd_set_reply_text(a_str_reply, "%s cert not found", l_opts_sign[OPT_CERT]), -1;
 
-    l_ret = s_get_key_from_file(l_opts_sign[OPT_FILE], l_opts_sign[OPT_MIME], l_opts_sign[OPT_CERT], &l_sign);
-    if (!l_ret) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s cert not found", l_opts_sign[OPT_CERT]);
-        return -1;
-    }
-
-    l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SIGNER, l_sign->pkey_n_sign, l_sign->header.sign_size);
-    if (!l_datum) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "not created datum");
-        return -1;
-    }
-
-    l_ret = l_chain->callback_add_datums(l_chain, &l_datum, 1);
-
-    char *l_key_str;
-    dap_get_data_hash_str_static(l_datum->data, l_datum->header.data_size, l_key_str);
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "hash: %s", l_key_str);
-    DAP_DELETE(l_datum);
-    return l_ret;
+    dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SIGNER, l_sign->pkey_n_sign, l_sign->header.sign_size);
+    if (!l_datum)
+        return dap_cli_server_cmd_set_reply_text(a_str_reply, "not created datum"), -1;
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "hash: %s", dap_get_data_hash_str(l_datum->data, l_datum->header.data_size));
+    return DAP_DELETE(l_datum), l_chain->callback_add_datums(l_chain, &l_datum, 1);
 }
 
 
