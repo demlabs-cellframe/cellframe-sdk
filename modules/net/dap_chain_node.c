@@ -75,6 +75,10 @@ static const uint16_t s_states_version_size[DAP_CHAIN_NODE_NET_STATES_INFO_CURRE
  */
 static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 {
+#ifndef DAP_VERSION
+#pragma message "[!WRN!] DAP_VERSION IS NOT DEFINED. Manual override engaged."
+#define DAP_VERSION "0.9-15"
+#endif
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
         if(dap_chain_net_get_state(l_net) != NET_STATE_OFFLINE) {
             size_t

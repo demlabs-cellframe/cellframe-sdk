@@ -756,7 +756,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     json_object_object_add(json_obj_meta, "# -", json_object_new_string(l_hexbuf));
                     int l_len = l_meta->hdr.data_size * 2 + 5;
                     char *l_data_hex = DAP_NEW_STACK_SIZE(char, l_len);
-                    snprintf(l_data_hex, 2, "0x");
+                    snprintf(l_data_hex, 2, "%s", "0x");
                     dap_bin2hex(l_data_hex + 2, l_meta->data, l_meta->hdr.data_size);
                     json_object_object_add(json_obj_meta, "Data hex - ", json_object_new_string(l_data_hex)); }
                 }
@@ -1181,7 +1181,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 : dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
             if (l_hash_tx) {
                 json_object* json_obj_out = json_object_new_object();
-                char *l_val = dap_strdup_printf(l_val, "TX for %s collection created successfully, hash = %s\n", l_subcmd_str, l_hash_tx);
+                char *l_val = dap_strdup_printf("TX for %s collection created successfully, hash = %s\n", l_subcmd_str, l_hash_tx);
                 json_object_object_add(json_obj_out, "status", json_object_new_string(l_val));
                 DAP_DELETE(l_val);
                 json_object_array_add(*json_arr_reply, json_obj_out);
