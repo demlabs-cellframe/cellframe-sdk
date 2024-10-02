@@ -3087,9 +3087,10 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
         if (!dap_hash_fast_compare(&l_miss_info->missed_hash, &l_net_pvt->sync_context.requested_atom_hash)) {
             char l_missed_hash_str[DAP_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&l_miss_info->missed_hash, l_missed_hash_str, DAP_HASH_FAST_STR_SIZE);
-            log_it(L_WARNING, "Get irrelevant chain sync MISSED packet with missed hash %s, but requested hash is %s",
+            log_it(L_WARNING, "Get irrelevant chain sync MISSED packet with missed hash %s, but requested hash is %s. Net %s chain %s",
                                                                         l_missed_hash_str,
-                                                                        dap_hash_fast_to_str_static(&l_net_pvt->sync_context.requested_atom_hash));
+                                                                        dap_hash_fast_to_str_static(&l_net_pvt->sync_context.requested_atom_hash),
+                                                                        l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
             dap_stream_ch_write_error_unsafe(a_ch, l_net->pub.id,
                                              l_net_pvt->sync_context.cur_chain->id,
                                              l_net_pvt->sync_context.cur_cell
