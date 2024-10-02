@@ -3106,10 +3106,11 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
 
 static void s_ch_out_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const void *a_data, size_t a_data_size, void *a_arg)
 {
-    debug_if(s_debug_more, L_DEBUG, "Sent OUT sync packet type %hhu size %zu to addr " NODE_ADDR_FP_STR,
-                                                           a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
+    
     dap_chain_net_t *l_net = a_arg;
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    if (!l_net_pvt->sync_context.cur_chain)
+        return;
     switch (a_type) {
     case DAP_CHAIN_CH_PKT_TYPE_ERROR:
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_ERROR;
@@ -3118,6 +3119,8 @@ static void s_ch_out_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const v
         break;
     }
     l_net_pvt->sync_context.stage_last_activity = dap_time_now();
+    debug_if(s_debug_more, L_DEBUG, "Sent OUT sync packet type %hhu size %zu to addr " NODE_ADDR_FP_STR,
+                                    a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
 }
 
 
