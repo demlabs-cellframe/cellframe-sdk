@@ -60,9 +60,8 @@ typedef struct dap_chain_cs_dag_event_round_item {
     uint8_t event_n_signs[]; // event // dap_chain_cs_dag_event_t
 } DAP_ALIGN_PACKED dap_chain_cs_dag_event_round_item_t;
 
-dap_chain_cs_dag_event_t *dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, uint64_t a_round_id,
-                                                     dap_chain_datum_t *a_datum, dap_enc_key_t *a_key,
-                                                     dap_chain_hash_fast_t *a_hashes, size_t a_hashes_count, size_t *a_event_size);
+dap_chain_cs_dag_event_t *dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_datum_t *a_datum,
+                                                     dap_enc_key_t *a_key, dap_chain_hash_fast_t *a_hashes, size_t a_hashes_count, size_t *a_event_size);
 
 /**
  * @brief dap_chain_cs_dag_event_get_datum

@@ -154,39 +154,21 @@ static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
 
 #endif
 
-static const char *s_error_type_to_string(dap_chain_ch_error_type_t a_error)
-{
-    switch (a_error) {
-    case DAP_CHAIN_CH_ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS:
-        return "SYNC_REQUEST_ALREADY_IN_PROCESS";
-    case DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE:
-        return "INCORRECT_SYNC_SEQUENCE";
-    case DAP_CHAIN_CH_ERROR_SYNC_TIMEOUT:
-        return "SYNCHRONIZATION TIMEOUT";
-    case DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE:
-        return "INVALID_PACKET_SIZE";
-    case DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE:
-        return "INVALID_LEGACY_PACKET_SIZE";
-    case DAP_CHAIN_CH_ERROR_NET_INVALID_ID:
-        return "INVALID_NET_ID";
-    case DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND:
-        return "CHAIN_NOT_FOUND";
-    case DAP_CHAIN_CH_ERROR_ATOM_NOT_FOUND:
-        return "ATOM_NOT_FOUND";
-    case DAP_CHAIN_CH_ERROR_UNKNOWN_CHAIN_PKT_TYPE:
-        return "UNKNOWN_CHAIN_PACKET_TYPE";
-    case DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED:
-        return "GLOBAL_DB_INTERNAL_SAVING_ERROR";
-    case DAP_CHAIN_CH_ERROR_NET_IS_OFFLINE:
-        return "NET_IS_OFFLINE";
-    case DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY:
-        return "OUT_OF_MEMORY";
-    case DAP_CHAIN_CH_ERROR_INTERNAL:
-        return "INTERNAL_ERROR";
-    default:
-        return "UNKNOWN_ERROR";
-    }
-}
+const char* const s_error_type_to_string[] = {
+    [DAP_CHAIN_CH_ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS]= "SYNC_REQUEST_ALREADY_IN_PROCESS",
+    [DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE]        = "INCORRECT_SYNC_SEQUENCE",
+    [DAP_CHAIN_CH_ERROR_SYNC_TIMEOUT]                   = "SYNCHRONIZATION TIMEOUT",
+    [DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE]            = "INVALID_PACKET_SIZE",
+    [DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE]           = "INVALID_LEGACY_PACKET_SIZE",
+    [DAP_CHAIN_CH_ERROR_NET_INVALID_ID]                 = "INVALID_NET_ID",
+    [DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND]                = "CHAIN_NOT_FOUND",
+    [DAP_CHAIN_CH_ERROR_ATOM_NOT_FOUND]                 = "ATOM_NOT_FOUND",
+    [DAP_CHAIN_CH_ERROR_UNKNOWN_CHAIN_PKT_TYPE]         = "UNKNOWN_CHAIN_PACKET_TYPE",
+    [DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED]   = "GLOBAL_DB_INTERNAL_SAVING_ERROR",
+    [DAP_CHAIN_CH_ERROR_NET_IS_OFFLINE]                 = "NET_IS_OFFLINE",
+    [DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY]                  = "OUT_OF_MEMORY",
+    [DAP_CHAIN_CH_ERROR_INTERNAL]                       = "INTERNAL_ERROR"
+};
 
 /**
  * @brief dap_chain_ch_init
@@ -618,11 +600,9 @@ static bool s_sync_in_chains_callback(void *a_arg)
         DAP_DELETE(l_args);
         return false;
     }
-    char *l_atom_hash_str = NULL;
     dap_hash_fast_t l_atom_hash = { }; 
-    dap_hash_fast(l_atom, l_atom_size, &l_atom_hash); 
-    if (s_debug_more)
-        l_atom_hash_str = dap_hash_fast_to_str_static(&l_atom_hash);
+    dap_hash_fast(l_atom, l_atom_size, &l_atom_hash);
+    char *l_atom_hash_str = dap_hash_fast_to_str_static(&l_atom_hash);
     dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size, &l_atom_hash, false);
     bool l_ack_send = false;
     switch (l_atom_add_res) {
@@ -688,7 +668,7 @@ void dap_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, dap_chain_net_id_t 
 {
     dap_chain_ch_t *l_ch_chain = DAP_CHAIN_CH(a_ch);
     dap_return_if_fail(l_ch_chain);
-    const char *l_err_str = s_error_type_to_string(a_error);
+    const char *l_err_str = a_error < DAP_CHAIN_CH_ERROR_LAST ? s_error_type_to_string[a_error] : "UNDEFINED ERROR";
     dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_err_str, strlen(l_err_str) + 1, DAP_CHAIN_CH_PKT_VERSION_LEGACY);
     s_ch_chain_go_idle(l_ch_chain);
 }
@@ -1544,7 +1524,7 @@ static bool s_sync_timer_callback(void *a_arg)
     }
 
     bool l_timer_break = false;
-    const char *l_err_str = s_error_type_to_string(DAP_CHAIN_CH_ERROR_SYNC_TIMEOUT);
+    const char* l_err_str = s_error_type_to_string[DAP_CHAIN_CH_ERROR_SYNC_TIMEOUT];
     if (l_ch_chain->sync_context) {
         struct sync_context *l_context = l_ch_chain->sync_context;
         if (l_context->last_activity + s_sync_timeout <= dap_time_now()) {
