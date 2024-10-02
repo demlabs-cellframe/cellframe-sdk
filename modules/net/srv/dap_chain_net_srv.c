@@ -183,8 +183,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
 {
     json_object **json_arr_reply = (json_object **)a_str_reply;
     int arg_index = 1;
-    dap_chain_net_t * l_net = NULL;
-    json_object* json_obj_net_srv = json_object_new_object();
+    dap_chain_net_t * l_net = NULL;    
     const char * l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
@@ -196,14 +195,16 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
 
     int l_report = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "report", NULL);
     if (l_report) {
+        json_object* json_obj_net_srv = json_object_new_object();
         const char *l_report_str = dap_stream_ch_chain_net_srv_create_statistic_report();
         json_object_object_add(json_obj_net_srv, "report", json_object_new_string(l_report_str));
         DAP_DEL_Z(l_report_str);
+        json_object_array_add(*json_arr_reply, json_obj_net_srv);
         return DAP_CHAIN_NET_SRV_CLI_COM_ORDER_OK;
     }
 
     int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain_for_json( &arg_index, argc, argv, NULL, &l_net, CHAIN_TYPE_INVALID);
-    
+    json_object* json_obj_net_srv = NULL;
     if ( l_net ) {
         dap_string_t *l_string_ret = dap_string_new("");
 
@@ -330,9 +331,12 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             if(dap_strcmp(l_new_order_hash_str, l_order_hash_hex_str))
                                 dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
                             DAP_DELETE(l_new_order_hash_str);
+                            json_obj_net_srv = json_object_new_object();
                             json_object_object_add(json_obj_net_srv, "status command", json_object_new_string("order updated"));
-                        } else
+                        } else {
+                            json_obj_net_srv = json_object_new_object();
                             json_object_object_add(json_obj_net_srv, "status command", json_object_new_string("order did not updated"));
+                        }
                         DAP_DELETE(l_order);
                     }
                 }
@@ -401,8 +405,10 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                                                         l_price_min, l_price_max,
                                                         &l_orders, &l_orders_num) )
                 {
-                    dap_string_append_printf(l_string_ret, "Found %zu orders:\n", l_orders_num);
+                    json_obj_net_srv = json_object_new_object();
+                    json_object_object_add(json_obj_net_srv, "Found orders", json_object_new_uint64(l_orders_num));
                     for (dap_list_t *l_temp = l_orders; l_temp; l_temp = l_temp->next){
+                        json_object* json_obj_order = json_object_new_object();
                         dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t*)l_temp->data;
                         dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type, l_net->pub.native_ticker);
                         dap_string_append(l_string_ret,"\n");
@@ -643,7 +649,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
             dap_string_free(l_string_ret, true);
             DAP_DELETE(l_remain_service);
         } else {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized bcommand.");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized command.");
             dap_string_free(l_string_ret, true);
             return -17;
         }
