@@ -33,6 +33,7 @@
 #include "json_object.h"
 
 
+#define DAP_CHAIN_DATUM_NONCE_SIZE                                          64
 // Token declaration
 typedef struct dap_chain_datum_token_old {
     uint16_t type;
@@ -124,8 +125,9 @@ typedef struct dap_chain_datum_token {
             uint256_t premine_supply;
             dap_chain_addr_t premine_address;
         } DAP_ALIGN_PACKED header_public;
-        byte_t header[256]; // For future changes
+        byte_t header[192]; // For future changes
     };
+    uint8_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];
     byte_t tsd_n_signs[]; // Signs and/or types-size-data sections
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 
@@ -293,7 +295,6 @@ uint32_t dap_chain_datum_token_flag_from_str(const char *a_str);
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE             0x0024
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_CLEAR              0x0025
 
-#define DAP_CHAIN_DATUM_NONCE_SIZE                                          64
 
 // Get delegated ticker
 DAP_STATIC_INLINE int dap_chain_datum_token_get_delegated_ticker(char *a_buf, const char *a_ticker)
