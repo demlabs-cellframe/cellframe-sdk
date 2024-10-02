@@ -569,7 +569,7 @@ void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_o
 void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_order, json_object *a_json_obj_out,
                                             const char *a_hash_out_type, const char *a_native_ticker)
 {
-    if (a_order && a_str_out ){
+    if (a_order && a_json_obj_out ){
         dap_chain_hash_fast_t l_hash;
         dap_hash_fast(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
         const char *l_hash_str = dap_strcmp(a_hash_out_type,"hex")
