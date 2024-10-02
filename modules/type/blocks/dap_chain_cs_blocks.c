@@ -756,7 +756,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     json_object_object_add(json_obj_meta, "# -", json_object_new_string(l_hexbuf));
                     int l_len = l_meta->hdr.data_size * 2 + 5;
                     char *l_data_hex = DAP_NEW_STACK_SIZE(char, l_len);
-                    snprintf(l_data_hex, 2, "%s", "0x");
+                    snprintf(l_data_hex, 2, "0x");
                     dap_bin2hex(l_data_hex + 2, l_meta->data, l_meta->hdr.data_size);
                     json_object_object_add(json_obj_meta, "Data hex - ", json_object_new_string(l_data_hex)); }
                 }
