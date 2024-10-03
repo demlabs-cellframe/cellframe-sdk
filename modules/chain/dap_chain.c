@@ -697,7 +697,7 @@ void dap_chain_info_dump_log(dap_chain_t * a_chain)
  * @param a_callback
  * @param a_arg
  */
-void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_notify_t a_callback, void * a_callback_arg)
+void dap_chain_add_callback_notify(dap_chain_t *a_chain, dap_chain_callback_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_callback_arg)
 {
     if(!a_chain){
         log_it(L_ERROR, "NULL chain passed to dap_chain_add_callback_notify()");
@@ -714,6 +714,7 @@ void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_not
     }
 
     l_notifier->callback = a_callback;
+    l_notifier->proc_thread = a_thread;
     l_notifier->arg = a_callback_arg;
     pthread_rwlock_wrlock(&a_chain->rwlock);
     a_chain->atom_notifiers = dap_list_append(a_chain->atom_notifiers, l_notifier);
@@ -845,7 +846,7 @@ void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_ha
             .hash = *a_hash,
             .atom = a_chain_cell->chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE(a_atom, a_atom_size),
             .atom_size = a_atom_size };
-        dap_proc_thread_callback_add_pri(NULL, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
+        dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }
 }
 

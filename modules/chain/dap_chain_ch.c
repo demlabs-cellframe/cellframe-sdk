@@ -154,39 +154,21 @@ static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
 
 #endif
 
-static const char *s_error_type_to_string(dap_chain_ch_error_type_t a_error)
-{
-    switch (a_error) {
-    case DAP_CHAIN_CH_ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS:
-        return "SYNC_REQUEST_ALREADY_IN_PROCESS";
-    case DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE:
-        return "INCORRECT_SYNC_SEQUENCE";
-    case DAP_CHAIN_CH_ERROR_SYNC_TIMEOUT:
-        return "SYNCHRONIZATION TIMEOUT";
-    case DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE:
-        return "INVALID_PACKET_SIZE";
-    case DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE:
-        return "INVALID_LEGACY_PACKET_SIZE";
-    case DAP_CHAIN_CH_ERROR_NET_INVALID_ID:
-        return "INVALID_NET_ID";
-    case DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND:
-        return "CHAIN_NOT_FOUND";
-    case DAP_CHAIN_CH_ERROR_ATOM_NOT_FOUND:
-        return "ATOM_NOT_FOUND";
-    case DAP_CHAIN_CH_ERROR_UNKNOWN_CHAIN_PKT_TYPE:
-        return "UNKNOWN_CHAIN_PACKET_TYPE";
-    case DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED:
-        return "GLOBAL_DB_INTERNAL_SAVING_ERROR";
-    case DAP_CHAIN_CH_ERROR_NET_IS_OFFLINE:
-        return "NET_IS_OFFLINE";
-    case DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY:
-        return "OUT_OF_MEMORY";
-    case DAP_CHAIN_CH_ERROR_INTERNAL:
-        return "INTERNAL_ERROR";
-    default:
-        return "UNKNOWN_ERROR";
-    }
-}
+const char* const s_error_type_to_string[] = {
+    [DAP_CHAIN_CH_ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS]= "SYNC_REQUEST_ALREADY_IN_PROCESS",
+    [DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE]        = "INCORRECT_SYNC_SEQUENCE",
+    [DAP_CHAIN_CH_ERROR_SYNC_TIMEOUT]                   = "SYNCHRONIZATION TIMEOUT",
+    [DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE]            = "INVALID_PACKET_SIZE",
+    [DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE]           = "INVALID_LEGACY_PACKET_SIZE",
+    [DAP_CHAIN_CH_ERROR_NET_INVALID_ID]                 = "INVALID_NET_ID",
+    [DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND]                = "CHAIN_NOT_FOUND",
+    [DAP_CHAIN_CH_ERROR_ATOM_NOT_FOUND]                 = "ATOM_NOT_FOUND",
+    [DAP_CHAIN_CH_ERROR_UNKNOWN_CHAIN_PKT_TYPE]         = "UNKNOWN_CHAIN_PACKET_TYPE",
+    [DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED]   = "GLOBAL_DB_INTERNAL_SAVING_ERROR",
+    [DAP_CHAIN_CH_ERROR_NET_IS_OFFLINE]                 = "NET_IS_OFFLINE",
+    [DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY]                  = "OUT_OF_MEMORY",
+    [DAP_CHAIN_CH_ERROR_INTERNAL]                       = "INTERNAL_ERROR"
+};
 
 /**
  * @brief dap_chain_ch_init
@@ -618,18 +600,15 @@ static bool s_sync_in_chains_callback(void *a_arg)
         DAP_DELETE(l_args);
         return false;
     }
-    char *l_atom_hash_str = NULL;
-    l_atom_hash_str = DAP_NEW_STACK_SIZE(char, DAP_CHAIN_HASH_FAST_STR_SIZE); 
-    dap_hash_fast_t l_atom_hash = {}; 
-    dap_hash_fast(l_atom, l_atom_size, &l_atom_hash); 
-    if (s_debug_more)
-        dap_get_data_hash_str_static(l_atom, l_atom_size, l_atom_hash_str);
+    dap_hash_fast_t l_atom_hash = { }; 
+    dap_hash_fast(l_atom, l_atom_size, &l_atom_hash);
+    char *l_atom_hash_str = dap_hash_fast_to_str_static(&l_atom_hash);
     dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size, &l_atom_hash, false);
     bool l_ack_send = false;
     switch (l_atom_add_res) {
     case ATOM_PASS:
         debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",
-                                                l_atom_hash_str, l_chain->net_name, l_chain->name);
+                                          l_atom_hash_str, l_chain->net_name, l_chain->name);
         l_ack_send = true;
         break;
     case ATOM_MOVE_TO_THRESHOLD:
@@ -689,7 +668,7 @@ void dap_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, dap_chain_net_id_t 
 {
     dap_chain_ch_t *l_ch_chain = DAP_CHAIN_CH(a_ch);
     dap_return_if_fail(l_ch_chain);
-    const char *l_err_str = s_error_type_to_string(a_error);
+    const char *l_err_str = a_error < DAP_CHAIN_CH_ERROR_LAST ? s_error_type_to_string[a_error] : "UNDEFINED ERROR";
     dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_err_str, strlen(l_err_str) + 1, DAP_CHAIN_CH_PKT_VERSION_LEGACY);
     s_ch_chain_go_idle(l_ch_chain);
 }
@@ -776,12 +755,9 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         l_args->addr = a_ch->stream->node;
         l_args->ack_req = true;
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
-        if (s_debug_more) {
-            char *l_atom_hash_str;
-            dap_get_data_hash_str_static(l_chain_pkt->data, l_chain_pkt_data_size, l_atom_hash_str);
-            log_it(L_INFO, "In: CHAIN pkt: atom hash %s, size %zd, net id %" DAP_UINT64_FORMAT_U ", chain id %" DAP_UINT64_FORMAT_U,
-                    l_atom_hash_str, l_chain_pkt_data_size, l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64);
-        }
+        debug_if(s_debug_more, L_INFO, "In: CHAIN pkt: atom hash %s, size %zd, net id %" DAP_UINT64_FORMAT_U ", chain id %" DAP_UINT64_FORMAT_U,
+                                        dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size, 
+                                        l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64);
         dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_args);
     } break;
 
@@ -1498,11 +1474,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         l_chain_pkt->hdr.data_size = l_chain_pkt_data_size;
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
-        if (s_debug_legacy) {
-            char *l_atom_hash_str;
-            dap_get_data_hash_str_static(l_chain_pkt->data, l_chain_pkt_data_size, l_atom_hash_str);
-            log_it(L_INFO, "In: CHAIN_OLD pkt: atom hash %s (size %zd)", l_atom_hash_str, l_chain_pkt_data_size);
-        }
+        debug_if(s_debug_legacy, L_INFO, "In: CHAIN_OLD pkt: atom hash %s (size %zd)",
+                                         dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size);
         dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_args);
     } break;
 
@@ -1551,7 +1524,7 @@ static bool s_sync_timer_callback(void *a_arg)
     }
 
     bool l_timer_break = false;
-    const char *l_err_str = s_error_type_to_string(DAP_CHAIN_CH_ERROR_SYNC_TIMEOUT);
+    const char* l_err_str = s_error_type_to_string[DAP_CHAIN_CH_ERROR_SYNC_TIMEOUT];
     if (l_ch_chain->sync_context) {
         struct sync_context *l_context = l_ch_chain->sync_context;
         if (l_context->last_activity + s_sync_timeout <= dap_time_now()) {

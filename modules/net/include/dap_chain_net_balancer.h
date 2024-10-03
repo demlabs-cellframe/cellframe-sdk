@@ -30,6 +30,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_BALANCER_PROTOCOL_VERSION 2
 #define DAP_BALANCER_MAX_REPLY_SIZE 2048
 
+typedef struct dap_balancer_request_info dap_balancer_request_info_t;
+
 typedef struct dap_chain_net_links {
     uint64_t count_node;
     byte_t nodes_info[];
@@ -40,6 +42,15 @@ typedef enum dap_balancer_type {
     DAP_CHAIN_NET_BALANCER_TYPE_DNS
 } dap_balancer_type_t;
 
+typedef struct dap_balancer_link_request {
+    const char* host_addr;
+    uint16_t host_port;
+    dap_chain_net_t *net;
+    dap_worker_t *worker;
+    uint16_t required_links_count;
+    dap_balancer_request_info_t *request_info;
+    dap_balancer_type_t type;
+} dap_balancer_link_request_t;
 
 DAP_STATIC_INLINE const char *dap_chain_net_balancer_type_to_str(dap_balancer_type_t a_type)
 {
@@ -54,4 +65,4 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
 dap_link_info_t *dap_chain_net_balancer_dns_issue_link(const char *a_net_name);
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t * a_net);
 dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net);
-int dap_chain_net_balancer_request(dap_chain_net_t *a_net, const char *a_host_addr, uint16_t a_host_port, int a_balancer_type);
+void dap_chain_net_balancer_request(void *a_arg);
