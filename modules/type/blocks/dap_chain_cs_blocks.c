@@ -1014,7 +1014,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 if (json_object_object_get_ex(obj, "block", NULL)) 
                     json_object_object_add(obj, "block", json_object_new_uint64(i));
             }
-            json_object_array_add(*json_arr_reply, json_arr_bl_cache_out);
+            json_object_array_add(*a_json_arr_reply, json_arr_bl_cache_out);
 
             char *l_filtered_criteria = "none";
             json_object* json_obj_out = json_object_new_object();
