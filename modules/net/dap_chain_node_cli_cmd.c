@@ -4359,7 +4359,6 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
         dap_tsd_t *l_tsd_change_total_supply = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_total_supply);
         l_tsd_list = dap_list_append(l_tsd_list, l_tsd_change_total_supply);
         l_tsd_total_size += dap_tsd_size(l_tsd_change_total_supply);
-        a_params->ext.parsed_tsd_size += dap_tsd_size(l_tsd_change_total_supply);
     }
     size_t l_tsd_offset = 0;
     a_params->ext.parsed_tsd = DAP_NEW_SIZE(byte_t, l_tsd_total_size);
