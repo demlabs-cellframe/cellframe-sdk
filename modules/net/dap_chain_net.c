@@ -744,7 +744,6 @@ void dap_chain_net_load_all()
     while (s_net_loading_count)
         pthread_cond_wait(&s_net_cond, &s_net_cond_lock);
     pthread_mutex_unlock(&s_net_cond_lock);
-    dap_timerfd_delete_unsafe(l_nets_load_notify_timer);
 }
 
 dap_string_t* dap_cli_list_net()
