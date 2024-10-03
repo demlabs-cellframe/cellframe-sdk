@@ -51,7 +51,7 @@ json_object * dap_db_tx_history_to_json(json_object* a_json_arr_reply,
                                         dap_chain_datum_tx_t * l_tx,
                                         dap_chain_t * a_chain, 
                                         const char *a_hash_out_type, 
-                                        dap_chain_net_t * l_net,
+                                        dap_chain_datum_iter_t *a_datum_iter,
                                         int l_ret_code,
                                         bool *accepted_tx,
                                         bool out_brief);
