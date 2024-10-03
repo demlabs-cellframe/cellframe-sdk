@@ -206,7 +206,6 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
     int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain_for_json( &arg_index, argc, argv, NULL, &l_net, CHAIN_TYPE_INVALID);
     json_object* json_obj_net_srv = NULL;
     if ( l_net ) {
-        dap_string_t *l_string_ret = dap_string_new("");
 
         const char *l_order_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "order", &l_order_str);
@@ -376,8 +375,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         l_direction = SERV_DIR_SELL;
                     else if (!strcmp(l_direction_str, "buy"))
                         l_direction = SERV_DIR_BUY;
-                    else {
-                        dap_string_free(l_string_ret, true);
+                    else {                        
                         dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_PARAM_CERT_ERR, "Wrong direction of the token was "
                                                                        "specified, possible directions: buy, sell.");
                         return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_PARAM_CERT_ERR;
@@ -417,10 +415,9 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                     json_object_object_add(json_obj_net_srv, "ORDERS", json_arr_out);
                     l_ret = 0;
                     dap_list_free_full(l_orders, NULL);
-                } else {
+                } else {                    
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_CANT_GET_ERR, "Can't get orders: some internal error or wrong params");
                     l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_CANT_GET_ERR ;
-                    dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_CANT_GET_ERR, 
-                                                        "Can't get orders: some internal error or wrong params");
                 }
             } else if(!dap_strcmp( l_order_str, "dump" )) {
                 // Select with specified service uid
@@ -458,6 +455,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker);
                             json_object_array_add(json_arr_out, json_obj_order);
                         }
+                        json_object_object_add(json_obj_net_srv, "ORDERS", json_arr_out);
                         l_ret = 0;
                     }else{
                         dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_CANT_GET_ERR,"Can't get orders: some internal error or wrong params");
@@ -467,23 +465,22 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                 }
             } else if (!dap_strcmp(l_order_str, "delete")) {
                 if (l_order_hash_str) {
-                    
+                    json_obj_net_srv = json_object_new_object();
                     l_ret = dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
                     if (!l_ret)
-                        dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_str);
+                        json_object_object_add(json_obj_net_srv, "Deleted order", l_order_hash_str);
                     else {
-                        l_ret = -8;
-                        dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_str);
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DEL_CANT_FIND_HASH_ERR, "Can't find order with hash %s\n", l_order_hash_str);
+                        l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DEL_CANT_FIND_HASH_ERR;
                     }
                 } else {
-                    l_ret = -9 ;
-                    dap_string_append(l_string_ret,"need -hash param to obtain what the order we need to dump\n");
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DEL_NEED_HASH_PARAM_ERR, "need -hash param to obtain what the order we need to dump\n");
+                    l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DEL_NEED_HASH_PARAM_ERR;
                 }
-
             } else if(!dap_strcmp( l_order_str, "create" )) {
                 if (dap_chain_net_get_role(l_net).enums > NODE_ROLE_MASTER) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Node role should be not lower than master\n");
-                    return -4;
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_ROLE_ERR, "Node role should be not lower than master\n");
+                    return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_ROLE_ERR;
                 }
                 const char *l_order_cert_name = NULL;
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_order_cert_name);
@@ -505,30 +502,31 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             log_it(L_DEBUG, "Created order to buy");
                         } else {
                             log_it(L_WARNING, "Undefined order direction");
-                            dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong direction of the token was "
+                            dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_UNDEF_ORDER_DIR_ERR, "Wrong direction of the token was "
                                                                            "specified, possible directions: buy, sell.");
-                            return -18;
+                            return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_UNDEF_ORDER_DIR_ERR;
                         }
                     }
 
                     if (l_expires_str)
                         l_expires = (dap_time_t ) atoll( l_expires_str);
                     if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
-                        return -21;
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_CANT_RECOGNIZE_ERR, 
+                                                    "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
+                        return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_CANT_RECOGNIZE_ERR;
                     }else if (!l_srv_uid_str){
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter -srv_uid is required.");
-                        return -22;
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_REQUIRED_PARAM_UID_ERR, "Parameter -srv_uid is required.");
+                        return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_REQUIRED_PARAM_UID_ERR;
                     }
                     if (l_node_addr_str){
                         if (dap_chain_node_addr_str_check(l_node_addr_str)) {
                             dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str );
                         } else {
                             log_it(L_ERROR, "Can't parse \"%s\" as node addr", l_node_addr_str);
-                            dap_cli_server_cmd_set_reply_text(a_str_reply, "The order has not been created. "
+                            dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_CANT_PARSE_NODE_ADDR_ERR, "The order has not been created. "
                                                                            "Failed to convert string representation of '%s' "
                                                                            "to node address.", l_node_addr_str);
-                            return -17;
+                            return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_CANT_PARSE_NODE_ADDR_ERR;
                         }
                     } else {
                         l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
@@ -556,10 +554,10 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         l_price_unit.enm = SERV_UNIT_PCS;
                     } else {
                         log_it(L_ERROR, "Undefined price unit");
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong unit type sepcified, possible values: B, KB, MB, SEC, DAY, PCS");
-                        return -18;
-                    } 
-                    
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_UNDEF_PRICE_UNIT_ERR, 
+                                                    "Wrong unit type sepcified, possible values: B, KB, MB, SEC, DAY, PCS");
+                        return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_UNDEF_PRICE_UNIT_ERR;
+                    }                     
                     strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                     size_t l_ext_len = l_ext? strlen(l_ext) + 1 : 0;
                     // get cert to order sign
@@ -571,41 +569,46 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             l_key = l_cert->enc_key;
                             if (!l_key->priv_key_data || !l_key->priv_key_data_size) {
                                 log_it(L_ERROR, "Certificate '%s' doesn't contain a private key", l_order_cert_name);
-                                dap_cli_server_cmd_set_reply_text(a_str_reply, "Certificate '%s' doesn't contain a private key", l_order_cert_name);
-                                return -25;
+                                dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_CERT_WITHOUT_KEY_ERR, 
+                                                    "Certificate '%s' doesn't contain a private key", l_order_cert_name);
+                                return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_CERT_WITHOUT_KEY_ERR;
                             }
                         } else {
                             log_it(L_ERROR, "Can't load cert '%s' for sign order", l_order_cert_name);
-                            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert '%s' for sign "
+                            dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_CANT_LOAD_CERT_ERR, "Can't load cert '%s' for sign "
                                                                            "order", l_order_cert_name);
-                            return -19;
+                            return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_CANT_LOAD_CERT_ERR;
                         }
                     } else {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "The certificate name was not "
-                                                                       "specified. Since version 5.2 it is not possible to "
-                                                                       "create unsigned orders.");
-                        return -20;
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_CERT_NAME_NOT_WALID_ERR, 
+                                                                        "The certificate name was not "
+                                                                        "specified. Since version 5.2 it is not possible to "
+                                                                        "create unsigned orders.");
+                        return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_CERT_NAME_NOT_WALID_ERR;
                     }
                 // create order
                     char * l_order_new_hash_str = dap_chain_net_srv_order_create(
                         l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, &l_price, l_price_unit,
                         l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_units, l_region_str, l_continent_num, l_key);
-                    if (l_order_new_hash_str)
-                        dap_string_append_printf( l_string_ret, "Created order %s\n", l_order_new_hash_str);
+                    if (l_order_new_hash_str) {
+                        json_obj_net_srv = json_object_new_object();
+                        json_object_object_add(json_obj_net_srv, "Created order", json_object_new_string(l_order_new_hash_str));
+                    }
                     else {
-                        dap_string_append_printf( l_string_ret, "Error! Can't created order\n");
-                        l_ret = -4;
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_ORDER_ERR, 
+                                                                        "Error! Can't created order\n");
+                        l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_ORDER_ERR;
                     }
                 } else {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Missed some required params\n");
-                    return -5;
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_MISSED_PARAM_ERR, 
+                                                                        "Missed some required params\n");
+                    return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_MISSED_PARAM_ERR;
                 }
             } else if (l_order_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized subcommand '%s'", l_order_str);
-                return -14;
-            }
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_ret->str);
-
+                dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UNKNOWN_SUB_COM_ERR, 
+                                                                        "Unrecognized subcommand '%s'", l_order_str);
+                return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UNKNOWN_SUB_COM_ERR;
+            }            
         } else if (l_get_limits_str){
             const char *l_provider_pkey_hash_str = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-provider_pkey_hash", &l_provider_pkey_hash_str);
@@ -614,26 +617,26 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-client_pkey_hash", &l_client_pkey_hash_str);
 
             if (!l_provider_pkey_hash_str){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'get_limits' require the parameter provider_pkey_hash");
-                dap_string_free(l_string_ret, true);
-                return -15;
+                dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_GETLIM_REQUIRED_PARAM_PPKHASH_ERR, 
+                                            "Command 'get_limits' require the parameter provider_pkey_hash");
+                 return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_GETLIM_REQUIRED_PARAM_PPKHASH_ERR;
             }
 
             if (!l_client_pkey_hash_str){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'get_limits' require the parameter client_pkey_hash");
-                dap_string_free(l_string_ret, true);
-                return -16;
+                dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_GETLIM_REQUIRED_PARAM_CPKHASH_ERR, 
+                                            "Command 'get_limits' require the parameter client_pkey_hash");
+                return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_GETLIM_REQUIRED_PARAM_CPKHASH_ERR;
             }
 
             dap_chain_net_srv_uid_t l_srv_uid={{0}};
             if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
-                dap_string_free(l_string_ret, true);
-                return -21;
+                dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_GETLIM_CANT_REC_UID_STR_ERR, 
+                                            "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
+                return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_GETLIM_CANT_REC_UID_STR_ERR;
             } else if (!l_srv_uid_str){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter -srv_uid is required.");
-                dap_string_free(l_string_ret, true);
-                return -22;
+                dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_GETLIM_REQUIRED_PARAM_UID_ERR, 
+                                            "Parameter -srv_uid is required.");
+                return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_GETLIM_REQUIRED_PARAM_UID_ERR;
             }
 
             dap_stream_ch_chain_net_srv_remain_service_store_t *l_remain_service = NULL;
@@ -646,9 +649,9 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
             DAP_DELETE(l_remain_limits_gdb_group);
 
             if(!l_remain_service || !l_remain_service_size){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get remain service data");
-                dap_string_free(l_string_ret, true);
-                return -21;
+                dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_GETLIM_CANT_GET_REM_SERV_DATA_ERR, 
+                                            "Can't get remain service data");
+                return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_GETLIM_CANT_GET_REM_SERV_DATA_ERR;
             }
 
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Provider %s. Client %s remain service values:\n"
@@ -656,14 +659,14 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                                                    "BYTES: %"DAP_UINT64_FORMAT_U"\n", l_provider_pkey_hash_str, l_client_pkey_hash_str,
                                               (uint64_t)l_remain_service->limits_ts, (uint64_t)l_remain_service->limits_bytes);
 
-            dap_string_free(l_string_ret, true);
             DAP_DELETE(l_remain_service);
         } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized command.");
-            dap_string_free(l_string_ret, true);
             return -17;
         }
     }
+    if (json_obj_net_srv != NULL)
+                json_object_array_add(*json_arr_reply, json_obj_net_srv);
     return l_ret;
 }
 
