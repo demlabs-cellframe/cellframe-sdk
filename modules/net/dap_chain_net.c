@@ -707,6 +707,28 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     return l_ret;
 }
 
+bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg) {
+    json_object *json_obj = json_object_new_object();
+    json_object_object_add(json_obj, "class", json_object_new_string("nets_init"));
+    json_object *l_jobj_nets = json_object_new_object();
+    for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
+        json_object *json_chains = json_object_new_object();
+        for (dap_chain_t *l_chain = net->pub.chains; l_chain; l_chain = l_chain->next) {
+            json_object *l_jobj_chain_info = json_object_new_object();
+            json_object_object_add(l_jobj_chain_info, "count_atoms", json_object_new_int(l_chain->callback_count_atom(l_chain)));
+            json_object_object_add(l_jobj_chain_info, "load_process", json_object_new_int(l_chain->load_progress));
+            json_object_object_add(json_chains, l_chain->name, l_jobj_chain_info);
+            log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
+                            net->pub.name, l_chain->name, l_chain->id.uint64, l_chain->load_progress);
+        }
+        json_object_object_add(l_jobj_nets, net->pub.name, json_chains);
+    }
+    json_object_object_add(json_obj, "nets", l_jobj_nets);
+    dap_notify_server_send_mt(json_object_get_string(json_obj));
+    json_object_put(json_obj);
+    return true;
+}
+
 /**
  * @brief
  * load network config settings
@@ -720,11 +742,13 @@ void dap_chain_net_load_all()
         pthread_mutex_unlock(&s_net_cond_lock);
         return;
     }
+    dap_timerfd_t *l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_net_disk_load_notify_callback, NULL);
     for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next)
         dap_proc_thread_callback_add(NULL, s_net_load, net);
     while (s_net_loading_count)
         pthread_cond_wait(&s_net_cond, &s_net_cond_lock);
     pthread_mutex_unlock(&s_net_cond_lock);
+    dap_timerfd_delete_mt(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
 }
 
 dap_string_t* dap_cli_list_net()
