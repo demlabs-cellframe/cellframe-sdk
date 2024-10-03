@@ -107,6 +107,7 @@
 #include "dap_stream_cluster.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_net.h"
+#include "dap_context.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -746,11 +747,9 @@ dap_string_t* dap_cli_list_net()
 {
     dap_string_t *l_string_ret = dap_string_new("");
     dap_chain_net_t * l_net = NULL;
-    unsigned l_net_i = 0;
     dap_string_append(l_string_ret, "Available networks and chains:\n");
     for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
         dap_string_append_printf(l_string_ret, "\t%s:\n", l_net->pub.name);
-        ++l_net_i;
         dap_chain_t *l_chain = l_net->pub.chains;
         while (l_chain) {
             dap_string_append_printf( l_string_ret, "\t\t%s\n", l_chain->name );
@@ -3017,7 +3016,7 @@ void dap_chain_net_try_online_all() {
 
     for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
         if (( l_ret = s_net_try_online(net) ))
-            log_it(L_ERROR, "Can't try online state for net %s.  Finished with (%d) error code.", net, l_ret);
+            log_it(L_ERROR, "Can't try online state for net %s.  Finished with (%d) error code.", net->pub.name, l_ret);
     }
 }
 

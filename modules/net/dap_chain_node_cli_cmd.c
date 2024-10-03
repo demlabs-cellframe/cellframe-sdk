@@ -5431,7 +5431,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **reply)
 
     uint256_t l_cond_value_sum = {};
     size_t l_num_of_hashes = dap_list_length(l_hashes_list);
-    log_it(L_INFO, "Found %"DAP_UINT64_FORMAT_U" hashes. Start returning funds from transactions.", l_num_of_hashes);
+    log_it(L_INFO, "Found %zu hashes. Start returning funds from transactions.", l_num_of_hashes);
     for (dap_list_t * l_tmp = l_hashes_list; l_tmp; l_tmp=l_tmp->next){
         dap_hash_fast_t *l_hash = (dap_hash_fast_t*)l_tmp->data;
         // get tx by hash
@@ -8459,7 +8459,7 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
                 struct stat l_st;
                 stat (a_file, &l_st);
                 char l_size[513];
-                snprintf(l_size, 513, "%ld", l_st.st_size);
+                snprintf(l_size, 513, "%lld", l_st.st_size);
                 return dap_tsd_create_string(SIGNER_FILESIZE, l_size);
             }
             break;
