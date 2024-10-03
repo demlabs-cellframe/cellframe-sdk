@@ -62,7 +62,10 @@ typedef struct dap_chain_datum_iter {
     size_t cur_size;
     dap_chain_hash_fast_t *cur_hash;
     dap_chain_hash_fast_t *cur_atom_hash;
+    uint32_t action;
+    dap_chain_net_srv_uid_t uid;
     int ret_code;
+    char *token_ticker;
     void *cur_item;
 } dap_chain_datum_iter_t;
 
@@ -231,8 +234,11 @@ typedef struct dap_chain {
     void * _inheritor; // inheritor object
 } dap_chain_t;
 
+typedef struct dap_proc_thread dap_proc_thread_t;
+
 typedef struct dap_chain_atom_notifier {
     dap_chain_callback_notify_t callback;
+    dap_proc_thread_t *proc_thread;
     void *arg;
 } dap_chain_atom_notifier_t;
 
@@ -274,7 +280,7 @@ dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_i
 dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net_id_t a_chain_net_id, const char *a_chain_cfg_name);
 
 void dap_chain_delete(dap_chain_t * a_chain);
-void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_notify_t a_callback, void * a_arg);
+void dap_chain_add_callback_notify(dap_chain_t *a_chain, dap_chain_callback_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_arg);
 void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size);
 void dap_chain_atom_add_from_threshold(dap_chain_t *a_chain);
 dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);

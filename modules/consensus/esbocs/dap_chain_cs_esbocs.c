@@ -605,8 +605,9 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         log_it(L_ERROR, "This validator is not allowed to work in emergency mode. Use special decree to supply it");
         return -5;
     }
-    dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session);
-    s_session_round_new(l_session);
+    dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session->proc_thread, l_session);
+    //s_session_round_new(l_session);
+    dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
 
     l_session->cs_timer = !dap_proc_thread_timer_add(l_session->proc_thread, s_session_proc_state, l_session, 1000);
     debug_if(l_esbocs_pvt->debug && l_session->cs_timer, L_MSG, "Consensus main timer is started");
@@ -1006,8 +1007,9 @@ static void s_db_calc_sync_hash(dap_chain_esbocs_session_t *a_session)
     a_session->is_actual_hash = true;
 }
 
-static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
+static void s_session_send_startsync(void *a_arg)
 {
+    dap_chain_esbocs_session_t *a_session = (dap_chain_esbocs_session_t*)a_arg;
     if (a_session->cur_round.sync_sent)
         return;     // Sync message already was sent
     dap_chain_hash_fast_t l_last_block_hash;
@@ -1035,14 +1037,6 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
                    &l_params, sizeof(struct sync_params),
                    a_session->cur_round.all_validators);
     a_session->cur_round.sync_sent = true;
-}
-
-static bool s_session_send_startsync_on_timer(void *a_arg)
-{
-    dap_chain_esbocs_session_t *l_session = a_arg;
-    s_session_send_startsync(l_session);
-    l_session->sync_timer = NULL;
-    return false;
 }
 
 static void s_session_update_penalty(dap_chain_esbocs_session_t *a_session)
@@ -1106,11 +1100,6 @@ static bool s_session_round_new(void *a_arg)
     s_session_round_clear(a_session);
     a_session->cur_round.id++;
     a_session->cur_round.sync_attempt++;
-
-    if (a_session->sync_timer) {
-        dap_timerfd_delete_mt(a_session->sync_timer->worker, a_session->sync_timer->esocket_uuid);
-        a_session->sync_timer = NULL;
-    }
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
     a_session->ts_stage_entry = 0;
@@ -1170,7 +1159,8 @@ static bool s_session_round_new(void *a_arg)
                     a_session->chain->net_name, a_session->chain->name,
                         a_session->cur_round.id, l_sync_send_delay);
         if (l_sync_send_delay)
-            a_session->sync_timer = dap_timerfd_start(l_sync_send_delay * 1000, s_session_send_startsync_on_timer, a_session);
+            dap_proc_thread_timer_add_pri(a_session->proc_thread, s_session_send_startsync, a_session,
+                                          l_sync_send_delay * 1000, true, DAP_QUEUE_MSG_PRIORITY_NORMAL);
         else
             s_session_send_startsync(a_session);
     }
@@ -3098,7 +3088,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -val_count", l_subcmd_strs[l_subcmd]);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR;
             }
-            uint256_t l_value = dap_chain_balance_scan(l_value_str);
+            uint256_t l_value = dap_uint256_scan_uninteger(l_value_str);
             if (IS_ZERO_256(l_value)) {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR,"Unrecognized number in '-val_count' param");
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR;

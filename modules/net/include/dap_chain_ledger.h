@@ -200,8 +200,15 @@ typedef struct dap_ledger_datum_iter {
     void *cur_ledger_tx_item;
 } dap_ledger_datum_iter_t;
 
+typedef struct dap_ledger_datum_iter_data {
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint32_t action;
+    dap_chain_net_srv_uid_t uid;
+} dap_ledger_datum_iter_data_t;
+
 typedef int (*dap_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
-typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_cond);
+typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_cond);
+typedef void (*dap_ledger_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chan_ledger_notify_opcodes_t a_opcode);
 typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg, dap_chan_ledger_notify_opcodes_t a_opcode);
 typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
@@ -270,8 +277,8 @@ DAP_STATIC_INLINE char *dap_ledger_get_gdb_group(dap_ledger_t *a_ledger, const c
  *
  * return 1 OK, -1 error
  */
-int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold);
-int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash);
+int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data);
+int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data);
 int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash);
 
 int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
@@ -433,7 +440,7 @@ dap_list_t *dap_ledger_get_list_tx_cond_outs(dap_ledger_t *a_ledger, const char 
                                              dap_chain_tx_out_cond_subtype_t a_subtype, uint256_t *a_value_transfer);
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
 int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_ledger_verificator_callback_t a_callback,
-                                     dap_ledger_updater_callback_t a_callback_added, dap_ledger_updater_callback_t a_callback_deleted);
+                                     dap_ledger_updater_callback_t a_callback_added, dap_ledger_delete_callback_t a_callback_deleted);
 // Add new verificator callback for voting. Returns 1 if callback replaced, overwise returns 0
 int dap_chain_ledger_voting_verificator_add(dap_chain_ledger_voting_callback_t a_callback, dap_chain_ledger_voting_delete_callback_t a_callback_delete);
 // Getting a list of transactions from the ledger.
@@ -450,8 +457,9 @@ dap_chain_datum_tx_t *dap_ledger_datum_iter_get_last(dap_ledger_datum_iter_t *a_
 void dap_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_ledger_tx_add_notify_t a_callback, void *a_arg);
 void dap_ledger_bridged_tx_notify_add(dap_ledger_t *a_ledger, dap_ledger_bridged_tx_notify_t a_callback, void *a_arg);
 
+bool dap_ledger_datum_is_blacklisted(dap_ledger_t *a_ledger, dap_hash_fast_t a_hash);
 
 bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger);
 void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_cache_tx_check_callback_t a_callback);
 dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond);
-void dap_leger_load_end(dap_ledger_t *a_ledger);
+void dap_ledger_load_end(dap_ledger_t *a_ledger);
