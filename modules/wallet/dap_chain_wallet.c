@@ -169,6 +169,12 @@ char *c_wallets_path;
         memset(l_prec->pass, 0, l_prec->pass_len), l_prec->pass_len = 0;    /* Say <what> again ?! */
         return  log_it(L_ERROR, "Wallet's password is invalid, say <password> again"), -EAGAIN;
     }
+    if(!(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)) {
+        HASH_FIND_STR(s_wallet_n_pass, a_name, l_prec);
+        HASH_DEL(s_wallet_n_pass, l_prec);
+        log_it(L_ERROR, "Can't activate unprotected wallet");
+        l_rc = -101;
+    }
 
     dap_chain_wallet_close( l_wallet);
 
