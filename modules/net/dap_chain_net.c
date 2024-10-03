@@ -388,8 +388,10 @@ dap_stream_node_addr_t *dap_chain_net_get_authorized_nodes(dap_chain_net_t *a_ne
 int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr, const char *a_host, uint16_t a_port)
 {
     bool l_is_link_present = dap_link_manager_link_find(a_addr, a_net->pub.id.uint64);
-    if (l_is_link_present || a_addr->uint64 == g_node_addr.uint64)
+    if (l_is_link_present || a_addr->uint64 == g_node_addr.uint64) {
+        debug_if(l_is_link_present, L_DEBUG, "Link to addr "NODE_ADDR_FP_STR" is already persent in net %s", NODE_ADDR_FP_ARGS(a_addr), a_net->pub.name);
         return -3; // Link is already found for this net or link is to yourself
+    }
     if (dap_link_manager_link_create(a_addr, a_net->pub.id.uint64)) {
         log_it(L_ERROR, "Can't create link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_addr));
         return -1;
@@ -463,8 +465,10 @@ static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_
     log_it(L_INFO, "%s."NODE_ADDR_FP_STR" can't connect for now. %s", l_net ? l_net->pub.name : "(unknown)" ,
             NODE_ADDR_FP_ARGS_S(a_link->addr),
             l_link_is_permanent ? "Setting reconnection pause for it." : "Dropping it.");
-    if (!a_links_count && l_net_pvt->state == NET_STATE_ONLINE)
+    if (!a_links_count && l_net_pvt->state != NET_STATE_OFFLINE) {
         l_net_pvt->state = NET_STATE_LINKS_PREPARE;
+        s_net_states_proc(l_net);
+    }
     return l_link_is_permanent;
 }
 
@@ -3093,9 +3097,10 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
         if (!dap_hash_fast_compare(&l_miss_info->missed_hash, &l_net_pvt->sync_context.requested_atom_hash)) {
             char l_missed_hash_str[DAP_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&l_miss_info->missed_hash, l_missed_hash_str, DAP_HASH_FAST_STR_SIZE);
-            log_it(L_WARNING, "Get irrelevant chain sync MISSED packet with missed hash %s, but requested hash is %s",
+            log_it(L_WARNING, "Get irrelevant chain sync MISSED packet with missed hash %s, but requested hash is %s. Net %s chain %s",
                                                                         l_missed_hash_str,
-                                                                        dap_hash_fast_to_str_static(&l_net_pvt->sync_context.requested_atom_hash));
+                                                                        dap_hash_fast_to_str_static(&l_net_pvt->sync_context.requested_atom_hash),
+                                                                        l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
             dap_stream_ch_write_error_unsafe(a_ch, l_net->pub.id,
                                              l_net_pvt->sync_context.cur_chain->id,
                                              l_net_pvt->sync_context.cur_cell
@@ -3283,6 +3288,12 @@ static void s_sync_timer_callback(void *a_arg)
         log_it(L_DEBUG, "Chain %s in net %s will sync from gdb", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
         return;
+    }
+    // if sync more than 3 mins after online state, change state to SYNC
+    if (l_net_pvt->state == NET_STATE_ONLINE && l_net_pvt->sync_context.state == CHAIN_SYNC_STATE_WAITING &&
+        dap_time_now() - l_net_pvt->sync_context.stage_last_activity > l_net_pvt->sync_context.sync_idle_time ) {
+        l_net_pvt->state = NET_STATE_SYNC_CHAINS;
+        s_net_states_proc(l_net);
     }
 
     l_net_pvt->sync_context.cur_cell = l_net_pvt->sync_context.cur_chain->cells;

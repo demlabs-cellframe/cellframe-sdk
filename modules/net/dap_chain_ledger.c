@@ -1618,7 +1618,8 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
                 .token_emissions_rwlock     = PTHREAD_RWLOCK_INITIALIZER,
                 .token_ts_updated_rwlock    = PTHREAD_RWLOCK_INITIALIZER,
                 .auth_pkeys         = DAP_NEW_Z_SIZE(dap_pkey_t*, sizeof(dap_pkey_t*) * l_token->signs_total),
-                .auth_pkey_hashes   = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, sizeof(dap_chain_hash_fast_t) * l_token->signs_total)
+                .auth_pkey_hashes   = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, sizeof(dap_chain_hash_fast_t) * l_token->signs_total),
+                .flags = 0
         };
         switch (l_token->subtype) {
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
