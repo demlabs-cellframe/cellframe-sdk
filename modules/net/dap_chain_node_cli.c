@@ -218,9 +218,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\n"
             );
 
-    dap_cli_server_cmd_add("token_update_sign", com_token_decl_sign, "Token update add sign and new sign",
-                                        "token_update_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs list> -new_certs <certs list>\n"
-                                        "\t Sign existent <datum hash> in mempool with <certs list>\n"
+    dap_cli_server_cmd_add("token_update_sign", com_token_decl_sign, "Token update add sign to datum",
+                                        "token_update_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <cert_list>\n"
+                                        "\t Sign existent <datum hash> in mempool with <certs_list>\n"
     );
     // Token commands
 
