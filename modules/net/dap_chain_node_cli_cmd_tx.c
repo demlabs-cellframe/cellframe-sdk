@@ -374,7 +374,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             continue;        
         // it's a transaction        
         bool l_is_need_correction = false;
-        bool l_continue = false;
+        bool l_continue = true;
         uint256_t l_corr_value = {}, l_cond_value = {};
         bool l_recv_from_cond = false, l_send_to_same_cond = false;
         json_object *l_corr_object = NULL, *l_cond_recv_object = NULL, *l_cond_send_object = NULL;
@@ -550,9 +550,10 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             }
 
             if (l_dst_addr && dap_chain_addr_compare(l_dst_addr, a_addr)) {  
-                if (i_tmp < l_arr_start) {
+                if (i_tmp >= l_arr_start)
+                    l_continue = false;
+                else {
                     i_tmp++;
-                    l_continue = true;
                     break;
                 }             
                 if (!l_header_printed) {               
@@ -603,11 +604,12 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     continue;
                 if (!l_src_addr && l_dst_addr && !dap_chain_addr_compare(l_dst_addr, &l_net_fee_addr))
                     continue;
-                if (i_tmp < l_arr_start) {
+                if (i_tmp >= l_arr_start)
+                    l_continue = false;
+                else {
                     i_tmp++;
-                    l_continue = true;
                     break;
-                }                                
+                }                               
                 if (!l_header_printed) {                    
                     s_tx_header_print(j_obj_tx, &l_tx_data_ht, l_tx, l_datum_iter,
                                       a_hash_out_type, l_ledger, &l_tx_hash);
