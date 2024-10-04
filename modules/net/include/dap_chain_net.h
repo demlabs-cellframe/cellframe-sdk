@@ -55,7 +55,7 @@ typedef enum dap_chain_net_state {
     NET_STATE_ONLINE
 } dap_chain_net_state_t;
 
-static const char s_gdb_nodes_postfix[] = ".nodes.list";
+static const char s_gdb_nodes_postfix[] = "nodes.list";
 
 typedef struct dap_chain_net {
     struct {
