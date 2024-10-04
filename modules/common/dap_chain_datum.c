@@ -238,8 +238,8 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
     json_object_object_add(json_obj_out, "first transaction", json_object_new_string("emit")):
     json_object_object_add(json_obj_out, "first transaction", json_object_new_string(""));
     json_object_object_add(json_obj_out, "hash", json_object_new_string(l_hash_str));
-    json_object_object_add(json_obj_out, "TS Created", json_object_new_string(l_tmp_buf));
-    json_object_object_add(json_obj_out, "Token ticker", a_ticker ? json_object_new_string(a_ticker) : json_object_new_string(""));
+    json_object_object_add(json_obj_out, "tx created", json_object_new_string(l_tmp_buf));
+    json_object_object_add(json_obj_out, "token ticker", a_ticker ? json_object_new_string(a_ticker) : json_object_new_string(""));
     //json_object_array_add(json_arr_items, json_obj_tx);
 
     dap_hash_fast_t l_hash_tmp = { };

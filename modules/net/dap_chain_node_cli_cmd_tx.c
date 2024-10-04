@@ -163,11 +163,9 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                         ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
                         : dap_chain_hash_fast_to_str_static(a_tx_hash);
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_hash_str));
-
-    json_object_object_add(json_obj_datum, "token_ticker", l_tx_token_ticker ? json_object_new_string(l_tx_token_ticker) 
-                                                                             : json_object_new_null());
-    json_object_object_add(json_obj_datum, "token_description", l_tx_token_description ? json_object_new_string(l_tx_token_description)
-                                                                                       : json_object_new_null());
+    
+    if (l_tx_token_description) 
+        json_object_object_add(json_obj_datum, "token_description", json_object_new_string(l_tx_token_description));
 
     json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(l_ret_code));
     json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_check_error_str(l_ret_code)));
@@ -189,15 +187,11 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
         //json_object_object_add(json_obj_datum, "service", json_object_new_string("UNKNOWN"));
         json_object_object_add(json_obj_datum, "action", json_object_new_string("UNKNOWN"));
     }
-
-    char l_time_str[DAP_TIME_STR_SIZE];
-    dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, l_tx->header.ts_created); /* Convert ts to  "Sat May 17 01:17:08 2014" */
-    json_object *l_obj_ts_created = json_object_new_string(l_time_str);
-    json_object_object_add(json_obj_datum, "tx_created", l_obj_ts_created);
     
     if(!brief_out)
     {        
-        dap_chain_datum_dump_tx_json(l_tx,NULL,json_obj_datum,a_hash_out_type,a_tx_hash,a_chain->net_id);        
+        dap_chain_datum_dump_tx_json(l_tx,l_tx_token_ticker ? l_tx_token_ticker : NULL,
+                                        json_obj_datum,a_hash_out_type,a_tx_hash,a_chain->net_id);        
     }
 
     return json_obj_datum;
