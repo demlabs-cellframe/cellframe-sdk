@@ -207,8 +207,13 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_cs_type_create("blocks", a_chain, a_chain_cfg);
 
+//patch for tests
+#ifdef  DAP_LEDGER_TEST
+    return 0;
+#endif
+
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    int l_ret = 0;
+    int l_ret = 0, l_inited_cert;
     dap_chain_esbocs_t *l_esbocs = NULL;
     DAP_NEW_Z_RET_VAL(l_esbocs, dap_chain_esbocs_t, -5, NULL);
 
@@ -232,7 +237,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs_pvt->new_round_delay = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "new_round_delay", 10);
     l_esbocs_pvt->round_attempts_max = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempts_max", 4);
     l_esbocs_pvt->round_attempt_timeout = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempt_timeout", 10);
-
     l_esbocs_pvt->start_validators_min = l_esbocs_pvt->min_validators_count =
             dap_config_get_item_uint16(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "min_validators_count");
     if (!l_esbocs_pvt->min_validators_count) {
@@ -241,6 +245,10 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     }
 
     const char *l_auth_certs_prefix = dap_config_get_item_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_prefix");
+    if (!l_auth_certs_prefix) {
+        l_ret = -6;
+        goto lb_err;
+    }
     uint16_t l_node_addrs_count;
     const char **l_addrs = dap_config_get_array_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "validators_addrs", &l_node_addrs_count);
     if (l_node_addrs_count < l_esbocs_pvt->min_validators_count) {
@@ -261,11 +269,13 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
                     log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
                 else
                     log_it(L_ERROR, "Can't find cert \"%s\" possibly for address \"%s\"", l_cert_name, l_addrs[i]);
-                continue;
+                l_ret = -6;
+                goto lb_err;
             }
         }
         dap_chain_addr_t l_signing_addr;
         log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
+        l_inited_cert++;
         dap_chain_addr_fill_from_key(&l_signing_addr, l_cert_cur->enc_key, a_chain->net_id);
 
         l_esbocs_pvt->emergency_validator_addrs = dap_list_append(l_esbocs_pvt->emergency_validator_addrs,
@@ -297,6 +307,10 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, &l_stake_tx_hash,
                                                  l_weight, &l_signer_node_addr);
         }
+    }
+    if (!l_inited_cert) {
+        l_ret = -1;
+        goto lb_err;
     }
     // Preset reward for block signs, before first reward decree
     const char *l_preset_reward_str = dap_config_get_item_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "preset_reward");
@@ -591,8 +605,9 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         log_it(L_ERROR, "This validator is not allowed to work in emergency mode. Use special decree to supply it");
         return -5;
     }
-    dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session);
-    s_session_round_new(l_session);
+    dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session->proc_thread, l_session);
+    //s_session_round_new(l_session);
+    dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
 
     l_session->cs_timer = !dap_proc_thread_timer_add(l_session->proc_thread, s_session_proc_state, l_session, 1000);
     debug_if(l_esbocs_pvt->debug && l_session->cs_timer, L_MSG, "Consensus main timer is started");
@@ -992,8 +1007,9 @@ static void s_db_calc_sync_hash(dap_chain_esbocs_session_t *a_session)
     a_session->is_actual_hash = true;
 }
 
-static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
+static void s_session_send_startsync(void *a_arg)
 {
+    dap_chain_esbocs_session_t *a_session = (dap_chain_esbocs_session_t*)a_arg;
     if (a_session->cur_round.sync_sent)
         return;     // Sync message already was sent
     dap_chain_hash_fast_t l_last_block_hash;
@@ -1021,14 +1037,6 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
                    &l_params, sizeof(struct sync_params),
                    a_session->cur_round.all_validators);
     a_session->cur_round.sync_sent = true;
-}
-
-static bool s_session_send_startsync_on_timer(void *a_arg)
-{
-    dap_chain_esbocs_session_t *l_session = a_arg;
-    s_session_send_startsync(l_session);
-    l_session->sync_timer = NULL;
-    return false;
 }
 
 static void s_session_update_penalty(dap_chain_esbocs_session_t *a_session)
@@ -1092,11 +1100,6 @@ static bool s_session_round_new(void *a_arg)
     s_session_round_clear(a_session);
     a_session->cur_round.id++;
     a_session->cur_round.sync_attempt++;
-
-    if (a_session->sync_timer) {
-        dap_timerfd_delete_mt(a_session->sync_timer->worker, a_session->sync_timer->esocket_uuid);
-        a_session->sync_timer = NULL;
-    }
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
     a_session->ts_stage_entry = 0;
@@ -1156,7 +1159,8 @@ static bool s_session_round_new(void *a_arg)
                     a_session->chain->net_name, a_session->chain->name,
                         a_session->cur_round.id, l_sync_send_delay);
         if (l_sync_send_delay)
-            a_session->sync_timer = dap_timerfd_start(l_sync_send_delay * 1000, s_session_send_startsync_on_timer, a_session);
+            dap_proc_thread_timer_add_pri(a_session->proc_thread, s_session_send_startsync, a_session,
+                                          l_sync_send_delay * 1000, true, DAP_QUEUE_MSG_PRIORITY_NORMAL);
         else
             s_session_send_startsync(a_session);
     }
