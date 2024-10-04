@@ -754,13 +754,12 @@ void dap_chain_net_load_all()
 dap_string_t* dap_cli_list_net()
 {
     dap_string_t *l_string_ret = dap_string_new("");
-    dap_chain_net_t * l_net = NULL;
     unsigned l_net_i = 0;
     dap_string_append(l_string_ret, "Available networks and chains:\n");
     for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
-        dap_string_append_printf(l_string_ret, "\t%s:\n", l_net->pub.name);
+        dap_string_append_printf(l_string_ret, "\t%s:\n", net->pub.name);
         ++l_net_i;
-        dap_chain_t *l_chain = l_net->pub.chains;
+        dap_chain_t *l_chain = net->pub.chains;
         while (l_chain) {
             dap_string_append_printf( l_string_ret, "\t\t%s\n", l_chain->name );
             l_chain = l_chain->next;
