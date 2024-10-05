@@ -845,8 +845,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-pkey_hash", &l_pkey_hash_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_hash", &l_from_hash_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_hash", &l_to_hash_str);
-            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_dt", &l_from_date_str);
-            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_dt", &l_to_date_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_date", &l_from_date_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_date", &l_to_date_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
             bool l_head = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-head", &l_head_str) ? true : false;
