@@ -3252,7 +3252,7 @@ static void s_sync_timer_callback(void *a_arg)
     l_net_pvt->sync_context.cur_cell = l_net_pvt->sync_context.cur_chain->cells;
     l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_WAITING;
     dap_chain_ch_sync_request_t l_request = {};
-    uint64_t l_last_num = l_request.num_from;
+    uint64_t l_last_num = 0;
     if (!dap_chain_get_atom_last_hash_num(l_net_pvt->sync_context.cur_chain,
                                             l_net_pvt->sync_context.cur_cell
                                             ? l_net_pvt->sync_context.cur_cell->id
@@ -3263,6 +3263,7 @@ static void s_sync_timer_callback(void *a_arg)
                                                                                         l_net->pub.name);
         return;
     }
+    l_request.num_from = l_last_num;
 
     dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(l_net->pub.id, l_net_pvt->sync_context.cur_chain->id,
                                                             l_net_pvt->sync_context.cur_cell ? l_net_pvt->sync_context.cur_cell->id : c_dap_chain_cell_id_null,
