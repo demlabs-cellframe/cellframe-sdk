@@ -6091,23 +6091,12 @@ static bool s_json_get_srv_uid(struct json_object *a_json, const char *a_key_ser
 
 static dap_chain_wallet_t* s_json_get_wallet(struct json_object *a_json, const char *a_key)
 {
-    // From wallet
-    const char *l_wallet_str = s_json_get_text(a_json, a_key);
-    if(l_wallet_str) {
-        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL), NULL);
-        return l_wallet;
-    }
-    return NULL;
+    return dap_chain_wallet_open(s_json_get_text(a_json, a_key), dap_chain_wallet_get_path(g_config), NULL);
 }
 
 static const dap_cert_t* s_json_get_cert(struct json_object *a_json, const char *a_key)
 {
-    const char *l_cert_name = s_json_get_text(a_json, a_key);
-    if(l_cert_name) {
-        dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
-        return l_cert;
-    }
-    return NULL;
+    return dap_cert_find_by_name(s_json_get_text(a_json, a_key));
 }
 
 // Read pkey from wallet or cert
