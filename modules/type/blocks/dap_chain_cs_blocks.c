@@ -1305,7 +1305,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                             char l_buf[DAP_TIME_STR_SIZE];
                             json_object* json_obj_bl = json_object_new_object();
                             dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
-                            char *l_val = dap_strdup_printf("fee - \t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
+                            char *l_val = dap_strdup_printf("fee - \t%s: ts_create=%s", l_block_cache->block_hash_str, l_buf);
                             json_object_object_add(json_obj_bl, "block", json_object_new_string(l_val));
                             DAP_DELETE(l_val);
                             json_object_array_add(json_arr_bl_out, json_obj_bl);
