@@ -61,8 +61,6 @@ typedef struct dap_chain_cs_dag
     dap_chain_hash_fast_t static_genesis_event_hash;
     dap_chain_cs_dag_hal_item_t *hal;
 
-    atomic_uint_fast64_t round_id;
-
     uint16_t datum_add_hashes_count;
     char * gdb_group_events_round_new;
 

@@ -1146,6 +1146,8 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
     }
     l_price->creation_date = a_order->header.ts_created;
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(a_order, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
+    if (!l_out_cond)
+        return NULL;
     strcpy(l_price->token_buy, l_out_cond->subtype.srv_xchange.buy_token);
     MULT_256_COIN(l_out_cond->header.value, l_out_cond->subtype.srv_xchange.rate, &l_price->datoshi_buy);
 
@@ -1773,7 +1775,6 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
                                          tx_opt_status_t a_filter_by_status,
                                          bool a_print_prev_hash, bool a_print_status, bool a_print_ts)
 {
-    enum{TX_TYPE_NONE, TX_TYPE_ORDER, TX_TYPE_EXCHANGE, TX_TYPE_INVALIDATE};
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
 
     dap_hash_fast_t l_tx_hash = {0};
@@ -1891,6 +1892,10 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
 
             int l_out_num = l_in_cond->header.tx_out_prev_idx;
             dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_out_num);
+            if (!l_out_cond) {
+                log_it(L_ERROR, "Can't find datum tx");
+                return false;
+            }
             dap_hash_fast_t l_order_hash = dap_ledger_get_first_chain_tx_hash(a_net->pub.ledger, a_tx, l_out_cond);
             if ( dap_hash_fast_is_blank(&l_order_hash) )
                 l_order_hash = l_in_cond->header.tx_prev_hash;
