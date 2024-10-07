@@ -165,11 +165,9 @@ json_object * dap_db_tx_history_to_json(json_object* a_json_arr_reply,
                         ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
                         : dap_chain_hash_fast_to_str_static(a_tx_hash);
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_hash_str));
-
-    json_object_object_add(json_obj_datum, "token_ticker", l_tx_token_ticker ? json_object_new_string(l_tx_token_ticker) 
-                                                                             : json_object_new_null());
-    json_object_object_add(json_obj_datum, "token_description", l_tx_token_description ? json_object_new_string(l_tx_token_description)
-                                                                                       : json_object_new_null());
+    
+    if (l_tx_token_description) 
+        json_object_object_add(json_obj_datum, "token_description", json_object_new_string(l_tx_token_description));
 
     json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(l_ret_code));
     json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_check_error_str(l_ret_code)));
@@ -191,15 +189,11 @@ json_object * dap_db_tx_history_to_json(json_object* a_json_arr_reply,
         //json_object_object_add(json_obj_datum, "service", json_object_new_string("UNKNOWN"));
         json_object_object_add(json_obj_datum, "action", json_object_new_string("UNKNOWN"));
     }
-
-    char l_time_str[DAP_TIME_STR_SIZE];
-    dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, l_tx->header.ts_created); /* Convert ts to  "Sat May 17 01:17:08 2014" */
-    json_object *l_obj_ts_created = json_object_new_string(l_time_str);
-    json_object_object_add(json_obj_datum, "tx_created", l_obj_ts_created);
     
     if(!brief_out)
     {        
-        dap_chain_datum_dump_tx_json(a_json_arr_reply, l_tx,NULL,json_obj_datum,a_hash_out_type,a_tx_hash,a_chain->net_id);        
+        dap_chain_datum_dump_tx_json(a_json_arr_reply, l_tx, l_tx_token_ticker ? l_tx_token_ticker : NULL,
+                                     json_obj_datum, a_hash_out_type, a_tx_hash, a_chain->net_id);
     }
 
     return json_obj_datum;
@@ -377,7 +371,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             continue;        
         // it's a transaction        
         bool l_is_need_correction = false;
-        bool l_continue = false;
+        bool l_continue = true;
         uint256_t l_corr_value = {}, l_cond_value = {};
         bool l_recv_from_cond = false, l_send_to_same_cond = false;
         json_object *l_corr_object = NULL, *l_cond_recv_object = NULL, *l_cond_send_object = NULL;
@@ -553,9 +547,10 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             }
 
             if (l_dst_addr && dap_chain_addr_compare(l_dst_addr, a_addr)) {  
-                if (i_tmp < l_arr_start) {
+                if (i_tmp >= l_arr_start)
+                    l_continue = false;
+                else {
                     i_tmp++;
-                    l_continue = true;
                     break;
                 }             
                 if (!l_header_printed) {               
@@ -606,11 +601,12 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     continue;
                 if (!l_src_addr && l_dst_addr && !dap_chain_addr_compare(l_dst_addr, &l_net_fee_addr))
                     continue;
-                if (i_tmp < l_arr_start) {
+                if (i_tmp >= l_arr_start)
+                    l_continue = false;
+                else {
                     i_tmp++;
-                    l_continue = true;
                     break;
-                }                                
+                }                               
                 if (!l_header_printed) {                    
                     s_tx_header_print(j_obj_tx, &l_tx_data_ht, l_tx, l_datum_iter,
                                       a_hash_out_type, l_ledger, &l_tx_hash);
