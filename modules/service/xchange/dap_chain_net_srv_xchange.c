@@ -1973,6 +1973,8 @@ void s_tx_is_order_check(UNUSED_ARG dap_chain_net_t* a_net, dap_chain_datum_tx_t
 
 static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 {
+    json_object **json_arr_reply = (json_object **)a_str_reply;
+
     enum {CMD_NONE = 0, CMD_ORDER, CMD_ORDERS, CMD_PURCHASE, CMD_ENABLE, CMD_DISABLE, CMD_TX_LIST, CMD_TOKEN_PAIR };
     int l_arg_index = 1, l_cmd_num = CMD_NONE;
 
@@ -2008,15 +2010,15 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'orders' requires parameter -net");
-                return -2;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_REQ_PARAM_NET_ERR, "Command 'orders' requires parameter -net");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_REQ_PARAM_NET_ERR;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
             if (!l_net) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-                return -3;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_NET_NOT_FOUND_ERR, "Network %s not found", l_net_str);
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_NET_NOT_FOUND_ERR;
             }
-            dap_string_t *l_reply_str = dap_string_new("");
+            //dap_string_t *l_reply_str = dap_string_new("");
             // Iterate blockchain, find txs with xchange cond out and without cond input
             dap_list_t *l_tx_list = NULL;
             dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET, s_tx_is_order_check, &l_tx_list);
@@ -2036,8 +2038,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 else if ( dap_strcmp (l_status_str, "all") == 0 )
                     l_opt_status = 0;
                 else  {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized '-status %s'", l_status_str);
-                    return -3;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_UNREC_STATUS_ERR, "Unrecognized '-status %s'", l_status_str);
+                    return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_UNREC_STATUS_ERR;
                 }
             }
 
@@ -2047,8 +2049,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             if(l_token_from_str){
                 dap_chain_datum_token_t * l_token_from_datum = dap_ledger_token_ticker_check( l_net->pub.ledger, l_token_from_str);
                 if(!l_token_from_datum){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't find \"%s\" token in network \"%s\" for argument '-token_from' ", l_token_from_str, l_net->pub.name);
-                    return -6;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_CANT_FIND_TOKEN_FROM_ERR, 
+                                            "Can't find \"%s\" token in network \"%s\" for argument '-token_from' ", l_token_from_str, l_net->pub.name);
+                    return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_CANT_FIND_TOKEN_FROM_ERR;
                 }
             }
 
@@ -2056,8 +2059,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             if(l_token_to_str){
                 dap_chain_datum_token_t * l_token_to_datum = dap_ledger_token_ticker_check( l_net->pub.ledger, l_token_to_str);
                 if(!l_token_to_datum){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't find \"%s\" token in network \"%s\" for argument '-token_to' ", l_token_to_str, l_net->pub.name);
-                    return -6;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_CANT_FIND_TOKEN_TO_ERR, 
+                                            "Can't find \"%s\" token in network \"%s\" for argument '-token_to' ", l_token_to_str, l_net->pub.name);
+                    return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_CANT_FIND_TOKEN_TO_ERR;
                 }
             }
 
@@ -2070,21 +2074,22 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
             size_t l_arr_start = 0;            
             size_t l_arr_end = dap_list_length(l_tx_list);
+            json_object* json_obj_order = json_object_new_object();
             if (l_offset > 0) {
                 l_arr_start = l_offset;
-                dap_string_append_printf(l_reply_str, "offset: %lu\n", l_arr_start);                
+                json_object_object_add(json_obj_order, "offset", json_object_new_uint64(l_arr_start));               
             }
             if (l_limit) {
-                dap_string_append_printf(l_reply_str, "limit: %lu\n", l_limit);
+                json_object_object_add(json_obj_order, "limit", json_object_new_uint64(l_limit));
                 l_arr_end = l_arr_start + l_limit;
                 if (l_arr_end > dap_list_length(l_tx_list)) {
                     l_arr_end = dap_list_length(l_tx_list);
                 }
             }            
             size_t i_tmp = 0;
+            json_object* json_arr_orders_out = json_object_new_array();
             // Print all txs
-            for (dap_list_t *it = l_tx_list; it; it = it->next) {
-                
+            for (dap_list_t *it = l_tx_list; it; it = it->next) {                
                 dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)it->data;
                 dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
                 if (!l_out_cond || l_out_cond->header.srv_uid.uint64 != DAP_CHAIN_NET_SRV_XCHANGE_ID)
@@ -2146,14 +2151,23 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
                 const char *l_amount_coins_str = NULL,
                      *l_amount_datoshi_str = l_out_cond_last_tx ? dap_uint256_to_char(l_out_cond_last_tx->header.value, &l_amount_coins_str) : NULL;
-                dap_string_append_printf(l_reply_str, "orderHash: %s\n ts_created: %s\n Status: %s, amount: %s (%s) %s, filled: %lu%%, rate (%s/%s): %s, net: %s\n\n", l_tx_hash_str,
-                                         l_tmp_buf, l_status_order,
-                                         l_amount_coins_str ? l_amount_coins_str : "0.0",
-                                         l_amount_datoshi_str ? l_amount_datoshi_str : "0",
-                                         l_price->token_sell, l_percent_completed,
-                                         l_price->token_buy, l_price->token_sell,
-                                         l_cp_rate,
-                                         l_price->net->pub.name);
+                json_object* json_obj_orders = json_object_new_object();
+                json_object_object_add(json_obj_orders, "orderHash", json_object_new_string(l_tx_hash_str));
+                json_object_object_add(json_obj_orders, "ts_created", json_object_new_string(l_tmp_buf));
+                json_object_object_add(json_obj_orders, "status", json_object_new_string(l_status_order));
+                json_object_object_add(json_obj_orders, "amount coins", l_amount_coins_str ? 
+                                                json_object_new_string(l_amount_coins_str) : 
+                                                json_object_new_string("0.0"));
+                json_object_object_add(json_obj_orders, "amount datoshi", l_amount_datoshi_str ? 
+                                                json_object_new_string(l_amount_datoshi_str) : 
+                                                json_object_new_string("0"));
+                json_object_object_add(json_obj_orders, "token sell", json_object_new_string(l_price->token_sell));
+                json_object_object_add(json_obj_orders, "filled", json_object_new_string(l_percent_completed));
+                json_object_object_add(json_obj_orders, "token buy", json_object_new_string(l_price->token_buy));
+                json_object_object_add(json_obj_orders, "token sell", json_object_new_string(l_price->token_sell));
+                json_object_object_add(json_obj_orders, "balance rate", json_object_new_string(l_price->token_sell));
+                json_object_object_add(json_obj_orders, "net name", json_object_new_string(l_price->net->pub.name));
+
                 l_printed_orders_count++;
                 DAP_DEL_MULTY(l_cp_rate, l_price);
             }
