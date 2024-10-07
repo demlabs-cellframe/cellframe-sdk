@@ -3014,7 +3014,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
     dap_chain_t *l_chain = NULL;
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
         
-    if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply, &l_arg_index, a_argc, a_argv, &l_chain, &l_chain_net,
+    if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &l_arg_index, a_argc, a_argv, &l_chain, &l_chain_net,
                                                                 CHAIN_TYPE_ANCHOR))
         return -3;
     const char *l_chain_type = dap_chain_get_cs_type(l_chain);
