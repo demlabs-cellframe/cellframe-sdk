@@ -2167,10 +2167,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 json_object_object_add(json_obj_orders, "token sell", json_object_new_string(l_price->token_sell));
                 json_object_object_add(json_obj_orders, "balance rate", json_object_new_string(l_price->token_sell));
                 json_object_object_add(json_obj_orders, "net name", json_object_new_string(l_price->net->pub.name));
-
+                json_object_array_add(json_arr_orders_out, json_obj_orders);
                 l_printed_orders_count++;
                 DAP_DEL_MULTY(l_cp_rate, l_price);
             }
+            json_object_object_add(json_obj_order, "ORDERS", json_arr_orders_out);
             dap_list_free(l_tx_list);
             if (!l_reply_str->len) {
                 dap_string_append(l_reply_str, "No orders found");
