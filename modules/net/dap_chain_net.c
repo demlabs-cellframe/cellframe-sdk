@@ -1848,14 +1848,9 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         dap_strncpy(l_net_pvt->permanent_links[i]->uplink_addr, l_tmp->addr, DAP_HOSTADDR_STRLEN);
         DAP_DELETE(l_tmp);
     }
-    if ( i && (e == i) ) {
-        log_it(L_ERROR, "%d / %d permanent links are invalid or can't be accessed, fix \"%s\""
-                        "network config or check internet connection and restart node",
-                        e, i, a_net_name);
-        //dap_chain_net_delete(l_net);
-        //dap_config_close(l_cfg);
-        //return -16;
-    }
+    debug_if(e, L_ERROR, "%d / %d permanent links are invalid or can't be accessed, fix \"%s\""
+                    "network config or check internet connection and restart node",
+                    e, i, a_net_name);
 
     const char **l_authorized_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "authorized_nodes_addrs", &l_net_pvt->authorized_nodes_count);
     if (!l_net_pvt->authorized_nodes_count)
@@ -1892,14 +1887,9 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
             continue;
         }
     }
-    if ( i && (e == i) ) {
-        log_it(L_ERROR, "%d / %d seed links are invalid or can't be accessed, fix \"%s\""
-                        "network config or check internet connection and restart node",
-                        e, i, a_net_name);
-        //dap_chain_net_delete(l_net);
-        //dap_config_close(l_cfg);
-        //return -16;
-    }
+    debug_if(e, L_ERROR, "%d / %d seed links are invalid or can't be accessed, fix \"%s\""
+                    "network config or check internet connection and restart node",
+                    e, i, a_net_name);
 
     /* *** Chains init by configs *** */
     char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
@@ -3361,19 +3351,22 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         dap_chain_esbocs_stop_timer(a_net->pub.id);
     } else if (PVT(a_net)->state == NET_STATE_OFFLINE) {
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
-        for (uint16_t i = 0; i < PVT(a_net)->permanent_links_count; ++i) {
+        uint16_t l_permalink_hosts_count = 0;
+        dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
+        l_permalink_hosts_count = dap_min(l_permalink_hosts_count, PVT(a_net)->permanent_links_count);
+        for (uint16_t i = 0; i < l_permalink_hosts_count; ++i) {
             dap_link_info_t *l_permalink_info = PVT(a_net)->permanent_links[i];
             if ( !*l_permalink_info->uplink_addr ) {
                 // Unresolved before? Let's try again
-                const char **l_permanent_nodes_addrs = dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_addrs", NULL);
-                struct request_link_info *l_tmp = s_net_resolve_host(l_permanent_nodes_addrs[i]);
+                const char **l_permanent_links_hosts = dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_hosts", NULL);
+                struct request_link_info *l_tmp = s_net_resolve_host(l_permanent_links_hosts[i]);
                 if (l_tmp) {
                     l_permalink_info->uplink_port = l_tmp->port;
                     dap_strncpy(l_permalink_info->uplink_addr, l_tmp->addr, DAP_HOSTADDR_STRLEN);
                     DAP_DELETE(l_tmp);
                 } else {
                     log_it(L_ERROR, "Can't resolve permanent link address %s for net %s, possibly an internet connection issue",
-                                    l_permanent_nodes_addrs[i], a_net->pub.name);
+                                    l_permanent_links_hosts[i], a_net->pub.name);
                     continue;
                 }
             }
