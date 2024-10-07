@@ -525,12 +525,11 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
                 DAP_DELETE(l_node_info_data);
             } else
                 l_node_info = (dap_chain_node_net_states_info_t*)l_node_info_data;
+            l_item->role.enums = l_node_info->role.enums;
+            l_item->atoms_count = l_node_info->info_v1.atoms_count;
+            l_item->events_count = l_node_info->info_v1.events_count;
+            l_item->downlinks_count = l_node_info->info_v1.downlinks_count;
         }
-        
-        l_item->role.enums = l_node_info->role.enums;
-        l_item->atoms_count = l_node_info->info_v1.atoms_count;
-        l_item->events_count = l_node_info->info_v1.events_count;
-        l_item->downlinks_count = l_node_info->info_v1.downlinks_count;
         l_item->timestamp = l_state_timestamp;
         l_ret = dap_list_insert_sorted(l_ret, (void *)l_item, s_node_states_info_cmp);
         DAP_DELETE(l_node_info);
