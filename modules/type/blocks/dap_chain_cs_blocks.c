@@ -473,8 +473,7 @@ static void s_cli_meta_hash_print(json_object* a_json_obj_out, const char *a_met
  */
 static void s_cli_meta_hex_print(json_object* a_json_obj_out, const char * a_meta_title, dap_chain_block_meta_t * a_meta)
 {
-    int l_len = a_meta->hdr.data_size * 2 + 5;
-    char *l_str = DAP_NEW_STACK_SIZE(char, l_len);
+    char l_str[a_meta->hdr.data_size * 2 + 3];
     strcpy(l_str, "0x");
     dap_bin2hex(l_str + 2, a_meta->data, a_meta->hdr.data_size);
     json_object_object_add(a_json_obj_out, a_meta_title, json_object_new_string(l_str));
