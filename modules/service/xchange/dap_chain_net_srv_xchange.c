@@ -2172,19 +2172,15 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 DAP_DEL_MULTY(l_cp_rate, l_price);
             }
             json_object_object_add(json_obj_order, "ORDERS", json_arr_orders_out);
-            dap_list_free(l_tx_list);
-            if (!l_reply_str->len) {
-                dap_string_append(l_reply_str, "No orders found");
-            }
-            *a_str_reply = dap_string_free(l_reply_str, false);
+            dap_list_free(l_tx_list);            
         } break;
-
 
         case CMD_PURCHASE: {
             const char *l_net_str = NULL, *l_wallet_str = NULL, *l_order_hash_str = NULL, *l_val_buy_str = NULL, *l_val_fee_str = NULL;
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
+                json_object_object_add(json_obj_orders, "token buy", json_object_new_string(l_price->token_buy));
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' requires parameter -net");
                 return -2;
             }
