@@ -550,7 +550,8 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
             l_port = l_cur_link->link.uplink_port;
             log_it(L_INFO, "Use permanent link to node "NODE_ADDR_FP_STR" [ %s : %u ]", NODE_ADDR_FP_ARGS_S(l_cur_link->link.node_addr), l_host, l_port);
         }
-    } else {
+    }
+    if (!l_host || !l_host[0] || !l_port) {
         for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
             if (( l_node_info = dap_chain_node_info_read(net, &a_link->addr) ))
                 break;
@@ -1749,6 +1750,11 @@ void dap_chain_net_deinit()
         HASH_DEL(s_nets_by_name, l_net);
         HASH_DELETE(hh2, s_nets_by_id, l_net);
         dap_chain_net_delete(l_net);
+    }
+    struct permanent_link *l_cur_link, *l_tmp_link;
+    HASH_ITER(hh, s_permanent_links, l_cur_link, l_tmp_link) {
+        HASH_DEL(s_permanent_links, l_cur_link);
+        DAP_DELETE(l_cur_link);
     }
     dap_http_ban_list_client_deinit();
 }
