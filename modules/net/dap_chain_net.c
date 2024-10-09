@@ -1802,10 +1802,9 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
             }   
             ++j;
         }
-        if (j < i) {
+        l_net->pub.bridged_networks_count = j;
+        if (j < i)
             l_net->pub.bridged_networks = DAP_REALLOC_COUNT(l_net->pub.bridged_networks, j); // Can be NULL, it's ok
-            l_net->pub.bridged_networks_count = j;
-        }
     }
 
     const char **l_permanent_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "permanent_nodes_addrs", &l_net_pvt->permanent_links_count);
