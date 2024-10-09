@@ -348,7 +348,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "\tSearches for datum by hash in the specified network in chains and mempool.\n"
                            "find atom -net <net_name> [-chain <chain_name>] -hash <atom_hash>\n"
                            "\tSearches for an atom by hash in a specified network in chains.\n"
-                           "find atom decree -net <net_name> [-chain <chain_name>] -type <type_decree> [-where <chains|mempool>]\n"
+                           "find decree -net <net_name> [-chain <chain_name>] -type <type_decree> [-where <chains|mempool>]\n"
                            "\tSearches for decrees by hash in the specified decree type in the specified network in its chains.\n"
                            "\tTypes decree: fee, owners, owners_min, stake_approve, stake_invalidate, min_value, "
                            "min_validators_count, ban, unban, reward, validator_max_weight, emergency_validators, check_signs_structure\n");
