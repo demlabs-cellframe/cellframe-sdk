@@ -673,6 +673,9 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
                 *a_native_ticker= dap_config_get_item_str(a_cfg, "general", "native_ticker");
     dap_chain_net_id_t l_net_id;
 
+    if(!a_node_role)
+        return log_it(L_ERROR, "Can't create l_net, can't read node role config"), NULL;
+
     if(!l_net_name_str || !l_net_id_str || dap_chain_net_id_parse(l_net_id_str, &l_net_id))
         return log_it(L_ERROR, "Can't create l_net, can't read name or ID config"), NULL;
 
