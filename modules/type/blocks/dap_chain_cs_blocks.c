@@ -1215,7 +1215,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 json_object_object_add(json_obj_out, "status", json_object_new_string(l_val ? l_val : "(null)"));
                 DAP_DELETE(l_val);
                 json_object_array_add(*a_json_arr_reply, json_obj_out);
-                DAP_DELETE(l_hash_tx);
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR,
                                             "Can't create %s collect TX\n", l_subcmd_str);
