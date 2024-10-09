@@ -1897,6 +1897,8 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         if (l_old_link) {
             if (!l_old_link->link.uplink_addr[0] || !l_old_link->link.uplink_port) {
                 log_it(L_WARNING, "Permanent link to node "NODE_ADDR_FP_STR" already exist without valid host [ %s : %u ]. Replaced.", NODE_ADDR_FP_ARGS_S(l_old_link->link.node_addr), l_old_link->link.uplink_addr, l_old_link->link.uplink_port);
+                HASH_DEL(s_permanent_links,l_old_link);
+                DAP_DELETE(l_old_link);
             } else {
                 log_it(L_ERROR, "Permanent link to node "NODE_ADDR_FP_STR" already exist with valid host [ %s : %u ].", NODE_ADDR_FP_ARGS_S(l_old_link->link.node_addr), l_old_link->link.uplink_addr, l_old_link->link.uplink_port);
                 ++e;
@@ -3417,8 +3419,8 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
                 log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_cur_link->link.node_addr));
                 continue;
             }
+            PVT(a_net)->state = NET_STATE_LINKS_CONNECTING;
         }
-        PVT(a_net)->state = NET_STATE_LINKS_CONNECTING;
         if (a_new_state == NET_STATE_ONLINE) {
             dap_chain_esbocs_start_timer(a_net->pub.id);
             PVT(a_net)->sync_context.current_link.uint64 = 0;
