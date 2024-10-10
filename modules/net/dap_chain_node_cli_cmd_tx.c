@@ -646,8 +646,11 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     json_object_array_add(j_arr_data, j_obj_data);
             }
         }  
-        if (l_continue)
+        if (l_continue) {
+            json_object_put(j_obj_tx);
+            json_object_put(j_arr_data);
             continue;
+        }            
 
         if (l_is_need_correction) {
             SUM_256_256(l_corr_value, l_fee_sum, &l_corr_value);
