@@ -1582,22 +1582,22 @@ static void s_add_atom_to_blocks(dap_chain_cs_blocks_t *a_blocks, dap_chain_bloc
 }
 
 
-static void s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_block_cache_t * a_bcache, uint64_t a_main_branch_length, dap_chain_cell_t *a_cell)
+static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_block_cache_t * a_bcache, uint64_t a_main_branch_length, dap_chain_cell_t *a_cell)
 {
     dap_chain_cs_blocks_t * l_blocks = a_blocks;
     if (!a_blocks){
         log_it(L_ERROR,"a_blocks is NULL");
-        return;
+        return false;
     }
 
     if (!a_bcache){
         log_it(L_ERROR,"a_bcache is NULL");
-        return;
+        return false;
     }
 
     if (!a_bcache->forked_branches){
         log_it(L_ERROR,"This block is not a forked.");
-        return;
+        return false;
     }
 
     // Find longest forked branch 
@@ -1653,7 +1653,9 @@ static void s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
         }
         // Next we save pointer to new forked branch (former main branch) instead of it
         l_longest_branch_cache_ptr->forked_branch_atoms = l_new_forked_branch;
+        return true;
     }
+    return false;
 }
 
 /**
@@ -1716,16 +1718,19 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 // find confirmed block
                 dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
                 dap_chain_block_cache_t *l_tmp = l_bcache_last;
-                unsigned l_checked_atoms_cnt = DAP_FORK_MAX_DEPTH;
+                int l_checked_atoms_cnt = DAP_FORK_MAX_DEPTH;
                 for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
 
                 // Send it to notificator listeners
-                if (!dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) && 
+                if (
+#ifndef DAP_CHAIN_BLOCKS_TEST
+                    !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) && 
+#endif
                     a_chain->atom_confirmed_notifiers && l_tmp && l_checked_atoms_cnt == 0) {
                     dap_list_t *l_iter;
                     DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
                         dap_chain_atom_confirmed_notifier_t *l_notifier = (dap_chain_atom_confirmed_notifier_t*)l_iter->data;
-                        l_notifier->callback(l_notifier->arg, a_chain, (dap_chain_cell_id_t){ }, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size);
+                        l_notifier->callback(l_notifier->arg, a_chain, a_chain->active_cell_id, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size);
                     }
                 }
                 return ATOM_ACCEPT;
@@ -1746,7 +1751,28 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     l_block_cache->block_number = l_last->block_cache->block_number + 1;
                     HASH_ADD(hh, l_cur_branch->forked_branch_atoms, block_hash, sizeof(dap_hash_fast_t), l_new_item);
                     uint64_t l_main_branch_length = PVT(l_blocks)->blocks_count - l_cur_branch->connected_block->block_number;
-                    s_select_longest_branch(l_blocks, l_cur_branch->connected_block, l_main_branch_length, l_cell);
+                    if (s_select_longest_branch(l_blocks, l_cur_branch->connected_block, l_main_branch_length, l_cell)){
+                        // Atom accepted into forked branch but branches was switched so let's notify everybody that 
+                        // (DAP_FORK_MAX_DEPTH + 1) block from the end of chain will not be canceled.
+                        // find confirmed block
+                        dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
+                        dap_chain_block_cache_t *l_tmp = l_bcache_last;
+                        int l_checked_atoms_cnt = DAP_FORK_MAX_DEPTH;
+                        for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
+
+                        // Send it to notificator listeners
+                        if (
+#ifndef DAP_CHAIN_BLOCKS_TEST
+                        !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) && 
+#endif
+                            a_chain->atom_confirmed_notifiers && l_tmp && l_checked_atoms_cnt == 0) {
+                            dap_list_t *l_iter;
+                            DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
+                                dap_chain_atom_confirmed_notifier_t *l_notifier = (dap_chain_atom_confirmed_notifier_t*)l_iter->data;
+                                l_notifier->callback(l_notifier->arg, a_chain, a_chain->active_cell_id, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size);
+                            }
+                        }
+                    }
                     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
                     debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED to a forked branch.", a_atom);
                     return ATOM_FORK;
@@ -1969,7 +1995,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
             }
             if (ret == ATOM_MOVE_TO_THRESHOLD) {
                 // search block and previous block in main branch
-                unsigned l_checked_atoms_cnt = DAP_FORK_MAX_DEPTH - 1;
+                unsigned l_checked_atoms_cnt = DAP_FORK_MAX_DEPTH;
                 for (dap_chain_block_cache_t *l_tmp = l_bcache_last; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--){
                     if(dap_hash_fast_compare(&l_tmp->block_hash, &l_block_hash)){
                         debug_if(s_debug_more,L_DEBUG,"%s","Block is already exist in main branch.");

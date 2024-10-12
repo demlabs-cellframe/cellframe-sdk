@@ -246,7 +246,6 @@ typedef struct dap_chain_atom_notifier {
 
 typedef struct dap_chain_atom_confirmed_notifier {
     dap_chain_callback_notify_t callback;
-    dap_proc_thread_t *proc_thread;
     void *arg;
 } dap_chain_atom_confirmed_notifier_t;
 
