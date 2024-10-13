@@ -168,7 +168,7 @@ int dap_chain_net_srv_xchange_init()
          "\tExchange tokens with specified order within specified net name. Specify how many datoshies to sell with rate specified by order\n"
 
     "srv_xchange tx_list -net <net_name> [-time_from <From_time>] [-time_to <To_time>]"
-        "[[-addr <wallet_addr>  [-status {inactive|active|all}] ]\n"                /* @RRL:  #6294  */
+        "[-addr <wallet_addr>]  [-status {inactive|active|all}]\n"                /* @RRL:  #6294  */
         "\tList of exchange transactions\n"
         "\tAll times are in RFC822. For example: \"7 Dec 2023 21:18:04\"\n"
 
