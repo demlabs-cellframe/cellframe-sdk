@@ -262,6 +262,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     for (size_t i = 0; i < 3; ++i) {
         log_it(L_ERROR, "i_count = %llu l_auth_certs_count = %llu i_count < l_auth_certs_count %d net %s  chain %s ", i, l_auth_certs_count, i < l_auth_certs_count, a_chain->net_name, a_chain->name);
+        if (i >= l_auth_certs_count)
+            continue;
         char l_cert_name[512];
         dap_cert_t *l_cert_cur;
         snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu", l_auth_certs_prefix, i);
