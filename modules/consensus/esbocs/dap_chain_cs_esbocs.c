@@ -260,7 +260,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     size_t l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
     log_it(L_ERROR, "l_auth_certs_count = %zu net %s  chain %s", l_auth_certs_count, a_chain->net_name, a_chain->name);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    for (size_t i = 0; i < l_auth_certs_count; ++i) {
+    for (int j = l_auth_certs_count - 1; j >= 0; --j) {
+        uint16_t i = j;
         log_it(L_ERROR, "i_count = %llu l_auth_certs_count = %llu i_count < l_auth_certs_count %d net %s  chain %s ", i, l_auth_certs_count, i < l_auth_certs_count, a_chain->net_name, a_chain->name);
         char l_cert_name[512];
         dap_cert_t *l_cert_cur;
