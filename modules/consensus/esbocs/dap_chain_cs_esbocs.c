@@ -274,8 +274,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
                     log_it(L_ERROR, "Can't find cert \"%s\" possibly for address \"%s\"", l_cert_name, l_addrs[i]);
                 l_ret = -6;
                 goto lb_err;
-                l_ret = -8;
-                goto lb_err;
             }
         }
         dap_chain_addr_t l_signing_addr;
@@ -316,10 +314,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     }
     if (!l_inited_cert) {
         l_ret = -1;
-        goto lb_err;
-    }
-    if (!l_inited_cert) {
-        l_ret = -7;
         goto lb_err;
     }
     // Preset reward for block signs, before first reward decree
