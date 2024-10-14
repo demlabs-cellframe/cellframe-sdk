@@ -251,16 +251,17 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     }
     uint16_t l_node_addrs_count = 0;
     const char **l_addrs = dap_config_get_array_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "validators_addrs", &l_node_addrs_count);
-    log_it(L_ERROR, "l_node_addrs_count = %u ", l_node_addrs_count);
+    log_it(L_ERROR, "l_node_addrs_count = %u net %s  chain %s", l_node_addrs_count, a_chain->net_name, a_chain->name);
     if (l_node_addrs_count < l_esbocs_pvt->min_validators_count) {
         l_ret = -2;
         goto lb_err;
     }
     dap_chain_net_srv_stake_net_add(a_chain->net_id);
     uint16_t l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
-    log_it(L_ERROR, "l_auth_certs_count = %u ", l_auth_certs_count);
+    log_it(L_ERROR, "l_auth_certs_count = %u net %s  chain %s", l_auth_certs_count, a_chain->net_name, a_chain->name);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    for (size_t i = 0; i < l_auth_certs_count; i++) {
+    for (uint16_t i = 0; i < l_auth_certs_count; ++i) {
+        log_it(L_ERROR, "i_count = %i net %s  chain %s", i, a_chain->net_name, a_chain->name);
         char l_cert_name[512];
         dap_cert_t *l_cert_cur;
         snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu", l_auth_certs_prefix, i);
