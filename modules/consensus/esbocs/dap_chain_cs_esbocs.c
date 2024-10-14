@@ -251,7 +251,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         dap_cert_t *l_cert_cur;
         l_pos2 = snprintf(l_cert_name + l_dot_pos, 16, ".%zu", i);
         if ( !(l_cert_cur = dap_cert_find_by_name(l_cert_name)) ) {
-            snprintf(l_cert_name + l_dot_pos + l_pos2, l_len - l_dot_pos - l_pos2, ".pub");
+            dap_strncpy(l_cert_name + l_dot_pos + l_pos2, ".pub", l_len - l_dot_pos - l_pos2);
             if ( !(l_cert_cur = dap_cert_find_by_name(l_cert_name)) ) {
                 if (i >= l_node_addrs_count)
                     log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
