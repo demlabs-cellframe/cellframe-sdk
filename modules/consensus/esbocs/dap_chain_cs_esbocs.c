@@ -213,7 +213,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 #endif
 
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    int l_ret = 0, l_inited_cert;
+    int l_ret = 0, l_inited_cert = 0;
     dap_chain_esbocs_t *l_esbocs = NULL;
     DAP_NEW_Z_RET_VAL(l_esbocs, dap_chain_esbocs_t, -5, NULL);
 
@@ -278,7 +278,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         }
         dap_chain_addr_t l_signing_addr;
         log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
-        l_inited_cert++;
         l_inited_cert++;
         dap_chain_addr_fill_from_key(&l_signing_addr, l_cert_cur->enc_key, a_chain->net_id);
 
