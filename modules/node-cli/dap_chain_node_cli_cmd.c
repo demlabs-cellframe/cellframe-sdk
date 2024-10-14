@@ -2084,11 +2084,15 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         break;
                     case -EBUSY:
                         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ALREADY_ERR,
-                                               "Error: wallet %s is already %sactivated\n", l_wallet_name, l_prefix);
+                                               "Wallet %s is already %sactivated\n", l_wallet_name, l_prefix);
                         break;
                     case -EAGAIN:
                         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR,
-                                "Error: wrong password for wallet %s\n", l_wallet_name);
+                                "Wrong password for wallet %s\n", l_wallet_name);
+                        break;
+                    case -101:
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR,
+                                "Can't activate unprotected wallet %s\n", l_wallet_name);
                         break;
                     default: {
                         char l_buf[512] = { '\0' };
@@ -2536,9 +2540,15 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                 size_t l_data_size = l_tsd_size + l_signs_size;
                 l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_data_size,
                                                             &l_sign_counter);
+                log_it(L_DEBUG, "Apply %hu signs to datum %s", l_sign_counter, l_datum_hash_hex_str);
+                if (!l_sign_counter) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Used certs not valid");
+                    DAP_DEL_MULTY(l_datum_token, l_datum_hash_hex_str, l_datum_hash_base58_str, l_gdb_group_mempool);
+                    return -9;
+                }
                 l_datum_token->signs_total += l_sign_counter;
                 size_t l_token_size = sizeof(*l_datum_token) + l_data_size;
-                dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN,
+                l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN,
                                                                      l_datum_token, l_token_size);
                 DAP_DELETE(l_datum_token);
                 // Calc datum's hash
@@ -2555,8 +2565,8 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                     char* l_hash_str = l_datum_hash_hex_str;
                     // Remove old datum from pool
                     if( dap_global_db_del_sync(l_gdb_group_mempool, l_hash_str ) == 0) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is replacing the %s in datum pool",
-                                l_key_out_str, l_datum_hash_out_str);
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum was replaced in datum pool:\n\tOld: %s\n\tNew: %s",
+                                l_datum_hash_out_str, l_key_out_str);
                     } else {
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                 "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)",
@@ -2569,11 +2579,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                             l_key_out_str, l_datum_hash_out_str);
                     rc = -2;
                 }
-                DAP_DELETE(l_key_str);
-                DAP_DELETE(l_datum_hash_hex_str);
-                DAP_DELETE(l_datum_hash_base58_str);
-                DAP_DELETE(l_datum);
-                DAP_DELETE(l_gdb_group_mempool);
+                DAP_DEL_MULTY(l_key_str, l_datum_hash_hex_str, l_datum_hash_base58_str, l_datum, l_gdb_group_mempool);
                 return rc;
             } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -2586,8 +2592,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                     l_chain?l_chain->name:"<undefined>");
             return -5;
         }
-        DAP_DELETE(l_datum_hash_hex_str);
-        DAP_DELETE(l_datum_hash_base58_str);
+        DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str);
     } else {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl_sign need -datum <datum hash> argument");
         return -2;
@@ -7168,8 +7173,9 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
     bool l_brief = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-brief") != -1) ? true : false;
 
     bool l_is_tx_all = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
+    bool l_is_tx_count = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-count", NULL);
 
-    if (!l_addr_base58 && !l_wallet_name && !l_tx_hash_str && !l_is_tx_all) {
+    if (!l_addr_base58 && !l_wallet_name && !l_tx_hash_str && !l_is_tx_all && !l_is_tx_count) {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_PARAM_ERR,
                                 "tx_history requires parameter '-addr' or '-w' or '-tx'");
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_PARAM_ERR;
@@ -7307,6 +7313,11 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
 
         json_object_array_add(*json_arr_reply, json_arr_history_all);
         json_object_array_add(*json_arr_reply, json_obj_summary);
+        return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
+    } else if (l_is_tx_count) {
+        json_object * json_count_obj= json_object_new_object();
+        json_object_object_add(json_count_obj, "Number of transaction", json_object_new_uint64(l_chain->callback_count_tx(l_chain)));
+        json_object_array_add(*json_arr_reply, json_count_obj);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     }
 

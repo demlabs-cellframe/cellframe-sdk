@@ -75,6 +75,20 @@ typedef union dap_chain_node_role{
     uint8_t raw[DAP_CHAIN_NODE_ROLE_SIZE];
 } DAP_ALIGN_PACKED dap_chain_node_role_t;
 
+DAP_STATIC_INLINE const char *dap_chain_node_role_to_str(dap_chain_node_role_t a_node_role)
+{
+    switch (a_node_role.enums) {
+        case NODE_ROLE_ROOT_MASTER: return "NODE_ROLE_ROOT_MASTER";
+        case NODE_ROLE_ROOT: return "NODE_ROLE_ROOT";
+        case NODE_ROLE_ARCHIVE: return "NODE_ROLE_ARCHIVE";
+        case NODE_ROLE_CELL_MASTER: return "NODE_ROLE_CELL_MASTER";
+        case NODE_ROLE_MASTER: return "NODE_ROLE_MASTER";
+        case NODE_ROLE_FULL: return "NODE_ROLE_FULL";
+        case NODE_ROLE_LIGHT: return "NODE_ROLE_LIGHT";
+        default: return "UNDEFINED";
+    }
+}
+
 typedef dap_stream_node_addr_t dap_chain_node_addr_t;
 #define dap_chain_node_addr_str_check dap_stream_node_addr_str_check
 #define dap_chain_node_addr_from_str dap_stream_node_addr_from_str

@@ -346,7 +346,8 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
     size_t l_arr_start = 0;
     size_t l_arr_end = 0;
-    dap_chain_set_offset_limit_json(json_obj_datum, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_atom(a_chain));
+
+    dap_chain_set_offset_limit_json(json_obj_datum, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
     
     size_t i_tmp = 0;
     size_t
@@ -779,7 +780,8 @@ json_object *dap_db_history_tx_all(dap_chain_t *a_chain, dap_chain_net_t *a_net,
         json_object * json_tx_history = NULL;        
         size_t l_arr_start = 0;
         size_t l_arr_end = 0;
-        dap_chain_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_atom(a_chain));
+
+        dap_chain_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
         
         bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
         // load transactions
