@@ -172,6 +172,7 @@ void dap_chain_blocks_test()
     l_first_branch_atoms_list = dap_list_append(l_first_branch_atoms_list, l_block_hash_copy);
 
     dap_assert_PIF(dap_chain_block_test_compare_chain_hash_lists(l_chain, l_first_branch_atoms_list), "Check branches is switched: ");
+    dap_hash_fast_t l_last_former_main_branch_hash = l_block_hash;
 
     // genesis block must be confirmed, check counter and hash of confirmed block
     dap_assert_PIF((g_confirmed_blocks_counter == 1 && dap_hash_fast_compare(&g_last_confirmed_block_hash, &l_genesis_block_hash)), "Check confirmed block: ");
@@ -212,6 +213,14 @@ void dap_chain_blocks_test()
 
      // third block must be confirmed, check counter and hash of confirmed block
     dap_assert_PIF((g_confirmed_blocks_counter == 3 && dap_hash_fast_compare(&g_last_confirmed_block_hash, &l_third_confirmed_block)), "Check confirmed block: ");
+
+    dap_test_msg("Add new block into former main chain...");
+    size_t l_block_size = 0;
+    dap_chain_block_t * l_block = dap_chain_block_new(&l_last_former_main_branch_hash, &l_block_size);
+    dap_assert_PIF(l_block != NULL, "Creating of block:");
+    dap_hash_fast(l_block, l_block_size, &l_block_hash);
+    ret_val = l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block, l_block_size, &l_block_hash, false);
+    dap_assert_PIF(ret_val == ATOM_REJECT, "Add new block into former main chain. Must be rejected because this fork is deeper max than depth: ");
 
     dap_pass_msg("Fork handling test: ")
 }
