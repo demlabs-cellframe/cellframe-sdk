@@ -455,7 +455,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     uint64_t l_el_size = 0, q = 0;
     if (a_chain->is_mapped) {
         dap_hash_fast_t l_atom_hash;
-        for ( off_t l_vol_rest = 0; l_pos + sizeof(uint64_t) < l_full_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
+        for ( off_t l_vol_rest = 0; l_pos + sizeof(uint64_t) < (size_t)l_full_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
             l_vol_rest = (off_t)(a_cell->map_end - a_cell->map_pos) - sizeof(uint64_t);
             if ( l_vol_rest <= 0 || (uint64_t)l_vol_rest < *(uint64_t*)a_cell->map_pos )
                 if ( s_cell_map_new_volume(a_cell, l_pos, true) ) {
