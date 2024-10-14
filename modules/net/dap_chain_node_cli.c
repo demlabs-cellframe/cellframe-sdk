@@ -342,7 +342,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "decree info -net <net_name>\n"
             "Displays information about the parameters of the decrees in the network.\n");
 
-    dap_cli_server_cmd_add ("exit", com_exec_cmd, "Execute command on remote node",
+    dap_cli_server_cmd_add ("exec_cmd", com_exec_cmd, "Execute command on remote node",
             "exec_cmd -net <net_name> -addr <node_addr> -cmd <command,and,all,args,separated,by,commas>\n" );
 
     // Exit - always last!
