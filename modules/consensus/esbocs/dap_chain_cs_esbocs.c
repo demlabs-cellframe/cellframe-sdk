@@ -206,79 +206,63 @@ void dap_chain_cs_esbocs_deinit(void)
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_cs_type_create("blocks", a_chain, a_chain_cfg);
+    const char *l_auth_certs_prefix = dap_config_get_item_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_prefix");
+    if (!l_auth_certs_prefix)
+        return -1;
+    uint16_t l_validators_count = dap_config_get_item_uint16(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "min_validators_count"),
+             l_node_addrs_count = 0;
+
+    const char **l_addrs = dap_config_get_array_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "validators_addrs", &l_node_addrs_count);
+    if (!l_validators_count || l_node_addrs_count < l_validators_count)
+        return -2;
 
 //patch for tests
 #ifdef  DAP_LEDGER_TEST
     return 0;
 #endif
-
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    int l_ret = 0, l_inited_cert;
+    int l_ret = 0, l_inited_cert = 0;
     dap_chain_esbocs_t *l_esbocs = NULL;
     DAP_NEW_Z_RET_VAL(l_esbocs, dap_chain_esbocs_t, -5, NULL);
-
     l_esbocs->blocks = l_blocks;   
     l_blocks->_inheritor = l_esbocs;
     l_blocks->callback_delete = s_callback_delete;
     l_blocks->callback_block_verify = s_callback_block_verify;
     l_blocks->callback_block_sign = s_callback_block_sign;
-
     l_esbocs->chain = a_chain;
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
-    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    if (!l_esbocs_pvt) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        l_ret = - 5;
-        goto lb_err;
-    }
-    l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "consensus_debug", false);
-    l_esbocs_pvt->poa_mode = dap_config_get_item_bool_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "poa_mode", false);
-    l_esbocs_pvt->round_start_sync_timeout = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_start_sync_timeout", 15);
-    l_esbocs_pvt->new_round_delay = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "new_round_delay", 10);
-    l_esbocs_pvt->round_attempts_max = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempts_max", 4);
-    l_esbocs_pvt->round_attempt_timeout = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempt_timeout", 10);
-    l_esbocs_pvt->start_validators_min = l_esbocs_pvt->min_validators_count =
-            dap_config_get_item_uint16(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "min_validators_count");
-    if (!l_esbocs_pvt->min_validators_count) {
-        l_ret = -1;
-        goto lb_err;
-    }
 
-    const char *l_auth_certs_prefix = dap_config_get_item_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_prefix");
-    if (!l_auth_certs_prefix) {
-        l_ret = -6;
-        goto lb_err;
-    }
-    uint16_t l_node_addrs_count;
-    const char **l_addrs = dap_config_get_array_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "validators_addrs", &l_node_addrs_count);
-    if (l_node_addrs_count < l_esbocs_pvt->min_validators_count) {
-        l_ret = -2;
-        goto lb_err;
-    }
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    l_esbocs_pvt->debug                    = dap_config_get_item_bool_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "consensus_debug", false);
+    l_esbocs_pvt->poa_mode                 = dap_config_get_item_bool_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "poa_mode", false);
+    l_esbocs_pvt->round_start_sync_timeout = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_start_sync_timeout", 15);
+    l_esbocs_pvt->new_round_delay          = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "new_round_delay", 10);
+    l_esbocs_pvt->round_attempts_max       = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempts_max", 4);
+    l_esbocs_pvt->round_attempt_timeout    = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempt_timeout", 10);
+    l_esbocs_pvt->start_validators_min = l_esbocs_pvt->min_validators_count = l_validators_count;
+
     dap_chain_net_srv_stake_net_add(a_chain->net_id);
-    uint16_t l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
+    uint16_t i, l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    for (size_t i = 0; i < l_auth_certs_count; i++) {
-        char l_cert_name[512];
+    int l_dot_pos = strlen(l_auth_certs_prefix), l_len = l_dot_pos + 16, l_pos2 = 0;
+    char l_cert_name[l_len];
+    dap_strncpy(l_cert_name, l_auth_certs_prefix, l_dot_pos);
+    for (i = 0; i < l_auth_certs_count; ++i) {
         dap_cert_t *l_cert_cur;
-        snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu", l_auth_certs_prefix, i);
+        l_pos2 = snprintf(l_cert_name + l_dot_pos, 16, ".%zu", i);
         if ( !(l_cert_cur = dap_cert_find_by_name(l_cert_name)) ) {
-            snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu.pub", l_auth_certs_prefix, i);
+            snprintf(l_cert_name + l_dot_pos + l_pos2, l_len - l_dot_pos - l_pos2, ".pub");
             if ( !(l_cert_cur = dap_cert_find_by_name(l_cert_name)) ) {
                 if (i >= l_node_addrs_count)
                     log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
                 else
                     log_it(L_ERROR, "Can't find cert \"%s\" possibly for address \"%s\"", l_cert_name, l_addrs[i]);
-                l_ret = -6;
-                goto lb_err;
-                l_ret = -8;
-                goto lb_err;
+                l_ret = -3;
+                break;
             }
         }
         dap_chain_addr_t l_signing_addr;
         log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
-        l_inited_cert++;
-        l_inited_cert++;
         dap_chain_addr_fill_from_key(&l_signing_addr, l_cert_cur->enc_key, a_chain->net_id);
 
         l_esbocs_pvt->emergency_validator_addrs = dap_list_append(l_esbocs_pvt->emergency_validator_addrs,
@@ -290,13 +274,13 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         if (dap_chain_node_addr_from_str(&l_signer_node_addr, l_addrs[i])) {
             log_it(L_ERROR, "Wrong address format, should be like 0123::4567::89AB::CDEF");
             l_ret = -4;
-            goto lb_err;
+            break;
         }
         dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
         if (!l_validator) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             l_ret = - 5;
-            goto lb_err;
+            break;
         }
         l_validator->signing_addr = l_signing_addr;
         l_validator->node_addr = l_signer_node_addr;
@@ -311,32 +295,29 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
                                                  l_weight, &l_signer_node_addr);
         }
     }
-    if (!l_inited_cert) {
-        l_ret = -1;
-        goto lb_err;
+    if (!i)
+        l_ret = -6;
+    switch (l_ret) {
+    case 0: {
+        // Preset reward for block signs, before first reward decree
+        const char *l_preset_reward_str = dap_config_get_item_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "preset_reward");
+        if (l_preset_reward_str) {
+            uint256_t l_preset_reward = dap_chain_balance_scan(l_preset_reward_str);
+            if (!IS_ZERO_256(l_preset_reward))
+                dap_chain_net_add_reward(l_net, l_preset_reward, 0);
+        }
+        l_blocks->chain->callback_created = s_callback_created;
+        return 0;
     }
-    if (!l_inited_cert) {
-        l_ret = -7;
-        goto lb_err;
+    default:
+        dap_list_free_full(l_esbocs_pvt->poa_validators, NULL);
+        DAP_DEL_MULTY(l_esbocs_pvt, l_esbocs);
+        l_blocks->_inheritor = NULL;
+        l_blocks->callback_delete = NULL;
+        l_blocks->callback_block_verify = NULL;
+        log_it(L_ERROR, "Can't init consensus, error %d", l_ret);
+        return l_ret;
     }
-    // Preset reward for block signs, before first reward decree
-    const char *l_preset_reward_str = dap_config_get_item_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "preset_reward");
-    if (l_preset_reward_str) {
-        uint256_t l_preset_reward = dap_chain_balance_scan(l_preset_reward_str);
-        if (!IS_ZERO_256(l_preset_reward))
-            dap_chain_net_add_reward(l_net, l_preset_reward, 0);
-    }
-    l_blocks->chain->callback_created = s_callback_created;
-
-    return 0;
-
-lb_err:
-    dap_list_free_full(l_esbocs_pvt->poa_validators, NULL);
-    DAP_DEL_MULTY(l_esbocs_pvt, l_esbocs);
-    l_blocks->_inheritor = NULL;
-    l_blocks->callback_delete = NULL;
-    l_blocks->callback_block_verify = NULL;
-    return l_ret;
 }
 
 static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_dbi,
