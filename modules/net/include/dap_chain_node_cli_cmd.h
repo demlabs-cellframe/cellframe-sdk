@@ -363,3 +363,5 @@ int com_signer(int a_argc, char **a_argv, void **a_str_reply);
 int cmd_remove(int a_argc, char **a_argv, void **a_str_reply);
 
 void dap_notify_new_client_send_info(dap_events_socket_t *a_es, void *a_arg);
+
+int com_exec_cmd(int argc, char **argv, void **reply);

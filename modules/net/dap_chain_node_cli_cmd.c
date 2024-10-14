@@ -103,6 +103,8 @@
 #include "dap_json_rpc_errors.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_json_rpc.h"
+#include "dap_json_rpc_request.h"
 
 
 #define LOG_TAG "chain_node_cli_cmd"
@@ -8537,4 +8539,45 @@ void dap_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void 
         }
     }
     json_object_put(l_json_wallets);
+}
+
+int com_exec_cmd(int argc, char **argv, void **reply) {
+    json_object ** a_json_arr_reply = (json_object **) reply;
+    if (!dap_json_rpc_exec_cmd_inited()) {
+        log_it(L_ERROR, "Json-rpc module doesn't inited, check confings");
+        return -1;
+    }
+
+    const char * l_cmd_arg_str = NULL, * l_ip_str = NULL, * l_net_str = NULL;
+    int arg_index = 1;
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cmd", &l_cmd_arg_str);
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-addr", &l_ip_str);
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &l_net_str);
+    if (!l_cmd_arg_str || ! l_ip_str || !l_net_str) {
+        dap_json_rpc_error_add(-1, "Command exec_cmd require args -cmd, -addr, -net");
+    }
+    dap_chain_net_t* l_net = NULL;
+    l_net = dap_chain_net_by_name(l_net_str);
+
+    dap_json_rpc_params_t * params = dap_json_rpc_params_create();
+    char *l_cmd_str = dap_strdup(l_cmd_arg_str);
+    for(int i = 0; l_cmd_str[i] != '\0'; i++) {
+        if (l_cmd_str[i] == ',')
+            l_cmd_str[i] = ';';
+    }
+    dap_json_rpc_params_add_data(params, l_cmd_str, TYPE_PARAM_STRING);
+    uint64_t l_id_response = dap_json_rpc_response_get_new_id();
+    char ** l_cmd_arr_str = dap_strsplit(l_cmd_str, ";", -1);
+    dap_json_rpc_request_t *a_request = dap_json_rpc_request_creation(l_cmd_arr_str[0], params, l_id_response);
+    dap_strfreev(l_cmd_arr_str);
+    // char * request_str = dap_json_rpc_request_to_json_string(a_request);
+    dap_chain_node_addr_t l_node_addr;
+    dap_chain_node_addr_from_str(&l_node_addr, l_ip_str);
+    dap_chain_node_info_t *l_remote = dap_chain_node_info_read(l_net, &l_node_addr);
+    DAP_DEL_Z(l_cmd_str);
+    if (!dap_json_rpc_request_send(a_request, dap_json_rpc_response_accepted, l_remote->ext_host, l_remote->ext_port, dap_json_rpc_error_callback))
+        log_it(L_INFO, "com_exec sent request to %s:%d", l_remote->ext_host, l_remote->ext_port);
+
+    json_object_array_add(*a_json_arr_reply, json_object_new_string("DONE"));
+    return 0;
 }
