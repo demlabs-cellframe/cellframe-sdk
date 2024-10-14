@@ -257,12 +257,11 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         goto lb_err;
     }
     dap_chain_net_srv_stake_net_add(a_chain->net_id);
-    uint16_t l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
-    log_it(L_ERROR, "l_auth_certs_count = %u net %s  chain %s", l_auth_certs_count, a_chain->net_name, a_chain->name);
+    size_t l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
+    log_it(L_ERROR, "l_auth_certs_count = %zu net %s  chain %s", l_auth_certs_count, a_chain->net_name, a_chain->name);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    for (uint16_t i = 0; i < l_auth_certs_count; ++i) {
-        log_it(L_ERROR, "i_count = %llu l_auth_certs_count = %llu i_count < l_auth_certs_count %d net %s  chain %s ", i, l_auth_certs_count, i < l_auth_certs_count, a_chain->net_name, a_chain->name);
-        log_it(L_ERROR, "count i < 0 %d i < 1 %d i < 2 %d i < 3 %d", i < 0, i < 1, i < 2, i < 3);
+    for (size_t i = 0; i < l_auth_certs_count; ++i) {
+        log_it(L_ERROR, "i_count = %zu l_auth_certs_count = %zu i_count < l_auth_certs_count %d net %s  chain %s ", i, l_auth_certs_count, i < l_auth_certs_count, a_chain->net_name, a_chain->name);
         char l_cert_name[512];
         dap_cert_t *l_cert_cur;
         snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu", l_auth_certs_prefix, i);
