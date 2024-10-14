@@ -249,7 +249,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         l_ret = -6;
         goto lb_err;
     }
-    uint16_t l_node_addrs_count;
+    uint16_t l_node_addrs_count = 0;
     const char **l_addrs = dap_config_get_array_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "validators_addrs", &l_node_addrs_count);
     if (l_node_addrs_count < l_esbocs_pvt->min_validators_count) {
         l_ret = -2;
