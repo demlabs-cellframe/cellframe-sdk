@@ -474,6 +474,7 @@ static void s_cli_meta_hash_print(json_object* a_json_obj_out, const char *a_met
 static void s_cli_meta_hex_print(json_object* a_json_obj_out, const char * a_meta_title, dap_chain_block_meta_t * a_meta)
 {
     int l_len = a_meta->hdr.data_size * 2 + 3;
+    log_it(L_INFO, "meta data size - %d ", a_meta->hdr.data_size);
     char *l_str = DAP_NEW_STACK_SIZE(char, l_len);
     strcpy(l_str, "0x");
     dap_bin2hex(l_str + 2, a_meta->data, a_meta->hdr.data_size);
