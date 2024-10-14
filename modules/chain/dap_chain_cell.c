@@ -463,7 +463,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
                     break;
                 }
             l_el_size = *(uint64_t*)a_cell->map_pos;
-            if ( l_el_size > (size_t)(l_full_size - l_pos) )
+            if ( !l_el_size || l_el_size > (size_t)(l_full_size - l_pos) )
                 break;
             a_cell->map_pos += sizeof(uint64_t);
             dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos);
