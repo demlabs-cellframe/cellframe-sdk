@@ -42,14 +42,12 @@
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_net_tx.h"
-#include "dap_chain_net_decree.h"
+#include "dap_chain_ledger.h"
 #include "dap_chain_mempool.h"
 #include "dap_math_convert.h"
 #include "dap_json_rpc_errors.h"
 
 #define LOG_TAG "chain_node_cli_cmd_tx"
-
-
 
 /**
  * @brief s_chain_tx_hash_processed_ht_free
@@ -1547,7 +1545,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 dap_cert_parse_str_list(l_param_value_str, &l_new_certs, &l_new_certs_count);
 
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-                uint16_t l_min_signs = dap_chain_net_get_net_decree(l_net)->min_num_of_owners;
+                uint16_t l_min_signs = dap_ledger_decree_get_min_num_of_signers(l_net->pub.ledger);
                 if (l_new_certs_count < l_min_signs) {
                     log_it(L_WARNING,"Number of new certificates is less than minimum owner number.");
                     return -106;
@@ -1581,7 +1579,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                     return -112;
                 }
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-                uint256_t l_owners = GET_256_FROM_64(dap_chain_net_get_net_decree(l_net)->num_of_owners);
+                uint256_t l_owners = GET_256_FROM_64(dap_ledger_decree_get_num_of_owners(l_net->pub.ledger));
                 if (compare256(l_new_num_of_owners, l_owners) > 0) {
                     log_it(L_WARNING, "The minimum number of owners is greater than the total number of owners.");
                     dap_list_free_full(l_tsd_list, NULL);
@@ -1877,22 +1875,19 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             return -111;
         }
         bool l_applied = false;
-        dap_chain_datum_decree_t *l_decree = dap_chain_net_decree_get_by_hash(l_net, &l_datum_hash, &l_applied);
+        dap_chain_datum_decree_t *l_decree = dap_ledger_decree_get_by_hash(l_net, &l_datum_hash, &l_applied);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified decree is %s in decrees hash-table",
                                           l_decree ? (l_applied ? "applied" : "not applied") : "not found");
     } break;
     case CMD_INFO: {
         dap_string_t *l_str_owner_pkey = dap_string_new("");
-        dap_chain_net_decree_t *l_net_decree = dap_chain_net_get_net_decree(l_net);
-        int i = 1;
-        for (dap_list_t *l_current_pkey = l_net_decree->pkeys; l_current_pkey; l_current_pkey = l_current_pkey->next){
-            dap_pkey_t *l_pkey = (dap_pkey_t*)(l_current_pkey->data);
-            dap_hash_fast_t l_pkey_hash = {0};
+        const dap_list_t *l_decree_pkeys = dap_ledger_decree_get_owners_pkeys(l_net->pub.ledger);
+        int i = 0;
+        dap_hash_fast_t l_pkey_hash = {};
+        for (const dap_list_t *it = l_decree_pkeys; it; it = it->next) {
+            dap_pkey_t *l_pkey = it->data;
             dap_pkey_get_hash(l_pkey, &l_pkey_hash);
-            char *l_pkey_hash_str = dap_hash_fast_to_str_new(&l_pkey_hash);
-            dap_string_append_printf(l_str_owner_pkey, "\t%d) %s\n", i, l_pkey_hash_str);
-            i++;
-            DAP_DELETE(l_pkey_hash_str);
+            dap_string_append_printf(l_str_owner_pkey, "\t%d) %s\n", ++i, dap_hash_fast_to_str_static(&l_pkey_hash));
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree info:\n"
                                                        "\tOwners: %d\n"
@@ -1900,8 +1895,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                                                        "%s"
                                                        "\t=====================================================================\n"
                                                        "\tMin owners for apply decree: %d\n",
-                                          l_net_decree->num_of_owners, l_str_owner_pkey->str,
-                                          l_net_decree->min_num_of_owners);
+                                          dap_ledger_decree_get_num_of_owners(l_net->pub.ledger), l_str_owner_pkey->str,
+                                          dap_ledger_decree_get_min_num_of_signers(l_net->pub.ledger));
         dap_string_free(l_str_owner_pkey, true);
     } break;
     default:
