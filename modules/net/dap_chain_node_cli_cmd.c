@@ -4161,7 +4161,7 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply) {
                 json_object_object_add(l_obj_source, "chain", l_obj_chain);
                 l_jobj_find = json_object_new_boolean(TRUE);
                 json_object_object_add(l_obj_atom, "source", l_obj_source);
-                json_object_object_add(l_obj_atom, "dump", l_chain->callback_atom_dump_json(l_chain, l_atom_ptr, l_atom_size, l_hash_out_type));
+                json_object_object_add(l_obj_atom, "dump", l_chain->callback_atom_dump_json(a_json_reply, l_chain, l_atom_ptr, l_atom_size, l_hash_out_type));
             } else {
                 l_jobj_find = json_object_new_boolean(FALSE);
             }

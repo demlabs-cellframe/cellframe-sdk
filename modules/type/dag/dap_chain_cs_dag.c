@@ -135,7 +135,7 @@ static uint64_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
 static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static uint64_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
-static json_object *s_dap_chain_callback_atom_to_json(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type);
+static json_object *s_dap_chain_callback_atom_to_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static bool s_seed_mode = false, s_debug_more = false, s_threshold_enabled = false;
@@ -2009,7 +2009,7 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
 }
 
 
-static json_object *s_dap_chain_callback_atom_to_json(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type){
+static json_object *s_dap_chain_callback_atom_to_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type){
     json_object *l_jobj = json_object_new_object();
     dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)a_atom;
     char l_buf[150] = {'\0'};
@@ -2039,7 +2039,7 @@ static json_object *s_dap_chain_callback_atom_to_json(dap_chain_t *a_chain, dap_
     const char *l_datum_type = NULL;
     DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type)
     json_object_object_add(l_jobj, "datum_type", json_object_new_string(l_datum_type));
-    dap_chain_datum_dump_json(l_jobj, l_datum, a_hash_out_type, a_chain->net_id);
+    dap_chain_datum_dump_json(*a_arr_out, l_jobj, l_datum, a_hash_out_type, a_chain->net_id);
     json_object *l_jobj_signatures = json_object_new_array();
     l_offset += dap_chain_datum_size(l_datum);
     // Signatures
@@ -2048,7 +2048,7 @@ static json_object *s_dap_chain_callback_atom_to_json(dap_chain_t *a_chain, dap_
         dap_sign_t * l_sign =(dap_sign_t *) (l_event->hashes_n_datum_n_signs +l_offset);
         size_t l_sign_size = dap_sign_get_size(l_sign);
         if (l_sign_size == 0 ){
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_DAG_SIGN_ERR," wrong sign size 0, stop parsing headers");
+            dap_json_rpc_error_add(*a_arr_out, DAP_CHAIN_NODE_CLI_COM_DAG_SIGN_ERR," wrong sign size 0, stop parsing headers");
             break;
         }
         dap_chain_hash_fast_t l_pkey_hash;
