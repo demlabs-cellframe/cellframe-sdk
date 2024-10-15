@@ -200,9 +200,7 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             }
             dap_pkey_t *l_owner_pkey = /*DAP_NEW_STACK_SIZE(dap_pkey_t, l_tsd->size);
             memcpy(l_owner_pkey, l_tsd->data, l_tsd->size);*/ _dap_tsd_get_object(l_tsd, dap_pkey_t);
-            char *l_owner_pkey_str;
-            dap_get_data_hash_str_static(l_owner_pkey->pkey, l_owner_pkey->header.size, l_owner_pkey_str);
-            json_object_object_add(a_json_out, "Owner fingerprint", json_object_new_string(l_owner_pkey_str));
+            json_object_object_add(a_json_out, "Owner fingerprint", json_object_new_string(dap_get_data_hash_str(l_owner_pkey->pkey, l_owner_pkey->header.size).s));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER:
             if (l_tsd->size > sizeof(uint256_t)){
@@ -257,6 +255,7 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
                     ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_signing)
                     : dap_chain_hash_fast_to_str_static(&l_pkey_signing);
             json_object_object_add(a_json_out, "Signing pkey fingerprint", json_object_new_string(l_pkey_signing_str));
+            break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
             if(l_tsd->size > sizeof(dap_chain_node_addr_t)){
                 json_object_object_add(a_json_out, "Node addr", json_object_new_string("WRONG SIZE"));

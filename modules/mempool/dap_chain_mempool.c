@@ -1497,9 +1497,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
             continue;
         }
         //Filter hash
-        char *l_hash_content_str;
-        dap_get_data_hash_str_static(l_datum->data, l_datum->header.data_size, l_hash_content_str);
-        if (dap_strcmp(l_hash_content_str, l_objs[i].key) != 0) {
+        if (dap_strcmp(dap_get_data_hash_str(l_datum->data, l_datum->header.data_size).s, l_objs[i].key) != 0) {
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The hash of the contents of the "
                              "datum does not match the key.", l_objs[i].key, l_gdb_group);

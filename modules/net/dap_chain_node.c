@@ -47,8 +47,12 @@
 #include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_node"
+#define DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION 2
 
 typedef struct dap_chain_node_net_states_info {
+    uint16_t version_info;
+    char version_node[16];
+    dap_chain_node_role_t role;
     dap_chain_node_addr_t address;
     uint64_t events_count;
     uint64_t atoms_count;
@@ -62,6 +66,8 @@ static const uint64_t s_cmp_delta_event = 0;
 static const uint64_t s_cmp_delta_atom = 10;
 static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
 static const char s_states_group[] = ".nodes.states";
+ // only add in version up, not change!!!
+static const uint16_t s_states_version_size[DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION] = { 32, 54 };
 
 /**
  * @brief get states info about current
@@ -69,6 +75,10 @@ static const char s_states_group[] = ".nodes.states";
  */
 static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 {
+#ifndef DAP_VERSION
+#pragma message "[!WRN!] DAP_VERSION IS NOT DEFINED. Manual override engaged."
+#define DAP_VERSION "0.9-15"
+#endif
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
         if(dap_chain_net_get_state(l_net) != NET_STATE_OFFLINE) {
             size_t
@@ -76,19 +86,22 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
                 l_downlinks_count = 0,
                 l_info_size = 0;
         // memory alloc first
-            dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, false);
+            dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, true);
             dap_chain_node_net_states_info_t *l_info = NULL;
             l_info_size = sizeof(dap_chain_node_net_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
             DAP_NEW_Z_SIZE_RET(l_info, dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
         // func work
             // data preparing
+            l_info->version_info = DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION;
+            dap_strncpy(l_info->version_node, DAP_VERSION, sizeof(l_info->version_node) - 1);
+            l_info->role = dap_chain_net_get_role(l_net);
             l_info->address.uint64 = g_node_addr.uint64;
             l_info->uplinks_count = l_uplinks_count;
             l_info->downlinks_count = l_downlinks_count;
 
             dap_chain_t *l_chain = dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 0 });  // zerochain
             l_info->events_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;
-            l_chain =dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 1 });  // mainchain
+            l_chain = l_chain ? l_chain->next : NULL;  // mainchain
             l_info->atoms_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;
             
             memcpy(l_info->links_addrs, l_linked_node_addrs, (l_info->uplinks_count + l_info->downlinks_count) * sizeof(dap_chain_node_addr_t));
@@ -110,16 +123,18 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
     size_t l_data_size = 0;
     char *l_gdb_group = dap_strdup_printf("%s%s", a_net->pub.gdb_groups_prefix, s_states_group);
     dap_chain_node_net_states_info_t *l_store_obj = (dap_chain_node_net_states_info_t *)dap_global_db_get_sync(l_gdb_group, a_node_addr_str, &l_data_size, NULL, &l_timestamp);
-    if (!l_store_obj || l_data_size != sizeof(dap_chain_node_net_states_info_t) + (l_store_obj->uplinks_count + l_store_obj->downlinks_count) * sizeof(dap_chain_node_addr_t)) {
-        log_it(L_ERROR, "Can't find state about %s node", a_node_addr_str);
+    if (!l_store_obj || l_store_obj->version_info != DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION ||
+         l_data_size != s_states_version_size[DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION - 1] + (l_store_obj->uplinks_count + l_store_obj->downlinks_count) * sizeof(dap_chain_node_addr_t))
+    {
+        log_it(L_ERROR, "Can't find state about %s node in net %s", a_node_addr_str, a_net->pub.name);
         DAP_DELETE(l_gdb_group);
         return;
     }
     char l_ts[80] = { '\0' };
     dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_timestamp);
     dap_string_append_printf(l_info_str,
-        "Record timestamp: %s\nNode addr: %s\nNet: %s\nEvents count: %"DAP_UINT64_FORMAT_U"\nAtoms count: %"DAP_UINT64_FORMAT_U"\nUplinks count: %u\nDownlinks count: %u\n",
-        l_ts, a_node_addr_str, a_net->pub.name, l_store_obj->events_count, l_store_obj->atoms_count, l_store_obj->uplinks_count, l_store_obj->downlinks_count);
+        "Record timestamp: %s\nRecord version: %u\nNode version: %s\nNode addr: %s\nNet: %s\nRole: %s\nEvents count: %"DAP_UINT64_FORMAT_U"\nAtoms count: %"DAP_UINT64_FORMAT_U"\nUplinks count: %u\nDownlinks count: %u\n",
+        l_ts, l_store_obj->version_info, l_store_obj->version_node,a_node_addr_str, a_net->pub.name, dap_chain_node_role_to_str(l_store_obj->role), l_store_obj->events_count, l_store_obj->atoms_count, l_store_obj->uplinks_count, l_store_obj->downlinks_count);
     size_t l_max_links = dap_max(l_store_obj->uplinks_count, l_store_obj->downlinks_count);
     if(l_max_links) {
         dap_string_append_printf(l_info_str,
@@ -422,6 +437,8 @@ static int s_node_states_info_cmp(dap_list_t *a_first, dap_list_t *a_second)
   if(b->events_count > a->events_count && b->events_count - a->events_count > s_cmp_delta_event) return 1;
   if(a->atoms_count > b->atoms_count && a->atoms_count - b->atoms_count > s_cmp_delta_atom) return -1;
   if(b->atoms_count > a->atoms_count && b->atoms_count - a->atoms_count > s_cmp_delta_atom) return 1;
+  if(a->role.enums == NODE_ROLE_ROOT) return 1;
+  if(b->role.enums == NODE_ROLE_ROOT) return -1;
   if(a->downlinks_count < b->downlinks_count) return -1;
   if(b->downlinks_count < a->downlinks_count) return 1;
   return 0;
@@ -473,10 +490,15 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
         if (!l_state_store_obj) {
             log_it(L_DEBUG, "Can't find state about %s node, apply low priority", l_objs[i].key);
             l_item->downlinks_count = (uint32_t)(-1);
-        } else if (l_data_size != sizeof(dap_chain_node_net_states_info_t) + (l_state_store_obj->uplinks_count + l_state_store_obj->downlinks_count) * sizeof(dap_chain_node_addr_t)) {
-            log_it(L_DEBUG, "Wrong %s node state record size, expected %zu, get %zu. Apply low priority", l_objs[i].key, sizeof(dap_chain_node_net_states_info_t) + (l_state_store_obj->uplinks_count + l_state_store_obj->downlinks_count) * sizeof(dap_chain_node_addr_t), l_data_size);
+        } else if (
+                l_state_store_obj->version_info != DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION ||
+                l_data_size != s_states_version_size[DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION - 1] + (l_state_store_obj->uplinks_count + l_state_store_obj->downlinks_count) * sizeof(dap_chain_node_addr_t)
+            ) {
+            log_it(L_DEBUG, "Wrong %s node state record size to state version %u, expected %zu, get %zu. Apply low priority", l_objs[i].key, l_state_store_obj->version_info, sizeof(dap_chain_node_net_states_info_t) + (l_state_store_obj->uplinks_count + l_state_store_obj->downlinks_count) * sizeof(dap_chain_node_addr_t), l_data_size);
+            l_item->role.enums = NODE_ROLE_ROOT;
             l_item->downlinks_count = (uint32_t)(-1);
         } else {
+            l_item->role.enums = l_state_store_obj->role.enums;
             l_item->atoms_count = l_state_store_obj->atoms_count;
             l_item->events_count = l_state_store_obj->events_count;
             l_item->downlinks_count = l_state_store_obj->downlinks_count;
