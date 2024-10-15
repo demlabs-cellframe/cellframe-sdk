@@ -3406,7 +3406,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
         } break;
 
         default: {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Subcommand %s not recognized", a_argv[l_arg_index]);
             return -1;
         }
     }
