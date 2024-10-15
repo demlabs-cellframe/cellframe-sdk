@@ -2623,7 +2623,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                 size_t l_data_size = l_tsd_size + l_signs_size;
                 l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_data_size,
                                                             &l_sign_counter);
-                log_it(L_DEBUG, "Apply %zu signs to datum %s", l_sign_counter, l_datum_hash_hex_str);
+                log_it(L_DEBUG, "Apply %u signs to datum %s", l_sign_counter, l_datum_hash_hex_str);
                 if (!l_sign_counter) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Used certs not valid");
                     DAP_DEL_MULTY(l_datum_token, l_datum_hash_hex_str, l_datum_hash_base58_str, l_gdb_group_mempool);

@@ -267,7 +267,7 @@ void dap_ledger_set_local_cell_id(dap_ledger_t *a_ledger, dap_chain_cell_id_t a_
 
 DAP_STATIC_INLINE char *dap_ledger_get_gdb_group(dap_ledger_t *a_ledger, const char *a_suffix)
 {
-    return a_ledger && a_suffix
+    return a_ledger && *a_ledger->net->pub.name && a_suffix
             ? dap_strdup_printf("local.ledger-cache.%s.%s", a_ledger->net->pub.name, a_suffix)
             : NULL;
 }

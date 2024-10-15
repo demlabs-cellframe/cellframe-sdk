@@ -1786,7 +1786,7 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
 int dap_chain_net_test_init()
 {
     dap_chain_net_t *l_net = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t) );
-    PVT(l_net)->node_info = DAP_NEW_Z_SIZE(dap_chain_net_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1 );
+    PVT(l_net)->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1 );
     l_net->pub.id.uint64 = 0xFA0;
     strcpy(l_net->pub.name, "Snet");
     l_net->pub.gdb_groups_prefix = (const char*)l_net->pub.name;
@@ -1808,12 +1808,13 @@ int dap_chain_net_test_init()
  */
 int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
 {
-    char *l_cfg_path = dap_strdup_printf("network/%s", a_net_name);
-    dap_config_t *l_cfg = dap_config_open(l_cfg_path);
-    DAP_DELETE(l_cfg_path);
-    if ( !l_cfg )
-        return log_it(L_ERROR,"Can't open default network config %s", l_cfg_path), -1;
-
+    dap_config_t *l_cfg = NULL;
+    {
+        char l_cfg_path[strlen(a_net_name) + sizeof("network/")];
+        dap_stpcpy(dap_stpcpy(l_cfg_path, "network/"), a_net_name);
+        if (!( l_cfg = dap_config_open(l_cfg_path) ))
+            return log_it(L_ERROR,"Can't open default network config %s", l_cfg_path), -1;
+    }
     dap_chain_net_t *l_net = s_net_new(a_net_name, l_cfg);
     if ( !l_net ) 
         return log_it(L_ERROR,"Can't create net \"%s\"", a_net_name), dap_config_close(l_cfg), -1;
