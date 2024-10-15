@@ -4069,13 +4069,15 @@ void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, ui
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *) (l_objs[i].value);
             if (l_datum->header.type_id != DAP_CHAIN_DATUM_DECREE) continue;
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *) l_datum->data;
-            json_object *l_jobj_decree = json_object_new_object();
-            size_t l_decree_size = dap_chain_datum_decree_get_size(l_decree);
-            dap_chain_datum_decree_dump_json(l_jobj_decree, l_decree, l_decree_size, a_hash_out_type);
-            json_object_object_add(l_jobj_decree, "source", json_object_new_string("mempool"));
-            (l_decree->header.type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON) ?
+            if (l_decree->header.sub_type == a_decree_type) {
+                json_object *l_jobj_decree = json_object_new_object();
+                size_t l_decree_size = dap_chain_datum_decree_get_size(l_decree);
+                dap_chain_datum_decree_dump_json(l_jobj_decree, l_decree, l_decree_size, a_hash_out_type);
+                json_object_object_add(l_jobj_decree, "source", json_object_new_string("mempool"));
+                (l_decree->header.type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON) ?
                 json_object_array_add(l_common_decree_arr, l_jobj_decree) :
                 json_object_array_add(l_service_decree_arr, l_jobj_decree);
+            }
         }
         dap_global_db_objs_delete(l_objs, l_mempool_count);
     }
@@ -4098,14 +4100,14 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply) {
         } else if (!dap_strcmp(a_argv[1], "decree")) {
             l_cmd = SUBCMD_DECREE;
         } else {
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD,"Invalid sub command specified. Sub command %s "
+            dap_json_rpc_error_add(*a_json_reply,DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD,"Invalid sub command specified. Sub command %s "
                                                 "is not supported.", a_argv[1]);
             return DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD;
         }
     }
-    int cmd_parse_status = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_INVALID);
+    int cmd_parse_status = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_reply, &arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_INVALID);
     if (cmd_parse_status != 0){
-        dap_json_rpc_error_add(cmd_parse_status, "Request parsing error (code: %d)", cmd_parse_status);
+        dap_json_rpc_error_add(*a_json_reply, cmd_parse_status, "Request parsing error (code: %d)", cmd_parse_status);
             return cmd_parse_status;
     }
     const char *l_hash_out_type = "hex";
@@ -4117,7 +4119,7 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply) {
             if (!l_datum_hash) {
                 dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash);
                 if (!l_datum_hash) {
-                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED,
+                    dap_json_rpc_error_add(*a_json_reply, DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED,
                                            "The hash of the datum is not specified.");
                     return DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED;
                 }
@@ -4129,11 +4131,11 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply) {
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_atom_hash_str);
             dap_hash_fast_t l_atom_hash = {0};
             if (!l_atom_hash_str) {
-                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED, "The hash of the atom is not specified.");
+                dap_json_rpc_error_add(*a_json_reply, DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED, "The hash of the atom is not specified.");
                 return DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED;
             }
             if (dap_chain_hash_fast_from_str(l_atom_hash_str, &l_atom_hash)) {
-                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_FIND_ERR_PARSE_HASH, "Failed to convert the value '%s' to a hash.", l_atom_hash_str);
+                dap_json_rpc_error_add(*a_json_reply, DAP_CHAIN_NODE_CLI_FIND_ERR_PARSE_HASH, "Failed to convert the value '%s' to a hash.", l_atom_hash_str);
                 return DAP_CHAIN_NODE_CLI_FIND_ERR_PARSE_HASH;
             }
             json_object *l_obj_atom = json_object_new_object();
@@ -4170,13 +4172,13 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply) {
             const char* l_type_decre_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-type", &l_type_decre_str);
             if (!l_type_decre_str){
-                dap_json_rpc_error_add(DAP_CHIAN_NODE_CLI_FIND_ERR_SUBTYPE_DECREE_IS_NOT_SPECIFIED,
+                dap_json_rpc_error_add(*a_json_reply, DAP_CHIAN_NODE_CLI_FIND_ERR_SUBTYPE_DECREE_IS_NOT_SPECIFIED,
                                        "The type of decree you are looking for is not specified.");
                 return DAP_CHIAN_NODE_CLI_FIND_ERR_SUBTYPE_DECREE_IS_NOT_SPECIFIED;
             }
             uint16_t l_subtype_decree = dap_chain_datum_decree_type_from_str(l_type_decre_str);
             if (!l_subtype_decree) {
-                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_FIND_ERR_UNKNOWN_SUBTYPE_DECREE,
+                dap_json_rpc_error_add(*a_json_reply, DAP_CHAIN_NODE_CLI_FIND_ERR_UNKNOWN_SUBTYPE_DECREE,
                                        "There is no decree of type '%s'.", l_type_decre_str);
                 return DAP_CHAIN_NODE_CLI_FIND_ERR_UNKNOWN_SUBTYPE_DECREE;
             }
@@ -4190,7 +4192,7 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply) {
                 } else if (!dap_strcmp(l_where_str, "mempool")) {
                     l_where = MEMPOOL;
                 } else {
-                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_FIND_ERR_UNKNOWN_PARAMETR_WHERE,
+                    dap_json_rpc_error_add(*a_json_reply, DAP_CHAIN_NODE_CLI_FIND_ERR_UNKNOWN_PARAMETR_WHERE,
                                        "'%s' is not a valid place to look. Use mempool or chains.",
                                            l_where_str);
                     return DAP_CHAIN_NODE_CLI_FIND_ERR_UNKNOWN_PARAMETR_WHERE;
