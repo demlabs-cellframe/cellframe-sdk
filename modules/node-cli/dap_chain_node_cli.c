@@ -116,6 +116,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "? [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
+    dap_cli_server_cmd_add ("wallet", com_tx_wallet, "Wallet operations",
+                            "wallet list\n"
+                            "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value> | -restore_legacy <restore_string>] [-net <net_name>] [-force] [-password <password>]\n"
+                            "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
+                            "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
+                            "wallet deactivate -w <wallet_name>>\n"
+                            "wallet convert -w <wallet_name> -password <password>\n");
+    // Token commands
     dap_cli_server_cmd_add ("token_update", com_token_update, "Token update",
                             "\nPrivate or CF20 token update\n"
                             "token_update -net <net_name> [-chain <chain_name>] -token <existing_token_ticker> -type <CF20|private> [-total_supply_change <value>] "
@@ -231,8 +239,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             );
 
     dap_cli_server_cmd_add ("token_emit", com_token_emit, "Token emission",
-                            "token_emit { sign -emission <hash> | -token <mempool_token_ticker> -emission_value <value>\n" 
-                            "\t-addr <addr> } [-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n\nAvailable"
+                            "token_emit { sign -emission <hash> | -token <mempool_token_ticker> -emission_value <value> -addr <addr> } "
+                            "[-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n"
                             "Hint:\n"
                             "\texample coins amount syntax (only natural) 1.0 123.4567\n"
                             "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");

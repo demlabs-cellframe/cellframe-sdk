@@ -3196,11 +3196,11 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
     int l_out_num = 0;
     dap_ledger_tx_item_t *l_item = NULL;
     while (( l_tx = dap_ledger_tx_find_datum_by_hash(a_ledger, &l_hash, &l_item, false) )) {
-        l_hash_tmp = l_item->cache_data.tx_hash_spent_fast[l_out_num];
-        if ( !dap_chain_datum_tx_out_cond_get(l_tx, a_cond_type, &l_out_num)
-            || dap_hash_fast_is_blank(&l_hash_tmp) )
+        if ( !dap_chain_datum_tx_out_cond_get(l_tx, a_cond_type, &l_out_num) 
+            || dap_hash_fast_is_blank(&l_item->cache_data.tx_hash_spent_fast[l_out_num]))
             break;
-        l_hash = l_hash_tmp;
+
+        l_hash = l_item->cache_data.tx_hash_spent_fast[l_out_num];
     }
     return l_hash;
 }
