@@ -206,6 +206,9 @@ void dap_chain_cs_esbocs_deinit(void)
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_cs_type_create("blocks", a_chain, a_chain_cfg);
+#ifdef  DAP_LEDGER_TEST
+    return 0;
+#endif
     const char *l_auth_certs_prefix = dap_config_get_item_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_prefix");
     if (!l_auth_certs_prefix)
         return -1;
@@ -215,11 +218,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     const char **l_addrs = dap_config_get_array_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "validators_addrs", &l_node_addrs_count);
     if (!l_validators_count || l_node_addrs_count < l_validators_count)
         return -2;
-
-//patch for tests
-#ifdef  DAP_LEDGER_TEST
-    return 0;
-#endif
+        
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     int l_ret = 0, l_inited_cert = 0;
     dap_chain_esbocs_t *l_esbocs = NULL;
@@ -249,7 +248,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     dap_strncpy(l_cert_name, l_auth_certs_prefix, l_dot_pos);
     for (i = 0; i < l_auth_certs_count; ++i) {
         dap_cert_t *l_cert_cur;
-        l_pos2 = snprintf(l_cert_name + l_dot_pos, 16, ".%zu", i);
+        l_pos2 = snprintf(l_cert_name + l_dot_pos, 16, ".%u", i);
         if ( !(l_cert_cur = dap_cert_find_by_name(l_cert_name)) ) {
             dap_strncpy(l_cert_name + l_dot_pos + l_pos2, ".pub", l_len - l_dot_pos - l_pos2);
             if ( !(l_cert_cur = dap_cert_find_by_name(l_cert_name)) ) {
