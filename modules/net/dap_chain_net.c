@@ -124,11 +124,6 @@ struct request_link_info {
     uint16_t port;
 };
 
-struct permanent_link {
-    dap_link_info_t link;
-    UT_hash_handle hh;
-};
-
 struct block_reward {
     uint64_t block_number;
     uint256_t reward;
@@ -161,14 +156,17 @@ typedef struct dap_chain_net_pvt{
     dap_balancer_type_t balancer_type;
     bool load_mode;
 
-    uint16_t permanent_links_count;
+    uint16_t permanent_links_addrs_count;
     dap_stream_node_addr_t *permanent_links_addrs;
 
+    uint16_t permanent_links_hosts_count;
+    struct request_link_info **permanent_links_hosts;
+    
     uint16_t authorized_nodes_count;
     dap_stream_node_addr_t *authorized_nodes_addrs;
 
     uint16_t seed_nodes_count;
-    struct request_link_info **seed_nodes_info;
+    struct request_link_info **seed_nodes_hosts;
 
     struct chain_sync_context sync_context;
 
@@ -196,7 +194,6 @@ static dap_chain_net_t *s_nets_by_name = NULL, *s_nets_by_id = NULL;
 static pthread_mutex_t s_net_cond_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t s_net_cond = PTHREAD_COND_INITIALIZER;
 static uint16_t s_net_loading_count = 0;
-static struct  permanent_link *s_permanent_links = NULL;
 
 static const char *c_net_states[] = {
     [NET_STATE_OFFLINE]             = "NET_STATE_OFFLINE",
@@ -364,12 +361,12 @@ static struct request_link_info *s_balancer_link_from_cfg(dap_chain_net_t *a_net
         l_idx = dap_random_uint16() % PVT(a_net)->seed_nodes_count;
     break;
     }
-    if ( !PVT(a_net)->seed_nodes_info[l_idx] ) {
+    if ( !PVT(a_net)->seed_nodes_hosts[l_idx] ) {
         // Unresolved before? Let's try again
         const char **l_seed_nodes_hosts = dap_config_get_array_str(a_net->pub.config, "general", "seed_nodes_hosts", NULL);
-        PVT(a_net)->seed_nodes_info[l_idx] = s_net_resolve_host(l_seed_nodes_hosts[l_idx]);
+        PVT(a_net)->seed_nodes_hosts[l_idx] = s_net_resolve_host(l_seed_nodes_hosts[l_idx]);
     }
-    return PVT(a_net)->seed_nodes_info[l_idx];
+    return PVT(a_net)->seed_nodes_hosts[l_idx];
 }
 
 dap_chain_node_info_t *dap_chain_net_get_my_node_info(dap_chain_net_t *a_net)
@@ -446,7 +443,7 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
 static bool s_net_check_link_is_permanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    for (uint16_t i = 0; i < l_net_pvt->permanent_links_count; i++) {
+    for (uint16_t i = 0; i < l_net_pvt->permanent_links_addrs_count; i++) {
         if (l_net_pvt->permanent_links_addrs[i].uint64 == a_addr.uint64)
             return true;
     }
@@ -532,26 +529,36 @@ int s_link_manager_link_request(uint64_t a_net_id)
     return dap_worker_exec_callback_on(dap_worker_get_auto(), dap_chain_net_balancer_request, l_arg), 0;
 }
 
+struct request_link_info *s_get_permanent_link_info(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
+{
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    for (uint16_t i = 0; i < l_net_pvt->permanent_links_addrs_count; ++i) {
+        if (l_net_pvt->permanent_links_addrs[i].uint64 == a_address->uint64 &&
+            i < l_net_pvt->permanent_links_hosts_count &&
+            i < l_net_pvt->permanent_links_hosts[i]->addr[0] && 
+            i < l_net_pvt->permanent_links_hosts[i]->port)
+            return l_net_pvt->permanent_links_hosts[i];
+    }
+    return NULL;
+}
+
 int s_link_manager_fill_net_info(dap_link_t *a_link)
 {
 // sanity check
     dap_return_val_if_pass(!a_link, -1);
 // func work
-    dap_chain_node_info_t *l_node_info = NULL;
     const char *l_host = NULL;
     uint16_t l_port = 0;
-    struct permanent_link *l_cur_link = NULL;
-    HASH_FIND(hh, s_permanent_links, &a_link->addr, sizeof(a_link->addr), l_cur_link);
-    if (l_cur_link) {
-        if (!l_cur_link->link.uplink_addr[0] || !l_cur_link->link.uplink_port) {
-            log_it(L_INFO, "Can't use permanent link to node, host not valid "NODE_ADDR_FP_STR" [ %s : %u ]. Get data from GDB.", NODE_ADDR_FP_ARGS_S(l_cur_link->link.node_addr), l_cur_link->link.uplink_addr, l_cur_link->link.uplink_port);
-        } else {
-            l_host = l_cur_link->link.uplink_addr;
-            l_port = l_cur_link->link.uplink_port;
-            log_it(L_INFO, "Use permanent link to node "NODE_ADDR_FP_STR" [ %s : %u ]", NODE_ADDR_FP_ARGS_S(l_cur_link->link.node_addr), l_host, l_port);
+    struct request_link_info *l_permanent_link = NULL;
+    for (dap_chain_net_t *l_net = s_nets_by_name; l_net; l_net = l_net->hh.next) {
+        if ( dap_chain_net_get_state(l_net) > NET_STATE_OFFLINE && ( l_permanent_link = s_get_permanent_link_info(l_net, &a_link->addr) )) {
+            l_host = l_permanent_link->addr;
+            l_port = l_permanent_link->port;
+            break;
         }
     }
     if (!l_host || !l_host[0] || !l_port) {
+            dap_chain_node_info_t *l_node_info = NULL;
         for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
             if (( l_node_info = dap_chain_node_info_read(net, &a_link->addr) ))
                 break;
@@ -560,9 +567,9 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
             return -3;
         l_host = l_node_info->ext_host;
         l_port = l_node_info->ext_port;
+        DAP_DELETE(l_node_info);
     }
     a_link->uplink.ready = !dap_link_manager_link_update(&a_link->addr, l_host, l_port);
-    DAP_DELETE(l_node_info);
     return 0;
 }
 
@@ -1740,11 +1747,6 @@ void dap_chain_net_deinit()
         HASH_DELETE(hh2, s_nets_by_id, l_net);
         dap_chain_net_delete(l_net);
     }
-    struct permanent_link *l_cur_link, *l_tmp_link;
-    HASH_ITER(hh, s_permanent_links, l_cur_link, l_tmp_link) {
-        HASH_DEL(s_permanent_links, l_cur_link);
-        DAP_DELETE(l_cur_link);
-    }
     dap_http_ban_list_client_deinit();
 }
 
@@ -1817,6 +1819,34 @@ int s_nodes_addrs_init(dap_config_t *a_cfg, const char *a_addrs_type, dap_stream
     return 0;
 }
 
+int s_nodes_hosts_init(dap_chain_net_t *a_net, dap_config_t *a_cfg, const char *a_hosts_type, struct request_link_info ***a_hosts, uint16_t *a_hosts_count)
+{
+    dap_return_val_if_pass(!a_cfg || !a_hosts_type || !a_hosts || !a_hosts_count, -1);
+    const char **l_nodes_addrs = dap_config_get_array_str(a_cfg, "general", a_hosts_type, a_hosts_count);
+    if (*a_hosts_count) {
+        *a_hosts = DAP_NEW_Z_COUNT(struct request_link_info *, *a_hosts_count);
+        if (!*a_hosts) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            return -1;
+        }
+        uint16_t i = 0, e = 0;
+        for (; i < *a_hosts_count; ++i) {
+            if (!( (*a_hosts)[i] = s_net_resolve_host(l_nodes_addrs[i]) )) {
+                log_it(L_ERROR, "Incorrect address [ %s : %u ], fix \"%s\" network config"
+                                "or check internet connection and restart node",
+                                (*a_hosts)[i]->addr, (*a_hosts)[i]->port,  a_net->pub.name);
+                ++e;
+                continue;
+            }
+        }
+        debug_if(e, L_ERROR, "%d / %d %s links are invalid or can't be accessed, fix \"%s\""
+                        "network config or check internet connection and restart node",
+                        e, i, a_hosts_type, a_net->pub.name);
+
+    }
+    return 0;
+}
+
 /**
  * @brief load network config settings from cellframe-node.cfg file
  *
@@ -1861,80 +1891,19 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
 
     // read permanent and authorized nodes addrs
     if (
-        s_nodes_addrs_init(l_cfg, "permanent_nodes_addrs", &l_net_pvt->permanent_links_addrs, &l_net_pvt->permanent_links_count) ||
-        s_nodes_addrs_init(l_cfg, "authorized_nodes_addrs", &l_net_pvt->authorized_nodes_addrs, &l_net_pvt->authorized_nodes_count)
+        s_nodes_addrs_init(l_cfg, "permanent_nodes_addrs", &l_net_pvt->permanent_links_addrs, &l_net_pvt->permanent_links_addrs_count) ||
+        s_nodes_addrs_init(l_cfg, "authorized_nodes_addrs", &l_net_pvt->authorized_nodes_addrs, &l_net_pvt->authorized_nodes_count) ||
+        s_nodes_hosts_init(l_net, l_cfg, "permanent_nodes_hosts", &l_net_pvt->permanent_links_hosts, &l_net_pvt->permanent_links_hosts_count) ||
+        s_nodes_hosts_init(l_net, l_cfg, "seed_nodes_hosts", &l_net_pvt->seed_nodes_hosts, &l_net_pvt->seed_nodes_count) || 
+        (!l_net_pvt->seed_nodes_count && s_nodes_hosts_init(l_net, l_cfg, "bootstrap_hosts", &l_net_pvt->seed_nodes_hosts, &l_net_pvt->seed_nodes_count) )
     ) {
         dap_chain_net_delete(l_net);
         dap_config_close(l_cfg);
         return -4;
     }
     debug_if(!l_net_pvt->authorized_nodes_count, L_WARNING, "Can't read PoA nodes addresses");
-
-    uint16_t l_permalink_hosts_count = 0, i, e;
-    const char **l_permanent_links_hosts = dap_config_get_array_str(l_cfg, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
-    for (i = 0, e = 0; i < l_net_pvt->permanent_links_count; ++i) {
-        struct permanent_link *l_cur_link = DAP_NEW_Z(struct permanent_link);
-        if (!l_cur_link) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -5;
-        }
-        l_cur_link->link.node_addr.uint64 = l_net_pvt->permanent_links_addrs[i].uint64;
-        struct permanent_link *l_old_link = NULL;
-        HASH_FIND(hh, s_permanent_links, &l_cur_link->link.node_addr, sizeof(l_cur_link->link.node_addr), l_old_link);
-        if (l_old_link) {
-            if (!l_old_link->link.uplink_addr[0] || !l_old_link->link.uplink_port) {
-                log_it(L_WARNING, "Permanent link to node "NODE_ADDR_FP_STR" already exist without valid host [ %s : %u ]. Replaced.", NODE_ADDR_FP_ARGS_S(l_old_link->link.node_addr), l_old_link->link.uplink_addr, l_old_link->link.uplink_port);
-                HASH_DEL(s_permanent_links,l_old_link);
-                DAP_DELETE(l_old_link);
-            } else {
-                log_it(L_ERROR, "Permanent link to node "NODE_ADDR_FP_STR" already exist with valid host [ %s : %u ].", NODE_ADDR_FP_ARGS_S(l_old_link->link.node_addr), l_old_link->link.uplink_addr, l_old_link->link.uplink_port);
-                ++e;
-                continue;
-            }
-        }
-        HASH_ADD(hh, s_permanent_links, link.node_addr, sizeof(l_cur_link->link.node_addr), l_cur_link);
-        if (i < l_permalink_hosts_count) {
-            if ( dap_net_parse_config_address(l_permanent_links_hosts[i], l_cur_link->link.uplink_addr, &l_cur_link->link.uplink_port, NULL, NULL) < 0 ) {
-                log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config and restart node", l_permanent_links_hosts[i], a_net_name);
-                ++e;
-                continue;
-            }
-            struct sockaddr_storage l_saddr;
-            if (dap_net_resolve_host(l_cur_link->link.uplink_addr, dap_itoa(l_cur_link->link.uplink_port), false, &l_saddr, NULL) < 0 ) {
-                log_it(L_ERROR, "Can't resolve \"%s\", host in net \"%s\", please check network connection", l_permanent_links_hosts[i], a_net_name);
-            }
-        }
-        log_it(L_INFO, "Add permanent link to node "NODE_ADDR_FP_STR" [ %s : %u ].", NODE_ADDR_FP_ARGS_S(l_cur_link->link.node_addr), l_cur_link->link.uplink_addr, l_cur_link->link.uplink_port);
-    }
-    debug_if(e, L_ERROR, "%d / %d permanent links are invalid or can't be accessed, fix \"%s\""
-                    "network config or check internet connection and restart node",
-                    e, i, a_net_name);
-
-    const char **l_seed_nodes_hosts = dap_config_get_array_str(l_cfg, "general", "seed_nodes_hosts", &l_net_pvt->seed_nodes_count);
-    if (!l_net_pvt->seed_nodes_count)
-         l_seed_nodes_hosts  = dap_config_get_array_str(l_cfg, "general", "bootstrap_hosts", &l_net_pvt->seed_nodes_count);
     if (!l_net_pvt->seed_nodes_count)
         log_it(L_WARNING, "Can't read seed nodes addresses, work with local balancer only");
-    else if (!( l_net_pvt->seed_nodes_info = DAP_NEW_Z_COUNT(struct request_link_info*, l_net_pvt->seed_nodes_count) )) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        dap_chain_net_delete(l_net);
-        dap_config_close(l_cfg);
-        return -4;
-    }
-    for (i = 0, e = 0; i < l_net_pvt->seed_nodes_count; ++i) {
-        if (!( l_net_pvt->seed_nodes_info[i] = s_net_resolve_host(l_seed_nodes_hosts[i]) )) {
-            log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config"
-                            "or check internet connection and restart node",
-                            a_net_name, l_seed_nodes_hosts[i]);
-            ++e;
-            continue;
-        }
-    }
-    debug_if(e, L_ERROR, "%d / %d seed links are invalid or can't be accessed, fix \"%s\""
-                    "network config or check internet connection and restart node",
-                    e, i, a_net_name);
 
     /* *** Chains init by configs *** */
     char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
@@ -2559,14 +2528,14 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
  * @param l_net
  * @return
  */
-dap_chain_net_state_t dap_chain_net_get_state (dap_chain_net_t * l_net)
+dap_chain_net_state_t dap_chain_net_get_state (dap_chain_net_t *a_net)
 {
-    return PVT(l_net)->state;
+    return PVT(a_net)->state;
 }
 
-dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net)
+dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t *a_net)
 {
-    return  PVT(l_net)->node_info ? &PVT(l_net)->node_info->cell_id: 0;
+    return  PVT(a_net)->node_info ? &PVT(a_net)->node_info->cell_id: 0;
 }
 
 /**
@@ -3398,15 +3367,12 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
         uint16_t l_permalink_hosts_count = 0;
         dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
-        for (uint16_t i = 0; i < PVT(a_net)->permanent_links_count; ++i) {
-            struct permanent_link *l_cur_link = NULL;
-            HASH_FIND(hh, s_permanent_links, PVT(a_net)->permanent_links_addrs + i, sizeof(l_cur_link->link.node_addr), l_cur_link);
-            if (!l_cur_link) {
-                log_it(L_ERROR, "Can't find permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(PVT(a_net)->permanent_links_addrs[i]));
-                continue;
-            }
-            if (dap_chain_net_link_add(a_net, &l_cur_link->link.node_addr, l_cur_link->link.uplink_addr, l_cur_link->link.uplink_port)) {
-                log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_cur_link->link.node_addr));
+        for (uint16_t i = 0; i < PVT(a_net)->permanent_links_addrs_count; ++i) {
+            if (dap_chain_net_link_add(a_net, PVT(a_net)->permanent_links_addrs + i, 
+                i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->addr : NULL,
+                i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->port : 0)
+             ) {
+                log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(a_net)->permanent_links_addrs + i));
                 continue;
             }
             PVT(a_net)->state = NET_STATE_LINKS_CONNECTING;
