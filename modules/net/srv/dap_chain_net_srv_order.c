@@ -560,3 +560,77 @@ void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_o
         DAP_DELETE(l_ext_out);
     }
 }
+
+
+
+void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_order, json_object *a_json_obj_out,
+                                            const char *a_hash_out_type, const char *a_native_ticker)
+{
+    if (a_order && a_json_obj_out ){
+        dap_chain_hash_fast_t l_hash;
+        dap_hash_fast(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
+        const char *l_hash_str = dap_strcmp(a_hash_out_type,"hex")
+                ? dap_enc_base58_encode_hash_to_str_static(&l_hash)
+                : dap_chain_hash_fast_to_str_static(&l_hash);
+
+        json_object_object_add(a_json_obj_out, "order", json_object_new_string(l_hash_str));
+        json_object_object_add(a_json_obj_out, "version", json_object_new_int(a_order->version));
+
+        switch ( a_order->direction) {
+        case SERV_DIR_UNDEFINED:    json_object_object_add(a_json_obj_out, "direction", json_object_new_string("SERV_DIR_UNDEFINED"));   break;
+        case SERV_DIR_SELL:         json_object_object_add(a_json_obj_out, "direction", json_object_new_string("SERV_DIR_SELL"));        break;
+        case SERV_DIR_BUY:          json_object_object_add(a_json_obj_out, "direction", json_object_new_string("SERV_DIR_BUY"));         break;
+        }
+        char buf_time[DAP_TIME_STR_SIZE];
+        dap_time_to_str_rfc822(buf_time, DAP_TIME_STR_SIZE, a_order->ts_created);
+        json_object_object_add(a_json_obj_out, "created", json_object_new_string(buf_time));
+        //timestamp remove after sort
+        json_object_object_add(a_json_obj_out, "timestamp", json_object_new_uint64(a_order->ts_created));
+        char buf_srv_uid[64];
+        sprintf(buf_srv_uid, "0x%016"DAP_UINT64_FORMAT_X"", a_order->srv_uid.uint64);
+        json_object_object_add(a_json_obj_out, "srv_uid", json_object_new_string(buf_srv_uid));
+        
+        const char *l_balance_coins, *l_balance = dap_uint256_to_char(a_order->price, &l_balance_coins);
+        json_object_object_add(a_json_obj_out, "price_coins", json_object_new_string(l_balance_coins));
+        json_object_object_add(a_json_obj_out, "price_datoshi", json_object_new_string(l_balance));
+        json_object_object_add(a_json_obj_out, "price_token", json_object_new_string((*a_order->price_ticker) ? a_order->price_ticker: a_native_ticker));
+        json_object_object_add(a_json_obj_out, "units", json_object_new_int(a_order->units));
+        if( a_order->price_unit.uint32 )
+            json_object_object_add(a_json_obj_out, "price_unit", json_object_new_string(dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit)));
+        if ( a_order->node_addr.uint64) {
+            char buf_node_addr[64];
+            sprintf(buf_node_addr, ""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(a_order->node_addr));
+            json_object_object_add(a_json_obj_out, "node_addr", json_object_new_string(buf_node_addr));
+        }
+
+        char *l_region = NULL;
+        uint8_t l_continent_num = 0;
+        const char *l_continent_str = NULL;
+        if(dap_chain_net_srv_order_get_continent_region(a_order, &l_continent_num, &l_region))
+            l_continent_str = dap_chain_net_srv_order_continent_to_str(l_continent_num);
+        char buf_location[64];
+        sprintf(buf_location, "%s - %s", l_continent_str ? l_continent_str : "None" , l_region ? l_region : "None");
+        json_object_object_add(a_json_obj_out, "node_location", json_object_new_string(buf_location));
+        DAP_DELETE(l_region);
+
+        l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                ? dap_enc_base58_encode_hash_to_str_static(&a_order->tx_cond_hash)
+                : dap_chain_hash_fast_to_str_static(&a_order->tx_cond_hash);
+        json_object_object_add(a_json_obj_out, "tx_cond_hash", json_object_new_string(l_hash_str));
+        char *l_ext_out = a_order->ext_size ? DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 1) : NULL;
+        if(l_ext_out) {
+            dap_bin2hex(l_ext_out, a_order->ext_n_sign, a_order->ext_size);
+            char buf_ext[a_order->ext_size*2+3];
+            sprintf(buf_ext, "0x%s", l_ext_out);
+            json_object_object_add(a_json_obj_out, "ext", json_object_new_string(buf_ext));
+        }
+        else
+            json_object_object_add(a_json_obj_out, "ext", json_object_new_string("0x0"));
+        dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
+        dap_hash_fast_t l_sign_pkey = {0};
+        dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
+        const char *l_sign_pkey_hash_str = dap_hash_fast_to_str_static(&l_sign_pkey);
+        json_object_object_add(a_json_obj_out, "pkey", json_object_new_string(l_sign_pkey_hash_str));
+        DAP_DELETE(l_ext_out);
+    }
+}
