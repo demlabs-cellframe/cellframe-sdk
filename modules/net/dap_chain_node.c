@@ -133,7 +133,7 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
         return log_it(L_ERROR, "Can't find state of node %s in net %s", a_node_addr_str, a_net->pub.name);
     if ( (l_data_size - sizeof(dap_chain_node_net_states_info_t)) % sizeof(dap_chain_node_addr_t) ) {
         if ( (l_data_size - sizeof(dap_chain_node_net_states_info_v1_t)) % sizeof(dap_chain_node_addr_t) )
-            return DAP_DELETE(l_node_info_data), log_it(L_ERROR, "Irrelevant size of node %s info");
+            return DAP_DELETE(l_node_info_data), log_it(L_ERROR, "Irrelevant size of node %s info", a_node_addr_str);
         dap_chain_node_net_states_info_v1_t *l_info_old = (dap_chain_node_net_states_info_v1_t*)l_node_info_data;
         l_node_info = DAP_NEW_Z_SIZE( dap_chain_node_net_states_info_t, sizeof(dap_chain_node_net_states_info_t) 
                                       + (l_info_old->uplinks_count + l_info_old->downlinks_count) * sizeof(dap_chain_node_addr_t) );
@@ -513,7 +513,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
         } else {
             if ( (l_data_size - sizeof(dap_chain_node_net_states_info_t)) % sizeof(dap_chain_node_addr_t) ) {
                 if ( (l_data_size - sizeof(dap_chain_node_net_states_info_v1_t)) % sizeof(dap_chain_node_addr_t) ) {
-                    log_it(L_ERROR, "Irrelevant size of node %s info, ignore it");
+                    log_it(L_ERROR, "Irrelevant size of node %s info, ignore it", l_objs[i].key);
                     DAP_DEL_MULTY(l_node_info_data, l_item);
                     continue;
                 }
