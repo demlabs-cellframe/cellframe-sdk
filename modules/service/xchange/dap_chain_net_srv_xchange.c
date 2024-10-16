@@ -1412,19 +1412,18 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                     return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_DOES_NOT_BELONG_ERR;
                 }
                 dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_all_for_addr(l_net,l_addr, c_dap_chain_net_srv_xchange_uid );
-                json_object* json_obj_t = json_object_new_object();
-
+                
                 if (l_tx_list){
                     dap_list_t *l_tx_list_temp = l_tx_list;
-                    json_object_object_add(json_obj_t, "Wallet addr hash", json_object_new_string(l_addr_hash_str));
+                    json_object_object_add(a_json_obj_out, "Wallet addr hash", json_object_new_string(l_addr_hash_str));
                     while(l_tx_list_temp ){
                     dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
-                    s_string_append_tx_cond_info_json(json_obj_t, l_net, l_tx_cur, TX_STATUS_ALL, true, true, false);
+                    s_string_append_tx_cond_info_json(a_json_obj_out, l_net, l_tx_cur, TX_STATUS_ALL, true, true, false);
                     l_tx_list_temp = l_tx_list_temp->next;
                     }
                     dap_list_free(l_tx_list);
                 }else{
-                    json_object_object_add(json_obj_t, "status", json_object_new_string("No history"));
+                    json_object_object_add(a_json_obj_out, "status", json_object_new_string("No history"));
                 }
                 DAP_DELETE(l_addr);
             }
@@ -1433,32 +1432,31 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                 dap_hash_fast_t l_order_tx_hash = {};
                 dap_chain_hash_fast_from_str(l_order_hash_str, &l_order_tx_hash);
                 dap_chain_datum_tx_t * l_tx = dap_chain_net_get_tx_by_hash(l_net, &l_order_tx_hash, TX_SEARCH_TYPE_NET);
-                json_object* json_obj_t = json_object_new_object();
                 
                 if( l_tx){
                     xchange_tx_type_t l_tx_type = dap_chain_net_srv_xchange_tx_get_type(l_net->pub.ledger, l_tx, NULL, NULL, NULL);
                     char *l_tx_hash = dap_chain_hash_fast_to_str_new(&l_order_tx_hash);
                     if(l_tx_type != TX_TYPE_ORDER){
-                        json_object_object_add(json_obj_t, "datum status", json_object_new_string("is not order"));
-                        json_object_object_add(json_obj_t, "datum hash", json_object_new_string(l_tx_hash));
+                        json_object_object_add(a_json_obj_out, "datum status", json_object_new_string("is not order"));
+                        json_object_object_add(a_json_obj_out, "datum hash", json_object_new_string(l_tx_hash));
                     } else {
                         int l_rc = s_tx_check_for_open_close(l_net,l_tx);
                         if(l_rc == 0){
-                            json_object_object_add(json_obj_t, "WRONG TX", json_object_new_string(l_tx_hash));
+                            json_object_object_add(a_json_obj_out, "WRONG TX", json_object_new_string(l_tx_hash));
                         }else{
-                            json_object_object_add(json_obj_t, "history for order", json_object_new_string(l_order_hash_str));
+                            json_object_object_add(a_json_obj_out, "history for order", json_object_new_string(l_order_hash_str));
                             dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net, &l_order_tx_hash, c_dap_chain_net_srv_xchange_uid );
                             dap_list_t *l_tx_list_temp = l_tx_list;
                             while(l_tx_list_temp ){
                                 dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
-                                s_string_append_tx_cond_info_json(json_obj_t, l_net, l_tx_cur, TX_STATUS_ALL, true, true, false);
+                                s_string_append_tx_cond_info_json(a_json_obj_out, l_net, l_tx_cur, TX_STATUS_ALL, true, true, false);
                                 l_tx_list_temp = l_tx_list_temp->next;
                             }
                             dap_list_free(l_tx_list);
                         }
                     }
                 }else{
-                    json_object_object_add(json_obj_t, "status", json_object_new_string("No history"));
+                    json_object_object_add(a_json_obj_out, "status", json_object_new_string("No history"));
                 }
             }
         } break;
@@ -1497,15 +1495,17 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
             if (!l_order_hash_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order %s' requires parameter -order",
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_RMOVE_REQ_PARAM_ORDER_ADDR_ERR, 
+                                                                            "Command 'order %s' requires parameter -order",
                                                                 l_cmd_num == CMD_REMOVE ? "remove" : "update");
-                return -12;
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_RMOVE_REQ_PARAM_ORDER_ADDR_ERR;
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_fee_str);
             if (!l_fee_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order %s' requires parameter -fee",
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_RMOVE_REQ_PARAM_FEE_ERR, 
+                                                                            "Command 'order %s' requires parameter -fee",
                                                   l_cmd_num == CMD_REMOVE ? "remove" : "update");
-                return -12;
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_RMOVE_REQ_PARAM_FEE_ERR;
             }
             uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
             dap_hash_fast_t l_tx_hash = {};
@@ -1515,27 +1515,28 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
             dap_chain_wallet_close(l_wallet);
             switch (l_ret_code) {
                 case XCHANGE_REMOVE_ERROR_OK:
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Order successfully removed. Created inactivate tx with hash %s", l_tx_hash_ret);
+                    json_object_object_add(a_json_obj_out, "status", json_object_new_string("Order successfully removed"));
+                    json_object_object_add(a_json_obj_out, "Created inactivate tx with hash", json_object_new_string(l_tx_hash_ret));
                     DAP_DELETE(l_tx_hash_ret);
                     break;
                 case XCHANGE_REMOVE_ERROR_CAN_NOT_FIND_TX:
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nSpecified order not found", l_sign_str);
+                    dap_json_rpc_error_add(XCHANGE_REMOVE_ERROR_CAN_NOT_FIND_TX, "%s\nSpecified order not found", l_sign_str);
                     break;
                 case XCHANGE_REMOVE_ERROR_CAN_NOT_CREATE_PRICE:
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't create price object from order", l_sign_str);
+                    dap_json_rpc_error_add(XCHANGE_REMOVE_ERROR_CAN_NOT_CREATE_PRICE, "%s\nCan't create price object from order", l_sign_str);
                     break;
                 case XCHANGE_REMOVE_ERROR_FEE_IS_ZERO:
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get fee value.");
+                    dap_json_rpc_error_add(XCHANGE_REMOVE_ERROR_FEE_IS_ZERO, "Can't get fee value.");
                     break;
                 case XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX: {
                     dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
                     dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_cond_tx, &l_fee, false);
                     const char *l_final_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_price->tx_hash);
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create invalidate transaction from: %s\n", l_final_tx_hash_str);
+                    dap_json_rpc_error_add(XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX, "Can't create invalidate transaction from: %s\n", l_final_tx_hash_str);
                     DAP_DELETE(l_price);
                 } break;
                 default:
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "An error occurred with an unknown code: %d.", l_ret_code);
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_RMOVE_UNKNOWN_ERR, "An error occurred with an unknown code: %d.", l_ret_code);
                     break;
             }
             return l_ret_code;
@@ -1544,39 +1545,45 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
         case CMD_STATUS: {
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order status' requires parameter -net");
-                return -2;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_REQ_PARAM_NET_ERR, 
+                                                            "Command 'order status' requires parameter -net");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_REQ_PARAM_NET_ERR;
             }
             l_net = dap_chain_net_by_name(l_net_str);
             if (!l_net) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-                return -3;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_NET_NOT_FOUND_ERR, 
+                                                            "Network %s not found", l_net_str);
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_NET_NOT_FOUND_ERR;
             }
             const char * l_order_hash_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
             if (!l_order_hash_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order history' requires parameter -order or -addr" );
-                return -12;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_REQ_PARAM_ORDER_ADDR_ERR, 
+                                                            "Command 'order status' requires parameter -order or -addr" );
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_REQ_PARAM_ORDER_ADDR_ERR;
             }
             dap_hash_fast_t l_order_tx_hash = {};
             dap_chain_hash_fast_from_str(l_order_hash_str, &l_order_tx_hash);
             dap_chain_datum_tx_t * l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_order_tx_hash);
             if (!l_tx){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find order %s", l_order_hash_str);
-                return -18;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_CANT_FIND_ORDER_ERR, 
+                                                            "Can't find order %s", l_order_hash_str);
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_CANT_FIND_ORDER_ERR;
             }
 
             dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
             if (!l_out_cond || l_out_cond->header.srv_uid.uint64 != DAP_CHAIN_NET_SRV_XCHANGE_ID){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "It's not an order");
-                return -18;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_ITS_NOT_ORDER_ERR, 
+                                                            "It's not an order");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_ITS_NOT_ORDER_ERR;
             }
 
             // TODO add filters to list (tokens, network, etc.)
             dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_tx, NULL, true);
             if( !l_price ){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get price from order");
-                return -18;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_CANT_GET_PRICE_ERR, 
+                                                            "Can't get price from order");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_CANT_GET_PRICE_ERR;
             }
 
             dap_ledger_t * l_ledger = dap_ledger_by_net_name(l_net->pub.name);
@@ -1584,14 +1591,16 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
             char* l_status_order = NULL;
             dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash);
             if( dap_hash_fast_is_blank(&l_last_tx_hash) ){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get last tx cond hash from order");
-                return -18;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_CANT_GET_LAST_TX_ERR, 
+                                                            "Can't get last tx cond hash from order");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_CANT_GET_LAST_TX_ERR;
             }
 
             dap_chain_datum_tx_t * l_last_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_last_tx_hash);
             if (!l_last_tx){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find last tx");
-                return -18;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_CANT_FIND_LAST_TX_ERR, 
+                                                            "Can't find last tx");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_STATUS_CANT_FIND_LAST_TX_ERR;
             }
 
             switch (dap_chain_net_srv_xchange_get_order_status(l_net, l_order_tx_hash))
@@ -1628,24 +1637,29 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
             if (l_out_cond_last_tx)
                 l_amount_datoshi_str = dap_uint256_to_char(l_out_cond_last_tx->header.value, &l_amount_coins_str);
 
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "orderHash: %s\n ts_created: %s\n Status: %s, amount: %s (%s) %s, filled: %lu%%, rate (%s/%s): %s, net: %s\n\n",
-                                     dap_chain_hash_fast_to_str_static(&l_tx_hash),
-                                     l_tmp_buf, l_status_order,
-                                     l_amount_coins_str ? l_amount_coins_str : "0.0",
-                                     l_amount_datoshi_str ? l_amount_datoshi_str : "0",
-                                     l_price->token_sell, l_percent_completed,
-                                     l_price->token_buy, l_price->token_sell,
-                                     l_cp_rate,
-                                     l_price->net->pub.name);
-
-
+            json_object_object_add(a_json_obj_out, "orderHash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_tx_hash)));
+            json_object_object_add(a_json_obj_out, "ts_created", json_object_new_string(l_tmp_buf));
+            json_object_object_add(a_json_obj_out, "status", json_object_new_string(l_status_order));
+            json_object_object_add(a_json_obj_out, "amount coins", l_amount_coins_str ? json_object_new_string(l_amount_coins_str) 
+                                                                                : json_object_new_string("0.0"));
+            json_object_object_add(a_json_obj_out, "amount datoshi", l_amount_datoshi_str ? json_object_new_string(l_amount_datoshi_str) 
+                                                                                : json_object_new_string("0"));
+            json_object_object_add(a_json_obj_out, "token", json_object_new_string(l_price->token_sell));
+            char *l_filled = dap_strdup_printf("%lu%%", l_percent_completed);
+            json_object_object_add(a_json_obj_out, "filled", json_object_new_string(l_filled));
+            DAP_DELETE(l_filled);
+            json_object_object_add(a_json_obj_out, "rate token", json_object_new_string(l_price->token_buy));
+            json_object_object_add(a_json_obj_out, "rate", json_object_new_string(l_cp_rate));
+            json_object_object_add(a_json_obj_out, "net", json_object_new_string(l_price->net->pub.name));
+            
             DAP_DEL_Z(l_cp_rate);
             DAP_DEL_Z(l_price);
         } break;
 
         default: {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Subcommand %s not recognized", a_argv[a_arg_index]);
-            return -4;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_SUB_NOT_FOUND_ERR, 
+                                                            "Subcommand %s not recognized", a_argv[a_arg_index]);
+            return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_SUB_NOT_FOUND_ERR;
         }
     }
     return 0;
