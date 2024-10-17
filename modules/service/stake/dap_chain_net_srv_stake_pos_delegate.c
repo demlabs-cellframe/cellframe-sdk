@@ -137,8 +137,6 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "srv_stake order create staker -net <net_name> -w <wallet_with_m_tokens> -value <stake_value> -fee <value> -tax <percent>"
                         " [-addr <for_tax_collecting>]  [-cert <for_order_signing>] [-H {hex(default) | base58}]\n"
         "\tCreates an order allowing the validator to delegate it's key with specified params\n"
-    "srv_stake order update -net <net_name> -order <order_hash> [-params]\n"
-        "\tUpdates an order with specified hash\n"
     "srv_stake order list [fee | validator | staker] -net <net_name>\n"
         "\tGet orders list of specified type within specified net name\n"
     "srv_stake order remove -net <net_name> -order <order_hash>\n"
@@ -1529,7 +1527,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {
-        CMD_NONE, CMD_CREATE_FEE, CMD_CREATE_VALIDATOR, CMD_CREATE_STAKER, CMD_UPDATE, CMD_LIST,
+        CMD_NONE, CMD_CREATE_FEE, CMD_CREATE_VALIDATOR, CMD_CREATE_STAKER, CMD_LIST,
         CMD_LIST_STAKER, CMD_LIST_VALIDATOR, CMD_LIST_FEE, CMD_REMOVE
     };
     int l_cmd_num = CMD_NONE;
@@ -1542,8 +1540,6 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
         else
             l_cmd_num = CMD_CREATE_FEE;
     }
-    else if (dap_cli_server_cmd_check_option(a_argv, a_arg_index, dap_min(a_argc, a_arg_index + 1), "update") >= 0)
-        l_cmd_num = CMD_UPDATE;
     else if (dap_cli_server_cmd_check_option(a_argv, a_arg_index, dap_min(a_argc, a_arg_index + 1), "list") >= 0)
         l_cmd_num = CMD_LIST;
     else if (dap_cli_server_cmd_check_option(a_argv, a_arg_index, dap_min(a_argc, a_arg_index + 1), "remove") >= 0)
@@ -1792,13 +1788,11 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
         DAP_DELETE(l_tx_hash_str);
     } break;
 
-    case CMD_REMOVE:
-    case CMD_UPDATE: {
+    case CMD_REMOVE: {
         const char *l_order_hash_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
         if (!l_order_hash_str) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_PARAM_ERR, "Command 'srv_stake order %s' requires prameter -order\n",
-                                                l_cmd_num  == CMD_REMOVE ? "remove" : "update");
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_PARAM_ERR, "Command 'srv_stake order remove' requires prameter -order\n");
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_PARAM_ERR;
         }
         char *l_order_hash_hex_str;
@@ -1819,47 +1813,14 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             DAP_DELETE(l_order_hash_hex_str);
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_ORDER_ERR;
         }
-        if (l_cmd_num == CMD_REMOVE) {
-            if (dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str)) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_REMOVE_ERR, "Can't remove order %s\n", l_order_hash_str);
-                return DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_REMOVE_ERR;
-            }
-            json_object * l_json_obj_create_val = json_object_new_object();
-            json_object_object_add(l_json_obj_create_val, "status", json_object_new_string("success"));
-            json_object_array_add(*a_json_arr_reply, l_json_obj_create_val);
-            DAP_DELETE(l_order_hash_hex_str);
-        } else { // l_cmd_num == CMD_UPDATE
-            const char *l_cert_str = NULL, *l_value_str = NULL;
-            // TODO make orders updatable
-            /*uint256_t l_value = {0};
-            if (l_value_str) {
-                l_value = dap_chain_balance_scan(l_value_str);
-                if (IS_ZERO_256(l_value)) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <uint256_t>");
-                    return -8;
-                }
-            }
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
-            if (!l_cert_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order update' requires parameter -cert");
-                return -7;
-            }
-            dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
-            if (!l_cert) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert %s", l_cert_str);
-                return -9;
-            }
-            l_key = l_cert->enc_key;
-            // Remove old order and create the order & put it to GDB
-            dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
-            DAP_DELETE(l_order_hash_hex_str);
-            DAP_DELETE(l_order_hash_base58_str);
-            l_order_hash_hex_str = s_fee_order_create(l_net, &l_value, l_key);
-            if(!l_order_hash_hex_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create new order");
-                return -15;
-            }*/
+        if (dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_REMOVE_ERR, "Can't remove order %s\n", l_order_hash_str);
+            return DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_REMOVE_ERR;
         }
+        json_object * l_json_obj_create_val = json_object_new_object();
+        json_object_object_add(l_json_obj_create_val, "status", json_object_new_string("success"));
+        json_object_array_add(*a_json_arr_reply, l_json_obj_create_val);
+        DAP_DELETE(l_order_hash_hex_str);
     } break;
 
     case CMD_LIST: {
