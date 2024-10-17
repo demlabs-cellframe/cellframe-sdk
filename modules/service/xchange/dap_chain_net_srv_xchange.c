@@ -2224,8 +2224,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
 
     switch (l_cmd_num) {
-        case CMD_ORDER:
-            return s_cli_srv_xchange_order(a_argc, a_argv, l_arg_index + 1, a_str_reply);
+        case CMD_ORDER: {
+            json_object* json_obj_order = json_object_new_object();
+            int res = s_cli_srv_xchange_order(a_argc, a_argv, l_arg_index + 1, json_obj_order);
+            json_object_array_add(*json_arr_reply, json_obj_order);
+            return res;
+        }
         case CMD_ORDERS: {
             const char *l_net_str = NULL;
             const char *l_status_str = NULL;
@@ -2295,19 +2299,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
             size_t l_arr_start = 0;            
-            size_t l_arr_end = dap_list_length(l_tx_list);
+            size_t l_arr_end = 0;
             json_object* json_obj_order = json_object_new_object();
-            if (l_offset > 0) {
-                l_arr_start = l_offset;
-                json_object_object_add(json_obj_order, "offset", json_object_new_uint64(l_arr_start));               
-            }
-            if (l_limit) {
-                json_object_object_add(json_obj_order, "limit", json_object_new_uint64(l_limit));
-                l_arr_end = l_arr_start + l_limit;
-                if (l_arr_end > dap_list_length(l_tx_list)) {
-                    l_arr_end = dap_list_length(l_tx_list);
-                }
-            }            
+            s_set_offset_limit_json(json_obj_order, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_tx_list));
             size_t i_tmp = 0;
             json_object* json_arr_orders_out = json_object_new_array();
             // Print all txs
@@ -2394,13 +2388,13 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 DAP_DEL_MULTY(l_cp_rate, l_price);
             }
             json_object_object_add(json_obj_order, "ORDERS", json_arr_orders_out);
+            json_object_array_add(*json_arr_reply, json_obj_order);
             dap_list_free(l_tx_list);            
         } break;
 
         case CMD_PURCHASE: {
             const char *l_net_str = NULL, *l_wallet_str = NULL, *l_order_hash_str = NULL, *l_val_buy_str = NULL, *l_val_fee_str = NULL;
-            l_arg_index++;
-            json_object* json_obj_orders = json_object_new_object();
+            l_arg_index++;            
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PURCHASE_REQ_PARAM_NET_ERR, "Command 'purchase' requires parameter -net");
@@ -2448,7 +2442,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                                                                 l_wallet, &l_str_ret_hash);
             switch (l_ret_code) {
                 case XCHANGE_PURCHASE_ERROR_OK: {
+                    json_object* json_obj_orders = json_object_new_object();
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Exchange transaction has done. tx hash: %s", l_str_ret_hash);
+                    json_object_object_add(json_obj_orders, "status", json_object_new_string("Exchange transaction has done"));
+                    json_object_object_add(json_obj_orders, "hash", json_object_new_string(l_str_ret_hash));
+                    json_object_array_add(*json_arr_reply, json_obj_orders);
                     DAP_DELETE(l_str_ret_hash);
                     return 0;
                 }
@@ -2534,8 +2532,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             /* Dispatch request processing to ... */
             if ( l_addr_str )
             {
-                if ( !(l_addr = dap_chain_addr_from_str(l_addr_str)) )
-                    return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Cannot convert -addr '%s' to internal representative", l_addr_str), -EINVAL;
+                if ( !(l_addr = dap_chain_addr_from_str(l_addr_str)) ) {
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_LIST_CAN_NOT_CONVERT_ERR,
+                                           "Cannot convert -addr '%s' to internal representative", l_addr_str);
+                    return -EINVAL;
+                }
 
                 return  s_cli_srv_xchange_tx_list_addr (l_net, l_time[0], l_time[1], l_addr, l_opt_status, a_str_reply);
             }
