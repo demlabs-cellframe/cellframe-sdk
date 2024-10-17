@@ -612,6 +612,17 @@ struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t *a_net) {
     return l_json;
 }
 
+struct json_object *dap_chain_net_list_json_collect(){
+    json_object *l_json = json_object_new_object();
+    json_object_object_add(l_json, "class", json_object_new_string("NetList"));
+    json_object *l_json_networks = json_object_new_array();
+    for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        json_object_array_add(l_json_networks, json_object_new_string(l_net->pub.name));
+    }
+    json_object_object_add(l_json, "networks", l_json_networks);
+    return l_json;
+}
+
 /**
  * @brief s_net_states_notify
  * @param l_net

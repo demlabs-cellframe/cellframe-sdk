@@ -8505,6 +8505,9 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
 }
 
 void dap_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void *a_arg) {
+    struct json_object *l_json_nets = dap_chain_net_list_json_collect();
+    dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_nets));
+    json_object_put(l_json_nets);
     struct json_object *l_json_wallets = json_object_new_array();
     char *l_args[2] = { "wallet", "list" };
     com_tx_wallet(2, l_args, (void**)&l_json_wallets);
