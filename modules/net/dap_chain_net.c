@@ -1260,7 +1260,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 json_object_object_add(l_jobj_return, "to", l_jobj_to);
                 if (dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE)) {
                     json_object_put(l_jobj_return);
-                    dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START, "%s",
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START, "%s",
                                             "Can't change state of loading network\n");
                     return DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START;
                 }
@@ -1275,7 +1275,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 json_object_object_add(l_jobj_return, "to", l_jobj_to);
                 if ( dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE) ) {
                     json_object_put(l_jobj_return);
-                    dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START, "%s",
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START, "%s",
                                             "Can't change state of loading network\n");
                     return DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START;
                 }
@@ -1294,7 +1294,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     l_ret = dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
                 if (l_ret) {
                     json_object_put(l_jobj_return);
-                    dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START, "%s",
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START, "%s",
                                             "Can't change state of loading network\n");
                     return DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START;
                 }
