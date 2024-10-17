@@ -495,11 +495,15 @@ int s_link_manager_link_request(uint64_t a_net_id)
     if (l_net_pvt->state == NET_STATE_LINKS_PREPARE)
         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
     struct request_link_info *l_balancer_link = s_balancer_link_from_cfg(l_net);
-    if (!l_balancer_link) {
-        log_it(L_ERROR, "Can't process balancer link %s request in nte %s", dap_chain_net_balancer_type_to_str(PVT(l_net)->balancer_type), l_net->pub.name);
-        return -5;
-    }
-    return dap_chain_net_balancer_request(l_net, l_balancer_link->addr,  l_balancer_link->port, PVT(l_net)->balancer_type);
+    if (!l_balancer_link)
+        return log_it(L_ERROR, "Can't process balancer link %s request in net %s", 
+                        dap_chain_net_balancer_type_to_str(PVT(l_net)->balancer_type), l_net->pub.name), -5;
+    dap_balancer_link_request_t *l_arg = DAP_NEW_Z(dap_balancer_link_request_t);
+    l_arg->net = l_net;
+    l_arg->host_addr = (const char*)l_balancer_link->addr;
+    l_arg->host_port = l_balancer_link->port;
+    l_arg->type = PVT(l_net)->balancer_type;
+    return dap_worker_exec_callback_on(dap_worker_get_auto(), dap_chain_net_balancer_request, l_arg), 0;
 }
 
 int s_link_manager_fill_net_info(dap_link_t *a_link)
@@ -2806,6 +2810,8 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
         return -101;
     }
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+    if ( dap_ledger_datum_is_blacklisted(l_ledger, *a_datum_hash) )
+        return log_it(L_ERROR, "Datum is blackilsted"), -100;
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
@@ -3208,10 +3214,10 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
     }
     l_net_pvt->sync_context.cur_chain = l_curr_chain;
     if (l_curr_chain) {
-        log_it(L_DEBUG, "Go to chain \"%s\" for net %s", l_curr_chain->name, l_curr_chain->net_name);
+        debug_if(s_debug_more, L_DEBUG, "Go to chain \"%s\" for net %s", l_curr_chain->name, l_curr_chain->net_name);
         return l_curr_chain;
     }
-    log_it(L_DEBUG, "Go to next chain: <NULL>");
+    debug_if(s_debug_more, L_DEBUG, "Go to next chain: <NULL>");
     if (l_net_pvt->state_target != NET_STATE_ONLINE) {
         dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
         return NULL;
