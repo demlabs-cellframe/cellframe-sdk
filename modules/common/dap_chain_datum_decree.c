@@ -255,6 +255,7 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
                     ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_signing)
                     : dap_chain_hash_fast_to_str_static(&l_pkey_signing);
             json_object_object_add(a_json_out, "Signing pkey fingerprint", json_object_new_string(l_pkey_signing_str));
+            break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
             if(l_tsd->size > sizeof(dap_chain_node_addr_t)){
                 json_object_object_add(a_json_out, "Node addr", json_object_new_string("WRONG SIZE"));
