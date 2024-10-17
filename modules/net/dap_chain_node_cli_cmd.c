@@ -105,6 +105,8 @@
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_json_rpc.h"
 #include "dap_json_rpc_request.h"
+#include "dap_client_pvt.h"
+#include "dap_enc.h"
 
 
 #define LOG_TAG "chain_node_cli_cmd"
@@ -8569,20 +8571,122 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     dap_json_rpc_params_add_data(params, l_cmd_str, TYPE_PARAM_STRING);
     uint64_t l_id_response = dap_json_rpc_response_get_new_id();
     char ** l_cmd_arr_str = dap_strsplit(l_cmd_str, ";", -1);
-    dap_json_rpc_request_t *a_request = dap_json_rpc_request_creation(l_cmd_arr_str[0], params, l_id_response);
+    dap_json_rpc_request_t *l_request = dap_json_rpc_request_creation(l_cmd_arr_str[0], params, l_id_response);
     dap_strfreev(l_cmd_arr_str);
     // char * request_str = dap_json_rpc_request_to_json_string(a_request);
     dap_chain_node_addr_t l_node_addr;
     dap_chain_node_addr_from_str(&l_node_addr, l_addr_str);
-    dap_chain_node_info_t *l_remote = dap_chain_node_info_read(l_net, &l_node_addr);
-    DAP_DEL_Z(l_cmd_str);
-    if (!l_remote) {
-        dap_json_rpc_error_add(-1, "Can't find remote node: %s", l_addr_str);
-        return -3;
-    }
-    if (!dap_json_rpc_request_send(a_request, dap_json_rpc_response_accepted, l_remote->ext_host, l_remote->ext_port, dap_json_rpc_error_callback))
-        log_it(L_INFO, "com_exec sent request to %s:%d", l_remote->ext_host, l_remote->ext_port);
 
+    dap_chain_node_info_t *node_info = node_info_read_and_reply(l_net, &l_node_addr, NULL);
+    if(!node_info)
+        return -6;
+    int timeout_ms = 5000; //5 sec = 5000 ms
+    // start handshake
+    dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net,node_info);
+    if(!l_client) {
+        // dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't connect");
+        DAP_DELETE(node_info);
+        return -7;
+    }
+    // wait handshake
+    int res = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
+    if (res) {
+        // dap_cli_server_cmd_set_reply_text(a_str_reply, "No response from node");
+        // clean client struct
+        dap_chain_node_client_close_unsafe(l_client);
+        DAP_DELETE(node_info);
+        return -8;
+    }
+    char* l_request_data_str =  dap_json_rpc_request_to_http_str(l_request);
+
+    // if (!dap_json_rpc_request_send(l_request, dap_json_rpc_response_accepted, node_info->ext_host, node_info->ext_port, dap_json_rpc_error_callback))
+    //     log_it(L_INFO, "com_exec sent request to %s:%d", node_info->ext_host, node_info->ext_port);
+
+    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(l_client->client);
+
+    const char * l_sub_url = dap_strdup_printf("channels=%s,enc_type=%d,enc_key_size=%zu,enc_headers=%d",
+                                                     l_client_internal->client->active_channels, l_client_internal->session_key_type,
+                                                     l_client_internal->session_key_block_size, 0);
+
+    bool is_query_enc = true;
+    const char * a_query = "type=tcp,maxconn=4";
+    size_t l_sub_url_size = l_sub_url ? strlen(l_sub_url) : 0;
+    size_t l_query_size = a_query ? strlen(a_query) : 0;
+
+    size_t l_sub_url_enc_size_max = l_sub_url_size ? (5 * l_sub_url_size + 16) : 0;
+    char *l_sub_url_enc = l_sub_url_size ? DAP_NEW_Z_SIZE(char, l_sub_url_enc_size_max + 1) : NULL;
+
+    size_t l_query_enc_size_max = (is_query_enc) ? (l_query_size * 5 + 16) : l_query_size;
+    char *l_query_enc =
+            (is_query_enc) ? (l_query_size ? DAP_NEW_Z_SIZE(char, l_query_enc_size_max + 1) : NULL) : (char*) a_query;
+
+    size_t l_request_data_size = strlen(l_request_data_str);
+    size_t l_request_enc_size_max = l_request_data_size ? l_request_data_size * 2 + 16 : 0;
+    char * l_request_enc = l_request_data_size ? DAP_NEW_Z_SIZE(char, l_request_enc_size_max + 1) : NULL;
+    size_t l_request_enc_size = 0;
+
+    // l_client_internal->request_response_callback = dap_json_rpc_response_accepted;
+    // l_client_internal->request_error_callback = dap_json_rpc_error_callback;
+    l_client_internal->is_encrypted = true;
+    dap_enc_data_type_t l_enc_type;
+
+    if(l_client_internal->uplink_protocol_version >= 21)
+        l_enc_type = DAP_ENC_DATA_TYPE_B64_URLSAFE;
+    else
+        l_enc_type = DAP_ENC_DATA_TYPE_B64;
+
+    if(l_sub_url_size)
+        dap_enc_code(l_client_internal->session_key,
+                l_sub_url, l_sub_url_size,
+                l_sub_url_enc, l_sub_url_enc_size_max,
+                l_enc_type);
+
+    if(is_query_enc && l_query_size)
+        dap_enc_code(l_client_internal->session_key,
+                a_query, l_query_size,
+                l_query_enc, l_query_enc_size_max,
+                l_enc_type);
+
+    if(l_request_data_size)
+        l_request_enc_size = dap_enc_code(l_client_internal->session_key,
+                l_request_data_str, l_request_data_size,
+                l_request_enc, l_request_enc_size_max,
+                DAP_ENC_DATA_TYPE_RAW);
+
+    size_t l_path_size= l_query_enc_size_max + l_sub_url_enc_size_max + 1;
+    const char * path = "exec_cmd";
+    char *l_path = DAP_NEW_Z_SIZE(char, l_path_size);
+    l_path[0] = '\0';
+    if(path) {
+        if(l_sub_url_size){
+            if(l_query_size){
+                snprintf(l_path, l_path_size, "%s/%s?%s", path?path:"",
+                             l_sub_url_enc?l_sub_url_enc:"",
+                                   l_query_enc?l_query_enc:"");
+            }else{
+                snprintf(l_path, l_path_size, "%s/%s", path, l_sub_url_enc);
+            }
+        } else {
+            dap_stpcpy(l_path, path);
+        }
+    }
+
+    size_t l_size_required = l_client_internal->session_key_id ? strlen(l_client_internal->session_key_id) + 40 : 40;
+    char *l_custom = DAP_NEW_Z_SIZE(char, l_size_required);
+    size_t l_off = snprintf(l_custom, l_size_required, "KeyID: %s\r\n", l_client_internal->session_key_id ? l_client_internal->session_key_id : "NULL");
+    if (l_client_internal->is_close_session)
+        snprintf(l_custom + l_off, l_size_required - l_off, "%s\r\n", "SessionCloseAfterRequest: true");
+
+    l_client_internal->http_client = dap_client_http_request(l_client_internal->worker, l_client_internal->client->link_info.uplink_addr,
+                        l_client_internal->client->link_info.uplink_port,
+                        "POST", "application/json",
+                        l_path, l_request_enc, l_request_enc_size, NULL,
+                        dap_json_rpc_response_accepted, NULL, l_client_internal, l_custom);
+    DAP_DEL_Z(l_sub_url_enc);
+    DAP_DEL_Z(l_custom);
+    DAP_DEL_Z(l_query_enc);
+    DAP_DEL_Z(l_path);
+    DAP_DEL_Z(l_request_enc);
     json_object_array_add(*a_json_arr_reply, json_object_new_string("DONE"));
     return 0;
 }
