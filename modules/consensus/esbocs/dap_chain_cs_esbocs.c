@@ -3190,7 +3190,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         const char * l_net_str = NULL, *l_chain_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
         if (!l_net_str) {
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_NET,"Command '%s' requires parameter -net", l_subcmd_strs[l_subcmd]);
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_NET,"Command '%s' requires parameter -net", l_subcmd_strs[l_subcmd]);
             return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_NET;
         }
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &l_chain_str);
