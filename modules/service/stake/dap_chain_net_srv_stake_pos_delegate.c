@@ -2316,6 +2316,7 @@ typedef enum s_cli_srv_stake_update_err{
     DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_NOT_DELGATED_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_NO_TX_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_INVALID_TX_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_TX_SPENT_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_NO_WALLET_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_CANT_COMPOSE_ERR,
 } s_cli_srv_stake_update_err_t;
@@ -2421,12 +2422,12 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, vo
     }
     int l_out_num = 0;
     if (!dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_out_num)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, "Transaction %s is invalid", l_tx_hash_str_tmp);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_INVALID_TX_ERR, "Transaction %s is invalid", l_tx_hash_str_tmp);
         return -22;
     }
     dap_hash_fast_t l_spender_hash = {};
     if (dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_tx_hash, l_out_num, &l_spender_hash)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_INVALID_TX_ERR, "Transaction %s is spent", l_tx_hash_str_tmp);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_TX_SPENT_ERR, "Transaction %s is spent", l_tx_hash_str_tmp);
         return -23;
     }
 
