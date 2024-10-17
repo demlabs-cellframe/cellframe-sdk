@@ -8600,4 +8600,9 @@ void dap_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void 
     struct json_object *l_json_wallets_info = wallets_info_json_collect();
     dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallets_info));
     json_object_put(l_json_wallets_info);
+    for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        struct json_object *l_json_net_states = dap_chain_net_states_json_collect(l_net);
+        dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_net_states));
+        json_object_put(l_json_net_states);
+    }
 }
