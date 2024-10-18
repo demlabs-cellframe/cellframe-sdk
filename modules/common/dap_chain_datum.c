@@ -217,7 +217,8 @@ void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datu
  * @param a_tx_hash_processed
  * @param l_tx_num
  */
-bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
+bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
+                             dap_chain_datum_tx_t *a_datum,
                              const char *a_ticker,
                              json_object* json_obj_out,
                              const char *a_hash_out_type,
@@ -238,8 +239,8 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
     json_object_object_add(json_obj_out, "first transaction", json_object_new_string("emit")):
     json_object_object_add(json_obj_out, "first transaction", json_object_new_string(""));
     json_object_object_add(json_obj_out, "hash", json_object_new_string(l_hash_str));
-    json_object_object_add(json_obj_out, "TS Created", json_object_new_string(l_tmp_buf));
-    json_object_object_add(json_obj_out, "Token ticker", a_ticker ? json_object_new_string(a_ticker) : json_object_new_string(""));
+    json_object_object_add(json_obj_out, "tx created", json_object_new_string(l_tmp_buf));
+    json_object_object_add(json_obj_out, "token ticker", a_ticker ? json_object_new_string(a_ticker) : json_object_new_string(""));
     //json_object_array_add(json_arr_items, json_obj_tx);
 
     dap_hash_fast_t l_hash_tmp = { };
@@ -297,7 +298,7 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
         case TX_ITEM_TYPE_SIG: {
             dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*)item);
             json_object_object_add(json_obj_item,"item type", json_object_new_string("SIG"));
-            dap_sign_get_information_json(l_sign, json_obj_item, a_hash_out_type);
+            dap_sign_get_information_json(a_json_arr_reply, l_sign, json_obj_item, a_hash_out_type);
             dap_chain_addr_t l_sender_addr;
             dap_chain_addr_fill_from_sign(&l_sender_addr, l_sign, a_net_id);
             json_object_object_add(json_obj_item,"Sender addr", json_object_new_string(dap_chain_addr_to_str_static(&l_sender_addr)));            
@@ -319,12 +320,12 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
             case (sizeof(dap_sign_t) * 2): {
                 dap_sign_t *l_client = DAP_CAST_PTR( dap_sign_t, ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs + sizeof(dap_sign_t) );
                 json_object_object_add(json_obj_item,"Client", json_object_new_string(""));
-                dap_sign_get_information_json(l_client, json_obj_item, a_hash_out_type);                
+                dap_sign_get_information_json(a_json_arr_reply, l_client, json_obj_item, a_hash_out_type);                
             }
             case (sizeof(dap_sign_t)): {
                 dap_sign_t *l_provider = DAP_CAST_PTR( dap_sign_t, ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs );
                 json_object_object_add(json_obj_item,"Provider", json_object_new_string(""));
-                dap_sign_get_information_json(l_provider,json_obj_item, a_hash_out_type);
+                dap_sign_get_information_json(a_json_arr_reply, l_provider,json_obj_item, a_hash_out_type);
                 break;
             }
             }
@@ -489,10 +490,10 @@ bool dap_chain_datum_dump_tx_json(dap_chain_datum_tx_t *a_datum,
  * @param a_obj_out
  * @param a_datum
  */
-void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id)
+void dap_chain_datum_dump_json(json_object* a_json_arr_reply, json_object  *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id)
 {
     if( a_datum == NULL){
-        dap_json_rpc_error_add(-1,"==Datum is NULL");
+        dap_json_rpc_error_add(a_json_arr_reply, -1,"==Datum is NULL");
         return;
     }
     json_object * json_obj_datum = json_object_new_object();
@@ -506,7 +507,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
             size_t l_token_size = a_datum->header.data_size;
             dap_chain_datum_token_t * l_token = dap_chain_datum_token_read(a_datum->data, &l_token_size);
             if(l_token_size < sizeof(dap_chain_datum_token_t)){
-                dap_json_rpc_error_add(-2,"==Datum has incorrect size. Only %zu, while at least %zu is expected\n",
+                dap_json_rpc_error_add(a_json_arr_reply, -2,"==Datum has incorrect size. Only %zu, while at least %zu is expected\n",
                                          l_token_size, sizeof(dap_chain_datum_token_t));
                 DAP_DEL_Z(l_token);
                 return;
@@ -624,7 +625,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
                 {
                     log_it(L_ERROR, "Illformed DATUM type %d, TSD section is out-of-buffer (%" DAP_UINT64_FORMAT_U " vs %zu)",
                         l_emission->hdr.type, l_emission->data.type_auth.tsd_total_size, l_emission_size);
-                    dap_json_rpc_error_add(-3,"Skip incorrect or illformed DATUM");
+                    dap_json_rpc_error_add(a_json_arr_reply, -3,"Skip incorrect or illformed DATUM");
                     break;
                 }
                 dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size,
@@ -653,7 +654,7 @@ void dap_chain_datum_dump_json(json_object  *a_obj_out, dap_chain_datum_t *a_dat
         } break;
         case DAP_CHAIN_DATUM_TX: {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)a_datum->data;
-            dap_chain_datum_dump_tx_json(l_tx, NULL, json_obj_datum, a_hash_out_type, &l_datum_hash, a_net_id);
+            dap_chain_datum_dump_tx_json(a_json_arr_reply, l_tx, NULL, json_obj_datum, a_hash_out_type, &l_datum_hash, a_net_id);
         } break;
         case DAP_CHAIN_DATUM_DECREE:{
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
