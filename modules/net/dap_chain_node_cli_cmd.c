@@ -8508,6 +8508,9 @@ void dap_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void 
     struct json_object *l_json_nets = dap_chain_net_list_json_collect();
     dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_nets));
     json_object_put(l_json_nets);
+    struct json_object *l_json_nets_info = dap_chain_nets_info_json_collect();
+    dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_nets_info));
+    json_object_put(l_json_nets_info);
     struct json_object *l_json_wallets = json_object_new_array();
     char *l_args[2] = { "wallet", "list" };
     com_tx_wallet(2, l_args, (void**)&l_json_wallets);
@@ -8515,9 +8518,6 @@ void dap_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void 
     struct json_object *l_json_wallet_arr = json_object_array_get_idx(l_json_wallets, 0);
     size_t l_count = json_object_array_length(l_json_wallet_arr);
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
-        struct json_object *l_json_net_states = dap_chain_net_states_json_collect(l_net);
-        dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_net_states));
-        json_object_put(l_json_net_states);
         for (size_t i = 0; i < l_count; ++i) {
             struct json_object *l_json_wallet = json_object_array_get_idx(l_json_wallet_arr, i),
                 *l_json_wallet_name = json_object_object_get(l_json_wallet, "Wallet");

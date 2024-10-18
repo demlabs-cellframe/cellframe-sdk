@@ -594,21 +594,25 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
     return l_jobj_chains_array;
 }
 
+void s_chain_net_states_to_json(dap_chain_net_t *a_net, json_object *a_json_out){
+    json_object_object_add(a_json_out, "name"             , json_object_new_string((const char*)a_net->pub.name));
+    json_object_object_add(a_json_out, "networkState"     , json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state)));
+    json_object_object_add(a_json_out, "targetState"      , json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state_target)));
+    json_object_object_add(a_json_out, "linksCount"       , json_object_new_int(0));
+    json_object_object_add(a_json_out, "activeLinksCount" , json_object_new_int(dap_link_manager_links_count(a_net->pub.id.uint64)));
+    char l_node_addr_str[24] = {'\0'};
+    int l_tmp = snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(g_node_addr));
+    json_object_object_add(a_json_out, "nodeAddress"     , json_object_new_string(l_tmp ? l_node_addr_str : "0000::0000::0000::0000"));
+    if (PVT(a_net)->state == NET_STATE_SYNC_CHAINS) {
+        json_object *l_json_sync_status = s_net_sync_status(a_net);
+        json_object_object_add(a_json_out, "processed", l_json_sync_status);
+    }
+}
+
 struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t *a_net) {
     json_object *l_json = json_object_new_object();
     json_object_object_add(l_json, "class"            , json_object_new_string("NetStates"));
-    json_object_object_add(l_json, "name"             , json_object_new_string((const char*)a_net->pub.name));
-    json_object_object_add(l_json, "networkState"     , json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state)));
-    json_object_object_add(l_json, "targetState"      , json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state_target)));
-    json_object_object_add(l_json, "linksCount"       , json_object_new_int(0));
-    json_object_object_add(l_json, "activeLinksCount" , json_object_new_int(dap_link_manager_links_count(a_net->pub.id.uint64)));
-    char l_node_addr_str[24] = {'\0'};
-    int l_tmp = snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(g_node_addr));
-    json_object_object_add(l_json, "nodeAddress"     , json_object_new_string(l_tmp ? l_node_addr_str : "0000::0000::0000::0000"));
-    if (PVT(a_net)->state == NET_STATE_SYNC_CHAINS) {
-        json_object *l_json_sync_status = s_net_sync_status(a_net);
-        json_object_object_add(l_json, "processed", l_json_sync_status);
-    }
+    s_chain_net_states_to_json(a_net, l_json);
     return l_json;
 }
 
@@ -618,6 +622,19 @@ struct json_object *dap_chain_net_list_json_collect(){
     json_object *l_json_networks = json_object_new_array();
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
         json_object_array_add(l_json_networks, json_object_new_string(l_net->pub.name));
+    }
+    json_object_object_add(l_json, "networks", l_json_networks);
+    return l_json;
+}
+
+struct json_object *dap_chain_nets_info_json_collect(){
+    json_object *l_json = json_object_new_object();
+    json_object_object_add(l_json, "class", json_object_new_string("NetsInfo"));
+    json_object *l_json_networks = json_object_new_object();
+    for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        json_object *l_jobj_net_info = json_object_new_object();
+        s_chain_net_states_to_json(l_net, l_jobj_net_info);
+        json_object_object_add(l_json_networks, l_net->pub.name, l_jobj_net_info);
     }
     json_object_object_add(l_json, "networks", l_json_networks);
     return l_json;
