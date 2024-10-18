@@ -1911,21 +1911,18 @@ dap_chain_datum_tx_t *dap_ledger_tx_unspent_find_by_hash(dap_ledger_t *a_ledger,
     return s_tx_find_by_hash(a_ledger, a_tx_hash, NULL, true);
 }
 
-dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond_out)
+dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash)
 {
-    dap_hash_fast_t l_hash = { }, l_hash_tmp;
-    if (!a_ledger || !a_cond_out || !a_tx){
-        log_it(L_ERROR, "Argument is NULL in dap_ledger_get_first_chain_tx_hash()");
-        return l_hash;
-    }
-    dap_chain_datum_tx_t *l_prev_tx = a_tx;
-    byte_t *l_iter = a_tx->tx_items;
+    dap_return_val_if_fail(a_ledger && a_tx_hash, (dap_hash_fast_t) {});
+    dap_hash_fast_t l_hash = *a_tx_hash, l_hash_tmp;
+    dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, a_tx_hash);
+    byte_t *l_iter = l_prev_tx->tx_items;
     while (( l_iter = dap_chain_datum_tx_item_get(l_prev_tx, NULL, l_iter, TX_ITEM_TYPE_IN_COND, NULL) )) {
         l_hash_tmp =  ((dap_chain_tx_in_cond_t *)l_iter)->header.tx_prev_hash;
         if ( dap_hash_fast_is_blank(&l_hash_tmp) )
             return l_hash_tmp;
         if (( l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_hash_tmp) ) &&
-                ( dap_chain_datum_tx_out_cond_get(l_prev_tx, a_cond_out->header.subtype, NULL) )) {
+                ( dap_chain_datum_tx_out_cond_get(l_prev_tx, a_cond_type, NULL) )) {
             l_hash = l_hash_tmp;
             l_iter = l_prev_tx->tx_items;
         }
@@ -2065,6 +2062,11 @@ int dap_ledger_tax_callback_set(dap_ledger_tax_callback_t a_callback)
         return -1;
     s_tax_callback = a_callback;
     return 0;
+}
+
+void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_cache_tx_check_callback_t a_callback)
+{
+    PVT(a_ledger)->cache_tx_check_callback = a_callback;
 }
 
 uint256_t dap_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr, const char *a_token_ticker)
