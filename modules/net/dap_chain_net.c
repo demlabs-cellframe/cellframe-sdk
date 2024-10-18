@@ -231,6 +231,7 @@ static int s_net_try_online(dap_chain_net_t *a_net);
 static int s_cli_net(int argc, char ** argv, void **a_str_reply);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static void s_sync_timer_callback(void *a_arg);
+static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_object *a_json_out);
 
 /**
  * @brief
@@ -612,6 +613,7 @@ void s_chain_net_states_to_json(dap_chain_net_t *a_net, json_object *a_json_out)
 struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t *a_net) {
     json_object *l_json = json_object_new_object();
     json_object_object_add(l_json, "class"            , json_object_new_string("NetStates"));
+    s_set_reply_text_node_status_json(a_net, l_json);
     s_chain_net_states_to_json(a_net, l_json);
     return l_json;
 }
@@ -633,7 +635,7 @@ struct json_object *dap_chain_nets_info_json_collect(){
     json_object *l_json_networks = json_object_new_object();
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
         json_object *l_jobj_net_info = json_object_new_object();
-        s_chain_net_states_to_json(l_net, l_jobj_net_info);
+        s_set_reply_text_node_status_json(l_net, l_jobj_net_info);
         json_object_object_add(l_json_networks, l_net->pub.name, l_jobj_net_info);
     }
     json_object_object_add(l_json, "networks", l_json_networks);
@@ -796,10 +798,11 @@ dap_string_t* dap_cli_list_net()
     return l_string_ret;
 }
 
-json_object* s_set_reply_text_node_status_json(dap_chain_net_t *a_net) {
-    json_object *l_jobj_ret = json_object_new_object();
+static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_object *a_json_out) {
+    if (!a_net || !a_json_out)
+        return;
     json_object *l_jobj_net_name  = json_object_new_string(a_net->pub.name);
-    json_object_object_add(l_jobj_ret, "net", l_jobj_net_name);
+    json_object_object_add(a_json_out, "net", l_jobj_net_name);
     dap_chain_node_addr_t l_cur_node_addr = { 0 };
     l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
     json_object *l_jobj_cur_node_addr;
@@ -811,29 +814,27 @@ json_object* s_set_reply_text_node_status_json(dap_chain_net_t *a_net) {
         DAP_DELETE(l_cur_node_addr_str);
     }
     if (!l_jobj_cur_node_addr) {
-        json_object_put(l_jobj_ret);
-        return NULL;
+        return;
     }
-    json_object_object_add(l_jobj_ret, "current_addr", l_jobj_cur_node_addr);
+    json_object_object_add(a_json_out, "current_addr", l_jobj_cur_node_addr);
     if (PVT(a_net)->state != NET_STATE_OFFLINE) {
         json_object *l_jobj_links = json_object_new_object();
         json_object *l_jobj_active_links = json_object_new_uint64(dap_link_manager_links_count(a_net->pub.id.uint64));
         json_object *l_jobj_required_links = json_object_new_uint64(dap_link_manager_required_links_count(a_net->pub.id.uint64));
         json_object_object_add(l_jobj_links, "active", l_jobj_active_links);
         json_object_object_add(l_jobj_links, "required", l_jobj_required_links);
-        json_object_object_add(l_jobj_ret, "links", l_jobj_links);
+        json_object_object_add(a_json_out, "links", l_jobj_links);
     }
 
     json_object *l_json_sync_status = s_net_sync_status(a_net);
-    json_object_object_add(l_jobj_ret, "processed", l_json_sync_status);
+    json_object_object_add(a_json_out, "processed", l_json_sync_status);
 
     json_object *l_jobj_states = json_object_new_object();
     json_object *l_jobj_current_states = json_object_new_string(c_net_states[PVT(a_net)->state]);
     json_object *l_jobj_target_states = json_object_new_string(c_net_states[PVT(a_net)->state_target]);
     json_object_object_add(l_jobj_states, "current", l_jobj_current_states);
     json_object_object_add(l_jobj_states, "target", l_jobj_target_states);
-    json_object_object_add(l_jobj_ret, "states", l_jobj_states);
-    return l_jobj_ret;
+    json_object_object_add(a_json_out, "states", l_jobj_states);
 }
 
 void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
@@ -1302,7 +1303,8 @@ static int s_cli_net(int argc, char **argv, void **reply)
             }
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
-                json_object *l_jobj = s_set_reply_text_node_status_json(l_net);
+                json_object *l_jobj = json_object_new_object();
+                s_set_reply_text_node_status_json(l_net, l_jobj);
                 if (!l_jobj) {
                     json_object_put(l_jobj_return);
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
