@@ -234,7 +234,6 @@ int dap_chain_net_init()
 {
     dap_ledger_init();
     dap_chain_ch_init();
-    dap_ledger_anchor_init();
     dap_chain_net_ch_init();
     dap_chain_node_client_init();
     dap_http_ban_list_client_init();
@@ -849,7 +848,6 @@ void dap_chain_net_purge(dap_chain_net_t *l_net)
                 debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
         }
     }
-    dap_ledger_decree_init(l_net);
 }
 
 /**
@@ -2025,8 +2023,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
 
     // init LEDGER model
     l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
-    // Decrees initializing
-    dap_ledger_decree_init(l_net);
+
     return 0;
 }
 

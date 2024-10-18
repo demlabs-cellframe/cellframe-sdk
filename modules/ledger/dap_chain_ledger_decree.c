@@ -41,10 +41,8 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net);
 static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_anchored);
 static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply);
 
-static bool s_debug_more = false;
-
 // Public functions
-int dap_ledger_decree_init(dap_chain_net_t *a_net)
+int dap_ledger_decree_create(dap_chain_net_t *a_net)
 {
     size_t l_auth_certs_count = 0;
 
@@ -52,8 +50,6 @@ int dap_ledger_decree_init(dap_chain_net_t *a_net)
         log_it(L_WARNING,"Invalid arguments. a_net must be not NULL");
         return -106;
     }
-
-    s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
 
     dap_list_t *l_net_keys = NULL;
     uint16_t l_count_verify = 0;
@@ -77,7 +73,7 @@ int dap_ledger_decree_init(dap_chain_net_t *a_net)
     return 0;
 }
 
-int dap_ledger_decree_deinit(dap_chain_net_t *a_net)
+static int s_decree_clear(dap_chain_net_t *a_net)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
     dap_list_free_full(l_ledger_pvt->decree_owners_pkeys, NULL);
@@ -95,8 +91,8 @@ int dap_ledger_decree_deinit(dap_chain_net_t *a_net)
 
 void dap_ledger_decree_purge(dap_chain_net_t *a_net)
 {
-    dap_ledger_decree_deinit(a_net);
-    dap_ledger_decree_init(a_net);
+    s_decree_clear(a_net);
+    dap_ledger_decree_create(a_net);
 }
 
 static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash, bool a_anchored)
@@ -120,7 +116,7 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
     HASH_FIND(hh, l_ledger_pvt->decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
     if (l_sought_decree && l_sought_decree->decree) {
-        debug_if(s_debug_more, L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
+        debug_if(g_debug_ledger, L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
         return -123;
     }
 
@@ -239,12 +235,12 @@ int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decr
             return -110;
         }
         if (l_new_decree->is_applied) {
-            debug_if(s_debug_more, L_WARNING, "Decree already applied");
+            debug_if(g_debug_ledger, L_WARNING, "Decree already applied");
             return -111;
         }
     } else {            // Process decree itself
         if (l_new_decree->decree) {
-            debug_if(s_debug_more, L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
+            debug_if(g_debug_ledger, L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
             return -123;
         }
         l_new_decree->decree = a_chain->is_mapped ? a_decree : DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
@@ -270,7 +266,7 @@ int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decr
         l_new_decree->is_applied = true;
         l_new_decree->wait_for_apply = false;
     } else
-        debug_if(s_debug_more, L_ERROR,"Decree applying failed!");
+        debug_if(g_debug_ledger, L_ERROR,"Decree applying failed!");
 
     return ret_val;
 }
@@ -411,7 +407,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             if (!a_anchored)
                 break;
             if (dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr)) {
-                debug_if(s_debug_more, L_WARNING, "Key and node verification error");
+                debug_if(g_debug_ledger, L_WARNING, "Key and node verification error");
                 return -109;
             }
             if (!a_apply)

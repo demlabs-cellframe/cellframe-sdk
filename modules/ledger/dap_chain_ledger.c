@@ -825,6 +825,8 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
         // load ledger cache from GDB
         dap_ledger_load_cache(l_ledger);
 #endif
+    // Decrees initializing
+    dap_ledger_decree_create(a_net);
 
     return l_ledger;
 }

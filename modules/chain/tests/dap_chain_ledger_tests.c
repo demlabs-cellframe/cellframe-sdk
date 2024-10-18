@@ -11,7 +11,7 @@
 #include "dap_chain_net_srv_vpn.h"
 #include "dap_chain_net_srv_stake_lock.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
-#include "dap_chain_net_decree.h"
+#include "dap_chain_ledger.h"
 #include "dap_chain_block.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_cs_esbocs.h"
@@ -387,7 +387,7 @@ int dap_ledger_test_create_reward_decree(dap_chain_t *a_chain, dap_chain_net_id_
     dap_hash_fast_t l_decree_hash = {};
     dap_hash_fast(l_decree, l_decree_size, &l_decree_hash);
     // a_chain->callback_atom_add();
-    dap_assert_PIF(dap_chain_net_decree_apply(&l_decree_hash, l_decree, a_chain, false)==0, "Decree applying:");
+    dap_assert_PIF(dap_ledger_decree_apply(&l_decree_hash, l_decree, a_chain, false)==0, "Decree applying:");
     return 0;
 }
 
@@ -1027,7 +1027,7 @@ void dap_ledger_test_run(void){
     dap_assert_PIF(dap_chain_cs_create(l_chain_main, &l_cfg) == 0, "Chain esbocs cs creating: ");
     DL_APPEND(l_net->pub.chains, l_chain_main);
 
-    dap_assert_PIF(!dap_chain_net_decree_init(l_net), "Decree initialization:");
+    dap_assert_PIF(!dap_ledger_decree_create(l_net), "Decree initialization:");
 
     char *l_seed_ph = "H58i9GJKbn91238937^#$t6cjdf";
     size_t l_seed_ph_size = strlen(l_seed_ph);
