@@ -25,12 +25,11 @@
 #include <math.h>
 #include "dap_chain_wallet.h"
 #include "dap_config.h"
-#include "dap_string.h"
 #include "dap_list.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
-#include "dap_chain_net_decree.h"
+#include "dap_chain_ledger.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
@@ -94,8 +93,9 @@ static bool s_debug_more = false;
 
 static void *s_pos_delegate_start(dap_chain_net_id_t a_net_id, dap_config_t UNUSED_ARG *a_config);
 static void s_pos_delegate_delete(void *a_service_internal);
-int s_pos_delegate_purge(dap_chain_net_id_t a_net_id);
-json_object *s_pos_delegate_get_fee_validators_json(dap_chain_net_id_t a_net_id);
+static int s_pos_delegate_purge(dap_chain_net_id_t a_net_id);
+static json_object *s_pos_delegate_get_fee_validators_json(dap_chain_net_id_t a_net_id);
+bool s_tax_callback(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_pkey_hash, dap_chain_addr_t *a_addr_out, uint256_t *a_value_out);
 
 static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
@@ -189,8 +189,9 @@ int dap_chain_net_srv_stake_pos_delegate_init()
                                                      .purge = s_pos_delegate_purge,
                                                      .get_fee_descr = s_pos_delegate_get_fee_validators_json };
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
-    dap_chain_srv_add(l_uid, "PoS-delegate", &l_callbacks);
-    dap_ledger_service_add(l_uid, "pos_delegate", s_tag_check_key_delegation);
+    dap_chain_srv_add(l_uid, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_LITERAL, &l_callbacks);
+    dap_ledger_service_add(l_uid, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_LITERAL, s_tag_check_key_delegation);
+    dap_ledger_tax_callback_set(s_tax_callback);
     return 0;
 }
 
@@ -369,8 +370,7 @@ static bool s_srv_stake_is_poa_cert(dap_chain_net_t *a_net, dap_enc_key_t *a_key
 {
     bool l_is_poa_cert = false;
     dap_pkey_t *l_pkey = dap_pkey_from_enc_key(a_key);
-    dap_list_t *l_pkeys = dap_chain_net_get_net_decree(a_net)->pkeys;
-    for (dap_list_t *it = l_pkeys; it; it = it->next)
+    for (dap_list_t *it = a_net->pub.keys; it; it = it->next)
         if (dap_pkey_compare(l_pkey, (dap_pkey_t *)it->data)) {
             l_is_poa_cert = true;
             break;
@@ -705,7 +705,7 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
     return 0;
 }
 
-int s_pos_delegate_purge(dap_chain_net_id_t a_net_id)
+static int s_pos_delegate_purge(dap_chain_net_id_t a_net_id)
 {
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_net_id)->pub.ledger;
     char *l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
@@ -3519,7 +3519,7 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
     return true;
 }
 
-json_object *s_pos_delegate_get_fee_validators_json(dap_chain_net_id_t a_net_id)
+static json_object *s_pos_delegate_get_fee_validators_json(dap_chain_net_id_t a_net_id)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     uint256_t l_min = uint256_0, l_max = uint256_0, l_average = uint256_0, l_median = uint256_0;
@@ -3590,6 +3590,18 @@ dap_chain_net_srv_stake_item_t *dap_chain_net_srv_stake_check_pkey_hash(dap_chai
             return l_stake;
     }
     return NULL;
+}
+
+bool s_tax_callback(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_pkey_hash, dap_chain_addr_t *a_addr_out, uint256_t *a_value_out)
+{
+    dap_chain_net_srv_stake_item_t *l_stake = dap_chain_net_srv_stake_check_pkey_hash(a_net_id, a_pkey_hash);
+    if (!l_stake || dap_chain_addr_is_blank(&l_stake->sovereign_addr) || IS_ZERO_256(l_stake->sovereign_tax))
+        return false;
+    if (a_addr_out)
+        *a_addr_out = l_stake->sovereign_addr;
+    if (a_value_out)
+        *a_value_out = l_stake->sovereign_tax;
+    return true;
 }
 
 size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_t *a_in_active_count)

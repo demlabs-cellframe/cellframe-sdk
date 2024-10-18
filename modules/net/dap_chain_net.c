@@ -84,8 +84,6 @@
 #include "dap_chain_net.h"
 #include "dap_chain_net_node_list.h"
 #include "dap_chain_net_tx.h"
-#include "dap_chain_net_anchor.h"
-#include "dap_chain_net_decree.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_ledger.h"
@@ -143,7 +141,7 @@ struct chain_sync_context {
   * @struct dap_chain_net_pvt
   * @details Private part of chain_net dap object
   */
-typedef struct dap_chain_net_pvt{
+typedef struct dap_chain_net_pvt {
     pthread_t proc_tid;
     dap_chain_node_role_t node_role;
     uint32_t  flags;
@@ -176,9 +174,6 @@ typedef struct dap_chain_net_pvt{
 
     // Block sign rewards history
     struct block_reward *rewards;
-    dap_chain_net_decree_t *decree;
-    decree_table_t *decrees;
-    anchor_table_t *anchors;
 } dap_chain_net_pvt_t;
 
 #define PVT(a) ((dap_chain_net_pvt_t *)a->pvt)
@@ -239,7 +234,6 @@ int dap_chain_net_init()
 {
     dap_ledger_init();
     dap_chain_ch_init();
-    dap_chain_net_anchor_init();
     dap_chain_net_ch_init();
     dap_chain_node_client_init();
     dap_http_ban_list_client_init();
@@ -854,7 +848,6 @@ void dap_chain_net_purge(dap_chain_net_t *l_net)
                 debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
         }
     }
-    dap_chain_net_decree_init(l_net);
 }
 
 /**
@@ -1971,8 +1964,8 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
     }
 
     // Services register & configure
-    dap_chain_srv_start(l_net->pub.id, "eXchange", NULL);        // Harcoded core service starting for exchange capability
-    dap_chain_srv_start(l_net->pub.id, "PoS-delegate", NULL);    // Harcoded core service starting for delegated keys storage
+    dap_chain_srv_start(l_net->pub.id, DAP_CHAIN_NET_SRV_XCHANGE_LITERAL, NULL);        // Harcoded core service starting for exchange capability
+    dap_chain_srv_start(l_net->pub.id, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_LITERAL, NULL);    // Harcoded core service starting for delegated keys storage
     char *l_services_path = dap_strdup_printf("%s/network/%s/services", dap_config_path(), l_net->pub.name);
     DIR *l_service_cfg_dir = opendir(l_services_path);
     DAP_DEL_Z(l_services_path);
@@ -2030,8 +2023,7 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
 
     // init LEDGER model
     l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
-    // Decrees initializing
-    dap_chain_net_decree_init(l_net);
+
     return 0;
 }
 
@@ -2591,9 +2583,9 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
         return dap_ledger_token_emission_add_check(l_net->pub.ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_DECREE:
-        return dap_chain_net_decree_verify(l_net, (dap_chain_datum_decree_t *)a_datum->data, a_datum->header.data_size, a_datum_hash);
+        return dap_ledger_decree_verify(l_net, (dap_chain_datum_decree_t *)a_datum->data, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_ANCHOR: {
-        int l_result = dap_chain_net_anchor_verify(l_net, (dap_chain_datum_anchor_t *)a_datum->data, a_datum->header.data_size);
+        int l_result = dap_ledger_anchor_verify(l_net, (dap_chain_datum_anchor_t *)a_datum->data, a_datum->header.data_size);
         if (l_result)
             return l_result;
     }
@@ -2791,7 +2783,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 log_it(L_WARNING, "Corrupted decree, datum size %zd is not equal to size of decree %zd", l_datum_data_size, l_decree_size);
                 return -102;
             }
-            return dap_chain_net_decree_load(l_decree, a_chain, a_datum_hash);
+            return dap_ledger_decree_load(l_decree, a_chain, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_ANCHOR: {
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
@@ -2800,7 +2792,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 log_it(L_WARNING, "Corrupted anchor, datum size %zd is not equal to size of anchor %zd", l_datum_data_size, l_anchor_size);
                 return -102;
             }
-            return dap_chain_net_anchor_load(l_anchor, a_chain, a_datum_hash);
+            return dap_ledger_anchor_load(l_anchor, a_chain, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_TOKEN:
             return dap_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size);
@@ -2856,7 +2848,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
                 log_it(L_WARNING, "Corrupted anchor, datum size %zd is not equal to size of anchor %zd", l_datum_data_size, l_anchor_size);
                 return -102;
             }
-            return dap_chain_net_anchor_unload(l_anchor, a_chain, a_datum_hash);
+            return dap_ledger_anchor_unload(l_anchor, a_chain, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_TOKEN:
             return 0;
@@ -2942,26 +2934,6 @@ void dap_chain_net_announce_addr(dap_chain_net_t *a_net)
         dap_chain_net_node_list_request(a_net, l_net_pvt->node_info->ext_port, true, 'a');
         
     }
-}
-
-dap_chain_net_decree_t *dap_chain_net_get_net_decree(dap_chain_net_t *a_net) {
-    return a_net ? PVT(a_net)->decree : NULL;
-}
-
-void dap_chain_net_set_net_decree(dap_chain_net_t *a_net, dap_chain_net_decree_t *a_decree) {
-    if (!a_net) {
-        log_it(L_ERROR, "Net is not initialized");
-        return;
-    }
-    PVT(a_net)->decree = a_decree;
-}
-
-decree_table_t **dap_chain_net_get_decrees(dap_chain_net_t *a_net) {
-    return a_net ? &(PVT(a_net)->decrees) : NULL;
-}
-
-anchor_table_t **dap_chain_net_get_anchors(dap_chain_net_t *a_net) {
-    return a_net ? &(PVT(a_net)->anchors) : NULL;
 }
 
 /*------------------------------------State machine block------------------------------------*/
