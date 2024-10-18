@@ -209,6 +209,10 @@ bool dap_ledger_pvt_cache_gdb_load_stake_lock_callback(dap_global_db_instance_t 
                                                        int a_rc, const char *a_group,
                                                        const size_t a_values_total, const size_t a_values_count,
                                                        dap_global_db_obj_t *a_values, void *a_arg);
+bool dap_ledger_pvt_cache_gdb_load_balances_callback(dap_global_db_instance_t *a_dbi,
+                                                      int a_rc, const char *a_group,
+                                                      const size_t a_values_total, const size_t a_values_count,
+                                                      dap_global_db_obj_t *a_values, void *a_arg);
 int dap_ledger_pvt_threshold_txs_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash);
 void dap_ledger_pvt_threshold_txs_proc(dap_ledger_t *a_ledger);
 dap_ledger_token_item_t *dap_ledger_pvt_find_token(dap_ledger_t *a_ledger, const char *a_token_ticker);

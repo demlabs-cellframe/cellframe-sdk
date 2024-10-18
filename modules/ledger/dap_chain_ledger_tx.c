@@ -150,6 +150,10 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
         HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);
     }
     HASH_SORT(l_ledger_pvt->ledger_items, s_sort_ledger_tx_item);
+
+    char* l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_LEDGER_BALANCES_STR);
+    dap_global_db_get_all(l_gdb_group, 0, dap_ledger_pvt_cache_gdb_load_balances_callback, l_ledger);
+    DAP_DELETE(l_gdb_group);
     return true;
 }
 

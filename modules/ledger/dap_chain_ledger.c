@@ -698,7 +698,7 @@ static void s_threshold_txs_free(dap_ledger_t *a_ledger)
  * @param a_values
  * @param a_arg
  */
-static bool s_load_cache_gdb_loaded_balances_callback(dap_global_db_instance_t *a_dbi,
+bool dap_ledger_pvt_cache_gdb_load_balances_callback(dap_global_db_instance_t *a_dbi,
                                                       int a_rc, const char *a_group,
                                                       const size_t a_values_total, const size_t a_values_count,
                                                       dap_global_db_obj_t *a_values, void *a_arg)
