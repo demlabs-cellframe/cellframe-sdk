@@ -233,7 +233,7 @@ json_object * dap_db_history_tx(json_object* a_json_arr_reply,
 static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_processed_ht_t **a_tx_data_ht,
                               dap_chain_datum_tx_t *a_tx, dap_chain_t *a_chain,
                               const char *a_hash_out_type, dap_ledger_t *a_ledger,
-                              dap_chain_hash_fast_t *a_tx_hash)
+                              dap_chain_hash_fast_t *a_tx_hash, const char* a_token_ticker, int a_ret_code)
 {
     bool l_declined = false;
     // transaction time
@@ -241,8 +241,6 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     if (a_tx->header.ts_created)
         dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, a_tx->header.ts_created); /* Convert ts to  "Sat May 17 01:17:08 2014" */
     dap_chain_tx_hash_processed_ht_t *l_tx_data = NULL;
-    int l_ret_code = 0;
-    const char *l_token_ticker = dap_ledger_tx_calculate_main_ticker(a_ledger, a_tx, &l_ret_code);//a_datum_iter->token_ticker; 
     HASH_FIND(hh, *a_tx_data_ht, a_tx_hash, sizeof(*a_tx_hash), l_tx_data);
     if (l_tx_data)  // this tx already present in ledger (double)
         l_declined = true;
@@ -256,7 +254,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
         HASH_ADD(hh, *a_tx_data_ht, hash, sizeof(*a_tx_hash), l_tx_data);
         
                
-        if (!l_token_ticker)
+        if (a_ret_code)
             l_declined = true;
     }
 
@@ -277,13 +275,13 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     json_object_object_add(json_obj_datum, "status", json_object_new_string(l_declined ? "DECLINED" : "ACCEPTED"));
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
-    json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(l_ret_code));
-    json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_check_error_str(l_ret_code)));
+    json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(a_ret_code));
+    json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_check_error_str(a_ret_code)));
 
 
-    dap_chain_net_srv_uid_t uid;
-    char *service_name;
-    dap_chain_tx_tag_action_type_t action;
+    dap_chain_net_srv_uid_t uid = {0};
+    char *service_name = NULL;
+    dap_chain_tx_tag_action_type_t action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
     dap_ledger_tx_service_info(a_ledger, a_tx_hash, &uid, NULL, &action);
     bool srv_found = uid.uint64 ? true : false;
     
@@ -363,12 +361,14 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
  
     dap_chain_datum_tx_t *l_tx = NULL;
     dap_hash_fast_t l_tx_cur_hash = {};
-    while((l_tx = dap_ledger_tx_find_by_addr(l_net->pub.ledger, NULL, a_addr, &l_tx_cur_hash))){
+    const char *l_token_ticker = NULL;
+    dap_chain_tx_tag_action_type_t l_action;
+    dap_chain_net_srv_uid_t l_srv_uid = {0};
+    int l_ret_code = 0;
+    while((l_tx = dap_ledger_tx_find_tx_by_addr_history(l_net->pub.ledger, &l_token_ticker, a_addr, &l_tx_cur_hash, NULL, &l_action, &l_ret_code))){
         if (i_tmp >= l_arr_end)
             break;
-        // if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
-        //     // go to next datum
-        //     continue;        
+ 
         // it's a transaction        
         bool l_is_need_correction = false;
         bool l_continue = true;
@@ -531,9 +531,6 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             
             //tag
             const char *l_service_name = NULL;
-            dap_chain_tx_tag_action_type_t l_action;
-            dap_chain_net_srv_uid_t l_srv_uid = {0};
-            dap_ledger_tx_service_info(l_net->pub.ledger, &l_tx_cur_hash, &l_srv_uid, NULL, &l_action);
             bool srv_found = l_srv_uid.uint64 ? true : false;
             l_service_name = dap_ledger_tx_action_str(l_action);
             if (!(l_action & a_action))
@@ -556,7 +553,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 }             
                 if (!l_header_printed) {               
                     s_tx_header_print(j_obj_tx, &l_tx_data_ht, l_tx, a_chain,
-                                      a_hash_out_type, l_ledger, &l_tx_hash);
+                                      a_hash_out_type, l_ledger, &l_tx_hash, l_token_ticker, l_ret_code);
                     l_header_printed = true;
                     l_count++;
                     i_tmp++;
@@ -610,7 +607,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 }                               
                 if (!l_header_printed) {                    
                     s_tx_header_print(j_obj_tx, &l_tx_data_ht, l_tx, a_chain,
-                                      a_hash_out_type, l_ledger, &l_tx_hash);
+                                      a_hash_out_type, l_ledger, &l_tx_hash, l_token_ticker, l_ret_code);
                     l_header_printed = true;
                     l_count++;
                     i_tmp++;
