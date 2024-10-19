@@ -57,7 +57,7 @@ DAP_STATIC_INLINE const char *dap_chain_net_balancer_type_to_str(dap_balancer_ty
     switch (a_type) {
     case DAP_CHAIN_NET_BALANCER_TYPE_HTTP:  return "HTTP";
     case DAP_CHAIN_NET_BALANCER_TYPE_DNS:   return "DNS";
-    default:
+    default: break;
     }
     return "UNDEFINED";
 }
