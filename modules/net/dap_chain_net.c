@@ -1894,8 +1894,10 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
                 l_chain->default_datum_types_count = k;
                 l_chain->default_datum_types = DAP_REALLOC_COUNT(l_chain->default_datum_types, k);
             }
-        } else
-            dap_config_close(l_chain_config);   
+        } else {
+            HASH_DEL(l_all_chain_configs, l_chain_config);
+            dap_config_close(l_chain_config);
+        }
     }
     HASH_CLEAR(hh, l_all_chain_configs);
     // LEDGER model
