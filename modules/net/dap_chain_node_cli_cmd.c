@@ -8580,29 +8580,30 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     dap_chain_node_info_t *node_info = node_info_read_and_reply(l_net, &l_node_addr, NULL);
     if(!node_info)
         return -6;
-    int timeout_ms = 5000; //5 sec = 5000 ms
-    // start handshake
-    dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net,node_info);
-    if(!l_client) {
-        // dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't connect");
-        DAP_DELETE(node_info);
-        return -7;
-    }
-    // wait handshake
-    int res = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
-    if (res) {
-        // dap_cli_server_cmd_set_reply_text(a_str_reply, "No response from node");
-        // clean client struct
-        dap_chain_node_client_close_unsafe(l_client);
-        DAP_DELETE(node_info);
-        return -8;
-    }
+    // int timeout_ms = 5000; //5 sec = 5000 ms
+    // // start handshake
+    // dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net,node_info);
+    // if(!l_client) {
+    //     // dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't connect");
+    //     DAP_DELETE(node_info);
+    //     return -7;
+    // }
+    // // wait handshake
+    // int res = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
+    // if (res) {
+    //     // dap_cli_server_cmd_set_reply_text(a_str_reply, "No response from node");
+    //     // clean client struct
+    //     dap_chain_node_client_close_unsafe(l_client);
+    //     DAP_DELETE(node_info);
+    //     return -8;
+    // }
     char* l_request_data_str =  dap_json_rpc_request_to_http_str(l_request);
 
     // if (!dap_json_rpc_request_send(l_request, dap_json_rpc_response_accepted, node_info->ext_host, node_info->ext_port, dap_json_rpc_error_callback))
     //     log_it(L_INFO, "com_exec sent request to %s:%d", node_info->ext_host, node_info->ext_port);
 
-    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(l_client->client);
+    dap_client_pvt_t * l_client_internal = NULL;
+    dap_client_pvt_new(l_client_internal);
 
     const char * l_sub_url = dap_strdup_printf("channels=%s,enc_type=%d,enc_key_size=%zu,enc_headers=%d",
                                                      l_client_internal->client->active_channels, l_client_internal->session_key_type,
