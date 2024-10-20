@@ -731,13 +731,13 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
     return 0;
 }
 
-int dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id)
+uint16_t dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id)
 {
     dap_chain_esbocs_session_t *l_session;
     DL_FOREACH(s_session_items, l_session)
         if (l_session->chain->net_id.uint64 == a_net_id.uint64)
             return PVT(l_session->esbocs)->min_validators_count;
-    return -1;
+    return 0;
 }
 
 int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
