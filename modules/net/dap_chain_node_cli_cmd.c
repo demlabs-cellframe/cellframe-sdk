@@ -8530,13 +8530,18 @@ struct json_object *wallets_info_json_collect() {
             tmp = *l_dot_pos;
             *l_dot_pos = '\0';
         }
-        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_tmp, dap_chain_wallet_get_path(g_config), NULL);
+        unsigned int res = 0;
+        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_tmp, dap_chain_wallet_get_path(g_config), &res);
         if (l_wallet) {
             json_object *l_jobj_correct_str = json_object_new_string(
                     strlen(dap_chain_wallet_check_sign(l_wallet)) != 0 ? dap_chain_wallet_check_sign(l_wallet)
                                                                        : "correct");
             json_object_object_add(l_wallet_ret, "inf_correct", l_jobj_correct_str);
             struct json_object *l_jobj_signs = NULL;
+            if(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)
+                json_object_object_add(l_wallet_ret, "status", json_object_new_string("protected-active"));
+            else
+                json_object_object_add(l_wallet_ret, "status", json_object_new_string("unprotected"));
             dap_chain_wallet_internal_t *l_w_internal = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
             if (l_w_internal->certs_count == 1) {
                 dap_sign_type_t l_sign_type = dap_sign_type_from_key_type(l_w_internal->certs[0]->enc_key->type);
@@ -8591,8 +8596,10 @@ struct json_object *wallets_info_json_collect() {
             json_object_object_add(l_json_wallets, l_wallet->name, l_wallet_ret);
             dap_chain_wallet_close(l_wallet);
         } else {
-            json_object_object_add(l_json_wallets, l_tmp,
-                                   json_object_new_string("Can't open the wallet, maybe it's protected."));
+            json_object *l_obj_ret = json_object_new_object();
+            if (res == 4) json_object_object_add(l_obj_ret, "status", json_object_new_string("protected-inactive"));
+            else if (res) json_object_object_add(l_obj_ret, "status", json_object_new_string("invalid"));
+            json_object_object_add(l_json_wallets, l_tmp,l_obj_ret);
         }
         if (tmp)
             *l_dot_pos = tmp;
