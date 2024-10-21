@@ -2302,7 +2302,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             size_t l_arr_start = 0;            
             size_t l_arr_end = 0;
             json_object* json_obj_order = json_object_new_object();
-            s_set_offset_limit_json(json_obj_order, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_tx_list));
+            dap_chain_set_offset_limit_json(json_obj_order, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_tx_list));
             size_t i_tmp = 0;
             json_object* json_arr_orders_out = json_object_new_array();
             // Print all txs
@@ -2617,13 +2617,15 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 const char * l_token_to_str = NULL;
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_to", &l_token_to_str);
                 if(!l_token_to_str){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,"No argument '-token_to'");
-                    return -5;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_TOKEN_TO_ERR,
+                                           "No argument '-token_to'");
+                    return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_TOKEN_TO_ERR;
                 }
                 dap_chain_datum_token_t * l_token_to_datum = dap_ledger_token_ticker_check( l_net->pub.ledger, l_token_to_str);
                 if(!l_token_to_datum){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't find \"%s\" token in network \"%s\" for argument '-token_to' ", l_token_to_str, l_net->pub.name);
-                    return -6;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_CANT_FIND_TOKEN_ERR,
+                                           "Can't find \"%s\" token in network \"%s\" for argument '-token_to' ", l_token_to_str, l_net->pub.name);
+                    return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_CANT_FIND_TOKEN_ERR;
                 }
 
                 // Read time_from
@@ -2640,7 +2642,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
                 // Check for price subcommand
                 if (strcmp(l_price_subcommand,"average") == 0){
-                    dap_string_t *l_reply_str = dap_string_new("");
 
                     dap_list_t *l_tx_cond_list = dap_chain_net_get_tx_cond_all_by_srv_uid(l_net, c_dap_chain_net_srv_xchange_uid,
                                                                                           0,0,TX_SEARCH_TYPE_NET );
@@ -2702,11 +2703,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     char l_tmp_buf[DAP_TIME_STR_SIZE];
                     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_last_rate_time);
                     const char *l_rate_average_str; dap_uint256_to_char(l_rate_average, &l_rate_average_str);
-                    dap_string_append_printf(l_reply_str,"Average rate: %s\n", l_rate_average_str);
+                    json_object* json_obj_order = json_object_new_object();
+                    json_object_object_add(json_obj_order, "Average rate", json_object_new_string(l_rate_average_str));
                     const char *l_last_rate_str; dap_uint256_to_char(l_rate, &l_last_rate_str);
-                    dap_string_append_printf(l_reply_str, "Last rate: %s Last rate time: %s",
-                                             l_last_rate_str, l_tmp_buf);
-                    *a_str_reply = dap_string_free(l_reply_str, false);
+                    json_object_object_add(json_obj_order, "Last rate", json_object_new_string(l_last_rate_str));
+                    json_object_object_add(json_obj_order, "Last rate time", json_object_new_string(l_tmp_buf));
+                    json_object_array_add(*json_arr_reply, json_obj_order);
                     break;
                 }else if (strcmp(l_price_subcommand,"history") == 0){
                     const char *l_limit_str = NULL, *l_offset_str = NULL;
@@ -2715,7 +2717,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
                     size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
 
-                    dap_string_t *l_reply_str = dap_string_new("");
                     dap_time_t l_time[2];
                     l_time[0] = l_time_from;
                     l_time[1] = l_time_to;
@@ -2725,19 +2726,15 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     size_t l_datum_num = dap_list_length(l_datum_list0);
 
                     if (l_datum_num == 0){
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find transactions");
-                        return -6;
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_CANT_FIND_TX_ERR,
+                                           "Can't find transactions");
+                        return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_CANT_FIND_TX_ERR;
                     }
+                    json_object* json_arr_bl_cache_out = json_object_new_array();
                     size_t l_arr_start = 0;
-                    size_t l_arr_end  = l_datum_num;
-                    if (l_offset > 0) {
-                        l_arr_start = l_offset;
-                        dap_string_append_printf(l_reply_str, "offset: %lu\n", l_arr_start);
-                    }
-                    if (l_limit) {
-                        l_arr_end = l_arr_start + l_limit;
-                        dap_string_append_printf(l_reply_str, "limit: %lu\n", l_limit);
-                    }
+                    size_t l_arr_end  = 0;
+                    dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_datum_num);
+                    
                     size_t i_tmp = 0;
 
                     dap_list_t * l_cur = l_datum_list0;
@@ -2780,19 +2777,20 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                                 continue;
                             }
                             i_tmp++;
-
-                            s_string_append_tx_cond_info(l_reply_str, l_net, l_tx, TX_STATUS_ALL, false, false, true);
+                            json_object* json_obj_out = json_object_new_object();
+                            s_string_append_tx_cond_info_json(json_obj_out, l_net, l_tx, TX_STATUS_ALL, false, false, true);
+                            json_object_array_add(json_arr_bl_cache_out, json_obj_out);
                         }
                         l_cur = dap_list_next(l_cur);
                     }
 
-                    *a_str_reply = dap_string_free(l_reply_str, false);
+                    json_object_array_add(*json_arr_reply, json_arr_bl_cache_out);
                     break;
 
                 } else {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized subcommand '%s'",
-                                                      l_price_subcommand);
-                    return -38;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_UNKNOWN_ERR,
+                                           "Unrecognized subcommand '%s'", l_price_subcommand);                    
+                    return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_UNKNOWN_ERR;
                 }
             }
 
@@ -2805,7 +2803,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
                     size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
                     size_t l_limit  = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
-                    dap_string_t *l_reply_str = dap_string_new("");
+                    
                     char ** l_tickers = NULL;
                     size_t l_tickers_count = 0;
                     dap_ledger_addr_get_token_ticker_all( l_net->pub.ledger,NULL,&l_tickers,&l_tickers_count);
@@ -2813,13 +2811,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     size_t l_pairs_count = 0;
                     if(l_tickers){
                         size_t l_arr_start = 0;
-                        size_t l_arr_end  = l_tickers_count;
-                        if (l_offset > 1) {
-                            l_arr_start = l_limit * l_offset;
-                        }
-                        if (l_limit) {
-                            l_arr_end = l_arr_start + l_limit;
-                        }
+                        size_t l_arr_end  = 0;
+                        json_object* json_arr_bl_cache_out = json_object_new_array();
+                        dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_tickers_count);                        
                         size_t i_tmp = 0;
                         for(size_t i = 0; i< l_tickers_count; i++){
                             for(size_t j = i+1; j< l_tickers_count; j++){
@@ -2829,12 +2823,16 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                                         continue;
                                     }
                                     i_tmp++;
-                                    dap_string_append_printf(l_reply_str,"%s:%s ", l_tickers[i], l_tickers[j]);
+                                    json_object* json_obj_bl = json_object_new_object();
+                                    json_object_object_add(json_obj_bl, "ticker_1",json_object_new_string(l_tickers[i]));
+                                    json_object_object_add(json_obj_bl, "ticker_2",json_object_new_string(l_tickers[j]));
+                                    json_object_array_add(json_arr_bl_cache_out, json_obj_bl);
                                     l_pairs_count++;
                                 }
                             }
 
                         }
+                        json_object_array_add(*json_arr_reply, json_arr_bl_cache_out);
 
                         // Free tickers array
                         for(size_t i = 0; i< l_tickers_count; i++){
