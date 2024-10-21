@@ -5553,6 +5553,7 @@ static dap_chain_datum_tx_t *tx_item_find_by_addr(dap_ledger_t *a_ledger, const 
     HASH_FIND(hh, l_ledger_pvt->wallets_cache, a_addr, sizeof(dap_chain_addr_t), l_wallet_item);
     if (!l_wallet_item){
         log_it(L_ERROR, "Can't find wallet with address %s", dap_chain_addr_to_str_static(a_addr));
+        pthread_rwlock_unlock(&l_ledger_pvt->wallet_cache_rwlock);
         return NULL;
     }
     dap_ledger_wallet_tx_cache_t *l_current_wallet_tx = NULL;
@@ -5561,12 +5562,15 @@ static dap_chain_datum_tx_t *tx_item_find_by_addr(dap_ledger_t *a_ledger, const 
         HASH_FIND(hh, l_wallet_item->wallet_txs, a_tx_first_hash, sizeof(dap_chain_hash_fast_t), l_current_wallet_tx);
         if (!l_current_wallet_tx){
             log_it(L_ERROR, "Can't find tx %s for address %s", dap_hash_fast_to_str_static(a_tx_first_hash), dap_chain_addr_to_str_static(a_addr));
+            pthread_rwlock_unlock(&l_ledger_pvt->wallet_cache_rwlock);
             return NULL;
         }
 
 
-        if (!l_current_wallet_tx->hh.next)
+        if (!l_current_wallet_tx->hh.next){
+            pthread_rwlock_unlock(&l_ledger_pvt->wallet_cache_rwlock);
             return NULL;
+        }
          // start searching from the next hash after a_tx_first_hash
         l_current_wallet_tx = l_current_wallet_tx->hh.next;
     } else {
@@ -5643,6 +5647,7 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_tx_by_addr_history(dap_ledger_t *a_ledg
     HASH_FIND(hh, l_ledger_pvt->wallets_cache, a_addr, sizeof(dap_chain_addr_t), l_wallet_item);
     if (!l_wallet_item){
         log_it(L_ERROR, "Can't find wallet with address %s", dap_chain_addr_to_str_static(a_addr));
+        pthread_rwlock_unlock(&l_ledger_pvt->wallet_cache_rwlock);
         return NULL;
     }
     dap_ledger_wallet_tx_cache_t *l_current_wallet_tx = NULL;
@@ -5651,12 +5656,16 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_tx_by_addr_history(dap_ledger_t *a_ledg
         HASH_FIND(hh, l_wallet_item->wallet_txs, a_tx_first_hash, sizeof(dap_chain_hash_fast_t), l_current_wallet_tx);
         if (!l_current_wallet_tx){
             log_it(L_ERROR, "Can't find tx %s for address %s", dap_hash_fast_to_str_static(a_tx_first_hash), dap_chain_addr_to_str_static(a_addr));
+            pthread_rwlock_unlock(&l_ledger_pvt->wallet_cache_rwlock);
             return NULL;
         }
 
 
-        if (!l_current_wallet_tx->hh.next)
-            return NULL;
+        if (!l_current_wallet_tx->hh.next){
+            pthread_rwlock_unlock(&l_ledger_pvt->wallet_cache_rwlock);
+            return NULL;            
+        }
+
          // start searching from the next hash after a_tx_first_hash
         l_current_wallet_tx = l_current_wallet_tx->hh.next;
     } else {
@@ -5909,6 +5918,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const c
     HASH_FIND(hh, l_ledger_pvt->wallets_cache, a_addr_from, sizeof(dap_chain_addr_t), l_wallet_item);
     if (!l_wallet_item){
         log_it(L_ERROR, "Can't find wallet with address %s", dap_chain_addr_to_str_static(a_addr_from));
+        pthread_rwlock_unlock(&l_ledger_pvt->wallet_cache_rwlock);
         return NULL;
     }
     dap_ledger_wallet_tx_cache_t *l_current_wallet_tx = l_wallet_item->wallet_txs;
