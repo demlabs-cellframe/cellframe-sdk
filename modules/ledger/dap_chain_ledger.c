@@ -1003,12 +1003,6 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
         DAP_DELETE(l_gdb_group);
     }
 
-    if (!a_preserve_db) {
-        l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_SPENT_TXS_STR);
-        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
-        DAP_DELETE(l_gdb_group);
-    }
-
     /* Delete balances */
     dap_ledger_wallet_balance_t *l_balance_current, *l_balance_tmp;
     HASH_ITER(hh, l_ledger_pvt->balance_accounts, l_balance_current, l_balance_tmp) {
@@ -1714,14 +1708,49 @@ bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger)
     return PVT(a_ledger)->cached;
 }
 
-static int s_aggregate_out(const char *a_ticker, dap_chain_addr_t *a_addr, uint256_t a_value)
+static int s_compare_balances(dap_ledger_hardfork_balances_t *a_list1, dap_ledger_hardfork_balances_t *a_list2)
 {
-
+    int ret = memcmp(&a_list1->addr, &a_list2->addr, sizeof(dap_chain_addr_t));
+    return ret ? ret : memcmp(a_list1->ticker, a_list1->ticker, DAP_CHAIN_TICKER_SIZE_MAX);
 }
 
-dap_list_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger)
+static int s_aggregate_out(dap_ledger_hardfork_balances_t **a_out_list, const char *a_ticker, dap_chain_addr_t *a_addr, uint256_t a_value)
 {
-    dap_list_t *ret = NULL;
+    dap_ledger_hardfork_balances_t l_new_balance = { .addr = *a_addr, .value = a_value };
+    memcpy(l_new_balance.ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+    dap_ledger_hardfork_balances_t *l_exist = NULL;
+    DL_SEARCH(*a_out_list, l_exist, &l_new_balance, s_compare_balances);
+    if (!l_exist) {
+        l_exist = DAP_DUP(&l_new_balance);
+        if (!l_exist) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            return -1;
+        }
+        DL_APPEND(*a_out_list, l_exist);
+    } else if (SUM_256_256(l_exist->value, a_value, &l_exist->value)) {
+        log_it(L_ERROR, "Integer overflow of hardfork aggregated data for addr %s and token %s with value %s",
+                                    dap_chain_addr_to_str_static(a_addr), a_ticker, dap_uint256_to_char(a_value, NULL));
+        return -2;
+    }
+    return 0;
+}
+
+static int s_aggregate_out_cond(dap_ledger_hardfork_condouts_t **a_ret_list, dap_chain_tx_out_cond_t *a_out_cond, dap_sign_t *a_sign)
+{
+    dap_ledger_hardfork_condouts_t *l_new_condout = DAP_NEW_Z(dap_ledger_hardfork_condouts_t);
+    if (!l_new_condout) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return -1;
+    }
+    *l_new_condout = (dap_ledger_hardfork_condouts_t) { .cond = a_out_cond, .sign = a_sign };
+    DL_APPEND(*a_ret_list, l_new_condout);
+    return 0;
+}
+
+dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_ledger_hardfork_condouts_t **l_cond_outs_list)
+{
+    dap_ledger_hardfork_balances_t *ret = NULL;
+    dap_ledger_hardfork_condouts_t *l_cond_ret = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     for (dap_ledger_tx_item_t *it = l_ledger_pvt->ledger_items; it; it = it->hh.next) {
@@ -1737,17 +1766,17 @@ dap_list_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger)
             switch(l_tx_item_type) {
             case TX_ITEM_TYPE_OUT: {
                 dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_tx_item;
-                s_aggregate_out(it->cache_data.token_ticker, &l_out->addr, l_out->header.value);
+                s_aggregate_out(&ret, it->cache_data.token_ticker, &l_out->addr, l_out->header.value);
                 break;
             }
             case TX_ITEM_TYPE_OUT_OLD: {
                 dap_chain_tx_out_old_t *l_out = (dap_chain_tx_out_old_t *)l_tx_item;
-                s_aggregate_out(it->cache_data.token_ticker, &l_out->addr, GET_256_FROM_64(l_out->header.value));
+                s_aggregate_out(&ret, it->cache_data.token_ticker, &l_out->addr, GET_256_FROM_64(l_out->header.value));
                 break;
             }
             case TX_ITEM_TYPE_OUT_EXT: {
                 dap_chain_tx_out_ext_t *l_out = (dap_chain_tx_out_ext_t *)l_tx_item;
-                s_aggregate_out(l_out->token, &l_out->addr, l_out->header.value);
+                s_aggregate_out(&ret, l_out->token, &l_out->addr, l_out->header.value);
                 break;
             }
             case TX_ITEM_TYPE_OUT_COND: {
@@ -1766,7 +1795,7 @@ dap_list_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger)
                     log_it(L_ERROR, "Can't find sign for conditional TX %s", dap_hash_fast_to_str_static(&l_first_tx_hash));
                     continue;
                 }
-                s_aggregate_out_cond(l_out, l_tx_sign);
+                s_aggregate_out_cond(&l_cond_ret, l_out, l_tx_sign);
             }
             default:
                 log_it(L_ERROR, "Unexpected item type %hhu", l_tx_item_type);

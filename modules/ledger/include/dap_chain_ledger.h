@@ -46,6 +46,19 @@ typedef struct dap_ledger {
     void *_internal;
 } dap_ledger_t;
 
+typedef struct dap_ledger_hardfork_balances {
+    dap_chain_addr_t addr;
+    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint256_t value;
+    struct dap_ledger_hardfork_balances *prev, *next;
+} dap_ledger_hardfork_balances_t;
+
+typedef struct dap_ledger_hardfork_condouts {
+    dap_chain_tx_out_cond_t *cond;
+    dap_sign_t *sign;
+    struct dap_ledger_hardfork_condouts *prev, *next;
+} dap_ledger_hardfork_condouts_t;
+
 /**
  * @brief Error codes for accepting a transaction to the ledger.
  */
