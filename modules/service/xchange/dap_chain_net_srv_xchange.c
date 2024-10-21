@@ -2151,18 +2151,15 @@ static bool s_string_append_tx_cond_info_json( dap_string_t * a_json_out,
 }
 
 
-static int s_cli_srv_xchange_tx_list_addr(dap_chain_net_t *a_net, dap_time_t a_after, dap_time_t a_before,
-                                          dap_chain_addr_t *a_addr, int a_opt_status, void **a_str_reply)
+static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_t a_after, dap_time_t a_before,
+                                          dap_chain_addr_t *a_addr, int a_opt_status, json_object* json_obj_out)
 {
 dap_chain_hash_fast_t l_tx_first_hash = {0};
 dap_chain_datum_tx_t    *l_datum_tx;
-dap_string_t *l_reply_str;
 size_t l_tx_total;
 
-    if ( !(l_reply_str = dap_string_new("")) )                              /* Prepare output string discriptor*/
-        return  log_it(L_CRITICAL, "%s", c_error_memory_alloc), -ENOMEM;
-
     memset(&l_tx_first_hash, 0, sizeof(dap_chain_hash_fast_t));             /* Initial hash == zero */
+    json_object* json_arr_datum_out = json_object_new_array();
 
     size_t l_tx_count = 0;
     for (l_tx_total = 0;
@@ -2175,13 +2172,17 @@ size_t l_tx_total;
 
         if ( a_before && (l_datum_tx->header.ts_created > a_before) )
             continue;
-
-        if (s_string_append_tx_cond_info(l_reply_str, a_net, l_datum_tx, a_opt_status, false, true, false))
+        json_object* json_obj_tx = json_object_new_object();
+        if (s_string_append_tx_cond_info_json(json_obj_tx, a_net, l_datum_tx, a_opt_status, false, true, false)) {
+            json_object_array_add(json_arr_datum_out, json_obj_tx);
             l_tx_count++;
+        }
     }
 
-    dap_string_append_printf(l_reply_str, "\nFound %"DAP_UINT64_FORMAT_U" transactions", l_tx_count);
-    *a_str_reply = dap_string_free(l_reply_str, false);                     /* Free string descriptor, but keep ASCIZ buffer itself */
+    json_object_object_add(json_obj_out, "transactions", json_arr_datum_out);
+    char *l_transactions = dap_strdup_printf("\nFound %"DAP_UINT64_FORMAT_U" transactions", l_tx_count);
+    json_object_object_add(json_obj_out, "number of transactions", json_object_new_string(l_transactions));
+    DAP_DELETE(l_transactions);                    /* Free string descriptor, but keep ASCIZ buffer itself */
     return  0;
 }
 
@@ -2443,7 +2444,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             switch (l_ret_code) {
                 case XCHANGE_PURCHASE_ERROR_OK: {
                     json_object* json_obj_orders = json_object_new_object();
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Exchange transaction has done. tx hash: %s", l_str_ret_hash);
                     json_object_object_add(json_obj_orders, "status", json_object_new_string("Exchange transaction has done"));
                     json_object_object_add(json_obj_orders, "hash", json_object_new_string(l_str_ret_hash));
                     json_object_array_add(*json_arr_reply, json_obj_orders);
@@ -2537,12 +2537,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                                            "Cannot convert -addr '%s' to internal representative", l_addr_str);
                     return -EINVAL;
                 }
-
-                return  s_cli_srv_xchange_tx_list_addr (l_net, l_time[0], l_time[1], l_addr, l_opt_status, a_str_reply);
+                json_object* json_obj_order = json_object_new_object();
+                s_cli_srv_xchange_tx_list_addr_json(l_net, l_time[0], l_time[1], l_addr, l_opt_status, json_obj_order);
+                json_object_array_add(*json_arr_reply, json_obj_order);
+                return 0;
             }
 
-            // Prepare output string
-            dap_string_t *l_reply_str = dap_string_new("");
 
             // Find transactions using filter function s_filter_tx_list()
             dap_list_t *l_datum_list0 = dap_chain_datum_list(l_net, NULL, s_filter_tx_list, l_time);
@@ -2551,20 +2551,28 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             if (l_datum_num > 0) {
                 log_it(L_DEBUG,  "Found %zu transactions:\n", l_datum_num);
                 dap_list_t *l_datum_list = l_datum_list0;
+                json_object* json_arr_bl_out = json_object_new_array();
+                json_object* json_obj_order = json_object_new_object();
                 while(l_datum_list) {
-
+                    json_object* json_obj_order = json_object_new_object();
                     dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*) ((dap_chain_datum_t*) l_datum_list->data)->data;
-                    if (s_string_append_tx_cond_info(l_reply_str, l_net, l_datum_tx, l_opt_status, false, true, false))
+                    if (s_string_append_tx_cond_info_json(json_obj_order, l_net, l_datum_tx, l_opt_status, false, true, false)){
+
+                        json_object_array_add(json_arr_bl_out, json_obj_order);
                         l_show_tx_nr++;
+                    }
                     l_datum_list = dap_list_next(l_datum_list);
                 }
-                dap_string_append_printf(l_reply_str, "Found %d transactions", l_show_tx_nr);
+                json_object_object_add(json_obj_order, "transactions", json_arr_bl_out);
+                json_object_object_add(json_obj_order, "number of transactions", json_object_new_int(l_show_tx_nr));
+                json_object_array_add(*json_arr_reply, json_obj_order);
             }
             else{
-                dap_string_append(l_reply_str, "Transactions not found");
+                json_object* json_obj_order = json_object_new_object();
+                json_object_object_add(json_obj_order, "status", json_object_new_string("Transactions not found"));
+                json_object_array_add(*json_arr_reply, json_obj_order);
             }
             dap_list_free_full(l_datum_list0, NULL);
-            *a_str_reply = dap_string_free(l_reply_str, false);
         } break;
         // Token pair control
         case CMD_TOKEN_PAIR: {
@@ -2573,13 +2581,15 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             const char *l_net_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if(!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'token_pair' requires parameter -net");
-                return -3;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_REQ_PARAM_NET_ERR,
+                                       "Command 'token_pair' requires parameter -net");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_REQ_PARAM_NET_ERR;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
             if(!l_net) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-                return -4;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_NET_NOT_FOUND_ERR,
+                                       "Network %s not found", l_net_str);
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_NET_NOT_FOUND_ERR;
             }
 
             // Select subcommands
@@ -2592,13 +2602,15 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 const char * l_token_from_str = NULL;
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_from", &l_token_from_str);
                 if(!l_token_from_str){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,"No argument '-token_from'");
-                    return -5;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_TOKEN_FROM_ARG_ERR,
+                                           "No argument '-token_from'");
+                    return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_TOKEN_FROM_ARG_ERR;
                 }
                 dap_chain_datum_token_t * l_token_from_datum = dap_ledger_token_ticker_check( l_net->pub.ledger, l_token_from_str);
                 if(!l_token_from_datum){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't find \"%s\" token in network \"%s\" for argument '-token_from' ", l_token_from_str, l_net->pub.name);
-                    return -6;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_TOKEN_FROM_ERR,
+                                           "Can't find \"%s\" token in network \"%s\" for argument '-token_from' ", l_token_from_str, l_net->pub.name);
+                    return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_PAIR_TOKEN_FROM_ERR;
                 }
 
                 // Check for token_to
