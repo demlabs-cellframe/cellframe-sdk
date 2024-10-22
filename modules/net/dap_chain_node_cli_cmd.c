@@ -8555,7 +8555,7 @@ static void s_stage_connected_callback(dap_client_t* a_client, void * a_arg) {
 int com_exec_cmd(int argc, char **argv, void **reply) {
     json_object ** a_json_arr_reply = (json_object **) reply;
     if (!dap_json_rpc_exec_cmd_inited()) {
-        dap_json_rpc_error_add(-1, "Json-rpc module doesn't inited, check confings");
+        dap_json_rpc_error_add(*a_json_arr_reply, -1, "Json-rpc module doesn't inited, check confings");
         return -1;
     }
 
@@ -8565,7 +8565,7 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-addr", &l_addr_str);
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &l_net_str);
     if (!l_cmd_arg_str || ! l_addr_str || !l_net_str) {
-        dap_json_rpc_error_add(-1, "Command exec_cmd require args -cmd, -addr, -net");
+        dap_json_rpc_error_add(*a_json_arr_reply, -1, "Command exec_cmd require args -cmd, -addr, -net");
         return -2;
     }
     dap_chain_net_t* l_net = NULL;
@@ -8601,7 +8601,7 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
     if (res) {
         log_it(L_ERROR, "No response from node");
-        dap_json_rpc_error_add(-8, "No reponse from node");
+        dap_json_rpc_error_add(*a_json_arr_reply, -8, "No reponse from node");
         dap_chain_node_client_close_unsafe(l_node_client);
         DAP_DELETE(node_info);
         return -8;
