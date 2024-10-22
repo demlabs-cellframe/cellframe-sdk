@@ -2228,7 +2228,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
     switch (l_cmd_num) {
         case CMD_ORDER: {
-            int res = s_cli_srv_xchange_order(a_argc, a_argv, l_arg_index + 1, *json_arr_reply);
+            int res = s_cli_srv_xchange_order(a_argc, a_argv, l_arg_index + 1, json_arr_reply);
             return res;
         }
         case CMD_ORDERS: {
