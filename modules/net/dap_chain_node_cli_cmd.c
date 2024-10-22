@@ -8602,14 +8602,22 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     //wait handshake
     int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
     if (res) {
-        // dap_cli_server_cmd_set_reply_text(a_str_reply, "No response from node");
-        // clean client struct
+        log_it(L_ERROR, "No response from node");
+        dap_json_rpc_error_add(-8, "No reponse from node");
         dap_chain_node_client_close_unsafe(l_node_client);
         DAP_DELETE(node_info);
         return -8;
     }
+
+    //send response
     char * l_response = NULL;
-    dap_json_rpc_request_send(l_client_internal, l_request, l_response);
-    json_object_array_add(*a_json_arr_reply, json_object_new_string(l_response));
+    dap_json_rpc_request_send(l_client_internal, l_request, &l_response);
+
+    if (l_response) {
+        json_object * l_json_response = json_tokener_parse(l_response);
+        json_object_array_add(*a_json_arr_reply, l_json_response);
+    } else {
+        json_object_array_add(*a_json_arr_reply, json_object_new_string("Empty reply"));
+    }
     return 0;
 }
