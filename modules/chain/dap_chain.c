@@ -602,7 +602,8 @@ bool download_notify_callback(dap_chain_t* a_chain) {
     json_object_object_add(l_chain_info, "chain_id", json_object_new_uint64(a_chain->id.uint64));
     json_object_object_add(l_chain_info, "load_progress", json_object_new_int(a_chain->load_progress));
     dap_notify_server_send_mt(json_object_get_string(l_chain_info));
-    log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]", a_chain->net_name, a_chain->name, a_chain->id.uint64, a_chain->load_progress);
+    log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
+                    a_chain->net_name, a_chain->name, a_chain->id.uint64, a_chain->load_progress);
     json_object_put(l_chain_info);
     return true;
 }
@@ -658,7 +659,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
                 DAP_DELETE(l_filename_backup);
 #endif
             }
-            dap_timerfd_delete_unsafe(l_download_notify_timer);
+            dap_timerfd_delete_mt(l_download_notify_timer->worker, l_download_notify_timer->esocket_uuid);
             download_notify_callback(a_chain);
         }
     }
@@ -692,7 +693,7 @@ void dap_chain_close(dap_chain_t * a_chain)
  * @param a_callback
  * @param a_arg
  */
-void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_notify_t a_callback, void * a_callback_arg)
+void dap_chain_add_callback_notify(dap_chain_t *a_chain, dap_chain_callback_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_callback_arg)
 {
     if(!a_chain){
         log_it(L_ERROR, "NULL chain passed to dap_chain_add_callback_notify()");
@@ -709,6 +710,7 @@ void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_not
     }
 
     l_notifier->callback = a_callback;
+    l_notifier->proc_thread = a_thread;
     l_notifier->arg = a_callback_arg;
     pthread_rwlock_wrlock(&a_chain->rwlock);
     a_chain->atom_notifiers = dap_list_append(a_chain->atom_notifiers, l_notifier);
@@ -840,7 +842,7 @@ void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_ha
             .hash = *a_hash,
             .atom = a_chain_cell->chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE(a_atom, a_atom_size),
             .atom_size = a_atom_size };
-        dap_proc_thread_callback_add_pri(NULL, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
+        dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }
 }
 

@@ -43,6 +43,7 @@
 #define DAP_CHAIN_HASH_SLOW_SIZE    32
 #define DAP_CHAIN_TIMESTAMP_SIZE    8
 #define DAP_CHAIN_TICKER_SIZE_MAX   10
+#define DAP_CHAIN_DATUM_NONCE_SIZE  64
 
 #define DATOSHI_LD 1000000000.0L    // Deprecated
 #define DATOSHI_DEGREE 18
@@ -74,6 +75,20 @@ typedef union dap_chain_node_role{
     uint32_t enums;
     uint8_t raw[DAP_CHAIN_NODE_ROLE_SIZE];
 } DAP_ALIGN_PACKED dap_chain_node_role_t;
+
+DAP_STATIC_INLINE const char *dap_chain_node_role_to_str(dap_chain_node_role_t a_node_role)
+{
+    switch (a_node_role.enums) {
+        case NODE_ROLE_ROOT_MASTER: return "NODE_ROLE_ROOT_MASTER";
+        case NODE_ROLE_ROOT: return "NODE_ROLE_ROOT";
+        case NODE_ROLE_ARCHIVE: return "NODE_ROLE_ARCHIVE";
+        case NODE_ROLE_CELL_MASTER: return "NODE_ROLE_CELL_MASTER";
+        case NODE_ROLE_MASTER: return "NODE_ROLE_MASTER";
+        case NODE_ROLE_FULL: return "NODE_ROLE_FULL";
+        case NODE_ROLE_LIGHT: return "NODE_ROLE_LIGHT";
+        default: return "UNDEFINED";
+    }
+}
 
 typedef dap_stream_node_addr_t dap_chain_node_addr_t;
 #define dap_chain_node_addr_str_check dap_stream_node_addr_str_check
