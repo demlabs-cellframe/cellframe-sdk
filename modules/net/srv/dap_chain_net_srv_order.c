@@ -586,7 +586,6 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         }
         char buf_time[DAP_TIME_STR_SIZE];
         dap_time_to_str_rfc822(buf_time, DAP_TIME_STR_SIZE, a_order->ts_created);
-        json_object_object_add(a_json_obj_out, "created", json_object_new_string(buf_time));
 
         char *srv_uid = dap_strdup_printf("0x%016"DAP_UINT64_FORMAT_X" ", a_order->srv_uid.uint64);
         json_object_object_add(a_json_obj_out, "srv_uid", json_object_new_string(srv_uid));
@@ -596,14 +595,14 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         json_object_object_add(a_json_obj_out, "created", json_object_new_string(buf_time));
 
         json_object_object_add(a_json_obj_out, "price coins", json_object_new_string(l_balance_coins));
-        json_object_object_add(a_json_obj_out, "price", json_object_new_string(l_balance));
-        json_object_object_add(a_json_obj_out, "price_token", (*a_order->price_ticker) ?
+        json_object_object_add(a_json_obj_out, "price datoshi", json_object_new_string(l_balance));
+        json_object_object_add(a_json_obj_out, "price token", (*a_order->price_ticker) ?
                                                               json_object_new_string(a_order->price_ticker) :
                                                               json_object_new_string(a_native_ticker));
         json_object_object_add(a_json_obj_out, "units", json_object_new_uint64(a_order->units));
 
         if ( a_order->price_unit.uint32 )
-            json_object_object_add(a_json_obj_out, "price_unit", json_object_new_string(dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit)));
+            json_object_object_add(a_json_obj_out, "price unit", json_object_new_string(dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit)));
         if ( a_order->node_addr.uint64) {
             char *node_addr = dap_strdup_printf(""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(a_order->node_addr));
             json_object_object_add(a_json_obj_out, "node_addr", json_object_new_string(node_addr));
