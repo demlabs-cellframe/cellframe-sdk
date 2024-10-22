@@ -2379,7 +2379,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                                                 json_object_new_string(l_amount_datoshi_str) : 
                                                 json_object_new_string("0"));
                 json_object_object_add(json_obj_orders, "token sell", json_object_new_string(l_price->token_sell));
-                json_object_object_add(json_obj_orders, "filled", json_object_new_string(l_percent_completed));
+                json_object_object_add(json_obj_orders, "filled", json_object_new_uint64(l_percent_completed));
                 json_object_object_add(json_obj_orders, "token buy", json_object_new_string(l_price->token_buy));
                 json_object_object_add(json_obj_orders, "token sell", json_object_new_string(l_price->token_sell));
                 json_object_object_add(json_obj_orders, "balance rate", json_object_new_string(l_price->token_sell));
