@@ -8586,8 +8586,11 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     dap_chain_node_addr_from_str(&l_node_addr, l_addr_str);
 
     dap_chain_node_info_t *node_info = node_info_read_and_reply(l_net, &l_node_addr, NULL);
-    if(!node_info)
+    if(!node_info) {
+        log_it(L_DEBUG, "Can't find node with addr: %s", l_node_addr);
+        dap_json_rpc_error_add(*a_json_arr_reply, -6, "Can't find node with addr: %s", l_node_addr);
         return -6;
+    }
     int timeout_ms = 5000; //5 sec = 5000 ms
     dap_chain_node_client_t * l_node_client = dap_chain_node_client_create(l_net, node_info, NULL, NULL);
 
