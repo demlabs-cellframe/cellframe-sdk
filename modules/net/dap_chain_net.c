@@ -1889,12 +1889,14 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
     dap_chain_t *l_chain;
     dap_chain_type_t *l_types_arr;
     char l_occupied_default_types[CHAIN_TYPE_MAX] = { 0 };
-    uint16_t k;
     HASH_ITER(hh, l_all_chain_configs, l_chain_config, l_tmp_cfg) {
         if (( l_chain = dap_chain_load_from_cfg(l_net->pub.name, l_net->pub.id, l_chain_config) )) {
             DL_APPEND(l_net->pub.chains, l_chain);
             l_types_arr = l_chain->default_datum_types;
-            for (i = 0, k = l_chain->default_datum_types_count; i < k; ++i) {
+            uint16_t
+                i = 0,
+                k = l_chain->default_datum_types_count;
+            for ( ; i < k; ++i) {
                 if ( l_occupied_default_types[l_types_arr[i]] ) {
                     if ( i < k - 1 )
                         l_types_arr[i] =
