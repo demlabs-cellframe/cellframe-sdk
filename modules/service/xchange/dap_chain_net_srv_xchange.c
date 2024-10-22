@@ -1477,6 +1477,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
         {
             const char * l_order_hash_str = NULL;
             const char * l_fee_str = NULL;
+            json_object* json_obj_order = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_RMOVE_REQ_PARAM_NET_ERR, "Command 'order %s' requires parameter -net",
@@ -1528,7 +1529,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
             
             switch (l_ret_code) {
                 case XCHANGE_REMOVE_ERROR_OK:
-                    json_object* json_obj_order = json_object_new_object();
+                    json_obj_order = json_object_new_object();
                     json_object_object_add(json_obj_order, "status", json_object_new_string("Order successfully removed"));
                     json_object_object_add(json_obj_order, "Created inactivate tx with hash", json_object_new_string(l_tx_hash_ret));
                     json_object_array_add(*a_json_arr_reply, json_obj_order);
