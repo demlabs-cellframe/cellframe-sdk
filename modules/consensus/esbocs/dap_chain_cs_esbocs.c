@@ -50,6 +50,8 @@ enum s_esbocs_session_state {
     DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS     // fictive sate to change back
 };
 
+#define ESBOCS_PENALTY_TTL ( 72 * 3600 ) // 3 days
+
 static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_validators);
 static void s_session_proc_state(void *a_arg);
 static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s_esbocs_session_state a_new_state, dap_time_t a_time);
@@ -539,7 +541,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     char *l_sync_group = s_get_penalty_group(l_net->pub.id);
     l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
                                                       dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_ESBOCS),
-                                                      l_sync_group, 72, true,
+                                                      l_sync_group, ESBOCS_PENALTY_TTL, true,
                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_session->db_cluster->links_cluster);
     dap_global_db_erase_table_sync(l_sync_group);     // Drop table on stratup
@@ -729,13 +731,13 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
     return 0;
 }
 
-int dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id)
+uint16_t dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id)
 {
     dap_chain_esbocs_session_t *l_session;
     DL_FOREACH(s_session_items, l_session)
         if (l_session->chain->net_id.uint64 == a_net_id.uint64)
             return PVT(l_session->esbocs)->min_validators_count;
-    return -1;
+    return 0;
 }
 
 int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
