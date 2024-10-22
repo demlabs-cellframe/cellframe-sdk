@@ -8587,8 +8587,8 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
 
     dap_chain_node_info_t *node_info = node_info_read_and_reply(l_net, &l_node_addr, NULL);
     if(!node_info) {
-        log_it(L_DEBUG, "Can't find node with addr: %s", l_node_addr);
-        dap_json_rpc_error_add(*a_json_arr_reply, -6, "Can't find node with addr: %s", l_node_addr);
+        log_it(L_DEBUG, "Can't find node with addr: %s", l_addr_str);
+        dap_json_rpc_error_add(*a_json_arr_reply, -6, "Can't find node with addr: %s", l_addr_str);
         return -6;
     }
     int timeout_ms = 5000; //5 sec = 5000 ms
@@ -8620,5 +8620,7 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     } else {
         json_object_array_add(*a_json_arr_reply, json_object_new_string("Empty reply"));
     }
+
+    dap_chain_node_client_close_mt(l_node_client);
     return 0;
 }
