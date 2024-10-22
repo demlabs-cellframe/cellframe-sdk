@@ -8611,12 +8611,11 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     }
 
     //send response
-    char * l_response = NULL;
+    json_object * l_response = NULL;
     dap_json_rpc_request_send(l_client_internal, l_request, &l_response);
 
     if (l_response) {
-        json_object * l_json_response = json_tokener_parse(l_response);
-        json_object_array_add(*a_json_arr_reply, l_json_response);
+        json_object_array_add(*a_json_arr_reply, l_response);
     } else {
         json_object_array_add(*a_json_arr_reply, json_object_new_string("Empty reply"));
     }
