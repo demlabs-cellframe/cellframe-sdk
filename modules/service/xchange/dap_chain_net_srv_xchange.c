@@ -2807,7 +2807,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     char ** l_tickers = NULL;
                     size_t l_tickers_count = 0;
                     dap_ledger_addr_get_token_ticker_all( l_net->pub.ledger,NULL,&l_tickers,&l_tickers_count);
-
+                    json_object* json_obj_out = json_object_new_object();
                     size_t l_pairs_count = 0;
                     if(l_tickers){
                         size_t l_arr_start = 0;
@@ -2832,7 +2832,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                             }
 
                         }
-                        json_object_array_add(*json_arr_reply, json_arr_bl_cache_out);
+                        json_object_object_add(json_obj_out, "TICKERS PAIR", json_arr_bl_cache_out);
 
                         // Free tickers array
                         for(size_t i = 0; i< l_tickers_count; i++){
@@ -2840,20 +2840,24 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         }
                         DAP_DELETE(l_tickers);
                     }
-                    dap_string_prepend_printf( l_reply_str,"Tokens count pair: %zd\n", l_pairs_count);
-                    *a_str_reply = dap_string_free(l_reply_str, false);
+                    json_object_object_add(json_obj_out, "pair count", json_object_new_uint64(l_pairs_count));
+                    json_object_array_add(*json_arr_reply, json_obj_out);
                     break;
                 }
             }
 
             // No subcommand selected
-            dap_cli_server_cmd_set_reply_text(a_str_reply,"Command 'token pair' requires proper subcommand, please read its manual with command 'help srv_xchange'");
+            json_object* json_obj_out = json_object_new_object();
+            json_object_object_add(json_obj_out, "token pair status", json_object_new_string("Command 'token pair' requires proper subcommand," 
+                                                                                        "please read its manual with command 'help srv_xchange'"));
+            json_object_array_add(*json_arr_reply, json_obj_out);
 
         } break;
 
         default: {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
-            return -1;
+            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_UNKNOWN_COMMAND_ERR,
+                                           "Command %s not recognized", a_argv[l_arg_index]);
+            return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_UNKNOWN_COMMAND_ERR;
         }
     }
     return 0;

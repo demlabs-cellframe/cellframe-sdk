@@ -218,7 +218,7 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
     return memcmp(a_addr->checksum.raw, l_checksum.raw, sizeof(l_checksum.raw));
 }
 
-void s_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count)
+void dap_chain_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count)
 {
     json_object* json_obj_lim = json_object_new_object();
     if (a_offset > 0) {
