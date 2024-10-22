@@ -228,7 +228,7 @@ static bool s_net_states_proc(void *a_arg);
 static void s_net_states_notify(dap_chain_net_t * l_net);
 static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg);
 //static void s_net_proc_kill( dap_chain_net_t * a_net );
-static int s_net_init(const char * a_net_name, uint16_t a_acl_idx);
+static int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx);
 static bool s_net_load(void *a_arg);
 static int s_net_try_online(dap_chain_net_t *a_net);
 static int s_cli_net(int argc, char ** argv, void **a_str_reply);
@@ -279,41 +279,36 @@ int dap_chain_net_init()
             "\tPrint list of PoA cerificates for this network\n");
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
-
-    char * l_net_dir_str = dap_strdup_printf("%s/network", dap_config_path());
-    DIR * l_net_dir = opendir( l_net_dir_str);
-    if ( l_net_dir ){
-        struct dirent * l_dir_entry = NULL;
+    char l_path[MAX_PATH + 1] = { '\0' }, *l_end = NULL;
+    int l_pos = snprintf(l_path, MAX_PATH, "%s/network/", dap_config_path());
+    if (l_pos >= MAX_PATH - 4)
+        return log_it(L_ERROR, "Invalid path to net configs, fix it!"), -1;
+    DIR *l_dir = opendir(l_path);
+    if ( l_dir ){
+        struct dirent *l_dir_entry = NULL;
         uint16_t l_acl_idx = 0;
-        while ( (l_dir_entry = readdir(l_net_dir) ) ){
-            if (l_dir_entry->d_name[0]=='\0' || l_dir_entry->d_name[0]=='.')
+        while ( (l_dir_entry = readdir(l_dir)) ) {
+            if (*l_dir_entry->d_name =='\0' || *l_dir_entry->d_name =='.')
                 continue;
             // don't search in directories
-            char l_full_path[MAX_PATH + 1] = {0};
-            snprintf(l_full_path, sizeof(l_full_path), "%s/%s", l_net_dir_str, l_dir_entry->d_name);
-            if(dap_dir_test(l_full_path)) {
+            l_end = dap_strncpy(l_path + l_pos, l_dir_entry->d_name, MAX_PATH - l_pos);
+            if ( dap_dir_test(l_path) )
+                continue;
+            // search only ".cfg" files
+            if ( (int)(l_end - l_path) + l_pos > 4 && strncmp(l_end - 4, ".cfg", 4) )
+                continue;
+            
+            log_it(L_DEBUG, "Loading net config \"%s\"", l_dir_entry->d_name);
+            *(l_end - 4) = '\0';
+            if ( !dap_dir_test(l_path) ) {
+                log_it(L_ERROR, "Path \"%s\" not found, skipping it", l_path);
                 continue;
             }
-            // search only ".cfg" files
-            if(strlen(l_dir_entry->d_name) > 4) { // It has non zero name excluding file extension
-                if( strncmp(l_dir_entry->d_name + strlen(l_dir_entry->d_name) - 4, ".cfg", 4) ) {
-                    // its not .cfg file
-                    continue;
-                }
-            }
-            log_it(L_DEBUG,"Network config %s try to load", l_dir_entry->d_name);
-            //char* l_dot_pos = rindex(l_dir_entry->d_name,'.');
-            char* l_dot_pos = strchr(l_dir_entry->d_name,'.');
-            if ( l_dot_pos )
-                *l_dot_pos = '\0';
-            s_net_init(l_dir_entry->d_name, l_acl_idx++);
+            s_net_init(l_path + l_pos, l_path, l_acl_idx++);
         }
-        closedir(l_net_dir);
-    } else {
-        log_it(L_WARNING, "Can't open entries on path %s, error %d: \"%s\"",
-                           l_net_dir_str, errno, dap_strerror(errno));
-    }
-    DAP_DELETE (l_net_dir_str);
+        closedir(l_dir);
+    } else
+        log_it(L_WARNING, "Can't open entries on path %s, error %d: \"%s\"", l_path, errno, dap_strerror(errno));
 
     dap_enc_http_set_acl_callback(s_net_set_acl);
     log_it(L_NOTICE,"Chain networks initialized");
@@ -659,7 +654,7 @@ static void s_net_states_notify(dap_chain_net_t *a_net)
  */
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
 {
-    return  PVT(a_net)->node_role;
+    return PVT(a_net)->node_role;
 }
 
 /**
@@ -1690,48 +1685,10 @@ static int s_cli_net(int argc, char **argv, void **reply)
     return  l_ret;
 }
 
-/**
- * @brief remove_duplicates_in_chain_by_priority
- * remove duplicates default datum types in chain by priority
- * @param *l_chain_1 chain 1
- * @param *l_chain_2 chain 2
- * @return void
- */
-
-static void remove_duplicates_in_chain_by_priority(dap_chain_t *l_chain_1, dap_chain_t *l_chain_2)
-{
-    dap_chain_t *l_chain_high_priority = (l_chain_1->load_priority > l_chain_2->load_priority) ? l_chain_2 : l_chain_1; //such distribution is made for correct operation with the same priority
-    dap_chain_t *l_chain_low_priority = (l_chain_1->load_priority > l_chain_2->load_priority) ? l_chain_1 : l_chain_2; //...^...^...^...
-
-    for (int i = 0; i < l_chain_high_priority->default_datum_types_count; i++)
-    {
-        for (int j = 0; j < l_chain_low_priority->default_datum_types_count; j++)
-        {
-            if (l_chain_high_priority->default_datum_types[i] == l_chain_low_priority->default_datum_types[j])
-            {
-                l_chain_low_priority->default_datum_types[j] = l_chain_low_priority->default_datum_types[l_chain_low_priority->default_datum_types_count - 1];
-                --l_chain_low_priority->default_datum_types_count;
-                --j;
-            }
-        }
-    }
-}
-
-// for sequential loading chains
-typedef struct list_priority_{
-    uint16_t prior;
-    char * chains_path;
-} list_priority;
-
-static int callback_compare_prioritity_list(dap_list_t *a_item1, dap_list_t *a_item2)
-{
-    list_priority   *l_item1 = a_item1->data,
-                    *l_item2 = a_item2->data;
-    if (!l_item1 || !l_item2) {
-        log_it(L_CRITICAL, "Invalid arg");
-        return 0;
-    }
-    return l_item1->prior == l_item2->prior ? 0 : l_item1->prior > l_item2->prior ? 1 : -1;
+static int s_cmp_cfg_pri(dap_config_t *cfg1, dap_config_t *cfg2) {
+    uint16_t l_pri1 = dap_config_get_item_uint16_default(cfg1, "chain", "load_priority", 100),
+             l_pri2 = dap_config_get_item_uint16_default(cfg2, "chain", "load_priority", 100);
+    return l_pri1 == l_pri2 ? 0 : l_pri1 > l_pri2 ? 1 : -1;
 }
 
 /**
@@ -1743,8 +1700,6 @@ void dap_chain_net_deinit()
     dap_chain_net_balancer_deinit();
     dap_chain_net_t *l_net, *l_tmp;
     HASH_ITER(hh2, s_nets_by_id, l_net, l_tmp) {
-        HASH_DEL(s_nets_by_name, l_net);
-        HASH_DELETE(hh2, s_nets_by_id, l_net);
         dap_chain_net_delete(l_net);
     }
     dap_http_ban_list_client_deinit();
@@ -1777,6 +1732,8 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
         dap_ledger_purge(a_net->pub.ledger, true);
         dap_ledger_handle_free(a_net->pub.ledger);
     }
+    HASH_DEL(s_nets_by_name, a_net);
+    HASH_DELETE(hh2, s_nets_by_id, a_net);
     DAP_DELETE(a_net);
 }
 
@@ -1854,15 +1811,12 @@ int s_nodes_hosts_init(dap_chain_net_t *a_net, dap_config_t *a_cfg, const char *
  * @param a_acl_idx currently 0
  * @return int
  */
-int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
+int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
 {
-    dap_config_t *l_cfg = NULL;
-    {
-        char l_cfg_path[strlen(a_net_name) + sizeof("network/")];
-        dap_stpcpy(dap_stpcpy(l_cfg_path, "network/"), a_net_name);
-        if (!( l_cfg = dap_config_open(l_cfg_path) ))
-            return log_it(L_ERROR,"Can't open default network config %s", l_cfg_path), -1;
-    }
+    dap_config_t *l_cfg = dap_config_open(a_path);
+    if (!l_cfg)
+        return log_it(L_ERROR,"Can't open default network config %s", a_path), -1;
+
     dap_chain_net_t *l_net = s_net_new(a_net_name, l_cfg);
     if ( !l_net ) 
         return log_it(L_ERROR,"Can't create net \"%s\"", a_net_name), dap_config_close(l_cfg), -1;
@@ -1906,100 +1860,66 @@ int s_net_init(const char *a_net_name, uint16_t a_acl_idx)
         log_it(L_WARNING, "Can't read seed nodes addresses, work with local balancer only");
 
     /* *** Chains init by configs *** */
-    char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
-    DIR * l_chains_dir = opendir(l_chains_path);
-    DAP_DEL_Z(l_chains_path);
-    if (!l_chains_dir) {
-        log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name);
-        dap_chain_net_delete(l_net);
-        return -7;
-    }
-    // for sequential loading chains
-    dap_list_t *l_prior_list = NULL;
+    DIR *l_chains_dir = opendir(a_path);
+    if (!l_chains_dir)
+        return log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name), dap_chain_net_delete(l_net), -7;
 
-    struct dirent * l_dir_entry;
-    while ( (l_dir_entry = readdir(l_chains_dir) )!= NULL ){
-        if (l_dir_entry->d_name[0]=='\0')
-            continue;
-        char *l_entry_name = dap_strdup(l_dir_entry->d_name);
-        if (!l_entry_name) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            dap_chain_net_delete(l_net);
-            closedir(l_chains_dir);
-            return -8;
-        }
-        if (strlen (l_entry_name) > 4 ){ // It has non zero name excluding file extension
-            if ( strncmp (l_entry_name+ strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
-                l_entry_name [strlen(l_entry_name)-4] = 0;
-                log_it(L_DEBUG,"Open chain config \"%s\"...",l_entry_name);
-                l_chains_path = dap_strdup_printf("network/%s/%s",l_net->pub.name,l_entry_name);
-                dap_config_t * l_cfg_new = dap_config_open(l_chains_path);
-                if(l_cfg_new) {
-                    list_priority *l_chain_prior = DAP_NEW_Z(list_priority);
-                    if (!l_chain_prior) {
-                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                        DAP_DELETE(l_entry_name);
-                        dap_config_close(l_cfg_new);
-                        closedir(l_chains_dir);
-                        dap_chain_net_delete(l_net);
-                        return -9;
-                    }
-                    l_chain_prior->prior = dap_config_get_item_uint16_default(l_cfg_new, "chain", "load_priority", 100);
-                    log_it(L_DEBUG, "Chain priority: %u", l_chain_prior->prior);
-                    l_chain_prior->chains_path = l_chains_path;
-                    // add chain to load list;
-                    l_prior_list = dap_list_append(l_prior_list, l_chain_prior);
-                    dap_config_close(l_cfg_new);
-                }
+    struct dirent *l_dir_entry;
+    dap_config_t *l_chain_config, *l_all_chain_configs = NULL, *l_tmp_cfg;
+    char l_chain_cfg_path[MAX_PATH + 1] = { '\0' };
+    int l_pos = snprintf(l_chain_cfg_path, MAX_PATH, "network/%s/", a_net_name);
+    while (( l_dir_entry = readdir(l_chains_dir) )) {
+        unsigned short l_len = strlen(l_dir_entry->d_name);
+        if ( l_len > 4 && !dap_strncmp(l_dir_entry->d_name + l_len - 4, ".cfg", 4) ) {
+            *(l_dir_entry->d_name + l_len - 4) = '\0';
+            log_it(L_DEBUG, "Opening chain config \"%s.%s\"", a_net_name, l_dir_entry->d_name);
+            dap_strncpy(l_chain_cfg_path + l_pos, l_dir_entry->d_name, MAX_PATH - l_pos);
+            if (!( l_chain_config = dap_config_open(l_chain_cfg_path) )) {
+                log_it(L_ERROR, "Can't open chain config %s, skip it", l_dir_entry->d_name);
+                continue;
             }
+            HASH_ADD_KEYPTR(hh, l_all_chain_configs, l_chain_config->path, strlen(l_chain_config->path), l_chain_config);
         }
-        DAP_DELETE(l_entry_name);
     }
     closedir(l_chains_dir);
+    if (!l_all_chain_configs)
+        return log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name), dap_chain_net_delete(l_net), -8;
 
-    // sort list with chains names by priority
-    l_prior_list = dap_list_sort(l_prior_list, callback_compare_prioritity_list);
-
-    // create and load chains params by priority
+    HASH_SORT(l_all_chain_configs, s_cmp_cfg_pri);
     dap_chain_t *l_chain;
-    dap_list_t *l_list = l_prior_list;
-    while(l_list){
-        list_priority *l_chain_prior = l_list->data;
-        // Create chain object
-        l_chain = dap_chain_load_from_cfg(l_net->pub.name, l_net->pub.id, l_chain_prior->chains_path);
-        if(l_chain)
+    dap_chain_type_t *l_types_arr;
+    char l_occupied_default_types[CHAIN_TYPE_MAX] = { 0 };
+    uint16_t k;
+    HASH_ITER(hh, l_all_chain_configs, l_chain_config, l_tmp_cfg) {
+        if (( l_chain = dap_chain_load_from_cfg(l_net->pub.name, l_net->pub.id, l_chain_config) )) {
             DL_APPEND(l_net->pub.chains, l_chain);
-        else
-            log_it(L_WARNING, "Can't process chain from config %s", l_chain_prior->chains_path);
-        DAP_DELETE (l_chain_prior->chains_path);
-        l_list = dap_list_next(l_list);
-    }
-    dap_list_free_full(l_prior_list, NULL);
-    dap_chain_t *l_chain02;
-    DL_FOREACH(l_net->pub.chains, l_chain){
-        DL_FOREACH(l_net->pub.chains, l_chain02){
-            if (l_chain != l_chain02){
-                if (l_chain->id.uint64 == l_chain02->id.uint64) {
-                    log_it(L_ERROR, "Your network %s has chains with duplicate ids: 0x%"DAP_UINT64_FORMAT_U", chain01: %s, chain02: %s", l_chain->net_name,
-                                    l_chain->id.uint64, l_chain->name,l_chain02->name);
-                    log_it(L_ERROR, "Please, fix your configs and restart node");
-                    return -10;
-                }
-                if (!dap_strcmp(l_chain->name, l_chain02->name)) {
-                    log_it(L_ERROR, "Your network %s has chains with duplicate names %s: chain01 id = 0x%"DAP_UINT64_FORMAT_U", chain02 id = 0x%"DAP_UINT64_FORMAT_U"",l_chain->net_name,
-                           l_chain->name, l_chain->id.uint64, l_chain02->id.uint64);
-                    log_it(L_ERROR, "Please, fix your configs and restart node");
-                    return -11;
-                }
-                remove_duplicates_in_chain_by_priority(l_chain, l_chain02);
+            l_types_arr = l_chain->default_datum_types;
+            for (i = 0, k = l_chain->default_datum_types_count; i < k; ++i) {
+                if ( l_occupied_default_types[l_types_arr[i]] ) {
+                    if ( i < k - 1 )
+                        l_types_arr[i] =
+                            l_types_arr[k - 1];
+                    --i;
+                    --k;
+                } else
+                    l_occupied_default_types[l_types_arr[i]] = 1;
             }
+            if ( k < l_chain->default_datum_types_count ) {
+                l_chain->default_datum_types_count = k;
+                l_chain->default_datum_types = DAP_REALLOC_COUNT(l_chain->default_datum_types, k);
+            }
+        } else {
+            HASH_DEL(l_all_chain_configs, l_chain_config);
+            dap_config_close(l_chain_config);
         }
     }
+    HASH_CLEAR(hh, l_all_chain_configs);
     // LEDGER model
     uint16_t l_ledger_flags = 0;
     switch ( PVT( l_net )->node_role.enums ) {
     case NODE_ROLE_LIGHT:
-        break;
+        //break;
+        PVT( l_net )->node_role.enums = NODE_ROLE_FULL; // TODO: implement light mode
     case NODE_ROLE_FULL:
         l_ledger_flags |= DAP_LEDGER_CHECK_LOCAL_DS;
         if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", false))
@@ -2149,11 +2069,10 @@ bool s_net_load(void *a_arg)
         // Personal chain mempool cluster for each chain
         l_gdb_groups_mask = dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix, l_chain->name);
         dap_global_db_cluster_t *l_cluster = dap_global_db_cluster_add(
-                                                    dap_global_db_instance_get_default(),
-                                                    l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
-                                                    l_gdb_groups_mask, DAP_CHAIN_NET_MEMPOOL_TTL, true,
-                                                    DAP_GDB_MEMBER_ROLE_USER,
-                                                    DAP_CLUSTER_TYPE_EMBEDDED);
+                                                dap_global_db_instance_get_default(), l_net->pub.name, 
+                                                dap_guuid_compose(l_net->pub.id.uint64, 0), l_gdb_groups_mask, 
+                                                dap_config_get_item_int32_default(l_net->pub.config, "global_db", "mempool_ttl", DAP_CHAIN_NET_MEMPOOL_TTL),
+                                                true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_TYPE_EMBEDDED);
         if (!l_cluster) {
             log_it(L_ERROR, "Can't initialize mempool cluster for network %s", l_net->pub.name);
             l_err_code = -2;
@@ -2181,7 +2100,7 @@ bool s_net_load(void *a_arg)
     l_gdb_groups_mask = dap_strdup_printf("%s.orders", l_net->pub.gdb_groups_prefix);
     l_net_pvt->common_orders = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                           l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
-                                                          l_gdb_groups_mask, 336, true,
+                                                          l_gdb_groups_mask, 0, true,
                                                           DAP_GDB_MEMBER_ROLE_USER,
                                                           DAP_CLUSTER_TYPE_EMBEDDED);
     if (!l_net_pvt->common_orders) {
@@ -2194,7 +2113,7 @@ bool s_net_load(void *a_arg)
     l_gdb_groups_mask = dap_strdup_printf("%s.nodes.states", l_net->pub.gdb_groups_prefix);
     l_net_pvt->nodes_states = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                         l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
-                                                        l_gdb_groups_mask, 6, true,
+                                                        l_gdb_groups_mask, DAP_CHAIN_NET_NODES_TTL, true,
                                                         DAP_GDB_MEMBER_ROLE_USER,
                                                         DAP_CLUSTER_TYPE_EMBEDDED);
     DAP_DELETE(l_gdb_groups_mask);
