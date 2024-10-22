@@ -448,12 +448,12 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING,"Can't get signing address from decree.");
                 return -105;
             }
-
-            uint16_t l_current_count = dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL);
+            if (!a_anchored)
+                break;
             uint16_t l_min_count = dap_chain_esbocs_get_min_validators_count(a_net->pub.id);
-            if (l_current_count == l_min_count) {
-                log_it(L_WARNING, "Can't invalidate validator cause min validators count %hu will become less than total count for net %s",
-                                                                                l_current_count, a_net->pub.name);
+            if ( dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL) == l_min_count ) {
+                log_it(L_WARNING, "Can't invalidate stake in net %s: results in minimum validators count %hu underflow",
+                                   a_net->pub.name, l_min_count);
                 return -116;
             }
             if (!a_apply)
