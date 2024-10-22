@@ -105,6 +105,7 @@ typedef struct dap_chain_ch {
     void *_inheritor;
     dap_timerfd_t *sync_timer;
     struct sync_context *sync_context;
+    bool in_idle; 
 
     // Legacy section //
     dap_timerfd_t *activity_timer;
@@ -572,6 +573,7 @@ context_delete:
 
 
 struct atom_processing_args {
+    dap_chain_ch_t *channel;
     dap_stream_node_addr_t addr;
     bool ack_req;
     byte_t data[];
@@ -631,7 +633,7 @@ static bool s_sync_in_chains_callback(void *a_arg)
         log_it(L_CRITICAL, "Wtf is this ret code? %d", l_atom_add_res);
         break;
     }
-    if (l_ack_send && l_args->ack_req) {
+    if (l_ack_send && l_args->ack_req && l_args->channel && !l_args->channel->in_idle) {
         uint64_t l_ack_num = ((uint32_t)l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo;
         dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                                                          &l_ack_num, sizeof(uint64_t), DAP_CHAIN_CH_PKT_VERSION_CURRENT);
@@ -653,7 +655,7 @@ static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, da
         log_it(L_WARNING, "Incorrect chain GOSSIP packet size");
         return;
     }
-    struct atom_processing_args *l_args = DAP_NEW_SIZE(struct atom_processing_args, a_payload_size + sizeof(struct atom_processing_args));
+    struct atom_processing_args *l_args = DAP_NEW_Z_SIZE(struct atom_processing_args, a_payload_size + sizeof(struct atom_processing_args));
     if (!l_args) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
@@ -747,17 +749,21 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                         NODE_ADDR_FP_ARGS_S(a_ch->stream->node), l_cluster->mnemonim);
             return false;
         }
-        struct atom_processing_args *l_args = DAP_NEW_SIZE(struct atom_processing_args, l_ch_pkt->hdr.data_size + sizeof(struct atom_processing_args));
+        struct atom_processing_args *l_args = DAP_NEW_Z_SIZE(struct atom_processing_args, l_ch_pkt->hdr.data_size + sizeof(struct atom_processing_args));
         if (!l_args) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             break;
         }
+        l_args->channel = a_ch->internal;
+        if (l_args->channel)
+            l_args->channel->in_idle = false;
         l_args->addr = a_ch->stream->node;
         l_args->ack_req = true;
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
-        debug_if(s_debug_more, L_INFO, "In: CHAIN pkt: atom hash %s, size %zd, net id %" DAP_UINT64_FORMAT_U ", chain id %" DAP_UINT64_FORMAT_U,
+        debug_if(s_debug_more, L_INFO, "In: CHAIN pkt: atom hash %s, size %zd, net id %" DAP_UINT64_FORMAT_U ", chain id %" DAP_UINT64_FORMAT_U ", atom id %" DAP_UINT64_FORMAT_U,
                                         dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size, 
-                                        l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64);
+                                        l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
+                                        (uint64_t)(((uint32_t)l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo));
         dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_args);
     } break;
 
@@ -1639,6 +1645,7 @@ static void s_ch_chain_go_idle(dap_chain_ch_t *a_ch_chain)
         dap_timerfd_delete_unsafe(a_ch_chain->sync_timer);
         a_ch_chain->sync_timer = NULL;
     }
+    a_ch_chain->in_idle = true;
 //}
     // Legacy
     if (a_ch_chain->legacy_sync_context) {
