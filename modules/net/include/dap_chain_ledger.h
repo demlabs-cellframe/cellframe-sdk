@@ -190,6 +190,11 @@ typedef enum dap_chain_tx_tag_action_type {
     DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
 } dap_chain_tx_tag_action_type_t;
 
+typedef enum dap_ledger_wallets_cache_type{
+    DAP_LEDGER_WALLET_CACHE_TYPE_DISABLED = 0,
+    DAP_LEDGER_WALLET_CACHE_TYPE_LOCAL,
+    DAP_LEDGER_WALLET_CACHE_TYPE_ALL
+} dap_ledger_wallets_cache_type_t;
 
 typedef struct dap_ledger_datum_iter {
     dap_chain_net_t *net;
@@ -280,6 +285,8 @@ DAP_STATIC_INLINE char *dap_ledger_get_gdb_group(dap_ledger_t *a_ledger, const c
 int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data);
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data);
 int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash);
+
+dap_ledger_wallets_cache_type_t dap_ledger_get_wallets_cache_type();
 
 int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
@@ -408,7 +415,7 @@ dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
 dap_chain_datum_tx_t* dap_ledger_tx_find_by_addr(dap_ledger_t *a_ledger, const char * a_token,
          const dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_tx_first_hash);
 
-dap_chain_datum_tx_t* dap_ledger_tx_find_tx_by_addr_history(dap_ledger_t *a_ledger, const char **a_token ,
+dap_chain_datum_tx_t* dap_ledger_tx_find_tx_by_addr_in_cache(dap_ledger_t *a_ledger, const char **a_token ,
          const dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_tx_first_hash, 
          dap_chain_net_srv_uid_t *a_tag, dap_chain_tx_tag_action_type_t *a_action, int *a_ret_code);
 

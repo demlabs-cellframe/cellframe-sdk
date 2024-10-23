@@ -46,6 +46,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_math_convert.h"
 #include "dap_json_rpc_errors.h"
+#include "dap_chain_wallet.h"
 
 #define LOG_TAG "chain_node_cli_cmd_tx"
 
@@ -351,21 +352,63 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
     s_set_offset_limit_json(json_obj_datum, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
     
     size_t i_tmp = 0;
-    size_t
-            l_count = 0,
+    size_t l_count = 0,
             l_tx_ledger_accepted = 0,
             l_tx_ledger_rejected = 0;
  
     dap_chain_datum_tx_t *l_tx = NULL;
+    dap_chain_datum_t *l_datum_tmp = NULL;
     dap_hash_fast_t l_tx_cur_hash = {};
     const char *l_token_ticker = NULL;
     dap_chain_tx_tag_action_type_t l_action;
     dap_chain_net_srv_uid_t l_srv_uid = {0};
     int l_ret_code = 0;
-    while((l_tx = dap_ledger_tx_find_tx_by_addr_history(l_net->pub.ledger, &l_token_ticker, a_addr, &l_tx_cur_hash, NULL, &l_action, &l_ret_code))){
+
+    bool l_from_cache = false;
+
+    if ((dap_ledger_get_wallets_cache_type() == DAP_LEDGER_WALLET_CACHE_TYPE_LOCAL && dap_chain_wallet_addr_cache_get_name(a_addr)) ||
+        dap_ledger_get_wallets_cache_type() == DAP_LEDGER_WALLET_CACHE_TYPE_ALL){
+            l_from_cache = true;
+    } 
+
+
+    dap_chain_datum_iter_t *l_datum_iter = NULL;
+        
+    dap_chain_datum_callback_iters  iter_begin = NULL;
+    dap_chain_datum_callback_iters  iter_direc = NULL;
+    if (!l_from_cache){
+        // create chain iterator
+         // load transactions
+        l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
+        iter_begin = a_head ? a_chain->callback_datum_iter_get_first
+                            : a_chain->callback_datum_iter_get_last;
+        iter_direc = a_head ? a_chain->callback_datum_iter_get_next
+                            : a_chain->callback_datum_iter_get_prev;
+        l_datum_tmp = iter_begin(l_datum_iter);
+        l_tx = (dap_chain_datum_tx_t*)l_datum_tmp->data;
+    } else {
+        l_tx = dap_ledger_tx_find_tx_by_addr_in_cache(l_net->pub.ledger, &l_token_ticker, a_addr, &l_tx_cur_hash, NULL, &l_action, &l_ret_code);
+    }
+
+    do{
+        if (!l_tx) {
+            break;
+        }
+
+        if (!l_from_cache && l_datum_tmp->header.type_id != DAP_CHAIN_DATUM_TX)
+            // go to next datum
+            continue;   
+
         if (i_tmp >= l_arr_end)
             break;
- 
+
+        if (!l_from_cache){
+            l_tx_cur_hash = *l_datum_iter->cur_hash;
+            l_action = l_datum_iter->action;
+            l_ret_code = l_datum_iter ->ret_code;
+            l_token_ticker = l_datum_iter->token_ticker;
+        }   
+        
         // it's a transaction        
         bool l_is_need_correction = false;
         bool l_continue = true;
@@ -460,6 +503,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             dap_json_rpc_allocation_error(a_json_arr_reply);
             json_object_put(j_obj_tx);
             json_object_put(j_arr_data);
+            if (l_datum_iter)
+                a_chain->callback_datum_iter_delete(l_datum_iter);
             return NULL;
         }
         if (!l_src_addr) {
@@ -576,6 +621,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     dap_json_rpc_allocation_error(a_json_arr_reply);
                     json_object_put(j_obj_tx);
                     json_object_put(j_arr_data);
+                    if (l_datum_iter)
+                        a_chain->callback_datum_iter_delete(l_datum_iter);
                     return NULL;
                 }                
                 json_object_object_add(j_obj_data, "tx_type", json_object_new_string("recv"));
@@ -627,6 +674,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     dap_json_rpc_allocation_error(a_json_arr_reply);
                     json_object_put(j_obj_tx);
                     json_object_put(j_arr_data);
+                    if (l_datum_iter)
+                        a_chain->callback_datum_iter_delete(l_datum_iter);
                     return NULL;
                 }                
                 json_object_object_add(j_obj_data, "tx_type", json_object_new_string("send"));
@@ -688,8 +737,12 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             json_object_put(j_obj_tx);
         }
         dap_list_free(l_list_out_items);
-    }
-    // a_chain->callback_datum_iter_delete(l_datum_iter);
+
+    } while ((l_tx = !l_from_cache ? ((l_datum_tmp = iter_direc(l_datum_iter)) != NULL ? (dap_chain_datum_tx_t*)l_datum_tmp->data : NULL) :
+            dap_ledger_tx_find_tx_by_addr_in_cache(l_net->pub.ledger, &l_token_ticker, a_addr, &l_tx_cur_hash, NULL, &l_action, &l_ret_code)) != NULL);
+
+    if (l_datum_iter)
+        a_chain->callback_datum_iter_delete(l_datum_iter);
     // delete hashes
     s_dap_chain_tx_hash_processed_ht_free(&l_tx_data_ht);
     

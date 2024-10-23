@@ -79,6 +79,28 @@ static char const s_wallet_ext [] = ".dwallet", *s_wallets_path = NULL;
 static  pthread_rwlock_t s_wallet_n_pass_lock = PTHREAD_RWLOCK_INITIALIZER; /* Coordinate access to the hash-table */
 static  dap_chain_wallet_n_pass_t   *s_wallet_n_pass;                       /* A hash table to keep passwords for wallets */
 
+struct wallet_addr_cache {
+    char name[DAP_WALLET$SZ_NAME + 1];
+    dap_chain_addr_t addr;
+    UT_hash_handle hh;
+};
+
+struct wallet_addr_cache *s_wallet_addr_cache = NULL;
+void s_wallet_addr_cache_add(dap_chain_addr_t *a_addr, const char *a_wallet_name){
+    struct wallet_addr_cache *l_cache = DAP_NEW(struct wallet_addr_cache);
+    strcpy(l_cache->name, a_wallet_name);
+    memcpy(&l_cache->addr, a_addr, sizeof(dap_chain_addr_t));
+    HASH_ADD(hh, s_wallet_addr_cache, addr, sizeof(dap_chain_addr_t), l_cache);
+}
+const char *dap_chain_wallet_addr_cache_get_name(dap_chain_addr_t *a_addr){
+    struct wallet_addr_cache *l_tmp = NULL;
+    HASH_FIND(hh, s_wallet_addr_cache, a_addr, sizeof(dap_chain_addr_t), l_tmp);
+    if (l_tmp)
+        return l_tmp->name;
+    return NULL;
+}
+//const char *s_wallet
+
 /*
  *  DESCRIPTION: Add/update a record for wallet into the internaly used table of name/password pair.
  *      Thhose records are supposed to be used for operations with the password-protected wallets.
@@ -950,6 +972,16 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         }
 
         dap_enc_key_delete(l_enc_key);
+    }
+
+    //Added wallet and address wallet in cache
+    if (l_wallet) {
+        for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+            dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+            if (!dap_chain_wallet_addr_cache_get_name(l_addr))
+                s_wallet_addr_cache_add(l_addr, l_wallet->name);
+            DAP_DELETE(l_addr);
+        }
     }
 
     return  l_wallet;
