@@ -5390,7 +5390,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply)
             continue;
         }
         // Get owner tx
-        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_cond_tx, l_tx_out_cond);
+        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash);
         dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
             ? l_cond_tx:
             dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
@@ -5638,9 +5638,6 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_arr_reply)
     uint256_t l_total_value = {};
     for (dap_list_t *it = l_tx_list; it; it = it->next) {
         tx_check_args_t *l_data_tx = (tx_check_args_t*)it->data;
-        if (l_data_tx->tx_hash.raw[0] == 0x5A && l_data_tx->tx_hash.raw[1] == 0xc1){
-            log_it(L_INFO, "found!");
-        }
         dap_chain_datum_tx_t *l_tx = l_data_tx->tx;
         int l_prev_cond_idx = 0;
         dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY , &l_prev_cond_idx);
@@ -5660,7 +5657,7 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_arr_reply)
         }
 
         // Check sign
-        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_data_tx->tx, l_out_cond);
+        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_data_tx->tx_hash);
         dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
             ? l_tx
             : dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);

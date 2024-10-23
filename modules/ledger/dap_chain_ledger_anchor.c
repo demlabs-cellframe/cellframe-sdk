@@ -147,7 +147,7 @@ int dap_ledger_anchor_load(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_ch
         return -109;
     }
 
-    if ((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, true)) != 0){
+    if ((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, a_anchor_hash)) != 0){
         debug_if(g_debug_ledger, L_WARNING, "Decree applying failed");
         return ret_val;
     }
@@ -173,16 +173,28 @@ int dap_ledger_anchor_load(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_ch
     return ret_val;
 }
 
-dap_chain_datum_anchor_t * s_find_previous_anchor(dap_hash_fast_t *a_old_anchor_hash, dap_chain_net_t *a_net)
+static dap_ledger_anchor_item_t *s_find_anchor(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash)
+{
+    dap_ledger_anchor_item_t *l_anchor = NULL;
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_rwlock_rdlock(&l_ledger_pvt->decrees_rwlock);
+    HASH_FIND(hh, l_ledger_pvt->anchors, a_anchor_hash, sizeof(dap_hash_fast_t), l_anchor);
+    pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
+    return l_anchor;
+}
+
+dap_chain_datum_anchor_t *dap_ledger_anchor_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash)
+{
+    dap_ledger_anchor_item_t *l_anchor = s_find_anchor(a_ledger, a_anchor_hash);
+    return l_anchor ? l_anchor->anchor : NULL;
+}
+
+static dap_chain_datum_anchor_t *s_find_previous_anchor(dap_hash_fast_t *a_old_anchor_hash, dap_chain_net_t *a_net)
 {
     dap_chain_datum_anchor_t * l_ret_anchor = NULL;
     dap_return_val_if_fail(a_old_anchor_hash && a_net, NULL);
 
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
-    dap_ledger_anchor_item_t *l_anchor = NULL;
-    pthread_rwlock_rdlock(&l_ledger_pvt->decrees_rwlock);
-    HASH_FIND(hh, l_ledger_pvt->anchors, a_old_anchor_hash, sizeof(dap_hash_fast_t), l_anchor);
-    pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
+    dap_ledger_anchor_item_t *l_anchor = s_find_anchor(a_net->pub.ledger, a_old_anchor_hash);
     if (!l_anchor) {
         log_it(L_WARNING, "Can not find anchor");
         return NULL;
@@ -196,6 +208,7 @@ dap_chain_datum_anchor_t * s_find_previous_anchor(dap_hash_fast_t *a_old_anchor_
     uint16_t l_old_decree_type = l_old_decree->header.type;
     uint16_t l_old_decree_subtype = l_old_decree->header.sub_type;
 
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
     dap_ledger_anchor_item_t *l_anchors = HASH_LAST(l_ledger_pvt->anchors);
     for(; l_anchors; l_anchors = l_anchors->hh.prev){
         size_t l_datums_count = 0;
@@ -296,7 +309,7 @@ int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a
                         return -109;
                     }
 
-                    if((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, true))!=0){
+                    if((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, a_anchor_hash))!=0){
                         log_it(L_WARNING,"Decree applying failed");
                         return ret_val;
                     }
@@ -332,7 +345,7 @@ int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a
                         log_it(L_WARNING,"Can not find datum hash in anchor data");
                         return -109;
                     }
-                    if((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, true))!=0){
+                    if((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, a_anchor_hash))!=0){
                         log_it(L_WARNING,"Decree applying failed");
                         return ret_val;
                     }
@@ -349,7 +362,7 @@ int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a
                         log_it(L_WARNING,"Can not find datum hash in anchor data");
                         return -109;
                     }
-                    if((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, true))!=0){
+                    if((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, a_anchor_hash))!=0){
                         log_it(L_WARNING,"Decree applying failed");
                         return ret_val;
                     }
@@ -370,7 +383,7 @@ int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a
                         return -109;
                     }
 
-                    if((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, true))!=0){
+                    if((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, a_anchor_hash))!=0){
                         log_it(L_WARNING,"Decree applying failed");
                         return ret_val;
                     }
