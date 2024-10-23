@@ -249,6 +249,7 @@ typedef bool (*dap_ledger_tax_callback_t)(dap_chain_net_id_t a_net_id, dap_hash_
 #define DAP_LEDGER_EMISSIONS_STR           "emissions"
 #define DAP_LEDGER_STAKE_LOCK_STR          "stake_lock"
 #define DAP_LEDGER_TXS_STR                 "txs"
+#define DAP_LEDGER_SPENT_TXS_STR           "spent_txs"
 #define DAP_LEDGER_BALANCES_STR            "balances"
 
 int dap_ledger_init();
