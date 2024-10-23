@@ -3086,7 +3086,11 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         } else if (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "show") > 0)
             l_subcommand_show = true;
         else if (l_subcmd != SUBCMD_STATUS)
+<<<<<<< HEAD
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNKNOWN,"Unrecognized subcommand '%s'", a_argv[l_arg_index]);
+=======
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNKNOWN,"Unrecognized subcommand '%s'", a_argv[l_arg_index]);
+>>>>>>> 88c36792da33c1c2c7e7c7d332fd4918b7ae83e3
     }
 
     int ret = 0;
@@ -3192,7 +3196,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         const char * l_net_str = NULL, *l_chain_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
         if (!l_net_str) {
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_NET,"Command '%s' requires parameter -net", l_subcmd_strs[l_subcmd]);
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_NET,"Command '%s' requires parameter -net", l_subcmd_strs[l_subcmd]);
             return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_NET;
         }
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &l_chain_str);
@@ -3238,13 +3242,13 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         } else {
             json_object_object_add(l_json_obj_banlist, "BANLIST", l_json_arr_banlist);
         }
-        json_object_array_add(*json_arr_reply, l_json_obj_banlist);   
+        json_object_array_add(*a_json_arr_reply, l_json_obj_banlist);   
 
         json_object* l_json_obj_status = json_object_new_object();
         json_object_object_add(l_json_obj_status, "ban_list_count", json_object_new_int(l_penalties_count));
         json_object_object_add(l_json_obj_status, "sync_attempt", json_object_new_uint64(l_session->cur_round.sync_attempt));
         json_object_object_add(l_json_obj_status, "round_id", json_object_new_uint64(l_session->cur_round.id));
-        json_object_array_add(*json_arr_reply, l_json_obj_status);
+        json_object_array_add(*a_json_arr_reply, l_json_obj_status);
         if (l_session->esbocs->last_submitted_candidate_timestamp) {
             char l_time_buf[DAP_TIME_STR_SIZE] = {'\0'};
             dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_session->esbocs->last_submitted_candidate_timestamp);
