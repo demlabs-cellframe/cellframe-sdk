@@ -1851,7 +1851,7 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
                 log_it(L_ERROR, "Can't find datum tx");
                 return false;
             }
-            dap_hash_fast_t l_order_hash = dap_ledger_get_first_chain_tx_hash(a_net->pub.ledger, a_tx, l_out_cond);
+            dap_hash_fast_t l_order_hash = dap_ledger_get_first_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_in_cond->header.tx_prev_hash);
             if ( dap_hash_fast_is_blank(&l_order_hash) )
                 l_order_hash = l_in_cond->header.tx_prev_hash;
 
