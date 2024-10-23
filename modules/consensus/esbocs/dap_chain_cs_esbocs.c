@@ -3086,11 +3086,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         } else if (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "show") > 0)
             l_subcommand_show = true;
         else if (l_subcmd != SUBCMD_STATUS)
-<<<<<<< HEAD
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNKNOWN,"Unrecognized subcommand '%s'", a_argv[l_arg_index]);
-=======
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNKNOWN,"Unrecognized subcommand '%s'", a_argv[l_arg_index]);
->>>>>>> 88c36792da33c1c2c7e7c7d332fd4918b7ae83e3
     }
 
     int ret = 0;
@@ -3188,7 +3184,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
         } else{
             json_object * json_obj_out = json_object_new_object();
             s_print_emergency_validators(json_obj_out, l_esbocs_pvt->emergency_validator_addrs);
-            json_object_array_add(*json_arr_reply, json_obj_out);
+            json_object_array_add(*a_json_arr_reply, json_obj_out);
         }            
     } break;
 
