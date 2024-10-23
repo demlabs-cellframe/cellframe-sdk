@@ -142,9 +142,10 @@ typedef struct dap_ledger_hal_item {
 
 // private types definition
 typedef struct dap_ledger_decree_item {
-    dap_hash_fast_t key;
+    dap_hash_fast_t decree_hash;
     bool wait_for_apply, is_applied;
     dap_chain_datum_decree_t *decree;
+    dap_hash_fast_t anchor_hash;
     UT_hash_handle hh;
 } dap_ledger_decree_item_t;
 

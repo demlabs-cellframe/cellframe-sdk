@@ -200,7 +200,7 @@ int dap_ledger_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a
     return s_decree_verify(a_net, a_decree, a_data_size, a_decree_hash, false);
 }
 
-int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, bool a_anchored)
+int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash)
 {
     dap_return_val_if_fail(a_decree_hash && a_chain, -107);
     int ret_val = 0;
@@ -223,8 +223,8 @@ int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decr
             pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
             return -1;
         }
-        l_new_decree->key = *a_decree_hash;
-        HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->decrees, key, sizeof(dap_hash_fast_t), l_hash_value, l_new_decree);
+        l_new_decree->decree_hash = *a_decree_hash;
+        HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->decrees, decree_hash, sizeof(dap_hash_fast_t), l_hash_value, l_new_decree);
     }
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
 
@@ -252,7 +252,7 @@ int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decr
     // Process decree
     switch(l_new_decree->decree->header.type) {
     case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:
-        ret_val = s_common_decree_handler(l_new_decree->decree, l_net, true, a_anchored);
+        ret_val = s_common_decree_handler(l_new_decree->decree, l_net, true, a_anchor_hash);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
         ret_val = s_service_decree_handler(l_new_decree->decree, l_net, true);
@@ -265,6 +265,8 @@ int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decr
     if (!ret_val) {
         l_new_decree->is_applied = true;
         l_new_decree->wait_for_apply = false;
+        if (a_anchor_hash)
+            l_new_decree->anchor_hash = *a_anchor_hash;
     } else
         debug_if(g_debug_ledger, L_ERROR,"Decree applying failed!");
 
@@ -619,4 +621,48 @@ uint16_t dap_ledger_decree_get_num_of_owners(dap_ledger_t *a_ledger)
 const dap_list_t *dap_ledger_decree_get_owners_pkeys(dap_ledger_t *a_ledger)
 {
     return PVT(a_ledger)->decree_owners_pkeys;
+}
+
+static int s_compare_anchors(dap_ledger_hardfork_anchors_t *a_list1, dap_ledger_hardfork_anchors_t *a_list2)
+{
+    return a_list1->decree_subtype != a_list2->decree_subtype;
+}
+
+
+int s_aggregate_anchor(dap_ledger_hardfork_anchors_t **a_out_list, uint16_t a_subtype, dap_chain_datum_anchor_t *a_anchor)
+{
+    dap_ledger_hardfork_anchors_t l_new_anchor = { .anchor = a_anchor, .decree_subtype = a_subtype };
+    dap_ledger_hardfork_anchors_t *l_exist = NULL;
+    DL_SEARCH(*a_out_list, l_exist, &l_new_anchor, s_compare_anchors);
+    if (!l_exist) {
+        l_exist = DAP_DUP(&l_new_anchor);
+        if (!l_exist) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            return -1;
+        }
+        DL_APPEND(*a_out_list, l_exist);
+    } else
+        l_exist->anchor = a_anchor;
+    return 0;
+}
+
+dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledger)
+{
+    dap_ledger_hardfork_anchors_t *ret = NULL;
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_rwlock_rdlock(&l_ledger_pvt->decrees_rwlock);
+    for (dap_ledger_decree_item_t *it = l_ledger_pvt->decrees; it; it = it->hh.next)
+        if (it->is_applied && !dap_hash_fast_is_blank(&it->anchor_hash)) {
+            dap_chain_datum_anchor_t *l_anchor = dap_ledger_anchor_find(a_ledger, &it->anchor_hash);
+            if (!l_anchor) {
+                char l_anchor_hash_str[DAP_HASH_FAST_STR_SIZE];
+                dap_hash_fast_to_str(&it->anchor_hash, l_anchor_hash_str, DAP_HASH_FAST_STR_SIZE);
+                log_it(L_ERROR, "Can't find anchor %s for decree %s, skip it",
+                                            l_anchor_hash_str, dap_hash_fast_to_str_static(&it->decree_hash));
+                continue;
+            }
+            s_aggregate_anchor(&ret, it->decree->header.sub_type, l_anchor);
+        }
+    pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
+    return ret;
 }

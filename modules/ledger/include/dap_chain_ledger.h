@@ -46,6 +46,24 @@ typedef struct dap_ledger {
     void *_internal;
 } dap_ledger_t;
 
+typedef struct dap_ledger_hardfork_balances {
+    dap_chain_addr_t addr;
+    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint256_t value;
+    struct dap_ledger_hardfork_balances *prev, *next;
+} dap_ledger_hardfork_balances_t;
+
+typedef struct dap_ledger_hardfork_condouts {
+    dap_chain_tx_out_cond_t *cond;
+    dap_sign_t *sign;
+    struct dap_ledger_hardfork_condouts *prev, *next;
+} dap_ledger_hardfork_condouts_t;
+
+typedef struct dap_ledger_hardfork_anchors {
+    uint16_t decree_subtype;
+    dap_chain_datum_anchor_t *anchor;
+    struct dap_ledger_hardfork_anchors *prev, *next;
+} dap_ledger_hardfork_anchors_t;
 /**
  * @brief Error codes for accepting a transaction to the ledger.
  */
@@ -391,8 +409,8 @@ uint256_t dap_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_a
 dap_chain_datum_tx_t *dap_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash);
 dap_chain_datum_tx_t *dap_ledger_tx_unspent_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash);
 
-dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash);
-dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_cond_out);
+dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash);
+dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash);
 
  // Get the transaction in the cache by the addr in out item
 dap_chain_datum_tx_t* dap_ledger_tx_find_by_addr(dap_ledger_t *a_ledger, const char * a_token,
@@ -437,8 +455,6 @@ int dap_ledger_tax_callback_set(dap_ledger_tax_callback_t a_callback);
 // Getting a list of transactions from the ledger.
 dap_list_t * dap_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool a_reverse, bool a_unspent_only);
 
-//bool dap_ledger_fee_verificator(dap_ledger_t* a_ledger, dap_chain_tx_out_cond_t* a_cond, dap_chain_datum_tx_t* a_tx, bool a_owner);
-
 dap_ledger_datum_iter_t *dap_ledger_datum_iter_create(dap_chain_net_t *a_net);
 void dap_ledger_datum_iter_delete(dap_ledger_datum_iter_t *a_iter);
 dap_chain_datum_tx_t *dap_ledger_datum_iter_get_first(dap_ledger_datum_iter_t *a_iter);
@@ -462,7 +478,7 @@ uint16_t dap_ledger_decree_get_min_num_of_signers(dap_ledger_t *a_ledger);
 uint16_t dap_ledger_decree_get_num_of_owners(dap_ledger_t *a_ledger);
 const dap_list_t *dap_ledger_decree_get_owners_pkeys(dap_ledger_t *a_ledger);
 
-int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, bool a_anchored);
+int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash);
 int dap_ledger_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash);
 int dap_ledger_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_decree_hash);
 dap_chain_datum_decree_t *dap_ledger_decree_get_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash, bool *is_applied);
@@ -471,3 +487,7 @@ int dap_ledger_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fast_
 int dap_ledger_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t * a_anchor, size_t a_data_size);
 int dap_ledger_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash);
 int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash);
+dap_chain_datum_anchor_t *dap_ledger_anchor_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash);
+
+dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_ledger_hardfork_condouts_t **l_cond_outs_list);
+dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledger);

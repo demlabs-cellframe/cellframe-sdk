@@ -1003,12 +1003,6 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
         DAP_DELETE(l_gdb_group);
     }
 
-    if (!a_preserve_db) {
-        l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_SPENT_TXS_STR);
-        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
-        DAP_DELETE(l_gdb_group);
-    }
-
     /* Delete balances */
     dap_ledger_wallet_balance_t *l_balance_current, *l_balance_tmp;
     HASH_ITER(hh, l_ledger_pvt->balance_accounts, l_balance_current, l_balance_tmp) {
@@ -1712,18 +1706,4 @@ dap_list_t *dap_ledger_get_list_tx_cond_outs(dap_ledger_t *a_ledger, const char 
 bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger)
 {
     return PVT(a_ledger)->cached;
-}
-
-void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_cache_tx_check_callback_t a_callback)
-{
-    PVT(a_ledger)->cache_tx_check_callback = a_callback;
-}
-
-dap_list_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger)
-{
-    dap_list_t *ret = NULL;
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
-    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-    return ret;
 }
