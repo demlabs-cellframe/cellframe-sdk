@@ -2320,7 +2320,8 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
     DAP_DELETE(l_tx);
     json_object* l_json_obj_deligate = json_object_new_object();
     json_object_object_add(l_json_obj_deligate, "status", json_object_new_string("success"));
-    json_object_object_add(l_json_obj_deligate, "sign", json_object_new_string(l_sign_str));
+    if (dap_strcmp(l_sign_str, ""))
+        json_object_object_add(l_json_obj_deligate, "sign", json_object_new_string(l_sign_str));  // deprecated signs error
     json_object_object_add(l_json_obj_deligate, "tx_hash", json_object_new_string(l_tx_hash_str));
     json_object_array_add(*a_json_arr_reply, l_json_obj_deligate);
     DAP_DELETE(l_tx_hash_str);
