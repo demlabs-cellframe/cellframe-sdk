@@ -2584,3 +2584,76 @@ static dap_list_t *s_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size
     return l_list;
 }
 
+static int s_compare_fees(dap_chain_cs_blocks_hardfork_fees_t *a_list1, dap_chain_cs_blocks_hardfork_fees_t *a_list2)
+{
+    return !dap_sign_compare_pkeys(a_list1->owner_sign, a_list2->owner_sign);
+}
+
+static int s_aggregate_fees(dap_chain_cs_blocks_hardfork_fees_t **a_out_list, dap_chain_block_autocollect_type_t a_type, dap_sign_t *a_sign, uint256_t a_value)
+{
+    dap_chain_cs_blocks_hardfork_fees_t l_new_fee = { .owner_sign = a_sign };
+    dap_chain_cs_blocks_hardfork_fees_t *l_exist = NULL;
+    DL_SEARCH(*a_out_list, l_exist, &l_new_fee, s_compare_fees);
+    if (!l_exist) {
+        l_exist = DAP_DUP(&l_new_fee);
+        if (!l_exist) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            return -1;
+        }
+        DL_APPEND(*a_out_list, l_exist);
+    }
+    switch (a_type) {
+    case DAP_CHAIN_BLOCK_COLLECT_FEES:
+        if (SUM_256_256(l_exist->fees_sum, a_value, &l_exist->fees_sum)) {
+            log_it(L_ERROR, "Integer overflow of hardfork aggregated data for not withdrowed fees");
+            return -2;
+        } break;
+    case DAP_CHAIN_BLOCK_COLLECT_REWARDS:
+        if (SUM_256_256(l_exist->rewards_sum, a_value, &l_exist->rewards_sum)) {
+            log_it(L_ERROR, "Integer overflow of hardfork aggregated data for not withdrowed rewards");
+            return -2;
+        } break;
+    default:
+        log_it(L_ERROR, "Illegal block autocollect type %d", a_type);
+        return -3;
+    }
+    return 0;
+}
+
+dap_chain_cs_blocks_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chain_t *a_chain)
+{
+    dap_chain_cs_blocks_hardfork_fees_t *ret = NULL;
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
+        dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
+        for (size_t i = 0; i < l_block_cache->sign_count; i++) {
+            dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
+            if (i == 0) {
+                for (size_t j = 0; j < l_block_cache->datum_count; j++) {
+                    if (l_block_cache->datum[j]->header.type_id != DAP_CHAIN_DATUM_TX)
+                        continue;
+                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_block_cache->datum[j]->data;
+                    int l_out_idx_tmp = 0;
+                    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, &l_out_idx_tmp);
+                    if (!l_cond)
+                        continue;
+                    if (!dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + j, l_out_idx_tmp, NULL))
+                        s_aggregate_fees(&ret, DAP_CHAIN_BLOCK_COLLECT_FEES, l_sign, l_cond->header.value);
+                }
+            }
+            if (l_ts < DAP_REWARD_INIT_TIMESTAMP)
+                break;
+            //dap_chain_cs_esbocs_get_precached_key_hash(l_sign);
+            dap_hash_fast_t l_pkey_hash;
+            dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+            if (dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash, &l_pkey_hash))
+                continue;
+            dap_pkey_t *l_sign_pkey = dap_pkey_get_from_sign(l_sign);
+            uint256_t l_reward_value = s_callback_calc_reward(a_chain, &l_block_cache->block_hash, l_sign_pkey);
+            DAP_DELETE(l_sign_pkey);
+            s_aggregate_fees(&ret, DAP_CHAIN_BLOCK_COLLECT_REWARDS, l_sign, l_reward_value);
+        }
+    }
+    return ret;
+}
