@@ -2761,6 +2761,7 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
     l_remote_node_info = (dap_chain_node_info_t*) dap_global_db_get_sync(a_net->pub.gdb_nodes,
         dap_stream_node_addr_to_str_static(l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr),
         &l_node_info_size, NULL, NULL);
+    
 
     if(!l_remote_node_info) {
         return -6;
@@ -2971,7 +2972,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             }
 
             json_object* json_obj_order = json_object_new_object();
-            json_object_object_add(json_obj_order, "VERSION", json_object_new_string(*(int*)l_out.header.version));
+            json_object_object_add(json_obj_order, "VERSION", json_object_new_string((char*)l_out.header.version));
             json_object_object_add(json_obj_order, "AUTO_PROC", json_object_new_string((l_out.header.flags & A_PROC)?"true":"false"));
             json_object_object_add(json_obj_order, "ORDER", json_object_new_string((l_out.header.flags & F_ORDR)?"true":"false"));
             json_object_object_add(json_obj_order, "AUTO_ONLINE", json_object_new_string((l_out.header.flags & A_ONLN)?"true":"false"));
@@ -3117,7 +3118,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                     json_object_object_add(l_json_obj_keys_count, "total_weight_str", json_object_new_string(l_total_weight_str));
                     l_total_weight_str = dap_uint256_to_char(l_total_weight, &l_total_weight_coins);
                     json_object_object_add(l_json_obj_keys_count, "total_effective_weight_coins", json_object_new_string(l_total_weight_coins));
-                    json_object_object_add(l_json_obj_keys_count, "total_effective_weight", json_object_new_string(l_total_weight_coins));
+                    json_object_object_add(l_json_obj_keys_count, "total_effective_weight", json_object_new_string(l_total_weight_str));
                 }
 
                 const char *l_delegate_min_str; dap_uint256_to_char(dap_chain_net_srv_stake_get_allowed_min_value(l_net->pub.id),
