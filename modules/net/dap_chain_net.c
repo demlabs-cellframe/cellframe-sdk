@@ -107,6 +107,7 @@
 #include "dap_stream_cluster.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_net.h"
+#include "dap_context.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -154,13 +155,15 @@ typedef struct dap_chain_net_pvt{
     dap_chain_node_info_t *node_info;  // Current node's info
 
     dap_balancer_type_t balancer_type;
-    bool load_mode;
 
-    uint16_t permanent_links_count;
-    dap_link_info_t **permanent_links;
+    uint16_t permanent_links_addrs_count;
+    dap_stream_node_addr_t *permanent_links_addrs;
 
+    uint16_t permanent_links_hosts_count;
+    struct request_link_info **permanent_links_hosts;
+    
     uint16_t seed_nodes_count;
-    struct request_link_info **seed_nodes_info;
+    struct request_link_info **seed_nodes_hosts;
 
     struct chain_sync_context sync_context;
 
@@ -190,6 +193,7 @@ static pthread_cond_t s_net_cond = PTHREAD_COND_INITIALIZER;
 static uint16_t s_net_loading_count = 0;
 
 static const char *c_net_states[] = {
+    [NET_STATE_LOADING]             = "NET_STATE_LOADING",
     [NET_STATE_OFFLINE]             = "NET_STATE_OFFLINE",
     [NET_STATE_LINKS_PREPARE ]      = "NET_STATE_LINKS_PREPARE",
     [NET_STATE_LINKS_CONNECTING]    = "NET_STATE_LINKS_CONNECTING",
@@ -199,7 +203,7 @@ static const char *c_net_states[] = {
 };
 
 static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_state) {
-    return a_state < NET_STATE_OFFLINE || a_state > NET_STATE_ONLINE ? "NET_STATE_INVALID" : c_net_states[a_state];
+    return a_state < NET_STATE_LOADING || a_state > NET_STATE_ONLINE ? "NET_STATE_INVALID" : c_net_states[a_state];
 }
 
 // Node link callbacks
@@ -350,12 +354,12 @@ static struct request_link_info *s_balancer_link_from_cfg(dap_chain_net_t *a_net
         l_idx = dap_random_uint16() % PVT(a_net)->seed_nodes_count;
     break;
     }
-    if ( !PVT(a_net)->seed_nodes_info[l_idx] ) {
+    if ( !PVT(a_net)->seed_nodes_hosts[l_idx] ) {
         // Unresolved before? Let's try again
         const char **l_seed_nodes_hosts = dap_config_get_array_str(a_net->pub.config, "general", "seed_nodes_hosts", NULL);
-        PVT(a_net)->seed_nodes_info[l_idx] = s_net_resolve_host(l_seed_nodes_hosts[l_idx]);
+        PVT(a_net)->seed_nodes_hosts[l_idx] = s_net_resolve_host(l_seed_nodes_hosts[l_idx]);
     }
-    return PVT(a_net)->seed_nodes_info[l_idx];
+    return PVT(a_net)->seed_nodes_hosts[l_idx];
 }
 
 dap_chain_node_info_t *dap_chain_net_get_my_node_info(dap_chain_net_t *a_net)
@@ -432,8 +436,8 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
 static bool s_net_check_link_is_permanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    for (uint16_t i = 0; i < l_net_pvt->permanent_links_count; i++) {
-        if (l_net_pvt->permanent_links[i]->node_addr.uint64 == a_addr.uint64)
+    for (uint16_t i = 0; i < l_net_pvt->permanent_links_addrs_count; i++) {
+        if (l_net_pvt->permanent_links_addrs[i].uint64 == a_addr.uint64)
             return true;
     }
     return false;
@@ -518,22 +522,47 @@ int s_link_manager_link_request(uint64_t a_net_id)
     return dap_worker_exec_callback_on(dap_worker_get_auto(), dap_chain_net_balancer_request, l_arg), 0;
 }
 
+struct request_link_info *s_get_permanent_link_info(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
+{
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    for (uint16_t i = 0; i < l_net_pvt->permanent_links_addrs_count; ++i) {
+        if (l_net_pvt->permanent_links_addrs[i].uint64 == a_address->uint64 &&
+            i < l_net_pvt->permanent_links_hosts_count &&
+            i < l_net_pvt->permanent_links_hosts[i]->addr[0] && 
+            i < l_net_pvt->permanent_links_hosts[i]->port)
+            return l_net_pvt->permanent_links_hosts[i];
+    }
+    return NULL;
+}
+
 int s_link_manager_fill_net_info(dap_link_t *a_link)
 {
 // sanity check
     dap_return_val_if_pass(!a_link, -1);
 // func work
-    dap_chain_node_info_t *l_node_info = NULL;
-    for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
-        if (( l_node_info = dap_chain_node_info_read(net, &a_link->addr) ))
+    const char *l_host = NULL;
+    uint16_t l_port = 0;
+    struct request_link_info *l_permanent_link = NULL;
+    for (dap_chain_net_t *l_net = s_nets_by_name; l_net; l_net = l_net->hh.next) {
+        if ( dap_chain_net_get_state(l_net) > NET_STATE_OFFLINE && ( l_permanent_link = s_get_permanent_link_info(l_net, &a_link->addr) )) {
+            l_host = l_permanent_link->addr;
+            l_port = l_permanent_link->port;
             break;
+        }
     }
-    if (!l_node_info)
-        return -3;
-    a_link->uplink.ready = true;
-    if ( dap_link_manager_link_update(&a_link->addr, l_node_info->ext_host, l_node_info->ext_port) )
-        a_link->uplink.ready = true;
-    DAP_DELETE(l_node_info);
+    if (!l_host || !l_host[0] || !l_port) {
+            dap_chain_node_info_t *l_node_info = NULL;
+        for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
+            if (( l_node_info = dap_chain_node_info_read(net, &a_link->addr) ))
+                break;
+        }
+        if (!l_node_info)
+            return -3;
+        l_host = l_node_info->ext_host;
+        l_port = l_node_info->ext_port;
+        DAP_DELETE(l_node_info);
+    }
+    a_link->uplink.ready = !dap_link_manager_link_update(&a_link->addr, l_host, l_port);
     return 0;
 }
 
@@ -566,7 +595,11 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
                 l_jobj_chain_status = json_object_new_string("unknown");
                 break;
         }
-        if (l_chain->state == CHAIN_SYNC_STATE_IDLE) {
+        if (dap_chain_net_get_load_mode(a_net)) {
+            char *l_percent_str = dap_strdup_printf("%d %c", l_chain->load_progress, '%');
+            l_jobj_percent = json_object_new_string(l_percent_str);
+            DAP_DELETE(l_percent_str);
+        } else if (l_chain->state == CHAIN_SYNC_STATE_IDLE) {
             l_jobj_percent = json_object_new_string(" - %");
         } else {
             double l_percent = dap_min((double)l_chain->callback_count_atom(l_chain) * 100 / l_chain->atom_num_last, 100.0);
@@ -643,6 +676,9 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
                 *a_node_role    = dap_config_get_item_str(a_cfg, "general", "node-role" ),
                 *a_native_ticker= dap_config_get_item_str(a_cfg, "general", "native_ticker");
     dap_chain_net_id_t l_net_id;
+
+    if(!a_node_role)
+        return log_it(L_ERROR, "Can't create l_net, can't read node role config"), NULL;
 
     if(!l_net_name_str || !l_net_id_str || dap_chain_net_id_parse(l_net_id_str, &l_net_id))
         return log_it(L_ERROR, "Can't create l_net, can't read name or ID config"), NULL;
@@ -734,11 +770,26 @@ void dap_chain_net_load_all()
         pthread_mutex_unlock(&s_net_cond_lock);
         return;
     }
+    dap_proc_thread_t *l_net_threads = DAP_NEW_Z_COUNT(dap_proc_thread_t, s_net_loading_count);
+    if (!l_net_threads) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        pthread_mutex_unlock(&s_net_cond_lock);
+        return;
+    }
+    int l_net_counter = 0;
+    uint32_t l_cpu_count = dap_get_cpu_count();
     dap_timerfd_t *l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_net_disk_load_notify_callback, NULL);
-    for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next)
-        dap_proc_thread_callback_add(NULL, s_net_load, net);
+    for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
+        dap_proc_thread_create(l_net_threads + l_net_counter, dap_random_byte() % l_cpu_count);
+        dap_proc_thread_callback_add(l_net_threads + l_net_counter, s_net_load, net);
+        ++l_net_counter;
+    }
+    assert(l_net_counter == s_net_loading_count);
     while (s_net_loading_count)
         pthread_cond_wait(&s_net_cond, &s_net_cond_lock);
+    for (int i = 0; i < l_net_counter; ++i)
+        dap_context_stop_n_kill(l_net_threads[i].context);
+    DAP_DELETE(l_net_threads);
     pthread_mutex_unlock(&s_net_cond_lock);
     dap_timerfd_delete_mt(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
 }
@@ -746,11 +797,9 @@ void dap_chain_net_load_all()
 dap_string_t* dap_cli_list_net()
 {
     dap_string_t *l_string_ret = dap_string_new("");
-    unsigned l_net_i = 0;
     dap_string_append(l_string_ret, "Available networks and chains:\n");
     for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
         dap_string_append_printf(l_string_ret, "\t%s:\n", net->pub.name);
-        ++l_net_i;
         dap_chain_t *l_chain = net->pub.chains;
         while (l_chain) {
             dap_string_append_printf( l_string_ret, "\t\t%s\n", l_chain->name );
@@ -812,8 +861,7 @@ void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
     char* l_sync_current_link_text_block = NULL;
     if (PVT(a_net)->state != NET_STATE_OFFLINE)
         l_sync_current_link_text_block = dap_strdup_printf(", active links %zu from %u",
-                                                           dap_link_manager_links_count(a_net->pub.id.uint64),
-                                                           0 /*HASH_COUNT(PVT(a_net)->net_links)*/);
+                                                           dap_link_manager_links_count(a_net->pub.id.uint64), 0);
     dap_cli_server_cmd_set_reply_text(a_str_reply,
                                       "Network \"%s\" has state %s (target state %s)%s%s",
                                       a_net->pub.name, c_net_states[PVT(a_net)->state],
@@ -1233,7 +1281,12 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 json_object_object_add(l_jobj_return, "to", l_jobj_to);
-                dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
+                if (dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE)) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START, "%s",
+                                            "Can't change state of loading network\n");
+                    return DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START;
+                }
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp(l_go_str,"offline") == 0 ) {
                 json_object *l_jobj_to = json_object_new_string(c_net_states[NET_STATE_OFFLINE]);
@@ -1243,7 +1296,12 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 json_object_object_add(l_jobj_return, "to", l_jobj_to);
-                dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
+                if ( dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE) ) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START, "%s",
+                                            "Can't change state of loading network\n");
+                    return DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START;
+                }
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if (strcmp(l_go_str, "sync") == 0) {
                 json_object *l_jobj_to = json_object_new_string("resynchronizing");
@@ -1254,9 +1312,15 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 }
                 json_object_object_add(l_jobj_return, "start", l_jobj_to);
                 if (PVT(l_net)->state_target == NET_STATE_ONLINE)
-                    dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
+                    l_ret = dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
                 else
-                    dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
+                    l_ret = dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
+                if (l_ret) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START, "%s",
+                                            "Can't change state of loading network\n");
+                    return DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START;
+                }
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else {
                 json_object_put(l_jobj_return);
@@ -1719,6 +1783,34 @@ int dap_chain_net_test_init()
 #endif
 
 
+static int s_nodes_hosts_init(dap_chain_net_t *a_net, dap_config_t *a_cfg, const char *a_hosts_type, struct request_link_info ***a_hosts, uint16_t *a_hosts_count)
+{
+    dap_return_val_if_pass(!a_cfg || !a_hosts_type || !a_hosts || !a_hosts_count, -1);
+    const char **l_nodes_addrs = dap_config_get_array_str(a_cfg, "general", a_hosts_type, a_hosts_count);
+    if (*a_hosts_count) {
+        *a_hosts = DAP_NEW_Z_COUNT(struct request_link_info *, *a_hosts_count);
+        if (!*a_hosts) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            return -1;
+        }
+        uint16_t i = 0, e = 0;
+        for (; i < *a_hosts_count; ++i) {
+            if (!( (*a_hosts)[i] = s_net_resolve_host(l_nodes_addrs[i]) )) {
+                log_it(L_ERROR, "Incorrect address [ %s : %u ], fix \"%s\" network config"
+                                "or check internet connection and restart node",
+                                (*a_hosts)[i]->addr, (*a_hosts)[i]->port,  a_net->pub.name);
+                ++e;
+                continue;
+            }
+        }
+        debug_if(e, L_ERROR, "%d / %d %s links are invalid or can't be accessed, fix \"%s\""
+                        "network config or check internet connection and restart node",
+                        e, i, a_hosts_type, a_net->pub.name);
+
+    }
+    return 0;
+}
+
 /**
  * @brief load network config settings from cellframe-node.cfg file
  *
@@ -1737,7 +1829,6 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
         return log_it(L_ERROR,"Can't create net \"%s\"", a_net_name), dap_config_close(l_cfg), -1;
 
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
-    l_net_pvt->load_mode = true;
     l_net_pvt->acl_idx = a_acl_idx;
     // Transaction can be sent to bridged networks
     uint16_t l_net_ids_count = 0;
@@ -1758,73 +1849,19 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
             l_net->pub.bridged_networks = DAP_REALLOC_COUNT(l_net->pub.bridged_networks, j); // Can be NULL, it's ok
     }
 
-    const char **l_permanent_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "permanent_nodes_addrs", &l_net_pvt->permanent_links_count);
-    if (l_net_pvt->permanent_links_count) {
-        l_net_pvt->permanent_links = DAP_NEW_Z_COUNT(dap_link_info_t *, l_net_pvt->permanent_links_count);
-        if (!l_net_pvt->permanent_links) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -4;
-        }
-    }
-    for (uint16_t i = 0; i < l_net_pvt->permanent_links_count; ++i) {
-        l_net_pvt->permanent_links[i] = DAP_NEW_Z(dap_link_info_t);
-        if (!l_net_pvt->permanent_links[i]) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -4;
-        }
-        if (dap_stream_node_addr_from_str(&l_net_pvt->permanent_links[i]->node_addr, l_permanent_nodes_addrs[i])) {
-            log_it(L_ERROR, "Incorrect format of node address \"%s\", fix net config and restart node", l_permanent_nodes_addrs[i]);
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -16;
-        }
-    }
-    uint16_t l_permalink_hosts_count = 0, i, e;
-    const char **l_permanent_links_hosts = dap_config_get_array_str(l_cfg, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
-    for (i = 0, e = 0; i < dap_min(l_permalink_hosts_count, l_net_pvt->permanent_links_count); ++i) {
-        struct request_link_info *l_tmp = s_net_resolve_host( l_permanent_links_hosts[i] );
-        if ( !l_tmp ) {
-            log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config"
-                            "or check internet connection and restart node",
-                            a_net_name, l_permanent_links_hosts[i]);
-            ++e;
-            continue;
-        }
-        l_net_pvt->permanent_links[i]->uplink_port = l_tmp->port;
-        dap_strncpy(l_net_pvt->permanent_links[i]->uplink_addr, l_tmp->addr, DAP_HOSTADDR_STRLEN);
-        DAP_DELETE(l_tmp);
-    }
-    debug_if(e, L_ERROR, "%d / %d permanent links are invalid or can't be accessed, fix \"%s\""
-                    "network config or check internet connection and restart node",
-                    e, i, a_net_name);
-
-    const char **l_seed_nodes_hosts = dap_config_get_array_str(l_cfg, "general", "seed_nodes_hosts", &l_net_pvt->seed_nodes_count);
-    if (!l_net_pvt->seed_nodes_count)
-         l_seed_nodes_hosts  = dap_config_get_array_str(l_cfg, "general", "bootstrap_hosts", &l_net_pvt->seed_nodes_count);
-    if (!l_net_pvt->seed_nodes_count)
-        log_it(L_WARNING, "Can't read seed nodes addresses, work with local balancer only");
-    else if (!( l_net_pvt->seed_nodes_info = DAP_NEW_Z_COUNT(struct request_link_info*, l_net_pvt->seed_nodes_count) )) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+    // read permanent and authorized nodes addrs
+    if (
+        dap_config_stream_addrs_parse(l_cfg, "general", "permanent_nodes_addrs", &l_net_pvt->permanent_links_addrs, &l_net_pvt->permanent_links_addrs_count) ||
+        s_nodes_hosts_init(l_net, l_cfg, "permanent_nodes_hosts", &l_net_pvt->permanent_links_hosts, &l_net_pvt->permanent_links_hosts_count) ||
+        s_nodes_hosts_init(l_net, l_cfg, "seed_nodes_hosts", &l_net_pvt->seed_nodes_hosts, &l_net_pvt->seed_nodes_count) || 
+        (!l_net_pvt->seed_nodes_count && s_nodes_hosts_init(l_net, l_cfg, "bootstrap_hosts", &l_net_pvt->seed_nodes_hosts, &l_net_pvt->seed_nodes_count) )
+    ) {
         dap_chain_net_delete(l_net);
         dap_config_close(l_cfg);
         return -4;
     }
-    for (i = 0, e = 0; i < l_net_pvt->seed_nodes_count; ++i) {
-        if (!( l_net_pvt->seed_nodes_info[i] = s_net_resolve_host(l_seed_nodes_hosts[i]) )) {
-            log_it(L_ERROR, "Incorrect address \"%s\", fix \"%s\" network config"
-                            "or check internet connection and restart node",
-                            a_net_name, l_seed_nodes_hosts[i]);
-            ++e;
-            continue;
-        }
-    }
-    debug_if(e, L_ERROR, "%d / %d seed links are invalid or can't be accessed, fix \"%s\""
-                    "network config or check internet connection and restart node",
-                    e, i, a_net_name);
+    if (!l_net_pvt->seed_nodes_count)
+        log_it(L_WARNING, "Can't read seed nodes addresses, work with local balancer only");
 
     // Get list chains name for enabled debug mode
     bool is_esbocs_debug = dap_config_get_item_bool_default(l_cfg, "esbocs", "consensus_debug", false);
@@ -1859,12 +1896,14 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
     dap_chain_t *l_chain;
     dap_chain_type_t *l_types_arr;
     char l_occupied_default_types[CHAIN_TYPE_MAX] = { 0 };
-    uint16_t k;
     HASH_ITER(hh, l_all_chain_configs, l_chain_config, l_tmp_cfg) {
         if (( l_chain = dap_chain_load_from_cfg(l_net->pub.name, l_net->pub.id, l_chain_config) )) {
             DL_APPEND(l_net->pub.chains, l_chain);
             l_types_arr = l_chain->default_datum_types;
-            for (i = 0, k = l_chain->default_datum_types_count; i < k; ++i) {
+            uint16_t
+                i = 0,
+                k = l_chain->default_datum_types_count;
+            for ( ; i < k; ++i) {
                 if ( l_occupied_default_types[l_types_arr[i]] ) {
                     if ( i < k - 1 )
                         l_types_arr[i] =
@@ -1988,7 +2027,6 @@ bool s_net_load(void *a_arg)
         log_it(L_NOTICE, "[%s] Chain [%s] processing took %f seconds", l_chain->net_name, l_chain->name, time_taken);
         l_chain = l_chain->next;
     }
-    l_net_pvt->load_mode = false;
     dap_ledger_load_end(l_net->pub.ledger);
 
     // Do specific role actions post-chain created
@@ -2160,6 +2198,7 @@ bool s_net_load(void *a_arg)
     dap_proc_thread_timer_add(NULL, s_sync_timer_callback, l_net, c_sync_timer_period);
 
     log_it(L_INFO, "Chain network \"%s\" initialized", l_net->pub.name);
+    l_net_pvt->state = NET_STATE_OFFLINE;
 ret:
     if (l_err_code)
         log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net->pub.name, l_err_code);
@@ -2422,14 +2461,14 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
  * @param l_net
  * @return
  */
-dap_chain_net_state_t dap_chain_net_get_state (dap_chain_net_t * l_net)
+dap_chain_net_state_t dap_chain_net_get_state (dap_chain_net_t *a_net)
 {
-    return PVT(l_net)->state;
+    return PVT(a_net)->state;
 }
 
-dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net)
+dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t *a_net)
 {
-    return  PVT(l_net)->node_info ? &PVT(l_net)->node_info->cell_id: 0;
+    return  PVT(a_net)->node_info ? &PVT(a_net)->node_info->cell_id: 0;
 }
 
 /**
@@ -2783,7 +2822,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net)
 {
-    return PVT(a_net)->load_mode;
+    return PVT(a_net)->state == NET_STATE_LOADING;
 }
 
 int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_t a_block_num)
@@ -3234,7 +3273,7 @@ static bool s_net_states_proc(void *a_arg)
  */
 int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_state)
 {
-    if (PVT(a_net)->load_mode) {
+    if (dap_chain_net_get_load_mode(a_net)) {
         log_it(L_ERROR, "Can't change state of loading network '%s'", a_net->pub.name);
         return -1;
     }
@@ -3261,25 +3300,12 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
         uint16_t l_permalink_hosts_count = 0;
         dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
-        l_permalink_hosts_count = dap_min(l_permalink_hosts_count, PVT(a_net)->permanent_links_count);
-        for (uint16_t i = 0; i < l_permalink_hosts_count; ++i) {
-            dap_link_info_t *l_permalink_info = PVT(a_net)->permanent_links[i];
-            if ( !*l_permalink_info->uplink_addr ) {
-                // Unresolved before? Let's try again
-                const char **l_permanent_links_hosts = dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_hosts", NULL);
-                struct request_link_info *l_tmp = s_net_resolve_host(l_permanent_links_hosts[i]);
-                if (l_tmp) {
-                    l_permalink_info->uplink_port = l_tmp->port;
-                    dap_strncpy(l_permalink_info->uplink_addr, l_tmp->addr, DAP_HOSTADDR_STRLEN);
-                    DAP_DELETE(l_tmp);
-                } else {
-                    log_it(L_ERROR, "Can't resolve permanent link address %s for net %s, possibly an internet connection issue",
-                                    l_permanent_links_hosts[i], a_net->pub.name);
-                    continue;
-                }
-            }
-            if (dap_chain_net_link_add(a_net, &l_permalink_info->node_addr, l_permalink_info->uplink_addr, l_permalink_info->uplink_port)) {
-                log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_permalink_info->node_addr));
+        for (uint16_t i = 0; i < PVT(a_net)->permanent_links_addrs_count; ++i) {
+            if (dap_chain_net_link_add(a_net, PVT(a_net)->permanent_links_addrs + i, 
+                i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->addr : NULL,
+                i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->port : 0)
+             ) {
+                log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(a_net)->permanent_links_addrs + i));
                 continue;
             }
             PVT(a_net)->state = NET_STATE_LINKS_CONNECTING;

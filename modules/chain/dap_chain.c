@@ -161,19 +161,13 @@ void dap_chain_delete(dap_chain_t * a_chain)
     }
     pthread_rwlock_unlock(&s_chain_items_rwlock);
     dap_list_free_full(a_chain->atom_notifiers, NULL);
-    DAP_DEL_Z(a_chain->name);
-    DAP_DEL_Z(a_chain->net_name);
-    if (DAP_CHAIN_PVT(a_chain)){
-        DAP_DEL_Z(DAP_CHAIN_PVT(a_chain)->file_storage_dir);
-        DAP_DELETE(DAP_CHAIN_PVT(a_chain));
-    }
-    DAP_DELETE(a_chain->datum_types);
-    DAP_DELETE(a_chain->autoproc_datum_types);
-    DAP_DEL_Z(a_chain->authorized_nodes_addrs);
+    dap_config_close(a_chain->config);
     if (a_chain->callback_delete)
         a_chain->callback_delete(a_chain);
-    DAP_DEL_Z(a_chain->_inheritor);
-    dap_config_close(a_chain->config);
+    if (DAP_CHAIN_PVT(a_chain)) {
+        DAP_DEL_MULTY(DAP_CHAIN_PVT(a_chain)->file_storage_dir, DAP_CHAIN_PVT(a_chain));
+    }
+    DAP_DEL_MULTY(a_chain->name, a_chain->net_name, a_chain->datum_types, a_chain->autoproc_datum_types, a_chain->authorized_nodes_addrs, a_chain->_inheritor, a_chain);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
 }
@@ -447,40 +441,13 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
         }
     } else
         log_it(L_WARNING, "Can't read chain mempool auto types for chain %s", l_chain_id_str);
-    const char **l_authorized_nodes_addrs = dap_config_get_array_str(a_cfg, "chain", "authorized_nodes_addrs", &l_chain->authorized_nodes_count);
-    if (!l_chain->authorized_nodes_count)
-        log_it(L_WARNING, "Can't read PoA nodes addresses");
-    else {
-        l_chain->authorized_nodes_addrs = DAP_NEW_Z_COUNT(dap_chain_node_addr_t,
-                                                          l_chain->authorized_nodes_count);
-        if (!l_chain->authorized_nodes_addrs) {
-            if (l_chain->datum_types)
-                DAP_DELETE(l_chain->datum_types);
-            if (l_chain->default_datum_types)
-                DAP_DELETE(l_chain->default_datum_types);
-            if (l_chain->autoproc_datum_types)
-                DAP_DELETE(l_chain->autoproc_datum_types);
-            DAP_DELETE(l_chain);
-            return log_it(L_CRITICAL, "%s", c_error_memory_alloc), dap_chain_delete(l_chain), NULL;
+    if (l_chain->id.uint64 == 0) {  // for zerochain only
+        if (dap_config_stream_addrs_parse(a_cfg, "chain", "authorized_nodes_addrs", &l_chain->authorized_nodes_addrs, &l_chain->authorized_nodes_count)) {
+            dap_chain_delete(l_chain);
+            return NULL;
         }
-        for (uint16_t i = 0; i < l_chain->authorized_nodes_count; ++i) {
-            dap_chain_node_addr_t l_addr;
-            if (dap_stream_node_addr_from_str(&l_addr, l_authorized_nodes_addrs[i])) {
-                log_it(L_CRITICAL, "Incorrect format of node address \"%s\", fix net config and restart node",
-                       l_authorized_nodes_addrs[i]);
-                if (l_chain->datum_types)
-                    DAP_DELETE(l_chain->datum_types);
-                if (l_chain->default_datum_types)
-                    DAP_DELETE(l_chain->default_datum_types);
-                if (l_chain->autoproc_datum_types)
-                    DAP_DELETE(l_chain->autoproc_datum_types);
-                DAP_DELETE(l_chain->authorized_nodes_addrs);
-                DAP_DELETE(l_chain);
-                return log_it(L_CRITICAL, "Incorrect format of node address \"%s\", fix net config and restart node",
-                       l_authorized_nodes_addrs[i]), dap_chain_delete(l_chain), NULL;
-            }
-            l_chain->authorized_nodes_addrs[i].uint64 = l_addr.uint64;
-        }
+        if (!l_chain->authorized_nodes_count)
+            log_it(L_WARNING, "Can't read PoA nodes addresses");
     }
     return l_chain;
 }

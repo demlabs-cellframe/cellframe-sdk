@@ -54,6 +54,7 @@ typedef struct dap_chain_atom_iter {
     size_t cur_size;
     dap_chain_hash_fast_t *cur_hash;
     uint64_t cur_num;
+    dap_time_t cur_ts;
 } dap_chain_atom_iter_t;
 
 typedef struct dap_chain_datum_iter {
@@ -96,6 +97,7 @@ typedef void (*dap_chain_callback_ptr_t)(dap_chain_t *, void * );
 
 typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_t)(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash, bool a_atom_new);
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_form_treshold_t)(dap_chain_t *, size_t *);
+typedef json_object *(*dap_chain_callback_atom_to_json)(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hex_out_type);
 typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_verify_t)(dap_chain_t *, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t*);
 typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)(void);
 
@@ -203,6 +205,7 @@ typedef struct dap_chain {
     dap_chain_callback_atom_iter_find_by_hash_t callback_atom_find_by_hash;
     dap_chain_callback_atom_iter_get_by_num_t callback_atom_get_by_num;
     dap_chain_callback_datum_find_by_hash_t callback_datum_find_by_hash;
+    dap_chain_callback_atom_to_json callback_atom_dump_json;
 
     dap_chain_callback_block_find_by_hash_t callback_block_find_by_tx_hash;
 
