@@ -2761,6 +2761,9 @@ static uint64_t s_get_precached_key_hash(dap_list_t **a_precached_keys_list, dap
         }
     }
     if (l_found) {
+        if (a_result)
+            *a_result = l_key->pkey_hash;
+        uint64_t l_freq = l_key->frequency;
         while (l_cur != *a_precached_keys_list) {
             struct precached_key* l_prev_key = (struct precached_key*)l_cur->prev->data;
             if (l_key->frequency > l_prev_key->frequency) {
@@ -2771,9 +2774,7 @@ static uint64_t s_get_precached_key_hash(dap_list_t **a_precached_keys_list, dap
             } else
                 break;
         }
-        if (a_result)
-            *a_result = l_key->pkey_hash;
-        return l_key->frequency;
+        return l_freq;
     }
     struct precached_key *l_key_new = DAP_NEW_Z_SIZE(struct precached_key,
                                                    sizeof(struct precached_key) + a_source_sign->header.sign_pkey_size);
