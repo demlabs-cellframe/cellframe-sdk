@@ -2150,14 +2150,14 @@ static int s_aggregate_out(dap_ledger_hardfork_balances_t **a_out_list, const ch
     return 0;
 }
 
-static int s_aggregate_out_cond(dap_ledger_hardfork_condouts_t **a_ret_list, dap_chain_tx_out_cond_t *a_out_cond, dap_sign_t *a_sign)
+static int s_aggregate_out_cond(dap_ledger_hardfork_condouts_t **a_ret_list, dap_chain_tx_out_cond_t *a_out_cond, dap_sign_t *a_sign, dap_hash_fast_t *a_tx_hash)
 {
     dap_ledger_hardfork_condouts_t *l_new_condout = DAP_NEW_Z(dap_ledger_hardfork_condouts_t);
     if (!l_new_condout) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
-    *l_new_condout = (dap_ledger_hardfork_condouts_t) { .cond = a_out_cond, .sign = a_sign };
+    *l_new_condout = (dap_ledger_hardfork_condouts_t) { .hash = *a_tx_hash, .cond = a_out_cond, .sign = a_sign };
     DL_APPEND(*a_ret_list, l_new_condout);
     return 0;
 }
@@ -2210,7 +2210,7 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
                     log_it(L_ERROR, "Can't find sign for conditional TX %s", dap_hash_fast_to_str_static(&l_first_tx_hash));
                     continue;
                 }
-                s_aggregate_out_cond(&l_cond_ret, l_out, l_tx_sign);
+                s_aggregate_out_cond(&l_cond_ret, l_out, l_tx_sign, &it->tx_hash_fast);
             }
             default:
                 log_it(L_ERROR, "Unexpected item type %hhu", l_tx_item_type);

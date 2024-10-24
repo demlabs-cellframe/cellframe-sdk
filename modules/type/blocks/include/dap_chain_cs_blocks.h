@@ -80,8 +80,14 @@ typedef enum s_com_blocks_err{
     DAP_CHAIN_NODE_CLI_COM_BLOCK_UNKNOWN /* MAX */
 } s_com_blocks_err_t;
 
+typedef struct dap_chain_cs_blocks_hardfork_fees {
+    dap_sign_t *owner_sign;
+    uint256_t fees_sum;
+    uint256_t rewards_sum;
+    struct dap_chain_cs_blocks_hardfork_fees *prev, *next;
+} dap_chain_cs_blocks_hardfork_fees_t;
+
 #define DAP_CHAIN_CS_BLOCKS(a) ((dap_chain_cs_blocks_t *)(a)->_inheritor)
-typedef int (*dap_chain_blocks_block_callback_ptr_t)(dap_chain_cs_blocks_t *, dap_chain_block_t *);
 
 int dap_chain_cs_blocks_init();
 void dap_chain_cs_blocks_deinit();

@@ -54,6 +54,7 @@ typedef struct dap_ledger_hardfork_balances {
 } dap_ledger_hardfork_balances_t;
 
 typedef struct dap_ledger_hardfork_condouts {
+    dap_hash_fast_t hash;
     dap_chain_tx_out_cond_t *cond;
     dap_sign_t *sign;
     struct dap_ledger_hardfork_condouts *prev, *next;
