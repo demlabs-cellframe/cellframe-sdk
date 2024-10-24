@@ -2098,9 +2098,9 @@ typedef enum s_cli_srv_stake_delegate_err{
 
     //DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
 } s_cli_srv_stake_delegate_err_t;
-static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, void **a_str_reply, const char *a_hash_out_type)
+static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, void **a_reply, const char *a_hash_out_type)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    json_object **a_json_arr_reply = (json_object **)a_reply;
     const char *l_net_str = NULL,
                *l_wallet_str = NULL,
                *l_cert_str = NULL,
@@ -2475,6 +2475,7 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, vo
                *l_fee_str = NULL,
                *l_tx_hash_str = NULL,
                *l_cert_str = NULL;
+    json_object **a_json_arr_reply = (json_object **)a_reply;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str);
     if (!l_net_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_PARAM_ERR, "Command 'update' requires parameter -net");
@@ -2707,9 +2708,9 @@ typedef enum s_cli_srv_stake_invalidate_err{
     DAP_CHAIN_NODE_CLI_SRV_STAKE_INVALIDATE_TX_ARR_ERR,
 
 } s_cli_srv_stake_invalidate_err_t;
-static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index, void **a_str_reply, const char *a_hash_out_type)
+static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index, void **a_reply, const char *a_hash_out_type)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    json_object **a_json_arr_reply = (json_object **)a_reply;
     const char *l_net_str = NULL,
                *l_wallet_str = NULL,
                *l_cert_str = NULL,
@@ -2928,6 +2929,12 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
             DAP_DELETE(l_out_hash_str);
             return l_switch_ret;
         }
+        json_object* l_json_object_invalidate = json_object_new_object();
+        json_object_object_add(l_json_object_invalidate, "status", json_object_new_string("success"));
+        json_object_object_add(l_json_object_invalidate, "sign", json_object_new_string(l_sign_str));
+        json_object_object_add(l_json_object_invalidate, "tx_hash", json_object_new_string(l_out_hash_str));
+        json_object_object_add(l_json_object_invalidate, "message", json_object_new_string("All m-tokens successfully returned to owner"));
+        json_object_array_add(*a_json_arr_reply, l_json_object_invalidate);
         json_object* l_json_object_invalidate = json_object_new_object();
         json_object_object_add(l_json_object_invalidate, "status", json_object_new_string("success"));
         json_object_object_add(l_json_object_invalidate, "sign", json_object_new_string(l_sign_str));
@@ -3161,9 +3168,9 @@ uint256_t dap_chain_net_srv_stake_get_total_weight(dap_chain_net_id_t a_net_id, 
     return l_total_weight;
 }
 
-static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
+static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_reply)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    json_object **a_json_arr_reply = (json_object **)a_reply;
     enum {
         CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_UPDATE, CMD_APPROVE, CMD_LIST, CMD_INVALIDATE, CMD_MIN_VALUE, CMD_CHECK, CMD_MAX_WEIGHT
     };
@@ -3216,16 +3223,16 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
     switch (l_cmd_num) {
 
         case CMD_ORDER:
-            return s_cli_srv_stake_order(a_argc, a_argv, l_arg_index + 1, a_str_reply, l_hash_out_type);
+            return s_cli_srv_stake_order(a_argc, a_argv, l_arg_index + 1, a_reply, l_hash_out_type);
 
         case CMD_DELEGATE:
-            return s_cli_srv_stake_delegate(a_argc, a_argv, l_arg_index + 1, a_str_reply, l_hash_out_type);
+            return s_cli_srv_stake_delegate(a_argc, a_argv, l_arg_index + 1, a_reply, l_hash_out_type);
 
         case CMD_UPDATE:
-            return s_cli_srv_stake_update(a_argc, a_argv, l_arg_index + 1, a_str_reply, l_hash_out_type);
+            return s_cli_srv_stake_update(a_argc, a_argv, l_arg_index + 1, a_reply, l_hash_out_type);
 
         case CMD_INVALIDATE:
-            return s_cli_srv_stake_invalidate(a_argc, a_argv, l_arg_index + 1, a_str_reply, l_hash_out_type);
+            return s_cli_srv_stake_invalidate(a_argc, a_argv, l_arg_index + 1, a_reply, l_hash_out_type);
 
         case CMD_CHECK:
         {
@@ -3651,7 +3658,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
         } break;
 
         default: {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_UNRECOGNIZE_COM_ERR, "Command %s not recognized", a_argv[l_arg_index]);
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_UNRECOGNIZE_COM_ERR, "Subcommand %s not recognized", a_argv[l_arg_index]);
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_UNRECOGNIZE_COM_ERR;
         }
     }
