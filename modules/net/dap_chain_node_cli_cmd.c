@@ -2258,9 +2258,6 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INTERNAL_ERR;
                     }
 
-                    l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
-
-                    const char *l_addr_str = dap_chain_addr_to_str_static(l_addr);
                     json_object * json_obj_wall = json_object_new_object();
                     json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet->name));
                     if (l_sign_count > 1) {
@@ -2274,8 +2271,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     } else
                         json_object_object_add(json_obj_wall, "Sign type", json_object_new_string(l_sign_type_str));
                     json_object_object_add(json_obj_wall, "Status", json_object_new_string("successfully created"));
-                    if ( l_addr_str ) {
-                        json_object_object_add(json_obj_wall, "new address", json_object_new_string(l_addr_str));
+
+                    const char *l_addr_str = NULL;
+                    if ( l_net && (l_addr_str = dap_chain_addr_to_str_static(dap_chain_wallet_get_addr(l_wallet,l_net->pub.id))) ) {
+                        json_object_object_add(json_obj_wall, "new address", json_object_new_string(l_addr_str) );
                     }
                     json_object_array_add(json_arr_out, json_obj_wall);
                     dap_chain_wallet_close(l_wallet);
@@ -5435,7 +5434,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply)
 
     uint256_t l_cond_value_sum = {};
     size_t l_num_of_hashes = dap_list_length(l_hashes_list);
-    log_it(L_INFO, "Found %"DAP_UINT64_FORMAT_U" hashes. Start returning funds from transactions.", l_num_of_hashes);
+    log_it(L_INFO, "Found %zu hashes. Start returning funds from transactions.", l_num_of_hashes);
     for (dap_list_t * l_tmp = l_hashes_list; l_tmp; l_tmp=l_tmp->next){
         dap_hash_fast_t *l_hash = (dap_hash_fast_t*)l_tmp->data;
         // get tx by hash
@@ -8462,7 +8461,7 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
                 struct stat l_st;
                 stat (a_file, &l_st);
                 char l_size[513];
-                snprintf(l_size, 513, "%ld", l_st.st_size);
+                snprintf(l_size, 513, "%lld", l_st.st_size);
                 return dap_tsd_create_string(SIGNER_FILESIZE, l_size);
             }
             break;
