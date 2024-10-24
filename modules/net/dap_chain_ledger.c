@@ -2637,42 +2637,23 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
     pthread_mutex_init(&l_ledger_pvt->load_mutex, NULL);
 
 #ifndef DAP_LEDGER_TEST
-    char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), a_net->pub.name);
-    DIR * l_chains_dir = opendir(l_chains_path);
-    DAP_DEL_Z(l_chains_path);
-
-    struct dirent * l_dir_entry;
-    while ( (l_dir_entry = readdir(l_chains_dir) )!= NULL ){
-        if (l_dir_entry->d_name[0] == '\0')
-            continue;
-        char * l_entry_name = dap_strdup(l_dir_entry->d_name);
-        if (strlen(l_entry_name) > 4) {
-            if ( strncmp (l_entry_name + strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
-                l_entry_name [strlen(l_entry_name)-4] = 0;
-                log_it(L_DEBUG,"Open chain config \"%s.%s\"...", a_net->pub.name, l_entry_name);
-                l_chains_path = dap_strdup_printf("network/%s/%s", a_net->pub.name, l_entry_name);
-                dap_config_t * l_cfg = dap_config_open(l_chains_path);
-                uint16_t l_whitelist_size, l_blacklist_size, i;
-                const char **l_whitelist = dap_config_get_array_str(l_cfg, "ledger", "hard_accept_list", &l_whitelist_size),
-                           **l_blacklist = dap_config_get_array_str(l_cfg, "ledger", "hard_reject_list", &l_blacklist_size);
-                for (i = 0; i < l_blacklist_size; ++i) {
-                    dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
-                    dap_chain_hash_fast_from_str(l_blacklist[i], &l_item->hash);
-                    HASH_ADD(hh, l_ledger_pvt->hrl_items, hash, sizeof(dap_hash_fast_t), l_item);
-                }
-                for (i = 0; i < l_whitelist_size; ++i) {
-                    dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
-                    dap_chain_hash_fast_from_str(l_whitelist[i], &l_item->hash);
-                    HASH_ADD(hh, l_ledger_pvt->hal_items, hash, sizeof(dap_hash_fast_t), l_item);
-                }
-                dap_config_close(l_cfg);
-                log_it(L_DEBUG, "Chain %s.%s has %d datums in HAL and %d datums in HRL", a_net->pub.name, l_entry_name, l_whitelist_size, l_blacklist_size);
-            }
+    for ( dap_chain_t *l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next ) {
+        uint16_t l_whitelist_size, l_blacklist_size, i;
+        const char **l_whitelist = dap_config_get_array_str(l_chain->config, "ledger", "hard_accept_list", &l_whitelist_size),
+                   **l_blacklist = dap_config_get_array_str(l_chain->config, "ledger", "hard_reject_list", &l_blacklist_size);
+        for (i = 0; i < l_blacklist_size; ++i) {
+            dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
+            dap_chain_hash_fast_from_str(l_blacklist[i], &l_item->hash);
+            HASH_ADD(hh, l_ledger_pvt->hrl_items, hash, sizeof(dap_hash_fast_t), l_item);
         }
-        DAP_DELETE (l_entry_name);
-    }
-    closedir(l_chains_dir);
+        for (i = 0; i < l_whitelist_size; ++i) {
+            dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
+            dap_chain_hash_fast_from_str(l_whitelist[i], &l_item->hash);
+            HASH_ADD(hh, l_ledger_pvt->hal_items, hash, sizeof(dap_hash_fast_t), l_item);
+        }
+        log_it(L_DEBUG, "Chain %s.%s has %d datums in HAL and %d datums in HRL", a_net->pub.name, l_chain->name, l_whitelist_size, l_blacklist_size);
 
+    }
     if ( l_ledger_pvt->cached )
         // load ledger cache from GDB
         dap_ledger_load_cache(l_ledger);
