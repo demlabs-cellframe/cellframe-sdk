@@ -26,7 +26,7 @@
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 
-#define DAP_FORK_MAX_DEPTH 100
+#define DAP_FORK_MAX_DEPTH 5
 
 #define DAP_REWARD_INIT_TIMESTAMP 1700870400UL // 25 Nov 2023 00:00:00 GMT
 
