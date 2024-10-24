@@ -74,7 +74,7 @@
 #ifndef DAP_OS_WINDOWS                                    /* An argument for open()/create() */
 static const mode_t s_fileprot =  ( S_IREAD | S_IWRITE) | (S_IREAD >> 3) | (S_IREAD >> 6) ;
 #endif
-static char s_wallet_ext [] = ".dwallet";
+static char const s_wallet_ext [] = ".dwallet", *s_wallets_path = NULL;
 
 static  pthread_rwlock_t s_wallet_n_pass_lock = PTHREAD_RWLOCK_INITIALIZER; /* Coordinate access to the hash-table */
 static  dap_chain_wallet_n_pass_t   *s_wallet_n_pass;                       /* A hash table to keep passwords for wallets */
@@ -168,6 +168,12 @@ char *c_wallets_path;
     {
         memset(l_prec->pass, 0, l_prec->pass_len), l_prec->pass_len = 0;    /* Say <what> again ?! */
         return  log_it(L_ERROR, "Wallet's password is invalid, say <password> again"), -EAGAIN;
+    }
+    if(!(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)) {
+        HASH_FIND_STR(s_wallet_n_pass, a_name, l_prec);
+        HASH_DEL(s_wallet_n_pass, l_prec);
+        log_it(L_ERROR, "Can't activate unprotected wallet");
+        l_rc = -101;
     }
 
     dap_chain_wallet_close( l_wallet);
@@ -340,7 +346,7 @@ int dap_chain_wallet_init()
  */
 void dap_chain_wallet_deinit(void)
 {
-
+    DAP_DELETE(s_wallets_path);
 }
 
 /**
@@ -348,24 +354,12 @@ void dap_chain_wallet_deinit(void)
  * @param[in] a_config Configuration
  * @return wallets path or NULL if error
  */
-static char s_wallets_path[MAX_PATH];
 
 const char* dap_chain_wallet_get_path(dap_config_t * a_config)
 {
-    const char *l_cp = NULL;
-    if (!a_config)
-        a_config = g_config;
-    if ( s_wallets_path[0] )                                                /* Is the path to the wallet's store has been defined ? */
-        return  s_wallets_path;                                             /* Fine, just return existen value */
-
-                                                                            /* Retrieve Wallet's store path from config */
-    if ( !(l_cp = dap_config_get_item_str_path_default(a_config, "resources", "wallets_path", NULL)) )
-        return  log_it(L_WARNING, "No path to wallet's store has been defined"), l_cp;
-
-
-    strncpy(s_wallets_path, l_cp, sizeof(s_wallets_path) - 1 );     /* Make local copy , return it to caller */
-    DAP_DEL_Z(l_cp);
-    return s_wallets_path;
+    return s_wallets_path
+        ? s_wallets_path
+        : ( s_wallets_path = dap_config_get_item_str_path_default(a_config ? a_config : g_config, "resources", "wallets_path", NULL) );
 }
 
 /**

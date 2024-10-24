@@ -62,7 +62,10 @@ typedef struct dap_chain_datum_iter {
     size_t cur_size;
     dap_chain_hash_fast_t *cur_hash;
     dap_chain_hash_fast_t *cur_atom_hash;
+    uint32_t action;
+    dap_chain_net_srv_uid_t uid;
     int ret_code;
+    char *token_ticker;
     void *cur_item;
 } dap_chain_datum_iter_t;
 
@@ -136,7 +139,8 @@ typedef enum dap_chain_type {
     CHAIN_TYPE_CA = 4,
     CHAIN_TYPE_SIGNER = 5,
     CHAIN_TYPE_DECREE = 7,
-    CHAIN_TYPE_ANCHOR = 8
+    CHAIN_TYPE_ANCHOR = 8,
+    CHAIN_TYPE_MAX
 } dap_chain_type_t;
 
 // not rotate, use in state machine
@@ -231,18 +235,17 @@ typedef struct dap_chain {
     void * _inheritor; // inheritor object
 } dap_chain_t;
 
+typedef struct dap_proc_thread dap_proc_thread_t;
+
 typedef struct dap_chain_atom_notifier {
     dap_chain_callback_notify_t callback;
+    dap_proc_thread_t *proc_thread;
     void *arg;
 } dap_chain_atom_notifier_t;
 
 typedef struct dap_chain_pvt {
-    dap_chain_t * chain;
-    char * file_storage_dir;
-    char * cs_name;
-    bool cs_started;
-    int celled;
-    bool need_reorder;
+    char *cs_name, *file_storage_dir;
+    bool cs_started, need_reorder;
 } dap_chain_pvt_t;
 
 #define DAP_CHAIN_PVT(a) ((dap_chain_pvt_t *)a->_pvt)
@@ -271,10 +274,10 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain);
 void dap_chain_info_dump_log(dap_chain_t * a_chain);
 
 dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id);
-dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net_id_t a_chain_net_id, const char *a_chain_cfg_name);
+dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net_id_t a_chain_net_id, dap_config_t *a_cfg);
 
 void dap_chain_delete(dap_chain_t * a_chain);
-void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_notify_t a_callback, void * a_arg);
+void dap_chain_add_callback_notify(dap_chain_t *a_chain, dap_chain_callback_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_arg);
 void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size);
 void dap_chain_atom_add_from_threshold(dap_chain_t *a_chain);
 dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);

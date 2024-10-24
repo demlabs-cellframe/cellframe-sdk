@@ -107,6 +107,17 @@ int dap_chain_cell_init(void)
     return  0;
 }
 
+#ifndef DAP_OS_WINDOWS
+DAP_STATIC_INLINE void s_cell_reclaim_cur_volume(dap_chain_cell_t *a_cell) {
+    if (
+#ifdef MADV_PAGEOUT
+    //madvise(a_cell->map, (size_t)(a_cell->map_end - a_cell->map), MADV_PAGEOUT) &&
+#endif
+    madvise(a_cell->map, (size_t)(a_cell->map_end - a_cell->map), MADV_DONTNEED) )
+        log_it(L_ERROR, "Unable to reclaim the previous volume, errno %d: \"%s\"", errno, dap_strerror(errno));
+}
+#endif
+
 DAP_STATIC_INLINE int s_cell_file_write_header(dap_chain_cell_t *a_cell)
 {
     dap_chain_cell_file_header_t l_hdr = {
@@ -120,7 +131,7 @@ DAP_STATIC_INLINE int s_cell_file_write_header(dap_chain_cell_t *a_cell)
     return fwrite(&l_hdr, sizeof(l_hdr), 1, a_cell->file_storage) ? fflush(a_cell->file_storage) : -1;
 }
 
-DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_fpos) {
+DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_fpos, bool a_load) {
     int l_fildes = fileno(a_cell->file_storage);
 #ifdef DAP_OS_WINDOWS
     HANDLE hSection = NULL;
@@ -135,12 +146,9 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
         };
         
         NTSTATUS err = pfnNtCreateSection(&hSection, SECTION_MAP_READ|SECTION_EXTEND_SIZE|SECTION_MAP_WRITE, 
-                                          NULL, &SectionSize, PAGE_READWRITE, SEC_RESERVE,
-                                          (HANDLE)_get_osfhandle(l_fildes));
-        if ( !NT_SUCCESS(err) ) {
-            log_it(L_ERROR, "NtCreateSection() failed, status %lx", err);
-            return -1;
-        }
+                                          NULL, &SectionSize, PAGE_READWRITE, SEC_RESERVE, (HANDLE)_get_osfhandle(l_fildes));
+        if ( !NT_SUCCESS(err) )
+            return log_it(L_ERROR, "NtCreateSection() failed, status %lx", err), -1;
         a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, hSection);
     }
 #endif
@@ -158,23 +166,17 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
     LARGE_INTEGER Offset = {
         .QuadPart = l_volume_start
     };
-    if ( !NT_SUCCESS ( err = pfnNtMapViewOfSection(hSection, GetCurrentProcess(), 
-                                                   (HANDLE)&a_cell->map, 0, 0, 
-                                                   &Offset, &l_map_size,
-                                                   ViewUnmap, MEM_RESERVE,
-                                                   PAGE_WRITECOPY) ) )
-    {
-        log_it(L_ERROR, "NtMapViewOfSection() failed, status %lx", err);
-        NtClose(hSection);
-        return -1;
-    }
+    err = pfnNtMapViewOfSection(hSection, GetCurrentProcess(), (HANDLE)&a_cell->map, 0, 0, 
+                                &Offset, &l_map_size, ViewUnmap, MEM_RESERVE, PAGE_WRITECOPY);
+    if ( !NT_SUCCESS(err) )
+        return NtClose(hSection), log_it(L_ERROR, "NtMapViewOfSection() failed, status %lx", err), -1;
 #else
-    if ( MAP_FAILED == (a_cell->map = mmap(NULL, l_map_size, PROT_READ|PROT_WRITE,
-                                           MAP_PRIVATE, fileno(a_cell->file_storage), l_volume_start)) ) {
-        log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be mapped, errno %d",
-                        a_cell->file_storage_path, a_cell->id.uint64, errno);
-        return -1;
-    }
+    if (a_load)
+        s_cell_reclaim_cur_volume(a_cell);
+    if (( a_cell->map = mmap(NULL, l_map_size, PROT_READ|PROT_WRITE, MAP_PRIVATE,
+                             fileno(a_cell->file_storage), l_volume_start) ) == MAP_FAILED )
+        return log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be mapped, errno %d",
+                                a_cell->file_storage_path, a_cell->id.uint64, errno), -1;
 #ifdef DAP_OS_DARWIN
     a_cell->cur_vol_start = l_volume_start;
 #endif
@@ -182,6 +184,10 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
     a_cell->map_pos = a_cell->map + l_offset;
     a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map);
     a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map_end = a_cell->map + l_map_size);
+#ifndef DAP_OS_WINDOWS    
+    if (a_load)
+        madvise(a_cell->map, l_map_size, MADV_SEQUENTIAL);
+#endif
     return 0;
 }
 
@@ -259,7 +265,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
         fflush(l_file);
     }
 
-    if ( a_chain->is_mapped && s_cell_map_new_volume(l_cell, 0) ) {
+    if ( a_chain->is_mapped && s_cell_map_new_volume(l_cell, 0, true) ) {
         CLEANUP_AND_RET;
     }
 #undef CLEANUP_AND_RET
@@ -406,11 +412,10 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
 {
     if (!a_cell)
         return -1;
-    off_t l_ssize = !fseeko(a_cell->file_storage, 0, SEEK_END) ? ftello(a_cell->file_storage) : -1;
-    if (l_ssize < 0)
+    off_t l_full_size = !fseeko(a_cell->file_storage, 0, SEEK_END) ? ftello(a_cell->file_storage) : -1;
+    if (l_full_size < 0)
         return log_it(L_ERROR, "Can't get chain size, error %d: \"%s\"", errno, dap_strerror(errno)), -1;
-    size_t l_full_size = (size_t)l_ssize;
-    if ( l_full_size < sizeof(dap_chain_cell_file_header_t) ) {
+    if ( l_full_size < (off_t)sizeof(dap_chain_cell_file_header_t) ) {
         log_it(L_ERROR, "Chain cell \"%s\" is corrupt, create new file", a_cell->file_storage_path);
         return -1;
     }
@@ -439,7 +444,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         if (!a_chain->is_mapped) DAP_DELETE(l_hdr);
         return -4;
     }
-    size_t l_pos = sizeof(dap_chain_cell_file_header_t);
+    off_t l_pos = sizeof(*l_hdr);
     if (a_chain->is_mapped)
         a_cell->map_pos = a_cell->map + l_pos;
     if (l_full_size == l_pos) {
@@ -447,28 +452,29 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     }
 
     int l_ret = 0;    
-    uint64_t l_el_size, q = 0;
+    uint64_t l_el_size = 0, q = 0;
     if (a_chain->is_mapped) {
-        uint64_t l_vol_rest;
         dap_hash_fast_t l_atom_hash;
-        for ( l_el_size = 0; l_pos < l_full_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
-            l_vol_rest = (uint64_t)( a_cell->map_end - a_cell->map_pos );
-            if ( l_vol_rest <= sizeof(uint64_t) || l_vol_rest - sizeof(uint64_t) <= *(uint64_t*)a_cell->map_pos)
-                if ( s_cell_map_new_volume(a_cell, l_pos) )
+        for ( off_t l_vol_rest = 0; l_pos + sizeof(uint64_t) < (size_t)l_full_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
+            l_vol_rest = (off_t)(a_cell->map_end - a_cell->map_pos) - sizeof(uint64_t);
+            if ( l_vol_rest <= 0 || (uint64_t)l_vol_rest < *(uint64_t*)a_cell->map_pos )
+                if ( s_cell_map_new_volume(a_cell, l_pos, true) ) {
+                    l_ret = -2;
                     break;
-            if (*(uint64_t*)a_cell->map_pos > l_full_size - l_pos ) {
-                log_it(L_ERROR, "Atom size exeeds file remainder: %zu > %zu. "
-                                "Truncating chain \"%s\"", l_el_size, l_full_size - l_pos, a_cell->file_storage_path );
-                ftruncate(fileno(a_cell->file_storage), l_pos);
-                break;
-            }
+                }
             l_el_size = *(uint64_t*)a_cell->map_pos;
-            dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos += sizeof(uint64_t));
+            if ( !l_el_size || l_el_size > (size_t)(l_full_size - l_pos) )
+                break;
+            a_cell->map_pos += sizeof(uint64_t);
+            dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos);
             dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
             a_chain->callback_atom_add(a_chain, l_atom, l_el_size, &l_atom_hash, false);
             a_cell->map_pos += l_el_size;
             a_chain->load_progress = (int)((float)l_pos/l_full_size * 100 + 0.5);
         }
+#ifndef DAP_OS_WINDOWS
+        s_cell_reclaim_cur_volume(a_cell);
+#endif
     } else { 
         DAP_DELETE(l_hdr);
         size_t l_read = 0;
@@ -484,14 +490,15 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
                 l_ret = -5;
                 break;
             }
-            l_pos += sizeof(uint64_t) + ( l_read = fread((void*)l_element, 1, l_el_size, a_cell->file_storage) );
-            a_chain->load_progress = (int)((double)l_pos/l_full_size * 100 + 0.5);
+            l_read = fread((void*)l_element, 1, l_el_size, a_cell->file_storage);
             if (l_read != l_el_size) {
                 log_it(L_ERROR, "Read only %lu of %zu bytes, stop cell loading", l_read, l_el_size);
                 DAP_DELETE(l_element);
                 l_ret = -6;
                 break;
             }
+            l_pos += sizeof(uint64_t) + l_read;
+            a_chain->load_progress = (int)((float)l_pos/l_full_size * 100 + 0.5);
             dap_hash_fast_t l_atom_hash = {};
             dap_hash_fast(l_element, l_el_size, &l_atom_hash);
             dap_chain_atom_verify_res_t l_res = a_chain->callback_atom_add(a_chain, l_element, l_el_size, &l_atom_hash, false);
@@ -500,6 +507,11 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             }
             ++q;
         }
+    }
+    if ( l_pos < l_full_size ) {
+        log_it(L_ERROR, "Chain \"%s\" has incomplete tail, truncating %zu bytes",
+                        a_cell->file_storage_path, l_full_size - l_pos );
+        ftruncate(fileno(a_cell->file_storage), l_pos);
     }
     fseeko(a_cell->file_storage, l_pos, SEEK_SET);
     log_it(L_INFO, "Loaded %lu atoms in cell %s", q, a_cell->file_storage_path);
@@ -519,7 +531,7 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
         debug_if (s_debug_more, L_DEBUG, "Before filling volume for atom size %ld, stream pos of %s is %lu, map pos is %lu, space left in map %lu",
                       a_atom_size, a_cell->file_storage_path, l_pos, (size_t)(a_cell->map_pos - a_cell->map), (size_t)(a_cell->map_end - a_cell->map_pos));
         if ( a_atom_size + sizeof(uint64_t) > (size_t)(a_cell->map_end - a_cell->map_pos) )
-            if ( s_cell_map_new_volume(a_cell, (size_t)l_pos) )
+            if ( s_cell_map_new_volume(a_cell, (size_t)l_pos, false) )
                 return -2;
     }
     
@@ -542,6 +554,7 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
                                             a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
                                             (size_t)(a_cell->map_pos - a_cell->map));
 #ifdef DAP_OS_DARWIN
+    fflush(a_cell->file_storage);
     if (a_cell->chain->is_mapped) {
         if ( MAP_FAILED == (a_cell->map = mmap(a_cell->map, dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT), PROT_READ|PROT_WRITE,
                                             MAP_PRIVATE|MAP_FIXED, fileno(a_cell->file_storage), a_cell->cur_vol_start)) ) {
@@ -632,7 +645,9 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
     }
     
     if (l_total_res) {
+#ifndef DAP_OS_DARWIN
         fflush(a_cell->file_storage);
+#endif
 #ifdef DAP_OS_WINDOWS
         if (a_cell->chain->is_mapped) {
             off_t l_off = ftello(a_cell->file_storage);
