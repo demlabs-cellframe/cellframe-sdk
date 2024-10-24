@@ -550,8 +550,8 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
             break;
         }
     }
+    dap_chain_node_info_t *l_node_info = NULL;
     if (!l_host || !l_host[0] || !l_port) {
-            dap_chain_node_info_t *l_node_info = NULL;
         for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
             if (( l_node_info = dap_chain_node_info_read(net, &a_link->addr) ))
                 break;
@@ -560,9 +560,9 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
             return -3;
         l_host = l_node_info->ext_host;
         l_port = l_node_info->ext_port;
-        DAP_DELETE(l_node_info);
     }
     a_link->uplink.ready = !dap_link_manager_link_update(&a_link->addr, l_host, l_port);
+    DAP_DEL_Z(l_node_info);
     return 0;
 }
 
