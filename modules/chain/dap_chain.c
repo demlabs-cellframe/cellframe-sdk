@@ -402,7 +402,6 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
     {
         l_chain->default_datum_types = DAP_NEW_Z_COUNT(dap_chain_type_t, l_default_datum_types_count);
         if ( !l_chain->default_datum_types ) {
-            DAP_DELETE(l_chain->datum_types);
             return log_it(L_CRITICAL, "%s", c_error_memory_alloc), dap_chain_delete(l_chain), NULL;
         }
         for (i = 0; i < l_default_datum_types_count; i++)
@@ -421,8 +420,6 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
     {
         l_chain->autoproc_datum_types = DAP_NEW_Z_COUNT(uint16_t, l_chain->datum_types_count);
         if ( !l_chain->autoproc_datum_types ) {
-            DAP_DELETE(l_chain->datum_types);
-            DAP_DELETE(l_chain->default_datum_types);
             return log_it(L_CRITICAL, "%s", c_error_memory_alloc), dap_chain_delete(l_chain), NULL;
         }
         for (i = 0; i < l_datum_types_count; i++)
