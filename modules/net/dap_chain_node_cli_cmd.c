@@ -4029,7 +4029,7 @@ void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, ui
                                                                                        &l_datum_count);
                 json_object *l_obj_atom = json_object_new_object();
                 char l_buff_ts[50] = {'\0'};
-                dap_time_to_str_rfc822(&l_buff_ts, 50, l_atom_iter->cur_ts);
+                dap_time_to_str_rfc822(l_buff_ts, 50, l_atom_iter->cur_ts);
                 for (size_t i = 0; i < l_datum_count; i++) {
                     dap_chain_datum_t *l_datum = l_datums[i];
                     if (l_datum[i].header.type_id != DAP_CHAIN_DATUM_DECREE) continue;
