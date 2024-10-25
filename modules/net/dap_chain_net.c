@@ -189,9 +189,9 @@ typedef struct dap_chain_net_pvt{
 #define PVT_S(a) ((dap_chain_net_pvt_t *)a.pvt)
 
 static dap_chain_net_t *s_nets_by_name = NULL, *s_nets_by_id = NULL;
-static pthread_mutex_t s_net_cond_lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t s_net_cond = PTHREAD_COND_INITIALIZER;
-static uint16_t s_net_loading_count = 0;
+//static pthread_mutex_t s_net_cond_lock = PTHREAD_MUTEX_INITIALIZER;
+//static pthread_cond_t s_net_cond = PTHREAD_COND_INITIALIZER;
+//static uint16_t s_net_loading_count = 0;
 
 static const char *c_net_states[] = {
     [NET_STATE_LOADING]             = "NET_STATE_LOADING",
@@ -228,7 +228,7 @@ static void s_net_states_notify(dap_chain_net_t * l_net);
 static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg);
 //static void s_net_proc_kill( dap_chain_net_t * a_net );
 static int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx);
-static bool s_net_load(void *a_arg);
+static void *s_net_load(void *a_arg);
 static int s_net_try_online(dap_chain_net_t *a_net);
 static int s_cli_net(int argc, char ** argv, void **a_str_reply);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
@@ -779,7 +779,22 @@ void dap_chain_net_load_all()
             }
         }
     }
-    pthread_mutex_lock(&s_net_cond_lock);
+    uint16_t l_nets_count = HASH_COUNT(s_nets_by_name);
+    if (!l_nets_count)
+        return log_it(L_ERROR, "No networks initialized!");
+    pthread_t l_tids[l_nets_count];
+    dap_chain_net_t *l_net = s_nets_by_name;
+    dap_timerfd_t *l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_net_disk_load_notify_callback, NULL);
+    for (int i = 0; i < l_nets_count; ++i) {
+        pthread_create(&l_tids[i], NULL, s_net_load, l_net);
+        l_net = l_net->hh.next;
+    }
+    for (int i = 0; i < l_nets_count; ++i) {
+        pthread_join(l_tids[i], NULL);
+    }
+    dap_timerfd_delete_mt(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
+
+    /*pthread_mutex_lock(&s_net_cond_lock);
     s_net_loading_count = HASH_COUNT(s_nets_by_name);
     if (!s_net_loading_count) {
         log_it(L_ERROR, "Can't find any nets");
@@ -794,7 +809,7 @@ void dap_chain_net_load_all()
     }
     int l_net_counter = 0;
     uint32_t l_cpu_count = dap_get_cpu_count();
-    dap_timerfd_t *l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_net_disk_load_notify_callback, NULL);
+    
     for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
         dap_proc_thread_create(l_net_threads + l_net_counter, dap_random_byte() % l_cpu_count);
         dap_proc_thread_callback_add(l_net_threads + l_net_counter, s_net_load, net);
@@ -807,7 +822,7 @@ void dap_chain_net_load_all()
         dap_context_stop_n_kill(l_net_threads[i].context);
     DAP_DELETE(l_net_threads);
     pthread_mutex_unlock(&s_net_cond_lock);
-    dap_timerfd_delete_mt(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
+    dap_timerfd_delete_mt(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);*/
 }
 
 dap_string_t* dap_cli_list_net()
@@ -1978,7 +1993,7 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
     return 0;
 }
 
-bool s_net_load(void *a_arg)
+static void *s_net_load(void *a_arg)
 {
     dap_chain_net_t *l_net = a_arg;
     int l_err_code = 0;
@@ -2205,11 +2220,12 @@ bool s_net_load(void *a_arg)
 ret:
     if (l_err_code)
         log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net->pub.name, l_err_code);
-    pthread_mutex_lock(&s_net_cond_lock);
+    /*pthread_mutex_lock(&s_net_cond_lock);
     s_net_loading_count--;
     pthread_cond_signal(&s_net_cond);
     pthread_mutex_unlock(&s_net_cond_lock);
-    return false;
+    return false;*/
+    return NULL;
 }
 
 dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain)
