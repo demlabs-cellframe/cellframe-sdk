@@ -544,17 +544,8 @@ struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_
             struct json_object *l_json = json_object_new_object();
             json_object_object_add(l_json, "class", json_object_new_string("WalletInfo"));
             struct json_object *l_jobj_wallet = json_object_new_object();
-            json_object_object_add(l_jobj_wallet, "name", json_object_new_string(l_wallet_name));
-            json_object_object_add(l_jobj_wallet, "addr", json_object_new_string(l_addr_str));
-            json_object_object_add(l_jobj_wallet, "net", json_object_new_string(a_ledger->net->pub.name));
-
-
-            struct json_object *l_token = json_object_new_object();
-            json_object_object_add(l_token, "name", json_object_new_string(a_bal->token_ticker));
-            const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(a_bal->balance, &l_balance_coins);
-            json_object_object_add(l_token, "full_balance", json_object_new_string(l_balance_coins));
-            json_object_object_add(l_token, "datoshi", json_object_new_string(l_balance_datoshi));
-            json_object_object_add(l_jobj_wallet, "token", l_token);
+            json_object_object_add(l_jobj_wallet, l_wallet_name, dap_chain_wallet_info_to_json(l_wallet_name,
+                                                                                               dap_chain_wallet_get_path(g_config)));
             json_object_object_add(l_json, "wallet", l_jobj_wallet);
             return l_json;
         }
