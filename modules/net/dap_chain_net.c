@@ -563,8 +563,7 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
         l_port = l_node_info->ext_port;
     }
     a_link->uplink.ready = !dap_link_manager_link_update(&a_link->addr, l_host, l_port);
-    DAP_DEL_Z(l_node_info);
-    return 0;
+    return DAP_DELETE(l_node_info), 0;
 }
 
 json_object *s_net_sync_status(dap_chain_net_t *a_net)
