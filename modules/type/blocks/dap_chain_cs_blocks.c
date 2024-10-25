@@ -465,8 +465,8 @@ static void s_cli_meta_hash_print(json_object* a_json_obj_out, const char *a_met
 {
     if (a_meta->hdr.data_size == sizeof (dap_chain_hash_fast_t)) {
         const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
-                dap_enc_base58_encode_hash_to_str_static(a_meta->data) :
-                dap_chain_hash_fast_to_str_static(a_meta->data);
+                dap_enc_base58_encode_hash_to_str_static((dap_chain_hash_fast_t*)a_meta->data) :
+                dap_chain_hash_fast_to_str_static((dap_chain_hash_fast_t*)a_meta->data);
         json_object_object_add(a_json_obj_out, a_meta_title, json_object_new_string(l_hash_str));
 //        if (dap_strcmp(a_hash_out_type, "base58")) {
 //            const char *l_hash_str = dap_enc_base58_encode_hash_to_str_static(a_meta->data);
