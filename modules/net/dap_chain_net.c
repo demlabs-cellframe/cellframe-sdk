@@ -119,6 +119,7 @@
 
 static bool s_debug_more = false;
 static const int c_sync_timer_period = 5000;  // msec
+static bool s_server_enabled = false;
 
 struct request_link_info {
     char addr[DAP_HOSTADDR_STRLEN + 1];
@@ -763,6 +764,22 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg) {
  */
 void dap_chain_net_load_all()
 {
+    if ( dap_config_get_item_bool_default(g_config, "server", "enabled", false) ) {
+        char l_local_ip[INET6_ADDRSTRLEN] = { '\0' };
+        uint16_t l_in_port = 0;
+        const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
+        if ( l_listening ) {
+            if ( dap_net_parse_config_address(*l_listening, l_local_ip, &l_in_port, NULL, NULL) < 0 )
+                log_it(L_ERROR, "Invalid server IP address, check [server] section in cellframe-node.cfg");
+            else {
+                // power of short-circuit
+                if ( l_in_port || ( l_in_port = dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079 ))) {
+                    s_server_enabled = true;
+                    log_it(L_INFO, "Server is enabled on [%s : %u]", l_local_ip, l_in_port);
+                }
+            }
+        }
+    }
     pthread_mutex_lock(&s_net_cond_lock);
     s_net_loading_count = HASH_COUNT(s_nets_by_name);
     if (!s_net_loading_count) {
@@ -1796,9 +1813,9 @@ static int s_nodes_hosts_init(dap_chain_net_t *a_net, dap_config_t *a_cfg, const
         uint16_t i = 0, e = 0;
         for (; i < *a_hosts_count; ++i) {
             if (!( (*a_hosts)[i] = s_net_resolve_host(l_nodes_addrs[i]) )) {
-                log_it(L_ERROR, "Incorrect address [ %s : %u ], fix \"%s\" network config"
+                log_it(L_ERROR, "Incorrect address %s, fix \"%s\" network config "
                                 "or check internet connection and restart node",
-                                (*a_hosts)[i]->addr, (*a_hosts)[i]->port,  a_net->pub.name);
+                                l_nodes_addrs[i],  a_net->pub.name);
                 ++e;
                 continue;
             }
@@ -1849,7 +1866,7 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
             l_net->pub.bridged_networks = DAP_REALLOC_COUNT(l_net->pub.bridged_networks, j); // Can be NULL, it's ok
     }
 
-    // read permanent and authorized nodes addrs
+    // read nodes addrs and hosts
     if (
         dap_config_stream_addrs_parse(l_cfg, "general", "permanent_nodes_addrs", &l_net_pvt->permanent_links_addrs, &l_net_pvt->permanent_links_addrs_count) ||
         s_nodes_hosts_init(l_net, l_cfg, "permanent_nodes_hosts", &l_net_pvt->permanent_links_hosts, &l_net_pvt->permanent_links_hosts_count) ||
@@ -2153,21 +2170,9 @@ bool s_net_load(void *a_arg)
         if (l_chain->callback_created)
             l_chain->callback_created(l_chain, l_net->pub.config);
 
-    if ( dap_config_get_item_bool_default(g_config, "server", "enabled", false) ) {
-        char l_local_ip[INET6_ADDRSTRLEN] = { '\0' };
-        uint16_t l_in_port = 0;
-        const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
-        if ( l_listening ) {
-            if ( dap_net_parse_config_address(*l_listening, l_local_ip, &l_in_port, NULL, NULL) < 0 )
-                log_it(L_ERROR, "Invalid server IP address, check [server] section in cellframe-node.cfg");
-            else {
-                // power of short-circuit
-                if ( l_in_port || ( l_in_port = dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079 )))
-                    log_it(L_INFO, "Server is enabled on \"%s : %u\"", l_local_ip, l_in_port);
-                if (( l_net_pvt->node_info->ext_port = dap_config_get_item_uint16(g_config, "server", "ext_port") ))
-                    log_it(L_INFO, "Set external port %u for adding in node list", l_net_pvt->node_info->ext_port);
-            }
-        }
+    if ( s_server_enabled ) {
+        if (( l_net_pvt->node_info->ext_port = dap_config_get_item_uint16(g_config, "server", "ext_port") ))
+            log_it(L_INFO, "Set external port %u for adding in node list", l_net_pvt->node_info->ext_port);
     }
 
     l_net_pvt->node_info->address.uint64 = g_node_addr.uint64;
