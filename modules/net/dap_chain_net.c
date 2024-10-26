@@ -191,9 +191,6 @@ typedef struct dap_chain_net_pvt{
 #define PVT_S(a) ((dap_chain_net_pvt_t *)a.pvt)
 
 static dap_chain_net_t *s_nets_by_name = NULL, *s_nets_by_id = NULL;
-//static pthread_mutex_t s_net_cond_lock = PTHREAD_MUTEX_INITIALIZER;
-//static pthread_cond_t s_net_cond = PTHREAD_COND_INITIALIZER;
-//static uint16_t s_net_loading_count = 0;
 
 static const char *c_net_states[] = {
     [NET_STATE_LOADING]             = "NET_STATE_LOADING",
@@ -779,36 +776,6 @@ void dap_chain_net_load_all()
         pthread_join(l_tids[i], NULL);
     }
     dap_timerfd_delete_mt(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
-
-    /*pthread_mutex_lock(&s_net_cond_lock);
-    s_net_loading_count = HASH_COUNT(s_nets_by_name);
-    if (!s_net_loading_count) {
-        log_it(L_ERROR, "Can't find any nets");
-        pthread_mutex_unlock(&s_net_cond_lock);
-        return;
-    }
-    dap_proc_thread_t *l_net_threads = DAP_NEW_Z_COUNT(dap_proc_thread_t, s_net_loading_count);
-    if (!l_net_threads) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        pthread_mutex_unlock(&s_net_cond_lock);
-        return;
-    }
-    int l_net_counter = 0;
-    uint32_t l_cpu_count = dap_get_cpu_count();
-    
-    for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
-        dap_proc_thread_create(l_net_threads + l_net_counter, dap_random_byte() % l_cpu_count);
-        dap_proc_thread_callback_add(l_net_threads + l_net_counter, s_net_load, net);
-        ++l_net_counter;
-    }
-    assert(l_net_counter == s_net_loading_count);
-    while (s_net_loading_count)
-        pthread_cond_wait(&s_net_cond, &s_net_cond_lock);
-    for (int i = 0; i < l_net_counter; ++i)
-        dap_context_stop_n_kill(l_net_threads[i].context);
-    DAP_DELETE(l_net_threads);
-    pthread_mutex_unlock(&s_net_cond_lock);
-    dap_timerfd_delete_mt(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);*/
 }
 
 dap_string_t* dap_cli_list_net()
@@ -2238,11 +2205,6 @@ static void *s_net_load(void *a_arg)
 ret:
     if (l_err_code)
         log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net->pub.name, l_err_code);
-    /*pthread_mutex_lock(&s_net_cond_lock);
-    s_net_loading_count--;
-    pthread_cond_signal(&s_net_cond);
-    pthread_mutex_unlock(&s_net_cond_lock);
-    return false;*/
     return NULL;
 }
 
