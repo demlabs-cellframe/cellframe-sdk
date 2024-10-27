@@ -364,3 +364,12 @@ int com_signer(int a_argc, char **a_argv, void **a_str_reply);
 int cmd_remove(int a_argc, char **a_argv, void **a_str_reply);
 
 void dap_notify_new_client_send_info(dap_events_socket_t *a_es, void *a_arg);
+
+
+typedef enum s_com_file_err{
+    DAP_CHAIN_NODE_CLI_COM_FILE_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_FILE_MEMORY_ERR,
+    DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR,
+
+} s_com_file_err_t;
+int com_file(int a_argc, char ** a_argv, void **a_str_reply);

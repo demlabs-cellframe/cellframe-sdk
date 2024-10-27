@@ -8536,3 +8536,95 @@ void dap_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void 
     }
     json_object_put(l_json_wallets);
 }
+
+static int s_print_last_n_lines(const char *filename, int N, json_object* a_json_arr_out) {
+
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        return -1;
+    }
+
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+
+    int line_count = 0;
+    char ch;
+
+    for (long i = file_size - 1; i >= 0; i--) {
+        fseek(file, i, SEEK_SET);
+        ch = fgetc(file);
+
+        if (ch == '\n') {
+            line_count++;
+            if (line_count > N) {
+                break;
+            }
+        }
+    }
+    char buffer[1024];
+    while (fgets(buffer, sizeof(buffer), file) != NULL) {
+        json_object_array_add(a_json_arr_out, json_object_new_string(buffer));
+    }
+
+    fclose(file);
+}
+
+
+int com_file(int a_argc, char ** a_argv, void **a_str_reply)
+{
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    enum {
+        CMD_NONE, CMD_PRINT, CMD_EXPORT, CMD_CLEAN_LOG
+    };
+    int l_arg_index = 1;
+
+    int l_cmd_num = CMD_NONE;
+    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "print", NULL)) {
+        l_cmd_num = CMD_PRINT;
+    }
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "export", NULL)) {
+        l_cmd_num = CMD_EXPORT;
+    }
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "clean_log", NULL)) {
+        l_cmd_num = CMD_CLEAN_LOG;
+    }
+
+    switch(l_cmd_num) {
+        case CMD_PRINT : {
+            const char * l_num_line_str = NULL, *l_log = NULL, *l_path_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-num_line", &l_num_line_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-log", &l_log);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-path", &l_path_str);
+            int l_num_line = l_num_line_str ? atoi(l_num_line_str) : 0;
+            if (l_num_line <= 0) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Wrong number in -num_line param");
+                return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+            }
+            if (!l_log && !l_path_str) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Command file require -log or -path arguments");
+                return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+            }
+
+            char l_file_full_path[MAX_PATH] = {'\0'};
+            if (l_log) {
+                const char * l_log_file_path = "var/log/cellframe-node.log";
+                sprintf(l_file_full_path, "%s/%s", g_sys_dir_path, l_log_file_path);
+            } else {
+                strncpy(l_file_full_path, l_path_str, sizeof(l_file_full_path) - 1);
+                l_file_full_path[sizeof(l_file_full_path) - 1] = '\0';
+            }
+            json_object * l_json_arr_res = json_object_new_array();
+            int res = s_print_last_n_lines(l_file_full_path, l_num_line, l_json_arr_res);
+            switch (res) {
+                case -1: {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Command file require -log or -path arguments");
+                    return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+                }
+                default:
+                    break;
+            } 
+            json_object_array_add(*a_json_arr_reply, l_json_arr_res);
+        }
+    }
+    return 0;
+}
