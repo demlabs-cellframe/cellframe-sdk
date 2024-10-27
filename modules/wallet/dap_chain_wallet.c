@@ -60,6 +60,7 @@
 #include "crc32c_adler.h"
 #include "dap_chain_ledger.h"
 #include "dap_strfuncs.h"
+#include "dap_notify_srv.h"
 
 //#define __USE_GNU
 
@@ -196,6 +197,14 @@ char *c_wallets_path;
         HASH_DEL(s_wallet_n_pass, l_prec);
         log_it(L_ERROR, "Can't activate unprotected wallet");
         l_rc = -101;
+    } else {
+        struct json_object *l_json = json_object_new_object();
+        json_object_object_add(l_json, "class", json_object_new_string("WalletActivate"));
+        struct json_object *l_wallet_info = dap_chain_wallet_info_to_json(a_name, c_wallets_path);
+        json_object_object_add(l_wallet_info, "name", json_object_new_string(a_name));
+        json_object_object_add(l_json, "WalletInfo", l_wallet_info);
+        dap_notify_server_send_mt(json_object_get_string(l_json));
+        json_object_put(l_json);
     }
 
     dap_chain_wallet_close( l_wallet);
