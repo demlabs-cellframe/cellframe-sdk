@@ -42,18 +42,18 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
 static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply);
 
 // Public functions
-int dap_ledger_decree_create(dap_chain_net_t *a_net)
+int dap_ledger_decree_create(dap_ledger_t *a_ledger)
 {
     size_t l_auth_certs_count = 0;
 
-    if (!a_net) {
+    if (!a_ledger) {
         log_it(L_WARNING,"Invalid arguments. a_net must be not NULL");
         return -106;
     }
 
     dap_list_t *l_net_keys = NULL;
     uint16_t l_count_verify = 0;
-    for (dap_chain_t *l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next) {
+    for (dap_chain_t *l_chain = a_ledger->net->pub.chains; l_chain; l_chain = l_chain->next) {
         if (!l_chain->callback_get_poa_certs)
             continue;
         l_net_keys = l_chain->callback_get_poa_certs(l_chain, &l_auth_certs_count, &l_count_verify);
@@ -62,10 +62,10 @@ int dap_ledger_decree_create(dap_chain_net_t *a_net)
     }
 
     if (!l_net_keys || !l_auth_certs_count) {
-        log_it(L_WARNING,"Certificates for net %s not found.", a_net->pub.name);
+        log_it(L_WARNING,"Certificates for net %s not found.", a_ledger->net->pub.name);
         return -1;
     }
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     l_ledger_pvt->decree_min_num_of_signers = l_count_verify;
     l_ledger_pvt->decree_num_of_owners = l_auth_certs_count;
     l_ledger_pvt->decree_owners_pkeys = l_net_keys;
@@ -92,7 +92,7 @@ static int s_decree_clear(dap_chain_net_t *a_net)
 void dap_ledger_decree_purge(dap_chain_net_t *a_net)
 {
     s_decree_clear(a_net);
-    dap_ledger_decree_create(a_net);
+    dap_ledger_decree_create(a_net->pub.ledger);
 }
 
 static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash, bool a_anchored)
