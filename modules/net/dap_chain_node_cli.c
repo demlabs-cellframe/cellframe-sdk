@@ -129,7 +129,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "\tALL_UNFROZEN: \t\t\t\tUnfreezes all frozen permissions\n"
                             "\tSTATIC_ALL: \t\t\t\tBlocks manipulations with a token after declaration. Tokens are declared statically.\n"
                             "\tSTATIC_FLAGS: \t\t\t\tBlocks manipulations with token flags after declaration.\n"
-                            "\tSTATIC_PERMISSIONS_ALL: \t\tBlock all manipulations with permissions list after declaration.\n"
+                            "\tSTATIC_PERMISSIONS_ALL: \t\tBlocks all manipulations with permissions list after declaration.\n"
                             "\tSTATIC_PERMISSIONS_DATUM_TYPE: \t\tBlocks all manipulations with datum permissions list after declaration.\n"
                             "\tSTATIC_PERMISSIONS_TX_SENDER: \t\tBlocks all manipulations with transaction senders permissions list after declaration.\n"
                             "\tSTATIC_PERMISSIONS_TX_RECEIVER: \tBlocks all manipulations with transaction receivers permissions list after declaration.\n"
