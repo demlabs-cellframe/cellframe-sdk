@@ -343,8 +343,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "Displays information about the parameters of the decrees in the network.\n");
 
 
-    dap_cli_server_cmd_add ("file", com_file, "file",
-                "file\n" );
+    dap_cli_server_cmd_add ("file", com_file, "Work with files",
+                "file print -num_line <number_of_lines> {-log | -path <path_to_file>}\n"
+                "\t print <num_line> lines from log or from <path_to_file> file \n"
+                "file export -num_line <number_of_lines> {-log | -path <path_to_file>} -dest <destination_path>\n"
+                "\t export <num_line> lines from log or from <path_to_file> file to <destination_path> file\n"
+                "file clean_log\n"
+                "\t CAUTION !!! clean log file\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
