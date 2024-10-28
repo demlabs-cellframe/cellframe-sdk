@@ -370,6 +370,10 @@ typedef enum s_com_file_err{
     DAP_CHAIN_NODE_CLI_COM_FILE_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_FILE_MEMORY_ERR,
     DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_FILE_DEST_FILE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR
+
 
 } s_com_file_err_t;
 int com_file(int a_argc, char ** a_argv, void **a_str_reply);
