@@ -144,7 +144,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "\t -flag_set <flag_name>:\t Adds specified flag to the list of active flags.\n"
                             "\t -flag_unset <flag_name>:\t Removes specified flag from the list of active flags.\n"
                             "Work with the number of signatures required for the issue:\n"
-                            "\t -total_signs_valid <value>:\t Set valid signatures count's minimum.\n"
+                            "\t -total_signs_valid <value>:\t Sets the minimum amount of valid signatures.\n"
                             "\t -add_certs <cert_list>:\t Adds certificates to the certificates list of the token.\n"
                             "\t -remove_certs <pkeys_hash>:\t Removes certificates from the certificates list using theirs public key hashes.\n"
                             "\nTx receiver addresses allowed/blocked:\n"
