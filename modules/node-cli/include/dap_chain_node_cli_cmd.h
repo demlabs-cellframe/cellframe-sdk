@@ -215,6 +215,7 @@ typedef enum s_com_tx_create_json_err {
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_INVALID_ITEMS,
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL
 }s_com_tx_create_json_err_t;
+void json_rpc_tx_create(json_object *a_param, json_object *a_reply);
 int com_tx_create_json(int a_argc, char **a_argv, void **reply);
 typedef enum s_com_tx_cond_create{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_OK = 0,
