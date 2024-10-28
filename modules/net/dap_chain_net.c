@@ -1980,12 +1980,12 @@ static void *s_net_load(void *a_arg)
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
 
     // reload ledger cache at once
-    if (s_chain_net_reload_ledger_cache_once(l_net)) {
+    /*if (s_chain_net_reload_ledger_cache_once(l_net)) {
         log_it(L_WARNING,"Start one time ledger cache reloading");
         dap_ledger_purge(l_net->pub.ledger, false);
         dap_chain_net_srv_stake_purge(l_net);
     } else
-        dap_chain_net_srv_stake_load_cache(l_net);
+        dap_chain_net_srv_stake_load_cache(l_net);*/
 
     // load chains
     dap_chain_t *l_chain = l_net->pub.chains;
