@@ -105,7 +105,8 @@ typedef struct dap_chain_ch {
     void *_inheritor;
     dap_timerfd_t *sync_timer;
     struct sync_context *sync_context;
-    bool in_idle; 
+    bool in_idle;
+    int idle_ack_counter;
 
     // Legacy section //
     dap_timerfd_t *activity_timer;
@@ -845,6 +846,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     break;
                 }
                 l_ch_chain->sync_context = l_context;
+                l_ch_chain->idle_ack_counter = s_sync_ack_window_size;
                 dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_context);
                 l_ch_chain->sync_timer = dap_timerfd_start_on_worker(a_ch->stream_worker->worker, 1000, s_sync_timer_callback, l_uuid);
                 break;
@@ -930,10 +932,15 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                 l_ack_num);
         struct sync_context *l_context = l_ch_chain->sync_context;
         if (!l_context) {
-            log_it(L_WARNING, "CHAIN_ACK: No active sync context");
-            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
-                    l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
-                    DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
+            if (l_ch_chain->idle_ack_counter > 0) {
+                debug_if(s_debug_more, L_DEBUG, "End of pandemic wave");
+                l_ch_chain->idle_ack_counter--;
+            } else {
+                log_it(L_WARNING, "CHAIN_ACK: No active sync context");
+                dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+                        l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
+                        DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
+            }
             break;
         }
         if (l_context->num_last == l_ack_num) {
