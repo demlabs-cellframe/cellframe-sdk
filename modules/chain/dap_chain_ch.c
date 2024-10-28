@@ -633,7 +633,7 @@ static bool s_sync_in_chains_callback(void *a_arg)
         log_it(L_CRITICAL, "Wtf is this ret code? %d", l_atom_add_res);
         break;
     }
-    if (l_ack_send && l_args->ack_req && l_args->channel && !l_args->channel->in_idle) {
+    if ( l_ack_send && l_args->ack_req && (!l_args->channel || (l_args->channel && !l_args->channel->in_idle)) ) {
         uint64_t l_ack_num = ((uint32_t)l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo;
         dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                                                          &l_ack_num, sizeof(uint64_t), DAP_CHAIN_CH_PKT_VERSION_CURRENT);
@@ -719,6 +719,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
             return false;
         }
+        dap_proc_thread_callback_add_pri(a_ch->stream_worker->worker->proc_queue_input, s_ch_chain_go_idle_callback, l_ch_chain, DAP_QUEUE_MSG_PRIORITY_HIGH);
         log_it(L_WARNING, "In: from remote addr %s chain id 0x%016" DAP_UINT64_FORMAT_x " got error on his side: '%s'",
                DAP_STREAM_CH(l_ch_chain)->stream->esocket->remote_addr_str,
                l_chain_pkt->hdr.chain_id.uint64, (char *)l_chain_pkt->data);
@@ -755,8 +756,6 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             break;
         }
         l_args->channel = a_ch->internal;
-        if (l_args->channel)
-            l_args->channel->in_idle = false;
         l_args->addr = a_ch->stream->node;
         l_args->ack_req = true;
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
@@ -909,6 +908,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                             l_chain ? l_chain->net_name : "(null)",
                                                             NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
                                 l_sum->num_last - l_sum->num_cur, l_sum->num_cur, l_sum->num_last);
+        if (l_ch_chain)
+           l_ch_chain->in_idle = false;
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK: {
@@ -1626,6 +1627,12 @@ static bool s_chain_iter_delete_callback(void *a_arg)
     return false;
 }
 
+static void s_ch_chain_go_idle_callback(void *a_arg)
+{
+    dap_chain_ch_t *l_ch_chain = (dap_chain_ch_t *)a_arg;
+    l_ch_chain->in_idle = true;
+}
+
 /**
  * @brief s_ch_chain_go_idle
  * @param a_ch_chain
@@ -1645,7 +1652,6 @@ static void s_ch_chain_go_idle(dap_chain_ch_t *a_ch_chain)
         dap_timerfd_delete_unsafe(a_ch_chain->sync_timer);
         a_ch_chain->sync_timer = NULL;
     }
-    a_ch_chain->in_idle = true;
 //}
     // Legacy
     if (a_ch_chain->legacy_sync_context) {
