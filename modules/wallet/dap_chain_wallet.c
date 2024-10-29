@@ -199,10 +199,10 @@ char *c_wallets_path;
         l_rc = -101;
     } else {
         struct json_object *l_json = json_object_new_object();
-        json_object_object_add(l_json, "class", json_object_new_string("WalletActivate"));
+        json_object_object_add(l_json, "class", json_object_new_string("WalletInfo"));
         struct json_object *l_wallet_info = dap_chain_wallet_info_to_json(a_name, c_wallets_path);
         json_object_object_add(l_wallet_info, "name", json_object_new_string(a_name));
-        json_object_object_add(l_json, "WalletInfo", l_wallet_info);
+        json_object_object_add(l_json, "wallet", l_wallet_info);
         dap_notify_server_send_mt(json_object_get_string(l_json));
         json_object_put(l_json);
     }
