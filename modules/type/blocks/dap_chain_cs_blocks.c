@@ -2650,10 +2650,10 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     }
     assert(l_block);
     dap_time_t l_cur_time = dap_max(l_block->hdr.ts_created, DAP_REWARD_INIT_TIMESTAMP);
-    dap_time_t l_time_diff = l_block_time > l_cur_time ? l_block_time - l_cur_time : 1;
-    if (MULT_256_256(l_ret, GET_256_FROM_64(l_time_diff), &l_ret)) {
-        log_it(L_ERROR, "Integer overflow while multiplication execution to calculate final reward");
-        return uint256_0;
+    if ( l_block_time > l_cur_time ) {
+        dap_time_t l_time_diff = l_block_time - l_cur_time;
+        if (MULT_256_256(l_ret, GET_256_FROM_64(l_time_diff), &l_ret))
+            return log_it(L_ERROR, "Integer overflow while multiplication execution to calculate final reward"), uint256_0;
     }
     DIV_256(l_ret, GET_256_FROM_64(s_block_timediff_unit_size * l_signs_count), &l_ret);
     return l_ret;
