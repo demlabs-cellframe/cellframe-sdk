@@ -1923,7 +1923,6 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
         case CMD_WALLET_LIST:
             s_wallet_list(c_wallets_path, json_arr_out);
             break;
-        }
         // wallet info
         case CMD_WALLET_INFO: {
             dap_ledger_t *l_ledger = NULL;
