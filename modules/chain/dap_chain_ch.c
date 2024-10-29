@@ -105,6 +105,7 @@ typedef struct dap_chain_ch {
     void *_inheritor;
     dap_timerfd_t *sync_timer;
     struct sync_context *sync_context;
+    int idle_ack_counter;
 
     // Legacy section //
     dap_timerfd_t *activity_timer;
@@ -140,7 +141,7 @@ static bool s_sync_timer_callback(void *a_arg);
 static bool s_debug_more = false, s_debug_legacy = false;
 static uint32_t s_sync_timeout = 30;
 static uint32_t s_sync_packets_per_thread_call = 10;
-static uint32_t s_sync_ack_window_size = 512; // atoms
+static uint32_t s_sync_ack_window_size = 1; // atoms
 
 // Legacy
 static const uint_fast16_t s_update_pack_size = 100; // Number of hashes packed into the one packet
@@ -824,8 +825,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                                 l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id,
                                                 l_chain_pkt->hdr.cell_id, &l_sum, sizeof(l_sum),
                                                 DAP_CHAIN_CH_PKT_VERSION_CURRENT);
-                debug_if(s_debug_more, L_DEBUG, "Out: CHAIN_SUMMARY %s for net %s to destination " NODE_ADDR_FP_STR,
-                                                        l_chain->name, l_chain->net_name, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
+                debug_if(s_debug_more, L_DEBUG, "Out: CHAIN_SUMMARY %s for net %s to destination " NODE_ADDR_FP_STR " value %"DAP_UINT64_FORMAT_U,
+                                                        l_chain->name, l_chain->net_name, NODE_ADDR_FP_ARGS_S(a_ch->stream->node), l_last_num);
                 struct sync_context *l_context = DAP_NEW_Z(struct sync_context);
                 l_context->addr = a_ch->stream->node;
                 l_context->iter = l_iter;
@@ -842,6 +843,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     break;
                 }
                 l_ch_chain->sync_context = l_context;
+                l_ch_chain->idle_ack_counter = s_sync_ack_window_size;
                 dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_context);
                 l_ch_chain->sync_timer = dap_timerfd_start_on_worker(a_ch->stream_worker->worker, 1000, s_sync_timer_callback, l_uuid);
                 break;
@@ -925,10 +927,15 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                 l_ack_num);
         struct sync_context *l_context = l_ch_chain->sync_context;
         if (!l_context) {
-            log_it(L_WARNING, "CHAIN_ACK: No active sync context");
-            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
-                    l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
-                    DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
+            // if (l_ch_chain->idle_ack_counter > 0) {
+            //     debug_if(s_debug_more, L_DEBUG, "End of pandemic wave");
+            //     l_ch_chain->idle_ack_counter--;
+            // } else {
+                log_it(L_WARNING, "CHAIN_ACK: No active sync context");
+                dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+                        l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
+                        DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
+            // }
             break;
         }
         if (l_context->num_last == l_ack_num) {
