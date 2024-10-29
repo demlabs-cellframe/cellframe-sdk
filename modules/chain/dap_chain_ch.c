@@ -141,7 +141,7 @@ static bool s_sync_timer_callback(void *a_arg);
 static bool s_debug_more = false, s_debug_legacy = false;
 static uint32_t s_sync_timeout = 30;
 static uint32_t s_sync_packets_per_thread_call = 10;
-static uint32_t s_sync_ack_window_size = 1; // atoms
+static uint32_t s_sync_ack_window_size = 16; // atoms
 
 // Legacy
 static const uint_fast16_t s_update_pack_size = 100; // Number of hashes packed into the one packet
@@ -927,15 +927,15 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                 l_ack_num);
         struct sync_context *l_context = l_ch_chain->sync_context;
         if (!l_context) {
-            // if (l_ch_chain->idle_ack_counter > 0) {
-            //     debug_if(s_debug_more, L_DEBUG, "End of pandemic wave");
-            //     l_ch_chain->idle_ack_counter--;
-            // } else {
+            if (l_ch_chain->idle_ack_counter > 0) {
+                debug_if(s_debug_more, L_DEBUG, "End of window wave");
+                l_ch_chain->idle_ack_counter--;
+            } else {
                 log_it(L_WARNING, "CHAIN_ACK: No active sync context");
                 dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                         l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                         DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
-            // }
+            }
             break;
         }
         if (l_context->num_last == l_ack_num) {
