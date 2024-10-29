@@ -3516,6 +3516,8 @@ static json_object* s_dap_chain_net_srv_stake_reward_addr(json_object* a_json_ar
                             l_datum;
                             l_datum = iter_direc(l_datum_iter))
     {
+        dap_hash_fast_t l_ttx_hash = {0};
+        dap_chain_hash_fast_t l_datum_hash;        
         if (i_tmp >= l_arr_end)
             break;
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
@@ -3526,6 +3528,32 @@ static json_object* s_dap_chain_net_srv_stake_reward_addr(json_object* a_json_ar
         if (!l_list_in_items) // a bad tx
             continue;
         // all in items should be from the same address
+        //dap_hash_fast(l_tx, l_datum->header.data_size, &l_ttx_hash);
+        dap_hash_fast(l_datum, dap_chain_datum_size(l_datum), &l_datum_hash);
+        const char * l_tx_token_ticker = l_datum_iter ? l_datum_iter->token_ticker
+                                     : dap_ledger_tx_get_token_ticker_by_hash(l_ledger, l_datum_hash);
+
+        if(!a_brief)
+        {   
+            json_object* json_obj_datum = json_object_new_object();
+            for(dap_list_t *it = l_list_in_items; it; it = it->next)
+            {
+                dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t *) it->data;
+                char *l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
+                json_object_object_add(json_obj_datum, "block hash", json_object_new_string(l_block_hash));
+                dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(a_chain), &l_in_reward->block_hash);
+
+                DAP_DELETE(l_block_hash);
+
+            }
+
+            uint256_t l_value_reward = a_chain->callback_calc_reward(a_chain, &a_block_cache->block_hash,
+                                                                     a_block_collect_params->block_sign_pkey);
+            json_object_object_add(json_obj_datum, "reward value", json_object_new_string());     
+            dap_chain_datum_dump_tx_json(a_json_arr_reply, l_tx, l_tx_token_ticker ? l_tx_token_ticker : NULL,
+                                         json_obj_datum, a_hash_out_type, l_datum_hash, a_chain->net_id);
+        }
+
     }
 
 }
