@@ -639,7 +639,7 @@ void s_chain_net_states_to_json(dap_chain_net_t *a_net, json_object *a_json_out)
 
 struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t *a_net) {
     json_object *l_json = json_object_new_object();
-    json_object_object_add(l_json, "class"            , json_object_new_string("NetStates"));
+    json_object_object_add(l_json, "class"            , json_object_new_string("NetInfo"));
     s_set_reply_text_node_status_json(a_net, l_json);
     s_chain_net_states_to_json(a_net, l_json);
     return l_json;
