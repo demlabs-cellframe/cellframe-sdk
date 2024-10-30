@@ -30,10 +30,13 @@
 #define LOG_TAG "dap_ledger_tx"
 
 typedef struct dap_ledger_verificator {
-    int subtype;    // hash key
-    dap_ledger_verificator_callback_t callback;
-    dap_ledger_updater_callback_t callback_added;
-    dap_ledger_delete_callback_t callback_deleted;
+    int subtype;    // hash table key
+    dap_ledger_cond_in_verify_callback_t callback_in_verify;
+    dap_ledger_cond_out_verify_callback_t callback_out_verify;
+    dap_ledger_cond_in_add_callback_t callback_in_add;
+    dap_ledger_cond_out_add_callback_t callback_out_add;
+    dap_ledger_cond_in_delete_callback_t callback_in_delete;
+    dap_ledger_cond_out_delete_callback_t callback_out_delete;
     UT_hash_handle hh;
 } dap_ledger_verificator_t;
 
@@ -726,15 +729,15 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 pthread_rwlock_rdlock(&s_verificators_rwlock);
                 HASH_FIND_INT(s_verificators, &l_sub_tmp, l_verificator);
                 pthread_rwlock_unlock(&s_verificators_rwlock);
-                if (!l_verificator || !l_verificator->callback) {
-                    debug_if(g_debug_ledger, L_ERROR, "No verificator set for conditional output subtype %d", l_sub_tmp);
+                if (!l_verificator || !l_verificator->callback_in_verify) {
+                    debug_if(g_debug_ledger, L_ERROR, "No verificator set for condition subtype %d", l_sub_tmp);
                     l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
                     break;
                 }
 
-                int l_verificator_error = l_verificator->callback(a_ledger, l_tx_prev_out_cond, a_tx, l_owner);
+                int l_verificator_error = l_verificator->callback_in_verify(a_ledger, a_tx, a_tx_hash, l_tx_prev_out_cond, l_owner);
                 if (l_verificator_error != DAP_LEDGER_CHECK_OK) { // TODO add string representation for verificator return codes
-                    debug_if(g_debug_ledger, L_WARNING, "Verificator check error %d for conditional output %s",
+                    debug_if(g_debug_ledger, L_WARNING, "Verificator check error %d for conditional input %s",
                                                                     l_verificator_error, dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp));
                     l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
                     break;
@@ -895,6 +898,20 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 log_it(L_WARNING, "Fee is greater than sum of inputs");
                 l_err_num = DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
                 break;
+            }
+            dap_ledger_verificator_t *l_verificator = NULL;
+            int l_subtype = l_tx_out->header.subtype;
+            pthread_rwlock_rdlock(&s_verificators_rwlock);
+            HASH_FIND_INT(s_verificators, &l_subtype, l_verificator);
+            pthread_rwlock_unlock(&s_verificators_rwlock);
+            if (l_verificator && l_verificator->callback_out_verify) {
+                int l_verificator_error = l_verificator->callback_out_verify(a_ledger, a_tx, a_tx_hash, l_tx_out);
+                if (l_verificator_error != DAP_LEDGER_CHECK_OK) {
+                    debug_if(g_debug_ledger, L_WARNING, "Verificator check error %d for conditional output %s",
+                                                                l_verificator_error, dap_chain_tx_out_cond_subtype_to_str(l_subtype));
+                    l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
+                    break;
+                }
             }
         } break;
         default:
@@ -1281,8 +1298,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             pthread_rwlock_rdlock(&s_verificators_rwlock);
             HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
             pthread_rwlock_unlock(&s_verificators_rwlock);
-            if (l_verificator && l_verificator->callback_added)
-                l_verificator->callback_added(a_ledger, a_tx, a_tx_hash, l_bound_item->cond);
+            if (l_verificator && l_verificator->callback_in_add)
+                l_verificator->callback_in_add(a_ledger, a_tx, a_tx_hash, l_bound_item->cond);
         } break;
 
         default:
@@ -1334,8 +1351,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             pthread_rwlock_rdlock(&s_verificators_rwlock);
             HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
             pthread_rwlock_unlock(&s_verificators_rwlock);
-            if (l_verificator && l_verificator->callback_added)
-                l_verificator->callback_added(a_ledger, a_tx, a_tx_hash, NULL);
+            if (l_verificator && l_verificator->callback_out_add)
+                l_verificator->callback_out_add(a_ledger, a_tx, a_tx_hash, l_cond);
             continue;   // balance raise will be with next conditional transaction
         }
 
@@ -1613,8 +1630,8 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             pthread_rwlock_rdlock(&s_verificators_rwlock);
             HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
             pthread_rwlock_unlock(&s_verificators_rwlock);
-            if (l_verificator && l_verificator->callback_deleted)
-                l_verificator->callback_deleted(a_ledger, a_tx, l_bound_item->cond);
+            if (l_verificator && l_verificator->callback_in_delete)
+                l_verificator->callback_in_delete(a_ledger, a_tx, a_tx_hash, l_bound_item->cond);
         } break;
 
         default:
@@ -1667,8 +1684,8 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             pthread_rwlock_rdlock(&s_verificators_rwlock);
             HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
             pthread_rwlock_unlock(&s_verificators_rwlock);
-            if (l_verificator && l_verificator->callback_deleted)
-                l_verificator->callback_deleted(a_ledger, a_tx, NULL);
+            if (l_verificator && l_verificator->callback_out_delete)
+                l_verificator->callback_out_delete(a_ledger, a_tx, a_tx_hash, l_cond);
             continue;   // balance raise will be with next conditional transaction
         }
 
@@ -2014,26 +2031,26 @@ const char *dap_ledger_tx_calculate_main_ticker(dap_ledger_t *a_ledger, dap_chai
 }
 
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, -1 error, overwise returns 0
-int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_ledger_verificator_callback_t a_callback, dap_ledger_updater_callback_t a_callback_added, dap_ledger_delete_callback_t a_callback_deleted)
+int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype,
+                               dap_ledger_cond_in_verify_callback_t a_callback_in_verify, dap_ledger_cond_out_verify_callback_t a_callback_out_verify,
+                               dap_ledger_cond_in_add_callback_t a_callback_in_add, dap_ledger_cond_out_add_callback_t a_callback_out_add,
+                               dap_ledger_cond_in_delete_callback_t a_callback_in_delete, dap_ledger_cond_out_delete_callback_t a_callback_out_delete)
 {
     dap_ledger_verificator_t *l_new_verificator = NULL;
     int l_tmp = (int)a_subtype;
     pthread_rwlock_rdlock(&s_verificators_rwlock);
     HASH_FIND_INT(s_verificators, &l_tmp, l_new_verificator);
     pthread_rwlock_unlock(&s_verificators_rwlock);
-    if (l_new_verificator) {
-        l_new_verificator->callback = a_callback;
-        return 1;
-    }
-    l_new_verificator = DAP_NEW(dap_ledger_verificator_t);
     if (!l_new_verificator) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return -1;
-    }
-    l_new_verificator->subtype = (int)a_subtype;
-    l_new_verificator->callback = a_callback;
-    l_new_verificator->callback_added = a_callback_added;
-    l_new_verificator->callback_deleted = a_callback_deleted;
+        DAP_NEW_Z_RET_VAL(l_new_verificator, dap_ledger_verificator_t, -1, NULL);
+    } else
+        log_it(L_WARNING, "Verificator subtype %d already used, callbacks addresses will be replaced", a_subtype);
+    *l_new_verificator = (dap_ledger_verificator_t) {
+            .subtype = (int)a_subtype,
+            .callback_in_verify = a_callback_in_verify, .callback_out_verify = a_callback_out_verify,
+            .callback_in_add = a_callback_in_add, .callback_out_add = a_callback_out_add,
+            .callback_in_delete = a_callback_in_delete, .callback_out_delete = a_callback_out_delete
+        };
     pthread_rwlock_wrlock(&s_verificators_rwlock);
     HASH_ADD_INT(s_verificators, subtype, l_new_verificator);
     pthread_rwlock_unlock(&s_verificators_rwlock);

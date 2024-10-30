@@ -80,11 +80,10 @@ typedef enum s_cli_srv_stake_err{
 } s_cli_srv_stake_err_t;
 static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply);
 
-static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond,
-                                                      dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
+static int s_stake_out_check_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
 static void s_stake_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond);
-
-static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond);
+static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond);
 
 static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
 static void s_uncache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
@@ -139,7 +138,7 @@ DAP_STATIC_INLINE char *s_get_approved_group(dap_chain_net_t *a_net)
  */
 int dap_chain_net_srv_stake_pos_delegate_init()
 {
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_updater_callback, s_stake_deleted_callback);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_out_check_callback, s_stake_updater_callback, NULL, s_stake_deleted_callback, NULL);
     dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, "Delegated stake service commands",
             "\t\t=== Commands for work with orders ===\n"
     "srv_stake order create [fee] -net <net_name> -value <value> -cert <priv_cert_name> [-H {hex(default) | base58}]\n"
@@ -239,8 +238,7 @@ void dap_chain_net_srv_stake_pos_delegate_deinit()
     dap_chain_srv_delete((dap_chain_srv_uid_t) { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID });
 }
 
-static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond,
-                                         dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner)
 {
     dap_return_val_if_fail(a_ledger && a_cond && a_tx_in, -1);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_ledger->net->pub.id);
@@ -308,12 +306,6 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
             log_it(L_WARNING, "Conditional out and conditional in have different node addresses");
             return -16;
         }
-        if (compare256(l_tx_new_cond->header.value,
-                       dap_chain_net_srv_stake_get_allowed_min_value(a_ledger->net->pub.id)) == -1) {
-            log_it(L_WARNING, "New conditional out have value %s lower than minimum service required",
-                                                    dap_uint256_to_char(l_tx_new_cond->header.value, NULL));
-            return -17;
-        }
     } else {
         // It's a delegation conitional TX
         dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)
@@ -341,13 +333,19 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
     return 0;
 }
 
+static int s_stake_out_check_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond)
+{
+    if (compare256(a_cond->header.value, dap_chain_net_srv_stake_get_allowed_min_value(a_ledger->net->pub.id)) == -1) {
+        log_it(L_WARNING, "Conditional out have value %s lower than minimum service required", dap_uint256_to_char(a_cond->header.value, NULL));
+        return -17;
+    }
+    return 0;
+}
+
 static void s_stake_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond)
 {
-    dap_return_if_fail(a_ledger && a_tx_in);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_ledger->net->pub.id);
     dap_return_if_fail(l_srv_stake);
-    if (!a_cond)
-        return;
     dap_chain_tx_out_cond_t *l_tx_new_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL);
     dap_chain_addr_t *l_signing_addr = &a_cond->subtype.srv_stake_pos_delegate.signing_addr;
     if (l_tx_new_cond)
@@ -357,13 +355,15 @@ static void s_stake_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_
     s_cache_data(a_ledger, a_tx_in, l_signing_addr);
 }
 
-static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond)
+static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond)
 {
-    if (!a_cond)
-        return;
+    dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_ledger->net->pub.id);
+    dap_return_if_fail(l_srv_stake);
+    dap_chain_tx_out_cond_t *l_tx_new_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL);
     dap_chain_addr_t *l_signing_addr = &a_cond->subtype.srv_stake_pos_delegate.signing_addr;
-    dap_chain_net_srv_stake_key_invalidate(l_signing_addr);
-    s_uncache_data(a_ledger, a_tx, l_signing_addr);
+    if (l_tx_new_cond)
+        dap_chain_net_srv_stake_key_update(l_signing_addr, a_cond->header.value, a_tx_in_hash);
+    s_uncache_data(a_ledger, a_tx_in, l_signing_addr);
 }
 
 static bool s_srv_stake_is_poa_cert(dap_chain_net_t *a_net, dap_enc_key_t *a_key)

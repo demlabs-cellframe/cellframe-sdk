@@ -226,10 +226,13 @@ typedef struct dap_ledger_datum_iter_data {
     dap_chain_srv_uid_t uid;
 } dap_ledger_datum_iter_data_t;
 
-typedef int (*dap_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
-typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_cond);
-typedef void (*dap_ledger_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_chain_tx_out_cond_t *a_prev_cond);
-typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ledger_notify_opcodes_t a_opcode);
+typedef int   (*dap_ledger_cond_in_verify_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner);
+typedef int  (*dap_ledger_cond_out_verify_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
+typedef void     (*dap_ledger_cond_in_add_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond);
+typedef void    (*dap_ledger_cond_out_add_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
+typedef void  (*dap_ledger_cond_in_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond);
+typedef void (*dap_ledger_cond_out_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
+typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_ledger_notify_opcodes_t a_opcode);
 typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg, dap_ledger_notify_opcodes_t a_opcode);
 typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
 typedef int (*dap_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_apply);
@@ -448,8 +451,10 @@ dap_list_t *dap_ledger_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, co
 dap_list_t *dap_ledger_get_list_tx_cond_outs(dap_ledger_t *a_ledger, const char *a_token_ticker,  const dap_chain_addr_t *a_addr_from,
                                              dap_chain_tx_out_cond_subtype_t a_subtype, uint256_t *a_value_transfer);
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
-int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_ledger_verificator_callback_t a_callback,
-                                     dap_ledger_updater_callback_t a_callback_added, dap_ledger_delete_callback_t a_callback_deleted);
+int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype,
+                               dap_ledger_cond_in_verify_callback_t a_callback_in_verify, dap_ledger_cond_out_verify_callback_t a_callback_out_verify,
+                               dap_ledger_cond_in_add_callback_t a_callback_in_add, dap_ledger_cond_out_add_callback_t a_callback_out_add,
+                               dap_ledger_cond_in_delete_callback_t a_callback_in_delete, dap_ledger_cond_out_delete_callback_t a_callback_out_delete);
 // Add new verificator callback for voting. Returns 1 if callback replaced, overwise returns 0
 int dap_ledger_voting_verificator_add(dap_ledger_voting_callback_t a_callback, dap_ledger_voting_delete_callback_t a_callback_delete);
 int dap_ledger_tax_callback_set(dap_ledger_tax_callback_t a_callback);

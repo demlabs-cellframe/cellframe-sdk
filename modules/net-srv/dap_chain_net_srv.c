@@ -63,10 +63,8 @@
 
 static int s_cli_net_srv(int argc, char **argv, void **reply);
 
-static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
-                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner);
-static void s_pay_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,
-                                        dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_cond);
+static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
+static void s_pay_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
 static int s_str_to_price_unit(const char *a_price_unit_str, dap_chain_net_srv_price_unit_uid_t *a_price_unit);
 
 /**
@@ -75,7 +73,7 @@ static int s_str_to_price_unit(const char *a_price_unit_str, dap_chain_net_srv_p
  */
 int dap_chain_net_srv_init()
 {
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, s_pay_updater_callback, NULL);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL, NULL, s_pay_updater_callback, NULL, NULL);
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
         "net_srv -net <net_name> order find [-direction {sell|buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
         " [-price_token <token_ticker>] [-price_min <price_minimum>] [-price_max <price_maximum>]\n"
@@ -594,8 +592,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
  * @param a_owner
  * @return
  */
-static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
-                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner)
 {
     if (a_owner)
         return 0;
@@ -731,17 +728,14 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
     return compare256(l_value, l_cond_out_value) ? log_it(L_ERROR, "Value in tx out is invalid!"), -13 : 0;
 }
 
-static void s_pay_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t UNUSED_ARG *a_prev_cond)
+static void s_pay_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond)
 {
-    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
-    if (!l_out_cond)
-        return;
-    dap_chain_net_srv_t *l_net_srv = dap_chain_srv_get_internal(a_ledger->net->pub.id, l_out_cond->header.srv_uid);
+    dap_chain_net_srv_t *l_net_srv = dap_chain_srv_get_internal(a_ledger->net->pub.id, a_cond->header.srv_uid);
     if (!l_net_srv) {
-        log_it(L_ERROR, "Can't find dap_chain_net_srv_t uid 0x%016"DAP_UINT64_FORMAT_X"", l_out_cond->header.srv_uid.uint64);
+        log_it(L_ERROR, "Can't find dap_chain_net_srv_t uid 0x%016"DAP_UINT64_FORMAT_X"", a_cond->header.srv_uid.uint64);
         return;
     }
-    dap_chain_net_srv_ch_grace_control(l_net_srv, a_tx_in_hash);
+    dap_chain_net_srv_ch_grace_control(l_net_srv, a_tx_out_hash);
 }
 
 dap_chain_net_srv_price_t *dap_chain_net_srv_get_price_from_order(dap_chain_net_srv_t *a_service, dap_chain_net_srv_order_t *a_order)
