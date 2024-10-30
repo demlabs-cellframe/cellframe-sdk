@@ -363,6 +363,24 @@ int com_signer(int a_argc, char **a_argv, void **a_str_reply);
 //remove func
 int cmd_remove(int a_argc, char **a_argv, void **a_str_reply);
 
+typedef enum cmd_find_list_err {
+    DAP_CHAIN_NODE_CLI_FIND_OK = 0,
+    DAP_CHAIN_NODE_CLI_FIND_ERR_PARSE_HASH = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD,
+    DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED,
+    DAP_CHAIN_NODE_CLI_FIND_ERR_UNKNOWN_SUBTYPE_DECREE,
+    DAP_CHIAN_NODE_CLI_FIND_ERR_SUBTYPE_DECREE_IS_NOT_SPECIFIED,
+    DAP_CHAIN_NODE_CLI_FIND_ERR_UNKNOWN_PARAMETR_WHERE,
+}cmd_find_list_err_t;
+/**
+ * Handler coomand find
+ * @param a_argc
+ * @param a_argv
+ * @param a_str_reply
+ * @return
+ */
+int cmd_find(int a_argc, char **a_argv, void **a_str_reply);
+
 void dap_notify_new_client_send_info(dap_events_socket_t *a_es, void *a_arg);
 
 int com_exec_cmd(int argc, char **argv, void **reply);
