@@ -29,13 +29,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv.h"
 
-typedef struct dap_chain_net_srv_order
-{
+typedef struct dap_chain_net_srv_order {
     uint16_t version;
     dap_chain_srv_uid_t srv_uid; // Service UID
-#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
     byte_t padding[8];
-#endif
     dap_chain_net_srv_order_direction_t direction; // Order direction - SELL or PURCHASE
     byte_t padding_dir[3];
     dap_chain_node_addr_t node_addr; // Node address that servs the order (if present)
