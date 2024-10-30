@@ -121,7 +121,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value> | -restore_legacy <restore_string>] [-net <net_name>] [-force] [-password <password>]\n"
                             "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
                             "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
-                            "wallet deactivate -w <wallet_name> -password <password>\n"
+                            "wallet deactivate -w <wallet_name>>\n"
                             "wallet convert -w <wallet_name> -password <password>\n");
 
 
@@ -230,8 +230,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             );
 
     dap_cli_server_cmd_add ("token_emit", com_token_emit, "Token emission",
-                            "token_emit { sign -emission <hash> | -token <mempool_token_ticker> -emission_value <value>\n" 
-                            "\t-addr <addr> } [-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n");
+                            "token_emit { sign -emission <hash> | -token <mempool_token_ticker> -emission_value <value> -addr <addr> } "
+                            "[-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n");
 
     dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool",
                            "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset]\n"
@@ -341,6 +341,17 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "Find decree by hash and show it's status (apllied or not)\n\n"
             "decree info -net <net_name>\n"
             "Displays information about the parameters of the decrees in the network.\n");
+
+    //Find command
+    dap_cli_server_cmd_add("find", cmd_find, "The command searches for the specified elements by the specified attributes",
+                           "find datum -net <net_name> [-chain <chain_name>] -hash <datum_hash>\n"
+                           "\tSearches for datum by hash in the specified network in chains and mempool.\n"
+                           "find atom -net <net_name> [-chain <chain_name>] -hash <atom_hash>\n"
+                           "\tSearches for an atom by hash in a specified network in chains.\n"
+                           "find decree -net <net_name> [-chain <chain_name>] -type <type_decree> [-where <chains|mempool>]\n"
+                           "\tSearches for decrees by hash in the specified decree type in the specified network in its chains.\n"
+                           "\tTypes decree: fee, owners, owners_min, stake_approve, stake_invalidate, min_value, "
+                           "min_validators_count, ban, unban, reward, validator_max_weight, emergency_validators, check_signs_structure\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
