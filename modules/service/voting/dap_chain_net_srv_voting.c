@@ -1046,6 +1046,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         l_val = dap_strdup_printf("%s (%s) %s\n\n", l_tw_coins, l_tw_datoshi, l_net->pub.native_ticker);
         json_object_object_add(json_vote_out, "Total weight", json_object_new_string(l_val));
         DAP_DELETE(l_val);
+        json_object_array_add(*json_arr_reply, json_vote_out);
     }break;
     default:{
 
