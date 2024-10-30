@@ -8606,7 +8606,7 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
         log_it(L_ERROR, "No response from node");
         dap_json_rpc_error_add(*a_json_arr_reply, -8, "No reponse from node");
         dap_chain_node_client_close_unsafe(l_node_client);
-        DAP_DELETE(node_info);
+        DAP_DEL_Z(node_info);
         return -8;
     }
 
@@ -8619,7 +8619,7 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     } else {
         json_object_array_add(*a_json_arr_reply, json_object_new_string("Empty reply"));
     }
-
-    dap_chain_node_client_close_mt(l_node_client);
+    DAP_DEL_Z(node_info);
+    dap_json_rpc_request_free(l_request);
     return 0;
 }
