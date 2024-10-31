@@ -1658,7 +1658,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
 
                         l_offset += l_sign_size;
                     }
-                    dap_chain_datum_dump_json(*a_json_arr_reply, json_obj_event, l_datum, l_hash_out_type, l_net->pub.id);
+                    dap_chain_datum_dump_json(*a_json_arr_reply, json_obj_event, l_datum, l_hash_out_type, l_net->pub.id, true);
                     json_object_array_add(*a_json_arr_reply, json_obj_event);
 
                     ret=0;

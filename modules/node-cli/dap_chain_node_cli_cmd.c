@@ -3117,11 +3117,11 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                         if (l_wallet_addr && l_emi && dap_chain_addr_compare(l_wallet_addr, &l_emi->hdr.address))
                             datum_is_accepted_addr = true;
                         DAP_DELETE(l_emi);
-                        dap_chain_datum_dump_json(a_json_arr_reply, l_jobj_datum,l_datum,a_hash_out_type,a_net->pub.id);
+                        dap_chain_datum_dump_json(a_json_arr_reply, l_jobj_datum,l_datum,a_hash_out_type,a_net->pub.id, true);
                     }
                         break;
                     default:
-                        dap_chain_datum_dump_json(a_json_arr_reply, l_jobj_datum,l_datum,a_hash_out_type,a_net->pub.id);
+                        dap_chain_datum_dump_json(a_json_arr_reply, l_jobj_datum,l_datum,a_hash_out_type,a_net->pub.id, true);
                 }
             }
             if (l_wallet_addr) {
@@ -3370,7 +3370,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         }        
 
         json_object *l_datum_obj_inf = json_object_new_object();
-        dap_chain_datum_dump_json(*a_json_arr_reply, l_datum_obj_inf, l_datum, a_hash_out_type, a_net->pub.id);
+        dap_chain_datum_dump_json(*a_json_arr_reply, l_datum_obj_inf, l_datum, a_hash_out_type, a_net->pub.id, true);
         if (!l_datum_obj_inf) {
             if (!l_found_in_chains)
                 DAP_DELETE(l_datum);
@@ -3671,7 +3671,7 @@ int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_grou
     }
 
     json_object *l_jobj_datum = json_object_new_object();
-    dap_chain_datum_dump_json(*a_json_arr_reply, l_jobj_datum, l_datum, a_hash_out_type, a_net_id);
+    dap_chain_datum_dump_json(*a_json_arr_reply, l_jobj_datum, l_datum, a_hash_out_type, a_net_id, true);
     json_object_array_add(*a_json_arr_reply, l_jobj_datum);
     return 0;
 }
