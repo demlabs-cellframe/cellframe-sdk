@@ -2934,12 +2934,6 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
         json_object_object_add(l_json_object_invalidate, "tx_hash", json_object_new_string(l_out_hash_str));
         json_object_object_add(l_json_object_invalidate, "message", json_object_new_string("All m-tokens successfully returned to owner"));
         json_object_array_add(*a_json_arr_reply, l_json_object_invalidate);
-        json_object* l_json_object_invalidate = json_object_new_object();
-        json_object_object_add(l_json_object_invalidate, "status", json_object_new_string("success"));
-        json_object_object_add(l_json_object_invalidate, "sign", json_object_new_string(l_sign_str));
-        json_object_object_add(l_json_object_invalidate, "tx_hash", json_object_new_string(l_out_hash_str));
-        json_object_object_add(l_json_object_invalidate, "message", json_object_new_string("All m-tokens successfully returned to owner"));
-        json_object_array_add(*a_json_arr_reply, l_json_object_invalidate);
         DAP_DELETE(l_out_hash_str);
     } else {
         dap_cert_t *l_poa_cert = dap_cert_find_by_name(l_poa_cert_str);
