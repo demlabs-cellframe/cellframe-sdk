@@ -1744,9 +1744,9 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
 
     if (s_voting_callbacks.voting_delete_callback) {
         if (l_tag.uint64 == DAP_CHAIN_TX_TAG_ACTION_VOTING)
-            s_voting_callbacks.voting_delete_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx);
+            s_voting_callbacks.voting_delete_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, a_tx_hash);
         else if (l_tag.uint64 == DAP_CHAIN_TX_TAG_ACTION_VOTE)
-            s_voting_callbacks.voting_delete_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx);
+            s_voting_callbacks.voting_delete_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash);
     }
 
     // remove transaction from ledger

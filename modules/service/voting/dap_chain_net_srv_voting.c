@@ -21,15 +21,8 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <time.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
-#include <errno.h>
-#include <pthread.h>
 
+#include "dap_common.h"
 #include "dap_chain_net_srv_voting.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_tx.h"
@@ -37,16 +30,17 @@
 #include "uthash.h"
 #include "dap_chain_srv.h"
 #include "dap_cli_server.h"
+#include "dap_chain_datum_tx_voting.h"
 
 #define LOG_TAG "chain_net_voting"
 
 struct vote_option {
-    byte_t *option;
+    char *option;
     size_t option_length;
 };
 
 struct voting_params {
-    byte_t *question;
+    char *question;
     size_t question_length;
     dap_list_t *options;            // list of vote_option records
     dap_time_t voting_begin;
@@ -77,11 +71,11 @@ struct voting {
     UT_hash_handle hh;
 };
 
-static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_hash_fast_t a_voting_hash, dap_hash_fast_t a_tx_cond_hash, int a_cond_out_idx);
+static int s_cond_out_check_colored(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_tx_cond_hash, int a_cond_out_idx);
 /// -1 error, 0 - unspent, 1 - spent
-static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_fast_t a_voting_hash, dap_hash_fast_t a_tx_prev_hash, int a_out_idx, dap_hash_fast_t *a_pkey_hash);
+static int s_coin_check_colored(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_tx_prev_hash, int a_out_idx, dap_hash_fast_t *a_pkey_hash);
 static int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
-static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in);
+static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash);
 static int s_cli_voting(int argc, char **argv, void **a_str_reply);
 
 static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
@@ -131,17 +125,63 @@ void dap_chain_net_srv_voting_deinit()
 
 }
 
+static inline struct voting *s_votings_ht_get(dap_chain_net_id_t a_net_id)
+{
+    return dap_chain_srv_get_internal(a_net_id, (dap_chain_srv_uid_t) { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID });
+}
+
 static inline struct voting *s_voting_find(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_voting_hash)
 {
-    struct voting *l_voting = NULL,
-                  *votings_ht = dap_chain_srv_get_internal(a_net_id, (dap_chain_srv_uid_t) { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID });
+    struct voting *l_voting = NULL, *votings_ht = s_votings_ht_get(a_net_id);
     if (!votings_ht)
         return NULL;
     HASH_FIND(hh, votings_ht, a_voting_hash, sizeof(dap_hash_fast_t), l_voting);
     return l_voting;
 }
 
-uint64_t *dap_chain_net_voting_get_result(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_voting_hash)
+static inline int s_voting_add(dap_chain_net_id_t a_net_id, struct voting *a_voting)
+{
+    struct voting *votings_ht = s_votings_ht_get(a_net_id);
+    if (!votings_ht)
+        return -1;
+    // Assert a tx_hash is unique guaranteed by ledger
+    HASH_ADD(hh, votings_ht, hash, sizeof(dap_hash_fast_t), a_voting);
+    return 0;
+}
+
+static inline bool s_voting_delete(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_voting_hash)
+{
+    struct voting *l_voting = NULL, *votings_ht = s_votings_ht_get(a_net_id);
+    if (!votings_ht) {
+        log_it(L_ERROR, "Can't find voting service for net id 0x%016" DAP_UINT64_FORMAT_x, a_net_id.uint64);
+        return false;
+    }
+    HASH_FIND(hh, votings_ht, a_voting_hash, sizeof(dap_hash_fast_t), l_voting);
+    if (!l_voting) {
+        log_it(L_ERROR, "Can't find voting %s", dap_hash_fast_to_str_static(a_voting_hash));
+        return false;
+    }
+    HASH_DEL(votings_ht, l_voting);
+
+    if (l_voting->params.options)
+        dap_list_free_full(l_voting->params.options, NULL);
+
+    if (l_voting->votes)
+        dap_list_free_full(l_voting->votes, NULL);
+
+    struct voting_cond_outs *l_el = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, l_voting->spent_cond_outs, l_el, l_tmp) {
+        HASH_DEL(l_voting->spent_cond_outs, l_el);
+        DAP_DELETE(l_el);
+
+    }
+
+    DAP_DELETE(l_voting);
+
+    return true;
+}
+
+uint64_t *dap_chain_net_srv_voting_get_result(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_voting_hash)
 {
     dap_return_val_if_fail(a_ledger && a_voting_hash, NULL);
     struct voting *l_voting = s_voting_find(a_ledger->net->pub.id, a_voting_hash);
@@ -168,16 +208,48 @@ uint64_t *dap_chain_net_voting_get_result(dap_ledger_t *a_ledger, dap_chain_hash
 static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
 {
     if (!a_apply) {
-        dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
-        size_t l_question_len = 0, l_options_count = 0;
+        dap_list_t *l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
+        bool l_question_present = false, l_options_present = false;
         for (dap_list_t *it = l_tsd_list; it; it = it->next) {
             dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)it->data)->tsd;
-            switch (l_tsd->type) {
+            switch(l_tsd->type) {
             case VOTING_TSD_TYPE_QUESTION:
-                l_question_len = l_tsd->size;
+                if (!l_tsd->size || !memchr(l_tsd->data, '\0', l_tsd->size || *l_tsd->data == '\0')) {
+                    log_it(L_WARNING, "Invalid content for string TSD section QUESTION of voting %s", dap_hash_fast_to_str_static(a_tx_hash));
+                    return -DAP_LEDGER_CHECK_PARSE_ERROR;
+                }
+                l_question_present = true;
                 break;
             case VOTING_TSD_TYPE_ANSWER:
-                l_options_count++;
+                if (!l_tsd->size || !memchr(l_tsd->data, '\0', l_tsd->size || *l_tsd->data == '\0')) {
+                    log_it(L_WARNING, "Invalid content for string TSD section ANSWER of voting %s", dap_hash_fast_to_str_static(a_tx_hash));
+                    return -DAP_LEDGER_CHECK_PARSE_ERROR;
+                }
+                l_options_present = true;
+                break;
+            case VOTING_TSD_TYPE_EXPIRE:
+                if (l_tsd->size != sizeof(dap_time_t)) {
+                    log_it(L_WARNING, "Incorrect size %u of TSD section EXPIRE of voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
+                    return -DAP_LEDGER_CHECK_INVALID_SIZE;
+                }
+                break;
+            case VOTING_TSD_TYPE_MAX_VOTES_COUNT:
+                if (l_tsd->size != sizeof(uint64_t)) {
+                    log_it(L_WARNING, "Incorrect size %u of TSD section MAX_VOTES_COUNT of voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
+                    return -DAP_LEDGER_CHECK_INVALID_SIZE;
+                }
+                break;
+            case VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED:
+                if (l_tsd->size != sizeof(byte_t)) {
+                    log_it(L_WARNING, "Incorrect size %u of TSD section DELEGATED_KEY_REQUIRED of voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
+                    return -DAP_LEDGER_CHECK_INVALID_SIZE;
+                }
+                break;
+            case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
+                if (l_tsd->size != sizeof(byte_t)) {
+                    log_it(L_WARNING, "Incorrect size %u of TSD section VOTE_CHANGING_ALLOWED of voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
+                    return -DAP_LEDGER_CHECK_INVALID_SIZE;
+                }
                 break;
             default:
                 break;
@@ -185,7 +257,7 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
         }
         dap_list_free(l_tsd_list);
 
-        if (!l_question_len || !l_options_count) {
+        if (!l_question_present || !l_options_present) {
             log_it(L_WARNING, "Voting with hash %s contain no question or answer options", dap_hash_fast_to_str_static(a_tx_hash));
             return -2;
         }
@@ -194,54 +266,36 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
     }
 
     struct voting *l_item;
-    DAP_NEW_Z_SIZE_RET_VAL(l_item, struct voting, sizeof(struct voting), -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY, NULL);
+    DAP_NEW_Z_RET_VAL(l_item, struct voting, -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY, NULL);
     l_item->hash = *a_tx_hash;
-    l_item->params.voting_tx = a_tx_in;
-    l_item->net_id = a_ledger->net->pub.id;
-    pthread_rwlock_init(&l_item->s_tx_outs_rwlock, NULL);
+    l_item->params.voting_begin = a_tx_in->header.ts_created;
 
-    dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
+    dap_list_t *l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
     for (dap_list_t *it = l_tsd_list; it; it = it->next) {
-        dap_tsd_t* l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)it->data)->tsd;
+        dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)it->data)->tsd;
         struct vote_option *l_vote_option = NULL;
         switch(l_tsd->type){
         case VOTING_TSD_TYPE_QUESTION:
-            l_item->params.voting_question_offset = (size_t)(l_tsd->data - (byte_t*)l_item->params.voting_tx);
-            l_item->params.voting_question_length = l_tsd->size;
+            l_item->params.question = (char *)l_tsd->data;
+            l_item->params.question_length = l_tsd->size;
             break;
         case VOTING_TSD_TYPE_ANSWER:
-            l_vote_option = DAP_NEW_Z(struct vote_option);
-            l_vote_option->vote_option_offset = (size_t)(l_tsd->data - (byte_t*)l_item->params.voting_tx);
-            l_vote_option->vote_option_length = l_tsd->size;
+            DAP_NEW_Z_RET_VAL(l_vote_option, struct vote_option, -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY, NULL);
+            l_vote_option->option = (char *)l_tsd->data;
+            l_vote_option->option_length = l_tsd->size;
             l_item->params.options = dap_list_append(l_item->params.options, l_vote_option);
             break;
         case VOTING_TSD_TYPE_EXPIRE:
-            if (l_tsd->size != sizeof(dap_time_t)) {
-                log_it(L_WARNING, "Incorrect size %u of TSD section EXPIRE vot voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
-                return -DAP_LEDGER_CHECK_INVALID_SIZE;
-            }
             l_item->params.voting_expire = *(dap_time_t *)l_tsd->data;
             break;
         case VOTING_TSD_TYPE_MAX_VOTES_COUNT:
-            if (l_tsd->size != sizeof(uint64_t)) {
-                log_it(L_WARNING, "Incorrect size %u of TSD section MAX_VOTES_COUNT vot voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
-                return -DAP_LEDGER_CHECK_INVALID_SIZE;
-            }
             l_item->params.votes_max_count = *(uint64_t *)l_tsd->data;
             break;
         case VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED:
-            if (l_tsd->size != sizeof(byte_t)) {
-                log_it(L_WARNING, "Incorrect size %u of TSD section DELEGATED_KEY_REQUIRED vot voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
-                return -DAP_LEDGER_CHECK_INVALID_SIZE;
-            }
-            l_item->params.delegate_key_required = *(byte_t *)l_tsd->data;
+            l_item->params.delegate_key_required = *l_tsd->data;
             break;
         case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
-            if (l_tsd->size != sizeof(byte_t)) {
-                log_it(L_WARNING, "Incorrect size %u of TSD section VOTE_CHANGING_ALLOWED vot voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
-                return -DAP_LEDGER_CHECK_INVALID_SIZE;
-            }
-            l_item->params.vote_changing_allowed = *(byte_t *)l_tsd->data;
+            l_item->params.vote_changing_allowed = *l_tsd->data;
             break;
         default:
             break;
@@ -249,27 +303,20 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
     }
     dap_list_free(l_tsd_list);
 
-    pthread_rwlock_wrlock(&s_votings_rwlock);
-    HASH_ADD(hh, s_votings, voting_hash, sizeof(dap_hash_fast_t), l_item);
-    pthread_rwlock_unlock(&s_votings_rwlock);
+    s_voting_add(a_ledger->net->pub.id, l_item);
+
     return DAP_LEDGER_CHECK_OK;
 }
 
 static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
 {
-    dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t*)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
-    if (!l_vote_tx_item) {
-        log_it(L_ERROR, "Can't find vote item for tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
-        return -4;
-    }
+    dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
+    assert(l_vote_tx_item);
 
-    struct voting *l_voting = NULL;
-    pthread_rwlock_wrlock(&s_votings_rwlock);
-    HASH_FIND(hh, s_votings, &l_vote_tx_item->hash, sizeof(dap_hash_fast_t), l_voting);
-    pthread_rwlock_unlock(&s_votings_rwlock);
-    if (!l_voting || l_voting->net_id.uint64 != a_ledger->net->pub.id.uint64) {
+    struct voting *l_voting = s_voting_find(a_ledger->net->pub.id, &l_vote_tx_item->voting_hash);
+    if (!l_voting) {
         log_it(L_ERROR, "Can't find voting with hash %s in net %s",
-               dap_chain_hash_fast_to_str_static(&l_vote_tx_item->hash), a_ledger->net->pub.name);
+               dap_chain_hash_fast_to_str_static(&l_vote_tx_item->voting_hash), a_ledger->net->pub.name);
         return -5;
     }
 
@@ -330,7 +377,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         dap_hash_fast_t l_hash = ((dap_chain_tx_voting_tx_cond_t*)l_tsd->data)->tx_hash;
         int l_out_idx = ((dap_chain_tx_voting_tx_cond_t*)l_tsd->data)->out_idx;
         if (l_tsd->type == VOTING_TSD_TYPE_VOTE_TX_COND) {
-            if (s_datum_tx_voting_coin_check_cond_out(a_ledger->net, l_vote_tx_item->hash, l_hash, l_out_idx))
+            if (s_cond_out_check_colored(a_ledger->net, &l_vote_tx_item->voting_hash, &l_hash, l_out_idx))
                 continue;
             dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_hash);
             dap_chain_tx_out_cond_t *l_prev_out = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(l_tx_prev_temp, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
@@ -345,9 +392,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             DAP_NEW_Z_SIZE_RET_VAL(l_item, struct voting_cond_outs, sizeof(struct voting_cond_outs), -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY, NULL);
             l_item->tx_hash = l_hash;
             l_item->out_idx = l_out_idx;
-            pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
             HASH_ADD(hh, l_voting->spent_cond_outs, tx_hash, sizeof(dap_hash_fast_t), l_item);
-            pthread_rwlock_unlock(&l_voting->s_tx_outs_rwlock);
         }
     }
     dap_list_free(l_tsd_list);
@@ -359,8 +404,8 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
     }
     for (dap_list_t *it = l_ins_list; it; it = it->next) {
         dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)it->data;
-        if (!s_datum_tx_voting_coin_check_spent(a_ledger->net, l_vote_tx_item->hash,
-                                                l_tx_in->header.tx_prev_hash, l_tx_in->header.tx_out_prev_idx, &pkey_hash)) {
+        if (!s_coin_check_colored(a_ledger->net, &l_vote_tx_item->voting_hash,
+                                                &l_tx_in->header.tx_prev_hash, l_tx_in->header.tx_out_prev_idx, &pkey_hash)) {
             dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_tx_in->header.tx_prev_hash);
             dap_chain_tx_out_t *l_prev_out_union = (dap_chain_tx_out_t *)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev_temp, l_tx_in->header.tx_out_prev_idx);
             if (!l_prev_out_union)
@@ -390,15 +435,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
         // cycle is safe cause return after link deletion
         for (dap_list_t *it = l_voting->votes; it; it = it->next) {
-            if (dap_hash_fast_compare(&((struct vote *)it->data)->pkey_hash, &pkey_hash)){
-                if (!l_voting->params.vote_changing_allowed) {
-                    char l_vote_hash_str[DAP_HASH_FAST_STR_SIZE];
-                    dap_hash_fast_to_str(a_tx_hash, l_vote_hash_str, DAP_HASH_FAST_STR_SIZE);
-                    log_it(L_WARNING, "The voting %s don't allow change your vote %s",
-                           dap_hash_fast_to_str_static(&l_voting->hash), l_vote_hash_str);
-                    DAP_DELETE(l_vote_item);
-                    return -11;
-                }
+            if (dap_hash_fast_compare(&((struct vote *)it->data)->pkey_hash, &pkey_hash)) {
                 dap_hash_fast_t *l_vote_hash = &((struct vote *)it->data)->vote_hash;
                 //delete conditional outputs
                 dap_chain_datum_tx_t *l_old_tx = dap_ledger_tx_find_by_hash(a_ledger, l_vote_hash);
@@ -414,11 +451,9 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                     dap_hash_fast_t *l_hash = &((dap_chain_tx_voting_tx_cond_t*)l_tsd->data)->tx_hash;
                     if (l_tsd->type == VOTING_TSD_TYPE_VOTE_TX_COND) {
                         struct voting_cond_outs *l_tx_outs = NULL;
-                        pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
                         HASH_FIND(hh, l_voting->spent_cond_outs, l_hash, sizeof(dap_hash_fast_t), l_tx_outs);
-                        if(l_tx_outs)
+                        if (l_tx_outs)
                             HASH_DELETE(hh, l_voting->spent_cond_outs, l_tx_outs);
-                        pthread_rwlock_unlock(&l_voting->s_tx_outs_rwlock);
                     }
                 }
                 dap_list_free(l_tsd_list);
@@ -450,73 +485,36 @@ int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx
     return -3;
 }
 
-static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in)
+static inline bool s_vote_delete(dap_chain_net_id_t a_net_id, dap_chain_datum_tx_t *a_vote_tx, dap_hash_fast_t *a_vote_tx_hash)
 {
-    dap_hash_fast_t l_hash = {};
-    dap_hash_fast(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in), &l_hash);
-
-    if (a_type == TX_ITEM_TYPE_VOTING){
-        struct voting * l_voting = NULL;
-        pthread_rwlock_wrlock(&s_votings_rwlock);
-        HASH_FIND(hh, s_votings, &l_hash, sizeof(dap_hash_fast_t), l_voting);
-        if(!l_voting){
-            char* l_hash_str = dap_hash_fast_to_str_new(&l_hash);
-            log_it(L_ERROR, "Can't find voting with hash %s in net %s", l_hash_str, a_ledger->net->pub.name);
-            DAP_DEL_Z(l_hash_str);
-            pthread_rwlock_unlock(&s_votings_rwlock);
-            return false;
-        }
-        HASH_DEL(s_votings, l_voting);
-        pthread_rwlock_unlock(&s_votings_rwlock);
-
-        if (l_voting->params.options)
-            dap_list_free_full(l_voting->params.options, NULL);
-
-        if(l_voting->votes)
-            dap_list_free_full(l_voting->votes, NULL);
-
-        struct voting_cond_outs *l_el = NULL, *l_tmp = NULL;
-        if(l_voting->spent_cond_outs && l_voting->spent_cond_outs->hh.tbl->num_items){
-            HASH_ITER(hh, l_voting->spent_cond_outs, l_el, l_tmp){
-                if (l_el){
-                    HASH_DEL(l_voting->spent_cond_outs, l_el);
-                    DAP_DELETE(l_el);
-                }
-            }
-        }
-
-        DAP_DELETE(l_voting);
-
-        return true;
-    } else if (a_type == TX_ITEM_TYPE_VOTE){
-        dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
-        if(!l_vote_tx_item){
-            log_it(L_ERROR, "Can't find vote item");
-            return false;
-        }
-
-        struct voting * l_voting = NULL;
-        pthread_rwlock_wrlock(&s_votings_rwlock);
-        HASH_FIND(hh, s_votings, &l_vote_tx_item->hash, sizeof(dap_hash_fast_t), l_voting);
-        pthread_rwlock_unlock(&s_votings_rwlock);
-        if(!l_voting || l_voting->net_id.uint64 != a_ledger->net->pub.id.uint64) {
-            char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
-            log_it(L_ERROR, "Can't find voting with hash %s in net %s", l_hash_str, a_ledger->net->pub.name);
-            DAP_DELETE(l_hash_str);
-            return false;
-        }
-
-        for (dap_list_t *l_vote = l_voting->votes; l_vote; l_vote = l_vote->next) {
-            if (dap_hash_fast_compare(&((struct vote *)l_vote->data)->vote_hash, &l_hash)){
-                // Delete vote
-                DAP_DELETE(l_vote->data);
-                l_voting->votes = dap_list_remove(l_voting->votes, l_vote->data);
-                break;
-            }
+    dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_vote_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
+    assert(l_vote_tx_item);
+    struct voting * l_voting = s_voting_find(a_net_id, &l_vote_tx_item->voting_hash);
+    if (!l_voting) {
+        log_it(L_ERROR, "Can't find voting with hash %s in net id 0x%016" DAP_UINT64_FORMAT_x,
+                                dap_chain_hash_fast_to_str_static(a_vote_tx_hash), a_net_id.uint64);
+        return false;
+    }
+    for (dap_list_t *l_vote = l_voting->votes; l_vote; l_vote = l_vote->next) {
+        if (dap_hash_fast_compare(&((struct vote *)l_vote->data)->vote_hash, a_vote_tx_hash)) {
+            // Delete vote
+            DAP_DELETE(l_vote->data);
+            l_voting->votes = dap_list_remove(l_voting->votes, l_vote->data);
+            break;
         }
     }
+}
 
-    return true;
+static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash)
+{
+    if (a_type == TX_ITEM_TYPE_VOTING)
+        return s_voting_delete(a_ledger->net->pub.id, a_tx_hash);
+
+    if (a_type == TX_ITEM_TYPE_VOTE)
+        return s_vote_delete(a_ledger->net->pub.id, a_tx_in, a_tx_hash);
+
+    log_it(L_ERROR, "Unknown voting type %d fot tx_hash %s", a_type, dap_chain_hash_fast_to_str_static(a_tx_hash));
+    return false;
 }
 
 static dap_list_t* s_get_options_list_from_str(const char* a_str)
@@ -748,8 +746,8 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_POOL_DATUM_IN_MEMPOOL;
             } break;
             default: {
-                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_UNKNOWN_ERR, "Unknown error. Code: %d", res);
-                return -DAP_CHAIN_NET_VOTE_CREATE_UNKNOWN_ERR;
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_VOTING_UNKNOWN_ERR, "Unknown error. Code: %d", res);
+                return -DAP_CHAIN_NET_SRV_VOTING_UNKNOWN_ERR;
             }
         }
     }break;
@@ -814,7 +812,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 
         char *l_hash_tx;
 
-        int res = dap_chain_net_srv_vote_create(l_cert, l_value_fee, l_wallet_fee, l_voting_hash, l_option_idx_count,
+        int res = dap_chain_net_srv_vote_create(l_cert, l_value_fee, l_wallet_fee, &l_voting_hash, l_option_idx_count,
                                             l_net, l_hash_out_type, &l_hash_tx);
         dap_chain_wallet_close(l_wallet_fee);
 
@@ -890,33 +888,28 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             }
                 break;
             default: {
-                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_UNKNOWN_ERR, "Undefined error code: %d", res);
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_VOTING_UNKNOWN_ERR, "Undefined error code: %d", res);
             } break;
         }
         return res;
-    }break;
-    case CMD_LIST:{
+    } break;
+
+    case CMD_LIST: {
         json_object* json_vote_out = json_object_new_object();
         json_object_object_add(json_vote_out, "List of votings in net", json_object_new_string(l_net->pub.name));
         json_object* json_arr_voting_out = json_object_new_array();
-        struct voting *l_voting = NULL, *l_tmp;
-        pthread_rwlock_rdlock(&s_votings_rwlock);
-        HASH_ITER(hh, s_votings, l_voting, l_tmp){
-            if (l_voting->net_id.uint64 != l_net->pub.id.uint64)
-                continue;
+        struct voting *votings_ht = s_votings_ht_get(l_net->pub.id);
+        for (struct voting *it = votings_ht; it; it = it->hh.next) {
             json_object* json_obj_vote = json_object_new_object();
             json_object_object_add(json_obj_vote, "Voting hash", 
-                                    json_object_new_string(dap_chain_hash_fast_to_str_static(&l_voting->hash)));
-            char* l_voting_question = (char*)((byte_t*)l_voting->params.voting_tx + l_voting->params.voting_question_offset);
-            json_object_object_add(json_obj_vote, "Voting question", 
-                                    json_object_new_string_len(l_voting_question, l_voting->params.voting_question_length > strlen(l_voting_question) ?
-                                    strlen(l_voting_question) : l_voting->params.voting_question_length));
+                                    json_object_new_string(dap_chain_hash_fast_to_str_static(&it->hash)));
+            json_object_object_add(json_obj_vote, "Voting question", json_object_new_string((char *)it->params.question));
             json_object_array_add(json_arr_voting_out, json_obj_vote);
         }
-        pthread_rwlock_unlock(&s_votings_rwlock);
         json_object_array_add(*json_arr_reply, json_arr_voting_out);
-    }break;
-    case CMD_DUMP:{
+    } break;
+
+    case CMD_DUMP: {
         const char* l_hash_str = NULL;
 
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
@@ -926,11 +919,12 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         }
 
         dap_hash_fast_t l_voting_hash = {};
-        dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash);
-        struct voting *l_voting = NULL;
-        pthread_rwlock_rdlock(&s_votings_rwlock);
-        HASH_FIND(hh, s_votings, &l_voting_hash, sizeof(l_voting_hash),l_voting);
-        pthread_rwlock_unlock(&s_votings_rwlock);
+        if (dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash)) {
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_DUMP_HASH_PARAM_INVALID,
+                                   "Can't recognize hash string as a valid HEX or BASE58 format hash");
+            return -DAP_CHAIN_NET_VOTE_DUMP_HASH_PARAM_INVALID;
+        }
+        struct voting *l_voting = s_voting_find(l_net->pub.id, &l_voting_hash);
         if(!l_voting){
             dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_DUMP_CAN_NOT_FIND_VOTE, "Can't find voting with hash %s", l_hash_str);
             return -DAP_CHAIN_NET_VOTE_DUMP_CAN_NOT_FIND_VOTE;
@@ -965,9 +959,8 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         json_object* json_vote_out = json_object_new_object();
         json_object_object_add(json_vote_out, "hash of voting", 
                                     json_object_new_string(l_hash_str));
-        json_object_object_add(json_vote_out, "Voting dump", 
-                                    json_object_new_string_len((char*)((byte_t*)l_voting->params.voting_tx + l_voting->params.voting_question_offset),
-                              l_voting->params.voting_question_length));
+        json_object_object_add(json_vote_out, "Voting dump", json_object_new_string((char *)l_voting->params.question));
+
         if (l_voting->params.voting_expire) {
             char l_tmp_buf[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_voting->params.voting_expire);
@@ -1001,9 +994,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             DAP_DELETE(l_val);
             dap_list_t* l_option = dap_list_nth(l_voting->params.options, (uint64_t)i);
             struct vote_option* l_vote_option = (struct vote_option*)l_option->data;
-            json_object_object_add(json_vote_obj, "voting tx", 
-                                    json_object_new_string_len((char*)((byte_t*)l_voting->params.voting_tx + l_vote_option->vote_option_offset),
-                                  l_vote_option->vote_option_length));            
+            json_object_object_add(json_vote_obj, "voting tx", json_object_new_string((char *)l_vote_option->option));
             float l_percentage = l_votes_count ? ((float)l_results[i].num_of_votes/l_votes_count)*100 : 0;
             uint256_t l_weight_percentage = {};
 
@@ -1037,184 +1028,112 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
     return 0;
 }
 
-static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_fast_t a_voting_hash, dap_hash_fast_t a_tx_prev_hash, int a_out_idx, dap_hash_fast_t *a_pkey_hash)
+static int s_tx_check_colored(dap_ledger_t *a_ledger, struct voting *a_voting, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_pkey_hash)
 {
-    int l_coin_is_spent = 0;
-
-
-    dap_ledger_t *l_ledger = a_net->pub.ledger;
-    if(!l_ledger){
-        log_it(L_ERROR, "Can't find ledger");
-        return -1;
-    }
-
-    dap_chain_datum_tx_t *l_voting_tx = dap_ledger_tx_find_by_hash(l_ledger, &a_voting_hash);
-    const char *l_native_ticker = a_net->pub.native_ticker;
-
-    dap_list_t *l_tx_list = NULL; // "stack" for saving txs on up level
-    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_ledger, &a_tx_prev_hash);
-    if (!l_tx){
-        log_it(L_ERROR, "Can't find tx");
-        return -1;
-    }
-
-    if (l_tx->header.ts_created < l_voting_tx->header.ts_created){
+    if (a_tx->header.ts_created < a_voting->params.voting_begin)
         return 0;
-    }
 
-    if (s_datum_tx_voting_coin_check_cond_out(a_net, a_voting_hash, a_tx_prev_hash, a_out_idx) != 0){
-        return 1;
-    }
-
-    dap_chain_tx_vote_t *l_vote = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
-    if (l_vote && dap_hash_fast_compare(&l_vote->hash, &a_voting_hash)) {
-        struct voting *l_voting = NULL;
-        pthread_rwlock_wrlock(&s_votings_rwlock);
-        HASH_FIND(hh, s_votings, &a_voting_hash, sizeof(dap_hash_fast_t), l_voting);
-        pthread_rwlock_unlock(&s_votings_rwlock);
-        if (l_voting) {
-            for (dap_list_t *it = l_voting->votes; it; it = it->next) {
-                struct vote *l_vote = (struct vote *)it->data;
-                if (dap_hash_fast_compare(&l_vote->vote_hash, &a_tx_prev_hash)) {
-                    if (l_voting->params.vote_changing_allowed &&
-                            !dap_hash_fast_is_blank(a_pkey_hash) &&
-                            dap_hash_fast_compare(&l_vote->pkey_hash, a_pkey_hash))
-                        break;  // it's vote changing, allow it
-                    return 1;
-                }
+    dap_chain_tx_vote_t *l_vote = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
+    if (l_vote && dap_hash_fast_compare(&l_vote->voting_hash, &a_voting->hash)) {
+        for (dap_list_t *it = a_voting->votes; it; it = it->next) {
+            struct vote *l_vote = (struct vote *)it->data;
+            if (dap_hash_fast_compare(&l_vote->vote_hash, a_tx_hash)) {
+                if (a_voting->params.vote_changing_allowed &&
+                        !dap_hash_fast_is_blank(a_pkey_hash) &&
+                        dap_hash_fast_compare(&l_vote->pkey_hash, a_pkey_hash))
+                    return 0;  // it's vote changing, allow it
+                return 1;
             }
         }
     }
 
-
-    dap_list_t *l_ins_list_temp = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN, NULL);
-    dap_list_t *l_cond_ins_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_COND, NULL);
-    if (!l_ins_list_temp && !l_cond_ins_list){
-        log_it(L_ERROR, "Can't get inputs from tx");
-        return -1;
-    }
-
-    dap_list_t *l_ins_list = NULL;
-    l_ins_list = dap_list_concat(l_ins_list, l_ins_list_temp);
-    l_ins_list = dap_list_concat(l_ins_list, l_cond_ins_list);
-
-    l_tx_list = dap_list_append(l_tx_list, l_ins_list);
-    dap_list_t* l_tx_temp = dap_list_last(l_tx_list);
-
-    while(l_tx_temp && !l_coin_is_spent){
-        if (l_tx_temp->data == NULL){
-            l_tx_list = dap_list_delete_link(l_tx_list, l_tx_temp);
-            l_tx_temp = l_tx_list ? dap_list_last(l_tx_list) : NULL;
-            continue;
+    dap_list_t *l_ins_list = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_IN, NULL);;
+    l_ins_list = dap_list_concat(l_ins_list, dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_IN_COND, NULL));
+    if (!l_ins_list)
+        return 0;
+    for (dap_list_t *it = l_ins_list; it; it = it->next) {
+        dap_chain_tx_in_t *l_in_cur = it->data;
+        dap_hash_fast_t *l_tx_prev_hash = &l_in_cur->header.tx_prev_hash;
+        dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, l_tx_prev_hash);
+        if (!l_tx_prev) {
+            log_it(L_ERROR, "Can't find tx %s for vote of voting %s", dap_hash_fast_to_str_static(l_tx_prev_hash), dap_hash_fast_to_str_static(&a_voting->hash));
+            return -1;
         }
-        dap_list_t *l_ins_list = (dap_list_t*)l_tx_temp->data;
-        dap_chain_tx_in_t* l_temp_in = (dap_chain_tx_in_t*)l_ins_list->data;
-        dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_find_by_hash(l_ledger, &l_temp_in->header.tx_prev_hash);
+        dap_chain_tx_out_t *l_prev_out_union = (dap_chain_tx_out_t *)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev, l_in_cur->header.tx_out_prev_idx);
+        if (!l_prev_out_union)
+            continue;
 
         const char* l_tx_token = NULL;
-        dap_chain_tx_out_t *l_prev_out_union = (dap_chain_tx_out_t*)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev_temp, l_temp_in->header.tx_out_prev_idx);
-        if (!l_prev_out_union){
-            l_tx_temp->data = dap_list_remove(l_tx_temp->data, l_temp_in);
-            if (l_tx_temp->data == NULL){
-                l_tx_list = dap_list_delete_link(l_tx_list, l_tx_temp);
-                l_tx_temp = l_tx_list ? dap_list_last(l_tx_list) : NULL;
-            }
-            continue;
-        }
-
         switch (l_prev_out_union->header.type) {
-        case TX_ITEM_TYPE_OUT:{
-            l_tx_token = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_temp_in->header.tx_prev_hash);
-        }break;
-        case TX_ITEM_TYPE_OUT_EXT:{
-            dap_chain_tx_out_ext_t *l_temp_out = (dap_chain_tx_out_ext_t *)l_prev_out_union;
-            l_tx_token = l_temp_out->token;
-        }break;
-        case TX_ITEM_TYPE_OUT_COND:{
-            dap_chain_tx_out_cond_t *l_temp_out = (dap_chain_tx_out_cond_t*)l_prev_out_union;
-            if (l_temp_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK ||
-                s_datum_tx_voting_coin_check_cond_out(a_net, a_voting_hash, l_temp_in->header.tx_prev_hash, l_temp_in->header.tx_out_prev_idx) == 0)
-                break;
-        }
+        case TX_ITEM_TYPE_OUT:
+            l_tx_token = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, l_tx_prev_hash);
+            break;
+        case TX_ITEM_TYPE_OUT_EXT:
+            l_tx_token = ((dap_chain_tx_out_ext_t *)l_prev_out_union)->token;
+            break;
+        case TX_ITEM_TYPE_OUT_COND:
+            if (s_cond_out_check_colored(a_ledger->net, &a_voting->hash, l_tx_prev_hash, l_in_cur->header.tx_out_prev_idx)) {
+                dap_list_free(l_ins_list);
+                return 1;
+            }
         default:
-            l_tx_temp->data = dap_list_remove((dap_list_t*)l_tx_temp->data, l_temp_in);
-            if (l_tx_temp->data == NULL){
-                l_tx_list = dap_list_delete_link(l_tx_list, l_tx_temp);
-                l_tx_temp = l_tx_list ? dap_list_last(l_tx_list) : NULL;
-            }
+            break;
+        }
+
+        if (dap_strcmp(l_tx_token, a_ledger->net->pub.native_ticker))
             continue;
-        }
 
-        if (l_tx_prev_temp->header.ts_created < l_voting_tx->header.ts_created ||
-            dap_strcmp(l_tx_token, l_native_ticker)){
-            l_tx_temp->data = dap_list_remove((dap_list_t*)l_tx_temp->data, l_temp_in);
-            if (l_tx_temp->data == NULL){
-                l_tx_list = dap_list_delete_link(l_tx_list, l_tx_temp);
-                l_tx_temp = l_tx_list ? dap_list_last(l_tx_list) : NULL;
-            }
-            continue;
-        }
-
-
-        dap_chain_tx_vote_t *l_vote =(dap_chain_tx_vote_t *) dap_chain_datum_tx_item_get(l_tx_prev_temp, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
-        if(l_vote && dap_hash_fast_compare(&l_vote->hash, &a_voting_hash)){
-            struct voting *l_voting = NULL;
-            pthread_rwlock_wrlock(&s_votings_rwlock);
-            HASH_FIND(hh, s_votings, &a_voting_hash, sizeof(dap_hash_fast_t), l_voting);
-            pthread_rwlock_unlock(&s_votings_rwlock);
-            dap_list_t *l_temp = NULL;
-            while (l_temp){
-                struct vote *l_vote = (struct vote *)l_temp->data;
-                if (dap_hash_fast_compare(&l_vote->vote_hash, &l_temp_in->header.tx_prev_hash)){
-                    l_coin_is_spent = 1;
-                    break;
-                }
-                l_temp = l_temp->next;
-            }
-        }
-
-
-        l_ins_list = dap_chain_datum_tx_items_get(l_tx_prev_temp, TX_ITEM_TYPE_IN, NULL);
-        l_tx_list = dap_list_append(l_tx_list, l_ins_list);
-        l_tx_temp->data = dap_list_remove((dap_list_t*)l_tx_temp->data, l_temp_in);
-        l_tx_temp = l_tx_list ? dap_list_last(l_tx_list) : NULL;
-
-    }
-
-    if(l_tx_list){
-        l_tx_temp = l_tx_list;
-        while(l_tx_temp){
-            if (l_tx_temp->data)
-                dap_list_free((dap_list_t*)l_tx_temp->data);
-            l_tx_list = dap_list_delete_link(l_tx_list, l_tx_temp);
-            l_tx_temp = dap_list_first(l_tx_list);
+        int l_nested_tx_spent = s_tx_check_colored(a_ledger, a_voting, l_tx_prev, l_tx_prev_hash, a_pkey_hash);
+        if (l_nested_tx_spent) {
+            dap_list_free(l_ins_list);
+            return l_nested_tx_spent;
         }
     }
+    dap_list_free(l_ins_list);
+    return 0;
+}
+
+static int s_coin_check_colored(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_tx_prev_hash, int a_out_idx, dap_hash_fast_t *a_pkey_hash)
+{
+    int l_coin_is_spent = 0;
+    dap_ledger_t *l_ledger = a_net->pub.ledger;
+    assert(l_ledger);
+
+    struct voting *l_voting = s_voting_find(a_net->pub.id, a_voting_hash);
+    if (!l_voting) {
+        log_it(L_ERROR, "Can't find voting %s", dap_hash_fast_to_str_static(a_voting_hash));
+        return -2;
+    }
+    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, a_tx_prev_hash);
+    if (!l_tx) {
+        log_it(L_ERROR, "Can't find tx %s for vote of voting %s", dap_hash_fast_to_str_static(a_tx_prev_hash), dap_hash_fast_to_str_static(a_voting_hash));
+        return -1;
+    }
+
+    int l_nested_tx_spent = s_tx_check_colored(a_net->pub.ledger, l_voting, l_tx, a_tx_prev_hash, a_pkey_hash);
+    if (l_nested_tx_spent)
+        return l_nested_tx_spent;
+
+    if (s_cond_out_check_colored(a_net, a_voting_hash, a_tx_prev_hash, a_out_idx) != 0)
+        return 1;
 
     return l_coin_is_spent;
 }
 
-static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_hash_fast_t a_voting_hash, dap_hash_fast_t a_tx_cond_hash, int a_cond_out_idx)
+static int s_cond_out_check_colored(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_tx_cond_hash, int a_cond_out_idx)
 {
 
-    struct voting * l_voting = NULL;
-    pthread_rwlock_wrlock(&s_votings_rwlock);
-    HASH_FIND(hh, s_votings, &a_voting_hash, sizeof(dap_hash_fast_t), l_voting);
-    pthread_rwlock_unlock(&s_votings_rwlock);
-    if(!l_voting || l_voting->net_id.uint64 != a_net->pub.id.uint64) {
+    struct voting *l_voting = s_voting_find(a_net->pub.id, a_voting_hash);
+    if (!l_voting ) {
         log_it(L_ERROR, "Can't find voting with hash %s in net %s",
-            dap_chain_hash_fast_to_str_static(&a_voting_hash), a_net->pub.name);
+            dap_chain_hash_fast_to_str_static(a_voting_hash), a_net->pub.name);
         return -1;
     }
-
     struct voting_cond_outs *l_tx_outs = NULL;
-    pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
     HASH_FIND(hh, l_voting->spent_cond_outs, &a_tx_cond_hash, sizeof(dap_hash_fast_t), l_tx_outs);
-    pthread_rwlock_unlock(&l_voting->s_tx_outs_rwlock);
 
-    if (!l_tx_outs || l_tx_outs->out_idx != a_cond_out_idx){
+    if (!l_tx_outs || l_tx_outs->out_idx != a_cond_out_idx)
         return 0;
-    }
 
     return 1;
 }
@@ -1395,16 +1314,14 @@ int dap_chain_net_srv_voting_create(const char *a_question, dap_list_t *a_option
     }
 }
 
-int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t a_hash,
+int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_voting_hash,
                               uint64_t a_option_idx, dap_chain_net_t *a_net, const char *a_hash_out_type,
-                              char **a_hash_tx_out) {
+                              char **a_hash_tx_out)
+{
 
 
-    struct voting *l_voting = NULL;
-    pthread_rwlock_rdlock(&s_votings_rwlock);
-    HASH_FIND(hh, s_votings, &a_hash, sizeof(dap_hash_fast_t),l_voting);
-    pthread_rwlock_unlock(&s_votings_rwlock);
-    if (!l_voting || l_voting->net_id.uint64 != a_net->pub.id.uint64)
+    struct voting *l_voting = s_voting_find(a_net->pub.id, a_voting_hash);
+    if (!l_voting)
         return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_FIND_VOTE;
 
     if (l_voting->params.votes_max_count && dap_list_length(l_voting->votes) >= l_voting->params.votes_max_count)
@@ -1462,7 +1379,7 @@ int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain
     dap_list_t *it, *tmp;
     DL_FOREACH_SAFE(l_list_used_out, it, tmp) {
         dap_chain_tx_used_out_item_t *l_out = (dap_chain_tx_used_out_item_t *)it->data;
-        if (s_datum_tx_voting_coin_check_spent(a_net, a_hash, l_out->tx_hash_fast, l_out->num_idx_out, &l_pkey_hash) &&
+        if (s_coin_check_colored(a_net, a_voting_hash, &l_out->tx_hash_fast, l_out->num_idx_out, &l_pkey_hash) &&
                 !l_voting->params.vote_changing_allowed) {
             dap_list_delete_link(l_list_used_out, it);
             continue;
@@ -1485,7 +1402,7 @@ int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain
         dap_chain_datum_tx_delete(l_tx);
         return DAP_CHAIN_NET_VOTE_VOTING_INVALID_OPTION_INDEX;
     }
-    dap_chain_tx_vote_t* l_vote_item = dap_chain_datum_tx_item_vote_create(&a_hash, &a_option_idx);
+    dap_chain_tx_vote_t* l_vote_item = dap_chain_datum_tx_item_vote_create(a_voting_hash, &a_option_idx);
     if(!l_vote_item){
         dap_chain_datum_tx_delete(l_tx);
         return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_CREATE_VOTE_ITEM;
@@ -1500,7 +1417,7 @@ int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain
     while(l_temp){
         dap_chain_tx_used_out_item_t *l_out_item = (dap_chain_tx_used_out_item_t *)l_temp->data;
         if (dap_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_out_item->tx_hash_fast, l_out_item->num_idx_out, NULL) ||
-            s_datum_tx_voting_coin_check_cond_out(a_net, a_hash, l_out_item->tx_hash_fast, l_out_item->num_idx_out ) != 0){
+            s_cond_out_check_colored(a_net, a_voting_hash, &l_out_item->tx_hash_fast, l_out_item->num_idx_out ) != 0){
             l_temp = l_temp->next;
             continue;
         }
@@ -1581,28 +1498,28 @@ int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain
     }
 }
 
-dap_chain_net_vote_info_t *s_dap_chain_net_vote_extract_info(struct voting *a_voting) {
-    if (!a_voting) {
-        return NULL;
-    }
-    dap_chain_net_vote_info_t *l_info = DAP_NEW(dap_chain_net_vote_info_t);
+dap_chain_net_voting_info_t *s_voting_extract_info(struct voting *a_voting)
+{
+    dap_chain_net_voting_info_t *l_info;
+    DAP_NEW_Z_RET_VAL(l_info, dap_chain_net_voting_info_t, NULL, NULL);
 
-    l_info->question.question_size = a_voting->params.voting_question_length;
-    l_info->question.question_str = (char*)((byte_t*)a_voting->params.voting_tx + a_voting->params.voting_question_offset);
+    l_info->question.question_size = a_voting->params.question_length;
+    l_info->question.question_str = a_voting->params.question;
     l_info->hash = a_voting->hash;
     l_info->is_expired = (l_info->expired = a_voting->params.voting_expire);
     l_info->is_max_count_votes = (l_info->max_count_votes = a_voting->params.votes_max_count);
     l_info->is_changing_allowed = a_voting->params.vote_changing_allowed;
     l_info->is_delegate_key_required = a_voting->params.delegate_key_required;
     l_info->options.count_option = dap_list_length(a_voting->params.options);
-    dap_chain_net_vote_info_option_t **l_options = DAP_NEW_Z_COUNT(dap_chain_net_vote_info_option_t*, l_info->options.count_option);
+    dap_chain_net_voting_info_option_t **l_options = DAP_NEW_Z_COUNT(dap_chain_net_voting_info_option_t*, l_info->options.count_option);
     for (uint64_t i = 0; i < l_info->options.count_option; i++){
         dap_list_t* l_option = dap_list_nth(a_voting->params.options, (uint64_t)i);
         struct vote_option* l_vote_option = (struct vote_option*)l_option->data;
-        dap_chain_net_vote_info_option_t *l_option_info = DAP_NEW(dap_chain_net_vote_info_option_t);
+        dap_chain_net_voting_info_option_t *l_option_info;
+        DAP_NEW_Z_RET_VAL(l_option_info, dap_chain_net_voting_info_option_t, NULL, NULL);
         l_option_info->option_idx = i;
-        l_option_info->description_size = l_vote_option->vote_option_length;
-        l_option_info->description = (char*)((byte_t*)a_voting->params.voting_tx + l_vote_option->vote_option_offset);
+        l_option_info->description_size = l_vote_option->option_length;
+        l_option_info->description = l_vote_option->option;
         l_option_info->votes_count = 0;
         l_option_info->weight = uint256_0;
         l_option_info->hashes_tx_votes = NULL;
@@ -1621,41 +1538,30 @@ dap_chain_net_vote_info_t *s_dap_chain_net_vote_extract_info(struct voting *a_vo
     return l_info;
 }
 
-dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net) {
-    if (!a_net)
-        return NULL;
-    struct voting *l_voting = NULL, *l_tmp;
-    dap_list_t *l_list = NULL;
-    pthread_rwlock_rdlock(&s_votings_rwlock);
-    HASH_ITER(hh, s_votings, l_voting, l_tmp){
-        if (l_voting->net_id.uint64 != a_net->pub.id.uint64)
-            continue;
-        dap_chain_net_vote_info_t *l_info = s_dap_chain_net_vote_extract_info(l_voting);
+dap_list_t *dap_chain_net_voting_list(dap_chain_net_t *a_net)
+{
+    dap_return_val_if_fail(a_net, NULL);
+    struct voting *votings_ht = s_votings_ht_get(a_net->pub.id), *it;
+    dap_list_t *ret = NULL;
+    for (it = votings_ht; it; it = it->hh.next) {
+        dap_chain_net_voting_info_t *l_info = s_voting_extract_info(it);
         if (!l_info)
             continue;
-        l_list = dap_list_append(l_list, l_info);
+        ret = dap_list_append(ret, l_info);
     }
-    pthread_rwlock_unlock(&s_votings_rwlock);
-    return l_list;
+    return ret;
 }
 
-dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting)
+dap_chain_net_voting_info_t *dap_chain_net_voting_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting_hash)
 {
-    if (!a_net || !a_voting)
-        return NULL;
-    struct voting *l_voting = NULL;
-    pthread_rwlock_rdlock(&s_votings_rwlock);
-    HASH_FIND(hh, s_votings, a_voting, sizeof(dap_hash_fast_t), l_voting);
-    pthread_rwlock_unlock(&s_votings_rwlock);
-    return l_voting ? s_dap_chain_net_vote_extract_info(l_voting) : NULL;
+    dap_return_val_if_fail(a_net && a_voting_hash, NULL);
+    struct voting *l_voting = s_voting_find(a_net->pub.id, a_voting_hash);
+    return l_voting ? s_voting_extract_info(l_voting) : NULL;
 }
 
-void dap_chain_net_vote_info_free(dap_chain_net_vote_info_t *a_info){
-    size_t l_count_options = a_info->options.count_option;
-    for (size_t i = 0; i < l_count_options; i++) {
-        dap_chain_net_vote_info_option_t *l_option = a_info->options.options[i];
-        DAP_DELETE(l_option);
-    }
-    DAP_DELETE(a_info->options.options);
-    DAP_DELETE(a_info);
+void dap_chain_net_voting_info_free(dap_chain_net_voting_info_t *a_info)
+{
+    for (size_t i = 0; i < a_info->options.count_option; i++)
+        DAP_DELETE(a_info->options.options[i]);
+    DAP_DEL_MULTY(a_info->options.options, a_info);
 }
