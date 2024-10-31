@@ -128,6 +128,38 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_d
     }
 }
 
+DAP_STATIC_INLINE uint16_t dap_chain_datum_decree_type_from_str(const char *a_decree_type) {
+    if (!dap_strcmp(a_decree_type, "fee")){
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE;
+    } else if (!dap_strcmp(a_decree_type, "owners")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS;
+    } else if (!dap_strcmp(a_decree_type, "owners_min")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN;
+    } else if (!dap_strcmp(a_decree_type, "stake_approve")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE;
+    } else if (!dap_strcmp(a_decree_type, "stake_invalidate")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE;
+    } else if (!dap_strcmp(a_decree_type, "min_value")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE;
+    } else if (!dap_strcmp(a_decree_type, "min_validators_count")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT;
+    } else if (!dap_strcmp(a_decree_type, "ban")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN;
+    } else if (!dap_strcmp(a_decree_type, "unban")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN;
+    } else if (!dap_strcmp(a_decree_type, "reward")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD;
+    } else if (!dap_strcmp(a_decree_type, "validator_max_weight")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT;
+    } else if (!dap_strcmp(a_decree_type, "emergency_validators")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS;
+    } else if (!dap_strcmp(a_decree_type, "check_signs_structure")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE;
+    } else {
+        return 0;
+    }
+}
+
 DAP_STATIC_INLINE const char *dap_chain_datum_decree_tsd_type_to_str(uint16_t a_decree_tsd_type) {
     switch (a_decree_tsd_type) {
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE:

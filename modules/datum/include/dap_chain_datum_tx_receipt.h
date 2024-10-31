@@ -29,9 +29,7 @@
 
 typedef struct dap_chain_receipt_info {
     dap_chain_srv_uid_t srv_uid; // Service UID
-#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
     uint64_t addition;
-#endif
     dap_chain_net_srv_price_unit_uid_t units_type;
     byte_t version;
     byte_t padding[3];

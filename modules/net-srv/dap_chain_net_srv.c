@@ -312,11 +312,12 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         return -18;
                     }
                 }
-
-                if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
+                uint64_t l_64 = 0;
+                if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str, &l_64)) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
                     return -21;
                 }
+                l_srv_uid.uint64 = l_64;
 
                 if ( l_price_min_str )
                     l_price_min = dap_chain_balance_scan(l_price_min_str);
@@ -429,13 +430,15 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
 
                     if (l_expires_str)
                         l_expires = (dap_time_t ) atoll( l_expires_str);
-                    if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
+                    uint64_t l_64 = 0;
+                    if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str, &l_64)) {
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
                         return -21;
-                    }else if (!l_srv_uid_str){
+                    } else if (!l_srv_uid_str){
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter -srv_uid is required.");
                         return -22;
                     }
+                    l_srv_uid.uint64 = l_64;
                     if (l_node_addr_str){
                         if (dap_chain_node_addr_str_check(l_node_addr_str)) {
                             dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str );
@@ -541,8 +544,8 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                 return -16;
             }
 
-            dap_chain_srv_uid_t l_srv_uid={{0}};
-            if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
+            uint64_t l_64 = 0;
+            if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str, &l_64)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
                 dap_string_free(l_string_ret, true);
                 return -21;
@@ -551,7 +554,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                 dap_string_free(l_string_ret, true);
                 return -22;
             }
-
+            dap_chain_srv_uid_t l_srv_uid= { .uint64 = l_64};
             dap_chain_net_srv_ch_remain_service_store_t *l_remain_service = NULL;
             size_t l_remain_service_size = 0;
             char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s",

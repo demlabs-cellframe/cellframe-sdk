@@ -50,6 +50,8 @@ enum s_esbocs_session_state {
     DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS     // fictive sate to change back
 };
 
+#define ESBOCS_PENALTY_TTL ( 72 * 3600 ) // 3 days
+
 static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_validators);
 static void s_session_proc_state(void *a_arg);
 static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s_esbocs_session_state a_new_state, dap_time_t a_time);
@@ -131,7 +133,6 @@ struct precached_key {
     uint64_t frequency;
     dap_hash_fast_t pkey_hash;
     size_t pkey_size;
-    struct precached_key *prev, *next;
     byte_t sign_pkey[];
 };
 
@@ -163,7 +164,7 @@ typedef struct dap_chain_esbocs_pvt {
     uint16_t min_validators_count;
     bool check_signs_structure;
     // Internal cache
-    struct precached_key *precached_keys;
+    dap_list_t *precached_keys;
 } dap_chain_esbocs_pvt_t;
 
 #define PVT(a) ((dap_chain_esbocs_pvt_t *)a->_pvt)
@@ -546,7 +547,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     char *l_sync_group = s_get_penalty_group(l_net->pub.id);
     l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
                                                       dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_ESBOCS),
-                                                      l_sync_group, 72, true,
+                                                      l_sync_group, ESBOCS_PENALTY_TTL, true,
                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_session->db_cluster->links_cluster);
     dap_global_db_erase_table_sync(l_sync_group);     // Drop table on stratup
@@ -746,13 +747,13 @@ static int s_callback_purge(dap_chain_t *a_chain)
     return 0;
 }
 
-int dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id)
+uint16_t dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id)
 {
     dap_chain_esbocs_session_t *l_session;
     DL_FOREACH(s_session_items, l_session)
         if (l_session->chain->net_id.uint64 == a_net_id.uint64)
             return PVT(l_session->esbocs)->min_validators_count;
-    return -1;
+    return 0;
 }
 
 int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
@@ -2762,11 +2763,13 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
     return dap_chain_block_sign_add(a_block_ptr, a_block_size, l_esbocs_pvt->blocks_sign_key);
 }
 
-static uint64_t s_get_precached_key_hash(struct precached_key **a_precached_keys_list, dap_sign_t *a_source_sign, dap_hash_fast_t *a_result)
+static uint64_t s_get_precached_key_hash(dap_list_t **a_precached_keys_list, dap_sign_t *a_source_sign, dap_hash_fast_t *a_result)
 {
     bool l_found = false;
     struct precached_key *l_key = NULL;
-    DL_FOREACH(*a_precached_keys_list, l_key) {
+    dap_list_t *l_cur;
+    for (l_cur = *a_precached_keys_list; l_cur; l_cur = l_cur->next) {
+        l_key = (struct precached_key*)l_cur->data;
         if (l_key->pkey_size == a_source_sign->header.sign_pkey_size &&
                 !memcmp(l_key->sign_pkey, dap_sign_get_pkey(a_source_sign, NULL), l_key->pkey_size)) {
             l_found = true;
@@ -2775,31 +2778,28 @@ static uint64_t s_get_precached_key_hash(struct precached_key **a_precached_keys
         }
     }
     if (l_found) {
-        struct precached_key *l_key_swap = NULL;
-        DL_FOREACH(*a_precached_keys_list, l_key_swap) {
-            if (l_key_swap == l_key)
-                break;
-            if (l_key_swap->frequency < l_key->frequency) {
-                struct precached_key *l_swapper = l_key->next;
-                l_key->next = l_key_swap->next;
-                l_key_swap->next = l_swapper;
-                l_swapper = l_key->prev;
-                l_key->prev = l_key_swap->prev;
-                l_key_swap->prev = l_swapper;
-                break;
-            }
-        }
         if (a_result)
             *a_result = l_key->pkey_hash;
-        return l_key->frequency;
+        uint64_t l_freq = l_key->frequency;
+        while (l_cur != *a_precached_keys_list) {
+            struct precached_key* l_prev_key = (struct precached_key*)l_cur->prev->data;
+            if (l_key->frequency > l_prev_key->frequency) {
+                l_cur->prev->data = l_cur->data;
+                l_cur->data = l_prev_key;
+                l_key = l_prev_key;
+                l_cur = l_cur->prev;
+            } else
+                break;
+        }
+        return l_freq;
     }
-    struct precached_key *l_key_new = DAP_NEW_SIZE(struct precached_key,
+    struct precached_key *l_key_new = DAP_NEW_Z_SIZE(struct precached_key,
                                                    sizeof(struct precached_key) + a_source_sign->header.sign_pkey_size);
     l_key_new->pkey_size = a_source_sign->header.sign_pkey_size;
     l_key_new->frequency = 0;
     memcpy(l_key_new->sign_pkey, dap_sign_get_pkey(a_source_sign, NULL), l_key_new->pkey_size);
     dap_sign_get_pkey_hash(a_source_sign, &l_key_new->pkey_hash);
-    DL_APPEND(*a_precached_keys_list, l_key_new);
+    *a_precached_keys_list = dap_list_append(*a_precached_keys_list, l_key_new);
     if (a_result)
         *a_result = l_key_new->pkey_hash;
     return 0;

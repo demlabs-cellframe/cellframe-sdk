@@ -38,13 +38,16 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_json_rpc_errors.h"
 
 #define DAP_CHAIN_NET_NAME_MAX 32
-#define DAP_CHAIN_NET_MEMPOOL_TTL 48 // Hours
+#define DAP_CHAIN_NET_MEMPOOL_TTL 4 * 3600  // 4 hours
+#define DAP_CHAIN_NET_NODES_TTL 14 * 24 * 3600   // 2 weeks
+
 
 typedef struct dap_chain_node_client dap_chain_node_client_t;
 typedef struct dap_ledger dap_ledger_t;
 
 typedef enum dap_chain_net_state {
-    NET_STATE_OFFLINE = 0,
+    NET_STATE_LOADING = 0,
+    NET_STATE_OFFLINE,
     NET_STATE_LINKS_PREPARE,
     NET_STATE_LINKS_CONNECTING,
     NET_STATE_LINKS_ESTABLISHED,
