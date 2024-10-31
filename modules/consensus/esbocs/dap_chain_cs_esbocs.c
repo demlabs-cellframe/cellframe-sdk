@@ -1090,6 +1090,7 @@ static bool s_session_round_new(void *a_arg)
     s_session_round_clear(a_session);
     a_session->cur_round.id++;
     a_session->cur_round.sync_attempt++;
+    a_session->cur_round.round_start_ts = dap_time_now();
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
     a_session->ts_stage_entry = 0;
@@ -1139,11 +1140,24 @@ static bool s_session_round_new(void *a_arg)
     }
 
     if (!a_session->cur_round.sync_sent) {
-        uint16_t l_sync_send_delay =  a_session->sync_failed ?
-                                            s_get_round_skip_timeout(a_session) :
-                                            PVT(a_session->esbocs)->new_round_delay;
-        if (l_round_already_started)
-            l_sync_send_delay = 0;
+        uint16_t l_sync_send_delay = 0;
+        
+        if (!l_round_already_started && a_session->sync_failed) {
+            l_sync_send_delay = s_get_round_skip_timeout(a_session);
+        } else if (!l_round_already_started) {
+            long long l_time_delta = a_session->esbocs->last_accepted_block_timestamp - a_session->cur_round.round_start_ts;
+            log_it(L_DEBUG, "Round continue from last accepter block = %ld", l_time_delta);
+            if (l_time_delta >= 0 && l_time_delta < PVT(a_session->esbocs)->new_round_delay) {
+                l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay - *(uint16_t*)l_time_delta;
+            } else if (l_time_delta < 0 && l_time_delta > -PVT(a_session->esbocs)->new_round_delay){
+                l_time_delta = dap_time_now() - a_session->cur_round.round_start_ts;
+                log_it(L_DEBUG, "Round continue for %ld", l_time_delta);
+                if (l_time_delta < PVT(a_session->esbocs)->new_round_delay) {
+                    l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay - *(uint16_t*)l_time_delta;
+                } 
+            }
+        }
+        log_it(L_DEBUG, "l_sync_send_delay = %u", l_sync_send_delay);
         debug_if(PVT(a_session->esbocs)->debug, L_MSG,
                  "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" start. Syncing validators in %u seconds",
                     a_session->chain->net_name, a_session->chain->name,
@@ -1772,6 +1786,7 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
     switch (l_res) {
     case ATOM_ACCEPT:
         log_it(L_INFO, "block %s added in chain successfully", l_candidate_hash_str);
+        a_session->esbocs->last_accepted_block_timestamp = dap_time_now();
         res = true;
         break;
     case ATOM_MOVE_TO_THRESHOLD:
