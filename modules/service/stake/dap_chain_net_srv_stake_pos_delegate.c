@@ -2475,7 +2475,6 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, vo
                *l_fee_str = NULL,
                *l_tx_hash_str = NULL,
                *l_cert_str = NULL;
-    json_object **a_json_arr_reply = (json_object **)a_reply;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str);
     if (!l_net_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_PARAM_ERR, "Command 'update' requires parameter -net");
