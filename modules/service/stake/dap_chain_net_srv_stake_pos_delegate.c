@@ -3517,6 +3517,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
     s_set_offset_limit_json(json_obj_reward, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
 
     size_t i_tmp = 0;
+    dap_list_t * l_validators =  dap_chain_net_srv_stake_get_validators(a_esbocs->chain->net_id, false, NULL);
 
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
@@ -3563,7 +3564,17 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
             assert(l_tx_first_sign);
             dap_pkey_t * l_tx_first_sign_pkey = dap_pkey_get_from_sign(l_tx_first_sign);
             if (!a_brief)
-            {    
+            {
+                dap_hash_t l_tx_first_sign_pkey_hash;
+                dap_pkey_get_hash(l_tx_first_sign_pkey, &l_tx_first_sign_pkey_hash);
+
+                for (dap_list_t *it = l_validators; it; it = it->next) {
+                    dap_chain_net_srv_stake_item_t *l_stake = (dap_chain_net_srv_stake_item_t *)it->data;
+                        if (!dap_hash_fast_compare(&l_stake->signing_addr.data.hash_fast, &l_tx_first_sign_pkey_hash) {
+                            json_object_object_add(json_obj_block, "validator addr", json_object_new_string(NODE_ADDR_FP_ARGS_S(l_stake->node_addr)));
+                        }
+                }
+
                 json_object* json_arr_sign_out = json_object_new_array();
                 for (uint32_t i=0; i < l_block_cache->sign_count ; i++) {
                     json_object* json_obj_sign = json_object_new_object();
