@@ -2193,7 +2193,7 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
         dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
         json_object_object_add(l_jobj_datum, "ts_create",json_object_new_string(l_time_buf));
         json_object_object_add(l_jobj_datum, "data_size",json_object_new_int(l_datum->header.data_size));
-        dap_chain_datum_dump_json(*a_arr_out, l_jobj_datum,l_datum, a_hash_out_type, a_chain->net_id);
+        dap_chain_datum_dump_json(*a_arr_out, l_jobj_datum,l_datum, a_hash_out_type, a_chain->net_id, true);
         json_object_array_add(l_jobj_datums, l_jobj_datum);
         l_offset += l_datum_size;
     }
