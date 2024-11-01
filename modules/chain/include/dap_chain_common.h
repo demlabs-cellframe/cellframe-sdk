@@ -129,7 +129,7 @@ typedef union {
     uint8_t raw[8];
     uint64_t raw_ui64;
     uint64_t uint64;
-} dap_chain_srv_uid_t;
+} DAP_ALIGN_PACKED dap_chain_srv_uid_t;
 
 extern const dap_chain_srv_uid_t c_dap_chain_srv_uid_null;
 extern const dap_chain_cell_id_t c_dap_chain_cell_id_null;

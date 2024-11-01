@@ -286,6 +286,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction",
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
+    dap_json_rpc_cli_handler_add("j_tx_create", json_rpc_tx_create);
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
                 "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
                 " -cert <pub_cert_name> -value <value> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n\n" 
@@ -365,6 +366,17 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "Hint:\n"
             "\texample coins amount syntax (only natural) 1.0 123.4567\n"
             "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
+
+    //Find command
+    dap_cli_server_cmd_add("find", cmd_find, "The command searches for the specified elements by the specified attributes",
+                           "find datum -net <net_name> [-chain <chain_name>] -hash <datum_hash>\n"
+                           "\tSearches for datum by hash in the specified network in chains and mempool.\n"
+                           "find atom -net <net_name> [-chain <chain_name>] -hash <atom_hash>\n"
+                           "\tSearches for an atom by hash in a specified network in chains.\n"
+                           "find decree -net <net_name> [-chain <chain_name>] -type <type_decree> [-where <chains|mempool>]\n"
+                           "\tSearches for decrees by hash in the specified decree type in the specified network in its chains.\n"
+                           "\tTypes decree: fee, owners, owners_min, stake_approve, stake_invalidate, min_value, "
+                           "min_validators_count, ban, unban, reward, validator_max_weight, emergency_validators, check_signs_structure\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",

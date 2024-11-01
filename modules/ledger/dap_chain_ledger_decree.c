@@ -44,13 +44,9 @@ static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chai
 // Public functions
 int dap_ledger_decree_create(dap_ledger_t *a_ledger)
 {
+    dap_return_val_if_fail(a_ledger, -106);
+
     size_t l_auth_certs_count = 0;
-
-    if (!a_ledger) {
-        log_it(L_WARNING,"Invalid arguments. a_net must be not NULL");
-        return -106;
-    }
-
     dap_list_t *l_net_keys = NULL;
     uint16_t l_count_verify = 0;
     for (dap_chain_t *l_chain = a_ledger->net->pub.chains; l_chain; l_chain = l_chain->next) {
@@ -62,7 +58,7 @@ int dap_ledger_decree_create(dap_ledger_t *a_ledger)
     }
 
     if (!l_net_keys || !l_auth_certs_count) {
-        log_it(L_WARNING,"Certificates for net %s not found.", a_ledger->net->pub.name);
+        log_it(L_WARNING, "Certificates for net %s not found.", a_ledger->net->pub.name);
         return -1;
     }
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
@@ -73,9 +69,9 @@ int dap_ledger_decree_create(dap_ledger_t *a_ledger)
     return 0;
 }
 
-static int s_decree_clear(dap_chain_net_t *a_net)
+static int s_decree_clear(dap_ledger_t *a_ledger)
 {
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_list_free_full(l_ledger_pvt->decree_owners_pkeys, NULL);
     dap_ledger_decree_item_t *l_cur_decree, *l_tmp;
     pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
@@ -89,10 +85,10 @@ static int s_decree_clear(dap_chain_net_t *a_net)
     return 0;
 }
 
-void dap_ledger_decree_purge(dap_chain_net_t *a_net)
+void dap_ledger_decree_purge(dap_ledger_t *a_ledger)
 {
-    s_decree_clear(a_net);
-    dap_ledger_decree_create(a_net->pub.ledger);
+    s_decree_clear(a_ledger);
+    dap_ledger_decree_create(a_ledger);
 }
 
 static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash, bool a_anchored)
@@ -422,12 +418,12 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING,"Can't get signing address from decree.");
                 return -105;
             }
-
-            uint16_t l_current_count = dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL);
+            if (!a_anchored)
+                break;
             uint16_t l_min_count = dap_chain_esbocs_get_min_validators_count(a_net->pub.id);
-            if (l_current_count == l_min_count) {
-                log_it(L_WARNING, "Can't invalidate validator cause min validators count %hu will become less than total count for net %s",
-                                                                                l_current_count, a_net->pub.name);
+            if ( dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL) == l_min_count ) {
+                log_it(L_WARNING, "Can't invalidate stake in net %s: results in minimum validators count %hu underflow",
+                                   a_net->pub.name, l_min_count);
                 return -116;
             }
             if (!a_apply)

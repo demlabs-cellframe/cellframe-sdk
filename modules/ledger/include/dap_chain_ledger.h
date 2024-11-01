@@ -268,6 +268,7 @@ typedef bool (*dap_ledger_tax_callback_t)(dap_chain_net_id_t a_net_id, dap_hash_
 #define DAP_LEDGER_EMISSIONS_STR           "emissions"
 #define DAP_LEDGER_STAKE_LOCK_STR          "stake_lock"
 #define DAP_LEDGER_TXS_STR                 "txs"
+#define DAP_LEDGER_SPENT_TXS_STR           "spent_txs"
 #define DAP_LEDGER_BALANCES_STR            "balances"
 
 int dap_ledger_init();
@@ -472,7 +473,7 @@ dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(d
 void dap_ledger_load_end(dap_ledger_t *a_ledger);
 
 int dap_ledger_decree_create(dap_ledger_t *a_ledger);
-void dap_ledger_decree_purge(dap_chain_net_t *a_net);
+void dap_ledger_decree_purge(dap_ledger_t *a_ledger);
 
 uint16_t dap_ledger_decree_get_min_num_of_signers(dap_ledger_t *a_ledger);
 uint16_t dap_ledger_decree_get_num_of_owners(dap_ledger_t *a_ledger);
