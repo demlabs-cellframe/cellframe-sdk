@@ -83,6 +83,7 @@ typedef enum s_cli_srv_stake_err{
     DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_WALLET_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_CHAIN_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ERR,
 
     /* add custom codes here */
 
@@ -99,7 +100,7 @@ static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_
 static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
 static void s_uncache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
 static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr_reply, dap_chain_addr_t *a_addr, dap_chain_t *a_chain, 
-                                 dap_chain_net_t *a_net, const char * a_addr_str,
+                                 dap_chain_net_t *a_net, dap_hash_t *a_pkey, dap_time_t a_time_form, dap_time_t a_time_to,  
                                  size_t a_limit, size_t a_offset, bool a_brief, bool a_head);
 
 static dap_list_t *s_srv_stake_list = NULL;
@@ -3370,6 +3371,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 
             dap_chain_t * l_chain = NULL;
             dap_chain_net_t * l_net = NULL;
+            dap_time_t l_from_time = 0, l_to_time = 0;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_base58);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_wallet_name);
@@ -3405,6 +3407,25 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                                             "tx_history requires parameter '-net' to be valid chain network name");
                     return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_PARAM_ERR;
                 }
+            }
+
+            if (l_d_from_str) {
+                l_from_time = dap_time_from_str_simplified(l_d_from_str);
+                if (!l_from_time) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ERR, "Can't convert \"%s\" to date", l_d_from_str);
+                    return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ERR;
+                }
+            }
+
+            if (l_d_to_str) {
+                l_to_time = dap_time_from_str_simplified(l_d_to_str);
+                if (!l_to_time) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ERR, "Can't convert \"%s\" to date", l_d_to_str);
+                    return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ERR;
+                }
+                struct tm *l_localtime = localtime((time_t *)&l_to_time);
+                l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
+                l_to_time = mktime(l_localtime);
             }            
 
             // Get chain address
@@ -3468,7 +3489,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_CHAIN_PARAM_ERR;
             }
             json_object* l_json_arr_reply = s_dap_chain_net_srv_stake_reward_all(*a_json_arr_reply, l_addr, l_chain, 
-                                 l_net, "test", l_limit, l_offset, l_brief, l_head);
+                                 l_net, "test", l_from_time, l_to_time, l_limit, l_offset, l_brief, l_head);
             //if (l_addr)
             json_object * json_obj_addr = json_object_new_object();
             json_object_object_add(json_obj_addr, "REWARD", l_json_arr_reply);
@@ -3488,7 +3509,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 
 
 static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr_reply, dap_chain_addr_t *a_addr, dap_chain_t *a_chain, 
-                                 dap_chain_net_t *a_net, const char * a_addr_str, 
+                                 dap_chain_net_t *a_net, dap_hash_t *a_pkey, dap_time_t a_time_form, dap_time_t a_time_to,  
                                  size_t a_limit, size_t a_offset, bool a_brief, bool a_head)
 {
     json_object* json_obj_reward = json_object_new_array();
@@ -3496,12 +3517,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         dap_json_rpc_error_add(a_json_arr_reply, -44, "Memory allocation error");
         return NULL;
-    }   
-
-    // add address
-    json_object * json_obj_addr = json_object_new_object();
-    json_object_object_add(json_obj_addr, "validators address", json_object_new_string(a_addr_str));
-    json_object_array_add(json_obj_reward, json_obj_addr);
+    }     
 
     dap_ledger_t *l_ledger = a_net->pub.ledger;
     const char *l_native_ticker = a_net->pub.native_ticker;
@@ -3517,7 +3533,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
     s_set_offset_limit_json(json_obj_reward, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
 
     size_t i_tmp = 0;
-    dap_list_t * l_validators =  dap_chain_net_srv_stake_get_validators(a_esbocs->chain->net_id, false, NULL);
+    dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_chain->net_id);
 
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
@@ -3540,6 +3556,19 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
             // go to next datum
             continue;
+        if (i_tmp < l_arr_start) {
+                i_tmp++;
+                continue;
+            }
+        
+        if (a_time_form && l_datum->header.ts_create < a_time_form)
+                continue;
+        if (a_time_to && l_datum->header.ts_create >= a_time_to)
+                break;
+            /*
+        char l_time_buf[DAP_TIME_STR_SIZE];
+        dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
+        json_object_object_add(json_obj_inf, "ts_created", json_object_new_string(l_time_buf));*/
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
         dap_list_t *l_list_in_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_REWARD, NULL);
         if (!l_list_in_items) // a bad tx
@@ -3552,10 +3581,8 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
         
         for(dap_list_t *it = l_list_in_items; it; it = it->next)
         {
-            json_object* json_obj_block = json_object_new_object();
             dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t *) it->data;
-            char *l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
-            json_object_object_add(json_obj_block, "block hash", json_object_new_string(l_block_hash));
+            
             dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(a_chain), &l_in_reward->block_hash);
             dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(l_tx, NULL, NULL,
                     TX_ITEM_TYPE_SIG, NULL);
@@ -3563,18 +3590,44 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
             dap_sign_t *l_tx_first_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
             assert(l_tx_first_sign);
             dap_pkey_t * l_tx_first_sign_pkey = dap_pkey_get_from_sign(l_tx_first_sign);
+
+            
+            if (!a_addr && !a_pkey) {
+                json_object* json_block_hash = json_object_new_object();
+                char *l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
+                json_object_object_add(json_block_hash, "block hash", json_object_new_string(l_block_hash));
+                json_object_array_add(json_obj_reward, json_block_hash);
+            }
+            
             if (!a_brief)
             {
                 dap_hash_t l_tx_first_sign_pkey_hash;
                 dap_pkey_get_hash(l_tx_first_sign_pkey, &l_tx_first_sign_pkey_hash);
 
+                dap_chain_net_srv_stake_item_t *l_stake = NULL;
+                HASH_FIND(hh, l_srv_stake->itemlist, &l_tx_first_sign_pkey_hash, sizeof(dap_hash_fast_t), l_stake);
+                if (a_addr) {
+                    if (!dap_chain_addr_compare(a_addr, &l_stake->signing_addr)) {
+                        continue;                    
+                    }
+
+                }
+                if (l_stake) {
+                    json_object* json_valid_addr = json_object_new_object();
+                    char *l_addr = dap_strdup_printf(""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
+                    json_object_object_add(json_valid_addr, "validator addr", json_object_new_string(l_addr));
+                    json_object_array_add(json_obj_reward, json_valid_addr);
+                    DAP_DELETE(l_addr);
+                }
+                /*
                 for (dap_list_t *it = l_validators; it; it = it->next) {
                     dap_chain_net_srv_stake_item_t *l_stake = (dap_chain_net_srv_stake_item_t *)it->data;
-                        if (!dap_hash_fast_compare(&l_stake->signing_addr.data.hash_fast, &l_tx_first_sign_pkey_hash) {
-                            json_object_object_add(json_obj_block, "validator addr", json_object_new_string(NODE_ADDR_FP_ARGS_S(l_stake->node_addr)));
-                        }
-                }
-
+                    if (!dap_hash_fast_compare(&l_stake->signing_addr.data.hash_fast, &l_tx_first_sign_pkey_hash)) {
+                        char *l_addr = dap_strdup_printf(""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
+                        json_object_object_add(json_obj_block, "validator addr", json_object_new_string(l_addr));
+                        DAP_DELETE(l_addr);
+                    }
+                }*/
                 json_object* json_arr_sign_out = json_object_new_array();
                 for (uint32_t i=0; i < l_block_cache->sign_count ; i++) {
                     json_object* json_obj_sign = json_object_new_object();
@@ -3589,7 +3642,9 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                     json_object_object_add(json_obj_sign, "pkey_hash",json_object_new_string(l_pkey_hash_str));
                     json_object_array_add(json_arr_sign_out, json_obj_sign);
                 }
-                json_object_object_add(json_obj_block, "BLOCK SIGNS", json_arr_sign_out);
+                json_object* json_block_sign = json_object_new_object();
+                json_object_object_add(json_block_sign, "BLOCK SIGNS", json_arr_sign_out);
+                json_object_array_add(json_arr_sign_out, json_block_sign);
             }
 
             uint256_t l_value_reward = a_chain->callback_calc_reward(a_chain, &l_block_cache->block_hash,
@@ -3600,6 +3655,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
             json_object_object_add(json_obj_block, "reward coins", json_object_new_string(l_coins_str));
             json_object_array_add(json_obj_reward, json_obj_block);
             DAP_DELETE(l_block_hash);
+            ++i_tmp;
         }
         if (!a_brief)
         { 
