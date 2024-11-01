@@ -640,7 +640,7 @@ void dap_chain_add_callback_notify(dap_chain_t *a_chain, dap_chain_callback_noti
  * @param a_callback
  * @param a_arg
  */
-void dap_chain_atom_confirmed_notify_add(dap_chain_t *a_chain, dap_chain_callback_notify_t a_callback, void *a_arg)
+void dap_chain_atom_confirmed_notify_add(dap_chain_t *a_chain, dap_chain_callback_notify_t a_callback, void *a_arg, uint64_t a_conf_cnt)
 {
     if(!a_chain){
         log_it(L_ERROR, "NULL chain passed to dap_chain_add_callback_notify()");
@@ -655,7 +655,7 @@ void dap_chain_atom_confirmed_notify_add(dap_chain_t *a_chain, dap_chain_callbac
         log_it(L_ERROR, "Can't allocate memory for notifier in dap_chain_add_callback_notify()");
         return;
     }
-
+    l_notifier->block_notify_cnt = a_conf_cnt;
     l_notifier->callback = a_callback;
     l_notifier->arg = a_arg;
     pthread_rwlock_wrlock(&a_chain->rwlock);
