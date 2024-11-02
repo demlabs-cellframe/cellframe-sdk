@@ -8768,6 +8768,17 @@ static void s_stage_connected_callback(dap_client_t* a_client, void * a_arg) {
     }
 }
 
+static void s_stage_connected_error_callback(dap_client_t* a_client, void * a_arg) {
+    dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
+    UNUSED(a_arg);
+    if(l_node_client) {
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        l_node_client->state = NODE_CLIENT_STATE_ERROR;
+        pthread_cond_signal(&l_node_client->wait_cond);
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
+    }
+}
+
 int com_exec_cmd(int argc, char **argv, void **reply) {
     json_object ** a_json_arr_reply = (json_object **) reply;
     if (!dap_json_rpc_exec_cmd_inited()) {
@@ -8811,7 +8822,7 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     dap_chain_node_client_t * l_node_client = dap_chain_node_client_create(l_net, node_info, NULL, NULL);
 
     //handshake
-    l_node_client->client = dap_client_new(NULL, l_node_client);
+    l_node_client->client = dap_client_new(s_stage_connected_error_callback, l_node_client);
     l_node_client->client->_inheritor = l_node_client;
     dap_client_set_uplink_unsafe(l_node_client->client, &l_node_client->info->address, node_info->ext_host, node_info->ext_port);
     dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(l_node_client->client);
