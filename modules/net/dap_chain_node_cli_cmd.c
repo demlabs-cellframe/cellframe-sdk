@@ -7160,7 +7160,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
     if ((rc = dap_ledger_tx_add_check(l_net->pub.ledger, (dap_chain_datum_tx_t*)l_datum_tx->data, l_tx_size, &l_hf_tx))) {
         json_object *l_jobj_tx_create = json_object_new_boolean(false);
         json_object *l_jobj_hash = json_object_new_string(l_tx_hash_str);
-        json_object *l_jobj_total_items = json_object_new_uint64(json_object_array_length(l_items_ready));
+        json_object *l_jobj_total_items = json_object_new_uint64(json_object_array_length(l_json_items));
         json_object *l_jobj_ledger_ret_code = json_object_new_object();
         json_object_object_add(l_jobj_ledger_ret_code, "code", json_object_new_int(rc));
         json_object_object_add(l_jobj_ledger_ret_code, "message",
