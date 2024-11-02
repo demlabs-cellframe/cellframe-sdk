@@ -2388,7 +2388,7 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
     for (size_t i = 0; i < a_values_count; i++) {
         dap_ledger_cache_gdb_record_t *l_current_record = a_values[i].value;
-        if (a_values[i].value_len != l_current_record->cache_size + l_current_record->cache_size + sizeof(dap_ledger_cache_gdb_record_t)) {
+        if (a_values[i].value_len != l_current_record->cache_size + l_current_record->datum_size + sizeof(dap_ledger_cache_gdb_record_t)) {
             log_it(L_ERROR, "Worng ledger_cache_gdb_record size");
         }
         dap_ledger_tx_item_t *l_tx_item = DAP_NEW_Z_SIZE(dap_ledger_tx_item_t, sizeof(dap_ledger_tx_item_t) + l_current_record->cache_size);
@@ -4486,9 +4486,11 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             size_t l_cache_size = sizeof(l_prev_item_out->cache_data) + l_prev_item_out->cache_data.n_outs * sizeof(dap_chain_hash_fast_t);
             size_t l_tx_size = dap_chain_datum_tx_get_size(l_prev_item_out->tx);
             size_t l_tx_cache_sz = l_tx_size + l_cache_size;
-            byte_t *l_tx_cache = DAP_NEW_Z_SIZE(byte_t, l_tx_cache_sz);
-            memcpy(l_tx_cache, &l_prev_item_out->cache_data, l_cache_size);
-            memcpy(l_tx_cache + l_cache_size, l_prev_item_out->tx, l_tx_size);
+            dap_ledger_cache_gdb_record_t *l_tx_cache = DAP_NEW_STACK_SIZE(dap_ledger_cache_gdb_record_t, l_tx_cache_sz);
+            l_tx_cache->cache_size = l_cache_size;
+            l_tx_cache->datum_size = l_tx_size;
+            memcpy(l_tx_cache->data, &l_prev_item_out->cache_data, l_cache_size);
+            memcpy(l_tx_cache->data + l_cache_size, l_prev_item_out->tx, l_tx_size);
             char *l_tx_i_hash = dap_chain_hash_fast_to_str_new(&l_prev_item_out->tx_hash_fast);
             l_cache_used_outs[l_spent_idx] = (dap_store_obj_t) {
                     .key        = l_tx_i_hash,
@@ -4643,9 +4645,9 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         // Add it to cache
         size_t l_cache_size = sizeof(l_tx_item->cache_data) + l_tx_item->cache_data.n_outs * sizeof(dap_chain_hash_fast_t);
         size_t l_tx_cache_sz = l_tx_size + l_cache_size;
-        dap_ledger_cache_gdb_record_t *l_tx_cache = DAP_NEW_STACK_SIZE(uint8_t, l_tx_cache_sz);
+        dap_ledger_cache_gdb_record_t *l_tx_cache = DAP_NEW_STACK_SIZE(dap_ledger_cache_gdb_record_t, l_tx_cache_sz);
         memcpy(l_tx_cache->data, &l_tx_item->cache_data, l_cache_size);
-        memcpy(l_tx_cache + l_cache_size, a_tx, l_tx_size);
+        memcpy(l_tx_cache->data + l_cache_size, a_tx, l_tx_size);
         l_cache_used_outs[0] = (dap_store_obj_t) {
                 .key        = l_tx_hash_str,
                 .value      = l_tx_cache,
