@@ -166,18 +166,18 @@ int dap_chain_cs_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 #else
     const char *l_consensus = dap_config_get_item_str( a_chain_cfg, "chain", "consensus");
 #endif
-    if(l_consensus)
-        HASH_FIND_STR(s_cs_callbacks, l_consensus, l_item );
-    if (l_item) {
-        log_it(L_NOTICE,"Consensus \"%s\" found, prepare to parse config file",l_item->name );
-        if (l_item->callbacks.callback_init)
-            l_item->callbacks.callback_init(a_chain, a_chain_cfg);
-        DAP_CHAIN_PVT(a_chain)->cs_name = l_item->name;
-        return 0;
-    } else {
-        log_it(L_ERROR,"Can't find consensus \"%s\"",dap_config_get_item_str( a_chain_cfg, "chain", "consensus"));
+    if (l_consensus)
+        HASH_FIND_STR(s_cs_callbacks, l_consensus, l_item);
+    if (!l_item) {
+        log_it(L_ERROR, "Can't find consensus \"%s\"", dap_config_get_item_str(a_chain_cfg, "chain", "consensus"));
         return -1;
     }
+    log_it(L_NOTICE, "Consensus \"%s\" found, prepare to parse config file", l_item->name );
+    int res = 0;
+    if (l_item->callbacks.callback_init)
+        res = l_item->callbacks.callback_init(a_chain, a_chain_cfg);
+    DAP_CHAIN_PVT(a_chain)->cs_name = l_item->name;
+    return res;
 }
 
 int dap_chain_cs_stop(dap_chain_t *a_chain)

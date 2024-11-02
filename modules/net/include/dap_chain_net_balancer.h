@@ -50,10 +50,11 @@ typedef struct dap_balancer_link_request {
 DAP_STATIC_INLINE const char *dap_chain_net_balancer_type_to_str(dap_balancer_type_t a_type)
 {
     switch (a_type) {
-        case DAP_CHAIN_NET_BALANCER_TYPE_HTTP: return "HTTP";
-        case DAP_CHAIN_NET_BALANCER_TYPE_DNS: return "DNS";
-        default: return "UNDEFINED";
+    case DAP_CHAIN_NET_BALANCER_TYPE_HTTP:  return "HTTP";
+    case DAP_CHAIN_NET_BALANCER_TYPE_DNS:   return "DNS";
+    default: break;
     }
+    return "UNDEFINED";
 }
 void dap_chain_net_balancer_deinit();
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);

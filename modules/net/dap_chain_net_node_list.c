@@ -107,7 +107,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     }
     const char *l_key = dap_stream_node_addr_to_str_static( (dap_chain_node_addr_t){.uint64 = addr} );
     if (!l_key) {
-        log_it(L_ERROR, "Bad node address %zu", addr);
+        log_it(L_ERROR, "Bad node address %"DAP_UINT64_FORMAT_U, addr);
         *l_return_code = Http_Status_BadRequest;
         return;
     }
@@ -287,7 +287,7 @@ int dap_chain_net_node_list_request(dap_chain_net_t *a_net, uint16_t a_port, boo
     if (!l_link_node_request)
         return log_it(L_CRITICAL, "%s", c_error_memory_alloc), -4;
 
-    char *l_request = dap_strdup_printf( "%s/%s?version=1,method=%c,addr=%zu,port=%hu,net=%s",
+    char *l_request = dap_strdup_printf( "%s/%s?version=1,method=%c,addr=%"DAP_UINT64_FORMAT_U",port=%hu,net=%s",
                                          DAP_UPLINK_PATH_NODE_LIST, DAP_NODE_LIST_URI_HASH, a_cmd,
                                          g_node_addr.uint64, a_port, a_net->pub.name );
     int l_ret = -1;

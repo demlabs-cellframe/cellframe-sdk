@@ -201,7 +201,6 @@ typedef struct dap_chain_esbocs_session {
     dap_time_t ts_stage_entry; // time of current stage entrance
 
     dap_chain_esbocs_sync_item_t *sync_items;
-    dap_timerfd_t *sync_timer;
 
     dap_chain_addr_t my_signing_addr;
 
@@ -269,6 +268,6 @@ bool dap_chain_esbocs_remove_validator_from_clusters(dap_chain_net_id_t a_net_id
 uint256_t dap_chain_esbocs_get_collecting_level(dap_chain_t *a_chain);
 dap_enc_key_t *dap_chain_esbocs_get_sign_key(dap_chain_t *a_chain);
 int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
-int dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id);
+uint16_t dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id);
 int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash);
 int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable);

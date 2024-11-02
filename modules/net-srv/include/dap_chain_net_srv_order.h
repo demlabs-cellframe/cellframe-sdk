@@ -29,13 +29,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv.h"
 
-typedef struct dap_chain_net_srv_order
-{
+typedef struct dap_chain_net_srv_order {
     uint16_t version;
     dap_chain_srv_uid_t srv_uid; // Service UID
-#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
     byte_t padding[8];
-#endif
     dap_chain_net_srv_order_direction_t direction; // Order direction - SELL or PURCHASE
     byte_t padding_dir[3];
     dap_chain_node_addr_t node_addr; // Node address that servs the order (if present)
@@ -140,6 +137,8 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
 char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_order, bool a_common);
 
 void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_order, dap_string_t *a_str_out,
+                                            const char *a_hash_out_type, const char *a_native_ticker);
+void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_order, json_object *a_json_obj_out,
                                             const char *a_hash_out_type, const char *a_native_ticker);
 
 void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
