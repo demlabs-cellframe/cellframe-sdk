@@ -30,10 +30,8 @@
 #include "dap_string.h"
 #include "dap_tsd.h"
 #include "dap_strfuncs.h"
-#include "json_object.h"
+#include "dap_chain_common.h"
 
-
-#define DAP_CHAIN_DATUM_NONCE_SIZE                                          64
 // Token declaration
 typedef struct dap_chain_datum_token_old {
     uint16_t type;
@@ -315,6 +313,16 @@ DAP_STATIC_INLINE bool dap_chain_datum_token_is_old(uint8_t a_type)
            || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE
            || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC;
 }
+
+DAP_STATIC_INLINE bool dap_chain_datum_token_check_ticker(const char *a_ticker)
+{
+    const char *c = a_ticker;
+    for (int i = 0; i < DAP_CHAIN_TICKER_SIZE_MAX; i++, c++)
+        if (*c == '\0')
+            return true;
+    return false;
+}
+
 
 /*                              Token emission section                          */
 

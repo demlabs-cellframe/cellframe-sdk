@@ -83,9 +83,7 @@ typedef struct dap_chain_tx_out_cond {
         dap_time_t ts_expires;
         /// Service uid that only could be used for this out
         dap_chain_srv_uid_t srv_uid;
-#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
         byte_t padding[8];
-#endif
     } DAP_ALIGN_PACKED header;
     union {
         /// Structure with specific for service pay condition subtype

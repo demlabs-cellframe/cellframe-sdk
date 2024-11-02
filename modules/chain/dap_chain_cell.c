@@ -412,11 +412,10 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
 {
     if (!a_cell)
         return -1;
-    off_t l_ssize = !fseeko(a_cell->file_storage, 0, SEEK_END) ? ftello(a_cell->file_storage) : -1;
-    if (l_ssize < 0)
+    off_t l_full_size = !fseeko(a_cell->file_storage, 0, SEEK_END) ? ftello(a_cell->file_storage) : -1;
+    if (l_full_size < 0)
         return log_it(L_ERROR, "Can't get chain size, error %d: \"%s\"", errno, dap_strerror(errno)), -1;
-    size_t l_full_size = (size_t)l_ssize;
-    if ( l_full_size < sizeof(dap_chain_cell_file_header_t) ) {
+    if ( l_full_size < (off_t)sizeof(dap_chain_cell_file_header_t) ) {
         log_it(L_ERROR, "Chain cell \"%s\" is corrupt, create new file", a_cell->file_storage_path);
         return -1;
     }
@@ -445,7 +444,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         if (!a_chain->is_mapped) DAP_DELETE(l_hdr);
         return -4;
     }
-    size_t l_pos = sizeof(dap_chain_cell_file_header_t);
+    off_t l_pos = sizeof(*l_hdr);
     if (a_chain->is_mapped)
         a_cell->map_pos = a_cell->map + l_pos;
     if (l_full_size == l_pos) {
@@ -453,23 +452,21 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     }
 
     int l_ret = 0;    
-    uint64_t l_el_size, q = 0;
+    uint64_t l_el_size = 0, q = 0;
     if (a_chain->is_mapped) {
-        uint64_t l_vol_rest;
         dap_hash_fast_t l_atom_hash;
-        for ( l_el_size = 0; l_pos < l_full_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
-            l_vol_rest = (uint64_t)( a_cell->map_end - a_cell->map_pos );
-            if ( l_vol_rest <= sizeof(uint64_t) || l_vol_rest - sizeof(uint64_t) <= *(uint64_t*)a_cell->map_pos)
-                if ( s_cell_map_new_volume(a_cell, l_pos, true) )
+        for ( off_t l_vol_rest = 0; l_pos + sizeof(uint64_t) < (size_t)l_full_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
+            l_vol_rest = (off_t)(a_cell->map_end - a_cell->map_pos) - sizeof(uint64_t);
+            if ( l_vol_rest <= 0 || (uint64_t)l_vol_rest < *(uint64_t*)a_cell->map_pos )
+                if ( s_cell_map_new_volume(a_cell, l_pos, true) ) {
+                    l_ret = -2;
                     break;
-            if (*(uint64_t*)a_cell->map_pos > l_full_size - l_pos ) {
-                log_it(L_ERROR, "Atom size exeeds file remainder: %zu > %zu. "
-                                "Truncating chain \"%s\"", l_el_size, l_full_size - l_pos, a_cell->file_storage_path );
-                ftruncate(fileno(a_cell->file_storage), l_pos);
-                break;
-            }
+                }
             l_el_size = *(uint64_t*)a_cell->map_pos;
-            dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos += sizeof(uint64_t));
+            if ( !l_el_size || l_el_size > (size_t)(l_full_size - l_pos) )
+                break;
+            a_cell->map_pos += sizeof(uint64_t);
+            dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos);
             dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
             a_chain->callback_atom_add(a_chain, l_atom, l_el_size, &l_atom_hash, false);
             a_cell->map_pos += l_el_size;
@@ -493,14 +490,15 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
                 l_ret = -5;
                 break;
             }
-            l_pos += sizeof(uint64_t) + ( l_read = fread((void*)l_element, 1, l_el_size, a_cell->file_storage) );
-            a_chain->load_progress = (int)((double)l_pos/l_full_size * 100 + 0.5);
+            l_read = fread((void*)l_element, 1, l_el_size, a_cell->file_storage);
             if (l_read != l_el_size) {
                 log_it(L_ERROR, "Read only %lu of %zu bytes, stop cell loading", l_read, l_el_size);
                 DAP_DELETE(l_element);
                 l_ret = -6;
                 break;
             }
+            l_pos += sizeof(uint64_t) + l_read;
+            a_chain->load_progress = (int)((float)l_pos/l_full_size * 100 + 0.5);
             dap_hash_fast_t l_atom_hash = {};
             dap_hash_fast(l_element, l_el_size, &l_atom_hash);
             dap_chain_atom_verify_res_t l_res = a_chain->callback_atom_add(a_chain, l_element, l_el_size, &l_atom_hash, false);
@@ -509,6 +507,11 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             }
             ++q;
         }
+    }
+    if ( l_pos < l_full_size ) {
+        log_it(L_ERROR, "Chain \"%s\" has incomplete tail, truncating %zu bytes",
+                        a_cell->file_storage_path, l_full_size - l_pos );
+        ftruncate(fileno(a_cell->file_storage), l_pos);
     }
     fseeko(a_cell->file_storage, l_pos, SEEK_SET);
     log_it(L_INFO, "Loaded %lu atoms in cell %s", q, a_cell->file_storage_path);
@@ -551,6 +554,7 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
                                             a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
                                             (size_t)(a_cell->map_pos - a_cell->map));
 #ifdef DAP_OS_DARWIN
+    fflush(a_cell->file_storage);
     if (a_cell->chain->is_mapped) {
         if ( MAP_FAILED == (a_cell->map = mmap(a_cell->map, dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT), PROT_READ|PROT_WRITE,
                                             MAP_PRIVATE|MAP_FIXED, fileno(a_cell->file_storage), a_cell->cur_vol_start)) ) {
@@ -641,7 +645,9 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
     }
     
     if (l_total_res) {
+#ifndef DAP_OS_DARWIN
         fflush(a_cell->file_storage);
+#endif
 #ifdef DAP_OS_WINDOWS
         if (a_cell->chain->is_mapped) {
             off_t l_off = ftello(a_cell->file_storage);

@@ -116,6 +116,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "? [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
+    dap_cli_server_cmd_add ("wallet", com_tx_wallet, "Wallet operations",
+                            "wallet list\n"
+                            "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value> | -restore_legacy <restore_string>] [-net <net_name>] [-force] [-password <password>]\n"
+                            "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
+                            "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
+                            "wallet deactivate -w <wallet_name>>\n"
+                            "wallet convert -w <wallet_name> -password <password>\n");
+    // Token commands
     dap_cli_server_cmd_add ("token_update", com_token_update, "Token update",
                             "\nPrivate or CF20 token update\n"
                             "token_update -net <net_name> [-chain <chain_name>] -token <existing_token_ticker> -type <CF20|private> [-total_supply_change <value>] "
@@ -219,9 +227,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\texample coins amount syntax (only natural) 1.0 123.4567\n"
             "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
 
-    dap_cli_server_cmd_add("token_update_sign", com_token_decl_sign, "Token update add sign and new sign",
-                                        "token_update_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs list> -new_certs <certs list>\n"
-                                        "\t Sign existent <datum hash> in mempool with <certs list>\n"
+    dap_cli_server_cmd_add("token_update_sign", com_token_decl_sign, "Token update add sign to datum",
+                                        "token_update_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <cert_list>\n"
+                                        "\t Sign existent <datum hash> in mempool with <certs_list>\n"
     );
     // Token commands
 
@@ -231,8 +239,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             );
 
     dap_cli_server_cmd_add ("token_emit", com_token_emit, "Token emission",
-                            "token_emit { sign -emission <hash> | -token <mempool_token_ticker> -emission_value <value> "
-                            "-addr <addr> } [-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n\n"
+                            "token_emit { sign -emission <hash> | -token <mempool_token_ticker> -emission_value <value> -addr <addr> } "
+                            "[-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n"
                             "Available hint:\n"
                             "\texample coins amount syntax (only natural) 1.0 123.4567\n"
                             "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
@@ -278,6 +286,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction",
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
+    dap_json_rpc_cli_handler_add("j_tx_create", json_rpc_tx_create);
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
                 "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
                 " -cert <pub_cert_name> -value <value> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n\n" 
@@ -299,7 +308,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Transaction history
     dap_cli_server_cmd_add("tx_history", com_tx_history, "Transaction history (for address or by hash)",
             "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} [-net <net_name>] [-chain <chain_name>] [-limit] [-offset] [-head]\n"
-            "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset] [-head]\n");
+            "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset] [-head]\n"
+            "tx_history -count -net <net_name>\n");
 
 	// Ledger info
     dap_cli_server_cmd_add("ledger", com_ledger, "Ledger information",
@@ -356,6 +366,17 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "Hint:\n"
             "\texample coins amount syntax (only natural) 1.0 123.4567\n"
             "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
+
+    //Find command
+    dap_cli_server_cmd_add("find", cmd_find, "The command searches for the specified elements by the specified attributes",
+                           "find datum -net <net_name> [-chain <chain_name>] -hash <datum_hash>\n"
+                           "\tSearches for datum by hash in the specified network in chains and mempool.\n"
+                           "find atom -net <net_name> [-chain <chain_name>] -hash <atom_hash>\n"
+                           "\tSearches for an atom by hash in a specified network in chains.\n"
+                           "find decree -net <net_name> [-chain <chain_name>] -type <type_decree> [-where <chains|mempool>]\n"
+                           "\tSearches for decrees by hash in the specified decree type in the specified network in its chains.\n"
+                           "\tTypes decree: fee, owners, owners_min, stake_approve, stake_invalidate, min_value, "
+                           "min_validators_count, ban, unban, reward, validator_max_weight, emergency_validators, check_signs_structure\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",

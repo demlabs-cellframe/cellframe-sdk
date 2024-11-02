@@ -38,15 +38,16 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_json_rpc_errors.h"
 
 #define DAP_CHAIN_NET_NAME_MAX 32
-#define DAP_CHAIN_NET_MEMPOOL_TTL 48 // Hours
+#define DAP_CHAIN_NET_MEMPOOL_TTL 4 * 3600  // 4 hours
+#define DAP_CHAIN_NET_NODES_TTL 14 * 24 * 3600   // 2 weeks
+
 
 typedef struct dap_chain_node_client dap_chain_node_client_t;
 typedef struct dap_ledger dap_ledger_t;
-typedef struct dap_chain_net_decree dap_chain_net_decree_t;
-typedef struct decree_table decree_table_t;
-typedef struct anchor_table anchor_table_t;
+
 typedef enum dap_chain_net_state {
-    NET_STATE_OFFLINE = 0,
+    NET_STATE_LOADING = 0,
+    NET_STATE_OFFLINE,
     NET_STATE_LINKS_PREPARE,
     NET_STATE_LINKS_CONNECTING,
     NET_STATE_LINKS_ESTABLISHED,
@@ -54,7 +55,7 @@ typedef enum dap_chain_net_state {
     NET_STATE_ONLINE
 } dap_chain_net_state_t;
 
-static const char s_gdb_nodes_postfix[] = ".nodes.list";
+static const char s_gdb_nodes_postfix[] = "nodes.list";
 
 typedef struct dap_chain_net {
     struct {
@@ -230,7 +231,3 @@ enum dap_chain_net_json_rpc_error_list{
     DAP_CHAIN_NET_JSON_RPC_NO_POA_CERTS_FOUND_POA_CERTS,
     DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS
 };
-dap_chain_net_decree_t *dap_chain_net_get_net_decree(dap_chain_net_t *a_net);
-void dap_chain_net_set_net_decree(dap_chain_net_t *a_net, dap_chain_net_decree_t *a_decree);
-decree_table_t **dap_chain_net_get_decrees(dap_chain_net_t *a_net);
-anchor_table_t **dap_chain_net_get_anchors(dap_chain_net_t *a_net);
