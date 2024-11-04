@@ -1145,6 +1145,7 @@ static bool s_session_round_new(void *a_arg)
         if (!l_round_already_started && a_session->sync_failed) {
             l_sync_send_delay = s_get_round_skip_timeout(a_session);
         } else if (!l_round_already_started) {
+            log_it(L_DEBUG, "New round delay = %u", PVT(a_session->esbocs)->new_round_delay);
             long long l_time_delta = a_session->esbocs->last_accepted_block_timestamp - a_session->cur_round.round_start_ts;
             log_it(L_DEBUG, "Round continue from last accepter block delta = %ld, last_block = %ld, round_start= %ld", l_time_delta,  a_session->esbocs->last_accepted_block_timestamp, a_session->cur_round.round_start_ts);
             if (l_time_delta >= 0 && l_time_delta < PVT(a_session->esbocs)->new_round_delay) {
