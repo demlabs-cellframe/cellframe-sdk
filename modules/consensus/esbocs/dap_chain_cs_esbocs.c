@@ -1141,26 +1141,28 @@ static bool s_session_round_new(void *a_arg)
 
     if (!a_session->cur_round.sync_sent) {
         uint16_t l_sync_send_delay = 0;
-        
-        if (!l_round_already_started && a_session->sync_failed) {
-            l_sync_send_delay = s_get_round_skip_timeout(a_session);
-        } else if (!l_round_already_started) {
-            log_it(L_DEBUG, "New round delay = %u", PVT(a_session->esbocs)->new_round_delay);
+        uint32_t l_new_round_delay = PVT(a_session->esbocs)->new_round_delay;
+        long long last_block_ts = a_session->esbocs->last_accepted_block_timestamp;
+        long long l_round_start_ts = a_session->cur_round.round_start_ts;
+        long long l_time_delta = last_block_ts - l_round_start_ts;
 
-            long long l_time_delta = a_session->esbocs->last_accepted_block_timestamp - a_session->cur_round.round_start_ts;
-            log_it(L_DEBUG, "Round continue from last accepted block delta = %lld, last_block = %lld, round_start= %lld",
-                l_time_delta, a_session->esbocs->last_accepted_block_timestamp, a_session->cur_round.round_start_ts);
+        if (!l_round_already_started) {
+            if (a_session->sync_failed) {
+                l_sync_send_delay = s_get_round_skip_timeout(a_session);
+            } else {
+                log_it(L_DEBUG, "New round delay = %u", l_new_round_delay);
+                log_it(L_DEBUG, "Round continue from last accepted block delta = %lld, last_block = %lld, round_start = %lld",
+                    l_time_delta, last_block_ts, l_round_start_ts);
+                if (l_time_delta >= 0 && l_time_delta < l_new_round_delay) {
+                    l_sync_send_delay = l_new_round_delay - l_time_delta;
+                } else if (l_time_delta < 0 && l_time_delta > -l_new_round_delay) {
+                    l_time_delta = dap_time_now() - l_round_start_ts;
+                    log_it(L_DEBUG, "Round continue for %lld, round_start = %lld, time_now = %lld",
+                        l_time_delta, l_round_start_ts, dap_time_now());
 
-            if (l_time_delta >= 0 && l_time_delta < PVT(a_session->esbocs)->new_round_delay) {
-                l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay - (uint16_t)l_time_delta;
-            } else if (l_time_delta < 0 && l_time_delta > -PVT(a_session->esbocs)->new_round_delay) {
-                l_time_delta = dap_time_now() - a_session->cur_round.round_start_ts;
-                log_it(L_DEBUG, "Round continue for %lld, round_start = %lld, time_now = %lld",
-                    l_time_delta, a_session->cur_round.round_start_ts, dap_time_now());
-
-                if (l_time_delta < PVT(a_session->esbocs)->new_round_delay) {
-                    int64_t delay = PVT(a_session->esbocs)->new_round_delay - l_time_delta;
-                    l_sync_send_delay = delay >= 0 ? (uint16_t)delay : (uint16_t)(-delay);
+                    if (l_time_delta < l_new_round_delay) {
+                        l_sync_send_delay = l_new_round_delay - abs(l_time_delta);
+                    }
                 }
             }
         }
