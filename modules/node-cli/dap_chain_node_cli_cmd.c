@@ -6906,11 +6906,10 @@ void json_rpc_tx_create(json_object *a_param, json_object *a_reply){
         json_object_object_add(l_jobj_ledger_ret_code, "code", json_object_new_int(rc));
         json_object_object_add(l_jobj_ledger_ret_code, "message",
                                json_object_new_string(dap_chain_net_verify_datum_err_code_to_str(l_datum_tx, rc)));
-        json_object_object_add(a_obj_ret, "tx_create", l_jobj_tx_create);
-        json_object_object_add(a_obj_ret, "hash", l_jobj_hash);
-        json_object_object_add(a_obj_ret, "ledger_code", l_jobj_ledger_ret_code);
-        json_object_object_add(a_obj_ret, "total_items", l_jobj_total_items);
-        json_object_array_add(a_reply, a_obj_ret);
+        json_object_object_add(a_reply, "tx_create", l_jobj_tx_create);
+        json_object_object_add(a_reply, "hash", l_jobj_hash);
+        json_object_object_add(a_reply, "ledger_code", l_jobj_ledger_ret_code);
+        json_object_object_add(a_reply, "total_items", l_jobj_total_items);
         DAP_DEL_Z(l_datum_tx);
         return ;
     }
