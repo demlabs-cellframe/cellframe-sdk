@@ -1146,6 +1146,10 @@ static bool s_session_round_new(void *a_arg)
         long long l_round_start_ts = a_session->cur_round.round_start_ts;
         long long l_time_delta = last_block_ts - l_round_start_ts;
 
+        size_t l_list_length = dap_list_length(a_session->cur_round.all_validators);
+        log_it(L_MSG, "Participants for directive, all validators = %u, sunced validators = %u", 
+                                                l_list_length, a_session->cur_round.total_validators_synced);
+
         if (!l_round_already_started) {
             if (a_session->sync_failed) {
                 l_sync_send_delay = s_get_round_skip_timeout(a_session);
@@ -1161,7 +1165,7 @@ static bool s_session_round_new(void *a_arg)
                         l_time_delta, l_round_start_ts, dap_time_now());
 
                     if (l_time_delta < l_new_round_delay) {
-                        l_sync_send_delay = l_new_round_delay - abs(l_time_delta);
+                        l_sync_send_delay = l_new_round_delay - dap_abs(l_time_delta);
                     }
                 }
             }
@@ -1288,8 +1292,11 @@ static int s_signs_sort_callback(dap_list_t *a_sign1, dap_list_t *a_sign2)
 static bool s_session_directive_ready(dap_chain_esbocs_session_t *a_session)
 {
     size_t l_list_length = dap_list_length(a_session->cur_round.all_validators);
-    if (a_session->cur_round.total_validators_synced * 3 < l_list_length * 2)
+    if (a_session->cur_round.total_validators_synced * 3 < l_list_length * 2) {
+        log_it(L_MSG, "Not enough participants for directive, all validators = %u, sunced validators = %u", 
+                                                l_list_length, a_session->cur_round.total_validators_synced);
         return false; // Not a valid round, less than 2/3 participants
+    }
     bool l_kick = false;
     dap_chain_esbocs_penalty_item_t *l_item, *l_tmp;
     HASH_ITER(hh, a_session->penalty, l_item, l_tmp) {
