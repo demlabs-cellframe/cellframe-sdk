@@ -1141,36 +1141,29 @@ static bool s_session_round_new(void *a_arg)
 
     if (!a_session->cur_round.sync_sent) {
         uint16_t l_sync_send_delay = 0;
-        uint32_t l_new_round_delay = PVT(a_session->esbocs)->new_round_delay;
-        long long last_block_ts = a_session->esbocs->last_accepted_block_timestamp;
-        long long l_round_start_ts = a_session->cur_round.round_start_ts;
-        long long l_time_delta = last_block_ts - l_round_start_ts;
-
-        size_t l_list_length = dap_list_length(a_session->cur_round.all_validators);
-        log_it(L_MSG, "Participants for directive, all validators = %u, sunced validators = %u", 
-                                                l_list_length, a_session->cur_round.total_validators_synced);
 
         if (!l_round_already_started) {
             if (a_session->sync_failed) {
                 l_sync_send_delay = s_get_round_skip_timeout(a_session);
             } else {
-                log_it(L_DEBUG, "New round delay = %u", l_new_round_delay);
-                log_it(L_DEBUG, "Round continue from last accepted block delta = %lld, last_block = %lld, round_start = %lld",
-                    l_time_delta, last_block_ts, l_round_start_ts);
+                const uint32_t l_new_round_delay = PVT(a_session->esbocs)->new_round_delay;
+                const long long l_last_block_ts = a_session->esbocs->last_accepted_block_timestamp;
+                const long long l_start_candidate = a_session->esbocs->last_submitted_candidate_timestamp;
+                long long l_time_delta = l_last_block_ts - l_start_candidate;
                 if (l_time_delta >= 0 && l_time_delta < l_new_round_delay) {
+                    log_it(L_DEBUG, "Round continue from last accepted block delta = %lld, last_block = %lld, round_start = %lld",
+                        l_time_delta, l_last_block_ts, l_start_candidate);
                     l_sync_send_delay = l_new_round_delay - l_time_delta;
                 } else if (l_time_delta < 0 && l_time_delta > -l_new_round_delay) {
-                    l_time_delta = dap_time_now() - l_round_start_ts;
-                    log_it(L_DEBUG, "Round continue for %lld, round_start = %lld, time_now = %lld",
-                        l_time_delta, l_round_start_ts, dap_time_now());
-
+                    l_time_delta = dap_time_now() - l_start_candidate;
+                    log_it(L_DEBUG, "TIME round continue for %lld, round_start = %lld",
+                        l_time_delta, l_start_candidate);
                     if (l_time_delta < l_new_round_delay) {
                         l_sync_send_delay = l_new_round_delay - dap_abs(l_time_delta);
                     }
                 }
             }
         }
-        log_it(L_DEBUG, "l_sync_send_delay = %u", l_sync_send_delay);
         debug_if(PVT(a_session->esbocs)->debug, L_MSG,
                  "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" start. Syncing validators in %u seconds",
                     a_session->chain->net_name, a_session->chain->name,
