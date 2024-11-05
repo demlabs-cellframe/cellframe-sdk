@@ -4483,7 +4483,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
     if (a_params->ext.total_supply_change) {
         uint256_t l_total_supply = uint256_0;
         if (dap_strcmp(a_params->ext.total_supply_change, "INF")) {
-            uint256_t l_total_supply = dap_chain_balance_scan(a_params->ext.total_supply_change);
+            l_total_supply = dap_chain_balance_scan(a_params->ext.total_supply_change);
             if (IS_ZERO_256(l_total_supply)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Unable to convert value '%s' to uint256_t, use INF, number, or integer.0e+degree to represent infinity",
                                                   a_params->ext.total_supply_change);
@@ -5020,11 +5020,11 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
 
     // We skip datum creation opeartion, if count of signed certificates in s_sign_cert_in_cycle is 0.
     // Usually it happen, when certificate in token_decl or token_update command doesn't contain private data or broken
-    if (!l_datum_token || l_datum_token->signs_total == 0){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                          "Token declaration update failed. Successful count of certificate signing is 0");
-        return -9;
-    }
+//    if (!l_datum_token || l_datum_token->signs_total == 0){
+//        dap_cli_server_cmd_set_reply_text(a_str_reply,
+//                                          "Token declaration update failed. Successful count of certificate signing is 0");
+//        return -9;
+//    }
 
     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN,
                                                          l_datum_token,
