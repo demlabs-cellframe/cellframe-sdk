@@ -537,7 +537,6 @@ void s_token_dump_update_json(json_object  *a_obj_out, dap_chain_datum_token_t *
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE: {
             if (a_verbose) json_object_object_add(a_obj_out,"subtype", json_object_new_string("CF20"));
             json_object_object_add(a_obj_out,"total_sign",json_object_new_uint64(a_token->signs_total));
-            json_object_object_add(a_obj_out,"total_supply",json_object_new_string(dap_uint256_to_char(a_token->total_supply, NULL)));
 
             dap_datum_token_dump_tsd_to_json(a_obj_out, a_token, a_token_size, a_hash_out_type);
             size_t l_certs_field_size = a_token_size - sizeof(*a_token) - a_token->header_native_update.tsd_total_size;
