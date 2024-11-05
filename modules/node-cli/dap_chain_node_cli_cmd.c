@@ -5018,14 +5018,6 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
     l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
     l_datum_token->signs_total = l_sign_counter;
 
-    // We skip datum creation opeartion, if count of signed certificates in s_sign_cert_in_cycle is 0.
-    // Usually it happen, when certificate in token_decl or token_update command doesn't contain private data or broken
-//    if (!l_datum_token || l_datum_token->signs_total == 0){
-//        dap_cli_server_cmd_set_reply_text(a_str_reply,
-//                                          "Token declaration update failed. Successful count of certificate signing is 0");
-//        return -9;
-//    }
-
     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN,
                                                          l_datum_token,
                                                          sizeof(*l_datum_token) + l_datum_data_offset);
