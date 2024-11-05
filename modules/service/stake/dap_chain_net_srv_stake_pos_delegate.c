@@ -74,6 +74,17 @@ typedef enum s_cli_srv_stake_err{
     DAP_CHAIN_NODE_CLI_SRV_STAKE_PERCENT_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_UNRECOGNIZE_COM_ERR,
 
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_WALLET_ADDR_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ID_NET_ADDR_DIF_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ADDR_WALLET_DIF_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_WALLET_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_CHAIN_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_INVALID_PKEY_ERR,
+
     /* add custom codes here */
 
     //DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
@@ -88,6 +99,7 @@ static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_
 
 static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
 static void s_uncache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
+
 
 static bool s_debug_more = false;
 
