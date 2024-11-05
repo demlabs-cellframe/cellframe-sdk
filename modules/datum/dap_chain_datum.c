@@ -527,10 +527,7 @@ void s_token_dump_update_json(json_object  *a_obj_out, dap_chain_datum_token_t *
     switch (a_token->subtype) {
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE: {
             if (a_verbose) json_object_object_add(a_obj_out,"subtype",json_object_new_string("PRIVATE"));
-//            json_object_object_add(a_obj_out,"decimals",json_object_new_uint64(a_token->header_private_decl.decimals));
-            if (a_token->signs_valid) json_object_object_add(a_obj_out,"auth signs valid",json_object_new_uint64(a_token->signs_valid));
             json_object_object_add(a_obj_out,"total_sign",json_object_new_uint64(a_token->signs_total));
-            json_object_object_add(a_obj_out,"total_supply",json_object_new_string(dap_uint256_to_char(a_token->total_supply, NULL)));
 
             dap_datum_token_dump_tsd_to_json(a_obj_out, a_token, a_token_size, a_hash_out_type);
             size_t l_certs_field_size = a_token_size - sizeof(*a_token) - a_token->header_private_update.tsd_total_size;
@@ -539,10 +536,8 @@ void s_token_dump_update_json(json_object  *a_obj_out, dap_chain_datum_token_t *
         } break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE: {
             if (a_verbose) json_object_object_add(a_obj_out,"subtype", json_object_new_string("CF20"));
-//            json_object_object_add(a_obj_out,"decimals", json_object_new_uint64(a_token->header_native_update.decimals));
-            if (a_token->signs_valid)  json_object_object_add(a_obj_out,"auth signs valid",json_object_new_uint64(a_token->signs_valid));
             json_object_object_add(a_obj_out,"total_sign",json_object_new_uint64(a_token->signs_total));
-            if (!IS_ZERO_256(a_token->total_supply)) json_object_object_add(a_obj_out,"total_supply",json_object_new_string(dap_uint256_to_char(a_token->total_supply, NULL)));
+            json_object_object_add(a_obj_out,"total_supply",json_object_new_string(dap_uint256_to_char(a_token->total_supply, NULL)));
 
             dap_datum_token_dump_tsd_to_json(a_obj_out, a_token, a_token_size, a_hash_out_type);
             size_t l_certs_field_size = a_token_size - sizeof(*a_token) - a_token->header_native_update.tsd_total_size;
@@ -607,7 +602,6 @@ void dap_chain_datum_dump_json(json_object* a_json_arr_reply, json_object  *a_ob
                 json_object_object_add(json_obj_datum,"decimals", json_object_new_uint64(l_token->header_simple.decimals));
                 json_object_object_add(json_obj_datum,"sign_total", json_object_new_uint64(l_token->signs_total));
                 json_object_object_add(json_obj_datum,"sign_valid", json_object_new_uint64(l_token->signs_valid));
-                json_object_object_add(json_obj_datum,"total_supply",json_object_new_string(dap_uint256_to_char(l_token->total_supply, NULL)));
 
                 size_t l_certs_field_size = l_token_size - sizeof(*l_token);
                 dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_token->tsd_n_signs,
