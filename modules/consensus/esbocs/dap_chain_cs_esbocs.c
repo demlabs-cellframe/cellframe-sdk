@@ -1151,12 +1151,12 @@ static bool s_session_round_new(void *a_arg)
                 const long long l_start_candidate = a_session->esbocs->last_submitted_candidate_timestamp;
                 long long l_time_delta = l_last_block_ts - l_start_candidate;
                 if (l_time_delta >= 0 && l_time_delta < l_new_round_delay) {
-                    log_it(L_DEBUG, "Round continue from last accepted block delta = %lld, last_block = %lld, round_start = %lld",
+                    log_it(L_DEBUG, "Round continue from last accepted block delta = %lld, last_block = %lld, l_start_candidate = %lld",
                         l_time_delta, l_last_block_ts, l_start_candidate);
                     l_sync_send_delay = l_new_round_delay - l_time_delta;
                 } else if (l_time_delta < 0 && l_time_delta > -l_new_round_delay) {
                     l_time_delta = dap_time_now() - l_start_candidate;
-                    log_it(L_DEBUG, "TIME round continue for %lld, round_start = %lld",
+                    log_it(L_DEBUG, "TIME round continue for %lld, l_start_candidate = %lld",
                         l_time_delta, l_start_candidate);
                     if (l_time_delta < l_new_round_delay) {
                         l_sync_send_delay = l_new_round_delay - dap_abs(l_time_delta);
