@@ -1151,13 +1151,13 @@ static bool s_session_round_new(void *a_arg)
                 const long long l_start_candidate = a_session->esbocs->last_submitted_candidate_timestamp;
                 long long l_time_delta = l_last_block_ts - l_start_candidate;
                 if (l_time_delta >= 0 && l_time_delta < l_new_round_delay) {
-                    log_it(L_DEBUG, "Round continue from last accepted block delta = %lld, last_block = %lld, l_start_candidate = %lld",
-                        l_time_delta, l_last_block_ts, l_start_candidate);
+                    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Round continue from last accepted block, delta = %lld, last_block = %lld, last_candidate = %lld",
+                                                                                                                    l_time_delta, l_last_block_ts, l_start_candidate);
                     l_sync_send_delay = l_new_round_delay - l_time_delta;
                 } else if (l_time_delta < 0 && l_time_delta > -l_new_round_delay) {
                     l_time_delta = dap_time_now() - l_start_candidate;
-                    log_it(L_DEBUG, "TIME round continue for %lld, l_start_candidate = %lld",
-                        l_time_delta, l_start_candidate);
+                    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Round continue without block, delta  %lld, last_candidate = %lld",
+                                                                                                    l_time_delta, l_start_candidate);
                     if (l_time_delta < l_new_round_delay) {
                         l_sync_send_delay = l_new_round_delay - dap_abs(l_time_delta);
                     }
@@ -1894,16 +1894,12 @@ void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_e
 
 void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_chain_addr_t *a_signing_addr)
 {
-    log_it(L_MSG, "MARK ONLINE");
     dap_list_t *l_list = s_validator_check(a_signing_addr, a_session->cur_round.all_validators);
     if (l_list) {
         bool l_was_synced = ((dap_chain_esbocs_validator_t *)l_list->data)->is_synced;
         ((dap_chain_esbocs_validator_t *)l_list->data)->is_synced = true;
-        log_it(L_MSG, "New synced validator N %u", a_session->cur_round.total_validators_synced);
-        if (!l_was_synced) {
-            log_it(L_MSG, "Adding synced validator N %u", a_session->cur_round.total_validators_synced);
+        if (!l_was_synced) 
             a_session->cur_round.total_validators_synced++;
-        }
         if (PVT(a_session->esbocs)->debug) {
             const char *l_addr_str = dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast);
             log_it(L_DEBUG, "Mark validator %s as online", l_addr_str);
