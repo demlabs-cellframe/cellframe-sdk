@@ -3395,7 +3395,6 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             dap_time_t l_from_time = 0, l_to_time = 0;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_base58);
-            log_it(L_WARNING, "addr -  %s",l_addr_base58);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-pkey", &l_pkey_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_wallet_name);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
