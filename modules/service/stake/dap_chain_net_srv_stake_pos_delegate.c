@@ -3593,7 +3593,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 continue;
         if (a_time_to && l_datum->header.ts_create >= a_time_to)
                 break;
-
+        
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
         dap_list_t *l_list_in_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_REWARD, NULL);
         if (!l_list_in_items) // a bad tx
@@ -3603,18 +3603,17 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
         dap_hash_fast(l_datum, dap_chain_datum_size(l_datum), &l_datum_hash);
         const char * l_tx_token_ticker = l_datum_iter ? l_datum_iter->token_ticker
                                      : dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_datum_hash);
-        
         for(dap_list_t *it = l_list_in_items; it; it = it->next)
         {
             dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t *) it->data;            
             dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(a_chain), &l_in_reward->block_hash);
 
             json_object* json_arr_sign_out = json_object_new_array();
-            json_object* json_block_hash = json_object_new_object();
+            
             char *l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
+            json_object* json_block_hash = json_object_new_object();
             json_object_object_add(json_block_hash, "block hash", json_object_new_string(l_block_hash));
             
-            DAP_DELETE(l_block_hash);
             for (uint32_t i=0; i < l_block_cache->sign_count ; i++) {
                 
                 dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
@@ -3627,16 +3626,13 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 HASH_FIND(hh, l_srv_stake->itemlist, &l_pkey_hash, sizeof(dap_hash_fast_t), l_stake);
                 if (a_addr) {
                     if (!dap_chain_addr_compare(a_addr, &l_stake->signing_addr)) {
-                        json_object_put(json_block_hash);
                         continue;                    
                     }
                 } else if (!a_all && a_pkey){
                     if (!dap_hash_fast_compare(a_pkey, &l_pkey_hash)) {
-                        json_object_put(json_block_hash);
                         continue;
                     }
-                }
-                json_object_array_add(json_obj_reward, json_block_hash);                
+                }               
 
                 json_object* json_obj_sign = json_object_new_object();
                 if (l_stake) {
@@ -3657,9 +3653,16 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 json_object_array_add(json_arr_sign_out, json_obj_sign);
                 ++i_tmp;
             }
-            json_object* json_block_sign = json_object_new_object();
-            json_object_object_add(json_block_sign, "REWARDS", json_arr_sign_out);
-            json_object_array_add(json_obj_reward, json_block_sign);
+            DAP_DELETE(l_block_hash);
+            if (json_object_array_length(json_arr_sign_out) > 0) {
+                json_object_array_add(json_obj_reward, json_block_hash);
+                json_object* json_block_sign = json_object_new_object();
+                json_object_object_add(json_block_sign, "REWARDS", json_arr_sign_out);
+                json_object_array_add(json_obj_reward, json_block_sign);
+            } else {
+                json_object_put(json_arr_sign_out);
+                json_object_put(json_block_hash);
+            }
         }
         if (!a_brief)
         { 
