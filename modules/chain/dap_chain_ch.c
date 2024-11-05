@@ -573,7 +573,6 @@ context_delete:
 
 
 struct atom_processing_args {
-    dap_chain_ch_t *channel;
     dap_stream_node_addr_t addr;
     bool ack_req;
     byte_t data[];
@@ -754,7 +753,6 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             break;
         }
-        l_args->channel = a_ch->internal;
         l_args->addr = a_ch->stream->node;
         l_args->ack_req = true;
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
