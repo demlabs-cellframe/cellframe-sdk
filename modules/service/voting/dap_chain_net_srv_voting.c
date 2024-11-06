@@ -71,6 +71,13 @@ struct voting {
     UT_hash_handle hh;
 };
 
+struct srv_voting {
+    struct voting *ht;
+};
+
+static void *s_callback_start(dap_chain_net_id_t UNUSED_ARG a_net_id, dap_config_t UNUSED_ARG *a_config);
+static void s_callback_delete(void *a_service_internal);
+
 static int s_cond_out_check_colored(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_tx_cond_hash, int a_cond_out_idx);
 /// -1 error, 0 - unspent, 1 - spent
 static int s_coin_check_colored(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_tx_prev_hash, int a_out_idx, dap_hash_fast_t *a_pkey_hash);
@@ -109,7 +116,7 @@ int dap_chain_net_srv_voting_init()
 
     
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
-    dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start, .decree = s_callback_decree, .get_fee_descr = s_print_fee_json };
+    dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start, .delete = s_callback_delete };
     int ret = dap_chain_srv_add(l_uid, "voting", &l_srv_callbacks);
     if (ret) {
         log_it(L_ERROR, "Can't register voting service");
@@ -125,9 +132,44 @@ void dap_chain_net_srv_voting_deinit()
 
 }
 
+static void s_voting_clear(struct voting *a_voting)
+{
+    if (a_voting->params.options)
+        dap_list_free_full(a_voting->params.options, NULL);
+
+    if (a_voting->votes)
+        dap_list_free_full(a_voting->votes, NULL);
+
+    struct voting_cond_outs *l_el = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, a_voting->spent_cond_outs, l_el, l_tmp) {
+        HASH_DEL(a_voting->spent_cond_outs, l_el);
+        DAP_DELETE(l_el);
+
+    }
+}
+
+static void *s_callback_start(dap_chain_net_id_t UNUSED_ARG a_net_id, dap_config_t UNUSED_ARG *a_config)
+{
+    struct srv_voting *l_service_internal = DAP_NEW_Z(struct srv_voting);
+    return l_service_internal;
+}
+
+static void s_callback_delete(void *a_service_internal)
+{
+    struct srv_voting *l_service_internal = a_service_internal;
+    struct voting *it = NULL, *tmp;
+    HASH_ITER(hh, l_service_internal->ht, it, tmp) {
+        HASH_DEL(l_service_internal->ht, it);
+        s_voting_clear(it);
+        DAP_DELETE(it);
+    }
+    DAP_DELETE(l_service_internal);
+}
+
 static inline struct voting *s_votings_ht_get(dap_chain_net_id_t a_net_id)
 {
-    return dap_chain_srv_get_internal(a_net_id, (dap_chain_srv_uid_t) { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID });
+    struct srv_voting *l_service_internal = dap_chain_srv_get_internal(a_net_id, (dap_chain_srv_uid_t) { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID });
+    return l_service_internal ? l_service_internal->ht : NULL;
 }
 
 static inline struct voting *s_voting_find(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_voting_hash)
@@ -141,41 +183,30 @@ static inline struct voting *s_voting_find(dap_chain_net_id_t a_net_id, dap_hash
 
 static inline int s_voting_add(dap_chain_net_id_t a_net_id, struct voting *a_voting)
 {
-    struct voting *votings_ht = s_votings_ht_get(a_net_id);
-    if (!votings_ht)
+    struct srv_voting *l_service_internal = dap_chain_srv_get_internal(a_net_id, (dap_chain_srv_uid_t) { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID });
+    if (!l_service_internal)
         return -1;
     // Assert a tx_hash is unique guaranteed by ledger
-    HASH_ADD(hh, votings_ht, hash, sizeof(dap_hash_fast_t), a_voting);
+    HASH_ADD(hh, l_service_internal->ht, hash, sizeof(dap_hash_fast_t), a_voting);
+
     return 0;
 }
 
 static inline bool s_voting_delete(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_voting_hash)
 {
-    struct voting *l_voting = NULL, *votings_ht = s_votings_ht_get(a_net_id);
-    if (!votings_ht) {
+    struct srv_voting *l_service_internal = dap_chain_srv_get_internal(a_net_id, (dap_chain_srv_uid_t) { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID });
+    if (!l_service_internal) {
         log_it(L_ERROR, "Can't find voting service for net id 0x%016" DAP_UINT64_FORMAT_x, a_net_id.uint64);
         return false;
     }
-    HASH_FIND(hh, votings_ht, a_voting_hash, sizeof(dap_hash_fast_t), l_voting);
+    struct voting *l_voting = NULL;
+    HASH_FIND(hh, l_service_internal->ht, a_voting_hash, sizeof(dap_hash_fast_t), l_voting);
     if (!l_voting) {
         log_it(L_ERROR, "Can't find voting %s", dap_hash_fast_to_str_static(a_voting_hash));
         return false;
     }
-    HASH_DEL(votings_ht, l_voting);
-
-    if (l_voting->params.options)
-        dap_list_free_full(l_voting->params.options, NULL);
-
-    if (l_voting->votes)
-        dap_list_free_full(l_voting->votes, NULL);
-
-    struct voting_cond_outs *l_el = NULL, *l_tmp = NULL;
-    HASH_ITER(hh, l_voting->spent_cond_outs, l_el, l_tmp) {
-        HASH_DEL(l_voting->spent_cond_outs, l_el);
-        DAP_DELETE(l_el);
-
-    }
-
+    HASH_DEL(l_service_internal->ht, l_voting);
+    s_voting_clear(l_voting);
     DAP_DELETE(l_voting);
 
     return true;
@@ -500,9 +531,10 @@ static inline bool s_vote_delete(dap_chain_net_id_t a_net_id, dap_chain_datum_tx
             // Delete vote
             DAP_DELETE(l_vote->data);
             l_voting->votes = dap_list_remove(l_voting->votes, l_vote->data);
-            break;
+            return true;
         }
     }
+    return false;
 }
 
 static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash)
@@ -1130,7 +1162,7 @@ static int s_cond_out_check_colored(dap_chain_net_t *a_net, dap_hash_fast_t *a_v
         return -1;
     }
     struct voting_cond_outs *l_tx_outs = NULL;
-    HASH_FIND(hh, l_voting->spent_cond_outs, &a_tx_cond_hash, sizeof(dap_hash_fast_t), l_tx_outs);
+    HASH_FIND(hh, l_voting->spent_cond_outs, a_tx_cond_hash, sizeof(dap_hash_fast_t), l_tx_outs);
 
     if (!l_tx_outs || l_tx_outs->out_idx != a_cond_out_idx)
         return 0;
