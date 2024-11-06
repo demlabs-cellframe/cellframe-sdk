@@ -241,7 +241,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add ("token_emit", com_token_emit, "Token emission",
                             "token_emit { sign -emission <hash> | -token <mempool_token_ticker> -emission_value <value> -addr <addr> } "
                             "[-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n"
-                            "Hint:\n"
+                            "Available hint:\n"
                             "\texample coins amount syntax (only natural) 1.0 123.4567\n"
                             "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
 
