@@ -8792,13 +8792,13 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-addr", &l_addr_str);
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &l_net_str);
     if (!l_cmd_arg_str || ! l_addr_str || !l_net_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, -1, "Command exec_cmd require args -cmd, -addr, -net");
+        dap_json_rpc_error_add(*a_json_arr_reply, -2, "Command exec_cmd require args -cmd, -addr, -net");
         return -2;
     }
     dap_chain_net_t* l_net = NULL;
     l_net = dap_chain_net_by_name(l_net_str);
     if (!l_net)     [
-        dap_json_rpc_error_add(*a_json_arr_reply, -1, "Can't find net %s", l_net_str);
+        dap_json_rpc_error_add(*a_json_arr_reply, -3, "Can't find net %s", l_net_str);
         return -3;
     ]
 
@@ -8841,7 +8841,7 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
         return -8;
     }
 
-    //send response
+    //send request
     json_object * l_response = NULL;
     dap_json_rpc_request_send(l_client_internal, l_request, &l_response);
 
