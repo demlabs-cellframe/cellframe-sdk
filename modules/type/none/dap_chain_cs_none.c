@@ -450,7 +450,7 @@ static json_object *s_nonconsensus_callback_atom_to_json(json_object **a_arr_out
 {
     json_object *obj_ret = json_object_new_object();
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*)a_atom;
-    dap_chain_datum_dump_json(*a_arr_out, obj_ret, l_datum, a_hash_out_type, a_chain->net_id);
+    dap_chain_datum_dump_json(*a_arr_out, obj_ret, l_datum, a_hash_out_type, a_chain->net_id, true);
     return obj_ret;
 }
 

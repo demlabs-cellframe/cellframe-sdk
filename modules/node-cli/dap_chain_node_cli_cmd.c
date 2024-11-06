@@ -3116,11 +3116,11 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                         if (l_wallet_addr && l_emi && dap_chain_addr_compare(l_wallet_addr, &l_emi->hdr.address))
                             datum_is_accepted_addr = true;
                         DAP_DELETE(l_emi);
-                        dap_chain_datum_dump_json(a_json_arr_reply, l_jobj_datum,l_datum,a_hash_out_type,a_net->pub.id);
+                        dap_chain_datum_dump_json(a_json_arr_reply, l_jobj_datum,l_datum,a_hash_out_type,a_net->pub.id, true);
                     }
                         break;
                     default:
-                        dap_chain_datum_dump_json(a_json_arr_reply, l_jobj_datum,l_datum,a_hash_out_type,a_net->pub.id);
+                        dap_chain_datum_dump_json(a_json_arr_reply, l_jobj_datum,l_datum,a_hash_out_type,a_net->pub.id, true);
                 }
             }
             if (l_wallet_addr) {
@@ -3375,7 +3375,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         }        
 
         json_object *l_datum_obj_inf = json_object_new_object();
-        dap_chain_datum_dump_json(*a_json_arr_reply, l_datum_obj_inf, l_datum, a_hash_out_type, a_net->pub.id);
+        dap_chain_datum_dump_json(*a_json_arr_reply, l_datum_obj_inf, l_datum, a_hash_out_type, a_net->pub.id, true);
         if (!l_datum_obj_inf) {
             if (!l_found_in_chains)
                 DAP_DELETE(l_datum);
@@ -3676,7 +3676,7 @@ int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_grou
     }
 
     json_object *l_jobj_datum = json_object_new_object();
-    dap_chain_datum_dump_json(*a_json_arr_reply, l_jobj_datum, l_datum, a_hash_out_type, a_net_id);
+    dap_chain_datum_dump_json(*a_json_arr_reply, l_jobj_datum, l_datum, a_hash_out_type, a_net_id, true);
     json_object_array_add(*a_json_arr_reply, l_jobj_datum);
     return 0;
 }
@@ -4483,7 +4483,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **
     if (a_params->ext.total_supply_change) {
         uint256_t l_total_supply = uint256_0;
         if (dap_strcmp(a_params->ext.total_supply_change, "INF")) {
-            uint256_t l_total_supply = dap_chain_balance_scan(a_params->ext.total_supply_change);
+            l_total_supply = dap_chain_balance_scan(a_params->ext.total_supply_change);
             if (IS_ZERO_256(l_total_supply)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Unable to convert value '%s' to uint256_t, use INF, number, or integer.0e+degree to represent infinity",
                                                   a_params->ext.total_supply_change);
@@ -5017,14 +5017,6 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
     uint16_t l_sign_counter = 0;
     l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
     l_datum_token->signs_total = l_sign_counter;
-
-    // We skip datum creation opeartion, if count of signed certificates in s_sign_cert_in_cycle is 0.
-    // Usually it happen, when certificate in token_decl or token_update command doesn't contain private data or broken
-    if (!l_datum_token || l_datum_token->signs_total == 0){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                          "Token declaration update failed. Successful count of certificate signing is 0");
-        return -9;
-    }
 
     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN,
                                                          l_datum_token,
@@ -6888,13 +6880,33 @@ void json_rpc_tx_create(json_object *a_param, json_object *a_reply){
     }
 
     // Pack transaction into the datum
-    dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
     size_t l_datum_tx_size = dap_chain_datum_size(l_datum_tx);
     DAP_DELETE(l_tx);
 
     // Add transaction to mempool
-    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
     char *l_tx_hash_str = dap_get_data_hash_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
+    dap_chain_hash_fast_t l_hf_tx = {0};
+    dap_chain_hash_fast_from_str(l_tx_hash_str, &l_hf_tx);
+    int rc = -1;
+    if ((rc = dap_ledger_tx_add_check(l_net->pub.ledger, (dap_chain_datum_tx_t*)l_datum_tx->data, l_tx_size, &l_hf_tx))) {
+        json_object *l_jobj_tx_create = json_object_new_boolean(false);
+        json_object *l_jobj_hash = json_object_new_string(l_tx_hash_str);
+        json_object *l_jobj_total_items = json_object_new_uint64(json_object_array_length(l_jobj_items));
+        json_object *l_jobj_ledger_ret_code = json_object_new_object();
+        json_object_object_add(l_jobj_ledger_ret_code, "code", json_object_new_int(rc));
+        json_object_object_add(l_jobj_ledger_ret_code, "message",
+                               json_object_new_string(dap_chain_net_verify_datum_err_code_to_str(l_datum_tx, rc)));
+        json_object_object_add(a_reply, "tx_create", l_jobj_tx_create);
+        json_object_object_add(a_reply, "hash", l_jobj_hash);
+        json_object_object_add(a_reply, "ledger_code", l_jobj_ledger_ret_code);
+        json_object_object_add(a_reply, "total_items", l_jobj_total_items);
+        DAP_DEL_Z(l_datum_tx);
+        return ;
+    }
+
+    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
     bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx, l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
 
     DAP_DEL_Z(l_datum_tx);
@@ -7021,13 +7033,34 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply)
 
 
     // Pack transaction into the datum
-    dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
     size_t l_datum_tx_size = dap_chain_datum_size(l_datum_tx);
     DAP_DELETE(l_tx);
 
     // Add transaction to mempool
-    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
     char *l_tx_hash_str = dap_get_data_hash_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
+    dap_chain_hash_fast_t l_hf_tx = {0};
+    dap_chain_hash_fast_from_str(l_tx_hash_str, &l_hf_tx);
+    int rc = -1;
+    if ((rc = dap_ledger_tx_add_check(l_net->pub.ledger, (dap_chain_datum_tx_t*)l_datum_tx->data, l_tx_size, &l_hf_tx))) {
+        json_object *l_jobj_tx_create = json_object_new_boolean(false);
+        json_object *l_jobj_hash = json_object_new_string(l_tx_hash_str);
+        json_object *l_jobj_total_items = json_object_new_uint64(json_object_array_length(l_json_items));
+        json_object *l_jobj_ledger_ret_code = json_object_new_object();
+        json_object_object_add(l_jobj_ledger_ret_code, "code", json_object_new_int(rc));
+        json_object_object_add(l_jobj_ledger_ret_code, "message",
+                               json_object_new_string(dap_chain_net_verify_datum_err_code_to_str(l_datum_tx, rc)));
+        json_object_object_add(l_jobj_ret, "tx_create", l_jobj_tx_create);
+        json_object_object_add(l_jobj_ret, "hash", l_jobj_hash);
+        json_object_object_add(l_jobj_ret, "ledger_code", l_jobj_ledger_ret_code);
+        json_object_object_add(l_jobj_ret, "total_items", l_jobj_total_items);
+        json_object_array_add(*a_json_arr_reply, l_jobj_ret);
+        DAP_DEL_Z(l_datum_tx);
+        return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_CHECK_TX_ADD_LEDGER;
+    }
+
+    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
     bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx, l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
 
     DAP_DEL_Z(l_datum_tx);
