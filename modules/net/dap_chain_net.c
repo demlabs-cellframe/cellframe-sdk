@@ -156,7 +156,7 @@ typedef struct dap_chain_net_pvt {
 
     uint16_t permanent_links_hosts_count;
     struct request_link_info **permanent_links_hosts;
-    
+
     uint16_t authorized_nodes_count;
     dap_stream_node_addr_t *authorized_nodes_addrs;
 
@@ -285,7 +285,7 @@ int dap_chain_net_init()
             // search only ".cfg" files
             if ( (int)(l_end - l_path) + l_pos > 4 && strncmp(l_end - 4, ".cfg", 4) )
                 continue;
-            
+
             log_it(L_DEBUG, "Loading net config \"%s\"", l_dir_entry->d_name);
             *(l_end - 4) = '\0';
             if ( !dap_dir_test(l_path) ) {
@@ -518,7 +518,7 @@ struct request_link_info *s_get_permanent_link_info(dap_chain_net_t *a_net, dap_
     for (uint16_t i = 0; i < l_net_pvt->permanent_links_addrs_count; ++i) {
         if (l_net_pvt->permanent_links_addrs[i].uint64 == a_address->uint64 &&
             i < l_net_pvt->permanent_links_hosts_count &&
-            i < l_net_pvt->permanent_links_hosts[i]->addr[0] && 
+            i < l_net_pvt->permanent_links_hosts[i]->addr[0] &&
             i < l_net_pvt->permanent_links_hosts[i]->port)
             return l_net_pvt->permanent_links_hosts[i];
     }
@@ -943,6 +943,28 @@ static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
     }
 }
 
+void _s_print_chains(json_object *a_obj_chain, dap_chain_t *a_chain) {
+    if (!a_obj_chain || !a_chain)
+        return;
+    json_object_object_add(a_obj_chain, "name", json_object_new_string(a_chain->name));
+    json_object_object_add(a_obj_chain, "consensus", json_object_new_string(DAP_CHAIN_PVT(a_chain)->cs_name));
+
+    if (a_chain->default_datum_types_count) {
+        json_object *l_jobj_default_types = json_object_new_array();
+        if (!l_jobj_default_types) return;
+        for (uint16_t i = 0; i < a_chain->default_datum_types_count; i++) {
+            json_object *l_jobj_type_str = json_object_new_string(s_chain_type_convert_to_string(
+                    a_chain->default_datum_types[i]));
+            if (!l_jobj_type_str) {
+                json_object_put(l_jobj_default_types);
+                return;
+            }
+            json_object_array_add(l_jobj_default_types, l_jobj_type_str);
+        }
+        json_object_object_add(a_obj_chain, "default_types", l_jobj_default_types);
+    }
+}
+
 /**
  * @brief
  * register net* command in cellframe-node-cli interface
@@ -1007,16 +1029,17 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 }
                 dap_chain_t * l_chain = l_net->pub.chains;
                 while (l_chain) {
-                    json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
-                    if (!l_jobj_chain_name) {
+                    json_object *l_obj_chain = json_object_new_object();
+                    if (!l_obj_chain) {
                         json_object_put(l_jobj_return);
                         json_object_put(l_jobj_net_name);
                         json_object_put(l_jobj_chains);
-                        json_object_put(l_jobj_chain_name);
+                        json_object_put(l_obj_chain);
                         dap_json_rpc_allocation_error(*a_json_arr_reply);
                         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                     }
-                    json_object_array_add(l_jobj_chains, l_jobj_chain_name);
+                    _s_print_chains(l_obj_chain, l_chain);
+                    json_object_array_add(l_jobj_chains, l_obj_chain);
                     l_chain = l_chain->next;
                 }
                 json_object_object_add(l_jobj_return, "net", l_jobj_net_name);
@@ -1040,45 +1063,14 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     dap_chain_t * l_chain = l_net->pub.chains;
                     while (l_chain) {
                         json_object *l_jobj_chain = json_object_new_object();
-                        json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
-                        if (!l_jobj_chain || !l_jobj_chain_name) {
+                        if (!l_jobj_chain) {
                             json_object_put(l_jobj_return);
                             json_object_put(l_jobj_network);
                             json_object_put(l_jobj_chains);
-                            json_object_put(l_jobj_chain);
-                            json_object_put(l_jobj_chain_name);
                             dap_json_rpc_allocation_error(*a_json_arr_reply);
                             return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                         }
-                        json_object_object_add(l_jobj_chain, "name", l_jobj_chain_name);
-                        if (l_chain->default_datum_types_count) {
-                            json_object *l_jobj_default_types = json_object_new_array();
-                            if (!l_jobj_default_types) {
-                                json_object_put(l_jobj_return);
-                                json_object_put(l_jobj_chain);
-                                json_object_put(l_jobj_chains);
-                                json_object_put(l_jobj_network);
-                                json_object_put(l_jobj_networks);
-                                dap_json_rpc_allocation_error(*a_json_arr_reply);
-                                return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                            }
-                            for (uint16_t i = 0; i < l_chain->default_datum_types_count; i++) {
-                                json_object *l_jobj_type_str = json_object_new_string(s_chain_type_convert_to_string(
-                                        l_chain->default_datum_types[i]));
-                                if (!l_jobj_type_str) {
-                                    json_object_put(l_jobj_return);
-                                    json_object_put(l_jobj_default_types);
-                                    json_object_put(l_jobj_chain);
-                                    json_object_put(l_jobj_chains);
-                                    json_object_put(l_jobj_network);
-                                    json_object_put(l_jobj_networks);
-                                    dap_json_rpc_allocation_error(*a_json_arr_reply);
-                                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                                }
-                                json_object_array_add(l_jobj_default_types, l_jobj_type_str);
-                            }
-                            json_object_object_add(l_jobj_chain, "default_types", l_jobj_default_types);
-                        }
+                        _s_print_chains(l_jobj_chain, l_chain);
                         json_object_array_add(l_jobj_chains, l_jobj_chain);
                         l_chain = l_chain->next;
                     }
@@ -1845,7 +1837,7 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
         s_nodes_addrs_init(l_cfg, "permanent_nodes_addrs", &l_net_pvt->permanent_links_addrs, &l_net_pvt->permanent_links_addrs_count) ||
         s_nodes_addrs_init(l_cfg, "authorized_nodes_addrs", &l_net_pvt->authorized_nodes_addrs, &l_net_pvt->authorized_nodes_count) ||
         s_nodes_hosts_init(l_net, l_cfg, "permanent_nodes_hosts", &l_net_pvt->permanent_links_hosts, &l_net_pvt->permanent_links_hosts_count) ||
-        s_nodes_hosts_init(l_net, l_cfg, "seed_nodes_hosts", &l_net_pvt->seed_nodes_hosts, &l_net_pvt->seed_nodes_count) || 
+        s_nodes_hosts_init(l_net, l_cfg, "seed_nodes_hosts", &l_net_pvt->seed_nodes_hosts, &l_net_pvt->seed_nodes_count) ||
         (!l_net_pvt->seed_nodes_count && s_nodes_hosts_init(l_net, l_cfg, "bootstrap_hosts", &l_net_pvt->seed_nodes_hosts, &l_net_pvt->seed_nodes_count) )
     ) {
         dap_chain_net_delete(l_net);
@@ -2092,8 +2084,8 @@ static void *s_net_load(void *a_arg)
         // Personal chain mempool cluster for each chain
         l_gdb_groups_mask = dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix, l_chain->name);
         dap_global_db_cluster_t *l_cluster = dap_global_db_cluster_add(
-                                                dap_global_db_instance_get_default(), l_net->pub.name, 
-                                                dap_guuid_compose(l_net->pub.id.uint64, 0), l_gdb_groups_mask, 
+                                                dap_global_db_instance_get_default(), l_net->pub.name,
+                                                dap_guuid_compose(l_net->pub.id.uint64, 0), l_gdb_groups_mask,
                                                 dap_config_get_item_int32_default(l_net->pub.config, "global_db", "mempool_ttl", DAP_CHAIN_NET_MEMPOOL_TTL),
                                                 true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_TYPE_EMBEDDED);
         if (!l_cluster) {
@@ -2879,7 +2871,7 @@ void dap_chain_net_announce_addr(dap_chain_net_t *a_net)
                l_net_pvt->node_info->ext_host,
                l_net_pvt->node_info->ext_port, a_net->pub.name);
         dap_chain_net_node_list_request(a_net, l_net_pvt->node_info->ext_port, true, 'a');
-        
+
     }
 }
 
@@ -3040,7 +3032,7 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
 
 static void s_ch_out_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const void *a_data, size_t a_data_size, void *a_arg)
 {
-    
+
     dap_chain_net_t *l_net = a_arg;
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     if (!l_net_pvt->sync_context.cur_chain)
@@ -3286,7 +3278,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         uint16_t l_permalink_hosts_count = 0;
         dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
         for (uint16_t i = 0; i < PVT(a_net)->permanent_links_addrs_count; ++i) {
-            if (dap_chain_net_link_add(a_net, PVT(a_net)->permanent_links_addrs + i, 
+            if (dap_chain_net_link_add(a_net, PVT(a_net)->permanent_links_addrs + i,
                 i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->addr : NULL,
                 i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->port : 0)
              ) {
