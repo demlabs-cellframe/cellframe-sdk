@@ -8797,6 +8797,10 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     }
     dap_chain_net_t* l_net = NULL;
     l_net = dap_chain_net_by_name(l_net_str);
+    if (!l_net)     [
+        dap_json_rpc_error_add(*a_json_arr_reply, -1, "Can't find net %s", l_net_str);
+        return -3;
+    ]
 
     dap_json_rpc_params_t * params = dap_json_rpc_params_create();
     char *l_cmd_str = dap_strdup(l_cmd_arg_str);
