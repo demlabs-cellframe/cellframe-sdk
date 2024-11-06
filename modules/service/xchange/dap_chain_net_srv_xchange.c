@@ -2216,7 +2216,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 else if ( dap_strcmp (l_status_str, "all") == 0 )
                     l_opt_status = TX_STATUS_ALL;
                 else  {
-                    
+
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized '-status %s'", l_status_str);
                     return -3;
                 }
