@@ -173,17 +173,8 @@ void dap_chain_delete(dap_chain_t * a_chain)
     }
     pthread_rwlock_unlock(&s_chain_items_rwlock);
     dap_list_free_full(a_chain->atom_notifiers, NULL);
-    DAP_DEL_Z(a_chain->name);
-    DAP_DEL_Z(a_chain->net_name);
-    if (DAP_CHAIN_PVT(a_chain)){
-        DAP_DEL_Z(DAP_CHAIN_PVT(a_chain)->file_storage_dir);
-        DAP_DELETE(DAP_CHAIN_PVT(a_chain));
-    }
-    DAP_DELETE(a_chain->datum_types);
-    DAP_DELETE(a_chain->autoproc_datum_types);
-    dap_chain_cs_class_delete(a_chain);
-    DAP_DEL_Z(a_chain->_inheritor);
     dap_config_close(a_chain->config);
+    dap_chain_cs_class_delete(a_chain);
     if (DAP_CHAIN_PVT(a_chain)) {
         DAP_DEL_MULTY(DAP_CHAIN_PVT(a_chain)->file_storage_dir, DAP_CHAIN_PVT(a_chain));
     }
