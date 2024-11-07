@@ -68,7 +68,7 @@ typedef struct dap_chain_cs_blocks_pvt {
 
     // All the blocks are here
     dap_chain_block_cache_t *blocks;
-     _Atomic uint64_t blocks_count;
+    _Atomic uint64_t blocks_count;
 
     // Brnches and forks
     size_t forked_br_cnt;
@@ -90,6 +90,11 @@ typedef struct dap_chain_cs_blocks_pvt {
     // Number of blocks for one block confirmation
     uint64_t block_confirm_cnt;
 } dap_chain_cs_blocks_pvt_t;
+
+typedef struct dap_chain_block_branches_switched_notificator{
+    dap_chain_cs_blocks_callback_branches_switched_t callback;
+    void *arg;
+} dap_chain_block_branches_switched_notificator_t;
 
 #define PVT(a) ((dap_chain_cs_blocks_pvt_t *)(a)->_pvt )
 
@@ -172,6 +177,7 @@ static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_c
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
 
+static dap_list_t *s_switched_new_longest_branch = NULL;
 
 /**
  * @brief dap_chain_cs_blocks_init
@@ -377,6 +383,25 @@ dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_
     HASH_FIND(hh, PVT(a_blocks)->blocks,a_block_hash, sizeof (*a_block_hash), l_ret );
     pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
     return l_ret;
+}
+
+int dap_chain_block_add_fork_notificator(dap_chain_cs_blocks_callback_branches_switched_t a_callback, void *a_arg)
+{
+    if (!a_callback)
+        return -100;
+
+    dap_chain_block_branches_switched_notificator_t *l_notificator = DAP_NEW_Z(dap_chain_block_branches_switched_notificator_t);
+    if (!l_notificator) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return -1;
+    }
+
+    l_notificator->arg = a_arg;
+    l_notificator->callback = a_callback;
+
+    s_switched_new_longest_branch = dap_list_append(s_switched_new_longest_branch, l_notificator);
+
+    return 0;
 }
 
 static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_chain, uint256_t a_value, dap_cert_t *a_cert)
@@ -1675,6 +1700,11 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
             s_add_atom_datums(l_blocks, l_curr_atom);
             dap_chain_atom_notify(a_cell, &l_curr_atom->block_hash, (byte_t*)l_curr_atom->block, l_curr_atom->block_size);
             HASH_DEL(new_main_branch, l_item);
+        }
+        // Notify about branch switching
+        for (dap_list_t *l_temp = s_switched_new_longest_branch; l_temp; l_temp = l_temp->next){
+            dap_chain_block_branches_switched_notificator_t *l_notificator = (dap_chain_block_branches_switched_notificator_t*)l_temp->data;
+            l_notificator->callback(l_new_forked_branch, l_notificator->arg);
         }
         // Next we save pointer to new forked branch (former main branch) instead of it
         l_longest_branch_cache_ptr->forked_branch_atoms = l_new_forked_branch;
