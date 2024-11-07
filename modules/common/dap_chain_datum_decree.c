@@ -152,7 +152,6 @@ int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, cons
 void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type)
 {
     char *l_type_str = "";
-    char l_tmp_buff[70]={0};
     switch(a_decree->header.type)
     {
         case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:
@@ -262,8 +261,9 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
                 break;
             }
             dap_chain_node_addr_t *l_node_addr = _dap_tsd_get_object(l_tsd, dap_chain_node_addr_t);
-            sprintf(l_tmp_buff, NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(l_node_addr));
-            json_object_object_add(a_json_out, "Node addr", json_object_new_string(l_tmp_buff));
+            char l_buf[24];
+            snprintf(l_buf, sizeof(l_buf), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(l_node_addr));
+            json_object_object_add(a_json_out, "Node addr", json_object_new_string(l_buf));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE:
             if (l_tsd->size > sizeof(uint256_t)) {
@@ -359,8 +359,7 @@ void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a
 dap_chain_datum_decree_t *dap_chain_datum_decree_new(dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id,
                                                      dap_chain_cell_id_t a_cell_id, size_t a_total_tsd_size)
 {
-    dap_chain_datum_decree_t *l_decree = NULL;
-    DAP_NEW_Z_SIZE_RET_VAL(l_decree, dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + a_total_tsd_size, NULL, NULL);
+    dap_chain_datum_decree_t *l_decree = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + a_total_tsd_size, NULL);
 
     l_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
     l_decree->header.ts_created = dap_time_now();

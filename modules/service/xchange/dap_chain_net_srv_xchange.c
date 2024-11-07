@@ -437,14 +437,13 @@ bool dap_chain_net_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a
 
 static dap_chain_datum_tx_receipt_t *s_xchange_receipt_create(dap_chain_net_srv_xchange_price_t *a_price, uint256_t a_datoshi_buy)
 {
-    uint32_t l_ext_size = sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX;
-    uint8_t *l_ext = DAP_NEW_STACK_SIZE(uint8_t, l_ext_size);
+    byte_t l_ext[sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX];
+    uint32_t l_ext_size = sizeof(l_ext);
     if (!l_ext) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
-    memcpy(l_ext, &a_datoshi_buy, sizeof(uint256_t));
-    strcpy((char *)&l_ext[sizeof(uint256_t)], a_price->token_buy);
+    memcpy( dap_mempcpy(l_ext, &a_datoshi_buy, sizeof(uint256_t)), a_price->token_buy, strlen(a_price->token_buy) );
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 = SERV_UNIT_UNDEFINED};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
     uint256_t l_datoshi_sell = {};

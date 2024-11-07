@@ -458,8 +458,8 @@ static json_object *s_nonconsensus_callback_atom_to_json(json_object **a_arr_out
 static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size)
 {
     dap_return_val_if_fail(a_atom_iter, NULL);
-    if (a_atom_iter->cur_item) { /* Iterator creates copies, free them at delete routine! */
-        DAP_DEL_Z(a_atom_iter->cur);
+    if (a_atom_iter->cur_item) { /* Iterator creates copies (WTF?...), free them at delete routine! */
+        DAP_FREE(a_atom_iter->cur);
         DAP_DEL_Z(a_atom_iter->cur_hash);
     }
     dap_nonconsensus_datum_hash_item_t *l_head = PVT(DAP_NONCONSENSUS(a_atom_iter->chain))->hash_items;

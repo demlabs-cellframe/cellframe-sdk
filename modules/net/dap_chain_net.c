@@ -669,7 +669,6 @@ dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
 static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
 {
     dap_return_val_if_fail(a_cfg, NULL);
-    dap_chain_net_t *l_ret = NULL;
     const char  *l_net_name_str = dap_config_get_item_str_default(a_cfg, "general", "name", a_net_name),
                 *l_net_id_str   = dap_config_get_item_str(a_cfg, "general", "id"),
                 *a_node_role    = dap_config_get_item_str(a_cfg, "general", "node-role" ),
@@ -694,8 +693,8 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
                         l_net_sought->pub.id.uint64);
         return NULL;
     }
-    DAP_NEW_Z_SIZE_RET_VAL(l_ret, dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t), NULL, NULL);
-    DAP_NEW_Z_SIZE_RET_VAL(PVT(l_ret)->node_info, dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1, NULL, l_ret);
+    dap_chain_net_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t), NULL);
+    PVT(l_ret)->node_info = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1, NULL, l_ret);
 
     l_ret->pub.id = l_net_id;
     if (strcmp (a_node_role, "root_master")==0){

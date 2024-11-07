@@ -183,8 +183,7 @@ static dap_chain_net_srv_stake_t *s_srv_stake_by_net_id(dap_chain_net_id_t a_net
 
 int dap_chain_net_srv_stake_net_add(dap_chain_net_id_t a_net_id)
 {
-    dap_chain_net_srv_stake_t *l_srv_stake;
-    DAP_NEW_Z_RET_VAL(l_srv_stake, dap_chain_net_srv_stake_t, -1, NULL);
+    dap_chain_net_srv_stake_t *l_srv_stake = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_srv_stake_t, -1);
     l_srv_stake->net_id = a_net_id;
     l_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
     dap_list_t *l_list_last = dap_list_last(s_srv_stake_list);
@@ -561,7 +560,7 @@ dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, 
     const uint16_t l_arr_resize_step = 64;
     size_t l_arr_size = l_arr_resize_step, l_arr_idx = 1, l_list_idx = 0;
     if (a_excluded_list)
-        DAP_NEW_Z_COUNT_RET_VAL(*a_excluded_list, uint16_t, l_arr_size, NULL, NULL);
+        *a_excluded_list = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(uint16_t, l_arr_size, NULL);
     for (dap_chain_net_srv_stake_item_t *l_stake = l_srv_stake->itemlist; l_stake; l_stake = l_stake->hh.next) {
         if (l_stake->is_active || !a_only_active) {
             void *l_data = DAP_DUP(l_stake);
@@ -3057,7 +3056,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             }
             DAP_DELETE(l_decree);
             char l_approve_str[128] = {'\0'};
-            sprintf(l_approve_str,"Approve decree %s successfully created", l_decree_hash_str);
+            snprintf(l_approve_str, sizeof(l_approve_str), "Approve decree %s successfully created", l_decree_hash_str);
             json_object_array_add(*a_json_arr_reply, json_object_new_string(l_approve_str));
             DAP_DELETE(l_decree_hash_str);
         } break;
@@ -3434,9 +3433,8 @@ void dap_chain_net_srv_stake_get_fee_validators_str(dap_chain_net_t *a_net, dap_
         return;
     uint256_t l_min = uint256_0, l_max = uint256_0, l_average = uint256_0, l_median = uint256_0;
     dap_chain_net_srv_stake_get_fee_validators(a_net, &l_max, &l_average, &l_min, &l_median);
-    const char *l_native_token  = a_net->pub.native_ticker;
-    const char *l_coins_str,
-    *l_min_balance      = dap_strdup(dap_uint256_to_char(l_min, &l_coins_str)),     *l_min_coins    = dap_strdup(l_coins_str),
+    const char *l_native_token  = a_net->pub.native_ticker, *l_coins_str;
+    char *l_min_balance = dap_strdup(dap_uint256_to_char(l_min, &l_coins_str)),     *l_min_coins    = dap_strdup(l_coins_str),
     *l_max_balance      = dap_strdup(dap_uint256_to_char(l_max, &l_coins_str)),     *l_max_coins    = dap_strdup(l_coins_str),
     *l_average_balance  = dap_strdup(dap_uint256_to_char(l_average, &l_coins_str)), *l_average_coins= dap_strdup(l_coins_str),
     *l_median_balance   = dap_strdup(dap_uint256_to_char(l_median, &l_coins_str)),  *l_median_coins = dap_strdup(l_coins_str);

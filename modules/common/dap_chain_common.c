@@ -57,10 +57,10 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
         return 0;
     }
     size_t i;
-    sprintf(a_str, "0x");
-
-    for (i = 0; i < sizeof(a_hash->raw); ++i)
-        sprintf( a_str + i * 2 + 2, "%02x", a_hash->raw[i] );
+    dap_strncpy(a_str, "0x", 2);
+    int l_pos = 2;
+    for (i = 0; i < sizeof(a_hash->raw) && l_pos <= a_str_max; ++i)
+        l_pos += snprintf( a_str + i * 2 + 2, a_str_max - l_pos, "%02x", a_hash->raw[i] );
 
     a_str[c_hash_str_size] = '\0';
 
@@ -96,9 +96,10 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
     }
     size_t l_ret_size = DAP_ENC_BASE58_DECODE_SIZE(l_str_len);
     dap_chain_addr_t *l_addr = DAP_NEW_Z_SIZE(dap_chain_addr_t, l_ret_size);
-    return (dap_enc_base58_decode(a_str, l_addr) == sizeof(dap_chain_addr_t)) && !dap_chain_addr_check_sum(l_addr)
+    return ( dap_enc_base58_decode(a_str, l_addr) == sizeof(dap_chain_addr_t) ) 
+        && !dap_chain_addr_check_sum(l_addr)
             ? l_addr
-            : ({ DAP_DELETE(l_addr); NULL; });
+            : ( DAP_DELETE(l_addr), NULL );
 }
 
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr)

@@ -330,7 +330,7 @@ int dap_chain_wallet_init()
         l_len = strlen(l_dir_entry->d_name);                            /* Check for *.dwallet */
 
         if ( l_len > 8 && !strcmp(l_dir_entry->d_name + l_len - (sizeof(s_wallet_ext) - 1), s_wallet_ext) ) {
-            if (snprintf(l_fspec, sizeof(l_fspec) - 1, "%s/%s", c_wallets_path, l_dir_entry->d_name) < 0)
+            if (snprintf(l_fspec, sizeof(l_fspec), "%s/%s", c_wallets_path, l_dir_entry->d_name) < 0)
                 continue;
             if ( (l_wallet = dap_chain_wallet_open_file(l_fspec, NULL, NULL)) )
                 dap_chain_wallet_close(l_wallet);
@@ -391,30 +391,24 @@ dap_chain_wallet_internal_t *l_wallet_internal = NULL;
     if ( a_pass && DAP_WALLET$SZ_PASS < strnlen(a_pass, DAP_WALLET$SZ_PASS + 1) )
         return  log_it(L_ERROR, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS), NULL;
 // memory alloc
-    DAP_NEW_Z_RET_VAL(l_wallet, dap_chain_wallet_t, NULL, NULL);
-    DAP_NEW_Z_RET_VAL(l_wallet_internal, dap_chain_wallet_internal_t, NULL, l_wallet);
-    DAP_NEW_Z_COUNT_RET_VAL(l_wallet_internal->certs, dap_cert_t *, a_sig_count, NULL, l_wallet_internal, l_wallet);
+    l_wallet = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_wallet_t, NULL);
+    l_wallet_internal = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_wallet_internal_t, NULL, l_wallet);
+    l_wallet_internal->certs = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(dap_cert_t*, a_sig_count, NULL, l_wallet_internal, l_wallet);
 
     strncpy(l_wallet->name, a_wallet_name, DAP_WALLET$SZ_NAME);
     l_wallet_internal->certs_count = a_sig_count;
 
-
-    snprintf(l_wallet_internal->file_name, sizeof(l_wallet_internal->file_name)  - 1, "%s/%s%s", a_wallets_path, a_wallet_name, s_wallet_ext);
+    snprintf(l_wallet_internal->file_name, sizeof(l_wallet_internal->file_name), "%s/%s%s", a_wallets_path, a_wallet_name, s_wallet_ext);
     for (size_t i = 0; i < l_wallet_internal->certs_count; ++i) {
         l_wallet_internal->certs[i] = dap_cert_generate_mem_with_seed(a_wallet_name, dap_sign_type_to_key_type(a_sig_types[i]), a_seed, a_seed_size);
     }
 
     l_wallet->_internal = l_wallet_internal;
-    if ( !dap_chain_wallet_save(l_wallet, a_pass) ) {
-        log_it(L_INFO, "Wallet %s has been created (%s)", a_wallet_name, l_wallet_internal->file_name);
-        return l_wallet;
-    }
-
-    log_it(L_ERROR,"Can't save the new wallet (%s) to disk, errno=%d", l_wallet_internal->file_name, errno);
-    dap_chain_wallet_close(l_wallet);
-
-    return NULL;
-
+    return dap_chain_wallet_save(l_wallet, a_pass)
+        ? ( log_it(L_ERROR,"Can't save the new wallet (%s) to disk, errno=%d", l_wallet_internal->file_name, errno),
+            dap_chain_wallet_close(l_wallet),
+            NULL )
+        : ( log_it(L_INFO, "Wallet %s has been created (%s)", a_wallet_name, l_wallet_internal->file_name), l_wallet );
 }
 
 /**
@@ -483,8 +477,7 @@ dap_chain_addr_t *dap_chain_wallet_get_addr(dap_chain_wallet_t *a_wallet, dap_ch
 dap_chain_addr_t *dap_cert_to_addr(dap_cert_t **a_certs, size_t a_count, size_t a_key_start_index, dap_chain_net_id_t a_net_id)
 {
 // memory alloc
-    dap_chain_addr_t *l_addr = NULL;
-    DAP_NEW_Z_RET_VAL(l_addr, dap_chain_addr_t, NULL, NULL);
+    dap_chain_addr_t *l_addr = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_addr_t, NULL);
     dap_enc_key_t *l_key = dap_cert_get_keys_from_certs(a_certs, a_count, a_key_start_index);
     dap_chain_addr_fill_from_key(l_addr, l_key, a_net_id);
     dap_enc_key_delete(l_key);
@@ -983,7 +976,7 @@ ssize_t     l_rc, l_pass_len;
         strncpy(l_wallet_name, a_wallet_name, l_cp - a_wallet_name);
     else strncpy(l_wallet_name, a_wallet_name, sizeof(l_wallet_name)-1);
 
-    snprintf(l_file_name, sizeof(l_file_name) - 1, "%s/%s%s", a_wallets_path, l_wallet_name, s_wallet_ext);
+    snprintf(l_file_name, sizeof(l_file_name), "%s/%s%s", a_wallets_path, l_wallet_name, s_wallet_ext);
 
 
     l_pass_len = DAP_WALLET$SZ_PASS;                                    /* Size of the buffer for password */

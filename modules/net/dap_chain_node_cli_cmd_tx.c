@@ -1450,19 +1450,11 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             if(l_chain_str) {
                 l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
                 if (l_chain == NULL) {
-                    char l_str_to_reply_chain[500] = {0};
-                    char *l_str_to_reply = NULL;
-                    sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
-                                                    a_argv[0], l_net_str, l_chain_str);
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
-                    dap_chain_t * l_chain;
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\nAvailable chain with decree support:\n");
-                    l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE);
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\t");
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
-                    return -103;
+                    return dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid '-chain' parameter \"%s\", not found in net %s\n"
+                                                                   "Available chain with decree support:\n\t\"%s\"\n",
+                                                                   l_chain_str, l_net_str,
+                                                                   dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE)->name),
+                            -103;
                 } else if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE)){ // check chain to support decree
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Chain %s don't support decree", l_chain->name);
                     return -104;
@@ -1478,21 +1470,16 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             if(l_decree_chain_str) {
                 l_decree_chain = dap_chain_net_get_chain_by_name(l_net, l_decree_chain_str);
                 if (l_decree_chain == NULL) {
-                    char l_str_to_reply_chain[500] = {0};
-                    char *l_str_to_reply = NULL;
-                    sprintf(l_str_to_reply_chain, "%s requires parameter '-decree_chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
-                                                    a_argv[0], l_net_str, l_chain_str);
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
-                    dap_chain_t * l_chain;
-                    dap_chain_net_t * l_chain_net = l_net;
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\nAvailable chains:\n");
-                    DL_FOREACH(l_chain_net->pub.chains, l_chain) {
-                            l_str_to_reply = dap_strcat2(l_str_to_reply,"\t");
-                            l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
-                            l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
+                    dap_string_t *l_reply = dap_string_new("");
+                    dap_string_append_printf(l_reply, "Invalid '-chain' parameter \"%s\", not found in net %s\n"
+                                                      "Available chains:",
+                                                      l_chain_str, l_net_str);
+                    dap_chain_t *l_chain;
+                    DL_FOREACH(l_net->pub.chains, l_chain) {
+                        dap_string_append_printf(l_reply, "\n\t%s", l_chain->name);
                     }
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
-                    return -103;
+                    char *l_str_reply = dap_string_free(l_reply, false);
+                    return dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_reply), DAP_DELETE(l_str_reply), -103;
                 }
             }else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "decree requires parameter -decree_chain.");
@@ -1684,19 +1671,11 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             if(l_chain_str) {
                 l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
                 if (l_chain == NULL) {
-                    char l_str_to_reply_chain[500] = {0};
-                    char *l_str_to_reply = NULL;
-                    sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
-                                                    a_argv[0], l_net_str, l_chain_str);
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
-                    dap_chain_t * l_chain;
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\nAvailable chain with decree support:\n");
-                    l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE);
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\t");
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
-                    return -103;
+                    return dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid '-chain' parameter \"%s\", not found in net %s\n"
+                                                                          "Available chain with decree support:\n\t\"%s\"\n",
+                                                                          l_chain_str, l_net_str,
+                                                                          dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE)->name),
+                            -103;
                 } else if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE)){ // check chain to support decree
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Chain %s don't support decree", l_chain->name);
                     return -104;
@@ -1784,19 +1763,11 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
         if(l_chain_str) {
             l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
             if (l_chain == NULL) {
-                char l_str_to_reply_chain[500] = {0};
-                char *l_str_to_reply = NULL;
-                sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
-                                                a_argv[0], l_net_str, l_chain_str);
-                l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
-                dap_chain_t * l_chain;
-                l_str_to_reply = dap_strcat2(l_str_to_reply,"\nAvailable chain with anchor support:\n");
-                l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_ANCHOR);
-                l_str_to_reply = dap_strcat2(l_str_to_reply,"\t");
-                l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
-                l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
-                return -103;
+                return dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid '-chain' parameter \"%s\", not found in net %s\n"
+                                                                      "Available chain with anchor support:\n\t\"%s\"\n",
+                                                                      l_chain_str, l_net_str,
+                                                                      dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_ANCHOR)->name),
+                        -103;
             } else if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_ANCHOR)){ // check chain to support decree
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Chain %s don't support decree", l_chain->name);
                 return -104;
