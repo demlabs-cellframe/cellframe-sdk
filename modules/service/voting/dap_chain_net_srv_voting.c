@@ -999,7 +999,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
                                     json_object_new_string("expired"));
         }
         if (l_voting->voting_params.votes_max_count){
-            char *l_val = dap_strdup_printf(" %"DAP_UINT64_FORMAT_U" (%s)\n", l_voting->voting_params.votes_max_count,
+            char *l_val = dap_strdup_printf("%"DAP_UINT64_FORMAT_U" (%s)", l_voting->voting_params.votes_max_count,
                                      l_voting->voting_params.votes_max_count <= l_votes_count ? "closed" : "active");
             json_object_object_add(json_vote_out, "Votes max count", json_object_new_string(l_val));
             DAP_DELETE(l_val);
@@ -1015,7 +1015,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         for (uint64_t i = 0; i < dap_list_length(l_voting->voting_params.option_offsets_list); i++){
             json_object* json_vote_obj = json_object_new_object();
             char *l_val = NULL;
-            l_val = dap_strdup_printf(" %"DAP_UINT64_FORMAT_U")  ", i);
+            l_val = dap_strdup_printf("%"DAP_UINT64_FORMAT_U")", i);
             json_object_object_add(json_vote_obj, "#", json_object_new_string(l_val));
             DAP_DELETE(l_val);
             dap_list_t* l_option = dap_list_nth(l_voting->voting_params.option_offsets_list, (uint64_t)i);
@@ -1039,11 +1039,11 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         json_object_object_add(json_vote_out, "Results", json_arr_vote_out);
         DAP_DELETE(l_results);
         char *l_val = NULL;
-        l_val = dap_strdup_printf(" %"DAP_UINT64_FORMAT_U, l_votes_count);
+        l_val = dap_strdup_printf("%"DAP_UINT64_FORMAT_U, l_votes_count);
         json_object_object_add(json_vote_out, "Total number of votes", json_object_new_string(l_val));
         DAP_DELETE(l_val);
         const char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
-        l_val = dap_strdup_printf("%s (%s) %s\n\n", l_tw_coins, l_tw_datoshi, l_net->pub.native_ticker);
+        l_val = dap_strdup_printf("%s (%s) %s", l_tw_coins, l_tw_datoshi, l_net->pub.native_ticker);
         json_object_object_add(json_vote_out, "Total weight", json_object_new_string(l_val));
         DAP_DELETE(l_val);
         json_object_array_add(*json_arr_reply, json_vote_out);
