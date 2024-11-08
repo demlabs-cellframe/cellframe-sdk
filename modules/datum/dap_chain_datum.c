@@ -50,18 +50,19 @@
  */
 dap_chain_datum_t *dap_chain_datum_create(uint16_t a_type_id, const void *a_data, size_t a_data_size)
 {
-   dap_chain_datum_t *l_datum = NULL;
-   DAP_NEW_Z_SIZE_RET_VAL(l_datum, dap_chain_datum_t, sizeof(l_datum->header) + a_data_size, NULL, NULL);
-   *l_datum = (dap_chain_datum_t) {
+    dap_chain_datum_t *l_datum = NULL;
+    DAP_NEW_Z_SIZE_RET_VAL(l_datum, dap_chain_datum_t, sizeof(l_datum->header) + a_data_size, NULL, NULL);
+    *l_datum = (dap_chain_datum_t) {
         .header = {
             .version_id = DAP_CHAIN_DATUM_VERSION,
             .type_id    = a_type_id,
             .data_size  = (uint32_t)a_data_size,
             .ts_create  = dap_time_now()
         }
-   };
-   memcpy(l_datum->data, a_data, (uint32_t)a_data_size);
-   return  l_datum;
+    };
+    if (a_data && a_data_size)
+        memcpy(l_datum->data, a_data, (uint32_t)a_data_size);
+    return  l_datum;
 }
 void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type)
 {
@@ -436,7 +437,7 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
             dap_chain_tx_tsd_t *l_item = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_datum, NULL, (byte_t*)item + l_size, TX_ITEM_TYPE_TSD, &l_tsd_size);
             if (!l_item || !l_tsd_size)
                     break;
-            dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_voting_parse_tsd(a_datum);
+            dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_datum_tx_voting_parse_tsd(a_datum);
             json_object_object_add(json_obj_item,"item type", json_object_new_string("VOTING"));
             json_object_object_add(json_obj_item,"Voting question", json_object_new_string(l_voting_params->voting_question));
             json_object_object_add(json_obj_item,"Answer options", json_object_new_string(""));

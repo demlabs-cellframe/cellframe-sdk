@@ -33,12 +33,13 @@
 
 typedef enum dap_chain_datum_voting_tsd_type {
     VOTING_TSD_TYPE_QUESTION = 0x01,
-    VOTING_TSD_TYPE_ANSWER,
+    VOTING_TSD_TYPE_OPTION,
     VOTING_TSD_TYPE_EXPIRE,
     VOTING_TSD_TYPE_MAX_VOTES_COUNT,
     VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED,
     VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED,
-    VOTING_TSD_TYPE_VOTE_TX_COND
+    VOTING_TSD_TYPE_VOTE_TX_COND,
+    VOTING_TSD_TYPE_VOTE
 } dap_chain_datum_voting_tsd_type_t;
 
 typedef struct dap_chain_tx_voting {
@@ -57,16 +58,16 @@ typedef struct dap_chain_tx_vote {
 } DAP_ALIGN_PACKED dap_chain_tx_vote_t;
 
 typedef struct dap_chain_datum_tx_voting_params {
-    char *voting_question;
-    dap_list_t *answers_list;
-    uint8_t    answers_count;
+    char *question;
+    dap_list_t *options;
     dap_time_t voting_expire;
     uint64_t   votes_max_count;
     bool       delegate_key_required;
     bool       vote_changing_allowed;
 } dap_chain_datum_tx_voting_params_t;
 
-dap_chain_datum_tx_voting_params_t *dap_chain_voting_parse_tsd(dap_chain_datum_tx_t* a_tx);
+dap_chain_datum_tx_voting_params_t *dap_chain_datum_tx_voting_parse_tsd(dap_chain_datum_tx_t* a_tx);
+void dap_chain_datum_tx_voting_params_delete(dap_chain_datum_tx_voting_params_t *a_params);
 
 dap_chain_tx_tsd_t* dap_chain_datum_voting_question_tsd_create(const char* a_question_str, size_t str_len);
 dap_chain_tx_tsd_t* dap_chain_datum_voting_answer_tsd_create(const char* a_answer_str, size_t str_len);
