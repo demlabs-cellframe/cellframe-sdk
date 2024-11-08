@@ -490,8 +490,10 @@ dap_chain_addr_t *dap_cert_to_addr(dap_cert_t **a_certs, size_t a_count, size_t 
     dap_chain_addr_t *l_addr = NULL;
     DAP_NEW_Z_RET_VAL(l_addr, dap_chain_addr_t, NULL, NULL);
     dap_enc_key_t *l_key = dap_cert_get_keys_from_certs(a_certs, a_count, a_key_start_index);
-    dap_chain_addr_fill_from_key(l_addr, l_key, a_net_id);
-    dap_enc_key_delete(l_key);
+    if (l_key) {
+        dap_chain_addr_fill_from_key(l_addr, l_key, a_net_id);
+        dap_enc_key_delete(l_key);
+    }
     return l_addr;
 }
 
