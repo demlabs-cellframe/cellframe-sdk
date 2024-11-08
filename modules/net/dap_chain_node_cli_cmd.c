@@ -1956,17 +1956,24 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 json_object_put(json_arr_out);
                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_FOUND_ERR;
             } else {
-                l_net = dap_chain_net_by_id(l_addr->net_id);
-                if(l_net) {
-                    l_ledger = l_net->pub.ledger;
-                    l_net_name = l_net->pub.name;
+                if (l_wallet) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CAN_NOT_GET_ADDR,
+                                           "Wallet %s contains an unknown certificate type, the wallet address could not be calculated.", l_wallet_name);
+                    dap_chain_wallet_close(l_wallet);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CAN_NOT_GET_ADDR;
                 } else {
-                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR,
-                                           "Can't find network id 0x%016"DAP_UINT64_FORMAT_X" from address %s",
-                                           l_addr->net_id.uint64, l_addr_str);
-                    json_object_put(json_arr_out);
-                    DAP_DELETE(l_addr);
-                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR;
+                    l_net = dap_chain_net_by_id(l_addr->net_id);
+                    if (l_net) {
+                        l_ledger = l_net->pub.ledger;
+                        l_net_name = l_net->pub.name;
+                    } else {
+                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR,
+                                               "Can't find network id 0x%016"DAP_UINT64_FORMAT_X" from address %s",
+                                               l_addr->net_id.uint64, l_addr_str);
+                        json_object_put(json_arr_out);
+                        DAP_DELETE(l_addr);
+                        return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR;
+                    }
                 }
             }
             json_object * json_obj_wall = json_object_new_object();
