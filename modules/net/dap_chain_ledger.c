@@ -609,8 +609,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
     bool l_was_tx_recv_allow_copied = false, l_was_tx_recv_block_copied = false,
          l_was_tx_send_allow_copied = false, l_was_tx_send_block_copied = false;
 
-#define m_ret_cleanup(ret_code) ({                              \
-    DAP_DELETE_COUNT(l_new_pkeys, l_new_signs_total);       \
+#define m_ret_cleanup(ret_code) ({                          \
+    DAP_DEL_ARRAY(l_new_pkeys, l_new_signs_total);          \
     DAP_DEL_MULTY(l_new_tx_recv_allow, l_new_tx_recv_block, \
                   l_new_tx_send_allow, l_new_tx_send_block, \
                   l_new_pkeys, l_new_pkey_hashes);          \

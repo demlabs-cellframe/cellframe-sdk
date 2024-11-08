@@ -8380,7 +8380,7 @@ static int s_get_key_from_file(const char *a_file, const char *a_mime, const cha
                 }
             }
         }
-        DAP_DELETE_COUNT(l_items_mime, l_items_mime_count);
+        DAP_DEL_ARRAY(l_items_mime, l_items_mime_count);
     }
     DAP_DELETE(l_items_mime);
     if (l_flags_mime == 0)
