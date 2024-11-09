@@ -232,6 +232,8 @@ typedef struct dap_chain {
 
     dap_list_t *atom_notifiers;
 
+    dap_list_t *atom_confirmed_notifiers;
+
     dap_config_t *config;
 
     void * _pvt; // private data
@@ -245,6 +247,12 @@ typedef struct dap_chain_atom_notifier {
     dap_proc_thread_t *proc_thread;
     void *arg;
 } dap_chain_atom_notifier_t;
+
+typedef struct dap_chain_atom_confirmed_notifier {
+    uint64_t block_notify_cnt;
+    dap_chain_callback_notify_t callback;
+    void *arg;
+} dap_chain_atom_confirmed_notifier_t;
 
 typedef struct dap_chain_pvt {
     char *cs_name, *file_storage_dir;
@@ -281,6 +289,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 
 void dap_chain_delete(dap_chain_t * a_chain);
 void dap_chain_add_callback_notify(dap_chain_t *a_chain, dap_chain_callback_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_arg);
+void dap_chain_atom_confirmed_notify_add(dap_chain_t *a_chain, dap_chain_callback_notify_t a_callback, void *a_arg, uint64_t a_conf_cnt);
 void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size);
 void dap_chain_atom_add_from_threshold(dap_chain_t *a_chain);
 dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
