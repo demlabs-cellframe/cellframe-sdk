@@ -1357,11 +1357,12 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         if (dap_chain_addr_compare(&a_session->cur_round.attempt_submit_validator, &a_session->my_signing_addr)) {
             dap_chain_esbocs_directive_t *l_directive = NULL;
 #ifdef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
-            if (!a_session->cur_round.directive && !PVT(a_session->esbocs)->emergency_mode)
+            if (!a_session->cur_round.directive && !PVT(a_session->esbocs)->emergency_mode) {
                 bool l_kick = false;
                 dap_chain_addr_t* l_signing_addr = NULL;
                 if (s_session_directive_ready(a_session, &l_kick, l_signing_addr))
                     l_directive = s_session_directive_compose(a_session, &l_kick, l_signing_addr);
+            }
 #endif
             if (l_directive) {
                 dap_hash_fast_t l_directive_hash;
