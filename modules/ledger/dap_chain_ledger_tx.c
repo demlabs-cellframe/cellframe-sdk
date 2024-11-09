@@ -26,6 +26,7 @@
 */
 #include "dap_chain_ledger_pvt.h"
 #include "dap_notify_srv.h"
+#include "dap_chain_wallet.h"
 
 #define LOG_TAG "dap_ledger_tx"
 
