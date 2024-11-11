@@ -127,7 +127,7 @@ typedef size_t (*dap_chain_callback_add_datums_t)(dap_chain_t * , dap_chain_datu
 
 typedef void (*dap_chain_callback_notify_t)(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, dap_chain_hash_fast_t *a_atom_hash, void *a_atom, size_t a_atom_size); //change in chain happened
 typedef void (*dap_chain_callback_datum_notify_t)(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, void *a_datum, 
-                                    size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid); //change in chain happened
+                                    size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_srv_uid_t a_uid); //change in chain happened
 typedef void (*dap_chain_callback_datum_removed_notify_t)(void *a_arg, dap_chain_hash_fast_t *a_datum_hash); //change in chain happened
 
 typedef uint64_t (*dap_chain_callback_get_count)(dap_chain_t *a_chain);

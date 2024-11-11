@@ -759,7 +759,7 @@ struct chain_thread_datum_notifier {
     void *datum;
     int a_ret_code;
     uint32_t a_action;
-    dap_chain_net_srv_uid_t a_uid;
+    dap_chain_srv_uid_t a_uid;
     size_t datum_size;
     int ret_code;
 };
