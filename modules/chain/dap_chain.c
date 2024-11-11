@@ -635,6 +635,35 @@ void dap_chain_add_callback_notify(dap_chain_t *a_chain, dap_chain_callback_noti
 
 
 /**
+ * @brief Add a callback to monitor blocks received enough confirmations
+ * @param a_chain
+ * @param a_callback
+ * @param a_arg
+ */
+void dap_chain_atom_confirmed_notify_add(dap_chain_t *a_chain, dap_chain_callback_notify_t a_callback, void *a_arg, uint64_t a_conf_cnt)
+{
+    if(!a_chain){
+        log_it(L_ERROR, "NULL chain passed to dap_chain_add_callback_notify()");
+        return;
+    }
+    if(!a_callback){
+        log_it(L_ERROR, "NULL callback passed to dap_chain_add_callback_notify()");
+        return;
+    }
+    dap_chain_atom_confirmed_notifier_t * l_notifier = DAP_NEW_Z(dap_chain_atom_confirmed_notifier_t);
+    if (l_notifier == NULL){
+        log_it(L_ERROR, "Can't allocate memory for notifier in dap_chain_add_callback_notify()");
+        return;
+    }
+    l_notifier->block_notify_cnt = a_conf_cnt;
+    l_notifier->callback = a_callback;
+    l_notifier->arg = a_arg;
+    pthread_rwlock_wrlock(&a_chain->rwlock);
+    a_chain->atom_confirmed_notifiers = dap_list_append(a_chain->atom_confirmed_notifiers, l_notifier);
+    pthread_rwlock_unlock(&a_chain->rwlock);
+}
+
+/**
  * @brief dap_chain_get_last_atom_hash
  * @param a_chain
  * @param a_atom_hash
