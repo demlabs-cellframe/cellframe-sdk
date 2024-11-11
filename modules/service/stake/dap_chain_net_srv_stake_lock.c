@@ -29,6 +29,7 @@
 #include "dap_chain_net_srv_stake_lock.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_wallet_cache.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_srv.h"
 #include "dap_cli_server.h"
@@ -1144,7 +1145,8 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
     if (l_main_native)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
     else if (!IS_ZERO_256(l_total_fee)) {
-        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, &l_addr, &l_list_fee_out, l_total_fee, &l_fee_transfer) == -101)
+            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
                                                                     &l_addr, l_total_fee, &l_fee_transfer);
         if (!l_list_fee_out) {
             log_it(L_WARNING, "Not enough funds to pay fee");
@@ -1152,8 +1154,10 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
         }
     }
     // list of transaction with 'out' items
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_main_ticker,
-                                                                             &l_addr, l_value_need, &l_value_transfer);
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_main_ticker, &l_addr, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_main_ticker,
+                                                                &l_addr, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
         log_it( L_ERROR, "Nothing to transfer (not enough funds)");
         return NULL;
@@ -1289,7 +1293,8 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
     if (!IS_ZERO_256(l_total_fee)) {
         if (!l_main_native) {
-            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
+            if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, &l_addr, &l_list_fee_out, l_total_fee, &l_fee_transfer) == -101)
+                l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
                                                                     &l_addr, l_total_fee, &l_fee_transfer);
             if (!l_list_fee_out) {
                 log_it(L_WARNING, "Not enough funds to pay fee");
@@ -1301,7 +1306,8 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
         }
     }
     if (!IS_ZERO_256(a_delegated_value)) {
-        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, a_delegated_ticker_str,
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, a_delegated_ticker_str, &l_addr, &l_list_used_out, a_delegated_value, &l_value_transfer) == -101)
+            l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, a_delegated_ticker_str,
                                                                                  &l_addr, a_delegated_value, &l_value_transfer);
         if(!l_list_used_out) {
             log_it( L_ERROR, "Nothing to transfer (not enough delegated tokens)");
