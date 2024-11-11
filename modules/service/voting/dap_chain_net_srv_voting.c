@@ -66,7 +66,7 @@ struct srv_voting {
 static void *s_callback_start(dap_chain_net_id_t UNUSED_ARG a_net_id, dap_config_t UNUSED_ARG *a_config);
 static void s_callback_delete(void *a_service_internal);
 
-static int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
+static int s_voting_ledger_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
 static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash);
 static int s_cli_voting(int argc, char **argv, void **a_str_reply);
 
@@ -89,7 +89,7 @@ static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_t
 
 int dap_chain_net_srv_voting_init()
 {
-    dap_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback, s_datum_tx_voting_verification_delete_callback);
+    dap_ledger_voting_verificator_add(s_voting_ledger_verificator_callback, s_datum_tx_voting_verification_delete_callback);
     dap_cli_server_cmd_add("voting", s_cli_voting, "Voting commands.",
                             "voting create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <voting_expire_time_in_RCF822>] [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value> -w <fee_wallet_name>\n"
                             "voting vote -net <net_name> -hash <voting_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value> -w <fee_wallet_name>\n"
@@ -414,7 +414,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
     return DAP_LEDGER_CHECK_OK;
 }
 
-int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
+int s_voting_ledger_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
 {
     if (a_type == TX_ITEM_TYPE_VOTING)
         return s_voting_verificator(a_ledger, a_tx_in, a_tx_hash, a_apply);

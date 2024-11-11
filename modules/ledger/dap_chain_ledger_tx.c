@@ -27,6 +27,7 @@
 #include "dap_chain_ledger_pvt.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_datum_tx_voting.h"
 
 #define LOG_TAG "dap_ledger_tx"
 
@@ -1163,6 +1164,30 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
     return 0;
 }
 
+int s_compare_trackers(dap_list_t *a_tracker1, dap_list_t *a_tracker2)
+{
+    struct tracker *l_tracker1 = a_tracker1->data, *l_tracker2 = a_tracker2->data;
+    return memcmp(&l_tracker1->voting_hash, &l_tracker2->voting_hash, sizeof(dap_hash_fast_t));
+}
+
+dap_list_t *s_trackers_concatenate(dap_list_t *a_trackers, dap_list_t *a_added)
+{
+    dap_list_t *it, *tmp;
+    DL_FOREACH_SAFE(a_added, it, tmp) {
+        struct tracker *l_new_tracker = it->data;
+        dap_list_t *l_exists = dap_list_find(a_trackers, &l_new_tracker->voting_hash, s_compare_trackers);
+        if (l_exists) {
+            struct tracker *l_exists_tracker = l_exists->data;
+            if (SUM_256_256(l_exists_tracker->colored_value, l_new_tracker->colored_value, &l_exists_tracker->colored_value))
+                log_it(L_ERROR, "Tracking value overflow, can't track voting %s anymore", dap_hash_fast_to_str_static(&l_new_tracker->voting_hash));
+        } else {
+            DL_DELETE(a_added, it);
+            DL_APPEND(a_trackers, it);
+        }
+    }
+    return a_trackers;
+}
+
 /**
  * @brief Add new transaction to the cache list
  * @param a_ledger
@@ -1353,6 +1378,19 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_prev_item_out->cache_data.ts_spent = a_tx->header.ts_created;
     }
 
+    if (l_tag.uint64 == DAP_CHAIN_TX_TAG_ACTION_VOTE) {
+        struct tracker *l_new_tracker = DAP_NEW_Z(struct tracker);
+        if (!l_new_tracker) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            l_ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+            goto FIN;
+        }
+        dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
+        assert(l_vote_tx_item);
+        l_new_tracker->voting_hash = l_vote_tx_item->voting_hash;
+        dap_list_t *l_new_vote = dap_list_append(NULL, l_new_tracker);
+        l_trackers = s_trackers_concatenate(l_trackers, l_new_vote);
+    }
 
     //Update balance : raise
     bool l_multichannel = false;
