@@ -39,7 +39,7 @@
 #define LOG_TAG "dap_chain_cs_blocks"
 
 #ifndef DAP_CHAIN_BLOCKS_TEST
-#define DAP_FORK_MAX_DEPTH_DEFAULT 40
+#define DAP_FORK_MAX_DEPTH_DEFAULT 10
 #else
 #define DAP_FORK_MAX_DEPTH_DEFAULT 5
 #endif
