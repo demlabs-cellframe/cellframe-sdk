@@ -93,6 +93,7 @@ typedef struct dap_ledger_tx_item {
     dap_chain_hash_fast_t tx_hash_fast;
     dap_chain_datum_tx_t *tx;
     dap_nanotime_t ts_added;
+    UT_hash_handle hh;
     struct {
         dap_time_t ts_created;      // Transation datum timestamp mirrored & cached
         uint32_t n_outs;
@@ -105,9 +106,8 @@ typedef struct dap_ledger_tx_item {
         dap_chain_srv_uid_t tag; //tag (or service this tx is belong to)
         dap_chain_tx_tag_action_type_t action;
         // TODO dynamically allocates the memory in order not to limit the number of outputs in transaction
-        dap_chain_hash_fast_t tx_hash_spent_fast[MAX_OUT_ITEMS]; // spent outs list
+        dap_chain_hash_fast_t tx_hash_spent_fast[]; // spent outs list
     } DAP_ALIGN_PACKED cache_data;
-    UT_hash_handle hh;
 } dap_ledger_tx_item_t;
 
 typedef struct dap_ledger_stake_lock_item {

@@ -638,7 +638,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
             } break;
 
         case COINS_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command requires parameter -coins");
+            dap_string_append_printf(output_line, "stake_lock command requires parameter -value");
             } break;
 
         case COINS_FORMAT_ERROR: {
