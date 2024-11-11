@@ -33,6 +33,7 @@
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_chain_datum_service_state.h"
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_chain_wallet_cache.h"
 
 #define LOG_TAG "dap_chain_net_srv_voting"
 
@@ -1002,7 +1003,9 @@ int dap_chain_net_srv_voting_create(const char *a_question, dap_list_t *a_option
     SUM_256_256(l_net_fee, a_fee, &l_total_fee);
 
     dap_ledger_t* l_ledger = a_net->pub.ledger;
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, l_addr_from, &l_list_used_out, l_total_fee, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                        l_addr_from, l_total_fee, &l_value_transfer);
     if (!l_list_used_out) {
         return DAP_CHAIN_NET_VOTE_CREATE_NOT_ENOUGH_FUNDS_TO_TRANSFER;

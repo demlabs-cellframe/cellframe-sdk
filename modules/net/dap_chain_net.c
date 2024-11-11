@@ -2023,7 +2023,6 @@ static void *s_net_load(void *a_arg)
         dap_chain_srv_purge_all(l_net->pub.id);
     }
     //else dap_chain_net_srv_stake_load_cache(l_net); // TODO rework ledger and staking caches
-
     // load chains
     dap_chain_t *l_chain = l_net->pub.chains;
     clock_t l_chain_load_start_time; 
