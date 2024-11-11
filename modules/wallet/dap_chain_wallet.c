@@ -490,8 +490,10 @@ dap_chain_addr_t *dap_cert_to_addr(dap_cert_t **a_certs, size_t a_count, size_t 
     dap_chain_addr_t *l_addr = NULL;
     DAP_NEW_Z_RET_VAL(l_addr, dap_chain_addr_t, NULL, NULL);
     dap_enc_key_t *l_key = dap_cert_get_keys_from_certs(a_certs, a_count, a_key_start_index);
-    dap_chain_addr_fill_from_key(l_addr, l_key, a_net_id);
-    dap_enc_key_delete(l_key);
+    if (l_key) {
+        dap_chain_addr_fill_from_key(l_addr, l_key, a_net_id);
+        dap_enc_key_delete(l_key);
+    }
     return l_addr;
 }
 
@@ -1027,6 +1029,7 @@ const char* dap_chain_wallet_check_sign(dap_chain_wallet_t *a_wallet) {
     dap_chain_wallet_internal_t *l_wallet_internal = DAP_CHAIN_WALLET_INTERNAL(a_wallet);
     dap_return_val_if_pass(!l_wallet_internal->certs || !l_wallet_internal->certs, "" );
     for (size_t i = 0; i < l_wallet_internal->certs_count; ++i) {
+        dap_return_val_if_pass(!l_wallet_internal->certs[i], "The wallet contains an undefined certificate.\n");
         dap_sign_type_t l_sign_type = dap_sign_type_from_key_type(l_wallet_internal->certs[i]->enc_key->type);
         if (SIG_TYPE_BLISS == l_sign_type.type || SIG_TYPE_PICNIC == l_sign_type.type || SIG_TYPE_TESLA == l_sign_type.type) {
             return "The Bliss, Picnic and Tesla signatures is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n";
