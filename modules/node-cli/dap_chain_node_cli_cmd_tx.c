@@ -233,7 +233,7 @@ json_object * dap_db_history_tx(json_object* a_json_arr_reply,
 static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_processed_ht_t **a_tx_data_ht,
                               dap_chain_datum_tx_t *a_tx, dap_chain_t *a_chain, const char *a_hash_out_type, 
                               dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, const char* a_token_ticker, 
-                              int a_ret_code, dap_chain_tx_tag_action_type_t a_action, dap_chain_net_srv_uid_t a_uid)
+                              int a_ret_code, dap_chain_tx_tag_action_type_t a_action, dap_chain_srv_uid_t a_uid)
 {
     bool l_declined = false;
     // transaction time
@@ -709,7 +709,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
     } else {
         dap_list_t *l_out_history_list = NULL;
         dap_chain_tx_tag_action_type_t l_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
-        dap_chain_net_srv_uid_t l_uid = {0};
+        dap_chain_srv_uid_t l_uid = {0};
         int l_tx_ret_code = 0;
         char *l_token_ticker = NULL;
         dap_chain_wallet_cache_tx_find_in_history(a_addr, &l_token_ticker, &l_tx_ret_code, &l_action, &l_uid, &l_tx, &l_curr_tx_hash);

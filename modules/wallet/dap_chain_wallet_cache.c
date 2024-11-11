@@ -73,7 +73,7 @@ typedef struct dap_wallet_tx_cache {
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     bool multichannel;
     int ret_code;
-    dap_chain_net_srv_uid_t tag; 
+    dap_chain_srv_uid_t tag; 
     dap_chain_tx_tag_action_type_t action;
     dap_list_t *tx_wallet_inputs;
     dap_list_t *tx_wallet_outputs;
@@ -96,13 +96,13 @@ static dap_wallet_cache_t *s_wallets_cache = NULL;
 static pthread_rwlock_t s_wallet_cache_rwlock;
 
 static int s_save_tx_into_wallet_cache(dap_chain_t *a_chain, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, int a_ret_code, char* a_main_token_ticker,
-                                                dap_chain_net_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action);
+                                                dap_chain_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action);
 static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, int a_ret_code, char* a_main_token_ticker,
-                                                dap_chain_net_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action);
+                                                dap_chain_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action);
 static int s_save_cache_for_addr_in_net(dap_chain_net_t *a_net, dap_chain_addr_t *a_addr);
 static void s_callback_datum_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, void *a_datum, 
                                     size_t a_datum_size, int a_ret_code, uint32_t a_action, 
-                                    dap_chain_net_srv_uid_t a_uid);
+                                    dap_chain_srv_uid_t a_uid);
 static void s_callback_datum_removed_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_hash);
 static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg);
 
@@ -267,7 +267,7 @@ int dap_chain_wallet_cache_tx_find(dap_chain_addr_t *a_addr, char *a_token, dap_
 }
 
 int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a_token, int* a_ret_code, dap_chain_tx_tag_action_type_t *a_action,
-                                    dap_chain_net_srv_uid_t *a_uid, dap_chain_datum_tx_t **a_datum, dap_hash_fast_t *a_tx_hash_curr)
+                                    dap_chain_srv_uid_t *a_uid, dap_chain_datum_tx_t **a_datum, dap_hash_fast_t *a_tx_hash_curr)
 {
     dap_wallet_cache_t *l_wallet_item = NULL;
 
@@ -437,7 +437,7 @@ int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const c
 }
 
 static int s_save_tx_into_wallet_cache(dap_chain_t *a_chain, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, int a_ret_code, char* a_main_token_ticker,
-                                                dap_chain_net_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action)
+                                                dap_chain_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action)
 {
     int l_ret_val = 0;
     int l_items_cnt = 0;
@@ -601,7 +601,7 @@ static int s_save_cache_for_addr_in_net(dap_chain_net_t *a_net, dap_chain_addr_t
 
 static void s_callback_datum_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, void *a_datum, 
                                     size_t a_datum_size, int a_ret_code, uint32_t a_action, 
-                                    dap_chain_net_srv_uid_t a_uid)
+                                    dap_chain_srv_uid_t a_uid)
 {
     dap_atom_notify_arg_t *l_arg = (dap_atom_notify_arg_t*)a_arg;
 
@@ -628,7 +628,7 @@ static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg)
 
 
 static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, int a_ret_code, char* a_main_token_ticker,
-                                                dap_chain_net_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action)
+                                                dap_chain_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action)
 {
     int l_ret_val = 0;
     int l_items_cnt = 0;
