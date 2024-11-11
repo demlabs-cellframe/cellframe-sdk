@@ -211,6 +211,12 @@ void dap_chain_cs_esbocs_deinit(void)
 {
 }
 
+void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable){
+    dap_chain_cs_blocks_t *l_bocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_pvt_t *pvt = PVT(l_bocks);
+    pvt->debug = a_enable;
+}
+
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_set_cs_type(a_chain, "blocks");
@@ -242,7 +248,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
 
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    l_esbocs_pvt->debug                    = dap_config_get_item_bool_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "consensus_debug", false);
+    l_esbocs_pvt->debug                    = false;
     l_esbocs_pvt->poa_mode                 = dap_config_get_item_bool_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "poa_mode", false);
     l_esbocs_pvt->round_start_sync_timeout = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_start_sync_timeout", 15);
     l_esbocs_pvt->new_round_delay          = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "new_round_delay", 10);
