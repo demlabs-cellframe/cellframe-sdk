@@ -343,10 +343,14 @@ int dap_chain_wallet_init()
 
     if ( !(l_dir = opendir(c_wallets_path)) ) {                               /* Path is not exist ? Create the dir and exit */
 #ifdef _WIN32
-        mkdir(c_wallets_path);
+        int l_res = mkdir(c_wallets_path);
 #else
-        mkdir(c_wallets_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        int l_res = mkdir(c_wallets_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 #endif
+        if (l_res) {
+            log_it(L_ERROR, "Can't create wallet dir %s", c_wallets_path);
+            return l_res;
+        }
         return  0;
     }
 
