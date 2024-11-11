@@ -2017,13 +2017,12 @@ static void *s_net_load(void *a_arg)
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
 
     // reload ledger cache at once
-    if (s_chain_net_reload_ledger_cache_once(l_net)) {
+    /*if (s_chain_net_reload_ledger_cache_once(l_net)) {
         log_it(L_WARNING,"Start one time ledger cache reloading");
         dap_ledger_purge(l_net->pub.ledger, false);
         dap_chain_srv_purge_all(l_net->pub.id);
     }
     //else dap_chain_net_srv_stake_load_cache(l_net); // TODO rework ledger and staking caches
-
     // load chains
     dap_chain_t *l_chain = l_net->pub.chains;
     clock_t l_chain_load_start_time; 
