@@ -927,8 +927,9 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     // find net
     dap_chain_net_t *l_net = NULL;
 
-    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net, CHAIN_TYPE_INVALID) < 0) {
-        if (cmd_num != CMD_BANLIST && cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP)
+    int l_net_parse_val = dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net, CHAIN_TYPE_INVALID);
+    if(l_net_parse_val < 0 && cmd_num != CMD_BANLIST) {
+        if ((cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP) || l_net_parse_val == -102)
             return -11;
     }
 
