@@ -26,6 +26,7 @@
 */
 #include "dap_chain_ledger_pvt.h"
 #include "dap_notify_srv.h"
+#include "dap_chain_wallet.h"
 
 #define LOG_TAG "dap_ledger_tx"
 
@@ -1080,30 +1081,28 @@ int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
 
 static struct json_object *s_wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t *a_bal)
 {
-    struct json_object *l_json = json_object_new_object();
-    json_object_object_add(l_json, "class", json_object_new_string("Wallet"));
-    struct json_object *l_network = json_object_new_object();
-    json_object_object_add(l_network, "name", json_object_new_string(a_ledger->net->pub.name));
     char *pos = strrchr(a_bal->key, ' ');
     if (pos) {
         size_t l_addr_len = pos - a_bal->key;
         char *l_addr_str = DAP_NEW_STACK_SIZE(char, l_addr_len + 1);
         if ( !l_addr_str )
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         memcpy(l_addr_str, a_bal->key, pos - a_bal->key);
         *(l_addr_str + l_addr_len) = '\0';
-        json_object_object_add(l_network, "address", json_object_new_string(l_addr_str));
-    } else {
-        json_object_object_add(l_network, "address", json_object_new_string("Unknown"));
+        dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
+        const char *l_wallet_name = dap_chain_wallet_addr_cache_get_name(l_addr);
+        DAP_DELETE(l_addr);
+        if (l_wallet_name) {
+            struct json_object *l_json = json_object_new_object();
+            json_object_object_add(l_json, "class", json_object_new_string("WalletInfo"));
+            struct json_object *l_jobj_wallet = json_object_new_object();
+            json_object_object_add(l_jobj_wallet, l_wallet_name, dap_chain_wallet_info_to_json(l_wallet_name,
+                                                                                               dap_chain_wallet_get_path(g_config)));
+            json_object_object_add(l_json, "wallet", l_jobj_wallet);
+            return l_json;
+        }
     }
-    struct json_object *l_token = json_object_new_object();
-    json_object_object_add(l_token, "name", json_object_new_string(a_bal->token_ticker));
-    const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(a_bal->balance, &l_balance_coins);
-    json_object_object_add(l_token, "full_balance", json_object_new_string(l_balance_coins));
-    json_object_object_add(l_token, "datoshi", json_object_new_string(l_balance_datoshi));
-    json_object_object_add(l_network, "tokens", l_token);
-    json_object_object_add(l_json, "networks", l_network);
-    return l_json;
+    return NULL;
 }
 
 /**
