@@ -239,6 +239,8 @@ typedef struct dap_chain {
 
     dap_list_t *atom_confirmed_notifiers;
 
+    dap_list_t *atom_confirmed_notifiers;
+
     dap_config_t *config;
 
     void * _pvt; // private data
