@@ -103,6 +103,7 @@
 #include "dap_json_rpc_errors.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_chain_wallet_cache.h"
 
 
 #define LOG_TAG "chain_node_cli_cmd"
@@ -4031,7 +4032,7 @@ void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, ui
                                                                                        &l_datum_count);
                 json_object *l_obj_atom = json_object_new_object();
                 char l_buff_ts[50] = {'\0'};
-                dap_time_to_str_rfc822(&l_buff_ts, 50, l_atom_iter->cur_ts);
+                dap_time_to_str_rfc822(l_buff_ts, 50, l_atom_iter->cur_ts);
                 for (size_t i = 0; i < l_datum_count; i++) {
                     dap_chain_datum_t *l_datum = l_datums[i];
                     if (l_datum[i].header.type_id != DAP_CHAIN_DATUM_DECREE) continue;
@@ -6865,8 +6866,9 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                 if (!dap_strcmp(l_native_token, l_main_token)) {
                     SUM_256_256(l_value_need_check, l_value_need, &l_value_need_check);
                     SUM_256_256(l_value_need_check, l_value_need_fee, &l_value_need_check);
-                    l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
-                                                                                             l_addr_from, l_value_need_check, &l_value_transfer);
+                    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_json_item_token, l_addr_from, &l_list_used_out, l_value_need_check, &l_value_transfer) == -101)
+                        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
+                                                                                             l_addr_from, l_value_need_check, &l_value_transfer);                      
                     if(!l_list_used_out) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
                         json_object *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds in previous tx "
@@ -6878,7 +6880,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                     }
                 } else {
                     //CHECK value need
-                    l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
+                    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_json_item_token, l_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+                        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
                                                                                              l_addr_from, l_value_need, &l_value_transfer);
                     if(!l_list_used_out) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -6890,7 +6893,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                         continue;
                     }
                     //CHECK value fee
-                    l_list_used_out_fee = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_native_token,
+                    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_native_token, l_addr_from, &l_list_used_out_fee, l_value_need_fee, &l_value_transfer_fee) == -101)
+                        l_list_used_out_fee = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_native_token,
                                                                                      l_addr_from, l_value_need_fee, &l_value_transfer_fee);
                     if(!l_list_used_out_fee) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");

@@ -45,6 +45,7 @@ typedef struct dap_chain_wallet{
     void        *_inheritor;
 } dap_chain_wallet_t;
 
+typedef void (*dap_chain_wallet_opened_callback_t)(dap_chain_wallet_t *a_wallet, void *a_arg);
 
 int dap_chain_wallet_init();
 void dap_chain_wallet_deinit(void);
@@ -88,3 +89,7 @@ int dap_chain_wallet_activate   (const char *a_name, ssize_t a_name_len, const c
 int dap_chain_wallet_deactivate   (const char *a_name, ssize_t a_name_len);
 
 const char* dap_chain_wallet_check_sign(dap_chain_wallet_t *a_wallet);
+const char *dap_chain_wallet_addr_cache_get_name(dap_chain_addr_t *a_addr);
+
+int dap_chain_wallet_add_wallet_opened_notify(dap_chain_wallet_opened_callback_t a_callback, void *a_arg);
+int dap_chain_wallet_add_wallet_created_notify(dap_chain_wallet_opened_callback_t a_callback, void *a_arg);
