@@ -88,7 +88,7 @@ int dap_chain_cs_type_create(const char *a_type, dap_chain_t * a_chain, dap_conf
     HASH_FIND_STR(s_class_callbacks, a_type, l_item);
     if (l_item && l_item->callback_init)
         return l_item->callback_init(a_chain, a_chain_cfg);
-    return 0;
+    return -1;
 }
 
 /**

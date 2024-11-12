@@ -300,7 +300,9 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
  */
 static void s_chain_cs_dag_start(dap_chain_t *a_chain)
 {
+    dap_return_if_pass(!a_chain || !a_chain->_inheritor);
     dap_chain_cs_dag_t *l_dag = a_chain->_inheritor;
+    dap_return_if_pass(!PVT(l_dag));
     PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_threshold_free, l_dag);
 }
 
