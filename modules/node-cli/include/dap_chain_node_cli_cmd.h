@@ -158,6 +158,7 @@ typedef enum s_com_tx_wallet_err{
     DAP_CHAIN_NODE_CLI_COM_TX_WALLET_HASH_ERR,
     DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CHAIN_PARAM_ERR,
     DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INTERNAL_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CAN_NOT_GET_ADDR,
 
     /* add custom codes here */
 
@@ -213,7 +214,8 @@ typedef enum s_com_tx_create_json_err {
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME,
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS,
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_INVALID_ITEMS,
-    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_CHECK_TX_ADD_LEDGER,
 }s_com_tx_create_json_err_t;
 void json_rpc_tx_create(json_object *a_param, json_object *a_reply);
 int com_tx_create_json(int a_argc, char **a_argv, void **reply);
@@ -377,3 +379,5 @@ typedef enum cmd_find_list_err {
 int cmd_find(int a_argc, char **a_argv, void **a_str_reply);
 
 void dap_notify_new_client_send_info(dap_events_socket_t *a_es, void *a_arg);
+
+int com_exec_cmd(int argc, char **argv, void **reply);
