@@ -296,7 +296,6 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 /**
  * @brief s_chain_cs_dag_start
  * @param a_chain
- * @param a_chain_cfg
  */
 static void s_chain_cs_dag_start(dap_chain_t *a_chain)
 {

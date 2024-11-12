@@ -94,10 +94,9 @@ int dap_chain_cs_type_create(const char *a_type, dap_chain_t * a_chain, dap_conf
 /**
  * @brief dap_chain_class_create
  * @param a_chain
- * @param a_chain_cfg
  * @return
  */
-void dap_chain_cs_type_start(const char *a_type, dap_chain_t * a_chain)
+void dap_chain_cs_type_start(const char *a_type, dap_chain_t *a_chain)
 {
     dap_chain_callback_new_cfg_item_t *l_item = NULL;
     HASH_FIND_STR(s_class_callbacks, a_type, l_item);
