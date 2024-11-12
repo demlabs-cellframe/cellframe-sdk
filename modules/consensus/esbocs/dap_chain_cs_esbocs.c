@@ -178,7 +178,7 @@ DAP_STATIC_INLINE uint16_t s_get_round_skip_timeout(dap_chain_esbocs_session_t *
 
 int dap_chain_cs_esbocs_init()
 {
-    dap_chain_cs_add(DAP_CHAIN_ESBOCS_CS_TYPE_STR, s_callback_new, NULL);
+    dap_chain_cs_add(DAP_CHAIN_ESBOCS_CS_TYPE_STR, s_callback_new);
     dap_stream_ch_proc_add(DAP_STREAM_CH_ESBOCS_ID,
                            NULL,
                            NULL,
