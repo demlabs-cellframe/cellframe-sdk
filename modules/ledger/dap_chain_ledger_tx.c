@@ -139,7 +139,7 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
     dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
     for (size_t i = 0; i < a_values_count; i++) {
-        dap_ledger_cache_gdb_record_t *l_current_record = a_values[i].value;
+        dap_ledger_cache_gdb_record_t *l_current_record = (dap_ledger_cache_gdb_record_t *)a_values[i].value;
         if (a_values[i].value_len != l_current_record->cache_size + l_current_record->datum_size + sizeof(dap_ledger_cache_gdb_record_t)) {
             log_it(L_ERROR, "Worng ledger_cache_gdb_record size");
             return false;
@@ -1317,7 +1317,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             char *l_tx_i_hash = dap_chain_hash_fast_to_str_new(&l_prev_item_out->tx_hash_fast);
             l_cache_used_outs[l_spent_idx] = (dap_store_obj_t) {
                     .key        = l_tx_i_hash,
-                    .value      = l_tx_cache,
+                    .value      = (byte_t *)l_tx_cache,
                     .value_len  = l_tx_cache_sz,
                     .group      = l_ledger_cache_group,
             };
@@ -1475,7 +1475,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         memcpy(l_tx_cache->data + l_cache_size, a_tx, l_tx_size);
         l_cache_used_outs[0] = (dap_store_obj_t) {
                 .key        = l_tx_hash_str,
-                .value      = l_tx_cache,
+                .value      = (byte_t *)l_tx_cache,
                 .value_len  = l_tx_cache_sz,
                 .group      = l_ledger_cache_group,
         };
@@ -1655,7 +1655,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             char *l_tx_i_hash = dap_chain_hash_fast_to_str_new(&l_prev_item_out->tx_hash_fast);
             l_cache_used_outs[l_spent_idx] = (dap_store_obj_t) {
                     .key        = l_tx_i_hash,
-                    .value      = l_tx_cache,
+                    .value      = (byte_t *)l_tx_cache,
                     .value_len  = l_tx_cache_sz,
                     .group      = l_ledger_cache_group
             };
