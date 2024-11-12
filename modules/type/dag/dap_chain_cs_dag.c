@@ -91,7 +91,7 @@ typedef struct dap_chain_cs_dag_pvt {
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
 
 static int s_chain_cs_dag_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
-static int s_chain_cs_dag_start(dap_chain_t *a_chain);
+static void s_chain_cs_dag_start(dap_chain_t *a_chain);
 static void s_chain_cs_dag_delete(dap_chain_t *a_chain);
 static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain);
 static void s_threshold_free(dap_chain_cs_dag_t *a_dag);
@@ -298,7 +298,7 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
  * @param a_chain
  * @param a_chain_cfg
  */
-static int s_chain_cs_dag_start(dap_chain_t *a_chain)
+static void s_chain_cs_dag_start(dap_chain_t *a_chain)
 {
     dap_chain_cs_dag_t *l_dag = a_chain->_inheritor;
     PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_threshold_free, l_dag);
