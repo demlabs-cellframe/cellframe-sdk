@@ -101,7 +101,7 @@ static void s_nonconsensus_delete(dap_chain_t *a_chain);
  */
 int dap_nonconsensus_init(void)
 {
-    dap_chain_cs_add(CONSENSUS_NAME, s_cs_callback_new); // It's a type and CS itself
+    dap_chain_cs_add(CONSENSUS_NAME, s_cs_callback_new, NULL); // It's a type and CS itself
     log_it(L_NOTICE, "Initialized GDB chain items organization class");
     return 0;
 }

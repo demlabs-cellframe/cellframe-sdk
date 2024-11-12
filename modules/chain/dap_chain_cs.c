@@ -33,6 +33,7 @@ typedef struct dap_chain_callback_new_cfg_item
 {
     char name[32];
     dap_chain_callback_new_cfg_t callback_init;
+    dap_chain_callback_t callback_start;
     UT_hash_handle hh;
 } dap_chain_callback_new_cfg_item_t;
 
@@ -61,7 +62,7 @@ void dap_chain_cs_deinit(void)
  * @param a_cs_str consensus name
  * @param a_callback_init callback function
  */
-void dap_chain_cs_type_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_callback_init)
+void dap_chain_cs_type_add (const char * a_cs_str, dap_chain_callback_new_cfg_t a_callback_init, dap_chain_callback_t a_callback_start)
 {
     dap_chain_callback_new_cfg_item_t *l_item = DAP_NEW_Z ( dap_chain_callback_new_cfg_item_t );
     if ( !l_item ) {
@@ -71,6 +72,7 @@ void dap_chain_cs_type_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t
     strncpy(l_item->name, a_cs_str, sizeof (l_item->name) - 1);
     l_item->name[sizeof (l_item->name) - 1] = '\0';
     l_item->callback_init = a_callback_init;
+    l_item->callback_start = a_callback_start;
     HASH_ADD_STR( s_class_callbacks, name, l_item);
 }
 
@@ -86,7 +88,21 @@ int dap_chain_cs_type_create(const char *a_type, dap_chain_t * a_chain, dap_conf
     HASH_FIND_STR(s_class_callbacks, a_type, l_item);
     if (l_item && l_item->callback_init)
         return l_item->callback_init(a_chain, a_chain_cfg);
-    return -1;
+    return 0;
+}
+
+/**
+ * @brief dap_chain_class_create
+ * @param a_chain
+ * @param a_chain_cfg
+ * @return
+ */
+void dap_chain_cs_type_start(const char *a_type, dap_chain_t * a_chain)
+{
+    dap_chain_callback_new_cfg_item_t *l_item = NULL;
+    HASH_FIND_STR(s_class_callbacks, a_type, l_item);
+    if (l_item && l_item->callback_start)
+        l_item->callback_start(a_chain);
 }
 
 
@@ -96,7 +112,7 @@ int dap_chain_cs_type_create(const char *a_type, dap_chain_t * a_chain, dap_conf
  * @param a_cs_str
  * @param a_callback_init
  */
-void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_callback_init)
+void dap_chain_cs_add (const char * a_cs_str, dap_chain_callback_new_cfg_t a_callback_init, dap_chain_callback_t a_callback_start)
 {
     dap_chain_callback_new_cfg_item_t *l_item = DAP_NEW_Z ( dap_chain_callback_new_cfg_item_t );
     if ( !l_item ) {
@@ -106,6 +122,7 @@ void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_ca
     strncpy(l_item->name, a_cs_str, sizeof (l_item->name) - 1);
     l_item->name[sizeof (l_item->name) - 1] = '\0';
     l_item->callback_init = a_callback_init;
+    l_item->callback_start = a_callback_start;
     HASH_ADD_STR( s_cs_callbacks, name, l_item);
 }
 

@@ -107,7 +107,7 @@ static bool s_debug_more = false;
 int dap_chain_cs_dag_poa_init()
 {
     // Add consensus constructor
-    dap_chain_cs_add("dag_poa", s_callback_new);
+    dap_chain_cs_add("dag_poa", s_callback_new, NULL);
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, "DAG PoA commands",
         "dag_poa event sign -net <net_name> [-chain <chain_name>] -event <event_hash> [-H {hex | base58(default)}]\n"
@@ -419,7 +419,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("testCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, l_seed_ph, l_seed_ph_size);
     l_poa_pvt->auth_certs[0] = l_cert;
 #endif
-
+    dap_chain_cs_type_start("dag", a_chain);
     return 0;
 }
 
