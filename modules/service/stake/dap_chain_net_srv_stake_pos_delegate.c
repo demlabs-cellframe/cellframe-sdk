@@ -3521,7 +3521,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             json_object* l_json_arr_reply = s_dap_chain_net_srv_stake_reward_all(*a_json_arr_reply, l_addr, l_chain, 
                                  l_net, &l_hash_public_key, l_from_time, l_to_time, l_limit, l_offset, l_is_tx_all, l_brief, l_head);
             json_object_array_add(*a_json_arr_reply, l_json_arr_reply);                        
-
+            DAP_DELETE(l_addr);
         } break;
 
         default: {
@@ -3581,10 +3581,6 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
             // go to next datum
             continue;
-        if (i_tmp < l_arr_start) {
-                i_tmp++;
-                continue;
-            }
         
         if (a_time_form && l_datum->header.ts_create < a_time_form)
                 continue;
@@ -3612,6 +3608,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
                 json_block_hash = json_object_new_object();
                 json_object_object_add(json_block_hash, "block hash", json_object_new_string(l_block_hash));
+                DAP_DELETE(l_block_hash);
             }
             else if (i_tmp >= l_arr_end) 
                         break;   
@@ -3628,6 +3625,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                     l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
                     json_block_hash = json_object_new_object();
                     json_object_object_add(json_block_hash, "block hash", json_object_new_string(l_block_hash));
+                    DAP_DELETE(l_block_hash);
                 }
                             
                 dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
@@ -3640,10 +3638,14 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 HASH_FIND(hh, l_srv_stake->itemlist, &l_pkey_hash, sizeof(dap_hash_fast_t), l_stake);
                 if (a_addr) {
                     if (!l_stake || !dap_chain_addr_compare(a_addr, &l_stake->signing_addr)) {
+                        json_object_put(json_arr_sign_out);
+                        json_object_put(json_block_hash);
                         continue;                    
                     }
                 } else if (!a_all && a_pkey){
                     if (!dap_hash_fast_compare(a_pkey, &l_pkey_hash)) {
+                        json_object_put(json_arr_sign_out);
+                        json_object_put(json_block_hash);
                         continue;
                     }
                 }               
@@ -3660,6 +3662,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 dap_pkey_t * l_block_sign_pkey = dap_pkey_get_from_sign(l_sign);
                 uint256_t l_value_reward = a_chain->callback_calc_reward(a_chain, &l_block_cache->block_hash,
                                                              l_block_sign_pkey);
+                DAP_DELETE(l_block_sign_pkey);
                 const char  *l_coins_str,
                     *l_value_str = dap_uint256_to_char(l_value_reward, &l_coins_str);
                 json_object_object_add(json_obj_sign, "reward value", json_object_new_string(l_value_str));
@@ -3670,9 +3673,9 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
             if (json_object_array_length(json_arr_sign_out) > 0) {
                 json_object_object_add(json_block_hash, "REWARDS", json_arr_sign_out);
                 json_object_array_add(json_obj_reward, json_block_hash);
-            }
-            DAP_DELETE(l_block_hash);            
+            }                        
         }
+        dap_list_free(l_list_in_items);
         if (!a_brief)
         { 
             json_object* json_obj_datum = json_object_new_object();    
@@ -3681,6 +3684,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
             json_object_array_add(json_obj_reward, json_obj_datum);
         } 
     }
+    a_chain->callback_datum_iter_delete(l_datum_iter);
     return json_obj_reward;
 }
 
