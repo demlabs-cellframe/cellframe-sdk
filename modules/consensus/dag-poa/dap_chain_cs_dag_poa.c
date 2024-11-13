@@ -79,7 +79,7 @@ typedef struct dap_chain_cs_dag_poa_pvt {
 
 static void s_callback_delete(dap_chain_cs_dag_t * a_dag);
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
-static void s_callback_start(dap_chain_t *a_chain);
+static int s_callback_start(dap_chain_t *a_chain);
 static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_cfg);
 static int s_callback_event_verify(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_t *a_dag_event, dap_hash_fast_t *a_event_hash);
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
@@ -755,10 +755,11 @@ static void s_callback_delete(dap_chain_cs_dag_t *a_dag)
  * @brief
  * @param a_chain dap_chain_t object
  */
-static void s_callback_start(dap_chain_t *a_chain)
+static int s_callback_start(dap_chain_t *a_chain)
 {
-    dap_return_if_pass(!a_chain || !a_chain->_inheritor);
+    dap_return_val_if_pass(!a_chain || !a_chain->_inheritor, -1);
     dap_chain_cs_dag_start((dap_chain_cs_dag_t *)(a_chain->_inheritor));
+    return 0;
 }
 
 /**
