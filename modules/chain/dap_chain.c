@@ -513,7 +513,7 @@ bool download_notify_callback(dap_chain_t* a_chain) {
     json_object_object_add(l_chain_info, "net", json_object_new_string(a_chain->net_name));
     json_object_object_add(l_chain_info, "chain_id", json_object_new_uint64(a_chain->id.uint64));
     json_object_object_add(l_chain_info, "load_progress", json_object_new_int(a_chain->load_progress));
-    dap_notify_server_send_mt(json_object_get_string(l_chain_info));
+    dap_notify_server_send(json_object_get_string(l_chain_info));
     log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
                     a_chain->net_name, a_chain->name, a_chain->id.uint64, a_chain->load_progress);
     json_object_put(l_chain_info);
@@ -571,7 +571,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
                 DAP_DELETE(l_filename_backup);
 #endif
             }
-            dap_timerfd_delete_mt(l_download_notify_timer->worker, l_download_notify_timer->esocket_uuid);
+            dap_timerfd_delete(l_download_notify_timer->worker, l_download_notify_timer->esocket_uuid);
             download_notify_callback(a_chain);
         }
     }

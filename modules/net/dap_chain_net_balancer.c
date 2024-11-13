@@ -158,7 +158,7 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_net_link
                      , "Link " NODE_ADDR_FP_STR " prepared"
                      , NODE_ADDR_FP_ARGS_S(l_link_info->node_addr));
         json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
-        dap_notify_server_send_mt(json_object_get_string(l_json));
+        dap_notify_server_send(json_object_get_string(l_json));
         json_object_put(l_json);
     }
 }
@@ -178,7 +178,7 @@ static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request
             , a_host_addr, a_host_port, a_request->net->pub.name, a_errno);
     log_it(L_WARNING, "%s", l_err_str);
     json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
-    dap_notify_server_send_mt(json_object_get_string(l_json));
+    dap_notify_server_send(json_object_get_string(l_json));
     json_object_put(l_json);
 }
 

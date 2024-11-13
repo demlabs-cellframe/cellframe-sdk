@@ -320,7 +320,7 @@ int dap_chain_net_srv_ch_grace_control(dap_chain_net_srv_t *a_net_srv, dap_hash_
     }
     log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
     // Stop timer
-    dap_timerfd_delete_mt(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
+    dap_timerfd_delete(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
     // finish grace
     if(!l_item->grace->usage->service)
         HASH_DEL(a_net_srv->grace_hash_tab, l_item);
@@ -1514,7 +1514,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         if (dap_hash_fast_is_blank(&l_responce->hdr.tx_cond)){ //if new tx cond creation failed tx_cond in responce will be blank
             if (l_curr_grace_item){
                 HASH_DEL(l_srv->grace_hash_tab, l_curr_grace_item);
-                dap_timerfd_delete_mt(l_curr_grace_item->grace->timer->worker, l_curr_grace_item->grace->timer->esocket_uuid);
+                dap_timerfd_delete(l_curr_grace_item->grace->timer->worker, l_curr_grace_item->grace->timer->esocket_uuid);
                 s_grace_error(l_curr_grace_item->grace, l_err);
                 DAP_DEL_Z(l_curr_grace_item);
             }
@@ -1527,7 +1527,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             if (l_curr_grace_item){
                 log_it(L_INFO, "Found tx in ledger by net tx responce handler. Finish waiting new tx grace period.");
                 // Stop timer
-                dap_timerfd_delete_mt(l_curr_grace_item->grace->timer->worker, l_curr_grace_item->grace->timer->esocket_uuid);
+                dap_timerfd_delete(l_curr_grace_item->grace->timer->worker, l_curr_grace_item->grace->timer->esocket_uuid);
                 // finish grace
                 l_usage->tx_cond_hash = l_responce->hdr.tx_cond;
                 l_curr_grace_item->grace->request->hdr.tx_cond = l_responce->hdr.tx_cond;

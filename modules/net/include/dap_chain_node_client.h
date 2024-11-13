@@ -136,8 +136,8 @@ DAP_STATIC_INLINE dap_chain_node_client_t* dap_chain_node_client_connect_default
 DAP_STATIC_INLINE ssize_t dap_chain_node_client_write_unsafe(dap_chain_node_client_t *a_client, const char a_ch_id, uint8_t a_type, void *a_data, size_t a_data_size)
 { if (!a_client) return 0; return dap_client_write_unsafe(a_client->client, a_ch_id, a_type, a_data, a_data_size); }
 
-DAP_STATIC_INLINE int dap_chain_node_client_write_mt(dap_chain_node_client_t *a_client, const char a_ch_id, uint8_t a_type, void *a_data, size_t a_data_size)
-{ if (!a_client) return -1; return dap_client_write_mt(a_client->client, a_ch_id, a_type, a_data, a_data_size); }
+DAP_STATIC_INLINE int dap_chain_node_client_write(dap_chain_node_client_t *a_client, const char a_ch_id, uint8_t a_type, void *a_data, size_t a_data_size)
+{ if (!a_client) return -1; return dap_client_write(a_client->client, a_ch_id, a_type, a_data, a_data_size); }
 
 DAP_STATIC_INLINE void dap_chain_node_client_queue_clear(dap_chain_node_client_t *a_client)
 { if (!a_client) return; dap_client_queue_clear(a_client->client); };
@@ -146,7 +146,7 @@ DAP_STATIC_INLINE void dap_chain_node_client_queue_clear(dap_chain_node_client_t
  * Close connection to server, delete chain_node_client_t with specified UUID
  */
 void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client);
-void dap_chain_node_client_close_mt(dap_chain_node_client_t *a_node_client);
+void dap_chain_node_client_close(dap_chain_node_client_t *a_node_client);
 
 /**
  * wait for the complete of request

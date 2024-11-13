@@ -329,7 +329,7 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
     if (a_node_client->sync_timer)
         dap_timerfd_delete_unsafe(a_node_client->sync_timer);
     if (a_node_client->reconnect_timer)
-        dap_timerfd_delete_mt(a_node_client->reconnect_timer->worker, a_node_client->reconnect_timer->esocket_uuid);
+        dap_timerfd_delete(a_node_client->reconnect_timer->worker, a_node_client->reconnect_timer->esocket_uuid);
     if (a_node_client->callbacks.delete)
         a_node_client->callbacks.delete(a_node_client, a_node_client->net);
 
@@ -355,9 +355,9 @@ void s_close_on_worker_callback(void *a_arg)
     dap_chain_node_client_close_unsafe(a_arg);
 }
 
-void dap_chain_node_client_close_mt(dap_chain_node_client_t *a_node_client)
+void dap_chain_node_client_close(dap_chain_node_client_t *a_node_client)
 {
-    if (a_node_client->client)
+    if (a_node_client->client && dap_worker_get_current() != DAP_CLIENT_PVT(a_node_client->client)->worker)
         dap_worker_exec_callback_on(DAP_CLIENT_PVT(a_node_client->client)->worker, s_close_on_worker_callback, a_node_client);
     else
         dap_chain_node_client_close_unsafe(a_node_client);
