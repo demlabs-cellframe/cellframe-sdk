@@ -84,7 +84,7 @@ typedef struct dap_chain_cs_dag_pvt {
     dap_chain_cs_dag_event_item_t * events_treshold_conflicted;
     dap_chain_cs_dag_event_item_t * events_lasts_unlinked;
     dap_chain_cs_dag_blocked_t *removed_events_from_treshold;
-    dap_interval_timer_t treshold_fee_timer;
+    dap_interval_timer_t treshold_free_timer;
     uint64_t tx_count;
 } dap_chain_cs_dag_pvt_t;
 
@@ -193,7 +193,7 @@ void dap_chain_cs_dag_deinit(void)
  */
 static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
-    dap_chain_cs_dag_t * l_dag = DAP_NEW_Z(dap_chain_cs_dag_t);
+    dap_chain_cs_dag_t *l_dag = DAP_NEW_Z(dap_chain_cs_dag_t);
     if (!l_dag){
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
@@ -288,11 +288,19 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->gdb_group_events_round_new = dap_strdup_printf(l_dag->is_celled ? "dag-%s-%s-%016llx-round.new" : "dag-%s-%s-round.new",
                                         "Snet", a_chain->name, 0LLU);
 #endif
-    PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_threshold_free, l_dag);
-
     log_it (L_NOTICE, "DAG chain initialized (%s)", l_dag->is_single_line ? "single line" : "multichain");
-
     return 0;
+}
+
+/**
+ * @brief dap_chain_cs_dag_start
+ * @param a_dag
+*/
+void dap_chain_cs_dag_start(dap_chain_cs_dag_t *a_dag)
+{
+    dap_return_if_pass(!a_dag || !PVT(a_dag));
+    if (!PVT(a_dag)->treshold_free_timer)
+        PVT(a_dag)->treshold_free_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_threshold_free, a_dag);
 }
 
 static void s_threshold_free(dap_chain_cs_dag_t *a_dag)
@@ -379,8 +387,11 @@ static int s_chain_cs_dag_purge(dap_chain_t *a_chain)
  */
 static int s_chain_cs_dag_delete(dap_chain_t * a_chain)
 {
+    dap_return_val_if_pass(!a_chain || !a_chain->_inheritor, -1);
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG ( a_chain );
+    dap_return_val_if_pass(!PVT(l_dag), -2);
+    dap_interval_timer_delete(PVT(l_dag)->treshold_free_timer);
     s_chain_cs_dag_purge(a_chain);
-    dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     pthread_mutex_destroy(& PVT(l_dag)->events_mutex);
     if(l_dag->callback_delete )
         l_dag->callback_delete(l_dag);
