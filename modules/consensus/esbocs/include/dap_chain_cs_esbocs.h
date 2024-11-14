@@ -144,6 +144,7 @@ typedef struct dap_chain_esbocs_round {
     uint64_t id;
     uint64_t sync_attempt;
     dap_time_t round_start_ts;
+    dap_time_t prev_round_start_ts;
 
     dap_hash_fast_t last_block_hash;
     dap_hash_fast_t directive_hash;

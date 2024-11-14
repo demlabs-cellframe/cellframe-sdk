@@ -1090,6 +1090,7 @@ static bool s_session_round_new(void *a_arg)
     s_session_round_clear(a_session);
     a_session->cur_round.id++;
     a_session->cur_round.sync_attempt++;
+    a_session->cur_round.prev_round_start_ts = a_session->cur_round.round_start_ts;
     a_session->cur_round.round_start_ts = dap_time_now();
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
@@ -1145,19 +1146,13 @@ static bool s_session_round_new(void *a_arg)
         if (!l_round_already_started && a_session->sync_failed) {
             l_sync_send_delay = s_get_round_skip_timeout(a_session);
         } else if (!l_round_already_started) {
-            long long l_time_delta = a_session->esbocs->last_accepted_block_timestamp - a_session->cur_round.round_start_ts;
-            log_it(L_DEBUG, "Round continue from last accepter block delta = %ld, last_block = %ld, round_start= %ld", l_time_delta,  a_session->esbocs->last_accepted_block_timestamp, a_session->cur_round.round_start_ts);
-            if (l_time_delta >= 0 && l_time_delta < PVT(a_session->esbocs)->new_round_delay) {
+            long long l_time_delta = a_session->esbocs->last_accepted_block_timestamp - a_session->cur_round.prev_round_start_ts;
+            if (l_time_delta >= 0 && l_time_delta < PVT(a_session->esbocs)->new_round_delay && a_session->esbocs->last_accepted_block_timestamp) {
                 l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay - *(uint16_t*)l_time_delta;
-            } else if (l_time_delta < 0 && l_time_delta > -PVT(a_session->esbocs)->new_round_delay){
-                l_time_delta = dap_time_now() - a_session->cur_round.round_start_ts;
-                log_it(L_DEBUG, "Round continue for %ld, round_start = %ld, time_now = %ld", l_time_delta, a_session->cur_round.round_start_ts, dap_time_now());
-                if (l_time_delta < PVT(a_session->esbocs)->new_round_delay) {
-                    l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay - *(uint16_t*)l_time_delta;
-                } 
+            } else {
+                l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay;
             }
         }
-        log_it(L_DEBUG, "l_sync_send_delay = %u", l_sync_send_delay);
         debug_if(PVT(a_session->esbocs)->debug, L_MSG,
                  "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" start. Syncing validators in %u seconds",
                     a_session->chain->net_name, a_session->chain->name,
@@ -1663,6 +1658,7 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                     l_candidate, l_candidate_size, a_session->cur_round.validators_list);
     //Save candidate_hash
     memcpy(&(PVT(a_session->esbocs)->candidate_hash), &l_candidate_hash, sizeof(dap_hash_fast_t));
+    a_session->esbocs->last_submitted_candidate_timestamp = dap_time_now();
 }
 
 static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, dap_chain_block_t *a_candidate,
