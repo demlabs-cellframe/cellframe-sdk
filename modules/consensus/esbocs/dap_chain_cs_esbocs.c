@@ -906,6 +906,8 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_
                     break;
                 }
             }
+            if (!l_chosen)
+                return log_it(L_ERROR, "Can't choose validator with specified weight!"), dap_list_free_full(l_validators, NULL), NULL;
             l_ret = dap_list_append(l_ret, s_callback_list_form(l_chosen->data, NULL));
 
             SUBTRACT_256_256(l_total_weight,
@@ -1986,8 +1988,6 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
             return -3;
         }
         char *l_penalty_group = s_get_penalty_group(l_key_addr->net_id);
-        const char *l_directive_hash_str = dap_chain_hash_fast_to_str_new(a_directive_hash);
-        const char *l_key_hash_str = dap_chain_hash_fast_to_str_new(&l_key_addr->data.hash_fast);
         if (l_status == 1 && a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK) {
             // Offline will be set in gdb notifier for aim of sync supporting
             dap_global_db_set(l_penalty_group, l_key_str, NULL, 0, false, NULL, 0);

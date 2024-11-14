@@ -785,7 +785,7 @@ void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_ha
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
             .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
             .hash = *a_hash,
-            .atom = a_chain_cell->chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE(a_atom, a_atom_size),
+            .atom = a_chain_cell->chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE((byte_t*)a_atom, a_atom_size),
             .atom_size = a_atom_size };
         dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }
@@ -820,6 +820,7 @@ const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type) {
             return "decree";
         case CHAIN_TYPE_ANCHOR:
             return "anchor";
+        default: break;
     }
     return "invalid";
 }

@@ -151,7 +151,7 @@ int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, cons
 
 void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type)
 {
-    char *l_type_str = "";
+    char *l_type_str;
     switch(a_decree->header.type)
     {
         case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:
@@ -386,12 +386,9 @@ dap_chain_datum_decree_t *dap_chain_datum_decree_sign_in_cycle(dap_cert_t **a_ce
             return NULL;
         }
         size_t l_sign_size = dap_sign_get_size(l_sign);
-        a_datum_decree = DAP_REALLOC(a_datum_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
-        if (!a_datum_decree) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            DAP_DELETE(l_sign);
-            return NULL;
-        }
+        dap_chain_datum_decree_t *l_datum_decree = DAP_REALLOC_RET_VAL_IF_FAIL(
+            a_datum_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size, NULL, l_sign);
+        a_datum_decree = l_datum_decree;
         memcpy(a_datum_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
         DAP_DELETE(l_sign);
         l_total_signs_size += l_sign_size;

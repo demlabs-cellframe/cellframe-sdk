@@ -459,12 +459,10 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t *a_net, const dap_chain_
                 continue;
 
             size_t l_order_mem_size = dap_chain_net_srv_order_get_size(l_order);
-            dap_chain_net_srv_order_t *l_output_order = DAP_DUP_SIZE(l_order, l_order_mem_size);
-            if (!l_output_order) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                dap_global_db_objs_delete(l_orders, l_orders_count);
-                return -1;
-            }
+            dap_chain_net_srv_order_t *l_output_order = DAP_DUP_SIZE((dap_chain_net_srv_order_t*)l_order, l_order_mem_size);
+            if (!l_output_order) 
+                return dap_global_db_objs_delete(l_orders, l_orders_count), log_it(L_CRITICAL, "%s", c_error_memory_alloc), -1;
+                
             l_out_list = dap_list_append(l_out_list, l_output_order);
             l_output_orders_count++;
         }

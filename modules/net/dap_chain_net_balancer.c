@@ -99,12 +99,12 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
                              "Next %zu nodes will be ignored in balancer links preparing in net %s:\n"
                              "\tSelf:\n\t\t"NODE_ADDR_FP_STR"\n\tActive links (%zu):\n",
                              l_ret->count_node, a_net->pub.name, NODE_ADDR_FP_ARGS(l_curr_addr), l_links_count);
-        for (size_t i = 0; i < l_links_count && l_pos < sizeof(l_ignored_str); ++i) {
+        for (size_t i = 0; i < l_links_count && l_pos < (int)sizeof(l_ignored_str); ++i) {
             l_pos += snprintf(l_ignored_str + l_pos, sizeof(l_ignored_str) - l_pos, "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_links + i));
         }
-        if (l_pos < sizeof(l_ignored_str)) {
+        if (l_pos < (int)sizeof(l_ignored_str)) {
             l_pos += snprintf(l_ignored_str + l_pos, sizeof(l_ignored_str) - l_pos, "\tCooling (%zu):\n", l_low_availability_count);
-            for (size_t i = 0; i < l_low_availability_count && l_pos < sizeof(l_ignored_str); ++i) {
+            for (size_t i = 0; i < l_low_availability_count && l_pos < (int)sizeof(l_ignored_str); ++i) {
                 l_pos += snprintf(l_ignored_str + l_pos, sizeof(l_ignored_str) - l_pos, "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_low_availability + i));
             }
         }
@@ -115,7 +115,7 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
     if(l_links)
         l_mempos = dap_mempcpy(l_mempos, l_links, l_links_count * sizeof(dap_stream_node_addr_t));
     if(l_low_availability)
-        l_mempos = dap_mempcpy(l_mempos, l_low_availability, l_low_availability_count * sizeof(dap_stream_node_addr_t));
+        dap_mempcpy(l_mempos, l_low_availability, l_low_availability_count * sizeof(dap_stream_node_addr_t));
     if (a_size)
         *a_size = l_size;
     DAP_DEL_MULTY(l_links, l_low_availability);
@@ -136,7 +136,7 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_chain_ne
         int l_pos = snprintf(l_links_str, sizeof(l_links_str) - 1,
                              "Next %"DAP_UINT64_FORMAT_U" links prepared from balancer in net %s:\n",
                              a_link_full_node_list->count_node, a_net->pub.name);
-        for (size_t i = 0; i < a_link_full_node_list->count_node && l_pos < sizeof(l_links_str); ++i) {
+        for (size_t i = 0; i < a_link_full_node_list->count_node && l_pos < (int)sizeof(l_links_str); ++i) {
             dap_link_info_t *l_link_info = (dap_link_info_t*)a_link_full_node_list->nodes_info + i;
             l_pos += snprintf(l_links_str + l_pos, sizeof(l_links_str) - l_pos - 1, "\t"NODE_ADDR_FP_STR " [ %s : %u ]\n",
                               NODE_ADDR_FP_ARGS_S(l_link_info->node_addr), l_link_info->uplink_addr, l_link_info->uplink_port);
@@ -379,8 +379,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     }
     int l_protocol_version = 0;
     char l_issue_method = 0;
-    const char l_net_token[] = "net=";
-    const char l_ignored_token[] = "ignored=";
+    const char l_net_token[] = "net=", l_ignored_token[] = "ignored=";
     uint16_t l_links_need = 0;
     sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,needlink=%hu",
                                                             &l_protocol_version, &l_issue_method, &l_links_need);

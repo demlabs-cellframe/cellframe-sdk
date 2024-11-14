@@ -1350,7 +1350,9 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
 
         if (l_sign) {
             size_t l_sign_size = dap_sign_get_size(l_sign);
-            a_datum_anchor = DAP_REALLOC(a_datum_anchor, sizeof(dap_chain_datum_anchor_t) + l_cur_sign_offset + l_sign_size);
+            dap_chain_datum_anchor_t *l_new_anchor
+                = DAP_REALLOC_RET_VAL_IF_FAIL(a_datum_anchor, sizeof(dap_chain_datum_anchor_t) + l_cur_sign_offset + l_sign_size, NULL, l_sign);
+            a_datum_anchor = l_new_anchor;
             memcpy((byte_t*)a_datum_anchor->data_n_sign + l_cur_sign_offset, l_sign, l_sign_size);
             l_total_signs_size += l_sign_size;
             l_cur_sign_offset += l_sign_size;
@@ -1713,7 +1715,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                     l_datum_hash_hex_str, &l_datum_size, NULL, NULL )) != NULL) {
                 // Check if its decree creation
                 if(l_datum->header.type_id == DAP_CHAIN_DATUM_DECREE) {
-                    dap_chain_datum_decree_t *l_datum_decree = DAP_DUP_SIZE(l_datum->data, l_datum->header.data_size);    // for realloc
+                    dap_chain_datum_decree_t *l_datum_decree = DAP_DUP_SIZE((dap_chain_datum_decree_t*)l_datum->data, l_datum->header.data_size);
                     DAP_DELETE(l_datum);
 
                     // Sign decree
@@ -1816,7 +1818,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
         if (!l_datum_anchor || l_total_signs_success == 0){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Anchor creation failed. Successful count of certificate signing is 0");
-                return -108;
+            return DAP_DELETE(l_datum_anchor), -108;
         }
 
         // Create datum

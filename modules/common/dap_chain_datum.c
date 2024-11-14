@@ -32,6 +32,8 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_chain_datum_tx_receipt.h"
+#include "dap_chain_datum_tx_pkey.h"
 #include "dap_chain_datum_hashtree_roots.h"
 #include "dap_enc_base58.h"
 #include "dap_sign.h"
@@ -260,7 +262,7 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
             const char *l_value_str = dap_uint256_to_char(
                 dap_chain_uint256_from(((dap_chain_tx_out_old_t*)item)->header.value), NULL );
             json_object_object_add(json_obj_item,"item type", json_object_new_string("OUT OLD"));
-            json_object_object_add(json_obj_item,"Value", json_object_new_uint64(((dap_chain_tx_out_old_t*)item)->header.value));
+            json_object_object_add(json_obj_item,"Value", json_object_new_string(l_value_str));
             json_object_object_add(json_obj_item,"Address", json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_old_t*)item)->addr)));
         } break;
         case TX_ITEM_TYPE_OUT: { // 256
@@ -404,8 +406,8 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
                     
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
-                    const char *l_rate_str, *l_tmp_str =
-                        dap_uint256_to_char( (((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.rate), &l_rate_str );
+                    const char *l_rate_str;
+                    dap_uint256_to_char( (((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.rate), &l_rate_str );
                     snprintf(l_tmp_buff,sizeof(l_tmp_buff),"0x%016"DAP_UINT64_FORMAT_x"",((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_net_id.uint64);
                     json_object_object_add(json_obj_item,"net id", json_object_new_string(l_tmp_buff));
                     json_object_object_add(json_obj_item,"buy_token", json_object_new_string(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_token));

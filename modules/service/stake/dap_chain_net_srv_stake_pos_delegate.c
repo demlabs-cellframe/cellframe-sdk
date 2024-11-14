@@ -1117,15 +1117,11 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
 
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
-        l_decree = DAP_REALLOC(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
-        if (!l_decree) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            DAP_DELETE(l_sign);
-            return NULL;
-        }
+        dap_chain_datum_decree_t *l_new_decree
+            = DAP_REALLOC_RET_VAL_IF_FAIL(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size, NULL, l_decree, l_sign);
+        l_decree = l_new_decree;
         memcpy((byte_t*)l_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
         l_total_signs_size += l_sign_size;
-        l_cur_sign_offset += l_sign_size;
         l_decree->header.signs_size = l_total_signs_size;
         DAP_DELETE(l_sign);
         log_it(L_DEBUG,"<-- Signed with '%s'", a_cert->name);
@@ -1356,15 +1352,11 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
 
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
-        l_decree = DAP_REALLOC(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
-        if (!l_decree) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            DAP_DELETE(l_sign);
-            return NULL;
-        }
+        dap_chain_datum_decree_t *l_new_decree
+            = DAP_REALLOC_RET_VAL_IF_FAIL(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size, NULL, l_decree, l_sign);
+        l_decree = l_new_decree;
         memcpy((byte_t*)l_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
         l_total_signs_size += l_sign_size;
-        l_cur_sign_offset += l_sign_size;
         l_decree->header.signs_size = l_total_signs_size;
         DAP_DELETE(l_sign);
         log_it(L_DEBUG,"<-- Signed with '%s'", a_cert->name);
@@ -2694,7 +2686,7 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     uint256_t l_sov_tax_percent = uint256_0;
     MULT_256_256(a_stake->sovereign_tax, GET_256_FROM_64(100), &l_sov_tax_percent);
     char *l_sov_tax_str = dap_chain_balance_to_coins(l_sov_tax_percent);
-    char l_node_addr[32] = {};
+    char l_node_addr[32];
     snprintf(l_node_addr, 32, ""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(a_stake->node_addr));
     json_object_object_add(l_json_obj_stake, "pkey_hash", json_object_new_string(l_pkey_hash_str));
     json_object_object_add(l_json_obj_stake, "stake_value", json_object_new_string(l_balance));
@@ -3055,7 +3047,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_DECREE_ERR;
             }
             DAP_DELETE(l_decree);
-            char l_approve_str[128] = {'\0'};
+            char l_approve_str[128];
             snprintf(l_approve_str, sizeof(l_approve_str), "Approve decree %s successfully created", l_decree_hash_str);
             json_object_array_add(*a_json_arr_reply, json_object_new_string(l_approve_str));
             DAP_DELETE(l_decree_hash_str);

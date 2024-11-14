@@ -426,13 +426,8 @@ static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_c
     size_t l_sign_size = dap_sign_get_size(l_sign);
     l_decree_size += l_sign_size;
     l_decree->header.signs_size = l_sign_size;
-    void *l_decree_rl = DAP_REALLOC(l_decree, l_decree_size);
-    if (!l_decree_rl) {
-        log_it(L_CRITICAL, "Memory reallocation error");
-        DAP_DELETE(l_decree);
-        return NULL;
-    } else
-        l_decree = l_decree_rl;
+    dap_chain_datum_decree_t *l_decree_rl = DAP_REALLOC_RET_VAL_IF_FAIL(l_decree, l_decree_size, NULL, l_decree, l_sign);
+    l_decree = l_decree_rl;
     memcpy(l_decree->data_n_signs + l_tsd_total_size, l_sign, l_sign_size);
     DAP_DELETE(l_sign);
 
@@ -703,22 +698,19 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                                                                                               &l_datum_size, NULL, NULL);
             l_datums[0] = l_datum;
             for (size_t i = 0; i < l_datums_count; i++) {
-                bool l_err = dap_chain_node_mempool_process(l_chain, l_datums[i], l_subcmd_str_arg);
-                if (l_err) {
+                if ( dap_chain_node_mempool_process(l_chain, l_datums[i], l_subcmd_str_arg) ) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_VERIF_ERR, "Error! Datum %s doesn't pass verifications, examine node log files",
                                                       l_subcmd_str_arg);
-                    ret = DAP_CHAIN_NODE_CLI_COM_BLOCK_VERIF_ERR;
-                } else
-                   log_it(L_INFO, "Pass datum %s from mempool to block in the new forming round ",
-                                                     l_subcmd_str_arg);
-                if (l_err)
-                    break;
+                    DAP_DEL_MULTY(l_datum, l_datums, l_gdb_group_mempool);
+                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_VERIF_ERR;
+                }
+                log_it(L_INFO, "Pass datum %s from mempool to block in the new forming round ",
+                               l_subcmd_str_arg);
             }
             json_object* json_obj_out = json_object_new_string("All datums processed");
             json_object_array_add(*a_json_arr_reply, json_obj_out);
             ret = DAP_CHAIN_NODE_CLI_COM_BLOCK_OK;
-            DAP_DEL_Z(l_datums);
-            DAP_DELETE(l_gdb_group_mempool);
+            DAP_DEL_MULTY(l_datum, l_datums, l_gdb_group_mempool);
         } break;
 
         case SUBCMD_NEW_COMPLETE:{
@@ -1655,8 +1647,7 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
             }
         // Next we must to remove all blocks from main branch and delete all datums in this atoms from storages
         dap_chain_block_forked_branch_atoms_table_t *l_last_new_forked_item = HASH_LAST(l_new_forked_branch);
-        l_curr_index = 0;
-        for (l_curr_index = 0; l_last_new_forked_item && l_curr_index < a_main_branch_length; l_last_new_forked_item = l_last_new_forked_item->hh.prev, l_curr_index++){
+        for (l_curr_index = 0; l_last_new_forked_item && l_curr_index < a_main_branch_length; l_last_new_forked_item = l_last_new_forked_item->hh.prev, ++l_curr_index){
             s_delete_atom_datums(l_blocks, l_last_new_forked_item->block_cache);
             --PVT(l_blocks)->blocks_count;
             HASH_DEL(PVT(l_blocks)->blocks, l_last_new_forked_item->block_cache);
@@ -2201,7 +2192,7 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
                 json_object_object_add(json_obj_meta, "# -", json_object_new_string(l_hexbuf));
                 int l_len = l_meta->hdr.data_size * 2 + 5;
                 char *l_data_hex = DAP_NEW_STACK_SIZE(char, l_len);
-                snprintf(l_data_hex, 2, "0x");
+                snprintf(l_data_hex, 3, "%s", "0x");
                 dap_bin2hex(l_data_hex + 2, l_meta->data, l_meta->hdr.data_size);
                 json_object_object_add(json_obj_meta, "Data hex - ", json_object_new_string(l_data_hex));
             }
@@ -2366,7 +2357,7 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links(dap_chain_atom_iter_
     if (!l_block_cache->links_hash_count) {
         return NULL;
     }
-    *a_links_size_ptr = DAP_NEW_Z_SIZE(size_t, l_block_cache->links_hash_count * sizeof(size_t));
+    *a_links_size_ptr = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(size_t, l_block_cache->links_hash_count, NULL);
     *a_links_size = l_block_cache->links_hash_count;
     dap_chain_atom_ptr_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_atom_ptr_t, l_block_cache->links_hash_count * sizeof(dap_chain_atom_ptr_t));
     for (size_t i = 0; i < l_block_cache->links_hash_count; ++i){

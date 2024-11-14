@@ -555,6 +555,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         dap_chain_atom_add_from_threshold(a_chain);
     } break;
     default:
+        ret = ATOM_REJECT;
         break;
     }
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
@@ -1872,7 +1873,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
                     if (l_cert && l_cert->enc_key->priv_key_data) {
                         size_t l_event_size = l_round_item->event_size;
-                        dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
+                        dap_chain_cs_dag_event_t *l_event = DAP_DUP_SIZE((dap_chain_cs_dag_event_t*)l_round_item->event_n_signs, l_event_size);
                         size_t l_event_size_new = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size, l_cert->enc_key);
                         if ( l_event_size_new ) {
                             dap_chain_hash_fast_t l_event_new_hash;

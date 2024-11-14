@@ -869,7 +869,7 @@ uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t *a_
     uint64_t l_used = 0;
     if (a_prev)
         l_prev = *a_prev;
-    dap_return_val_if_pass(!a_usage, l_prev);
+    dap_return_val_if_fail(a_usage && a_usage->price, l_prev);
     switch(a_usage->price->units_uid.enm){
         case SERV_UNIT_SEC:
             l_used = dap_time_now() - a_usage->ts_created;

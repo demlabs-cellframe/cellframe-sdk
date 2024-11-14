@@ -968,8 +968,8 @@ dap_chain_wallet_t *dap_chain_wallet_open (
                         unsigned int * a_out_stat
                                     )
 {
-char l_file_name [MAX_PATH] = {0}, l_pass [ DAP_WALLET$SZ_PASS + 3] = {0},
-        *l_cp, l_wallet_name[DAP_WALLET$SZ_PASS + 3] = {0};
+char l_file_name [MAX_PATH + 1] = "", l_pass [ DAP_WALLET$SZ_PASS + 3] = "",
+        *l_cp, l_wallet_name[DAP_WALLET$SZ_PASS + 3] = "";
 ssize_t     l_rc, l_pass_len;
 
     /* Sanity checks */
