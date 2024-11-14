@@ -3077,7 +3077,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             }
         } else if (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "show") > 0)
             l_subcommand_show = true;
-        else if (l_subcmd != SUBCMD_STATUS)
+        else
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNKNOWN,"Unrecognized subcommand '%s'", a_argv[l_arg_index]);
     }
 
