@@ -105,7 +105,9 @@
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_chain_wallet_cache.h"
-
+#include "dap_json_rpc.h"
+#include "dap_json_rpc_request.h"
+#include "dap_client_pvt.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
 
@@ -1158,7 +1160,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                     l_node_addr.uint64 = l_remote_node_addr->uint64;
 
                     // clean client struct
-                    dap_chain_node_client_close_mt(l_node_client);
+                    dap_chain_node_client_close(l_node_client);
                     DAP_DELETE(l_remote_node_info);
                     //return -1;
                     continue;
@@ -1180,7 +1182,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "no response from remote node(s)");
             log_it(L_WARNING, "No response from remote node(s): err code %d", res);
             // clean client struct
-            dap_chain_node_client_close_mt(l_node_client);
+            dap_chain_node_client_close(l_node_client);
             //DAP_DELETE(l_remote_node_info);
             return -1;
         }
@@ -1200,7 +1202,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                 sizeof(l_sync_request))) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
             // clean client struct
-            dap_chain_node_client_close_mt(l_node_client);
+            dap_chain_node_client_close(l_node_client);
             DAP_DELETE(l_remote_node_info);
             return -1;
         }
@@ -1212,7 +1214,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         if(res < 0) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: can't sync with node "NODE_ADDR_FP_STR,
                                             NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
-            dap_chain_node_client_close_mt(l_node_client);
+            dap_chain_node_client_close(l_node_client);
             DAP_DELETE(l_remote_node_info);
             log_it(L_WARNING, "Gdb synced err -2");
             return -2;
@@ -1235,7 +1237,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                     sizeof(l_sync_request))) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
                 // clean client struct
-                dap_chain_node_client_close_mt(l_node_client);
+                dap_chain_node_client_close(l_node_client);
                 DAP_DELETE(l_remote_node_info);
                 log_it(L_INFO, "Chain '%s' synced error: Can't send sync chains request", l_chain->name);
                 return -3;
@@ -1255,7 +1257,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         DAP_DELETE(l_remote_node_info);
         //dap_client_disconnect(l_node_client->client);
         //l_node_client->client = NULL;
-        dap_chain_node_client_close_mt(l_node_client);
+        dap_chain_node_client_close(l_node_client);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Node sync completed: Chains and gdb are synced");
         return 0;
 
@@ -8801,20 +8803,118 @@ struct json_object *wallets_info_json_collect() {
 
 void dap_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void *a_arg) {
     struct json_object *l_json_nets = dap_chain_net_list_json_collect();
-    dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_nets));
+    dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_nets));
     json_object_put(l_json_nets);
     struct json_object *l_json_nets_info = dap_chain_nets_info_json_collect();
-    dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_nets_info));
+    dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_nets_info));
     json_object_put(l_json_nets_info);
     struct json_object *l_json_wallets = wallet_list_json_collect();
-    dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallets));
+    dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallets));
     json_object_put(l_json_wallets);
     struct json_object *l_json_wallets_info = wallets_info_json_collect();
-    dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallets_info));
+    dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallets_info));
     json_object_put(l_json_wallets_info);
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
         struct json_object *l_json_net_states = dap_chain_net_states_json_collect(l_net);
-        dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_net_states));
+        dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_net_states));
         json_object_put(l_json_net_states);
     }
+}
+
+static void s_stage_connected_callback(dap_client_t* a_client, void * a_arg) {
+    dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
+    UNUSED(a_arg);
+    if(l_node_client) {
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        l_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
+        pthread_cond_signal(&l_node_client->wait_cond);
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
+    }
+}
+
+static void s_stage_connected_error_callback(dap_client_t* a_client, void * a_arg) {
+    dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
+    UNUSED(a_arg);
+    if(l_node_client) {
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        l_node_client->state = NODE_CLIENT_STATE_ERROR;
+        pthread_cond_signal(&l_node_client->wait_cond);
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
+    }
+}
+
+int com_exec_cmd(int argc, char **argv, void **reply) {
+    json_object ** a_json_arr_reply = (json_object **) reply;
+    if (!dap_json_rpc_exec_cmd_inited()) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -1, "Json-rpc module doesn't inited, check confings");
+        return -1;
+    }
+
+    const char * l_cmd_arg_str = NULL, * l_addr_str = NULL, * l_net_str = NULL;
+    int arg_index = 1;
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cmd", &l_cmd_arg_str);
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-addr", &l_addr_str);
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &l_net_str);
+    if (!l_cmd_arg_str || ! l_addr_str || !l_net_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -2, "Command exec_cmd require args -cmd, -addr, -net");
+        return -2;
+    }
+    dap_chain_net_t* l_net = NULL;
+    l_net = dap_chain_net_by_name(l_net_str);
+    if (!l_net){
+        dap_json_rpc_error_add(*a_json_arr_reply, -3, "Can't find net %s", l_net_str);
+        return -3;
+    }
+
+    dap_json_rpc_params_t * params = dap_json_rpc_params_create();
+    char *l_cmd_str = dap_strdup(l_cmd_arg_str);
+    for(int i = 0; l_cmd_str[i] != '\0'; i++) {
+        if (l_cmd_str[i] == ',')
+            l_cmd_str[i] = ';';
+    }
+    dap_json_rpc_params_add_data(params, l_cmd_str, TYPE_PARAM_STRING);
+    uint64_t l_id_response = dap_json_rpc_response_get_new_id();
+    char ** l_cmd_arr_str = dap_strsplit(l_cmd_str, ";", -1);
+    dap_json_rpc_request_t *l_request = dap_json_rpc_request_creation(l_cmd_arr_str[0], params, l_id_response);
+    dap_strfreev(l_cmd_arr_str);
+    dap_chain_node_addr_t l_node_addr;
+    dap_chain_node_addr_from_str(&l_node_addr, l_addr_str);
+
+    dap_chain_node_info_t *node_info = node_info_read_and_reply(l_net, &l_node_addr, NULL);
+    if(!node_info) {
+        log_it(L_DEBUG, "Can't find node with addr: %s", l_addr_str);
+        dap_json_rpc_error_add(*a_json_arr_reply, -6, "Can't find node with addr: %s", l_addr_str);
+        return -6;
+    }
+    int timeout_ms = 5000; //5 sec = 5000 ms
+    dap_chain_node_client_t * l_node_client = dap_chain_node_client_create(l_net, node_info, NULL, NULL);
+
+    //handshake
+    l_node_client->client = dap_client_new(s_stage_connected_error_callback, l_node_client);
+    l_node_client->client->_inheritor = l_node_client;
+    dap_client_set_uplink_unsafe(l_node_client->client, &l_node_client->info->address, node_info->ext_host, node_info->ext_port);
+    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(l_node_client->client);
+    dap_client_go_stage(l_node_client->client, STAGE_ENC_INIT, s_stage_connected_callback);
+    //wait handshake
+    int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
+    if (res) {
+        log_it(L_ERROR, "No response from node");
+        dap_json_rpc_error_add(*a_json_arr_reply, -8, "No reponse from node");
+        dap_chain_node_client_close_unsafe(l_node_client);
+        DAP_DEL_Z(node_info);
+        return -8;
+    }
+
+    //send request
+    json_object * l_response = NULL;
+    dap_json_rpc_request_send(l_client_internal, l_request, &l_response);
+
+    if (l_response) {
+        json_object_array_add(*a_json_arr_reply, l_response);
+    } else {
+        json_object_array_add(*a_json_arr_reply, json_object_new_string("Empty reply"));
+    }
+    DAP_DEL_Z(node_info);
+    dap_json_rpc_request_free(l_request);
+    return 0;
 }

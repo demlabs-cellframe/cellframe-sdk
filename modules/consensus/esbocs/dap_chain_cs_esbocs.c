@@ -1304,16 +1304,18 @@ static bool s_session_directive_ready(dap_chain_esbocs_session_t *a_session, boo
             *a_kick = true;
             return true;
         }
-        if (l_item->miss_count == 0 && l_key_state == -1)
+        if (l_item->miss_count == 0 && l_key_state == -1) {
             *a_kick = false;
             return true;
+        }
     }
     if (!l_item)
         return false;
     return true;
 }
 
-static dap_chain_esbocs_directive_t* s_session_directive_compose(dap_chain_esbocs_session_t *a_session, bool a_kick, dap_chain_addr_t * a_signing_addr) {
+static dap_chain_esbocs_directive_t* s_session_directive_compose(dap_chain_esbocs_session_t *a_session, bool a_kick, dap_chain_addr_t * a_signing_addr)
+{
     uint32_t l_directive_size = s_directive_calc_size(a_kick ? DAP_CHAIN_ESBOCS_DIRECTIVE_KICK : DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT);
     dap_chain_esbocs_directive_t *l_ret = NULL;
     DAP_NEW_Z_SIZE_RET_VAL(l_ret, dap_chain_esbocs_directive_t, l_directive_size, NULL, NULL);
@@ -1367,7 +1369,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                 bool l_kick = false;
                 dap_chain_addr_t* l_signing_addr = NULL;
                 if (s_session_directive_ready(a_session, &l_kick, l_signing_addr))
-                    l_directive = s_session_directive_compose(a_session, &l_kick, l_signing_addr);
+                    l_directive = s_session_directive_compose(a_session, l_kick, l_signing_addr);
             }
 #endif
             if (l_directive) {

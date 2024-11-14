@@ -150,8 +150,7 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
         return -1;
     dap_chain_net_srv_ch_pkt_success_t * l_success = (dap_chain_net_srv_ch_pkt_success_t*) a_success;
 
-    dap_stream_session_lock();
-    dap_stream_session_t *l_stream_session = dap_stream_session_id_unsafe(a_srv_client->session_id);
+    dap_stream_session_t *l_stream_session = dap_stream_session_by_id(a_srv_client->session_id);
     dap_chain_net_srv_stream_session_t * l_srv_session =
             (dap_chain_net_srv_stream_session_t *) l_stream_session->_inheritor;
 
@@ -160,7 +159,6 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
     dap_chain_net_t * l_net = dap_chain_net_by_id(l_success->hdr.net_id);
     dap_chain_net_srv_usage_t *l_usage = dap_chain_net_srv_usage_add(l_srv_session, l_net, a_srv);
     if(!l_usage){
-        dap_stream_session_unlock();
         return -2;
     }
 
@@ -169,7 +167,6 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
                     a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]->internal : NULL;
     if ( ! l_srv_ch_vpn ){
         log_it(L_ERROR, "No VPN service stream channel, its closed?");
-        dap_stream_session_unlock();
         return -3;
     }
     l_srv_ch_vpn->usage_id = l_usage->id;
@@ -184,7 +181,6 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
         dap_stream_ch_vpn_pkt_t *pkt_out = (dap_stream_ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_ipv4_str_len);
         if (!pkt_out) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            dap_stream_session_unlock();
             return -1;
         }
 
@@ -202,7 +198,6 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
 
     // usage is present, we've accepted packets
     dap_stream_ch_set_ready_to_read_unsafe( l_srv_ch_vpn->ch , true );
-    dap_stream_session_unlock();
     return 0;
 }
 
@@ -530,7 +525,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_host, u
     if(l_res) {
         log_it(L_ERROR, "No response from VPN server %s : %d", a_host, a_port);
         // clean client struct
-        dap_chain_node_client_close_mt(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client);
         DAP_DEL_Z(s_node_info);
         return -3;
     }
@@ -569,7 +564,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_host, u
     l_res = dap_chain_node_client_wait(s_vpn_client, NODE_CLIENT_STATE_CHECKED, a_timeout_test_ms);
     log_it(L_INFO, "%s response from VPN server %s : %d", l_res ? "No" : "Got", a_host, a_port);
     // clean client struct
-    dap_chain_node_client_close_mt(s_vpn_client);
+    dap_chain_node_client_close(s_vpn_client);
     DAP_DELETE(s_node_info);
     s_node_info = NULL;
     if(l_res)
@@ -599,7 +594,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_host, u
     if(!s_vpn_client) {
         log_it(L_ERROR, "Can't connect to VPN server %s : %d", a_host, a_port);
         // clean client struct
-        dap_chain_node_client_close_mt(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -2;
@@ -610,7 +605,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_host, u
     if(res) {
         log_it(L_ERROR, "No response from VPN server %s : %d", a_host, a_port);
         // clean client struct
-        dap_chain_node_client_close_mt(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -3;
@@ -649,7 +644,7 @@ int dap_chain_net_vpn_client_stop(void)
 {
     // delete connection with VPN server
     if(s_vpn_client) {
-        dap_chain_node_client_close_mt(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client);
         s_vpn_client = NULL;
     }
     DAP_DELETE(s_node_info);

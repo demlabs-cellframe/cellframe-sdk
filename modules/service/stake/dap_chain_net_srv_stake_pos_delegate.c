@@ -2952,7 +2952,7 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
     size_t rc = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, a_time_connect);
     if (rc) {
         // clean client struct
-        dap_chain_node_client_close_mt(l_node_client);
+        dap_chain_node_client_close(l_node_client);
         DAP_DELETE(l_remote_node_info);
         return -9;
     }
@@ -2967,7 +2967,7 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
                                             a_net->pub.id,
                                             l_test_data, sizeof(l_test_data));
     if (rc == 0) {
-        dap_chain_node_client_close_mt(l_node_client);
+        dap_chain_node_client_close(l_node_client);
         DAP_DELETE(l_remote_node_info);
         return -10;
     }
@@ -2993,7 +2993,7 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
         out_data->header.overall_correct = l_overall_correct ? 1 : 0;
     }
     DAP_DELETE(l_node_client->callbacks_arg);
-    dap_chain_node_client_close_mt(l_node_client);
+    dap_chain_node_client_close(l_node_client);
     DAP_DELETE(l_remote_node_info);
     return l_overall_correct;
 }

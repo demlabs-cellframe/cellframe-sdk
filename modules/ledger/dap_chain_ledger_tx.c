@@ -1158,7 +1158,7 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
     /* Notify the world*/
     if ( !dap_chain_net_get_load_mode(a_ledger->net) ) {
         struct json_object *l_json = s_wallet_info_json_collect(a_ledger, a_balance);
-        dap_notify_server_send_mt(json_object_get_string(l_json));
+        dap_notify_server_send(json_object_get_string(l_json));
         json_object_put(l_json);
     }
     return 0;
@@ -1367,7 +1367,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             char *l_tx_i_hash = dap_chain_hash_fast_to_str_new(&l_prev_item_out->tx_hash_fast);
             l_cache_used_outs[l_spent_idx] = (dap_store_obj_t) {
                     .key        = l_tx_i_hash,
-                    .value      = l_tx_cache,
+                    .value      = (byte_t *)l_tx_cache,
                     .value_len  = l_tx_cache_sz,
                     .group      = l_ledger_cache_group,
             };
@@ -1538,7 +1538,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         memcpy(l_tx_cache->data + l_cache_size, a_tx, l_tx_size);
         l_cache_used_outs[0] = (dap_store_obj_t) {
                 .key        = l_tx_hash_str,
-                .value      = l_tx_cache,
+                .value      = (byte_t *)l_tx_cache,
                 .value_len  = l_tx_cache_sz,
                 .group      = l_ledger_cache_group,
         };
@@ -1718,7 +1718,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             char *l_tx_i_hash = dap_chain_hash_fast_to_str_new(&l_prev_item_out->tx_hash_fast);
             l_cache_used_outs[l_spent_idx] = (dap_store_obj_t) {
                     .key        = l_tx_i_hash,
-                    .value      = l_tx_cache,
+                    .value      = (byte_t *)l_tx_cache,
                     .value_len  = l_tx_cache_sz,
                     .group      = l_ledger_cache_group
             };

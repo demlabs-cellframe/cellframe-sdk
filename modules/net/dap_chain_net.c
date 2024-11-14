@@ -413,7 +413,7 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
                  , "Established connection with link " NODE_ADDR_FP_STR
                  , NODE_ADDR_FP_ARGS_S(a_link->addr));
     json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
-    dap_notify_server_send_mt(json_object_get_string(l_json));
+    dap_notify_server_send(json_object_get_string(l_json));
     json_object_put(l_json);
     if(l_net_pvt->state == NET_STATE_LINKS_CONNECTING ){
         l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
@@ -481,7 +481,7 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
                      , NODE_ADDR_FP_ARGS_S(a_link->addr), a_link->uplink.client->link_info.uplink_addr, a_error);
         json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
-        dap_notify_server_send_mt(json_object_get_string(l_json));
+        dap_notify_server_send(json_object_get_string(l_json));
         json_object_put(l_json);
     }
 }
@@ -669,7 +669,7 @@ static void s_net_states_notify(dap_chain_net_t *a_net)
 {
     struct json_object *l_json = dap_chain_net_states_json_collect(a_net);
     json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
-    dap_notify_server_send_mt(json_object_get_string(l_json));
+    dap_notify_server_send(json_object_get_string(l_json));
     json_object_put(l_json);
 }
 
@@ -777,7 +777,7 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg)
         json_object_object_add(l_jobj_nets, net->pub.name, json_chains);
     }
     json_object_object_add(json_obj, "nets", l_jobj_nets);
-    dap_notify_server_send_mt(json_object_get_string(json_obj));
+    dap_notify_server_send(json_object_get_string(json_obj));
     json_object_put(json_obj);
     return true;
 }
@@ -817,7 +817,7 @@ void dap_chain_net_load_all()
     for (int i = 0; i < l_nets_count; ++i) {
         pthread_join(l_tids[i], NULL);
     }
-    dap_timerfd_delete_mt(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
+    dap_timerfd_delete(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
 }
 
 dap_string_t* dap_cli_list_net()

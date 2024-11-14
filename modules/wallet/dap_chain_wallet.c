@@ -211,7 +211,7 @@ char *c_wallets_path;
         json_object_object_add(l_wallet_info, a_name, dap_chain_wallet_info_to_json(a_name, c_wallets_path));
         json_object_object_add(l_wallet_info, "name", json_object_new_string(a_name));
         json_object_object_add(l_json, "wallet", l_wallet_info);
-        dap_notify_server_send_mt(json_object_get_string(l_json));
+        dap_notify_server_send(json_object_get_string(l_json));
         json_object_put(l_json);
     }
 
