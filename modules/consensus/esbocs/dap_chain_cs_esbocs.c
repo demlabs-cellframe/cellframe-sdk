@@ -1645,6 +1645,7 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                     l_candidate, l_candidate_size, a_session->cur_round.validators_list);
     //Save candidate_hash
     memcpy(&(PVT(a_session->esbocs)->candidate_hash), &l_candidate_hash, sizeof(dap_hash_fast_t));
+    a_session->esbocs->last_submitted_candidate_timestamp = dap_time_now();
 }
 
 static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, dap_chain_block_t *a_candidate,
