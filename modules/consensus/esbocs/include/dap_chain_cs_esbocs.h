@@ -124,6 +124,10 @@ typedef struct dap_chain_esbocs {
     dap_chain_t *chain;
     dap_chain_cs_blocks_t *blocks;
     dap_chain_esbocs_session_t *session;
+    dap_time_t last_directive_vote_timestamp;
+    dap_time_t last_directive_accept_timestamp;
+    dap_time_t last_submitted_candidate_timestamp;
+    dap_time_t last_accepted_block_timestamp;
     void *_pvt;
 } dap_chain_esbocs_t;
 
@@ -139,6 +143,8 @@ typedef struct dap_chain_esbocs_directive {
 typedef struct dap_chain_esbocs_round {
     uint64_t id;
     uint64_t sync_attempt;
+    dap_time_t round_start_ts;
+    dap_time_t prev_round_start_ts;
 
     dap_hash_fast_t last_block_hash;
     dap_hash_fast_t directive_hash;
@@ -235,6 +241,11 @@ typedef enum s_com_esbocs_err{
     DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_FORMAT_ERR,
     DAP_CHAIN_NODE_CLI_COM_ESBOCS_ADD_DEL_ERR,
     DAP_CHAIN_NODE_CLI_COM_ESBOCS_SUB_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_NET,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_CANT_FIND_NET,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_SESSION,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_STAKE,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_WRONG_CHAIN,
 
     /* add custom codes here */
 
