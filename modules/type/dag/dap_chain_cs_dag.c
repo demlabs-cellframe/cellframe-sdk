@@ -302,7 +302,7 @@ static void s_chain_cs_dag_start(dap_chain_t *a_chain)
     dap_return_if_pass(!a_chain || !a_chain->_inheritor);
     dap_chain_cs_dag_t *l_dag = a_chain->_inheritor;
     dap_return_if_pass(!PVT(l_dag));
-    PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_threshold_free, l_dag);
+    PVT(l_dag)->treshold_free_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_threshold_free, l_dag);
 }
 
 static void s_threshold_free(dap_chain_cs_dag_t *a_dag)
@@ -388,9 +388,9 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
  */
 static void s_chain_cs_dag_delete(dap_chain_t * a_chain)
 {
-    dap_return_val_if_pass(!a_chain || !a_chain->_inheritor, -1);
+    dap_return_if_pass(!a_chain || !a_chain->_inheritor);
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG ( a_chain );
-    dap_return_val_if_pass(!PVT(l_dag), -2);
+    dap_return_if_pass(!PVT(l_dag));
     dap_interval_timer_delete(PVT(l_dag)->treshold_free_timer);
     s_dap_chain_cs_dag_purge(a_chain);
     pthread_mutex_destroy(& PVT(l_dag)->events_mutex);
