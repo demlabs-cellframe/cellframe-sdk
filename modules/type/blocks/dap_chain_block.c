@@ -650,7 +650,7 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
                     *a_block_links = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(dap_hash_t, l_links_count_max, -5);
                 else if (l_links_count == l_links_count_max) {
                     l_links_count_max *= 2;
-                    *a_block_links = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(*a_block_links, l_links_count_max);
+                    *a_block_links = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(*a_block_links, l_links_count_max, -5);
                 }
                 l_meta_data = s_meta_extract(l_meta);
                 if (l_meta_data)
