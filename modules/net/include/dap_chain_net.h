@@ -205,6 +205,8 @@ void dap_chain_net_announce_addr(dap_chain_net_t *a_net);
 void dap_chain_net_announce_addr_all();
 char *dap_chain_net_links_dump(dap_chain_net_t*);
 struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t * l_net);
+struct json_object *dap_chain_net_list_json_collect();
+struct json_object *dap_chain_nets_info_json_collect();
 
 enum dap_chain_net_json_rpc_error_list{
     DAP_CHAIN_NET_JSON_RPC_OK,
