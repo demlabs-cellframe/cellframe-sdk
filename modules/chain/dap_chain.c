@@ -690,7 +690,7 @@ void dap_chain_add_callback_datum_removed_from_index_notify(dap_chain_t *a_chain
     l_notifier->proc_thread = a_thread;
     l_notifier->arg = a_callback_arg;
     pthread_rwlock_wrlock(&a_chain->rwlock);
-    a_chain->datum_notifiers = dap_list_append(a_chain->datum_removed_notifiers, l_notifier);
+    a_chain->datum_removed_notifiers = dap_list_append(a_chain->datum_removed_notifiers, l_notifier);
     pthread_rwlock_unlock(&a_chain->rwlock);
 }
 
@@ -761,9 +761,8 @@ struct chain_thread_datum_notifier {
     dap_chain_cell_id_t cell_id;
     dap_hash_fast_t hash;
     void *datum;
-    int a_ret_code;
-    uint32_t a_action;
-    dap_chain_net_srv_uid_t a_uid;
+    uint32_t action;
+    dap_chain_net_srv_uid_t uid;
     size_t datum_size;
     int ret_code;
 };
@@ -792,7 +791,7 @@ static bool s_notify_datum_on_thread(void *a_arg)
 {
     struct chain_thread_datum_notifier *l_arg = a_arg;
     assert(l_arg->datum && l_arg->callback);
-    l_arg->callback(l_arg->callback_arg, &l_arg->hash, l_arg->datum, l_arg->datum_size, l_arg->ret_code, l_arg->a_action, l_arg->a_uid);
+    l_arg->callback(l_arg->callback_arg, &l_arg->hash, l_arg->datum, l_arg->datum_size, l_arg->ret_code, l_arg->action, l_arg->uid);
     if ( !l_arg->chain->is_mapped )
         DAP_DELETE(l_arg->datum);
     DAP_DELETE(l_arg);
@@ -895,7 +894,7 @@ void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_ha
     }
 }
 
-void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code) {
+void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid) {
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
@@ -916,7 +915,9 @@ void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_
             .hash = *a_hash,
             .datum = a_chain_cell->chain->is_mapped ? (byte_t*)a_datum : DAP_DUP_SIZE(a_datum, a_datum_size),
             .datum_size = a_datum_size,
-            .ret_code = a_ret_code };
+            .ret_code = a_ret_code,
+            .action = a_action,
+            .uid =  a_uid};
         dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_datum_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }
 }
