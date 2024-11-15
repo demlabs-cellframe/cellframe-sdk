@@ -27,7 +27,7 @@
 #define LOG_TAG "datum_tx_voting"
 
 
-dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(dap_chain_datum_tx_t* a_tx)
+dap_chain_datum_tx_voting_params_t *dap_chain_datum_tx_voting_parse_tsd(dap_chain_datum_tx_t *a_tx)
 {
     if (!a_tx)
         return NULL;
@@ -41,12 +41,11 @@ dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(dap_chain_datum_t
         switch(l_tsd->type){
         case VOTING_TSD_TYPE_QUESTION:
             l_buf_string = DAP_NEW_Z_SIZE(char, l_tsd->size + 1);
-            l_voting_parms->voting_question = memcpy(l_buf_string, l_tsd->data, l_tsd->size);
+            l_voting_parms->question = memcpy(l_buf_string, l_tsd->data, l_tsd->size);
             break;
-        case VOTING_TSD_TYPE_ANSWER:
+        case VOTING_TSD_TYPE_OPTION:
             l_buf_string = DAP_NEW_Z_SIZE(char, l_tsd->size + 1);
-            l_voting_parms->answers_list = dap_list_append(l_voting_parms->answers_list, memcpy(l_buf_string, l_tsd->data, l_tsd->size));
-            l_voting_parms->answers_count++;
+            l_voting_parms->options = dap_list_append(l_voting_parms->options, memcpy(l_buf_string, l_tsd->data, l_tsd->size));
             break;
         case VOTING_TSD_TYPE_EXPIRE:
             l_voting_parms->voting_expire = *(dap_time_t*)l_tsd->data;
@@ -55,10 +54,10 @@ dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(dap_chain_datum_t
             l_voting_parms->votes_max_count = *(uint64_t*)l_tsd->data;
             break;
         case VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED:
-            l_voting_parms->delegate_key_required = *(bool*)l_tsd->data;
+            l_voting_parms->delegate_key_required = *l_tsd->data;
             break;
         case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
-            l_voting_parms->vote_changing_allowed = *(bool*)l_tsd->data;
+            l_voting_parms->vote_changing_allowed = *l_tsd->data;
             break;
         default:
             break;
@@ -67,6 +66,14 @@ dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(dap_chain_datum_t
     return l_voting_parms;
 }
 
+void dap_chain_datum_tx_voting_params_delete(dap_chain_datum_tx_voting_params_t *a_params)
+{
+    if (!a_params)
+        return;
+    DAP_DELETE(a_params->question);
+    dap_list_free_full(a_params->options, NULL);
+    DAP_DELETE(a_params);
+}
 
 dap_chain_tx_tsd_t* dap_chain_datum_voting_question_tsd_create(const char* a_question_str, size_t str_len)
 {
@@ -83,7 +90,7 @@ dap_chain_tx_tsd_t* dap_chain_datum_voting_answer_tsd_create(const char* a_answe
     if (!a_answer_str || !str_len)
         return NULL;
 
-    dap_chain_tx_tsd_t* l_tsd = dap_chain_datum_tx_item_tsd_create((void*)a_answer_str, VOTING_TSD_TYPE_ANSWER, str_len);
+    dap_chain_tx_tsd_t* l_tsd = dap_chain_datum_tx_item_tsd_create((void*)a_answer_str, VOTING_TSD_TYPE_OPTION, str_len);
 
     return l_tsd;
 }
@@ -149,7 +156,7 @@ char *dap_chain_datum_tx_voting_get_answer_text_by_idx(dap_chain_datum_tx_t *a_t
     dap_tsd_t *l_tsd;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
         if ( *l_item != TX_ITEM_TYPE_TSD
-            || ( l_tsd = (dap_tsd_t*)((dap_chain_tx_tsd_t*)l_item)->tsd, l_tsd->type != VOTING_TSD_TYPE_ANSWER )
+            || ( l_tsd = (dap_tsd_t*)((dap_chain_tx_tsd_t*)l_item)->tsd, l_tsd->type != VOTING_TSD_TYPE_OPTION )
             || a_idx-- )
             continue;
         char *l_ret = DAP_NEW_Z_SIZE(char, l_tsd->size + 1);
@@ -174,7 +181,7 @@ json_object *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_
         case VOTING_TSD_TYPE_QUESTION:
             json_object_object_add(l_object, "question", json_object_new_string_len((char*)l_tsd->data, l_tsd->size));
             break;
-        case VOTING_TSD_TYPE_ANSWER:
+        case VOTING_TSD_TYPE_OPTION:
             json_object_array_add(l_answer_array_object, json_object_new_string_len((char*)l_tsd->data, l_tsd->size));
             break;
         case VOTING_TSD_TYPE_EXPIRE:

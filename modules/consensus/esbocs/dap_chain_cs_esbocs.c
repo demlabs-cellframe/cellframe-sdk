@@ -959,7 +959,7 @@ static int s_callback_addr_compare(dap_list_t *a_list_elem, dap_list_t *a_addr_e
     return memcmp(&l_validator->signing_addr.data.hash_fast, &l_addr->data.hash_fast, sizeof(dap_hash_fast_t));
 }
 
-static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_validators)
+static inline dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_validators)
 {
     return dap_list_find(a_validators, a_addr, s_callback_addr_compare);
 }
