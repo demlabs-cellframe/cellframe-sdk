@@ -894,18 +894,19 @@ static json_object* dap_db_chain_history_token_list(json_object* a_json_arr_repl
         json_object* json_history_token = json_object_new_object();
         json_object_object_add(json_history_token, "status", json_object_new_string(l_ret_code ? "DECLINED" : "ACCEPTED"));
         json_object_object_add(json_history_token, "Ledger return code", json_object_new_int(l_ret_code));
-        dap_chain_datum_dump_json(a_json_arr_reply, json_history_token, l_datum, a_hash_out_type, a_chain->net_id);
         switch (l_token->type) {
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC:
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL:
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_DECL:
             case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
+                dap_chain_datum_dump_json(a_json_arr_reply, json_history_token, l_datum, a_hash_out_type, a_chain->net_id, true);
                 json_object_array_add(l_jobj_decls, json_history_token);
                 break;
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE:
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE:
             case DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE:
+                dap_chain_datum_dump_json(a_json_arr_reply, json_history_token, l_datum, a_hash_out_type, a_chain->net_id, false);
                 json_object_array_add(l_jobj_updates, json_history_token);
                 break;
         }
