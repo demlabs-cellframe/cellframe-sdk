@@ -439,10 +439,10 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
                     break;
             dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_datum_tx_voting_parse_tsd(a_datum);
             json_object_object_add(json_obj_item,"item type", json_object_new_string("VOTING"));
-            json_object_object_add(json_obj_item,"Voting question", json_object_new_string(l_voting_params->voting_question));
+            json_object_object_add(json_obj_item,"Voting question", json_object_new_string(l_voting_params->question));
             json_object_object_add(json_obj_item,"Answer options", json_object_new_string(""));
             
-            dap_list_t *l_temp = l_voting_params->answers_list;
+            dap_list_t *l_temp = l_voting_params->options;
             uint8_t l_index = 0;
             while (l_temp) {
                 json_object_object_add(json_obj_item, dap_itoa(l_index), json_object_new_string((char *)l_temp->data));
@@ -462,8 +462,8 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
                 json_object_object_add(json_obj_item,"Delegated key for participating in voting", json_object_new_string("required")):
                 json_object_object_add(json_obj_item,"Delegated key for participating in voting", json_object_new_string("not required"));                 
 
-            dap_list_free_full(l_voting_params->answers_list, NULL);
-            DAP_DELETE(l_voting_params->voting_question);
+            dap_list_free_full(l_voting_params->options, NULL);
+            DAP_DELETE(l_voting_params->question);
             DAP_DELETE(l_voting_params);
         } break;
         case TX_ITEM_TYPE_VOTE:{

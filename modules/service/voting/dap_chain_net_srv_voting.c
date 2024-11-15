@@ -89,7 +89,7 @@ static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_t
 
 int dap_chain_net_srv_voting_init()
 {
-    dap_ledger_voting_verificator_add(s_voting_ledger_verificator_callback, s_datum_tx_voting_verification_delete_callback);
+    dap_ledger_voting_verificator_add(s_voting_ledger_verificator_callback, s_datum_tx_voting_verification_delete_callback, dap_chain_net_srv_voting_get_expiration_time);
     dap_cli_server_cmd_add("voting", s_cli_voting, "Voting commands.",
                             "voting create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <voting_expire_time_in_RCF822>] [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value> -w <fee_wallet_name>\n"
                             "voting vote -net <net_name> -hash <voting_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value> -w <fee_wallet_name>\n"
@@ -216,6 +216,18 @@ uint64_t *dap_chain_net_srv_voting_get_result(dap_ledger_t *a_ledger, dap_chain_
     }
     return l_voting_results;
 }
+
+dap_time_t dap_chain_net_srv_voting_get_expiration_time(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_voting_hash)
+{
+    dap_return_val_if_fail(a_ledger && a_voting_hash, 0);
+    struct voting *l_voting = s_voting_find(a_ledger->net->pub.id, a_voting_hash);
+    if (!l_voting) {
+        log_it(L_ERROR, "Can't find voting with hash %s in net %s", dap_hash_fast_to_str_static(a_voting_hash), a_ledger->net->pub.name);
+        return 0;
+    }
+    return l_voting->params->voting_expire;
+}
+
 
 static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
 {
@@ -1343,12 +1355,12 @@ dap_chain_net_voting_info_t *s_voting_extract_info(struct voting *a_voting)
     l_info->is_changing_allowed = a_voting->params->vote_changing_allowed;
     l_info->is_delegate_key_required = a_voting->params->delegate_key_required;
     l_info->options.count_option = dap_list_length(a_voting->params->options);
-    dap_chain_net_voting_info_option_t **l_options = DAP_NEW_Z_COUNT(dap_chain_net_voting_info_option_t*, l_info->options.count_option);
+    dap_chain_net_voting_option_info_t **l_options = DAP_NEW_Z_COUNT(dap_chain_net_voting_option_info_t*, l_info->options.count_option);
     for (uint64_t i = 0; i < l_info->options.count_option; i++){
         dap_list_t* l_option = dap_list_nth(a_voting->params->options, (uint64_t)i);
         struct vote_option* l_vote_option = (struct vote_option*)l_option->data;
-        dap_chain_net_voting_info_option_t *l_option_info;
-        DAP_NEW_Z_RET_VAL(l_option_info, dap_chain_net_voting_info_option_t, NULL, NULL);
+        dap_chain_net_voting_option_info_t *l_option_info;
+        DAP_NEW_Z_RET_VAL(l_option_info, dap_chain_net_voting_option_info_t, NULL, NULL);
         l_option_info->option_idx = i;
         l_option_info->description_size = strlen(l_option->data);
         l_option_info->description = l_option->data;

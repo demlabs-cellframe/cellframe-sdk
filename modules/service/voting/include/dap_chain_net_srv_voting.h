@@ -37,7 +37,7 @@ typedef struct dap_chain_net_voting_info_option {
     uint64_t description_size;
     char *description;
     dap_list_t *hashes_tx_votes;
-} dap_chain_net_voting_info_option_t;
+} dap_chain_net_voting_option_info_t;
 
 typedef struct dap_chain_net_voting_info {
     dap_hash_fast_t hash;
@@ -54,7 +54,7 @@ typedef struct dap_chain_net_voting_info {
     } question;
     struct {
         uint64_t count_option;
-        dap_chain_net_voting_info_option_t **options;
+        dap_chain_net_voting_option_info_t **options;
     } options;
 } dap_chain_net_voting_info_t;
 
@@ -127,6 +127,7 @@ int dap_chain_net_srv_voting_init();
 void dap_chain_net_srv_voting_deinit();
 
 uint64_t *dap_chain_net_srv_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_voting_hash);
+dap_time_t dap_chain_net_srv_voting_get_expiration_time(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_voting_hash);
 
 int dap_chain_net_srv_voting_create(const char *a_question, dap_list_t *a_options, dap_time_t a_expire_vote,
                              uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,

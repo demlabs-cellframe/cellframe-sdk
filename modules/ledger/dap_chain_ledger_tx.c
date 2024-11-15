@@ -45,6 +45,7 @@ typedef struct dap_ledger_verificator {
 typedef struct dap_chain_ledger_votings_callbacks {
     dap_ledger_voting_callback_t voting_callback;
     dap_ledger_voting_delete_callback_t voting_delete_callback;
+    dap_ledger_voting_expire_callback_t voting_expire_callback;
 } dap_chain_ledger_votings_callbacks_t;
 
 static dap_ledger_verificator_t *s_verificators;
@@ -1176,11 +1177,14 @@ int s_compare_trackers(dap_list_t *a_tracker1, dap_list_t *a_tracker2)
     return memcmp(&l_tracker1->voting_hash, &l_tracker2->voting_hash, sizeof(dap_hash_fast_t));
 }
 
-dap_list_t *s_trackers_concatenate(dap_list_t *a_trackers, dap_list_t *a_added)
+dap_list_t *s_trackers_concatenate(dap_ledger_t *a_ledger, dap_list_t *a_trackers, dap_list_t *a_added, dap_time_t a_ts_creation_time)
 {
+    if (!s_voting_callbacks.voting_expire_callback)
+        return a_trackers;
     dap_list_t *it, *tmp;
     DL_FOREACH_SAFE(a_added, it, tmp) {
         struct tracker *l_new_tracker = it->data;
+        dap_time_t l_exp_time = s_voting_callbacks.voting_expire_callback(a_ledger, &l_new_tracker->voting_hash);
         dap_list_t *l_exists = dap_list_find(a_trackers, &l_new_tracker->voting_hash, s_compare_trackers);      
         struct tracker_mover *l_exists_tracker = l_exists ? l_exists->data : DAP_NEW_Z(struct tracker_mover);
         if (!l_exists_tracker) {
@@ -1363,7 +1367,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         // Gather colour information from previous outputs
         dap_ledger_tx_item_t *l_prev_item_out = l_bound_item->prev_item;
         l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].tx_spent_hash_fast = *a_tx_hash;
-        l_trackers_mover = s_trackers_concatenate(l_trackers_mover, l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers);
+        l_trackers_mover = s_trackers_concatenate(a_ledger,l_trackers_mover,
+                                                  l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers, a_tx->header.ts_created);
         l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers = NULL;
         // add a used output
         l_prev_item_out->cache_data.n_outs_used++;
@@ -1402,7 +1407,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         assert(l_vote_tx_item);
         l_new_tracker->voting_hash = l_vote_tx_item->voting_hash;
         dap_list_t *l_new_vote = dap_list_append(NULL, l_new_tracker);
-        l_trackers_mover = s_trackers_concatenate(l_trackers_mover, l_new_vote);
+        l_trackers_mover = s_trackers_concatenate(a_ledger, l_trackers_mover, l_new_vote, a_tx->header.ts_created);
     }
 
     //Update balance : raise
@@ -2129,8 +2134,46 @@ static bool s_ledger_tx_hash_is_used_out_item(dap_ledger_tx_item_t *a_item, int 
 bool dap_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, int a_idx_out, dap_hash_fast_t *a_out_spender)
 {
     dap_ledger_tx_item_t *l_item_out = NULL;
-    /*dap_chain_datum_tx_t *l_tx =*/ s_tx_find_by_hash(a_ledger, a_tx_hash, &l_item_out, false);
+    s_tx_find_by_hash(a_ledger, a_tx_hash, &l_item_out, false);
     return l_item_out ? s_ledger_tx_hash_is_used_out_item(l_item_out, a_idx_out, a_out_spender) : true;
+}
+
+uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_tx_prev_hash, int a_out_idx)
+{
+    dap_return_val_if_fail(a_ledger && a_voting_hash && a_tx_prev_hash, uint256_0);
+    dap_ledger_tx_item_t *l_item_out = NULL;
+    dap_chain_datum_tx_t *l_tx = s_tx_find_by_hash(a_ledger, a_tx_prev_hash, &l_item_out, false);
+    if (!l_item_out || l_item_out->cache_data.n_outs <= (uint32_t)a_out_idx)
+        return uint256_0;
+    uint8_t *l_out = dap_chain_datum_tx_item_get_nth(l_tx, TX_ITEM_TYPE_OUT_ALL, a_out_idx);
+    assert(l_out);
+    uint256_t l_value = {};
+    switch (*l_out) {
+    case TX_ITEM_TYPE_OUT_OLD:
+        l_value = GET_256_FROM_64(((dap_chain_tx_out_old_t *)l_out)->header.value);
+        break;
+    case TX_ITEM_TYPE_OUT:
+        l_value = ((dap_chain_tx_out_t *)l_out)->header.value;
+        break;
+    case TX_ITEM_TYPE_OUT_EXT:
+        l_value = ((dap_chain_tx_out_ext_t *)l_out)->header.value;
+        break;
+    case TX_ITEM_TYPE_OUT_COND:
+        l_value = ((dap_chain_tx_out_cond_t *)l_out)->header.value;
+        break;
+    default:
+        assert(false);
+        return uint256_0;
+    }
+    for (dap_list_t *it = l_item_out->out_metadata[a_out_idx].trackers; it ; it = it->next) {
+        struct tracker *l_tracker = it->data;
+        if (dap_hash_fast_compare(&l_tracker->voting_hash, a_voting_hash)) {
+            assert(compare256(l_value, l_tracker->colored_value) >= 0);
+            SUBTRACT_256_256(l_value, l_tracker->colored_value, &l_value);
+            break;
+        }
+    }
+    return l_value;
 }
 
 void dap_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_ledger_tx_add_notify_t a_callback, void *a_arg)
@@ -2190,20 +2233,14 @@ int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype,
     return 0;
 }
 
-int dap_ledger_voting_verificator_add(dap_ledger_voting_callback_t a_callback, dap_ledger_voting_delete_callback_t a_callback_delete)
+int dap_ledger_voting_verificator_add(dap_ledger_voting_callback_t a_callback, dap_ledger_voting_delete_callback_t a_callback_delete, dap_ledger_voting_expire_callback_t a_callback_expire)
 {
-    if (!a_callback)
-        return -1;
-
-    if (!s_voting_callbacks.voting_callback || !s_voting_callbacks.voting_delete_callback){
-        s_voting_callbacks.voting_callback = a_callback;
-        s_voting_callbacks.voting_delete_callback = a_callback_delete;
-        return 1;
-    }
-
+    dap_return_val_if_fail(a_callback && a_callback_delete && a_callback_expire, -1);
+    int ret = s_voting_callbacks.voting_callback || s_voting_callbacks.voting_delete_callback || s_voting_callbacks.voting_expire_callback ? 1 : 0;
     s_voting_callbacks.voting_callback = a_callback;
     s_voting_callbacks.voting_delete_callback = a_callback_delete;
-    return 0;
+    s_voting_callbacks.voting_expire_callback = a_callback_expire;
+    return ret;
 }
 
 int dap_ledger_tax_callback_set(dap_ledger_tax_callback_t a_callback)
