@@ -1746,6 +1746,15 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
         dap_ledger_purge(a_net->pub.ledger, true);
         dap_ledger_handle_free(a_net->pub.ledger);
     }
+    if (a_net->pub.chains) {
+        dap_chain_t
+            *l_cur = NULL,
+            *l_tmp = NULL;
+        DL_FOREACH_SAFE(a_net->pub.chains, l_cur, l_tmp) {
+            DL_DELETE(a_net->pub.chains, l_cur);
+            dap_chain_delete(l_cur);
+        }
+    }
     HASH_DEL(s_nets_by_name, a_net);
     HASH_DELETE(hh2, s_nets_by_id, a_net);
     DAP_DELETE(a_net);

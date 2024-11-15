@@ -84,7 +84,7 @@ typedef struct dap_chain_cs_dag_pvt {
     dap_chain_cs_dag_event_item_t * events_treshold_conflicted;
     dap_chain_cs_dag_event_item_t * events_lasts_unlinked;
     dap_chain_cs_dag_blocked_t *removed_events_from_treshold;
-    dap_interval_timer_t treshold_fee_timer;
+    dap_interval_timer_t treshold_free_timer;
     uint64_t tx_count;
 } dap_chain_cs_dag_pvt_t;
 
@@ -388,8 +388,11 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
  */
 static void s_chain_cs_dag_delete(dap_chain_t * a_chain)
 {
+    dap_return_val_if_pass(!a_chain || !a_chain->_inheritor, -1);
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG ( a_chain );
+    dap_return_val_if_pass(!PVT(l_dag), -2);
+    dap_interval_timer_delete(PVT(l_dag)->treshold_free_timer);
     s_dap_chain_cs_dag_purge(a_chain);
-    dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     pthread_mutex_destroy(& PVT(l_dag)->events_mutex);
     if(l_dag->callback_delete )
         l_dag->callback_delete(l_dag);
