@@ -46,10 +46,16 @@ typedef struct dap_ledger {
     void *_internal;
 } dap_ledger_t;
 
+typedef struct dap_ledger_tracker {
+    dap_hash_fast_t voting_hash;
+    uint256_t colored_value;
+} dap_ledger_tracker_t;
+
 typedef struct dap_ledger_hardfork_balances {
     dap_chain_addr_t addr;
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t value;
+    dap_list_t *trackers;
     struct dap_ledger_hardfork_balances *prev, *next;
 } dap_ledger_hardfork_balances_t;
 
@@ -57,6 +63,7 @@ typedef struct dap_ledger_hardfork_condouts {
     dap_hash_fast_t hash;
     dap_chain_tx_out_cond_t *cond;
     dap_sign_t *sign;
+    dap_list_t *trackers;
     struct dap_ledger_hardfork_condouts *prev, *next;
 } dap_ledger_hardfork_condouts_t;
 
@@ -495,7 +502,8 @@ int dap_ledger_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_c
 int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash);
 dap_chain_datum_anchor_t *dap_ledger_anchor_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash);
 
-dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_ledger_hardfork_condouts_t **l_cond_outs_list);
+dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creatiom_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list);
 dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledger);
 
 uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_tx_prev_hash, int a_out_idx);
+void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);

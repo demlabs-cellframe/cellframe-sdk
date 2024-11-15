@@ -63,10 +63,6 @@ typedef struct dap_chain_block_cache {
     // List for keeping pointers to list of atoms in side branches
     dap_list_t *forked_branches;
 
-    // Links to prev and next block
-    struct dap_chain_block_cache * prev;
-    struct dap_chain_block_cache * next;
-
     // uthash handle
     UT_hash_handle hh;
 } dap_chain_block_cache_t;
