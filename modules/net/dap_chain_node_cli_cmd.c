@@ -4330,16 +4330,12 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, void **a_st
         } else if (strcmp(a_params->type_str, "CF20") == 0) {
             a_params->type = a_update_token ? DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE : DAP_CHAIN_DATUM_TOKEN_TYPE_DECL; // 256
             a_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
-        } else if (strcmp(a_params->type_str, "private_simple") == 0 && !a_update_token) {
-            a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
-            a_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE; // 256
         } else if (strcmp(a_params->type_str, "public_simple") == 0 && !a_update_token) {
             a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
             a_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC; // 256
         } else if (!a_update_token) {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Unknown token type %s was specified. Supported types:\n"
-                        "   private_simple\n"
                         "   private\n"
                         "   CF20\n"
                         "Default token type is private_simple.\n", a_params->type_str);
@@ -4700,7 +4696,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
     }
 
     l_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
-    l_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE;
+    l_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
 
     int l_parse_params = s_token_decl_check_params(a_argc,a_argv,a_str_reply,l_params, false);
     if (l_parse_params) {
