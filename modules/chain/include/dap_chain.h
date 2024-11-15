@@ -182,6 +182,9 @@ typedef struct dap_chain {
 
     dap_chain_sync_state_t  state;
 
+    uint16_t authorized_nodes_count;
+    dap_stream_node_addr_t *authorized_nodes_addrs;
+
     // To hold it in double-linked lists
     struct dap_chain * next;
     struct dap_chain * prev;
