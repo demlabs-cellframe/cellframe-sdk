@@ -119,6 +119,7 @@
 
 static bool s_debug_more = false;
 static const int c_sync_timer_period = 5000;  // msec
+static bool s_server_enabled = false;
 
 struct request_link_info {
     char addr[DAP_HOSTADDR_STRLEN + 1];
@@ -162,9 +163,6 @@ typedef struct dap_chain_net_pvt{
     uint16_t permanent_links_hosts_count;
     struct request_link_info **permanent_links_hosts;
     
-    uint16_t authorized_nodes_count;
-    dap_stream_node_addr_t *authorized_nodes_addrs;
-
     uint16_t seed_nodes_count;
     struct request_link_info **seed_nodes_hosts;
 
@@ -295,7 +293,7 @@ int dap_chain_net_init()
             // search only ".cfg" files
             if ( (int)(l_end - l_path) + l_pos > 4 && strncmp(l_end - 4, ".cfg", 4) )
                 continue;
-            
+
             log_it(L_DEBUG, "Loading net config \"%s\"", l_dir_entry->d_name);
             *(l_end - 4) = '\0';
             if ( !dap_dir_test(l_path) ) {
@@ -762,6 +760,22 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg) {
  */
 void dap_chain_net_load_all()
 {
+    if ( dap_config_get_item_bool_default(g_config, "server", "enabled", false) ) {
+        char l_local_ip[INET6_ADDRSTRLEN] = { '\0' };
+        uint16_t l_in_port = 0;
+        const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
+        if ( l_listening ) {
+            if ( dap_net_parse_config_address(*l_listening, l_local_ip, &l_in_port, NULL, NULL) < 0 )
+                log_it(L_ERROR, "Invalid server IP address, check [server] section in cellframe-node.cfg");
+            else {
+                // power of short-circuit
+                if ( l_in_port || ( l_in_port = dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079 ))) {
+                    s_server_enabled = true;
+                    log_it(L_INFO, "Server is enabled on [%s : %u]", l_local_ip, l_in_port);
+                }
+            }
+        }
+    }
     uint16_t l_nets_count = HASH_COUNT(s_nets_by_name);
     if (!l_nets_count)
         return log_it(L_ERROR, "No networks initialized!");
@@ -1740,7 +1754,6 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     dap_global_db_cluster_delete(PVT(a_net)->nodes_states);
     dap_global_db_cluster_delete(PVT(a_net)->common_orders);
 
-    DAP_DELETE(PVT(a_net)->authorized_nodes_addrs);
     DAP_DELETE(PVT(a_net)->node_info);
     if (a_net->pub.ledger) {
         dap_ledger_purge(a_net->pub.ledger, true);
@@ -1768,29 +1781,7 @@ int dap_chain_net_test_init()
 #endif
 
 
-int s_nodes_addrs_init(dap_config_t *a_cfg, const char *a_addrs_type, dap_stream_node_addr_t **a_addrs, uint16_t *a_addrs_count)
-{
-    dap_return_val_if_pass(!a_cfg || !a_addrs_type || !a_addrs || !a_addrs_count, -1);
-    const char **l_nodes_addrs = dap_config_get_array_str(a_cfg, "general", a_addrs_type, a_addrs_count);
-    if (*a_addrs_count) {
-        *a_addrs = DAP_NEW_Z_COUNT(dap_chain_node_addr_t, *a_addrs_count);
-        if (!*a_addrs) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            return -1;
-        }
-        for (uint16_t i = 0; i < *a_addrs_count; ++i) {
-            dap_chain_node_addr_t l_addr;
-            if (dap_stream_node_addr_from_str(&l_addr, l_nodes_addrs[i])) {
-                log_it(L_ERROR, "Incorrect format of %s address \"%s\", fix net config and restart node", a_addrs_type, l_nodes_addrs[i]);
-                return -2;
-            }
-            (*a_addrs)[i].uint64 = l_addr.uint64;
-        }
-    }
-    return 0;
-}
-
-int s_nodes_hosts_init(dap_chain_net_t *a_net, dap_config_t *a_cfg, const char *a_hosts_type, struct request_link_info ***a_hosts, uint16_t *a_hosts_count)
+static int s_nodes_hosts_init(dap_chain_net_t *a_net, dap_config_t *a_cfg, const char *a_hosts_type, struct request_link_info ***a_hosts, uint16_t *a_hosts_count)
 {
     dap_return_val_if_pass(!a_cfg || !a_hosts_type || !a_hosts || !a_hosts_count, -1);
     const char **l_nodes_addrs = dap_config_get_array_str(a_cfg, "general", a_hosts_type, a_hosts_count);
@@ -1803,9 +1794,9 @@ int s_nodes_hosts_init(dap_chain_net_t *a_net, dap_config_t *a_cfg, const char *
         uint16_t i = 0, e = 0;
         for (; i < *a_hosts_count; ++i) {
             if (!( (*a_hosts)[i] = s_net_resolve_host(l_nodes_addrs[i]) )) {
-                log_it(L_ERROR, "Incorrect address [ %s : %u ], fix \"%s\" network config"
+                log_it(L_ERROR, "Incorrect address %s, fix \"%s\" network config "
                                 "or check internet connection and restart node",
-                                (*a_hosts)[i]->addr, (*a_hosts)[i]->port,  a_net->pub.name);
+                                l_nodes_addrs[i],  a_net->pub.name);
                 ++e;
                 continue;
             }
@@ -1832,7 +1823,7 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
         return log_it(L_ERROR,"Can't open default network config %s", a_path), -1;
 
     dap_chain_net_t *l_net = s_net_new(a_net_name, l_cfg);
-    if ( !l_net ) 
+    if ( !l_net )
         return log_it(L_ERROR,"Can't create net \"%s\"", a_net_name), dap_config_close(l_cfg), -1;
 
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
@@ -1848,7 +1839,7 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
                 log_it(L_ERROR, "Can't add invalid net id \"%s\" to bridged net list of \"%s\"",
                                 l_bridged_net_ids[i], a_net_name);
                 continue;
-            }   
+            }
             ++j;
         }
         l_net->pub.bridged_networks_count = j;
@@ -1856,10 +1847,9 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
             l_net->pub.bridged_networks = DAP_REALLOC_COUNT(l_net->pub.bridged_networks, j); // Can be NULL, it's ok
     }
 
-    // read permanent and authorized nodes addrs
+    // read nodes addrs and hosts
     if (
-        s_nodes_addrs_init(l_cfg, "permanent_nodes_addrs", &l_net_pvt->permanent_links_addrs, &l_net_pvt->permanent_links_addrs_count) ||
-        s_nodes_addrs_init(l_cfg, "authorized_nodes_addrs", &l_net_pvt->authorized_nodes_addrs, &l_net_pvt->authorized_nodes_count) ||
+        dap_config_stream_addrs_parse(l_cfg, "general", "permanent_nodes_addrs", &l_net_pvt->permanent_links_addrs, &l_net_pvt->permanent_links_addrs_count) ||
         s_nodes_hosts_init(l_net, l_cfg, "permanent_nodes_hosts", &l_net_pvt->permanent_links_hosts, &l_net_pvt->permanent_links_hosts_count) ||
         s_nodes_hosts_init(l_net, l_cfg, "seed_nodes_hosts", &l_net_pvt->seed_nodes_hosts, &l_net_pvt->seed_nodes_count) || 
         (!l_net_pvt->seed_nodes_count && s_nodes_hosts_init(l_net, l_cfg, "bootstrap_hosts", &l_net_pvt->seed_nodes_hosts, &l_net_pvt->seed_nodes_count) )
@@ -1868,9 +1858,11 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
         dap_config_close(l_cfg);
         return -4;
     }
-    debug_if(!l_net_pvt->authorized_nodes_count, L_WARNING, "Can't read PoA nodes addresses");
     if (!l_net_pvt->seed_nodes_count)
         log_it(L_WARNING, "Can't read seed nodes addresses, work with local balancer only");
+
+    // Get list chains name for enabled debug mode
+    bool is_esbocs_debug = dap_config_get_item_bool_default(l_cfg, "esbocs", "consensus_debug", false);
 
     /* *** Chains init by configs *** */
     DIR *l_chains_dir = opendir(a_path);
@@ -1923,9 +1915,11 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
                 l_chain->default_datum_types_count = k;
                 l_chain->default_datum_types = DAP_REALLOC_COUNT(l_chain->default_datum_types, k);
             }
+            if (!dap_strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "esbocs") && is_esbocs_debug) {
+                dap_chain_esbocs_change_debug_mode(l_chain, true);
+            }
         } else {
             HASH_DEL(l_all_chain_configs, l_chain_config);
-            dap_config_close(l_chain_config);
         }
     }
     HASH_CLEAR(hh, l_all_chain_configs);
@@ -2083,8 +2077,8 @@ static void *s_net_load(void *a_arg)
         // Personal chain mempool cluster for each chain
         l_gdb_groups_mask = dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix, l_chain->name);
         dap_global_db_cluster_t *l_cluster = dap_global_db_cluster_add(
-                                                dap_global_db_instance_get_default(), l_net->pub.name, 
-                                                dap_guuid_compose(l_net->pub.id.uint64, 0), l_gdb_groups_mask, 
+                                                dap_global_db_instance_get_default(), l_net->pub.name,
+                                                dap_guuid_compose(l_net->pub.id.uint64, 0), l_gdb_groups_mask,
                                                 dap_config_get_item_int32_default(l_net->pub.config, "global_db", "mempool_ttl", DAP_CHAIN_NET_MEMPOOL_TTL),
                                                 true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_TYPE_EMBEDDED);
         if (!l_cluster) {
@@ -2156,21 +2150,9 @@ static void *s_net_load(void *a_arg)
         if (l_chain->callback_created)
             l_chain->callback_created(l_chain, l_net->pub.config);
 
-    if ( dap_config_get_item_bool_default(g_config, "server", "enabled", false) ) {
-        char l_local_ip[INET6_ADDRSTRLEN] = { '\0' };
-        uint16_t l_in_port = 0;
-        const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
-        if ( l_listening ) {
-            if ( dap_net_parse_config_address(*l_listening, l_local_ip, &l_in_port, NULL, NULL) < 0 )
-                log_it(L_ERROR, "Invalid server IP address, check [server] section in cellframe-node.cfg");
-            else {
-                // power of short-circuit
-                if ( l_in_port || ( l_in_port = dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079 )))
-                    log_it(L_INFO, "Server is enabled on \"%s : %u\"", l_local_ip, l_in_port);
-                if (( l_net_pvt->node_info->ext_port = dap_config_get_item_uint16(g_config, "server", "ext_port") ))
-                    log_it(L_INFO, "Set external port %u for adding in node list", l_net_pvt->node_info->ext_port);
-            }
-        }
+    if ( s_server_enabled ) {
+        if (( l_net_pvt->node_info->ext_port = dap_config_get_item_uint16(g_config, "server", "ext_port") ))
+            log_it(L_INFO, "Set external port %u for adding in node list", l_net_pvt->node_info->ext_port);
     }
 
     l_net_pvt->node_info->address.uint64 = g_node_addr.uint64;
@@ -2265,8 +2247,10 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 int dap_chain_net_add_auth_nodes_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster)
 {
     dap_return_val_if_fail(a_net && a_cluster, -1);
-    for (uint16_t i = 0; i < PVT(a_net)->authorized_nodes_count; i++)
-        dap_global_db_cluster_member_add(a_cluster, PVT(a_net)->authorized_nodes_addrs + i, DAP_GDB_MEMBER_ROLE_ROOT);
+    for (dap_chain_t *l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next){
+        for (uint16_t i = 0; i < l_chain->authorized_nodes_count; i++)
+            dap_global_db_cluster_member_add(a_cluster, l_chain->authorized_nodes_addrs + i, DAP_GDB_MEMBER_ROLE_ROOT);
+    }
     return 0;
 }
 
@@ -2747,7 +2731,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             if (l_tx_size != l_datum_data_size) {
                 log_it(L_WARNING, "Corrupted transaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
                 return -102;
-            }            
+            }
             return dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
         }
         case DAP_CHAIN_DATUM_CA:
