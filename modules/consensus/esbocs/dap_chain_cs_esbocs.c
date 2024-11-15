@@ -1405,7 +1405,8 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             size_t l_candidate_sign_size = dap_sign_get_size(l_candidate_sign);
             dap_chain_addr_t l_signing_addr_cur;
             dap_chain_addr_fill_from_sign(&l_signing_addr_cur, l_candidate_sign, a_session->chain->net_id);
-            l_store->candidate = DAP_REALLOC(l_store->candidate, l_store->candidate_size + l_candidate_sign_size);
+            dap_chain_block_t *l_signed_candidate = DAP_REALLOC_RET_IF_FAIL(l_store->candidate, l_store->candidate_size + l_candidate_sign_size);
+            l_store->candidate = l_signed_candidate;
             if (dap_chain_addr_compare(&l_signing_addr_cur, &a_session->cur_round.attempt_submit_validator) &&
                                        l_store->candidate_size != l_candidate_size_exclude_signs) {
                 // If it's the primary attempt validator sign, place it in the beginnig
@@ -2687,9 +2688,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             dap_sign_t *l_sign = dap_sign_create( PVT(a_session->esbocs)->blocks_sign_key, l_message, l_message_size, 0 );
             size_t l_sign_size = dap_sign_get_size(l_sign);
             l_message->hdr.sign_size = l_sign_size;
-            dap_chain_esbocs_message_t *l_message_signed = DAP_REALLOC(l_message, l_message_size + l_sign_size);
-            if ( !l_message_signed )
-                return DAP_DELETE(l_sign), DAP_DELETE(l_message), log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            dap_chain_esbocs_message_t *l_message_signed = DAP_REALLOC_RET_IF_FAIL(l_message, l_message_size + l_sign_size, l_sign, l_message);
             l_message = l_message_signed;
             memcpy(l_message->msg_n_sign + a_data_size, l_sign, l_sign_size);
             DAP_DELETE(l_sign);

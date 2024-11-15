@@ -647,14 +647,10 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
         case DAP_CHAIN_BLOCK_META_LINK:
             if (a_block_links) {
                 if (l_links_count == 0)
-                    *a_block_links = DAP_NEW_Z_SIZE(dap_hash_t, sizeof(dap_hash_t) * l_links_count_max);
+                    *a_block_links = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(dap_hash_t, l_links_count_max, -5);
                 else if (l_links_count == l_links_count_max) {
                     l_links_count_max *= 2;
-                    *a_block_links = DAP_REALLOC(*a_block_links, l_links_count_max);
-                }
-                if (!*a_block_links) {
-                    log_it(L_CRITICAL, "Not enough memory");
-                    return -5;
+                    *a_block_links = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(*a_block_links, l_links_count_max);
                 }
                 l_meta_data = s_meta_extract(l_meta);
                 if (l_meta_data)

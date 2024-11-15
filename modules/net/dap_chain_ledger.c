@@ -701,9 +701,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
                 }
             }
-            dap_chain_addr_t *l_tmp = l_new_tx_recv_allow
-                    ? DAP_REALLOC(l_new_tx_recv_allow, (l_new_tx_recv_allow_size + 1) * sizeof(dap_chain_addr_t))
-                    : DAP_NEW_Z(dap_chain_addr_t);
+            dap_chain_addr_t *l_tmp = DAP_REALLOC_COUNT(l_new_tx_recv_allow, l_new_tx_recv_allow_size + 1);
             if (!l_tmp) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -749,8 +747,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                         (l_new_tx_recv_allow_size - i - 1) * sizeof(dap_chain_addr_t));
             // Memory clearing
             if (l_new_tx_recv_allow_size)
-                l_new_tx_recv_allow = DAP_REALLOC(l_new_tx_recv_allow,
-                                                          l_new_tx_recv_allow_size * sizeof(dap_chain_addr_t));
+                l_new_tx_recv_allow = DAP_REALLOC_COUNT(l_new_tx_recv_allow, l_new_tx_recv_allow_size);
             else
                 DAP_DEL_Z(l_new_tx_recv_allow);
         } break;
@@ -795,9 +792,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
                 }
             }
-            dap_chain_addr_t *l_tmp = l_new_tx_recv_block
-                    ? DAP_REALLOC(l_new_tx_recv_block, (l_new_tx_recv_block_size + 1) * sizeof(dap_chain_addr_t))
-                    : DAP_NEW_Z(dap_chain_addr_t);
+            dap_chain_addr_t *l_tmp = DAP_REALLOC_COUNT(l_new_tx_recv_block, l_new_tx_recv_block_size + 1);
             if (!l_tmp) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -889,9 +884,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
                 }
             }
-            dap_chain_addr_t *l_tmp = l_new_tx_send_allow
-                    ? DAP_REALLOC(l_new_tx_send_allow, (l_new_tx_send_allow_size + 1) * sizeof(dap_chain_addr_t))
-                    : DAP_NEW_Z(dap_chain_addr_t);
+            dap_chain_addr_t *l_tmp = DAP_REALLOC_COUNT(l_new_tx_send_allow, l_new_tx_send_allow_size + 1);
             if (!l_tmp) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -986,9 +979,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             if (!a_apply)
                 break;
-            dap_chain_addr_t *l_tmp = l_new_tx_send_block
-                    ? DAP_REALLOC(l_new_tx_send_block, (l_new_tx_send_block_size + 1) * sizeof(dap_chain_addr_t))
-                    : DAP_NEW_Z(dap_chain_addr_t);
+            dap_chain_addr_t *l_tmp = DAP_REALLOC_COUNT(l_new_tx_send_block, l_new_tx_send_block_size + 1);
             if (!l_tmp) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -1034,8 +1025,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                         (l_new_tx_send_block_size - i - 1) * sizeof(dap_chain_addr_t));
             // Memory clearing
             if (l_new_tx_send_block_size)
-                l_new_tx_send_block = DAP_REALLOC(l_new_tx_send_block,
-                                                          l_new_tx_send_block_size * sizeof(dap_chain_addr_t));
+                l_new_tx_send_block = DAP_REALLOC_COUNT(l_new_tx_send_block, l_new_tx_send_block_size);
             else
                 DAP_DEL_Z(l_new_tx_send_block);
         } break;
@@ -1119,9 +1109,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_PKEY_MISMATCH);
                 }
             }
-            dap_pkey_t **l_tmp = l_new_pkeys
-                ? DAP_REALLOC(l_new_pkeys, (l_new_signs_total + 1) * sizeof(dap_pkey_t*))
-                : DAP_NEW_Z(dap_pkey_t*);
+            dap_pkey_t **l_tmp = DAP_REALLOC_COUNT(l_new_pkeys, l_new_signs_total + 1);
             if (!l_tmp) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -1136,9 +1124,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (l_pkey_type_correction.type != DAP_PKEY_TYPE_NULL)
                 l_new_pkeys[l_new_signs_total]->header.type = l_pkey_type_correction;
 
-            dap_hash_fast_t *l_tmp_hashes = l_new_pkey_hashes
-                ? DAP_REALLOC(l_new_pkey_hashes, (l_new_signs_total + 1) * sizeof(dap_hash_t))
-                : DAP_NEW_Z(dap_hash_t);
+            dap_hash_fast_t *l_tmp_hashes = DAP_REALLOC_COUNT(l_new_pkey_hashes, l_new_signs_total + 1);
             if (!l_tmp_hashes) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -1195,8 +1181,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             // Memory clearing
             if (l_new_signs_total) {
-                l_new_pkeys = DAP_REALLOC(l_new_pkeys, l_new_signs_total * sizeof(dap_pkey_t *));
-                l_new_pkey_hashes = DAP_REALLOC(l_new_pkey_hashes, l_new_signs_total * sizeof(dap_hash_t));
+                l_new_pkeys = DAP_REALLOC_COUNT(l_new_pkeys, l_new_signs_total);
+                l_new_pkey_hashes = DAP_REALLOC_COUNT(l_new_pkey_hashes, l_new_signs_total);
             } else
                 DAP_DEL_MULTY(l_new_pkeys, l_new_pkey_hashes);
         } break;
