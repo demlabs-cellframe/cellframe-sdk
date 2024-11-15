@@ -1905,7 +1905,6 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     // Clear & destroy item
     for (uint32_t i = 0; i < l_tx_item->cache_data.n_outs; i++)
         dap_list_free_full(l_tx_item->out_metadata[i].trackers, NULL);
-    DAP_DELETE(l_tx_item->out_metadata);
     DAP_DELETE(l_tx_item);
 
     if (PVT(a_ledger)->cached) {
@@ -2179,8 +2178,10 @@ void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
     if (!l_item_out)
         return;
     for (uint32_t i = 0; i < l_item_out->cache_data.n_outs; i++) {
-        dap_list_free_full(l_item_out->out_metadata[i].trackers, NULL);
-        l_item_out->out_metadata[i].trackers = NULL;
+        if (!dap_hash_fast_is_blank(&l_item_out->out_metadata[i].tx_spent_hash_fast)) {
+            dap_list_free_full(l_item_out->out_metadata[i].trackers, NULL);
+            l_item_out->out_metadata[i].trackers = NULL;
+        }
     }
 }
 
