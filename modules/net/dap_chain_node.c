@@ -186,6 +186,20 @@ dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream
     } else {
         s_states_info_to_str(a_net, l_node_addr_str, l_ret);
     }
+    if (!l_ret->len) {
+        const char *l_prefix = !a_addr.uint64 ? "my" : a_addr.uint64 == g_node_addr.uint64 ? "my" : "";
+        if (a_net){
+            dap_string_append_printf(l_ret, "Can't find state of %s node %s in net %s", l_prefix, l_node_addr_str, a_net->pub.name);
+        } else {
+            dap_string_append_printf(l_ret, "Can't find state of %s node %s in nets ", l_prefix, l_node_addr_str);
+            dap_chain_net_t *l_current_net = NULL, *l_next_net = dap_chain_net_iter_start();
+            while(l_next_net) {
+                l_current_net = l_next_net;
+                l_next_net = dap_chain_net_iter_next(l_next_net);
+                dap_string_append_printf(l_ret, l_next_net ? "%s, " : "%s", l_current_net->pub.name);
+            }
+        }
+    }
     return l_ret;
 }
 
