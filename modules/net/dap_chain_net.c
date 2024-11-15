@@ -1963,6 +1963,8 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
         } else {
             HASH_DEL(l_all_chain_configs, l_chain_config);
             dap_config_close(l_chain_config);
+            dap_chain_net_delete(l_net);
+            return -5;
         }
     }
     HASH_CLEAR(hh, l_all_chain_configs);
