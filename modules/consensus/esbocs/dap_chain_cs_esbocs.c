@@ -1276,12 +1276,15 @@ static int s_signs_sort_callback(dap_list_t *a_sign1, dap_list_t *a_sign2)
     return l_ret;
 }
 
-dap_chain_esbocs_directive_t *s_session_directive_ready(dap_chain_esbocs_session_t *a_session)
+static bool s_session_directive_ready(dap_chain_esbocs_session_t *a_session, bool * a_kick, dap_chain_addr_t * a_signing_addr)
 {
     size_t l_list_length = dap_list_length(a_session->cur_round.all_validators);
-    if (a_session->cur_round.total_validators_synced * 3 < l_list_length * 2)
-        return NULL; // Not a valid round, less than 2/3 participants
-    bool l_kick = false;
+    if (a_session->cur_round.total_validators_synced * 3 < l_list_length * 2) {
+        log_it(L_INFO, "Not enough validator online for derictive, all_validators = %u, current = %u", l_list_length, a_session->cur_round.total_validators_synced);
+        return false; // Not a valid round, less than 2/3 participants
+    }
+    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Current consensus online %hu from %zu is acceptable, so issue the directive",
+                                                    a_session->cur_round.total_validators_synced, l_list_length);
     dap_chain_esbocs_penalty_item_t *l_item, *l_tmp;
     HASH_ITER(hh, a_session->penalty, l_item, l_tmp) {
         int l_key_state = dap_chain_net_srv_stake_key_delegated(&l_item->signing_addr);
@@ -1291,27 +1294,30 @@ dap_chain_esbocs_directive_t *s_session_directive_ready(dap_chain_esbocs_session
             continue;
         }
         if (l_item->miss_count >= DAP_CHAIN_ESBOCS_PENALTY_KICK && l_key_state == 1) {
-            l_kick = true;
-            break;
+            *a_kick = true;
+            return true;
         }
         if (l_item->miss_count == 0 && l_key_state == -1)
-            break;
+            *a_kick = false;
+            return true;
     }
     if (!l_item)
-        return NULL;
-    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Current consensus online %hu from %zu is acceptable, so issue the directive",
-                                                    a_session->cur_round.total_validators_synced, l_list_length);
-    uint32_t l_directive_size = s_directive_calc_size(l_kick ? DAP_CHAIN_ESBOCS_DIRECTIVE_KICK : DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT);
+        return false;
+    return true;
+}
+
+static dap_chain_esbocs_directive_t* s_session_directive_compose(dap_chain_esbocs_session_t *a_session, bool a_kick, dap_chain_addr_t * a_signing_addr) {
+    uint32_t l_directive_size = s_directive_calc_size(a_kick ? DAP_CHAIN_ESBOCS_DIRECTIVE_KICK : DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT);
     dap_chain_esbocs_directive_t *l_ret = NULL;
     DAP_NEW_Z_SIZE_RET_VAL(l_ret, dap_chain_esbocs_directive_t, l_directive_size, NULL, NULL);
     l_ret->version = DAP_CHAIN_ESBOCS_DIRECTIVE_VERSION;
-    l_ret->type = l_kick ? DAP_CHAIN_ESBOCS_DIRECTIVE_KICK : DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT;
+    l_ret->type = a_kick ? DAP_CHAIN_ESBOCS_DIRECTIVE_KICK : DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT;
     l_ret->size = l_directive_size;
     l_ret->timestamp = dap_nanotime_now();
     dap_tsd_t *l_tsd = (dap_tsd_t *)l_ret->tsd;
     l_tsd->type = DAP_CHAIN_ESBOCS_DIRECTIVE_TSD_TYPE_ADDR;
     l_tsd->size = sizeof(dap_chain_addr_t);
-    *(dap_chain_addr_t *)l_tsd->data = l_item->signing_addr;
+    *(dap_chain_addr_t *)l_tsd->data = *a_signing_addr;
     return l_ret;
 }
 
@@ -1350,8 +1356,12 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         if (dap_chain_addr_compare(&a_session->cur_round.attempt_submit_validator, &a_session->my_signing_addr)) {
             dap_chain_esbocs_directive_t *l_directive = NULL;
 #ifdef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
-            if (!a_session->cur_round.directive && !PVT(a_session->esbocs)->emergency_mode)
-                l_directive = s_session_directive_ready(a_session);
+            if (!a_session->cur_round.directive && !PVT(a_session->esbocs)->emergency_mode) {
+                bool l_kick = false;
+                dap_chain_addr_t* l_signing_addr = NULL;
+                if (s_session_directive_ready(a_session, &l_kick, l_signing_addr))
+                    l_directive = s_session_directive_compose(a_session, l_kick, l_signing_addr);
+            }
 #endif
             if (l_directive) {
                 dap_hash_fast_t l_directive_hash;
