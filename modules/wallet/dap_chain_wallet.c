@@ -89,7 +89,7 @@ struct wallet_addr_cache {
 struct wallet_addr_cache *s_wallet_addr_cache = NULL;
 void s_wallet_addr_cache_add(dap_chain_addr_t *a_addr, const char *a_wallet_name){
     struct wallet_addr_cache *l_cache = DAP_NEW_Z_RET_IF_FAIL(struct wallet_addr_cache);
-    dap_strcpy(l_cache->name, a_wallet_name, sizeof(l_cache->name));
+    dap_strncpy(l_cache->name, a_wallet_name, sizeof(l_cache->name));
     l_cache->addr = *a_addr;
     HASH_ADD(hh, s_wallet_addr_cache, addr, sizeof(dap_chain_addr_t), l_cache);
 }
