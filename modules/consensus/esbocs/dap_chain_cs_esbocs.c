@@ -1280,7 +1280,8 @@ static bool s_session_directive_ready(dap_chain_esbocs_session_t *a_session, boo
 {
     size_t l_list_length = dap_list_length(a_session->cur_round.all_validators);
     if (a_session->cur_round.total_validators_synced * 3 < l_list_length * 2) {
-        log_it(L_INFO, "Not enough validator online for derictive, all_validators = %u, current = %u", l_list_length, a_session->cur_round.total_validators_synced);
+        log_it(L_INFO, "Not enough validator online for derictive, all_validators = %zu, current = %zu",
+                       l_list_length, a_session->cur_round.total_validators_synced);
         return false; // Not a valid round, less than 2/3 participants
     }
     debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Current consensus online %hu from %zu is acceptable, so issue the directive",
@@ -1297,9 +1298,10 @@ static bool s_session_directive_ready(dap_chain_esbocs_session_t *a_session, boo
             *a_kick = true;
             return true;
         }
-        if (l_item->miss_count == 0 && l_key_state == -1)
+        if (l_item->miss_count == 0 && l_key_state == -1) {
             *a_kick = false;
             return true;
+        }
     }
     return !!l_item;
 }
