@@ -57,6 +57,7 @@
 #include "json_object.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_wallet.h"
 
 #define LOG_TAG "dap_ledger"
 
@@ -87,8 +88,6 @@ static  pthread_rwlock_t s_verificators_rwlock;
 static  pthread_rwlock_t s_services_rwlock;
 
 static dap_chain_ledger_votings_callbacks_t s_voting_callbacks;
-
-#define MAX_OUT_ITEMS   10
 
 typedef struct dap_ledger_stake_lock_item {
     dap_chain_hash_fast_t	tx_for_stake_lock_hash;
@@ -158,6 +157,7 @@ typedef struct dap_ledger_tx_item {
     dap_chain_hash_fast_t tx_hash_fast;
     dap_chain_datum_tx_t *tx;
     dap_nanotime_t ts_added;
+    UT_hash_handle hh;
     struct {
         dap_time_t ts_created;      // Transation datum timestamp mirrored & cached
         uint32_t n_outs;
@@ -169,11 +169,15 @@ typedef struct dap_ledger_tx_item {
         byte_t pad[7];
         dap_chain_net_srv_uid_t tag; //tag (or service this tx is belong to)
         dap_chain_tx_tag_action_type_t action;
-        // TODO dynamically allocates the memory in order not to limit the number of outputs in transaction
-        dap_chain_hash_fast_t tx_hash_spent_fast[MAX_OUT_ITEMS]; // spent outs list
+        dap_chain_hash_fast_t tx_hash_spent_fast[]; // spent outs list
     } DAP_ALIGN_PACKED cache_data;
-    UT_hash_handle hh;
 } dap_ledger_tx_item_t;
+
+typedef struct  dap_ledger_cache_gdb_record {
+    uint64_t cache_size;
+    uint64_t datum_size;
+    uint8_t data[];
+} DAP_ALIGN_PACKED dap_ledger_cache_gdb_record_t;
 
 typedef struct dap_ledger_tokenizer {
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
@@ -527,30 +531,28 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
 }
 
 struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t *a_bal) {
-    struct json_object *l_json = json_object_new_object();
-    json_object_object_add(l_json, "class", json_object_new_string("Wallet"));
-    struct json_object *l_network = json_object_new_object();
-    json_object_object_add(l_network, "name", json_object_new_string(a_ledger->net->pub.name));
     char *pos = strrchr(a_bal->key, ' ');
     if (pos) {
         size_t l_addr_len = pos - a_bal->key;
         char *l_addr_str = DAP_NEW_STACK_SIZE(char, l_addr_len + 1);
         if ( !l_addr_str )
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         memcpy(l_addr_str, a_bal->key, pos - a_bal->key);
         *(l_addr_str + l_addr_len) = '\0';
-        json_object_object_add(l_network, "address", json_object_new_string(l_addr_str));
-    } else {
-        json_object_object_add(l_network, "address", json_object_new_string("Unknown"));
+        dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
+        const char *l_wallet_name = dap_chain_wallet_addr_cache_get_name(l_addr);
+        DAP_DELETE(l_addr);
+        if (l_wallet_name) {
+            struct json_object *l_json = json_object_new_object();
+            json_object_object_add(l_json, "class", json_object_new_string("WalletInfo"));
+            struct json_object *l_jobj_wallet = json_object_new_object();
+            json_object_object_add(l_jobj_wallet, l_wallet_name, dap_chain_wallet_info_to_json(l_wallet_name,
+                                                                                               dap_chain_wallet_get_path(g_config)));
+            json_object_object_add(l_json, "wallet", l_jobj_wallet);
+            return l_json;
+        }
     }
-    struct json_object *l_token = json_object_new_object();
-    json_object_object_add(l_token, "name", json_object_new_string(a_bal->token_ticker));
-    const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(a_bal->balance, &l_balance_coins);
-    json_object_object_add(l_token, "full_balance", json_object_new_string(l_balance_coins));
-    json_object_object_add(l_token, "datoshi", json_object_new_string(l_balance_datoshi));
-    json_object_object_add(l_network, "tokens", l_token);
-    json_object_object_add(l_json, "networks", l_network);
-    return l_json;
+    return NULL;
 }
 
 inline static dap_ledger_hal_item_t *s_check_hal(dap_ledger_t *a_ledger, dap_hash_fast_t *a_hal_hash)
@@ -661,8 +663,11 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN);
             }
             uint256_t l_new_supply = dap_tsd_get_scalar(l_tsd, uint256_t);
-            if (!IS_ZERO_256(a_item_apply_to->total_supply) && !IS_ZERO_256(l_new_supply) &&
-                    compare256(a_item_apply_to->total_supply, l_new_supply) < 0) { //compare old 'total_supply' can be updated
+            if (IS_ZERO_256(a_item_apply_to->total_supply)){
+                log_it(L_WARNING, "Cannot update total_supply for token %s because the current value is set to infinity.", a_item_apply_to->ticker);
+                return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY);
+            }
+            if (!IS_ZERO_256(l_new_supply) && compare256(a_item_apply_to->total_supply, l_new_supply) > -1) {
                 log_it(L_WARNING, "Can't update token with ticker '%s' because the new 'total_supply' can't be smaller than the old one", a_item_apply_to->ticker);
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY);
             }
@@ -2385,14 +2390,14 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
             return false;
         }
         dap_chain_hash_fast_from_str(a_values[i].key, &l_tx_item->tx_hash_fast);
-        l_tx_item->tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, a_values[i].value_len - sizeof(l_tx_item->cache_data));
+        l_tx_item->tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, l_current_record->datum_size);
         if ( !l_tx_item->tx ) {
             DAP_DELETE(l_tx_item);
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return false;
         }
-        memcpy(&l_tx_item->cache_data, a_values[i].value, sizeof(l_tx_item->cache_data));
-        memcpy(l_tx_item->tx, a_values[i].value + sizeof(l_tx_item->cache_data), a_values[i].value_len - sizeof(l_tx_item->cache_data));
+        memcpy(&l_tx_item->cache_data, l_current_record->data, l_current_record->cache_size);
+        memcpy(l_tx_item->tx, l_current_record->data + l_current_record->cache_size, l_current_record->datum_size);
         l_tx_item->ts_added = dap_nanotime_now();
         HASH_ADD_INORDER(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item, s_sort_ledger_tx_item);
     }
@@ -3192,11 +3197,6 @@ static bool s_ledger_tx_hash_is_used_out_item(dap_ledger_tx_item_t *a_item, int 
         //log_it(L_DEBUG, "list_cached_item is NULL");
         return true;
     }
-    if(a_idx_out >= MAX_OUT_ITEMS) {
-        if(s_debug_more)
-            log_it(L_ERROR, "Too big index(%d) of 'out' items (max=%d)", a_idx_out, MAX_OUT_ITEMS);
-    }
-    assert(a_idx_out < MAX_OUT_ITEMS);
     // if there are used 'out' items
     if ((a_item->cache_data.n_outs_used > 0) && !dap_hash_fast_is_blank(&(a_item->cache_data.tx_hash_spent_fast[a_idx_out]))) {
         if (a_out_spender_hash)
@@ -4475,11 +4475,14 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         l_prev_item_out->cache_data.n_outs_used++;
         if (PVT(a_ledger)->cached) {
             // mirror it in the cache
+            size_t l_cache_size = sizeof(l_prev_item_out->cache_data) + l_prev_item_out->cache_data.n_outs * sizeof(dap_chain_hash_fast_t);
             size_t l_tx_size = dap_chain_datum_tx_get_size(l_prev_item_out->tx);
-            size_t l_tx_cache_sz = l_tx_size + sizeof(l_prev_item_out->cache_data);
-            byte_t *l_tx_cache = DAP_NEW_Z_SIZE(byte_t, l_tx_cache_sz);
-            memcpy(l_tx_cache, &l_prev_item_out->cache_data, sizeof(l_prev_item_out->cache_data));
-            memcpy(l_tx_cache + sizeof(l_prev_item_out->cache_data), l_prev_item_out->tx, l_tx_size);
+            size_t l_tx_cache_sz = l_tx_size + l_cache_size + sizeof(dap_ledger_cache_gdb_record_t);
+            dap_ledger_cache_gdb_record_t *l_tx_cache = DAP_NEW_STACK_SIZE(dap_ledger_cache_gdb_record_t, l_tx_cache_sz);
+            l_tx_cache->cache_size = l_cache_size;
+            l_tx_cache->datum_size = l_tx_size;
+            memcpy(l_tx_cache->data, &l_prev_item_out->cache_data, l_cache_size);
+            memcpy(l_tx_cache->data + l_cache_size, l_prev_item_out->tx, l_tx_size);
             char *l_tx_i_hash = dap_chain_hash_fast_to_str_new(&l_prev_item_out->tx_hash_fast);
             l_cache_used_outs[l_spent_idx] = (dap_store_obj_t) {
                     .key        = l_tx_i_hash,
@@ -4594,7 +4597,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     assert(!l_err_num);
 
     // add transaction to the cache list
-    dap_ledger_tx_item_t *l_tx_item = DAP_NEW_Z(dap_ledger_tx_item_t);
+    dap_ledger_tx_item_t *l_tx_item = DAP_NEW_Z_SIZE(dap_ledger_tx_item_t, sizeof(dap_ledger_tx_item_t) + l_outs_count * sizeof(dap_chain_hash_fast_t));
     if ( !l_tx_item ) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         l_ret = -1;
@@ -4632,10 +4635,13 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     }
     if (PVT(a_ledger)->cached) {
         // Add it to cache
-        size_t l_tx_cache_sz = l_tx_size + sizeof(l_tx_item->cache_data);
-        uint8_t *l_tx_cache = DAP_NEW_STACK_SIZE(uint8_t, l_tx_cache_sz);
-        memcpy(l_tx_cache, &l_tx_item->cache_data, sizeof(l_tx_item->cache_data));
-        memcpy(l_tx_cache + sizeof(l_tx_item->cache_data), a_tx, l_tx_size);
+        size_t l_cache_size = sizeof(l_tx_item->cache_data) + l_tx_item->cache_data.n_outs * sizeof(dap_chain_hash_fast_t);
+        size_t l_tx_cache_sz = l_tx_size + l_cache_size + sizeof(dap_ledger_cache_gdb_record_t);
+        dap_ledger_cache_gdb_record_t *l_tx_cache = DAP_NEW_STACK_SIZE(dap_ledger_cache_gdb_record_t, l_tx_cache_sz);
+        l_tx_cache->cache_size = l_cache_size;
+        l_tx_cache->datum_size = l_tx_size;
+        memcpy(l_tx_cache->data, &l_tx_item->cache_data, l_cache_size);
+        memcpy(l_tx_cache->data + l_cache_size, a_tx, l_tx_size);
         l_cache_used_outs[0] = (dap_store_obj_t) {
                 .key        = l_tx_hash_str,
                 .value      = (byte_t*)l_tx_cache,
@@ -5202,9 +5208,7 @@ uint256_t dap_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_a
         int l_out_idx = 0;
         byte_t *it; size_t l_size;
         TX_ITEM_ITER_TX(it, l_size, l_cur_tx) {
-            if ( l_out_idx > MAX_OUT_ITEMS )
-                return log_it(L_ERROR, "Number of 'out' items exeeds max number %d", MAX_OUT_ITEMS), uint256_0;
-            uint256_t l_add;
+            uint256_t l_add = { };
             dap_chain_addr_t l_out_addr = { };
             switch (*it) {
             case TX_ITEM_TYPE_OUT_OLD: {
