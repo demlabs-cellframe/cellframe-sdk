@@ -2374,7 +2374,12 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
     dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
     for (size_t i = 0; i < a_values_count; i++) {
-        dap_ledger_tx_item_t *l_tx_item = DAP_NEW_Z(dap_ledger_tx_item_t);
+        dap_ledger_cache_gdb_record_t *l_current_record = (dap_ledger_cache_gdb_record_t*)a_values[i].value;
+        if (a_values[i].value_len != l_current_record->cache_size + l_current_record->datum_size + sizeof(dap_ledger_cache_gdb_record_t)) {
+            log_it(L_ERROR, "Worng ledger_cache_gdb_record size");
+            return false;
+        }
+        dap_ledger_tx_item_t *l_tx_item = DAP_NEW_Z_SIZE(dap_ledger_tx_item_t, sizeof(dap_ledger_tx_item_t) - sizeof(l_tx_item->cache_data) + l_current_record->cache_size);
         if ( !l_tx_item ) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return false;
@@ -4478,7 +4483,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             char *l_tx_i_hash = dap_chain_hash_fast_to_str_new(&l_prev_item_out->tx_hash_fast);
             l_cache_used_outs[l_spent_idx] = (dap_store_obj_t) {
                     .key        = l_tx_i_hash,
-                    .value      = l_tx_cache,
+                    .value      = (byte_t*)l_tx_cache,
                     .value_len  = l_tx_cache_sz,
                     .group      = l_ledger_cache_group,
             };
@@ -4633,7 +4638,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         memcpy(l_tx_cache + sizeof(l_tx_item->cache_data), a_tx, l_tx_size);
         l_cache_used_outs[0] = (dap_store_obj_t) {
                 .key        = l_tx_hash_str,
-                .value      = l_tx_cache,
+                .value      = (byte_t*)l_tx_cache,
                 .value_len  = l_tx_cache_sz,
                 .group      = l_ledger_cache_group,
                 .timestamp  = dap_nanotime_now()
@@ -4805,19 +4810,21 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
 
         // add a used output 
         dap_ledger_tx_item_t *l_prev_item_out = l_bound_item->prev_item;
-        memset(&(l_prev_item_out->cache_data.tx_hash_spent_fast[l_bound_item->prev_out_idx]), 0, sizeof(dap_hash_fast_t));
+        l_prev_item_out->cache_data.tx_hash_spent_fast[l_bound_item->prev_out_idx] = (dap_hash_fast_t){ };
         l_prev_item_out->cache_data.n_outs_used--;
         if (PVT(a_ledger)->cached) {
             // mirror it in the cache
             size_t l_tx_size = dap_chain_datum_tx_get_size(l_prev_item_out->tx);
-            size_t l_tx_cache_sz = l_tx_size + sizeof(l_prev_item_out->cache_data);
-            byte_t *l_tx_cache = DAP_NEW_Z_SIZE(byte_t, l_tx_cache_sz);
-            memcpy(l_tx_cache, &l_prev_item_out->cache_data, sizeof(l_prev_item_out->cache_data));
-            memcpy(l_tx_cache + sizeof(l_prev_item_out->cache_data), l_prev_item_out->tx, l_tx_size);
-            char *l_tx_i_hash = dap_chain_hash_fast_to_str_new(&l_prev_item_out->tx_hash_fast);
+            size_t l_cache_size = sizeof(l_prev_item_out->cache_data) + l_prev_item_out->cache_data.n_outs * sizeof(dap_chain_hash_fast_t);
+            size_t l_tx_cache_sz = l_tx_size + l_cache_size + sizeof(dap_ledger_cache_gdb_record_t);
+            dap_ledger_cache_gdb_record_t *l_tx_cache = DAP_NEW_Z_SIZE(dap_ledger_cache_gdb_record_t, l_tx_cache_sz);
+            l_tx_cache->cache_size = l_cache_size;
+            l_tx_cache->datum_size = l_tx_size;
+            memcpy(l_tx_cache->data, &l_prev_item_out->cache_data, l_cache_size);
+            memcpy(l_tx_cache->data + l_cache_size, l_prev_item_out->tx, l_tx_size);
             l_cache_used_outs[l_spent_idx] = (dap_store_obj_t) {
-                    .key        = l_tx_i_hash,
-                    .value      = l_tx_cache,
+                    .key        = dap_chain_hash_fast_to_str_new(&l_prev_item_out->tx_hash_fast),
+                    .value      = (byte_t*)l_tx_cache,
                     .value_len  = l_tx_cache_sz,
                     .group      = l_ledger_cache_group,
                     .timestamp  = 0
