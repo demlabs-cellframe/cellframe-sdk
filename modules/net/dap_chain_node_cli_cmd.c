@@ -4974,7 +4974,6 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
     const char * l_ticker = NULL;
     uint256_t l_total_supply = {}; // 256
     uint16_t l_signs_emission = 0;
-    uint16_t l_signs_total = 0;
     dap_cert_t ** l_certs = NULL;
     size_t l_certs_count = 0;
 
@@ -5009,7 +5008,6 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
 
     l_net = l_params->net;
     l_signs_emission = 0;
-    l_signs_total = 0;
     l_total_supply = uint256_0;
     l_chain = l_params->chain;
     l_ticker = l_params->ticker;
