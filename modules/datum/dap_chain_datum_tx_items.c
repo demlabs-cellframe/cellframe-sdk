@@ -420,9 +420,12 @@ dap_chain_tx_sig_t* dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
  *
  * return sign, NULL Error
  */
-dap_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig)
+dap_sign_t *dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig)
 {
-    return a_tx_sig && a_tx_sig->header.sig_size > sizeof(dap_sign_t) ? (dap_sign_t*)a_tx_sig->sig : NULL;
+    return a_tx_sig && a_tx_sig->header.sig_size > sizeof(dap_sign_t) &&
+            a_tx_sig->header.sig_size == dap_sign_get_size((dap_sign_t*)a_tx_sig->sig)
+            ? (dap_sign_t*)a_tx_sig->sig
+            : NULL;
 }
 
 /**
