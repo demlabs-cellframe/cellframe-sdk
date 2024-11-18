@@ -1657,30 +1657,27 @@ dap_list_t *dap_ledger_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, co
         : ( dap_list_free_full(l_list_used_out, NULL), NULL );
 }
 
-dap_list_t *dap_ledger_get_list_tx_cond_outs(dap_ledger_t *a_ledger, const char *a_token_ticker,  const dap_chain_addr_t *a_addr_from,
-                                             dap_chain_tx_out_cond_subtype_t a_subtype, uint256_t *a_value_transfer)
+dap_list_t *dap_ledger_get_list_tx_cond_outs(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr_from)
 {
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
     dap_chain_hash_fast_t l_tx_cur_hash = { };
-    uint256_t l_value_transfer = { };
     dap_chain_datum_tx_t *l_tx;
-    while(( l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash) )) {
+    while(( l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_ledger->net->pub.native_ticker, a_addr_from, &l_tx_cur_hash) )) {
         byte_t *it; size_t l_size; int i, l_out_idx_tmp = -1;
         TX_ITEM_ITER_TX_TYPE(it, TX_ITEM_TYPE_OUT_COND, l_size, i, l_tx) {
             ++l_out_idx_tmp;
-            dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t*)it;
-            if ( a_subtype != l_out_cond->header.subtype || IS_ZERO_256(l_out_cond->header.value) )
+            dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t *)it;
+            if ( DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE == l_out_cond->header.subtype || IS_ZERO_256(l_out_cond->header.value) )
                 continue;
+            if (dap_ledger_tx_hash_is_used_out_item(a_ledger, &l_tx_cur_hash, l_out_idx_tmp, NULL))
+                continue;   // TODO Move this check to dap_ledger_tx_find_by_addr() to avoid double search
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             *l_item = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_out_cond->header.value };
             l_list_used_out = dap_list_append(l_list_used_out, l_item);
-            SUM_256_256(l_value_transfer, l_item->value, &l_value_transfer);
         }
     }
 
-    return l_list_used_out
-        ? ({ if (a_value_transfer) *a_value_transfer = l_value_transfer; l_list_used_out; })
-        : ( dap_list_free_full(l_list_used_out, NULL), NULL );
+    return l_list_used_out;
 }
 
 bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger)

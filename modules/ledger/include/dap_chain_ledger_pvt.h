@@ -88,6 +88,11 @@ typedef struct dap_ledger_token_item {
     UT_hash_handle hh;
 } dap_ledger_token_item_t;
 
+typedef struct dap_ledger_tx_out_metadata {
+    dap_hash_fast_t tx_spent_hash_fast;
+    dap_list_t *trackers;
+} dap_ledger_tx_out_metadata_t;
+
 // ledger cache item - one of unspent outputs
 typedef struct dap_ledger_tx_item {
     dap_chain_hash_fast_t tx_hash_fast;
@@ -99,15 +104,12 @@ typedef struct dap_ledger_tx_item {
         uint32_t n_outs;
         uint32_t n_outs_used;
         char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-        byte_t padding[6];
         byte_t multichannel;
         dap_time_t ts_spent;
-        byte_t pad[7];
         dap_chain_srv_uid_t tag; //tag (or service this tx is belong to)
         dap_chain_tx_tag_action_type_t action;
-        // TODO dynamically allocates the memory in order not to limit the number of outputs in transaction
-        dap_chain_hash_fast_t tx_hash_spent_fast[]; // spent outs list
     } DAP_ALIGN_PACKED cache_data;
+    dap_ledger_tx_out_metadata_t out_metadata[]; // spent outs list
 } dap_ledger_tx_item_t;
 
 typedef struct dap_ledger_stake_lock_item {
