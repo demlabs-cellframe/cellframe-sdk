@@ -100,30 +100,6 @@ void s_wallet_addr_cache_add(dap_chain_addr_t *a_addr, const char *a_wallet_name
     memcpy(&l_cache->addr, a_addr, sizeof(dap_chain_addr_t));
     HASH_ADD(hh, s_wallet_addr_cache, addr, sizeof(dap_chain_addr_t), l_cache);
 }
-
-const char *dap_chain_wallet_addr_cache_get_name(dap_chain_addr_t *a_addr){
-    struct wallet_addr_cache *l_tmp = NULL;
-    HASH_FIND(hh, s_wallet_addr_cache, a_addr, sizeof(dap_chain_addr_t), l_tmp);
-    if (l_tmp)
-        return l_tmp->name;
-    return NULL;
-}
-//const char *s_wallet
-
-
-struct wallet_addr_cache {
-    char name[DAP_WALLET$SZ_NAME + 1];
-    dap_chain_addr_t addr;
-    UT_hash_handle hh;
-};
-
-struct wallet_addr_cache *s_wallet_addr_cache = NULL;
-void s_wallet_addr_cache_add(dap_chain_addr_t *a_addr, const char *a_wallet_name){
-    struct wallet_addr_cache *l_cache = DAP_NEW(struct wallet_addr_cache);
-    strcpy(l_cache->name, a_wallet_name);
-    memcpy(&l_cache->addr, a_addr, sizeof(dap_chain_addr_t));
-    HASH_ADD(hh, s_wallet_addr_cache, addr, sizeof(dap_chain_addr_t), l_cache);
-}
 const char *dap_chain_wallet_addr_cache_get_name(dap_chain_addr_t *a_addr){
     struct wallet_addr_cache *l_tmp = NULL;
     HASH_FIND(hh, s_wallet_addr_cache, a_addr, sizeof(dap_chain_addr_t), l_tmp);
