@@ -3415,7 +3415,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR;
             }
 
-            if (!l_net_str && !l_addr_base58&& !l_is_tx_all) {
+            if (!l_net_str && !l_addr_base58 && l_wallet_name) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR,
                                 "tx_history requires parameter '-net' or '-addr'");
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR;
@@ -3640,12 +3640,16 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                     if (!l_stake || !dap_chain_addr_compare(a_addr, &l_stake->signing_addr)) {
                         json_object_put(json_arr_sign_out);
                         json_object_put(json_block_hash);
+                        json_arr_sign_out = NULL;
+                        json_block_hash = NULL;
                         continue;                    
                     }
                 } else if (!a_all && a_pkey){
                     if (!dap_hash_fast_compare(a_pkey, &l_pkey_hash)) {
                         json_object_put(json_arr_sign_out);
                         json_object_put(json_block_hash);
+                        json_arr_sign_out = NULL;
+                        json_block_hash = NULL;
                         continue;
                     }
                 }               
@@ -3670,7 +3674,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 json_object_array_add(json_arr_sign_out, json_obj_sign);
                 ++i_tmp;
             }
-            if (json_object_array_length(json_arr_sign_out) > 0) {
+            if (json_arr_sign_out && json_object_array_length(json_arr_sign_out) > 0) {
                 json_object_object_add(json_block_hash, "REWARDS", json_arr_sign_out);
                 json_object_array_add(json_obj_reward, json_block_hash);
             }                        
