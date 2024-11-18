@@ -758,7 +758,7 @@ struct chain_thread_datum_notifier {
     dap_hash_fast_t hash;
     void *datum;
     uint32_t action;
-    dap_chain_net_srv_uid_t uid;
+    dap_chain_srv_uid_t uid;
     size_t datum_size;
     int ret_code;
 };
@@ -890,7 +890,7 @@ void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_ha
     }
 }
 
-void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid) {
+void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_srv_uid_t a_uid) {
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
