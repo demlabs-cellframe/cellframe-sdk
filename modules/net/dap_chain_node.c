@@ -554,10 +554,11 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
     return l_ret;
 }
 
-int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object* a_json_arr_reply, int *a_arg_index, int a_argc,
-                                                           char **a_argv,
+int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object *a_json_arr_reply, int *a_arg_index,
+                                                           int a_argc, char **a_argv,
                                                            dap_chain_t **a_chain, dap_chain_net_t **a_net,
-                                                           dap_chain_type_t a_default_chain_type) {
+                                                           dap_chain_type_t a_default_chain_type)
+{
     const char * l_chain_str = NULL;
     const char * l_net_str = NULL;
 

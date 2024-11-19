@@ -47,7 +47,7 @@
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP "delegate_keys"
 
-typedef enum s_cli_srv_stake_err{
+typedef enum s_cli_srv_stake_err {
     DAP_CHAIN_NODE_CLI_SRV_STAKE_OK = 0,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_MEMORY_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_PARAM_ERR,
@@ -73,11 +73,7 @@ typedef enum s_cli_srv_stake_err{
     DAP_CHAIN_NODE_CLI_SRV_STAKE_MIN_STAKE_SET_FAILED_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_MAX_WEIGHT_SET_FAILED_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_PERCENT_ERR,
-    DAP_CHAIN_NODE_CLI_SRV_STAKE_UNRECOGNIZE_COM_ERR,
-
-    /* add custom codes here */
-
-    //DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_UNRECOGNIZE_COM_ERR
 } s_cli_srv_stake_err_t;
 
 struct cache_data {
@@ -1601,12 +1597,8 @@ typedef enum s_cli_srv_stake_order_err{
     DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_ORDER_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_REMOVE_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_NO_SUB_COM_ERR,
-
-
-    /* add custom codes here */
-
-    //DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
 } s_cli_srv_stake_order_err_t;
+
 static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, void **a_str_reply, const char *a_hash_out_type)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
@@ -3022,7 +3014,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
     int l_arg_index = 1;
 
     const char * l_hash_out_type = NULL;
-    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "-H", &l_hash_out_type);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-H", &l_hash_out_type);
     if (!l_hash_out_type)
         l_hash_out_type = "hex";
     else if (dap_strcmp(l_hash_out_type," hex") && dap_strcmp(l_hash_out_type, "base58")) {
