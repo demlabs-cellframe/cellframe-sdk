@@ -747,7 +747,7 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
     char cert_path[cert_path_length];
     snprintf(cert_path, cert_path_length, "%s/%s/%s.dcert", s_system_chain_ca_dir, net_name, cert_name);
     // In cert_path resolve all `..` and `.`s
-    char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
+    char *cert_path_c = dap_canonicalize_path(cert_path, NULL);
     // Protect the ca folder from using "/.." in cert_name
     if(dap_strncmp(s_system_chain_ca_dir, cert_path_c, dap_strlen(s_system_chain_ca_dir))) {
         log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
