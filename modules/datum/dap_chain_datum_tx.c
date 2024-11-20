@@ -231,7 +231,7 @@ int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_pkey_t
 int dap_chain_datum_tx_add_sign_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t *a_key)
 {
     return a_tx && a_key ? dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_sig_t,
-        dap_chain_datum_tx_item_sign_create( a_key, (*a_tx)->tx_items, (*a_tx)->header.tx_items_size )) : -1;
+        dap_chain_datum_tx_item_sign_create( a_key, *a_tx)) : -1;
 }
 
 /**

@@ -296,7 +296,6 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
         l_current_wallet_tx = l_wallet_item->wallet_txs;
     }
 
-
     // Go iterate wallet txs
     if (l_current_wallet_tx){
         // Now work with it
@@ -314,8 +313,7 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
         return 0;
     }
-    
-    
+        
     if (a_tx_hash_curr)
         memset(a_tx_hash_curr, 0, sizeof(*a_tx_hash_curr));
     if (a_datum)
@@ -331,7 +329,6 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
     pthread_rwlock_unlock(&s_wallet_cache_rwlock);    
     return 0;
 }
-
 
 int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
                                                     dap_list_t **a_outs_list, uint256_t a_value_need, uint256_t *a_value_transfer)
