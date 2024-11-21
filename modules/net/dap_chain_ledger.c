@@ -58,6 +58,7 @@
 #include "dap_notify_srv.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_net_tx.h"
 
 #define LOG_TAG "dap_ledger"
 
@@ -350,6 +351,7 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
 {
     //crosschain transfer
     //regular transfer
+    //batching transfer
     //comission transfer
     
     // fee transfer: in_cond item linked to out_cond_fee
@@ -408,11 +410,29 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
     }
     
     //not voting or vote...
-    if (a_items_grp->items_vote || a_items_grp->items_voting || a_items_grp->items_tsd)
+    if (a_items_grp->items_vote || a_items_grp->items_voting)
         return false;
+    //not batching
+    if (a_items_grp->items_tsd) {
+        if (dap_list_length(a_items_grp->items_tsd) != 1 ) {
+            return false;
+        } else {
+            int l_type = 0;
+            size_t l_data_size = 0;
+            uint32_t *l_out_count = (uint32_t *)dap_chain_datum_tx_item_get_data(a_items_grp->items_tsd->data, &l_type, &l_data_size);
+            if (l_type != DAP_CHAIN_TX_TRANSFER_TSD_TYPE_OUT_COUNT || l_data_size != sizeof(uint32_t) || !l_out_count || *l_out_count < 2)
+                return false;
+        }
+    }
 
     //not tsd sects (staking!)
-    if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+    if(a_action) {
+        if (a_items_grp->items_tsd) {
+            *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_BATCHING;
+        }
+        else
+            *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+    }
     return true;
 }
 
@@ -2389,7 +2409,7 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
     dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
     for (size_t i = 0; i < a_values_count; i++) {
-        dap_ledger_cache_gdb_record_t *l_current_record = a_values[i].value;
+        dap_ledger_cache_gdb_record_t *l_current_record = (dap_ledger_cache_gdb_record_t *)a_values[i].value;
         if (a_values[i].value_len != l_current_record->cache_size + l_current_record->datum_size + sizeof(dap_ledger_cache_gdb_record_t)) {
             log_it(L_ERROR, "Worng ledger_cache_gdb_record size");
             return false;
@@ -3274,6 +3294,7 @@ const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag)
 
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_UNKNOWN) return "unknown";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR) return "regular";
+    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_TRANSFER_BATCHING) return "batching";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION) return "comission";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN) return "crosschain";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD) return "reward";
@@ -3294,6 +3315,7 @@ dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *
     
     if (strcmp("unknown", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
     if (strcmp("regular", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+    if (strcmp("batching", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_TRANSFER_BATCHING;
     if (strcmp("comission", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION;
     if (strcmp("crosschain", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN;
     if (strcmp("reward", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD;
@@ -4497,7 +4519,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             char *l_tx_i_hash = dap_chain_hash_fast_to_str_new(&l_prev_item_out->tx_hash_fast);
             l_cache_used_outs[l_spent_idx] = (dap_store_obj_t) {
                     .key        = l_tx_i_hash,
-                    .value      = l_tx_cache,
+                    .value      = (byte_t *)l_tx_cache,
                     .value_len  = l_tx_cache_sz,
                     .group      = l_ledger_cache_group,
             };
@@ -4655,7 +4677,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         memcpy(l_tx_cache->data + l_cache_size, a_tx, l_tx_size);
         l_cache_used_outs[0] = (dap_store_obj_t) {
                 .key        = l_tx_hash_str,
-                .value      = l_tx_cache,
+                .value      = (byte_t *)l_tx_cache,
                 .value_len  = l_tx_cache_sz,
                 .group      = l_ledger_cache_group,
         };
@@ -4842,7 +4864,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             char *l_tx_i_hash = dap_chain_hash_fast_to_str_new(&l_prev_item_out->tx_hash_fast);
             l_cache_used_outs[l_spent_idx] = (dap_store_obj_t) {
                     .key        = l_tx_i_hash,
-                    .value      = l_tx_cache,
+                    .value      = (byte_t *)l_tx_cache,
                     .value_len  = l_tx_cache_sz,
                     .group      = l_ledger_cache_group
             };
