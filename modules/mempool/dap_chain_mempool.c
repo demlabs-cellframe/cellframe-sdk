@@ -200,7 +200,12 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
         }
 
     }
-
+    if (a_tx_num > 1) {
+        uint32_t l_tx_num = a_tx_num;
+        dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_tx_num, DAP_CHAIN_TX_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t));
+        dap_chain_datum_tx_add_item(&l_tx, l_out_count);
+    }
+    
     if (l_single_channel) { // add 'out' items
         uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
         for (size_t i = 0; i < a_tx_num; ++i) {

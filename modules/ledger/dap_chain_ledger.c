@@ -109,6 +109,7 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
 {
     //crosschain transfer
     //regular transfer
+    //batching transfer
     //comission transfer
     
     // fee transfer: in_cond item linked to out_cond_fee
@@ -167,11 +168,28 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
     }
     
     //not voting or vote...
-    if (a_items_grp->items_vote || a_items_grp->items_voting || a_items_grp->items_tsd)
+    if (a_items_grp->items_vote || a_items_grp->items_voting)
         return false;
+    //not batching
+    if (a_items_grp->items_tsd) {
+        if (dap_list_length(a_items_grp->items_tsd) != 1 ) {
+            return false;
+        } else {
+            int l_type = 0;
+            size_t l_data_size = 0;
+            uint32_t *l_out_count = (uint32_t *)dap_chain_datum_tx_item_get_data(a_items_grp->items_tsd->data, &l_type, &l_data_size);
+            if (l_type != DAP_CHAIN_TX_TRANSFER_TSD_TYPE_OUT_COUNT || l_data_size != sizeof(uint32_t) || !l_out_count || *l_out_count < 2)
+                return false;
+        }
+    }
 
     //not tsd sects (staking!)
-    if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+    if(a_action) {
+        if (a_items_grp->items_tsd)
+            *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_BATCHING;
+        else
+            *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+    }
     return true;
 }
 
@@ -845,6 +863,7 @@ const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag)
 
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_UNKNOWN) return "unknown";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR) return "regular";
+    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_TRANSFER_BATCHING) return "batching";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION) return "comission";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN) return "crosschain";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD) return "reward";
@@ -865,6 +884,7 @@ dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *
     
     if (strcmp("unknown", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
     if (strcmp("regular", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+    if (strcmp("batching", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_TRANSFER_BATCHING;
     if (strcmp("comission", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION;
     if (strcmp("crosschain", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN;
     if (strcmp("reward", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD;
