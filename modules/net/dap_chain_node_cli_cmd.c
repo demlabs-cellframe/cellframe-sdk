@@ -6960,12 +6960,58 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
         dap_chain_wallet_t *l_wallet = s_json_get_wallet(l_json_item_obj, "wallet");
         const dap_cert_t *l_cert = s_json_get_cert(l_json_item_obj, "cert");
 
+        const char *l_json_item_addr_str = s_json_get_text(l_json_item_obj, "sig_type");
+        int64_t l_type;
+        int64_t l_pkey_size;
+        int64_t l_sig_size;
+        uint8_t *l_pkey = NULL;
+        dap_sign_t *l_sign = NULL;
+        dap_enc_key_t * l_ret = NULL;
+
         //wallet goes first
         if (l_wallet) {
             l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
 
         } else if (l_cert && l_cert->enc_key) {
             l_enc_key = l_cert->enc_key; 
+        } else if (!s_json_get_int64(l_json_item_obj, "sig_type", &l_type)) {
+            
+            s_json_get_int64(l_json_item_obj, "pub_key_size", &l_pkey_size);
+            s_json_get_int64(l_json_item_obj, "sig_size", &l_sig_size);
+
+
+
+            json_object *l_jobj_sign = json_object_object_get(l_json_item_obj, "sig_b64");
+            const char *l_sign_str = json_object_get_string(l_jobj_sign);
+            dap_sign_t *l_sign = DAP_NEW_Z_SIZE(dap_sign_t, dap_strlen(l_sign_str) + 1);
+            size_t l_sign_decree_size = dap_enc_base64_decode(l_sign_str, dap_strlen(l_sign_str), l_sign, DAP_ENC_DATA_TYPE_B64);
+
+            switch(l_type){
+                case DAP_ENC_DATA_TYPE_B64:
+                case DAP_ENC_DATA_TYPE_B64_URLSAFE:
+                    l_sign = DAP_NEW_Z_SIZE(dap_sign_t, dap_strlen(l_sign_str) + 1);
+                    json_object *l_jobj_pub_key = json_object_object_get(l_json_item_obj, "pub_key_b64");
+                    const char *l_pub_key_str = json_object_get_string(l_jobj_pub_key);
+                    if (dap_enc_key_deserialize_pub_key(l_ret, l_pub_key_str, l_pkey_size)) {
+                        log_it(L_ERROR, "Error in enc pub key deserialize");
+                        DAP_DEL_Z(l_ret);
+                    }
+
+
+                    l_proc_buf_size= dap_enc_base64_decode((const char*)l_pub_key_str,dap_strlen(l_pub_key_str),l_proc_buf,DAP_ENC_DATA_TYPE_B64);
+                    
+                break;
+                case DAP_ENC_DATA_TYPE_RAW:{
+                    l_proc_buf_const=a_buf_in;
+                    l_proc_buf_size=a_buf_in_size;
+                }break;
+            }
+            l_proc_buf_size= dap_enc_base64_decode((const char*) a_buf_in,a_buf_in_size,l_proc_buf,a_data_type_in);
+            l_proc_buf_size= dap_enc_base64_decode((const char*) a_buf_in,a_buf_in_size,l_proc_buf,a_data_type_in);
+            dap_sign_t *l_chain_sign = dap_sign_create(a_key, a_data, a_data_size, 0);
+            size_t l_pub_key_size = 0;
+            uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pub_key_size);;
+
         }
         else{
             json_object *l_jobj_err = json_object_new_string("Can't create sign for transactions.");
