@@ -588,6 +588,9 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PLACE, "Can't place transaction for delegated emission in mempool");
         return ERROR_PLACE;
     }
+    char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    dap_global_db_del_sync(l_mempool_group, l_tx_in_hash_str);
+    DAP_DELETE(l_mempool_group);
     json_object * l_json_obj_create_val = json_object_new_object();
     json_object_object_add(l_json_obj_create_val, "status", json_object_new_string("success"));
     if (dap_strcmp(l_sign_str, ""))
