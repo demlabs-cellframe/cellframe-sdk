@@ -1289,8 +1289,8 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(a_token, &l_token_size);
     if (!l_token)
         return DAP_LEDGER_CHECK_INVALID_SIZE;
-    bool l_legacy_type = a_token_size != l_token_size;
-    if (l_legacy_type && !a_token_item) { // It's mempool check
+    bool is_old_type = dap_chain_datum_token_is_old(*(uint16_t*)a_token);
+    if (is_old_type && !a_token_item) { // It's mempool check
         log_it(L_WARNING, "Legacy token type %hu isn't supported for a new declaration", l_token->type);
         DAP_DELETE(l_token);
         return DAP_LEDGER_TOKEN_ADD_CHECK_LEGACY_FORBIDDEN;
@@ -1318,11 +1318,11 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         DAP_DELETE(l_token);
         return DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS;
     }
-    bool l_update_token = l_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
+    bool is_update = l_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
     dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_token->ticker);
     dap_hash_fast_t l_token_update_hash = {};
     if (l_token_item) {
-        if (!l_update_token) {
+        if (!is_update) {
             log_it(L_WARNING, "Duplicate token declaration for ticker '%s'", l_token->ticker);
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_ALREADY_CACHED;
@@ -1345,7 +1345,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         }
         if (a_token_update_hash)
             *a_token_update_hash = l_token_update_hash;
-    } else if (l_update_token) {
+    } else if (is_update) {
         log_it(L_WARNING, "Can't update token that doesn't exist for ticker '%s'", l_token->ticker);
         DAP_DELETE(l_token);
         return DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
@@ -1357,12 +1357,12 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     }
     // Check TSD
     size_t l_size_tsd_section = 0;
-    if (l_update_token) {
+    if (is_update) {
         switch (l_token->subtype) {
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
-            l_size_tsd_section = l_token->header_private_decl.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_private_update.tsd_total_size; break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
-            l_size_tsd_section = l_token->header_native_decl.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_native_update.tsd_total_size; break;
         default:
             /* Bogdanoff, unknown token subtype update. What shall we TODO? */
             log_it(L_WARNING, "Unsupported token subtype '0x%0hX' update! "
@@ -1376,9 +1376,12 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     } else {
         switch (l_token->subtype) {
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
-            l_size_tsd_section = l_token->header_private_update.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_private_decl.tsd_total_size; break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
-            l_size_tsd_section = l_token->header_native_update.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_native_decl.tsd_total_size; break;
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC:
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE:
+            break;
         default:
             /* Bogdanoff, unknown token subtype declaration. What shall we TODO? */
             log_it(L_WARNING, "Unsupported token subtype '0x%0hX' declaration! "
@@ -1434,7 +1437,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     size_t l_signs_approve = 0;
     size_t l_verify_size = 0;
     uint16_t l_tmp_auth_signs = 0;
-    if (l_legacy_type)
+    if (is_old_type)
         l_verify_size = sizeof(dap_chain_datum_token_old_t) - sizeof(uint16_t);
     else {
         l_verify_size = l_signs_offset;
@@ -1442,8 +1445,8 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         l_token->signs_total = 0;
     }
     for (size_t i = 0; i < l_signs_unique; i++) {
-        if (!dap_sign_verify(l_signs[i], l_legacy_type ? a_token : (void *)l_token, l_verify_size)) {
-            if (l_update_token) {
+        if (!dap_sign_verify(l_signs[i], is_old_type ? a_token : (void *)l_token, l_verify_size)) {
+            if (is_update) {
                 for (size_t j = 0; j < l_token_item->auth_signs_total; j++) {
                     if (dap_pkey_compare_with_sign(l_token_item->auth_pkeys[j], l_signs[i])) {
                         l_signs_approve++;
@@ -1455,15 +1458,18 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         }
     }
     DAP_DELETE(l_signs);
-    if (!l_legacy_type)
+    if (!is_old_type)
         l_token->signs_total = l_tmp_auth_signs;
-    size_t l_signs_need = l_update_token ? l_token_item->auth_signs_valid : l_token->signs_total;
+    size_t l_signs_need = is_update ? l_token_item->auth_signs_valid : l_token->signs_total;
     if (l_signs_approve < l_signs_need) {
         log_it(L_WARNING, "Datum token for ticker '%s' has only %zu valid signatures out of %zu",
                                                 l_token->ticker, l_signs_approve, l_signs_need);
         DAP_DELETE(l_token);
         return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
     }
+    // Convert simple subtype to native
+    if (l_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE && !is_update)
+        l_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
     // Check content & size of enclosed TSD sections
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
     int ret = s_token_tsd_parse(l_token_item, l_token, a_ledger, l_token->tsd_n_signs, l_size_tsd_section, false);
