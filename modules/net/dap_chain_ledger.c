@@ -1363,14 +1363,12 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
             l_size_tsd_section = l_token->header_private_decl.tsd_total_size; break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
             l_size_tsd_section = l_token->header_native_decl.tsd_total_size; break;
-        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE:
-        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC:
-            break;
         default:
             /* Bogdanoff, unknown token subtype update. What shall we TODO? */
-            log_it(L_WARNING, "Unknown token subtype '0x%0hX' update! Ticker: %s, total_supply: %s, signs_valid: %hu, signs_total: %hu",
-                   l_token->type, l_token->ticker, dap_uint256_to_char(l_token->total_supply, NULL),
-                   l_token->signs_valid, l_token->signs_total);
+            log_it(L_WARNING, "Unsupported token subtype '0x%0hX' update! "
+                              "Ticker: %s, total_supply: %s, signs_valid: %hu, signs_total: %hu",
+                              l_token->type, l_token->ticker, dap_uint256_to_char(l_token->total_supply, NULL),
+                              l_token->signs_valid, l_token->signs_total);
             /* Dump it right now */
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_PARSE_ERROR;
@@ -1381,14 +1379,12 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
             l_size_tsd_section = l_token->header_private_update.tsd_total_size; break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
             l_size_tsd_section = l_token->header_native_update.tsd_total_size; break;
-        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE:
-        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC:
-            break;
         default:
             /* Bogdanoff, unknown token subtype declaration. What shall we TODO? */
-            log_it(L_WARNING, "Unknown token subtype '0x%0hX' declaration! Ticker: %s, total_supply: %s, signs_valid: %hu, signs_total: %hu",
-                   l_token->type, l_token->ticker, dap_uint256_to_char(l_token->total_supply, NULL),
-                   l_token->signs_valid, l_token->signs_total);
+            log_it(L_WARNING, "Unsupported token subtype '0x%0hX' declaration! "
+                              "Ticker: %s, total_supply: %s, signs_valid: %hu, signs_total: %hu",
+                              l_token->type, l_token->ticker, dap_uint256_to_char(l_token->total_supply, NULL),
+                              l_token->signs_valid, l_token->signs_total);
             /* Dump it right now */
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_PARSE_ERROR;

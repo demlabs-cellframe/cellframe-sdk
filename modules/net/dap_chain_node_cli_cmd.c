@@ -4329,7 +4329,7 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, void **a_st
                         "Unknown token type %s was specified. Supported types:\n"
                         "   private\n"
                         "   CF20\n"
-                        "Default token type is private_simple.\n", a_params->type_str);
+                        "Default token type is CF20.\n", a_params->type_str);
             return -1;
         }
     }

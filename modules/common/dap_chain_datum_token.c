@@ -95,8 +95,8 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE: {
         *l_token = (dap_chain_datum_token_t) {
                 .type       = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL,
-                .subtype    = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE,
-                .header_simple.decimals = l_token_old->header_simple.decimals,
+                .subtype    = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE,
+                .header_native_decl.decimals = l_token_old->header_simple.decimals,
         };    
     } break;
 
@@ -138,6 +138,7 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
         };
     } break;
 
+    /* TODO: deprecated too? */
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC: {
         *l_token = (dap_chain_datum_token_t) {
                 .type       = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL,
