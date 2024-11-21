@@ -250,9 +250,7 @@ struct legacy_sync_context *s_legacy_sync_context_create(dap_stream_ch_t *a_ch)
     dap_chain_ch_t * l_ch_chain = DAP_CHAIN_CH(a_ch);
     dap_return_val_if_fail(l_ch_chain, NULL);
 
-    struct legacy_sync_context *l_context;
-    DAP_NEW_Z_RET_VAL(l_context, struct legacy_sync_context, NULL, NULL);
-
+    struct legacy_sync_context *l_context = DAP_NEW_Z_RET_VAL_IF_FAIL(struct legacy_sync_context, NULL);
     *l_context = (struct legacy_sync_context) {
             .worker         = a_ch->stream_worker,
             .ch_uuid        = a_ch->uuid,
@@ -1216,12 +1214,10 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             l_context->last_activity = dap_time_now();
         debug_if(s_debug_legacy, L_INFO, "In: GLOBAL_DB_OLD data_size=%zu", l_chain_pkt_data_size);
         // get records and save it to global_db
-        struct record_processing_args *l_args;
-        DAP_NEW_Z_RET_VAL(l_args, struct record_processing_args, true, NULL);
-        l_args->pkt = DAP_DUP_SIZE(l_pkt, l_chain_pkt_data_size);
-        if (!l_args->pkt) {
+        struct record_processing_args *l_args = DAP_NEW(struct record_processing_args);
+        if (!l_args || !( l_args->pkt = DAP_DUP_SIZE(l_pkt, l_chain_pkt_data_size) )) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            DAP_DEL_Z(l_args);
+            DAP_DELETE(l_args);
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                     DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
