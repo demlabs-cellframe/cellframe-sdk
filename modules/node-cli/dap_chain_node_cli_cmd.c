@@ -1861,7 +1861,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
 {
 json_object ** a_json_arr_reply = (json_object **) a_str_reply;
 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT };
+enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT, CMD_WALLET_OUTPUTS };
 int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
     // find  add parameter ('alias' or 'handshake')
@@ -1877,6 +1877,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
         cmd_num = CMD_WALLET_DEACTIVATE;
     else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "convert", NULL))
         cmd_num = CMD_WALLET_CONVERT;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "outputs", NULL))
+        cmd_num = CMD_WALLET_OUTPUTS;
 
     l_arg_index++;
 
@@ -2041,6 +2043,66 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 dap_chain_wallet_close(l_wallet);
             break;
         }
+        case CMD_WALLET_OUTPUTS: {
+            if ((l_wallet_name && l_addr_str) || (!l_wallet_name && !l_addr_str)) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
+                "You should use either the -w or -addr option for the wallet info command.");
+                json_object_put(json_arr_out);
+                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR;
+            }
+            if(l_wallet_name) {
+                if(!l_net) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                           "Subcommand info requires parameter '-net'");
+                    json_object_put(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
+                }
+                l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
+                l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id );
+            } else {
+                l_addr = dap_chain_addr_from_str(l_addr_str);
+            }
+
+            const char* l_token_tiker = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token", &l_token_tiker);
+            if (!l_token_tiker){
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
+                                           "Subcommand outputs requires parameter '-token'");
+                    json_object_put(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
+            }
+            json_object * json_obj_wall = json_object_new_object();
+            const char* l_value_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
+
+            dap_list_t *l_outs_list = NULL;
+
+            uint256_t l_value_sum = uint256_0;
+            if (l_value_str){
+                uint256_t l_value_datoshi = dap_chain_balance_scan(l_value_str);
+                l_outs_list = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum);
+            } else {
+                l_outs_list = dap_ledger_get_list_tx_outs(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum);
+            }
+
+            json_object_object_add(json_obj_wall, "total_value", json_object_new_string(dap_uint256_to_char(l_value_sum, NULL)));
+            struct json_object *l_json_outs_arr = json_object_new_array();
+            for (dap_list_t *l_temp = l_outs_list; l_temp; l_temp = l_temp->next){
+                dap_chain_tx_used_out_item_t *l_item = l_temp->data;
+                json_object* json_obj_item = json_object_new_object();
+                const char *l_out_value_str = dap_uint256_to_char(l_item->value, NULL);
+                json_object_object_add(json_obj_item,"item_type", json_object_new_string("unspent_out"));
+                json_object_object_add(json_obj_item,"value", json_object_new_string(l_out_value_str));
+                json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx_hash_fast)));  
+                json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_int64(l_item->num_idx_out));   
+                json_object_array_add(l_json_outs_arr, json_obj_item);
+            }
+            dap_list_free_full(l_outs_list, NULL);
+            json_object_object_add(json_obj_wall, "outs", l_json_outs_arr);
+            json_object_array_add(json_arr_out, json_obj_wall);
+
+
+        } break;
         default: {
             if( !l_wallet_name ) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
