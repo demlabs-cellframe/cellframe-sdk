@@ -423,14 +423,22 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_emit_delega
 dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, dap_chain_datum_tx_t *a_tx)
 {
     dap_return_val_if_fail(a_key && a_tx, NULL);
-    dap_sign_t *l_chain_sign = dap_sign_create(a_key, a_tx->tx_items, a_tx->header.tx_items_size, 0);
+    size_t l_tx_size = a_tx->header.tx_items_size + sizeof(dap_chain_datum_tx_t);
+    dap_chain_datum_tx_t *l_tx = DAP_DUP_SIZE(a_tx, l_tx_size);
+    if (!l_tx) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return NULL;
+    }
+    l_tx->header.tx_items_size = 0;
+    dap_sign_t *l_chain_sign = dap_sign_create(a_key, l_tx, l_tx_size, 0);
+    DAP_DELETE(l_tx);
     if (!l_chain_sign)
         return NULL;
     size_t l_chain_sign_size = dap_sign_get_size(l_chain_sign); // sign data
-
     dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t,
             sizeof(dap_chain_tx_sig_t) + l_chain_sign_size);
     l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
+    l_tx_sig->header.version = 1;
     l_tx_sig->header.sig_size = (uint32_t)l_chain_sign_size;
     memcpy(l_tx_sig->sig, l_chain_sign, l_chain_sign_size);
     DAP_DELETE(l_chain_sign);

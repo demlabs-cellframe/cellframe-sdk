@@ -22,7 +22,6 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_common.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_datum_tx.h"
@@ -115,6 +114,9 @@ static char *s_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_t *a_chain, const ch
     return l_ret;
 }
 
+#define m_sign_fail(e,s) { dap_json_rpc_error_add(a_json_arr_reply, e, s); log_it(L_ERROR, "%s", s); return NULL; }
+
+#define m_tx_fail(e,s) { DAP_DELETE(l_tx); m_sign_fail(e,s) }
 
 static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
                                                   const char *a_token_ticker, uint256_t a_value, uint256_t a_fee,
@@ -129,13 +131,11 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
-#define m_tx_fail(e,s) { dap_json_rpc_error_add(a_json_arr_reply, e, s); log_it(L_ERROR, "%s", s); DAP_DELETE(l_tx); return NULL; }
-
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used && SUM_256_256(l_fee_total, l_net_fee, &l_fee_total))
-        m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX compositor");
+        m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
     if (l_delegate_native && SUM_256_256(l_value, l_fee_total, &l_value))
-        m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX compositor");
+        m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
 
     // list of transaction with 'out' items to sell
     dap_chain_addr_t l_owner_addr;
@@ -203,18 +203,34 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     // add 'sign' item
     if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1)
         m_tx_fail(ERROR_COMPOSE, "Can't add sign output");
-#undef m_tx_fail
 
     return l_tx;
 }
 
-static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key, uint256_t a_value,
-                                                  uint256_t a_fee, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash)
+static bool s_is_key_present(dap_chain_tx_out_cond_t *a_cond, dap_enc_key_t *a_enc_key)
+{
+    if (!a_cond->tsd_size || !a_enc_key->pub_key_data_size)
+        return false;
+    size_t l_pub_key_size;
+    uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_enc_key, &l_pub_key_size);
+    if (!l_pub_key)
+        return false;
+    dap_hash_fast_t l_pub_key_hash;
+    dap_hash_fast(l_pub_key, l_pub_key_size, &l_pub_key_hash);
+    DAP_DELETE(l_pub_key);
+    dap_tsd_t *l_tsd; size_t l_tsd_size;
+    dap_tsd_iter(l_tsd, l_tsd_size, a_cond->tsd, a_cond->tsd_size)
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t) &&
+                dap_hash_fast_compare(&l_pub_key_hash, (dap_hash_fast_t *)l_tsd->data))
+            return true;
+    return false;
+}
+
+static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
+                                                dap_chain_addr_t *a_addr_to, uint256_t a_value, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash)
 {
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-
-#define m_tx_fail(e,s) { dap_json_rpc_error_add(a_json_arr_reply, e, s); log_it(L_ERROR, "%s", s); DAP_DELETE(l_tx); return NULL; }
 
     dap_ledger_t *l_ledger = a_net->pub.ledger;
     const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, a_tx_in_hash);
@@ -226,12 +242,12 @@ static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, d
 
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used && SUM_256_256(l_fee_total, l_net_fee, &l_fee_total))
-        m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX compositor");
+        m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
     if (l_taking_native && SUM_256_256(l_value, l_fee_total, &l_value))
-        m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX compositor");
+        m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
 
+    dap_chain_addr_t l_owner_addr;
     if (!l_taking_native) {
-        dap_chain_addr_t l_owner_addr;
         dap_chain_addr_fill_from_key(&l_owner_addr, a_enc_key, a_net->pub.id);
         dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
                                                                           &l_owner_addr, l_fee_total, &l_fee_transfer);
@@ -244,29 +260,44 @@ static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, d
             m_tx_fail(ERROR_COMPOSE, "Can't compose the fee transaction input");
     }
 
+    dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, a_tx_in_hash);
+    dap_chain_datum_tx_t *l_tx_in = dap_ledger_tx_find_by_hash(l_ledger, &l_final_tx_hash);
+    assert(l_tx_in);
     int l_prev_cond_idx = 0;
-    dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, &l_prev_cond_idx);
-    if (!l_tx_out_cond)
+    dap_chain_tx_out_cond_t *l_cond_prev = dap_chain_datum_tx_out_cond_get(l_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, &l_prev_cond_idx);
+    if (!l_cond_prev)
         m_tx_fail(ERROR_TX_MISMATCH, "Requested conditional transaction requires conditional output");
 
-    dap_hash_fast_t l_spender_hash = { };
-    if (dap_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_in_hash, l_prev_cond_idx, &l_spender_hash))
+    if (dap_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_in_hash, l_prev_cond_idx, NULL))
         m_tx_fail(ERROR_TX_MISMATCH, "Requested conditional transaction is already used out");
 
+    if (compare256(l_cond_prev->header.value, l_value) == -1)
+        m_tx_fail(ERROR_FUNDS, "Conditional output of requested TX have not enough funs");
+
+    if (!s_is_key_present(l_cond_prev, a_enc_key))
+        m_tx_fail(ERROR_TX_MISMATCH, "Requested conditional transaction restrict provided sign key")
+
+    // add 'out' or 'out_ext' item for emission
+    int rc = l_taking_native ? dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to, l_value, l_tx_ticker)
+                               : dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_value);
+    if (rc != 1)
+        m_tx_fail(ERROR_COMPOSE, "Cant add emission output");
 
     // coin back
     uint256_t l_value_back = {};
-    SUBTRACT_256_256(l_value_transfer, a_value, &l_value_back);
+    SUBTRACT_256_256(l_cond_prev->header.value, l_value, &l_value_back);
     if (!IS_ZERO_256(l_value_back)) {
-        int rc = l_delegate_native ? dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_value_back, a_token_ticker)
-                                   : dap_chain_datum_tx_add_out_item(&l_tx, &l_owner_addr, l_value_back);
-        if (rc != 1)
-            m_tx_fail(ERROR_COMPOSE, "Cant add coin back output");
+        dap_chain_tx_out_cond_t *l_out_cond = DAP_DUP_SIZE(l_cond_prev, sizeof(dap_chain_tx_out_cond_t) + l_cond_prev->tsd_size);
+        if (!l_out_cond)
+            m_tx_fail(ERROR_FUNDS, c_error_memory_alloc);
+        l_out_cond->header.value = l_value_back;
+        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond);
+        DAP_DELETE(l_out_cond);
     }
 
     // add fee items
     if (l_net_fee_used) {
-        int rc = l_delegate_native ? dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, l_native_ticker)
+        int rc = l_taking_native ? dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, a_net->pub.native_ticker)
                                    : dap_chain_datum_tx_add_out_item(&l_tx, &l_net_fee_addr, l_net_fee);
         if (rc != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add net fee output");
@@ -274,26 +305,41 @@ static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, d
     if (!IS_ZERO_256(a_fee) && dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1)
         m_tx_fail(ERROR_COMPOSE, "Cant add validator fee output");
 
-    if (!l_delegate_native) {
+    if (!l_taking_native) {
         uint256_t l_fee_back = {};
         // fee coin back
         SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
-        if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, l_native_ticker) != 1)
+        if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, a_net->pub.native_ticker) != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add fee back output");
     }
 
     // add 'sign' item
     if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1)
         m_tx_fail(ERROR_COMPOSE, "Can't add sign output");
-#undef m_tx_fail
 
     return l_tx;
 }
 
+#undef m_tx_fail
+
 static dap_chain_datum_tx_t *s_taking_tx_sign(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key, dap_chain_datum_tx_t *a_tx_in)
 {
-
+    int l_cond_idx = 0;
+    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, &l_cond_idx);
+    if (!l_cond)
+        m_sign_fail(ERROR_TX_MISMATCH, "Requested conditional transaction requires conditional output");
+    if (!s_is_key_present(l_cond, a_enc_key))
+        m_sign_fail(ERROR_TX_MISMATCH, "Requested conditional transaction restrict provided sign key");
+    dap_chain_datum_tx_t *l_tx = DAP_DUP_SIZE(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in));
+    if (!l_tx)
+        m_sign_fail(ERROR_FUNDS, c_error_memory_alloc);
+    // add 'sign' item
+    if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1)
+        m_sign_fail(ERROR_COMPOSE, "Can't add sign output");
+    return l_tx;
 }
+
+#undef m_sign_fail
 
 static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
@@ -413,7 +459,7 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
 
 static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
-    const char *l_tx_in_hash_str = NULL, *l_value_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL;
+    const char *l_tx_in_hash_str = NULL, *l_addr_str = NULL, *l_value_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_in_hash_str);
     if (!l_tx_in_hash_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -tx");
@@ -424,8 +470,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_tx_in_hash_str);
         return ERROR_VALUE;
     }
-    dap_chain_datum_tx_t *l_tx_in = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_in_hash);
-    if (!l_tx_in) {
+    if (!dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_in_hash)) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "TX %s not found in ledger", l_tx_in_hash_str);
         return ERROR_VALUE;
     }
@@ -463,10 +508,21 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     const char *l_sign_str = dap_chain_wallet_check_sign(l_wallet);
     dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
     dap_chain_wallet_close(l_wallet);
-
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-addr_to", &l_addr_str);
+    if (!l_value_str) {
+        DAP_DELETE(l_enc_key);
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -addr_to");
+        return ERROR_PARAM;
+    }
+    dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
+    if (!l_addr) {
+        DAP_DELETE(l_enc_key);
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -value <256 bit integer>");
+        return ERROR_VALUE;
+    }
      // Create emission from conditional transaction
-    dap_chain_datum_tx_t *l_tx = s_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_value, l_fee, l_tx_in, &l_tx_in_hash);
-    DAP_DELETE(l_enc_key);
+    dap_chain_datum_tx_t *l_tx = s_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_addr, l_value, l_fee, &l_tx_in_hash);
+    DAP_DEL_MULTY(l_enc_key, l_addr);
     if (!l_tx) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for delegated emission");
         return ERROR_CREATE;
@@ -500,9 +556,9 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_tx_in_hash_str);
         return ERROR_VALUE;
     }
-    dap_chain_datum_tx_t *l_tx_in = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_hash);
-    if (!l_tx_in) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "TX %s not found in ledger", l_tx_in_hash_str);
+    dap_chain_datum_t *l_tx_in = dap_chain_mempool_datum_get(a_chain, l_tx_in_hash_str);
+    if (!l_tx_in || l_tx_in->header.type_id != DAP_CHAIN_DATUM_TX) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "TX %s not found in mempool", l_tx_in_hash_str);
         return ERROR_VALUE;
     }
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_str);
@@ -520,7 +576,7 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **
     dap_chain_wallet_close(l_wallet);
 
      // Create emission from conditional transaction
-    dap_chain_datum_tx_t *l_tx = s_taking_tx_sign(*a_json_arr_reply, a_net, l_enc_key, l_tx_in);
+    dap_chain_datum_tx_t *l_tx = s_taking_tx_sign(*a_json_arr_reply, a_net, l_enc_key, (dap_chain_datum_tx_t *)l_tx_in->data);
     DAP_DELETE(l_enc_key);
     if (!l_tx) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for delegated emission");
@@ -590,7 +646,7 @@ int dap_chain_net_srv_bridge_init()
     dap_cli_server_cmd_add("emit_delegate", s_cli_emit_delegate, "Emitting delegation service commands",
                 "emit_delegate hold -net <net_name> -w <wallet_name> -token <ticker> -value <value> -fee <value>"
                             "-signs_minimum <value_int> -pkey_hashes <hash1[,hash2,...,hashN]> [-chain <chain_name>] [-H {hex(default) | base58}]\n"
-                "emit_delegate take -net <net_name> -w <wallet_name> -tx <transaction_hash> -value <value> -fee <value> [-chain <chain_name>] [-H {hex(default) | base58}]\n"
+                "emit_delegate take -net <net_name> -w <wallet_name> -tx <transaction_hash> -addr_to <addr> -value <value> -fee <value> [-chain <chain_name>] [-H {hex(default) | base58}]\n"
                 "emit_delegate sign -net <net_name> -w <wallet_name> -tx <transaction_hash> [-chain <chain_name>] [-H {hex(default) | base58}]\n\n"
                             "Hint:\n"
                             "\texample value_coins (only natural) 1.0 123.4567\n"
@@ -602,5 +658,3 @@ int dap_chain_net_srv_bridge_init()
 
     return 0;
 }
-
-

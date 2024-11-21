@@ -41,6 +41,8 @@
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_tx_in_reward.h"
 
+typedef struct dap_chain_datum_tx dap_chain_datum_tx_t;
+
 /**
  * Get item name by item type
  *

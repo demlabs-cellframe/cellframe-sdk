@@ -381,9 +381,11 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
         log_it(L_TPS, "Get %zu datums from mempool", l_objs_size);
 #endif
         for (size_t i = 0; i < l_objs_size; i++) {
-            if (!l_objs[i].value_len)
+            if (l_objs[i].value_len < sizeof(dap_chain_datum_t))
                 continue;
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+            if (dap_chain_datum_size(l_datum) != l_objs[i].value_len)
+                continue;
             if (dap_chain_node_mempool_need_process(a_chain, l_datum)) {
 
                 if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX &&
