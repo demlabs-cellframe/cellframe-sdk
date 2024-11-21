@@ -241,7 +241,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             else
                 flags = flags & ~F_CERT;//Specified certificate not found
 
-            send = DAP_NEW_Z_SIZE(dap_chain_ch_validator_test_t, sizeof(dap_chain_ch_validator_test_t) + sign_s);
+            send = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_ch_validator_test_t, sizeof(dap_chain_ch_validator_test_t) + sign_s, false);
 #ifdef DAP_VERSION
             strncpy((char *)send->header.version, (char *)DAP_VERSION, sizeof(send->header.version));
 #endif

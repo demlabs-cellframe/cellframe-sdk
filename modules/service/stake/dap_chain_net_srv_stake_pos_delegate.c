@@ -183,8 +183,7 @@ static dap_chain_net_srv_stake_t *s_srv_stake_by_net_id(dap_chain_net_id_t a_net
 
 int dap_chain_net_srv_stake_net_add(dap_chain_net_id_t a_net_id)
 {
-    dap_chain_net_srv_stake_t *l_srv_stake;
-    DAP_NEW_Z_RET_VAL(l_srv_stake, dap_chain_net_srv_stake_t, -1, NULL);
+    dap_chain_net_srv_stake_t *l_srv_stake = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_srv_stake_t, -1);
     l_srv_stake->net_id = a_net_id;
     l_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
     dap_list_t *l_list_last = dap_list_last(s_srv_stake_list);
@@ -426,8 +425,9 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
 {
     dap_return_if_fail(a_net && a_signing_addr && a_node_addr && a_stake_tx_hash);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_net->pub.id);
-    dap_return_if_fail(l_srv_stake);
-
+    if (!l_srv_stake)
+        return log_it(L_ERROR, "Can't delegate key: no stake service found by net id %llu from address %s",
+                                a_signing_addr->net_id.uint64, dap_chain_addr_to_str_static(a_signing_addr));
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     bool l_found = false;
     HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
@@ -471,9 +471,13 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
 {
     dap_return_if_fail(a_signing_addr);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_signing_addr->net_id);
-    dap_return_if_fail(l_srv_stake);
+    if (!l_srv_stake)
+        return log_it(L_ERROR, "Can't invalidate key: no stake service found by net id %llu from address %s",
+                                a_signing_addr->net_id.uint64, dap_chain_addr_to_str_static(a_signing_addr));
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
+    if (!l_stake)
+        return log_it(L_INFO, "No delegated stake found by addr %s to invalidate", dap_chain_addr_to_str_static(a_signing_addr));
     dap_return_if_fail(l_stake);
     dap_chain_esbocs_remove_validator_from_clusters(l_stake->signing_addr.net_id, &l_stake->node_addr);
     HASH_DEL(l_srv_stake->itemlist, l_stake);
@@ -489,11 +493,13 @@ void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint25
 {
     dap_return_if_fail(a_signing_addr && a_new_tx_hash);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_signing_addr->net_id);
-    dap_return_if_fail(l_srv_stake);
+    if (!l_srv_stake)
+        return log_it(L_ERROR, "Can't update key: no stake service found by net id %llu from address %s",
+                                a_signing_addr->net_id.uint64, dap_chain_addr_to_str_static(a_signing_addr));
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
     if (!l_stake)
-        return; // It's update for non delegated key, it's OK
+        return log_it(L_INFO, "No delegated found by addr %s to update", dap_chain_addr_to_str_static(a_signing_addr));
     HASH_DELETE(ht, l_srv_stake->tx_itemlist, l_stake);
     char *l_old_value_str = dap_chain_balance_to_coins(l_stake->locked_value);
     l_stake->locked_value = l_stake->value = a_new_value;
@@ -561,7 +567,7 @@ dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, 
     const uint16_t l_arr_resize_step = 64;
     size_t l_arr_size = l_arr_resize_step, l_arr_idx = 1, l_list_idx = 0;
     if (a_excluded_list)
-        DAP_NEW_Z_COUNT_RET_VAL(*a_excluded_list, uint16_t, l_arr_size, NULL, NULL);
+        *a_excluded_list = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(uint16_t, l_arr_size, NULL);
     for (dap_chain_net_srv_stake_item_t *l_stake = l_srv_stake->itemlist; l_stake; l_stake = l_stake->hh.next) {
         if (l_stake->is_active || !a_only_active) {
             void *l_data = DAP_DUP(l_stake);
@@ -573,7 +579,7 @@ dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, 
             (*a_excluded_list)[l_arr_idx++] = l_list_idx;
             if (l_arr_idx == l_arr_size) {
                 l_arr_size += l_arr_resize_step;
-                void *l_new_arr = DAP_REALLOC(*a_excluded_list, l_arr_size * sizeof(uint16_t));
+                void *l_new_arr = DAP_REALLOC_COUNT(*a_excluded_list, l_arr_size);
                 if (!l_new_arr)
                     goto fail_ret;
                 else
@@ -1118,15 +1124,11 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
 
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
-        l_decree = DAP_REALLOC(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
-        if (!l_decree) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            DAP_DELETE(l_sign);
-            return NULL;
-        }
+        dap_chain_datum_decree_t *l_new_decree
+            = DAP_REALLOC_RET_VAL_IF_FAIL(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size, NULL, l_decree, l_sign);
+        l_decree = l_new_decree;
         memcpy((byte_t*)l_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
         l_total_signs_size += l_sign_size;
-        l_cur_sign_offset += l_sign_size;
         l_decree->header.signs_size = l_total_signs_size;
         DAP_DELETE(l_sign);
         log_it(L_DEBUG,"<-- Signed with '%s'", a_cert->name);
@@ -1357,15 +1359,11 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
 
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
-        l_decree = DAP_REALLOC(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
-        if (!l_decree) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            DAP_DELETE(l_sign);
-            return NULL;
-        }
+        dap_chain_datum_decree_t *l_new_decree
+            = DAP_REALLOC_RET_VAL_IF_FAIL(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size, NULL, l_decree, l_sign);
+        l_decree = l_new_decree;
         memcpy((byte_t*)l_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
         l_total_signs_size += l_sign_size;
-        l_cur_sign_offset += l_sign_size;
         l_decree->header.signs_size = l_total_signs_size;
         DAP_DELETE(l_sign);
         log_it(L_DEBUG,"<-- Signed with '%s'", a_cert->name);
@@ -2695,7 +2693,7 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     uint256_t l_sov_tax_percent = uint256_0;
     MULT_256_256(a_stake->sovereign_tax, GET_256_FROM_64(100), &l_sov_tax_percent);
     char *l_sov_tax_str = dap_chain_balance_to_coins(l_sov_tax_percent);
-    char l_node_addr[32] = {};
+    char l_node_addr[32];
     snprintf(l_node_addr, 32, ""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(a_stake->node_addr));
     json_object_object_add(l_json_obj_stake, "pkey_hash", json_object_new_string(l_pkey_hash_str));
     json_object_object_add(l_json_obj_stake, "stake_value", json_object_new_string(l_balance));
@@ -3056,8 +3054,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_DECREE_ERR;
             }
             DAP_DELETE(l_decree);
-            char l_approve_str[128] = {'\0'};
-            sprintf(l_approve_str,"Approve decree %s successfully created", l_decree_hash_str);
+            char l_approve_str[128];
+            snprintf(l_approve_str, sizeof(l_approve_str), "Approve decree %s successfully created", l_decree_hash_str);
             json_object_array_add(*a_json_arr_reply, json_object_new_string(l_approve_str));
             DAP_DELETE(l_decree_hash_str);
         } break;
@@ -3434,9 +3432,8 @@ void dap_chain_net_srv_stake_get_fee_validators_str(dap_chain_net_t *a_net, dap_
         return;
     uint256_t l_min = uint256_0, l_max = uint256_0, l_average = uint256_0, l_median = uint256_0;
     dap_chain_net_srv_stake_get_fee_validators(a_net, &l_max, &l_average, &l_min, &l_median);
-    const char *l_native_token  = a_net->pub.native_ticker;
-    const char *l_coins_str,
-    *l_min_balance      = dap_strdup(dap_uint256_to_char(l_min, &l_coins_str)),     *l_min_coins    = dap_strdup(l_coins_str),
+    const char *l_native_token  = a_net->pub.native_ticker, *l_coins_str;
+    char *l_min_balance = dap_strdup(dap_uint256_to_char(l_min, &l_coins_str)),     *l_min_coins    = dap_strdup(l_coins_str),
     *l_max_balance      = dap_strdup(dap_uint256_to_char(l_max, &l_coins_str)),     *l_max_coins    = dap_strdup(l_coins_str),
     *l_average_balance  = dap_strdup(dap_uint256_to_char(l_average, &l_coins_str)), *l_average_coins= dap_strdup(l_coins_str),
     *l_median_balance   = dap_strdup(dap_uint256_to_char(l_median, &l_coins_str)),  *l_median_coins = dap_strdup(l_coins_str);

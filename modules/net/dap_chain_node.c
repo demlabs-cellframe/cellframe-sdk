@@ -88,13 +88,9 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
                 l_uplinks_count = 0,
                 l_downlinks_count = 0,
                 l_info_size = 0;
-        // memory alloc first
             dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, true);
-            dap_chain_node_net_states_info_t *l_info = NULL;
             l_info_size = sizeof(dap_chain_node_net_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
-            DAP_NEW_Z_SIZE_RET(l_info, dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
-        // func work
-            // data preparing
+            dap_chain_node_net_states_info_t *l_info = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
             l_info->version_info = DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION;
             dap_strncpy(l_info->version_node, DAP_VERSION, sizeof(l_info->version_node) - 1);
             l_info->role = dap_chain_net_get_role(l_net);
