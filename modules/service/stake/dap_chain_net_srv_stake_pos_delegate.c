@@ -3409,13 +3409,13 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 
             if (!l_addr_base58 && !l_wallet_name && !l_is_tx_all ) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR,
-                                "tx_history requires parameter '-addr' or '-w' or '-all'");
+                                "reward requires parameter '-addr' or '-w' or '-all'");
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR;
             }
 
             if (!l_net_str && !l_addr_base58 && l_wallet_name) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR,
-                                "tx_history requires parameter '-net' or '-addr'");
+                                "reward requires parameter '-net' or '-addr' or '-w'");
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR;
             }
             
@@ -3424,7 +3424,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 l_net = dap_chain_net_by_name(l_net_str);
                 if (!l_net) { // Can't find such network
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_PARAM_ERR,
-                                            "tx_history requires parameter '-net' to be valid chain network name");
+                                            "reward requires parameter '-net' to be valid chain network name");
                     return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_PARAM_ERR;
                 }
             }
