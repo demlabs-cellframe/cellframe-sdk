@@ -2232,8 +2232,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                     if(l_restore_opt || l_restore_legacy_opt) {
                         if (l_restore_str_size > 3 && !dap_strncmp(l_restore_str, "0x", 2) && (!dap_is_hex_string(l_restore_str + 2, l_restore_str_size - 2) || l_restore_legacy_opt)) {
-                            l_seed_size = (l_restore_str_size - 2) / 2 + 1;
-                            l_seed = DAP_NEW_Z_SIZE(uint8_t, l_seed_size);
+                            l_seed_size = (l_restore_str_size - 2) / 2;
+                            l_seed = DAP_NEW_Z_SIZE(uint8_t, l_seed_size + 1);
                             if(!l_seed) {
                                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                                 json_object_put(json_arr_out);
