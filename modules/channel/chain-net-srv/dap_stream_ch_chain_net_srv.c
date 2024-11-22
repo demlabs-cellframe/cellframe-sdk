@@ -869,7 +869,7 @@ uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t *a_
     uint64_t l_used = 0;
     if (a_prev)
         l_prev = *a_prev;
-    dap_return_val_if_pass(!a_usage, l_prev);
+    dap_return_val_if_fail(a_usage && a_usage->price, l_prev);
     switch(a_usage->price->units_uid.enm){
         case SERV_UNIT_SEC:
             l_used = dap_time_now() - a_usage->ts_created;
@@ -897,7 +897,7 @@ void s_set_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
     client_statistic_value_t l_bin_value_new = {0};
     size_t l_value_size = 0;
     // forming key
-    sprintf(l_bin_key.key, "0x%016"DAP_UINT64_FORMAT_X"", a_usage->service->uid.uint64);
+    snprintf(l_bin_key.key, sizeof(l_bin_key.key), "0x%016"DAP_UINT64_FORMAT_X"", a_usage->service->uid.uint64);
     dap_chain_hash_fast_to_str_do(&a_usage->client_pkey_hash, l_bin_key.key + 18);
     // check writed value
     client_statistic_value_t *l_bin_value = (client_statistic_value_t *)dap_global_db_get_sync(SRV_STATISTIC_GDB_GROUP, l_bin_key.key, &l_value_size, NULL, NULL);
