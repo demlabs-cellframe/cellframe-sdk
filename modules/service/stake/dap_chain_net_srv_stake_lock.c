@@ -29,6 +29,7 @@
 #include "dap_chain_net_srv_stake_lock.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_wallet_cache.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_srv.h"
 #include "dap_cli_server.h"
@@ -107,8 +108,8 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
                                                uint256_t a_value_fee,
                                                const char *a_delegated_ticker_str, uint256_t a_delegated_value,int *res);
 // Callbacks
-static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item);
-static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_out_cond);
+static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
 
 static inline int s_tsd_str_cmp(const byte_t *a_tsdata, size_t a_tsdsize,  const char *str ) {
     size_t l_strlen = (size_t)strlen(str);
@@ -249,7 +250,7 @@ static bool s_tag_check_staking(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
  */
 int dap_chain_net_srv_stake_lock_init()
 {
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, s_stake_lock_callback_verificator, s_stake_lock_callback_updater, NULL);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, s_stake_lock_callback_verificator, NULL, NULL, s_stake_lock_callback_updater, NULL, NULL);
     dap_cli_server_cmd_add("stake_lock", s_cli_stake_lock, "Stake lock service commands",
                 "stake_lock hold -net <net_name> -w <wallet_name> -time_staking <YYMMDD> -token <ticker> -value <value> -fee <value>"
                             "[-chain <chain_name>] [-reinvest <percentage>]\n"
@@ -638,7 +639,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
             } break;
 
         case COINS_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command requires parameter -coins");
+            dap_string_append_printf(output_line, "stake_lock command requires parameter -value");
             } break;
 
         case COINS_FORMAT_ERROR: {
@@ -989,7 +990,7 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  * @param a_owner
  * @return
  */
-static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner)
 {
     dap_chain_datum_tx_t									*l_burning_tx       = NULL;
     dap_chain_datum_tx_receipt_t							*l_receipt          = NULL;
@@ -1105,15 +1106,9 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
  * @param a_tx_item_idx
  * @return
  */
-static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item)
+static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_out_cond)
 {
-    if (a_prev_out_item)  // this is IN_COND tx
-        return;
-    int l_out_num = 0;
-    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, &l_out_num);
-    if (!l_cond)
-        return;
-    if (l_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX)
+    if (a_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX)
         dap_ledger_emission_for_stake_lock_item_add(a_ledger, a_tx_in_hash);
 }
 
@@ -1144,7 +1139,8 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
     if (l_main_native)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
     else if (!IS_ZERO_256(l_total_fee)) {
-        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, &l_addr, &l_list_fee_out, l_total_fee, &l_fee_transfer) == -101)
+            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
                                                                     &l_addr, l_total_fee, &l_fee_transfer);
         if (!l_list_fee_out) {
             log_it(L_WARNING, "Not enough funds to pay fee");
@@ -1152,8 +1148,10 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
         }
     }
     // list of transaction with 'out' items
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_main_ticker,
-                                                                             &l_addr, l_value_need, &l_value_transfer);
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_main_ticker, &l_addr, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_main_ticker,
+                                                                &l_addr, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
         log_it( L_ERROR, "Nothing to transfer (not enough funds)");
         return NULL;
@@ -1289,7 +1287,8 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
     if (!IS_ZERO_256(l_total_fee)) {
         if (!l_main_native) {
-            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
+            if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, &l_addr, &l_list_fee_out, l_total_fee, &l_fee_transfer) == -101)
+                l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
                                                                     &l_addr, l_total_fee, &l_fee_transfer);
             if (!l_list_fee_out) {
                 log_it(L_WARNING, "Not enough funds to pay fee");
@@ -1301,7 +1300,8 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
         }
     }
     if (!IS_ZERO_256(a_delegated_value)) {
-        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, a_delegated_ticker_str,
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, a_delegated_ticker_str, &l_addr, &l_list_used_out, a_delegated_value, &l_value_transfer) == -101)
+            l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, a_delegated_ticker_str,
                                                                                  &l_addr, a_delegated_value, &l_value_transfer);
         if(!l_list_used_out) {
             log_it( L_ERROR, "Nothing to transfer (not enough delegated tokens)");

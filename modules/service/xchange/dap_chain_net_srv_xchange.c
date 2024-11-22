@@ -42,8 +42,8 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_xchange.h"
-#include "uthash.h"
 #include "dap_cli_server.h"
+#include "dap_chain_wallet_cache.h"
 
 #define LOG_TAG "dap_chain_net_srv_xchange"
 
@@ -55,8 +55,8 @@ typedef enum tx_opt_status {
 
 static void s_callback_decree(dap_chain_net_id_t a_net_id, int a_decree_type, dap_tsd_t *a_params, size_t a_params_size);
 static void *s_callback_start(dap_chain_net_id_t a_net_id, dap_config_t *a_config);
-static int s_xchange_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
-                            dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+static int s_xchange_verificator_callback(dap_ledger_t * a_ledger,
+                            dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
 const dap_chain_srv_uid_t c_dap_chain_net_srv_xchange_uid = { .uint64= DAP_CHAIN_NET_SRV_XCHANGE_ID };
 
 json_object *s_print_fee_json(dap_chain_net_id_t a_net_id);
@@ -140,7 +140,7 @@ static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
  */
 int dap_chain_net_srv_xchange_init()
 {
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, s_xchange_verificator_callback, NULL, NULL);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, s_xchange_verificator_callback, NULL, NULL, NULL, NULL, NULL);
     dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
 
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -w <wallet_name>"
@@ -231,8 +231,7 @@ void dap_chain_net_srv_xchange_deinit()
  * @param a_owner
  * @return
  */
-static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond,
-                                           dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_tx_out_cond, bool a_owner)
 {
     if (a_owner)
         return 0;
@@ -448,7 +447,8 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     if (l_single_channel)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
     else {
-        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, &l_seller_addr, &l_list_fee_out, l_total_fee, &l_fee_transfer) == -101)
+            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                               &l_seller_addr, l_total_fee, &l_fee_transfer);
         if (!l_list_fee_out) {
             log_it(L_WARNING, "Not enough funds to pay fee");
@@ -456,7 +456,9 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
         }
     }
     // list of transaction with 'out' items to sell
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_sell,
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_price->token_sell, &l_seller_addr, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_sell,
                                                                        &l_seller_addr, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
         log_it(L_WARNING, "Nothing to change from %s (not enough funds in %s (%s))",
@@ -604,7 +606,9 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     DAP_DELETE(l_wallet_addr);
 
     // list of transaction with 'out' items to sell
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_buy,
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_price->token_buy, &l_buyer_addr, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_buy,
                                                                        &l_buyer_addr, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_WARNING, "Nothing to change from %s (not enough funds in %s (%s))",
@@ -617,8 +621,9 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         if (l_buy_with_native)
             SUM_256_256(l_value_need, l_total_fee, &l_value_need);
         else {
-            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                                  &l_buyer_addr, l_total_fee, &l_fee_transfer);
+            if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, &l_buyer_addr, &l_list_fee_out, l_total_fee, &l_fee_transfer) == -101)
+                l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+                                                                        &l_buyer_addr, l_total_fee, &l_fee_transfer);
             if (!l_list_fee_out) {
                 dap_list_free_full(l_list_used_out, NULL);
                 log_it(L_WARNING, "Not enough funds to pay fee");
@@ -1020,7 +1025,9 @@ static char* s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price,
     if (!l_single_channel) {
         uint256_t l_transfer_fee = {}, l_fee_back = {};
         // list of transaction with 'out' items to get net fee
-        dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+        dap_list_t *l_list_used_out = NULL;
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, &l_seller_addr, &l_list_used_out, l_total_fee, &l_transfer_fee) == -101)
+            l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                            &l_seller_addr, l_total_fee, &l_transfer_fee);
         if (!l_list_used_out) {
             dap_chain_datum_tx_delete(l_tx);

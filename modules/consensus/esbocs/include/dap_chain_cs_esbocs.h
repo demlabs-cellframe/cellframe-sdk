@@ -124,6 +124,9 @@ typedef struct dap_chain_esbocs {
     dap_chain_t *chain;
     dap_chain_cs_blocks_t *blocks;
     dap_chain_esbocs_session_t *session;
+    dap_time_t last_directive_vote_timestamp;
+    dap_time_t last_directive_accept_timestamp;
+    dap_time_t last_submitted_candidate_timestamp;
     void *_pvt;
 } dap_chain_esbocs_t;
 
@@ -235,6 +238,11 @@ typedef enum s_com_esbocs_err{
     DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_FORMAT_ERR,
     DAP_CHAIN_NODE_CLI_COM_ESBOCS_ADD_DEL_ERR,
     DAP_CHAIN_NODE_CLI_COM_ESBOCS_SUB_ERR,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_NET,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_CANT_FIND_NET,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_SESSION,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_STAKE,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_WRONG_CHAIN,
 
     /* add custom codes here */
 
@@ -271,3 +279,5 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
 uint16_t dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id);
 int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash);
 int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable);
+
+void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable);

@@ -333,7 +333,7 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
         uint8_t l_type = l_cur_state == DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB ? DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_END
                                                                             : DAP_CHAIN_CH_PKT_TYPE_SYNCED_GLOBAL_DB;
         debug_if(s_debug_legacy, L_INFO, "Out: %s", dap_chain_ch_pkt_type_to_str(l_type));
-        dap_chain_ch_pkt_write_mt(l_context->worker, l_context->ch_uuid, l_type,
+        dap_chain_ch_pkt_write(l_context->worker, l_context->ch_uuid, l_type,
                                   l_context->request_hdr.net_id, l_context->request_hdr.chain_id, l_context->request_hdr.cell_id,
                                   &l_payload, sizeof(l_payload), DAP_CHAIN_CH_PKT_VERSION_LEGACY);
         if (l_cur_state == DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB) {
@@ -383,7 +383,7 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
                     l_context->enqueued_data_size += l_data_size;
                     if (l_context->enqueued_data_size > DAP_EVENTS_SOCKET_BUF_SIZE / 2)
                         l_go_wait = true;
-                    dap_chain_ch_pkt_write_mt(l_context->worker, l_context->ch_uuid, l_type,
+                    dap_chain_ch_pkt_write(l_context->worker, l_context->ch_uuid, l_type,
                                               l_context->request_hdr.net_id, l_context->request_hdr.chain_id, l_context->request_hdr.cell_id,
                                               l_data, l_data_size, DAP_CHAIN_CH_PKT_VERSION_LEGACY);
                     debug_if(s_debug_legacy, L_INFO, "Send one global_db packet len=%zu (rest=%zu/%zu items)", l_data_size,
@@ -410,7 +410,7 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
     dap_list_free_full(l_list_out, NULL);
 
     if (l_data && l_data_size) {
-        dap_chain_ch_pkt_write_mt(l_context->worker, l_context->ch_uuid, l_type,
+        dap_chain_ch_pkt_write(l_context->worker, l_context->ch_uuid, l_type,
                                   l_context->request_hdr.net_id, l_context->request_hdr.chain_id, l_context->request_hdr.cell_id,
                                   l_data, l_data_size, DAP_CHAIN_CH_PKT_VERSION_LEGACY);
         if (l_cur_state == DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB)
@@ -423,7 +423,7 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
     } else if (l_context->last_activity + 3 < dap_time_now()) {
         l_context->last_activity = dap_time_now();
         debug_if(s_debug_more, L_INFO, "Send one GlobalDB no freeze packet");
-        dap_chain_ch_pkt_write_mt(l_context->worker, l_context->ch_uuid, DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB_NO_FREEZE,
+        dap_chain_ch_pkt_write(l_context->worker, l_context->ch_uuid, DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB_NO_FREEZE,
                                              l_context->request_hdr.net_id, l_context->request_hdr.chain_id,
                                              l_context->request_hdr.cell_id, NULL, 0, DAP_CHAIN_CH_PKT_VERSION_LEGACY);
     }
@@ -508,7 +508,7 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
                 l_context->enqueued_data_size += l_context->atom_iter->cur_size;
                 if (l_context->enqueued_data_size > DAP_EVENTS_SOCKET_BUF_SIZE / 2)
                     l_go_wait = true;
-                dap_chain_ch_pkt_write_mt(l_context->worker, l_context->ch_uuid, DAP_CHAIN_CH_PKT_TYPE_CHAIN_OLD,
+                dap_chain_ch_pkt_write(l_context->worker, l_context->ch_uuid, DAP_CHAIN_CH_PKT_TYPE_CHAIN_OLD,
                                           l_context->request_hdr.net_id, l_context->request_hdr.chain_id, l_context->request_hdr.cell_id,
                                           l_context->atom_iter->cur, l_context->atom_iter->cur_size, DAP_CHAIN_CH_PKT_VERSION_LEGACY);
                 debug_if(s_debug_legacy, L_INFO, "Out CHAIN pkt: atom hash %s (size %zd)", dap_hash_fast_to_str_static(l_context->atom_iter->cur_hash),
@@ -526,7 +526,7 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
     }
 
     if (l_hashes) {
-        dap_chain_ch_pkt_write_mt(l_context->worker, l_context->ch_uuid, DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS,
+        dap_chain_ch_pkt_write(l_context->worker, l_context->ch_uuid, DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS,
                                   l_context->request_hdr.net_id, l_context->request_hdr.chain_id, l_context->request_hdr.cell_id,
                                   l_hashes, l_data_size, DAP_CHAIN_CH_PKT_VERSION_LEGACY);
         debug_if(s_debug_legacy, L_INFO, "Out: DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS, %zu records", l_data_size / sizeof(dap_chain_ch_update_element_t));
@@ -534,7 +534,7 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
     } else if (l_context->last_activity + 3 < dap_time_now()) {
         l_context->last_activity = dap_time_now();
         debug_if(s_debug_more, L_INFO, "Send one chain no freeze packet");
-        dap_chain_ch_pkt_write_mt(l_context->worker, l_context->ch_uuid, DAP_CHAIN_CH_PKT_TYPE_CHAINS_NO_FREEZE,
+        dap_chain_ch_pkt_write(l_context->worker, l_context->ch_uuid, DAP_CHAIN_CH_PKT_TYPE_CHAINS_NO_FREEZE,
                                         l_context->request_hdr.net_id, l_context->request_hdr.chain_id,
                                         l_context->request_hdr.cell_id, NULL, 0, DAP_CHAIN_CH_PKT_VERSION_LEGACY);
     }
@@ -544,7 +544,7 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
         uint8_t l_type = l_cur_state == DAP_CHAIN_CH_STATE_UPDATE_CHAINS ? DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_END
                                                                          : DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS;
         debug_if(s_debug_legacy, L_INFO, "Out: %s", dap_chain_ch_pkt_type_to_str(l_type));
-        dap_chain_ch_pkt_write_mt(l_context->worker, l_context->ch_uuid, l_type,
+        dap_chain_ch_pkt_write(l_context->worker, l_context->ch_uuid, l_type,
                                   l_context->request_hdr.net_id, l_context->request_hdr.chain_id, l_context->request_hdr.cell_id,
                                   &l_payload, sizeof(l_payload), DAP_CHAIN_CH_PKT_VERSION_LEGACY);
         debug_if(l_cur_state == DAP_CHAIN_CH_STATE_UPDATE_CHAINS, L_INFO,

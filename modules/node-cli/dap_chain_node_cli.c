@@ -87,12 +87,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node alias -addr <node_address> -alias <node_alias>\n\n"
                     "node connect -net <net_name> {-addr <node_address> | -alias <node_alias> | auto}\n\n"
                     "node handshake -net <net_name> {-addr <node_address> | -alias <node_alias>}\n"
-                    "node connections -net <net_name>\n"
+                    "node connections [-net <net_name>]\n"
                     "node balancer -net <net_name>\n"
                     "node dump [-net <net_name> | -addr <node_address>]\n\n"
                     "node list -net <net_name> [-addr <node_address> | -alias <node_alias>] [-full]\n\n"
-                    "node ban -net <net_name> -chain <chain_name> -certs <certs_name> [-addr <node_address> | -ip <ip_v4_or_v6_address>]\n"
-                    "node unban -net <net_name> -chain <chain_name> -certs <certs_name> [-addr <node_address> | -ip <ip_v4_or_v6_address>]\n"
+                    "node ban -net <net_name> -chain <chain_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
+                    "node unban -net <net_name> -chain <chain_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
                     "node banlist\n\n");
     #ifndef DAP_OS_ANDROID
     dap_cli_server_cmd_add ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
@@ -377,6 +377,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "\tSearches for decrees by hash in the specified decree type in the specified network in its chains.\n"
                            "\tTypes decree: fee, owners, owners_min, stake_approve, stake_invalidate, min_value, "
                            "min_validators_count, ban, unban, reward, validator_max_weight, emergency_validators, check_signs_structure\n");
+
+    dap_cli_server_cmd_add ("exec_cmd", com_exec_cmd, "Execute command on remote node",
+            "exec_cmd -net <net_name> -addr <node_addr> -cmd <command,and,all,args,separated,by,commas>\n" );
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",

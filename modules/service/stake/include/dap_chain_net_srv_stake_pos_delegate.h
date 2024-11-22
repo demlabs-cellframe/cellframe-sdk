@@ -32,7 +32,7 @@
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID 0x13
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS 0x14
 
-typedef struct dap_chain_net_srv_stake_item {
+typedef struct dap_chain_net_srv_stake_item { // TODO move it to private section
     bool is_active;
     dap_chain_net_t *net;
     uint256_t locked_value;
@@ -44,25 +44,6 @@ typedef struct dap_chain_net_srv_stake_item {
     uint256_t sovereign_tax;
     UT_hash_handle hh, ht;
 } dap_chain_net_srv_stake_item_t;
-
-typedef struct dap_chain_net_srv_stake_cache_data {
-    dap_chain_hash_fast_t tx_hash;
-    dap_chain_addr_t signing_addr;
-} DAP_ALIGN_PACKED dap_chain_net_srv_stake_cache_data_t;
-
-typedef struct dap_chain_net_srv_stake_cache_item {
-    dap_chain_hash_fast_t tx_hash;
-    dap_chain_addr_t signing_addr;
-    UT_hash_handle hh;
-} dap_chain_net_srv_stake_cache_item_t;
-
-typedef struct dap_chain_net_srv_stake {
-    uint256_t delegate_allowed_min;
-    uint256_t delegate_percent_max;
-    dap_chain_net_srv_stake_item_t *itemlist;
-    dap_chain_net_srv_stake_item_t *tx_itemlist;
-    dap_chain_net_srv_stake_cache_item_t *cache;
-} dap_chain_net_srv_stake_t;
 
 int dap_chain_net_srv_stake_pos_delegate_init();
 void dap_chain_net_srv_stake_pos_delegate_deinit();

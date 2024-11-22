@@ -68,6 +68,8 @@
 
 #define DAP_CHAIN_DATUM_ANCHOR              0x0a00
 
+#define DAP_CHAIN_DATUM_SERVICE_STATE       0x8000
+
 #define DAP_CHAIN_DATUM_CUSTOM              0xffff
 
 #define DAP_DATUM_TYPE_STR(t, s)        \

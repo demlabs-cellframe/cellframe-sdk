@@ -158,6 +158,7 @@ typedef enum s_com_tx_wallet_err{
     DAP_CHAIN_NODE_CLI_COM_TX_WALLET_HASH_ERR,
     DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CHAIN_PARAM_ERR,
     DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INTERNAL_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CAN_NOT_GET_ADDR,
 
     /* add custom codes here */
 
@@ -378,3 +379,5 @@ typedef enum cmd_find_list_err {
 int cmd_find(int a_argc, char **a_argv, void **a_str_reply);
 
 void dap_notify_new_client_send_info(dap_events_socket_t *a_es, void *a_arg);
+
+int com_exec_cmd(int argc, char **argv, void **reply);
