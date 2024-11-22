@@ -420,7 +420,7 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
             int l_type = 0;
             size_t l_data_size = 0;
             uint32_t *l_out_count = (uint32_t *)dap_chain_datum_tx_item_get_data(a_items_grp->items_tsd->data, &l_type, &l_data_size);
-            if (l_type != DAP_CHAIN_TX_TRANSFER_TSD_TYPE_OUT_COUNT || l_data_size != sizeof(uint32_t) || !l_out_count || *l_out_count < 2)
+            if (l_type != DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT || l_data_size != sizeof(uint32_t) || !l_out_count || *l_out_count < 2)
                 return false;
         }
     }
