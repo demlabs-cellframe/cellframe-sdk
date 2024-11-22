@@ -1058,7 +1058,7 @@ void dap_ledger_test_run(void){
 
     // Declarate delegated token
     dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
-    strcpy((char *)l_tsd_section.ticker_token_from, s_token_ticker);
+    dap_strncpy(l_tsd_section.ticker_token_from, s_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
     l_tsd_section.emission_rate = dap_chain_coins_to_balance("0.1");//	TODO: 'm' 1:10 tokens
     dap_tsd_t * l_tsd = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK, l_tsd_section);
     l_token_decl = dap_ledger_test_create_datum_decl(l_cert, &l_token_decl_size, s_delegated_token_ticker,

@@ -373,7 +373,6 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                         return ret_val;
                     }
                 } else {
-                    dap_chain_addr_t a_addr = {};
                     dap_chain_net_srv_stake_set_allowed_min_value(a_chain->net_id, dap_chain_coins_to_balance("1.0"));
                 }
             }
@@ -465,14 +464,7 @@ static inline dap_sign_t *s_concate_all_signs_in_array(dap_sign_t *a_in_signs, s
             return NULL;
         }
 
-        dap_sign_t *l_signs_arr_temp = (dap_sign_t *)DAP_REALLOC(l_signs_arr, l_signs_arr_size + l_sign_size);
-
-        if (!l_signs_arr_temp)
-        {
-            log_it(L_WARNING,"Memory allocate fail");
-            DAP_DELETE(l_signs_arr);
-            return NULL;
-        }
+        dap_sign_t *l_signs_arr_temp = DAP_REALLOC_RET_VAL_IF_FAIL(l_signs_arr, l_signs_arr_size + l_sign_size, NULL, l_signs_arr);
 
         l_signs_arr = l_signs_arr_temp;
         memcpy((byte_t *)l_signs_arr + l_signs_arr_size, cur_sign, l_sign_size);

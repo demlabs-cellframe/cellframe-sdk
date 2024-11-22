@@ -669,21 +669,12 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
         //    if((ret = write(raw_server->tun_fd, sf_pkt->data, sf_pkt->header.op_data.data_size))<0){
         log_it(L_ERROR, "write() error %d : \"%s\"", errno, dap_strerror(errno));
         //log_it(ERROR,"raw socket ring buffer overflowed");
-        dap_stream_ch_vpn_pkt_t *pkt_out = (dap_stream_ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
-        if (!pkt_out) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            if(in_daddr_str)
-                DAP_DELETE(in_daddr_str);
-            if(in_saddr_str)
-                DAP_DELETE(in_saddr_str);
-            return;
-        }
-        pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
-        pkt_out->header.op_problem.code = VPN_PROBLEM_CODE_PACKET_LOST;
-        pkt_out->header.sock_id = s_fd_tun;
-        dap_stream_ch_pkt_write_unsafe(ch_sf->ch, 'd', pkt_out,
-                pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-        DAP_DELETE(pkt_out);
+        dap_stream_ch_vpn_pkt_t pkt_out = { };
+        pkt_out.header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
+        pkt_out.header.op_problem.code = VPN_PROBLEM_CODE_PACKET_LOST;
+        pkt_out.header.sock_id = s_fd_tun;
+        dap_stream_ch_pkt_write_unsafe(ch_sf->ch, 'd', &pkt_out,
+                                       sizeof(dap_stream_ch_vpn_pkt_t));
     } else {
         //log_it(L_DEBUG, "Raw IP packet daddr:%s saddr:%s  %u from %d bytes sent to tun/tap interface",
         //  str_saddr,str_daddr, sf_pkt->header.op_data.data_size,ret);
