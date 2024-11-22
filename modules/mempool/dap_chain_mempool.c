@@ -625,12 +625,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 break;
         }
         if (compare256(l_value_to_items, l_single_val) == -1) {
-            char l_log_str[256] = { '\0' };
-            l_balance = dap_uint256_to_char(l_value_to_items, NULL);
-            snprintf(l_log_str, sizeof(l_log_str),
-                         "Not enough values on output to produce enough inputs: %s when need ", l_balance);
-            strcat(l_log_str, dap_uint256_to_char(l_single_val, NULL));
-            log_it(L_ERROR, "%s", l_log_str);
+            log_it(L_ERROR, "Not enough values on output to produce enough inputs: %s when need %s", l_balance, dap_uint256_to_char(l_single_val, NULL));
             dap_list_free_full(l_list_used_out, NULL);
             DAP_DELETE(l_objs);
             return -5;
@@ -1223,22 +1218,17 @@ uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t 
     for(int i = 0; i < datum_mempool->datum_count; i++) {
         a_request_size += dap_chain_datum_size(datum_mempool->data[i]) + sizeof(uint16_t);
     }
-    uint8_t *a_request = DAP_NEW_SIZE(uint8_t, a_request_size);
-    memcpy(a_request + shift_size, &(datum_mempool->version), sizeof(uint16_t));
-    shift_size += sizeof(uint16_t);
-    memcpy(a_request + shift_size, &(datum_mempool->datum_count), sizeof(uint16_t));
-    shift_size += sizeof(uint16_t);
+    uint8_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(uint8_t, a_request_size, NULL);
+    uint8_t *l_pos = dap_mempcpy(l_ret, &datum_mempool->version, sizeof(uint16_t));
+    l_pos = dap_mempcpy(l_pos, &datum_mempool->datum_count, sizeof(uint16_t));
     for(int i = 0; i < datum_mempool->datum_count; i++) {
         size_t size_one = dap_chain_datum_size(datum_mempool->data[i]);
-        memcpy(a_request + shift_size, &size_one, sizeof(uint16_t));
-        shift_size += sizeof(uint16_t);
-        memcpy(a_request + shift_size, datum_mempool->data[i], size_one);
-        shift_size += size_one;
+        l_pos = dap_mempcpy( dap_mempcpy(l_pos, &size_one, sizeof(uint16_t)), datum_mempool->data[i], size_one );
     }
-    assert(shift_size == a_request_size);
+    assert((size_t)(l_pos - l_ret) == a_request_size);
     if(size)
         *size = a_request_size;
-    return a_request;
+    return l_ret;
 }
 
 dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *a_datum_mempool_ser, size_t a_datum_mempool_ser_size)

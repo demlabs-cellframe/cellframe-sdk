@@ -209,8 +209,7 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
         return DAP_LEDGER_CHECK_OK;
     }
 
-    dap_chain_net_votings_t *l_item;
-    DAP_NEW_Z_SIZE_RET_VAL(l_item, dap_chain_net_votings_t, sizeof(dap_chain_net_votings_t), -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY, NULL);
+    dap_chain_net_votings_t *l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_votings_t, -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
     l_item->voting_hash = *a_tx_hash;
     l_item->voting_params.voting_tx = a_tx_in;
     l_item->net_id = a_ledger->net->pub.id;
@@ -357,8 +356,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
                 return -DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
             }
 
-            dap_chain_net_voting_cond_outs_t *l_item;
-            DAP_NEW_Z_SIZE_RET_VAL(l_item, dap_chain_net_voting_cond_outs_t, sizeof(dap_chain_net_voting_cond_outs_t), -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY, NULL);
+            dap_chain_net_voting_cond_outs_t *l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_voting_cond_outs_t, -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
             l_item->tx_hash = l_hash;
             l_item->out_idx = l_out_idx;
             pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
@@ -396,9 +394,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
     }
 
     if (a_apply) {
-
-        dap_chain_net_vote_t *l_vote_item;
-        DAP_NEW_Z_RET_VAL(l_vote_item, dap_chain_net_vote_t, -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY, NULL);
+        dap_chain_net_vote_t *l_vote_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_vote_t, -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
         l_vote_item->vote_hash = *a_tx_hash;
         l_vote_item->pkey_hash = pkey_hash;
         l_vote_item->answer_idx = l_vote_tx_item->answer_idx;
