@@ -390,7 +390,7 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
         pkt_out->header.op_data.data_size = l_read_bytes;
         memcpy(pkt_out->data, a_es->buf_in + l_shift, l_read_bytes);
         // pthread_mutex_lock(&s_clients_mutex);
-        dap_stream_ch_pkt_write_mt(l_ch->stream_worker, l_ch->uuid, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
+        dap_stream_ch_pkt_write(l_ch->stream_worker, l_ch->uuid, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
             pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
         // pthread_mutex_unlock(&s_clients_mutex);
     }
@@ -524,7 +524,7 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
     s_tun_events_socket = dap_events_socket_wrap_no_add(s_fd_tun, &l_s_callbacks);
     s_tun_events_socket->type = DESCRIPTOR_TYPE_FILE;
     dap_worker_add_events_socket_auto(s_tun_events_socket);
-    //dap_events_socket_assign_on_worker_mt(l_es, a_worker);
+    //dap_events_socket_assign_on_worker(l_es, a_worker);
     s_tun_events_socket->_inheritor = NULL;
 
     //return 0;
@@ -538,7 +538,7 @@ int dap_chain_net_vpn_client_tun_delete(void)
 {
     if(s_tun_events_socket) {
         pthread_mutex_lock(&s_clients_mutex);
-        dap_events_socket_remove_and_delete_mt(s_tun_events_socket->worker, s_tun_events_socket->uuid);
+        dap_events_socket_remove_and_delete(s_tun_events_socket->worker, s_tun_events_socket->uuid);
         s_tun_events_socket = NULL;
         pthread_mutex_unlock(&s_clients_mutex);
     }

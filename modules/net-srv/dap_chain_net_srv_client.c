@@ -67,7 +67,7 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
 }
 void dap_chain_net_srv_client_close(dap_chain_net_srv_client_t *a_client){
     if (a_client->node_client)
-        dap_chain_node_client_close_mt( a_client->node_client );
+        dap_chain_node_client_close( a_client->node_client );
 }
 
 ssize_t dap_chain_net_srv_client_write(dap_chain_net_srv_client_t *a_client, uint8_t a_type, void *a_pkt_data, size_t a_pkt_data_size)
@@ -81,7 +81,7 @@ ssize_t dap_chain_net_srv_client_write(dap_chain_net_srv_client_t *a_client, uin
         a_ch_chain->srv_uid.uint64 = l_request->hdr.srv_uid.uint64;
     }
     dap_stream_worker_t *l_stream_worker = dap_client_get_stream_worker(a_client->net_client);
-    return dap_stream_ch_pkt_write_mt(l_stream_worker, a_client->ch_uuid, a_type, a_pkt_data, a_pkt_data_size);
+    return dap_stream_ch_pkt_write(l_stream_worker, a_client->ch_uuid, a_type, a_pkt_data, a_pkt_data_size);
 }
 
 static void s_srv_client_callback_connected(dap_chain_node_client_t *a_node_client, void *a_arg)

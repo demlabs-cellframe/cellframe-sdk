@@ -170,7 +170,6 @@ typedef struct{
 } remain_limits_save_arg_t;
 
 dap_chain_net_srv_vpn_tun_socket_t ** s_tun_sockets = NULL;
-dap_events_socket_t ** s_tun_sockets_queue_msg = NULL;
 
 pthread_mutex_t s_tun_sockets_mutex_started;
 pthread_cond_t s_tun_sockets_cond_started;
@@ -277,7 +276,8 @@ static bool s_tun_client_send_data_inter(dap_events_socket_t * a_es_input, dap_c
     dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,  a_ch_vpn->usage_id);
 
     size_t l_data_to_send = (a_pkt_out->header.op_data.data_size + sizeof(a_pkt_out->header));
-    size_t l_data_sent = dap_stream_ch_pkt_write_inter(a_es_input, a_ch_vpn->ch->uuid, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, a_pkt_out, l_data_to_send);
+    size_t l_data_sent = dap_stream_ch_pkt_write(DAP_STREAM_WORKER(a_es_input->worker), a_ch_vpn->ch->uuid,
+                                                    DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, a_pkt_out, l_data_to_send);
     s_update_limits(a_ch_vpn->ch,l_srv_session,l_usage, l_data_sent );
     if ( l_data_sent < l_data_to_send){
         log_it(L_WARNING, "Wasn't sent all the data in tunnel (%zd was sent from %zd): probably buffer overflow", l_data_sent, l_data_to_send);
@@ -389,7 +389,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
             HASH_FIND(hh, l_tun_sock->clients, &l_msg->esocket_reassigment.addr, sizeof(l_msg->esocket_reassigment.addr), l_info);
             if (l_info) { // Updating info
                 l_info->worker = dap_events_worker_get(l_msg->esocket_reassigment.worker_id);
-                l_info->queue_msg = s_tun_sockets_queue_msg[l_msg->esocket_reassigment.worker_id];
+                l_info->queue_msg = s_tun_sockets[l_msg->esocket_reassigment.worker_id]->msg_queue;
                 l_info->is_reassigned_once = true;
                 l_info->is_on_this_worker = (a_esocket_queue->worker->id == l_msg->esocket_reassigment.worker_id);
                 if (s_debug_more) {
@@ -427,7 +427,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
                 }
                 l_new_info->ch_vpn              = l_msg->ch_vpn;
                 l_new_info->addr_ipv4           = l_msg->ip_assigment.addr;
-                l_new_info->queue_msg           = s_tun_sockets_queue_msg[l_msg->ip_assigment.worker_id];
+                l_new_info->queue_msg           = s_tun_sockets[l_msg->ip_assigment.worker_id]->msg_queue;
                 l_new_info->usage_id            = l_msg->ip_assigment.usage_id;
                 l_new_info->is_reassigned_once  = l_msg->is_reassigned_once;
                 l_new_info->is_on_this_worker   = (l_msg->ip_assigment.worker_id == a_esocket_queue->worker->id);
@@ -511,11 +511,11 @@ static void s_tun_send_msg_ip_assigned(uint32_t a_worker_own_id, uint32_t a_work
     l_msg->ip_assigment.worker_id = a_ch_vpn->ch->stream_worker->worker->id;
     l_msg->ip_assigment.usage_id = a_ch_vpn->usage_id;
     if(a_worker_own_id != a_worker_id){
-        if (dap_events_socket_queue_ptr_send(s_tun_sockets_queue_msg[a_worker_id], l_msg) != 0){
+        if (dap_events_socket_queue_ptr_send(s_tun_sockets[a_worker_id]->msg_queue, l_msg) != 0){
             log_it(L_WARNING, "Cant send new  ip assign message to the tun msg queue #%u", a_worker_id);
         }
     }else{ // We're sending on our own worker so lets just call the process callback
-        s_tun_recv_msg_callback(s_tun_sockets_queue_msg[a_worker_id], l_msg);
+        s_tun_recv_msg_callback(s_tun_sockets[a_worker_id]->msg_queue, l_msg);
     }
 }
 
@@ -553,11 +553,11 @@ static void s_tun_send_msg_ip_unassigned(uint32_t a_worker_own_id, uint32_t a_wo
 
 
     if( a_worker_own_id != a_worker_id){
-        if ( dap_events_socket_queue_ptr_send(s_tun_sockets_queue_msg[a_worker_id], l_msg) != 0 ) {
+        if ( dap_events_socket_queue_ptr_send(s_tun_sockets[a_worker_id]->msg_queue, l_msg) != 0 ) {
             log_it(L_WARNING, "Cant send new ip unassign message to the tun msg queue #%u", a_worker_id);
         }
     }else{ // We're sending on our own worker so lets just call the process callback
-        s_tun_recv_msg_callback(s_tun_sockets_queue_msg[a_worker_id], l_msg);
+        s_tun_recv_msg_callback(s_tun_sockets[a_worker_id]->msg_queue, l_msg);
     }
 }
 
@@ -574,7 +574,7 @@ static void s_tun_send_msg_ip_unassigned_all(uint32_t a_worker_own_id, dap_chain
 }
 
 /**
- * @brief s_tun_send_msg_esocket_reassigned_inter
+ * @brief s_tun_send_msg_esocket_reassign
  * @param a_worker_own_id Current worker's id
  * @param a_tun_socket
  * @param a_ch_vpn
@@ -583,7 +583,7 @@ static void s_tun_send_msg_ip_unassigned_all(uint32_t a_worker_own_id, dap_chain
  * @param a_addr
  * @param a_esocket_worker_id
  */
-static void s_tun_send_msg_esocket_reassigned_inter(uint32_t a_worker_own_id, dap_chain_net_srv_vpn_tun_socket_t * a_tun_socket,
+static void s_tun_send_msg_esocket_reassign(uint32_t a_worker_own_id, dap_chain_net_srv_vpn_tun_socket_t * a_tun_socket,
                                                    dap_chain_net_srv_ch_vpn_t * a_ch_vpn, dap_events_socket_t * a_esocket,
                                                    dap_events_socket_uuid_t a_esocket_uuid, struct in_addr a_addr)
 {
@@ -601,16 +601,16 @@ static void s_tun_send_msg_esocket_reassigned_inter(uint32_t a_worker_own_id, da
     l_msg->is_reassigned_once = true;
 
     if (a_worker_own_id != a_tun_socket->worker_id){
-        if (dap_events_socket_queue_ptr_send_to_input(a_tun_socket->queue_tun_msg_input[a_tun_socket->worker_id] , l_msg) != 0){
+        if (dap_events_socket_queue_ptr_send(s_tun_sockets[a_tun_socket->worker_id]->msg_queue, l_msg) != 0){
             log_it(L_WARNING, "Cant send esocket reassigment message to the tun msg queue #%u", a_tun_socket->worker_id );
         }else
             log_it(L_DEBUG,"Sent reassign message to tun:%u", a_tun_socket->worker_id);
     }else
-        s_tun_recv_msg_callback(s_tun_sockets_queue_msg[a_tun_socket->worker_id], l_msg);
+        s_tun_recv_msg_callback(s_tun_sockets[a_tun_socket->worker_id]->msg_queue, l_msg);
 }
 
 /**
- * @brief s_tun_send_msg_esocket_reassigned_all_inter
+ * @brief s_tun_send_msg_esocket_reassignd_all_inter
  * @param a_worker_own_id  Current worker id
  * @param a_ch_vpn
  * @param a_esocket
@@ -618,11 +618,11 @@ static void s_tun_send_msg_esocket_reassigned_inter(uint32_t a_worker_own_id, da
  * @param a_addr
  * @param a_worker_id
  */
-static void s_tun_send_msg_esocket_reassigned_all_inter(uint32_t a_worker_own_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, dap_events_socket_t * a_esocket,
+static void s_tun_send_msg_esocket_reassignd_all_inter(uint32_t a_worker_own_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, dap_events_socket_t * a_esocket,
                                                        dap_events_socket_uuid_t a_esocket_uuid, struct in_addr a_addr)
 {
     for( uint32_t i=0; i< s_tun_sockets_count; i++)
-        s_tun_send_msg_esocket_reassigned_inter(a_worker_own_id, s_tun_sockets[i] , a_ch_vpn, a_esocket, a_esocket_uuid, a_addr);
+        s_tun_send_msg_esocket_reassign(a_worker_own_id, s_tun_sockets[i] , a_ch_vpn, a_esocket, a_esocket_uuid, a_addr);
 }
 
 
@@ -647,7 +647,7 @@ static dap_events_socket_t * s_tun_event_stream_create(dap_worker_t * a_worker, 
     dap_events_socket_t * l_es = dap_events_socket_wrap_no_add( a_tun_fd, &l_s_callbacks);
     l_es->type = DESCRIPTOR_TYPE_FILE;
     l_es->no_close = true;
-    dap_events_socket_assign_on_worker_mt(l_es, a_worker);
+    dap_events_socket_assign_on_worker(l_es, a_worker);
 
     return l_es;
 }
@@ -687,7 +687,6 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     log_it(L_NOTICE, "Auto cpu reassignment is set to '%s'", s_raw_server->auto_cpu_reassignment ? "true" : "false");
     log_it(L_INFO, "Trying to initialize multiqueue for %u workers", s_tun_sockets_count);
     s_tun_sockets = DAP_NEW_Z_SIZE(dap_chain_net_srv_vpn_tun_socket_t*,s_tun_sockets_count*sizeof(dap_chain_net_srv_vpn_tun_socket_t*));
-    s_tun_sockets_queue_msg =  DAP_NEW_Z_SIZE(dap_events_socket_t*,s_tun_sockets_count*sizeof(dap_events_socket_t*));
 
     int l_err = 0;
 #if defined (DAP_OS_DARWIN)
@@ -796,18 +795,6 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     while (s_tun_sockets_started != s_tun_sockets_count)
         pthread_cond_wait(&s_tun_sockets_cond_started, &s_tun_sockets_mutex_started);
     pthread_mutex_unlock(&s_tun_sockets_mutex_started);
-
-    // Fill inter tun qyueue
-    // Create for all previous created sockets the input queue
-    for (size_t n=0; n< s_tun_sockets_count; n++){
-        dap_chain_net_srv_vpn_tun_socket_t * l_tun_socket = s_tun_sockets[n];
-        dap_worker_t * l_worker = dap_events_worker_get(n);
-        for (size_t k=0; k< s_tun_sockets_count; k++){
-            dap_events_socket_t * l_queue_msg_input = dap_events_socket_queue_ptr_create_input( s_tun_sockets_queue_msg[n] );
-            l_tun_socket->queue_tun_msg_input[k] = l_queue_msg_input;
-            dap_events_socket_assign_on_worker_mt( l_queue_msg_input, l_worker );
-        }
-    }
 
     char buf[256], l_str_ipv4_gw[INET_ADDRSTRLEN], l_str_ipv4_netmask[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &s_raw_server->ipv4_gw, l_str_ipv4_gw, INET_ADDRSTRLEN);
@@ -1227,7 +1214,7 @@ static void s_ch_vpn_esocket_assigned(dap_events_socket_t *a_es, dap_worker_t *a
         return;
     dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(l_ch);
     assert(l_ch_vpn);
-    s_tun_send_msg_esocket_reassigned_all_inter(a_worker->id, l_ch_vpn, l_ch_vpn->ch->stream->esocket,
+    s_tun_send_msg_esocket_reassignd_all_inter(a_worker->id, l_ch_vpn, l_ch_vpn->ch->stream->esocket,
                                                l_ch_vpn->ch->stream->esocket_uuid, l_ch_vpn->addr_ipv4);
 }
 
@@ -1240,7 +1227,7 @@ static void s_ch_vpn_esocket_unassigned(dap_events_socket_t* a_es, dap_worker_t 
    //dap_chain_net_srv_ch_vpn_info_t * l_info = NULL;
    // HASH_FIND(hh,l_tun_sock->clients,&l_ch_vpn->addr_ipv4 , sizeof (l_ch_vpn->addr_ipv4), l_info);
 
-    s_tun_send_msg_esocket_reassigned_all_inter(a_es->worker->id, l_ch_vpn, l_ch_vpn->ch->stream->esocket,
+    s_tun_send_msg_esocket_reassignd_all_inter(a_es->worker->id, l_ch_vpn, l_ch_vpn->ch->stream->esocket,
                                                l_ch_vpn->ch->stream->esocket_uuid, l_ch_vpn->addr_ipv4);
 }
 
@@ -1291,7 +1278,7 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
         l_usage =  l_srv_session->usage_active;
 
     if (l_usage && l_usage->save_limits_timer){
-        dap_timerfd_delete_mt(l_usage->save_limits_timer->worker, l_usage->save_limits_timer->esocket_uuid);
+        dap_timerfd_delete(l_usage->save_limits_timer->worker, l_usage->save_limits_timer->esocket_uuid);
         l_usage->save_limits_timer = NULL;
     }
     bool l_is_unleased = false;
@@ -1908,7 +1895,7 @@ static void s_es_tun_delete(dap_events_socket_t * a_es, void * arg)
     (void) arg;
     if (a_es->worker) {
         s_tun_sockets[a_es->worker->id] = NULL;
-        dap_events_socket_remove_and_delete_unsafe(s_tun_sockets_queue_msg[a_es->worker->id],false);
+        dap_events_socket_remove_and_delete_unsafe(s_tun_sockets[a_es->worker->id]->msg_queue, false);
         log_it(L_NOTICE,"Destroyed TUN event socket");
     }
 }
@@ -2030,9 +2017,9 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
             if ( !l_vpn_info->is_on_this_worker && !l_vpn_info->is_reassigned_once && s_raw_server->auto_cpu_reassignment) {
                 log_it(L_NOTICE, "Reassigning from worker %u to %u", l_vpn_info->worker->id, a_es->worker->id);
                 l_vpn_info->is_reassigned_once = true;
-                s_tun_send_msg_esocket_reassigned_all_inter(a_es->worker->id, l_vpn_info->ch_vpn, l_vpn_info->esocket, l_vpn_info->esocket_uuid,
+                s_tun_send_msg_esocket_reassignd_all_inter(a_es->worker->id, l_vpn_info->ch_vpn, l_vpn_info->esocket, l_vpn_info->esocket_uuid,
                     l_vpn_info->addr_ipv4);
-                dap_events_socket_reassign_between_workers_mt(l_vpn_info->worker, l_vpn_info->esocket, a_es->worker);
+                dap_events_socket_reassign_between_workers(l_vpn_info->worker, l_vpn_info->esocket->uuid, a_es->worker);
             }
             s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);
         } else if(s_debug_more) {
@@ -2069,12 +2056,10 @@ static void s_es_tun_new(dap_events_socket_t * a_es, void * arg)
         dap_worker_t * l_worker = l_tun_socket->worker = a_es->worker;
         uint32_t l_worker_id = l_tun_socket->worker_id = l_worker->id;
         l_tun_socket->es = a_es;
+        l_tun_socket->msg_queue = dap_context_create_queue(l_worker->context, s_tun_recv_msg_callback);
 
-        s_tun_sockets_queue_msg[l_worker_id] = dap_context_create_queue(l_worker->context, s_tun_recv_msg_callback );
         s_tun_sockets[l_worker_id] = l_tun_socket;
 
-        l_tun_socket->queue_tun_msg_input = DAP_NEW_Z_SIZE(dap_events_socket_t*,sizeof(dap_events_socket_t*)*
-                                                            dap_events_thread_get_count());
         a_es->_inheritor = l_tun_socket;
 
 #if !defined(DAP_OS_DARWIN) && (defined(DAP_OS_LINUX) || defined (DAP_OS_BSD))

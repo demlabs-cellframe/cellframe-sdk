@@ -95,7 +95,7 @@ typedef struct dap_chain_net_srv_vpn_tun_socket {
     dap_worker_t * worker;
     dap_events_socket_t * es;
     dap_chain_net_srv_ch_vpn_info_t * clients; // Remote clients identified by destination address
-    dap_events_socket_t ** queue_tun_msg_input;
+    dap_events_socket_t *msg_queue;
     size_t buf_size_aux;
     //UT_hash_handle hh;
 }dap_chain_net_srv_vpn_tun_socket_t;

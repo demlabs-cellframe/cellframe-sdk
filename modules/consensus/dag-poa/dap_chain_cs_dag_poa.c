@@ -79,6 +79,7 @@ typedef struct dap_chain_cs_dag_poa_pvt {
 
 static void s_callback_delete(dap_chain_cs_dag_t * a_dag);
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
+static int s_callback_start(dap_chain_t *a_chain);
 static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_cfg);
 static int s_callback_event_verify(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_t *a_dag_event, dap_hash_fast_t *a_event_hash);
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
@@ -107,7 +108,8 @@ static bool s_debug_more = false;
 int dap_chain_cs_dag_poa_init()
 {
     dap_chain_cs_callbacks_t l_callbacks = { .callback_init = s_callback_new,
-                                             .callback_load = s_callback_created };
+                                             .callback_load = s_callback_created,
+                                             .callback_start = s_callback_start};
     dap_chain_cs_add("dag_poa", l_callbacks); // Add consensus constructor
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, "DAG PoA commands",
@@ -723,7 +725,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
  * delete dap_chain_cs_dag_poa_pvt_t callback
  * @param a_dag dap_chain_cs_dag_t object
  */
-static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
+static void s_callback_delete(dap_chain_cs_dag_t *a_dag)
 {
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA ( a_dag );
 
@@ -747,6 +749,17 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
     if ( l_poa->_inheritor ) {
        DAP_DELETE ( l_poa->_inheritor );
     }
+}
+
+/**
+ * @brief
+ * @param a_chain dap_chain_t object
+ */
+static int s_callback_start(dap_chain_t *a_chain)
+{
+    dap_return_val_if_pass(!a_chain || !a_chain->_inheritor, -1);
+    dap_chain_cs_dag_start((dap_chain_cs_dag_t *)(a_chain->_inheritor));
+    return 0;
 }
 
 /**

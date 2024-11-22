@@ -864,10 +864,9 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
 static dap_tsd_t* s_chain_node_cli_com_node_create_tsd_addr(char **a_argv, int a_arg_start, int a_arg_end, void **a_str_reply, const char *a_specified_decree) {
     const char *l_ban_addr_str = NULL;
     if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-addr", &l_ban_addr_str)) {
-        dap_chain_addr_t *l_format = dap_chain_addr_from_str(l_ban_addr_str);
-        if (!l_format)
+        dap_stream_node_addr_t l_addr = {0};
+        if (dap_stream_node_addr_from_str(&l_addr, l_ban_addr_str))
             return dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't convert the -addr option value to node address"), NULL;
-        DAP_DELETE(l_format);
         return dap_tsd_create_string(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING, l_ban_addr_str);
     } else if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-host", &l_ban_addr_str))
         return dap_tsd_create_string(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST, l_ban_addr_str);
@@ -1160,7 +1159,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                     l_node_addr.uint64 = l_remote_node_addr->uint64;
 
                     // clean client struct
-                    dap_chain_node_client_close_mt(l_node_client);
+                    dap_chain_node_client_close(l_node_client);
                     DAP_DELETE(l_remote_node_info);
                     //return -1;
                     continue;
@@ -1182,7 +1181,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "no response from remote node(s)");
             log_it(L_WARNING, "No response from remote node(s): err code %d", res);
             // clean client struct
-            dap_chain_node_client_close_mt(l_node_client);
+            dap_chain_node_client_close(l_node_client);
             //DAP_DELETE(l_remote_node_info);
             return -1;
         }
@@ -1202,7 +1201,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                 sizeof(l_sync_request))) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
             // clean client struct
-            dap_chain_node_client_close_mt(l_node_client);
+            dap_chain_node_client_close(l_node_client);
             DAP_DELETE(l_remote_node_info);
             return -1;
         }
@@ -1214,7 +1213,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         if(res < 0) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: can't sync with node "NODE_ADDR_FP_STR,
                                             NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
-            dap_chain_node_client_close_mt(l_node_client);
+            dap_chain_node_client_close(l_node_client);
             DAP_DELETE(l_remote_node_info);
             log_it(L_WARNING, "Gdb synced err -2");
             return -2;
@@ -1237,7 +1236,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                     sizeof(l_sync_request))) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
                 // clean client struct
-                dap_chain_node_client_close_mt(l_node_client);
+                dap_chain_node_client_close(l_node_client);
                 DAP_DELETE(l_remote_node_info);
                 log_it(L_INFO, "Chain '%s' synced error: Can't send sync chains request", l_chain->name);
                 return -3;
@@ -1257,7 +1256,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         DAP_DELETE(l_remote_node_info);
         //dap_client_disconnect(l_node_client->client);
         //l_node_client->client = NULL;
-        dap_chain_node_client_close_mt(l_node_client);
+        dap_chain_node_client_close(l_node_client);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Node sync completed: Chains and gdb are synced");
         return 0;
 
@@ -8803,20 +8802,20 @@ struct json_object *wallets_info_json_collect() {
 
 void dap_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void *a_arg) {
     struct json_object *l_json_nets = dap_chain_net_list_json_collect();
-    dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_nets));
+    dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_nets));
     json_object_put(l_json_nets);
     struct json_object *l_json_nets_info = dap_chain_nets_info_json_collect();
-    dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_nets_info));
+    dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_nets_info));
     json_object_put(l_json_nets_info);
     struct json_object *l_json_wallets = wallet_list_json_collect();
-    dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallets));
+    dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallets));
     json_object_put(l_json_wallets);
     struct json_object *l_json_wallets_info = wallets_info_json_collect();
-    dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallets_info));
+    dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallets_info));
     json_object_put(l_json_wallets_info);
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
         struct json_object *l_json_net_states = dap_chain_net_states_json_collect(l_net);
-        dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_net_states));
+        dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_net_states));
         json_object_put(l_json_net_states);
     }
 }
