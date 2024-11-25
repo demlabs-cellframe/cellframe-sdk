@@ -27,6 +27,7 @@
 #include <stdio.h>
 
 #include "dap_common.h"
+#include "dap_enc_base58.h"
 #include "dap_math_ops.h"
 #include "dap_math_convert.h"
 #include "dap_enc_key.h"
@@ -124,6 +125,14 @@ typedef struct dap_chain_addr{
     dap_chain_hash_fast_t checksum;
 } DAP_ALIGN_PACKED dap_chain_addr_t;
 
+typedef union dap_chain_addr_str {
+    const char s[DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_addr_t))];
+} dap_chain_addr_str_t;
+
+typedef union dap_chain_token_ticker_str {
+    const char s[DAP_CHAIN_TICKER_SIZE_MAX];
+} dap_chain_token_ticker_str_t;
+
 #define DAP_CHAIN_NET_SRV_UID_SIZE 8
 
 typedef union {
@@ -211,9 +220,10 @@ extern "C" {
 #endif
 
 size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
-
-const char *dap_chain_addr_to_str_static(const dap_chain_addr_t *a_addr);
+dap_chain_addr_str_t dap_chain_addr_to_str_static_(const dap_chain_addr_t *a_addr);
+#define dap_chain_addr_to_str_static(a) dap_chain_addr_to_str_static_(a).s
 #define dap_chain_addr_to_str dap_chain_addr_to_str_static
+
 dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 
