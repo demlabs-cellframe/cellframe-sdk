@@ -85,7 +85,7 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_datum_t
     if (l_signs_verified < a_cond->subtype.srv_emit_delegate.signers_minimum) {
         log_it(L_WARNING, "Not enough valid signs (%u from %u) for delegated emission in tx %s",
                                     l_signs_verified, a_cond->subtype.srv_emit_delegate.signers_minimum, dap_hash_fast_to_str_static(a_tx_in_hash));
-        return -2;
+        return DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS;
     }
     return 0;
 }
