@@ -3779,21 +3779,16 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, sizeof(l_pkey_hash_str));
                 dap_chain_net_srv_stake_item_t *l_stake = NULL;
                 HASH_FIND(hh, l_srv_stake->itemlist, &l_pkey_hash, sizeof(dap_hash_fast_t), l_stake);
-                if (a_addr) {
-                    if (!l_stake || !dap_chain_addr_compare(a_addr, &l_stake->signing_addr)) {
-                        json_object_put(json_arr_sign_out);
-                        json_object_put(json_block_hash);
-                        json_arr_sign_out = NULL;
-                        json_block_hash = NULL;
-                        continue;
-                    }
-                } else if (!a_all && a_pkey){
-                    if (!dap_hash_fast_compare(a_pkey, &l_pkey_hash)) {
-                        json_object_put(json_arr_sign_out);
-                        json_object_put(json_block_hash);
-                        json_arr_sign_out = NULL;
-                        json_block_hash = NULL;
-                        continue;
+                if (a_addr || (!a_all && a_pkey)) {
+                    if (!l_stake || (a_addr && !dap_chain_addr_compare(a_addr, &l_stake->signing_addr)) 
+                                 || (!a_addr && !dap_hash_fast_compare(a_pkey, &l_pkey_hash))) {
+                        if (json_object_array_length(json_arr_sign_out) == 0) {
+                            json_object_put(json_arr_sign_out);
+                            json_object_put(json_block_hash);
+                            json_arr_sign_out = NULL;
+                            json_block_hash = NULL;
+                        }                        
+                        continue;                    
                     }
                 }
 
