@@ -639,13 +639,15 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             dap_nanotime_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_ts);
             char *l_value_hexdump = dap_dump_hex(l_value_out, l_out_len);
             if (l_value_hexdump) {
+                char *l_value_hexdump_new = dap_strdup_printf("\n%s", l_value_hexdump);
                 json_object* json_obj_read = json_object_new_object();
                 json_object_object_add(json_obj_read, "group", json_object_new_string(l_group_str));
                 json_object_object_add(json_obj_read, "key", json_object_new_string(l_key_str));
                 json_object_object_add(json_obj_read, "time", json_object_new_string(l_ts_str));
                 json_object_object_add(json_obj_read, "value len", json_object_new_uint64(l_out_len));
-                json_object_object_add(json_obj_read, "value hex", json_object_new_string(l_value_hexdump));
+                json_object_object_add(json_obj_read, "value hex", json_object_new_string(l_value_hexdump_new));
                 json_object_array_add(*a_json_arr_reply, json_obj_read);
+                DAP_DELETE(l_value_hexdump_new);
                 DAP_DELETE(l_value_hexdump);
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_TIME_NO_VALUE,
