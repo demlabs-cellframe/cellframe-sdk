@@ -7315,9 +7315,9 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
             json_object_object_add(l_jobj_result, "warning", l_obj_wgn_str);
         }
     }
-    const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+    const dap_chain_addr_t *l_addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
-    if(!addr_from) {
+    if(!l_addr_from) {
         DAP_DELETE(l_addr_to);
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_priv_key);
@@ -7330,25 +7330,25 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID;
     }
 
-    if (addr_from && dap_chain_addr_compare(l_addr_to, addr_from)) {
-        DAP_DELETE(l_addr_to);
-        dap_chain_wallet_close(l_wallet);
-        dap_enc_key_delete(l_priv_key);
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS, "The transaction cannot be directed to the same address as the source.");
-        json_object_put(l_jobj_result);
-        for (size_t i = 0; i < l_addr_el_count; ++i) {
-                DAP_DELETE(l_addr_to[i]);
+    for (size_t i = 0; i < l_addr_el_count; ++i) {
+        if (dap_chain_addr_compare(l_addr_to[i], l_addr_from)) {
+            dap_chain_wallet_close(l_wallet);
+            dap_enc_key_delete(l_priv_key);
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS, "The transaction cannot be directed to the same address as the source.");
+            json_object_put(l_jobj_result);
+            for (size_t j = 0; j < l_addr_el_count; ++j) {
+                    DAP_DELETE(l_addr_to[j]);
+            }
+            DAP_DEL_MULTY(l_addr_to, l_value);
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS;
         }
-        DAP_DEL_MULTY(l_addr_to, l_value);
-        return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS;
     }
 
     for (size_t i = 0; i < l_addr_el_count; ++i) {
         if (l_addr_to[i]->net_id.uint64 != l_net->pub.id.uint64 && !dap_chain_addr_is_blank(l_addr_to)) {
             bool l_found = false;
-            int i;
-            for (i = 0; i < l_net->pub.bridged_networks_count; ++i) {
-                if (l_net->pub.bridged_networks[i].uint64 == l_addr_to[i]->net_id.uint64) {
+            for (size_t j = 0; j < l_net->pub.bridged_networks_count; ++j) {
+                if (l_net->pub.bridged_networks[j].uint64 == l_addr_to[i]->net_id.uint64) {
                     l_found = true;
                     break;
                 }
@@ -7356,18 +7356,18 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
             if (!l_found) {
                 dap_string_t *l_allowed_list = dap_string_new("");
                 dap_string_append_printf(l_allowed_list, "0x%016"DAP_UINT64_FORMAT_X, l_net->pub.id.uint64);
-                for (i = 0; i < l_net->pub.bridged_networks_count; ++i)
-                    dap_string_append_printf(l_allowed_list, ", 0x%016"DAP_UINT64_FORMAT_X, l_net->pub.bridged_networks[i].uint64);
+                for (size_t j = 0; j < l_net->pub.bridged_networks_count; ++j)
+                    dap_string_append_printf(l_allowed_list, ", 0x%016"DAP_UINT64_FORMAT_X, l_net->pub.bridged_networks[j].uint64);
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_NETWORK_IS_UNREACHEBLE,
                                     "Destination network ID=0x%"DAP_UINT64_FORMAT_x
                                     " is unreachable. List of available network IDs:\n%s"
                                     " Please, change network name or wallet address",
-                                    l_addr_to[0]->net_id.uint64, l_allowed_list->str);
+                                    l_addr_to[i]->net_id.uint64, l_allowed_list->str);
                 dap_string_free(l_allowed_list, true);
                 json_object_put(l_jobj_result);
 
-                for (size_t i = 0; i < l_addr_el_count; ++i) {
-                        DAP_DELETE(l_addr_to[i]);
+                for (size_t j = 0; j < l_addr_el_count; ++j) {
+                        DAP_DELETE(l_addr_to[j]);
                 }
                 DAP_DEL_MULTY(l_addr_to, l_value);
                 return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_NETWORK_IS_UNREACHEBLE;
@@ -7380,12 +7380,12 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
 
     l_priv_key = dap_chain_wallet_get_key(l_wallet, 0);
     if(l_tx_num){
-        l_ret = dap_chain_mempool_tx_create_massive(l_chain, l_priv_key, addr_from,
+        l_ret = dap_chain_mempool_tx_create_massive(l_chain, l_priv_key, l_addr_from,
                                                   l_addr_to[0], l_token_ticker, l_value[0], l_value_fee, l_tx_num);
         l_jobj_transfer_status = json_object_new_string((l_ret == 0) ? "Ok" : (l_ret == -2) ? "False, not enough funds for transfer" : "False");
         json_object_object_add(l_jobj_result, "transfer", l_jobj_transfer_status);
     } else {
-        char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, addr_from, (const dap_chain_addr_t **)l_addr_to,
+        char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, l_addr_from, (const dap_chain_addr_t **)l_addr_to,
                                                                   l_token_ticker, l_value, l_value_fee, l_hash_out_type, l_addr_el_count);
         if (l_tx_hash_str) {
             l_jobj_transfer_status = json_object_new_string("Ok");
