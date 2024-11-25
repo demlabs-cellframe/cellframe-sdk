@@ -428,66 +428,6 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             cmd_name = CMD_GROUP_LIST;
 
     switch (cmd_name) {
-    case CMD_NAME_CELL:
-    {
-
-        if(!arg_index || a_argc < 3) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "parameters are not valid");
-            return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
-        }
-        dap_chain_t * l_chain = NULL;
-        dap_chain_net_t * l_net = NULL;
-
-        if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_INVALID) < 0)
-            return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
-
-        const char *l_cell_str = NULL, *l_chain_str = NULL;
-        // find cell and chain
-        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cell", &l_cell_str);
-
-        int arg_index_n = ++arg_index;
-        // find command (add, delete, etc) as second parameter only
-        int cmd_num = CMD_NONE;
-        switch (cmd_name) {
-            case CMD_NAME_CELL:
-                if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "add", NULL))
-                        != 0) {
-                    cmd_num = CMD_ADD;
-                }
-                dap_chain_cell_id_t l_cell_id = { {0} };
-                if(l_cell_str) {
-                    dap_digit_from_string(l_cell_str, (uint8_t*) &l_cell_id.raw, sizeof(l_cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
-                }
-
-                switch (cmd_num)
-                {
-                // add new node to global_db
-                case CMD_ADD:
-                    if(!arg_index || a_argc < 7) {
-                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "invalid parameters");
-                        return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
-                    }
-                    dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_cell_id);
-                    int l_ret = (int)dap_chain_cell_file_update(l_cell);
-                    if ( l_ret > 0 )
-                    {
-                        json_object* json_obj_name = json_object_new_object();
-                        json_object_object_add(json_obj_name, "comand status", json_object_new_string("cell added successfully"));
-                        json_object_array_add(*a_json_arr_reply, json_obj_name);
-                    }
-                    else
-                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_CAN_CREATE_CELL_ERR, "can't create file for cell 0x%016"DAP_UINT64_FORMAT_X" ( %s )",
-                                l_cell->id.uint64,l_cell->file_storage_path);
-                    dap_chain_cell_close(l_cell);
-                    return l_ret;
-
-                //case CMD_NONE:
-                default:
-                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_COMMAND_ERR, "command %s not recognized", a_argv[1]);
-                    return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_COMMAND_ERR;
-                }
-        }
-    }
     case CMD_FLUSH:
     {
         json_object* json_obj_flush = NULL;
