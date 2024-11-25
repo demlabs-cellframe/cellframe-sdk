@@ -65,14 +65,20 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
         return log_it(L_ERROR, "Can't init CLI server!"), -1;
 
     dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database",
-            "global_db cells add -cell <cell_id> \n"
-            "global_db flush \n\n"
+            "global_db flush\n"
+                "\tFlushes the current state of the database to disk.\n\n"
             "global_db write -group <group_name> -key <key_name> -value <value>\n"
+                "\tWrites a key value to a specified group in the database.\n\n"
             "global_db read -group <group_name> -key <key_name>\n"
+                "\tReads a value by key from a specified group\n\n"
             "global_db delete -group <group_name> -key <key_name>\n"
+                "\tRemoves a value by key from a specified group\n\n"
             "global_db group_list\n"
+                "\tGets a list of groups in the database.\n\n"
             "global_db drop_table -group <group_name>\n"
-            "global_db get_keys -group <group_name>"
+                "\tPerforms deletion of the entire group in the database\n\n"
+            "global_db get_keys -group <group_name>\n"
+                "\tGets all record keys from a specified group\n"
 
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
