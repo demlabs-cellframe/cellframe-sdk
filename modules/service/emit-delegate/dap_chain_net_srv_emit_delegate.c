@@ -33,7 +33,7 @@
 #include "dap_chain_net_srv_emit_delegate.h"
 
 enum emit_delegation_error {
-    NO_ERROR = 0,
+    DAP_NO_ERROR = 0,
     ERROR_MEMORY,
     ERROR_OVERFLOW,
     ERROR_PARAM,
@@ -452,7 +452,7 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object_object_add(l_json_obj_create_val, "tx_hash", json_object_new_string(l_tx_hash_str));
     json_object_array_add(*a_json_arr_reply, l_json_obj_create_val);
     DAP_DELETE(l_tx_hash_str);
-    return NO_ERROR;
+    return DAP_NO_ERROR;
 }
 
 static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
@@ -538,7 +538,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object_object_add(l_json_obj_create_val, "tx_hash", json_object_new_string(l_tx_hash_str));
     json_object_array_add(*a_json_arr_reply, l_json_obj_create_val);
     DAP_DELETE(l_tx_hash_str);
-    return NO_ERROR;
+    return DAP_NO_ERROR;
 }
 
 static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
@@ -596,7 +596,7 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object_object_add(l_json_obj_create_val, "tx_hash", json_object_new_string(l_tx_hash_str));
     json_object_array_add(*a_json_arr_reply, l_json_obj_create_val);
     DAP_DELETE(l_tx_hash_str);
-    return NO_ERROR;
+    return DAP_NO_ERROR;
 }
 
 /**
