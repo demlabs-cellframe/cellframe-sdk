@@ -509,6 +509,7 @@ void dap_chain_net_balancer_request(void *a_arg)
             DAP_DELETE(l_ignored_addrs);
         }
         // request prepare
+        const char *l_net_name = l_arg->net->pub.name, *l_bal_type = dap_chain_net_balancer_type_to_str(l_arg->type);
         char *l_request = dap_strdup_printf("%s/%s?version=%d,method=r,needlink=%d,net=%s,ignored=%s",
                                                 DAP_UPLINK_PATH_BALANCER,
                                                 DAP_BALANCER_URI_HASH,
@@ -516,14 +517,10 @@ void dap_chain_net_balancer_request(void *a_arg)
                                                 (int)l_required_links_count,
                                                 l_arg->net->pub.name,
                                                 l_ignored_addrs_str ? l_ignored_addrs_str : "");
-        if (! dap_client_http_request(l_arg->worker, l_arg->host_addr, l_arg->host_port,
-                                       "GET", "text/text", l_request, NULL, 0, NULL,
-                                       s_http_balancer_link_prepare_success, s_http_balancer_link_prepare_error,
-                                       l_arg, NULL) )
-        {
-            log_it(L_ERROR, "Can't process balancer link %s request in net %s",
-                            dap_chain_net_balancer_type_to_str(l_arg->type), l_arg->net->pub.name);
-        }
+        if (! dap_client_http_request(l_arg->worker, l_arg->host_addr, l_arg->host_port, "GET", "text/text",
+                                      l_request, NULL, 0, NULL, s_http_balancer_link_prepare_success, 
+                                      s_http_balancer_link_prepare_error, l_arg, NULL) )
+            log_it(L_ERROR, "Can't process balancer link %s request in net %s", l_bal_type, l_net_name);
         DAP_DEL_MULTY(l_ignored_addrs_str, l_request);
     } else {
         l_arg->host_port = DNS_LISTEN_PORT;

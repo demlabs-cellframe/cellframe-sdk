@@ -625,14 +625,14 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
         l_tsd = (dap_tsd_t *)((byte_t *)l_tsd + l_tsd_size);
         l_tsd_size = dap_tsd_size(l_tsd);
         if (l_offset + l_tsd_size > a_tsd_total_size || l_offset + l_tsd_size < l_offset) {
-            log_it(L_WARNING, "Wrong TSD size %zu, exiting TSD parse", l_tsd_size);
+            log_it(L_WARNING, "Wrong TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
             return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
         }
         switch (l_tsd->type) {
         // set flags
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS: {
             if (l_tsd->size != sizeof(uint16_t)) {
-                log_it(L_WARNING, "Wrong SET_FLAGS TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong SET_FLAGS TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             if (!a_apply)
@@ -643,7 +643,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
         // unset flags
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS: {
             if (l_tsd->size != sizeof(uint16_t)) {
-                log_it(L_WARNING, "Wrong UNSET_FLAGS TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong UNSET_FLAGS TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             if (!a_apply)
@@ -654,7 +654,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
         // set total supply
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: { // 256
             if (l_tsd->size != sizeof(uint256_t)) {
-                log_it(L_WARNING, "Wrong TOTAL_SUPPLY TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TOTAL_SUPPLY TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             if (!a_item_apply_to) {
@@ -675,7 +675,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
         // Allowed tx receiver addres list add, remove or clear
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong TX_RECEIVER_ALLOWED_ADD TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TX_RECEIVER_ALLOWED_ADD TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             // Check if its correct
@@ -714,7 +714,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong TX_RECEIVER_ALLOWED_REMOVE TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TX_RECEIVER_ALLOWED_REMOVE TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             // Check if its correct
@@ -757,7 +757,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_CLEAR: {
             if (l_tsd->size != 0) {
-                log_it(L_WARNING, "Wrong TX_RECEIVER_ALLOWED_CLEAR TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TX_RECEIVER_ALLOWED_CLEAR TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             DAP_DEL_Z(l_new_tx_recv_allow);
@@ -768,7 +768,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
         // Blocked tx receiver addres list add, remove or clear
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong TX_RECEIVER_BLOCKED_ADD TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TX_RECEIVER_BLOCKED_ADD TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             // Check if its correct
@@ -807,7 +807,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong TX_RECEIVER_BLOCKED_REMOVE TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TX_RECEIVER_BLOCKED_REMOVE TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             // Check if its correct
@@ -850,7 +850,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_CLEAR: {
             if (l_tsd->size != 0) {
-                log_it(L_WARNING, "Wrong TX_RECEIVER_BLOCKED_CLEAR TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TX_RECEIVER_BLOCKED_CLEAR TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             DAP_DEL_Z(l_new_tx_recv_block);
@@ -861,7 +861,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
         // Blocked tx sender addres list add, remove or clear
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong TX_SENDER_ALLOWED_ADD TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TX_SENDER_ALLOWED_ADD TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             // Check if its correct
@@ -900,7 +900,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong TX_SENDER_ALLOWED_REMOVE TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TX_SENDER_ALLOWED_REMOVE TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             // Check if its correct
@@ -944,7 +944,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_CLEAR: {
             if (l_tsd->size != 0) {
-                log_it(L_WARNING, "Wrong TX_SENDER_ALLOWED_CLEAR TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TX_SENDER_ALLOWED_CLEAR TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             DAP_DEL_Z(l_new_tx_send_allow);
@@ -955,7 +955,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
         // Blocked tx sender addres list add, remove or clear
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong TX_SENDER_BLOCKED_ADD TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TX_SENDER_BLOCKED_ADD TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             // Check if its correct
@@ -996,7 +996,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE: {
             if (l_tsd->size != sizeof(dap_chain_addr_t)) {
-                log_it(L_WARNING, "Wrong TX_SENDER_BLOCKED_REMOVE TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TX_SENDER_BLOCKED_REMOVE TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             // Check if its correct
@@ -1039,7 +1039,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_CLEAR: {
             if (l_tsd->size != 0) {
-                log_it(L_WARNING, "Wrong TX_SENDER_BLOCKED_CLEAR TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TX_SENDER_BLOCKED_CLEAR TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             DAP_DEL_Z(l_new_tx_send_block);
@@ -1049,7 +1049,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION: {
             if (l_tsd->size == 0 || l_tsd->data[l_tsd->size - 1] != 0) {
-                log_it(L_ERROR, "Wrong TOKEN_DESCRIPTION TSD format or size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_ERROR, "Wrong TOKEN_DESCRIPTION TSD format or size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             if (!a_apply)
@@ -1061,7 +1061,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
         // Set signs count value need to emission be valid
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID: {
             if (l_tsd->size != sizeof(uint16_t)) {
-                log_it(L_WARNING, "Wrong SIGNS_VALID TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong SIGNS_VALID TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             l_new_signs_valid = dap_tsd_get_scalar(l_tsd, uint16_t);
@@ -1069,7 +1069,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD: {
             if (l_tsd->size < sizeof(dap_pkey_t) || l_tsd->size != dap_pkey_get_size((dap_pkey_t *)l_tsd->data)) {
-                log_it(L_WARNING, "Wrong TOTAL_PKEYS_ADD TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TOTAL_PKEYS_ADD TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             if (!l_new_pkeys && l_new_signs_total && !l_was_pkeys_copied) {
@@ -1142,7 +1142,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE: {
             if (l_tsd->size != sizeof(dap_hash_t)) {
-                log_it(L_WARNING, "Wrong TOTAL_PKEYS_REMOVE TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong TOTAL_PKEYS_REMOVE TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             if (!l_new_pkeys && l_new_signs_total && !l_was_pkeys_copied) {
@@ -1201,7 +1201,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             if (l_tsd->size != sizeof(dap_chain_datum_token_tsd_delegate_from_stake_lock_t) &&
                     l_tsd->size != sizeof(dap_chain_datum_token_tsd_delegate_from_stake_lock_t) + 256 /* Legacy size */) {
-                log_it(L_WARNING, "Wrong DELEGATE_EMISSION_FROM_STAKE_LOCK TSD size %zu, exiting TSD parse", l_tsd_size);
+                log_it(L_WARNING, "Wrong DELEGATE_EMISSION_FROM_STAKE_LOCK TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
             dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_delegate = dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
@@ -1410,21 +1410,21 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         dap_sign_t *l_sign = (dap_sign_t *)(l_signs_ptr + l_signs_size);
         if (l_signs_offset + l_signs_size + sizeof(dap_sign_t) > l_token_size ||
                 l_signs_offset + l_signs_size + sizeof(dap_sign_t) < l_signs_offset) {
-            log_it(L_WARNING, "Incorrect size %zu of datum token, expected at least %zu", l_token_size,
+            log_it(L_WARNING, "Incorrect size %"DAP_UINT64_FORMAT_U" of datum token, expected at least %zu", l_token_size,
                                                     l_signs_offset + l_signs_size + sizeof(dap_sign_t));
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_INVALID_SIZE;
         }
         uint64_t l_sign_size = dap_sign_get_size(l_sign);
         if (!l_sign_size || l_sign_size + l_signs_size < l_signs_size) {
-            log_it(L_WARNING, "Incorrect size %zu of datum token sign", l_sign_size);
+            log_it(L_WARNING, "Incorrect size %"DAP_UINT64_FORMAT_U" of datum token sign", l_sign_size);
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_INVALID_SIZE;
         }
         l_signs_size += l_sign_size;
     }
     if (l_token_size != l_signs_offset + l_signs_size) {
-        log_it(L_WARNING, "Incorrect size %zu of datum token, expected %zu", l_token_size, l_signs_offset + l_signs_size);
+        log_it(L_WARNING, "Incorrect size %"DAP_UINT64_FORMAT_U" of datum token, expected %zu", l_token_size, l_signs_offset + l_signs_size);
         DAP_DELETE(l_token);
         return DAP_LEDGER_CHECK_INVALID_SIZE;
     }
@@ -2585,42 +2585,23 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
     pthread_mutex_init(&l_ledger_pvt->load_mutex, NULL);
 
 #ifndef DAP_LEDGER_TEST
-    char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), a_net->pub.name);
-    DIR * l_chains_dir = opendir(l_chains_path);
-    DAP_DEL_Z(l_chains_path);
-
-    struct dirent * l_dir_entry;
-    while ( (l_dir_entry = readdir(l_chains_dir) )!= NULL ){
-        if (l_dir_entry->d_name[0] == '\0')
-            continue;
-        char * l_entry_name = dap_strdup(l_dir_entry->d_name);
-        if (strlen(l_entry_name) > 4) {
-            if ( strncmp (l_entry_name + strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
-                l_entry_name [strlen(l_entry_name)-4] = 0;
-                log_it(L_DEBUG,"Open chain config \"%s.%s\"...", a_net->pub.name, l_entry_name);
-                l_chains_path = dap_strdup_printf("network/%s/%s", a_net->pub.name, l_entry_name);
-                dap_config_t * l_cfg = dap_config_open(l_chains_path);
-                uint16_t l_whitelist_size, l_blacklist_size, i;
-                const char **l_whitelist = dap_config_get_array_str(l_cfg, "ledger", "hard_accept_list", &l_whitelist_size),
-                           **l_blacklist = dap_config_get_array_str(l_cfg, "ledger", "hard_reject_list", &l_blacklist_size);
-                for (i = 0; i < l_blacklist_size; ++i) {
-                    dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
-                    dap_chain_hash_fast_from_str(l_blacklist[i], &l_item->hash);
-                    HASH_ADD(hh, l_ledger_pvt->hrl_items, hash, sizeof(dap_hash_fast_t), l_item);
-                }
-                for (i = 0; i < l_whitelist_size; ++i) {
-                    dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
-                    dap_chain_hash_fast_from_str(l_whitelist[i], &l_item->hash);
-                    HASH_ADD(hh, l_ledger_pvt->hal_items, hash, sizeof(dap_hash_fast_t), l_item);
-                }
-                dap_config_close(l_cfg);
-                log_it(L_DEBUG, "Chain %s.%s has %d datums in HAL and %d datums in HRL", a_net->pub.name, l_entry_name, l_whitelist_size, l_blacklist_size);
-            }
+    for ( dap_chain_t *l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next ) {
+        uint16_t l_whitelist_size, l_blacklist_size, i;
+        const char **l_whitelist = dap_config_get_array_str(l_chain->config, "ledger", "hard_accept_list", &l_whitelist_size),
+                   **l_blacklist = dap_config_get_array_str(l_chain->config, "ledger", "hard_reject_list", &l_blacklist_size);
+        for (i = 0; i < l_blacklist_size; ++i) {
+            dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
+            dap_chain_hash_fast_from_str(l_blacklist[i], &l_item->hash);
+            HASH_ADD(hh, l_ledger_pvt->hrl_items, hash, sizeof(dap_hash_fast_t), l_item);
         }
-        DAP_DELETE (l_entry_name);
-    }
-    closedir(l_chains_dir);
+        for (i = 0; i < l_whitelist_size; ++i) {
+            dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
+            dap_chain_hash_fast_from_str(l_whitelist[i], &l_item->hash);
+            HASH_ADD(hh, l_ledger_pvt->hal_items, hash, sizeof(dap_hash_fast_t), l_item);
+        }
+        log_it(L_DEBUG, "Chain %s.%s has %d datums in HAL and %d datums in HRL", a_net->pub.name, l_chain->name, l_whitelist_size, l_blacklist_size);
 
+    }
     if ( l_ledger_pvt->cached )
         // load ledger cache from GDB
         dap_ledger_load_cache(l_ledger);
