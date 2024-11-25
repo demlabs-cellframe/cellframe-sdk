@@ -1274,3 +1274,14 @@ int dap_chain_wallet_add_wallet_created_notify(dap_chain_wallet_opened_callback_
 
     return 0;
 }
+
+int dap_chain_wallet_get_pkey_hash(dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_out_hash)
+{
+    dap_return_val_if_fail(a_wallet && a_out_hash , -1);
+    dap_enc_key_t *l_key = dap_chain_wallet_get_key(a_wallet, 0);
+    if (!l_key)
+        return -2;
+    int ret = dap_enc_key_get_pkey_hash(l_key, a_out_hash);
+    DAP_DELETE(l_key);
+    return ret;
+}

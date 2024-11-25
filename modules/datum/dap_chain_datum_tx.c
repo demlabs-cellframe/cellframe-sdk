@@ -237,15 +237,17 @@ int dap_chain_datum_tx_add_sign_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t 
 /**
  * Verify all sign item in transaction
  *
- * return 0: OK, -1, -2: Size check error, -3: Sign verify error, -4: Not found signature
+ * return 0: OK, -1: Sign verify error, -2, -3: Size check error, -4: Not found signature
  */
-int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx)
+int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
 {
     dap_return_val_if_pass(!a_tx, -1);
-    int l_ret = -4;
+    int l_ret = -4, l_sign_num = 0;
     byte_t *l_item; size_t l_item_size;
     TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
         if (*l_item != TX_ITEM_TYPE_SIG)
+            continue;
+        if (l_sign_num++ != a_sign_num)
             continue;
         dap_chain_tx_sig_t *l_sign_item = (dap_chain_tx_sig_t *)l_item;
         dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sign_item);
@@ -256,7 +258,7 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx)
             a_tx->header.tx_items_size = 0;
         l_ret = dap_sign_verify_all(l_sign, l_item_size, l_data_ptr, l_data_size);
         a_tx->header.tx_items_size = l_tx_items_size;
-        if (l_ret < 1)
+        if (l_ret < -1)
             log_it(L_WARNING, "Incorrect signature header, possible corrupted data");
         break;
     }
