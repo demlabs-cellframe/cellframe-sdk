@@ -1349,7 +1349,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
         return -DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
     }
 
-    if(dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &arg_index, argc, argv, &l_chain, &l_net,CHAIN_TYPE_TX) < 0)
+    if(dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &arg_index, argc, argv, &l_chain, &l_net,CHAIN_TYPE_TOKEN) < 0)
         return -DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
 
     if ((l_net == NULL) || (l_chain == NULL)){
