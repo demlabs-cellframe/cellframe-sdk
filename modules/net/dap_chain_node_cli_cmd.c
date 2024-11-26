@@ -8793,81 +8793,128 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
 }
 
 static int s_print_last_n_lines(const char *filename, int N, json_object* a_json_arr_out) {
-    if (N <= 0) {
-        return -3;
-    }
 
-    FILE *file = fopen(filename, "r");
-    if (file == NULL) {
+    unsigned l_len = 2048 * 8;
+    char l_line[l_len];
+	FILE *file = fopen(filename, "rb+"); // rb+ is for unignoring \r
+	if (!file) {
+		return -1;
+	}
+    int counter = 0;
+    if (fseek(file, 0, SEEK_END) != 0) {
         return -1;
     }
 
-    fseek(file, 0, SEEK_END);
-    uint32_t file_size = ftell(file);
+    long l_file_pos = ftell(file);
+    if (l_file_pos < 0) {
+        return -1;
+    }
+    long l_end_pos = l_file_pos;
+    long l_n_line_pos = 0;
+    while (l_file_pos > 0) {
+        char buf[l_len];
+        size_t to_read = (l_file_pos >= l_len) ? l_len : l_file_pos;
+        l_file_pos -= to_read;
 
-    int line_count = 0;
-    char ch;
+        if (fseek(file, l_file_pos, SEEK_SET) != 0) {
+            return -1;
+        }
 
-    for (uint32_t i = file_size - 1; i >= 0; i--) {
-        fseek(file, i, SEEK_SET);
-        ch = fgetc(file);
+        size_t res = fread(buf, 1, to_read, file);
+        if (ferror(file)) {
+            return -1;
+        }
 
-        if (ch == '\n') {
-            line_count++;
-            if (line_count > N) {
-                break;
+        for (int i = res - 1; i >= 0; i--) {
+            if (buf[i] == '\n') {
+                counter++;
+                if (counter > N) {
+                    l_n_line_pos = l_file_pos + i + 1;
+                    break;
+                }
             }
         }
-    }
-    char buffer[1024];
-    while (fgets(buffer, sizeof(buffer), file) != NULL) {
-        json_object_array_add(a_json_arr_out, json_object_new_string(buffer));
+
+        if (l_file_pos == 0 || l_n_line_pos > 0) {
+            break;
+        }
     }
 
-    fclose(file);
+    long l_read_size = l_end_pos - l_n_line_pos - 1;
+    char * l_res = DAP_NEW_Z_SIZE(char, l_read_size);
+    fseek(file, l_n_line_pos, SEEK_SET);
+    fread(l_res, l_read_size, 1, file);
+	fclose(file);
+    json_object_array_add(a_json_arr_out, json_object_new_string(l_res));
     return 0;
 }
 
-static int s_export_last_n_lines(const char *src_file, const char *dest_file, int N) {
+
+static int s_export_last_n_lines(const char *src_file_str, const char *dest_file_str, int N) {
     if (N <= 0) {
         return -3;
     }
 
-    FILE *src = fopen(src_file, "rb");
-    if (!src) {
+    unsigned l_len = 2048 * 8;
+    char l_line[l_len];
+	FILE *file = fopen(src_file_str, "rb+"); // rb+ is for unignoring \r
+	if (!file) {
+		return -1;
+	}
+    FILE *dest_file = fopen(dest_file_str, "wb");
+    if (!dest_file) {
+        fclose(file);
+        return -2;
+    }
+    int counter = 0;
+    if (fseek(file, 0, SEEK_END) != 0) {
         return -1;
     }
 
-    FILE *dest = fopen(dest_file, "wb");
-    if (!dest) {
-        fclose(src);
-        return -2;
+    long l_file_pos = ftell(file);
+    if (l_file_pos < 0) {
+        return -1;
     }
+    long l_end_pos = l_file_pos;
+    long l_n_line_pos = 0;
+    while (l_file_pos > 0) {
+        char buf[l_len];
+        size_t to_read = (l_file_pos >= l_len) ? l_len : l_file_pos;
+        l_file_pos -= to_read;
 
-    fseek(src, 0, SEEK_END);
-    uint32_t file_size = ftell(src);
-    int line_count = 0;
-    char ch, prev_ch = '\0';
+        if (fseek(file, l_file_pos, SEEK_SET) != 0) {
+            return -1;
+        }
 
-    for (uint32_t i = file_size - 1; i >= 0; i--) {
-        fseek(src, i, SEEK_SET);
-        ch = fgetc(src);
+        size_t res = fread(buf, 1, to_read, file);
+        if (ferror(file)) {
+            return -1;
+        }
 
-        if (ch == '\n' || (ch == '\r' && prev_ch != '\n')) {
-            line_count++;
-            if (line_count > N) {
-                break;
+        for (int i = res - 1; i >= 0; i--) {
+            if (buf[i] == '\n') {
+                counter++;
+                if (counter > N) {
+                    l_n_line_pos = l_file_pos + i + 1;
+                    break;
+                }
             }
         }
-        prev_ch = ch;
+
+        if (l_file_pos == 0 || l_n_line_pos > 0) {
+            break;
+        }
     }
 
-    while ((ch = fgetc(src)) != EOF) {
-        fputc(ch, dest);
-    }
+    long l_read_size = l_end_pos - l_n_line_pos - 1;
+    char * l_res = DAP_NEW_Z_SIZE(char, l_read_size);
+    fseek(file, l_n_line_pos, SEEK_SET);
+    fread(l_res, l_read_size, 1, file);
 
-    fclose(src);
-    fclose(dest);
+    fwrite(l_res, l_read_size, 1, dest_file);
+
+    fclose(file);
+    fclose(dest_file);
     return 0;
 }
 
@@ -8901,23 +8948,51 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
         l_cmd_num = CMD_CLEAN_LOG;
     }
 
-    const char * l_num_line_str = NULL, *l_path_str = NULL;
+    const char * l_num_line_str = NULL, *l_path_str = NULL, * l_str_ts_after = NULL, * l_str_limit = NULL;
     bool l_log = false;
     int l_num_line = 0;
+    int64_t l_ts_after = 0;
+    long l_limit = 0;
     if (l_cmd_num != CMD_CLEAN_LOG) {
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-num_line", &l_num_line_str);
+        l_num_line = l_num_line_str ? atoi(l_num_line_str) : 0;
+
         if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-log", NULL) ){
             l_log = true;
+
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ts_after", &l_str_ts_after);
+            l_ts_after = (l_str_ts_after) ? strtoll(l_str_ts_after, 0, 10) : -1;
         }
+
+        if (l_num_line && l_ts_after>=0) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Requires only one argument '-num_line' or '-ts_after'");
+            return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+        } else if (l_num_line) {
+            if (l_num_line <= 0) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Wrong line number %d", l_num_line);
+                return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+            }
+        } else if (l_ts_after) {
+            if(l_ts_after < 0) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Requires valid parameter '-ts_after'");
+                return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+            }
+        } else {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Requires parameters '-num_line' or '-ts_after'");
+            return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+        }
+
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-path", &l_path_str);
-        l_num_line = l_num_line_str ? atoi(l_num_line_str) : 0;
-        if (l_num_line <= 0) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Wrong line number %d", l_num_line);
+        if (!l_log && !l_path_str) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Command file require '-log' or '-path' arguments");
             return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
         }
-        if (!l_log && !l_path_str) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Command file require -log or -path arguments");
-            return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_str_limit);
+        l_limit = (l_str_limit) ? strtol(l_str_limit, 0, 10) : -1;
+        if(l_str_limit && l_limit <= 0) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "requires valid parameter '-limit'");
+            return -1;
         }
     }
 
