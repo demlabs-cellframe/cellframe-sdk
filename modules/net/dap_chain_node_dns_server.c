@@ -51,10 +51,10 @@ static char s_root_alias[] = "dnsroot";
 int dap_dns_zone_register(char *zone, dap_dns_zone_callback_t callback) {
     dap_dns_zone_hash_t *new_zone = NULL;
     HASH_FIND_STR(s_dns_server->hash_table, zone, new_zone);
-    if (new_zone == NULL) {      // zone is not present
-      DAP_NEW_Z_RET_VAL(new_zone, dap_dns_zone_hash_t, DNS_ERROR_FAILURE, NULL);
-      new_zone->zone = dap_strdup(zone);
-      HASH_ADD_KEYPTR(hh, s_dns_server->hash_table, new_zone->zone, strlen(new_zone->zone), new_zone);
+    if (!new_zone) {      // zone is not present
+        new_zone = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_dns_zone_hash_t, DNS_ERROR_FAILURE);
+        new_zone->zone = dap_strdup(zone);
+        HASH_ADD_KEYPTR(hh, s_dns_server->hash_table, new_zone->zone, strlen(new_zone->zone), new_zone);
     }                           // if zone present, just reassign callback
     new_zone->callback = callback;
     return DNS_ERROR_NONE;
@@ -111,12 +111,10 @@ void dap_dns_client_read(dap_events_socket_t *a_es, UNUSED_ARG void *a_arg) {
     dap_return_if_pass(!a_es || a_es->buf_in_size < DNS_HEADER_SIZE);  // Bad request
 // memory alloc
     int block_len = DNS_HEADER_SIZE;
-    dap_dns_buf_t *dns_message = NULL;
-    dap_dns_buf_t *dns_reply = NULL;
-    DAP_NEW_Z_RET(dns_message, dap_dns_buf_t, NULL);
-    DAP_NEW_Z_RET(dns_reply, dap_dns_buf_t, dns_message);
-    DAP_NEW_Z_SIZE_RET(dns_message->data, char, a_es->buf_in_size + 1, dns_message, dns_reply);
-    DAP_NEW_Z_SIZE_RET(dns_reply->data, char, block_len, dns_message->data, dns_message, dns_reply);
+    dap_dns_buf_t *dns_message  = DAP_NEW_Z_RET_IF_FAIL(dap_dns_buf_t),
+                  *dns_reply    = DAP_NEW_Z_RET_IF_FAIL(dap_dns_buf_t, dns_message);
+    dns_message->data           = DAP_NEW_Z_SIZE_RET_IF_FAIL(char, a_es->buf_in_size + 1, dns_message, dns_reply);
+    dns_reply->data             = DAP_NEW_Z_SIZE_RET_IF_FAIL(char, block_len, dns_message->data, dns_message, dns_reply);
 // func work
     dns_message->data[a_es->buf_in_size] = 0;
     dap_events_socket_pop_from_buf_in(a_es, dns_message->data, a_es->buf_in_size);
@@ -258,7 +256,7 @@ cleanup:
 
 void dap_dns_server_start(const char *a_cfg_section)
 {
-    DAP_NEW_Z_RET(s_dns_server, dap_dns_server_t, NULL);
+    s_dns_server = DAP_NEW_Z_RET_IF_FAIL(dap_dns_server_t);
     dap_events_socket_callbacks_t l_cb = { .read_callback = dap_dns_client_read };
     s_dns_server->instance = dap_server_new(a_cfg_section, NULL, &l_cb);
     if (!s_dns_server->instance) {
