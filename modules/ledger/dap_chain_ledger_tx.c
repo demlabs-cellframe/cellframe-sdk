@@ -287,7 +287,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     int l_prev_tx_count = 0;
 
     // 1. Verify signature in current transaction
-    if (!a_from_threshold && dap_chain_datum_tx_verify_sign(a_tx))
+    if (!a_from_threshold && dap_chain_datum_tx_verify_sign(a_tx, 0))
         return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
 
     // ----------------------------------------------------------------
@@ -850,6 +850,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     bool l_tax_check = s_tax_callback ? s_tax_callback(a_ledger->net->pub.id, &l_tx_first_sign_pkey_hash, &l_sovereign_addr, &l_sovereign_tax)
                                       : false;
     // find 'out' items
+    bool l_cross_network = false;
     uint256_t l_value = {}, l_fee_sum = {}, l_tax_sum = {};
     bool l_fee_check = !IS_ZERO_256(a_ledger->net->pub.fee_value) && !dap_chain_addr_is_blank(&a_ledger->net->pub.fee_addr);
     int l_item_idx = 0;
@@ -930,6 +931,18 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         } break;
         default:
             continue;
+        }
+        if (!dap_chain_addr_is_blank(&l_tx_out_to)) {
+            if (l_tx_out_to.net_id.uint64 != a_ledger->net->pub.id.uint64) {
+                if (!l_cross_network) {
+                    l_cross_network = true;
+                } else {
+                    log_it(L_WARNING,
+                           "The transaction was rejected because it contains multiple outputs to other network.");
+                    l_err_num = DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET;
+                    break;
+                }
+            }
         }
 
         if (l_err_num)
@@ -2309,7 +2322,7 @@ uint256_t dap_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_a
             if (    !dap_strcmp( a_token_ticker, l_iter_current->cache_data.token_ticker )  // Tokens match
                 &&  !dap_chain_addr_compare( a_addr, &l_out_addr )                          // Addresses match
                 &&  !s_ledger_tx_hash_is_used_out_item( l_iter_current, l_out_idx, NULL )   // Output is unused
-                &&  !dap_chain_datum_tx_verify_sign(l_cur_tx)                               // Signs are valid
+                &&  !dap_chain_datum_tx_verify_sign(l_cur_tx, 0)                            // Signs are valid
                 ) SUM_256_256(balance, l_add, &balance);
         }
     }

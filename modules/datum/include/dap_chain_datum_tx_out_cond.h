@@ -36,6 +36,7 @@ enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE = 0x03,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE = 0x04,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK = 0x06,
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE = 0x07,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL = 0xFF
 };
 typedef byte_t dap_chain_tx_out_cond_subtype_t;
@@ -47,6 +48,7 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK";
+    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE";
     default: {}
     }
     return "UNDEFINED";
@@ -63,8 +65,10 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_
 /// Conditional ouptput TSD types
 // 256-bit value
 #define DAP_CHAIN_TX_OUT_COND_TSD_VALUE                     0xf000
-// Cahin wallet address
+// Chain wallet address
 #define DAP_CHAIN_TX_OUT_COND_TSD_ADDR                      0xf001
+// Chain hash
+#define DAP_CHAIN_TX_OUT_COND_TSD_HASH                      0xf002
 
 /**
  * @struct dap_chain_tx_out
@@ -121,8 +125,8 @@ typedef struct dap_chain_tx_out_cond {
             byte_t          padding[4];
         } DAP_ALIGN_PACKED srv_stake_lock;
         struct {
-            // Nothing here
-        } DAP_ALIGN_PACKED fee;
+            uint32_t signers_minimum;
+        } DAP_ALIGN_PACKED srv_emit_delegate;
         byte_t free_space[272]; // TODO increase it to 512 with version update
     } DAP_ALIGN_PACKED subtype;
     uint32_t tsd_size; // Condition parameters size
