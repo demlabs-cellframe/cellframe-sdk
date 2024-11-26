@@ -1000,7 +1000,7 @@ static int s_order_tx_create(dap_chain_net_t * a_net, dap_enc_key_t *a_key,
 }
 
 // Put the transaction to mempool
-static int s_stake_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net, const char *a_hash_out_type, char * a_hash_out)
+static int s_stake_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net, const char *a_hash_out_type, char ** a_hash_out)
 {
     dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
     if (!l_chain)
@@ -1012,9 +1012,9 @@ static int s_stake_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net, co
         return -2;
     }
     // Processing will be made according to autoprocess policy
-    a_hash_out = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
+    *a_hash_out = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
     DAP_DELETE(l_datum);
-    if (!a_hash_out) 
+    if (!*a_hash_out) 
         return -1;
     else 
         return 0;
@@ -1837,7 +1837,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
         if (l_switch_ret < 0)
             return l_switch_ret;
         char *l_tx_hash_str = NULL;
-        l_ret = s_stake_tx_put(l_tx, l_net, a_hash_out_type, l_tx_hash_str);
+        l_ret = s_stake_tx_put(l_tx, l_net, a_hash_out_type, &l_tx_hash_str);
         switch(l_ret) {
         case -1: {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_TX_MEMPOOL_ADD_ERR, "Can't add datum in mempool");
@@ -2431,7 +2431,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
         return l_switch_ret;
 
     char *l_tx_hash_str = NULL;
-    l_ret = s_stake_tx_put(l_tx, l_net, a_hash_out_type, l_tx_hash_str);
+    l_ret = s_stake_tx_put(l_tx, l_net, a_hash_out_type, &l_tx_hash_str);
     switch(l_ret) {
     case -1: {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_TX_MEMPOOL_ADD_ERR, "Can't add datum in mempool");
@@ -2664,7 +2664,7 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, vo
     if (l_switch_ret < 0)
         return l_switch_ret;
     char *l_out_hash_str = NULL;
-    l_ret = s_stake_tx_put(l_tx_new, l_net, a_hash_out_type, l_out_hash_str);
+    l_ret = s_stake_tx_put(l_tx_new, l_net, a_hash_out_type, &l_out_hash_str);
     switch(l_ret) {
     case -1: {
          dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_TX_MEMPOOL_ADD_ERR, "Can't add datum in mempool");
@@ -2685,7 +2685,7 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, vo
         return l_switch_ret;
     }
     json_object* l_json_object_ret = json_object_new_object();
-    if (l_sign_str)
+    if (dap_strcmp(l_sign_str, ""))
         json_object_object_add(l_json_object_ret, "sign", json_object_new_string(l_sign_str));
     json_object_object_add(l_json_object_ret, "hash", json_object_new_string(l_out_hash_str));
     json_object_object_add(l_json_object_ret, "message", json_object_new_string("Delegated m-tokens value will change"));
@@ -2933,7 +2933,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
             return l_switch_ret;
         }
         char *l_out_hash_str = NULL;
-        l_ret = s_stake_tx_put(l_tx, l_net, a_hash_out_type, l_out_hash_str);
+        l_ret = s_stake_tx_put(l_tx, l_net, a_hash_out_type, &l_out_hash_str);
         switch(l_ret) {
         case -1: {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_INVALIDATE_TX_MEMPOOL_ADD_ERR, "Can't add datum in mempool");
