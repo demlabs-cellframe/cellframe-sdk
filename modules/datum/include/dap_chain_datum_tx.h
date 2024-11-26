@@ -31,6 +31,7 @@
 #include "dap_math_ops.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_tx_tsd.h"
 
 /**
   * @struct dap_chain_datum_tx
@@ -240,3 +241,6 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
 // Get output by output index
 #define dap_chain_datum_tx_out_get_by_out_idx(a_tx, a_out_num) \
     dap_chain_datum_tx_item_get_nth(a_tx, TX_ITEM_TYPE_OUT_ALL, a_out_num);
+
+
+dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t *a_tx, int a_type);
