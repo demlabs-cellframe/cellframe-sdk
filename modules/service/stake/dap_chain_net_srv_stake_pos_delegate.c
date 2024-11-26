@@ -3656,9 +3656,10 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                     json_object_object_add(json_obj_sign, "validator addr", json_object_new_string(l_addr));
                     DAP_DELETE(l_addr);
                 }
-                json_object_object_add(json_obj_sign, "type sig",json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
-                json_object_object_add(json_obj_sign, "size sig",json_object_new_uint64(l_sign_size));
-                json_object_object_add(json_obj_sign, "pkey_hash",json_object_new_string(l_pkey_hash_str));
+                
+                //json_object_object_add(json_obj_sign, "type sig",json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
+                //json_object_object_add(json_obj_sign, "size sig",json_object_new_uint64(l_sign_size));
+                //json_object_object_add(json_obj_sign, "pkey_hash",json_object_new_string(l_pkey_hash_str));
                 dap_pkey_t * l_block_sign_pkey = dap_pkey_get_from_sign(l_sign);
                 uint256_t l_value_reward = a_chain->callback_calc_reward(a_chain, &l_block_cache->block_hash,
                                                              l_block_sign_pkey);
@@ -3671,18 +3672,14 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 i_tmp++;
             }
             if (json_arr_sign_out && json_object_array_length(json_arr_sign_out) > 0) {
+                if (!a_brief)
+                    json_object_object_add(json_block_hash, "Tx_hash", 
+                                                json_object_new_string(dap_chain_hash_fast_to_str_static(&l_ttx_hash)));
                 json_object_object_add(json_block_hash, "REWARDS", json_arr_sign_out);
                 json_object_array_add(json_obj_reward, json_block_hash);
             }                        
         }
-        dap_list_free(l_list_in_items);
-        if (!a_brief && json_arr_sign_out && json_object_array_length(json_arr_sign_out) > 0)
-        { 
-            json_object* json_obj_datum = json_object_new_object();    
-            dap_chain_datum_dump_tx_json(a_json_arr_reply, l_tx, l_tx_token_ticker ? l_tx_token_ticker : NULL,
-                                         json_obj_datum, "hex", &l_ttx_hash, a_chain->net_id);
-            json_object_array_add(json_obj_reward, json_obj_datum);
-        } 
+        dap_list_free(l_list_in_items);         
     }
     a_chain->callback_datum_iter_delete(l_datum_iter);
     return json_obj_reward;
