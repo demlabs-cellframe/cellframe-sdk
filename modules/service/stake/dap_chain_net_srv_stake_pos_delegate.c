@@ -426,7 +426,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     dap_return_if_fail(a_net && a_signing_addr && a_node_addr && a_stake_tx_hash);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_net->pub.id);
     if (!l_srv_stake)
-        return log_it(L_ERROR, "Can't delegate key: no stake service found by net id %llu from address %s",
+        return log_it(L_ERROR, "Can't delegate key: no stake service found by net id %" DAP_UINT64_FORMAT_U " from address %s",
                                 a_signing_addr->net_id.uint64, dap_chain_addr_to_str_static(a_signing_addr));
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     bool l_found = false;
@@ -472,7 +472,7 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     dap_return_if_fail(a_signing_addr);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_signing_addr->net_id);
     if (!l_srv_stake)
-        return log_it(L_ERROR, "Can't invalidate key: no stake service found by net id %llu from address %s",
+        return log_it(L_ERROR, "Can't invalidate key: no stake service found by net id %" DAP_UINT64_FORMAT_U " from address %s",
                                 a_signing_addr->net_id.uint64, dap_chain_addr_to_str_static(a_signing_addr));
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
@@ -494,7 +494,7 @@ void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint25
     dap_return_if_fail(a_signing_addr && a_new_tx_hash);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_signing_addr->net_id);
     if (!l_srv_stake)
-        return log_it(L_ERROR, "Can't update key: no stake service found by net id %llu from address %s",
+        return log_it(L_ERROR, "Can't update key: no stake service found by net id %" DAP_UINT64_FORMAT_U " from address %s",
                                 a_signing_addr->net_id.uint64, dap_chain_addr_to_str_static(a_signing_addr));
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);

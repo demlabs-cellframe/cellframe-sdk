@@ -18,7 +18,7 @@ endif()
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
 
-    set(CELLFRAME_MODULES "core chains mining network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange")
+    set(CELLFRAME_MODULES "core chains mining network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange srv-emit-delegate")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
@@ -182,6 +182,12 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-voting")
     message("[+] Module 'srv-voting'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_voting)
+endif()
+
+# Enable service TX multisign with consensus
+if (CELLFRAME_MODULES MATCHES "srv-emit-delegate")
+    message("[+] Module 'srv-emit-delegate'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_emit_delegate)
 endif()
 
 # Enable service for dynamic modules
