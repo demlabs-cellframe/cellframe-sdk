@@ -135,6 +135,7 @@ static uint64_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
 static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static uint64_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
+static json_object *s_dap_chain_callback_atom_to_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static bool s_seed_mode = false, s_debug_more = false, s_threshold_enabled = false;
@@ -246,6 +247,7 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_count_atom = s_dap_chain_callback_get_count_atom;
     // Get atom list in chain
     a_chain->callback_get_atoms = s_callback_get_atoms;
+    a_chain->callback_atom_dump_json = s_dap_chain_callback_atom_to_json;
 
     // Others
     a_chain->_inheritor = l_dag;
@@ -553,6 +555,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         dap_chain_atom_add_from_threshold(a_chain);
     } break;
     default:
+        ret = ATOM_REJECT;
         break;
     }
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
@@ -1117,6 +1120,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get(dap_chain_atom_iter_t
         a_atom_iter->cur_size = l_item->event_size;
         a_atom_iter->cur_hash = &l_item->hash;
         a_atom_iter->cur_num = l_item->event_number;
+        a_atom_iter->cur_ts = l_item->ts_created;
     } else
         *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
                                                  .cell_id = a_atom_iter->cell_id };
@@ -1593,8 +1597,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     // Round info
                     if ((l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) && l_round_item) {
                         json_object_object_add(json_obj_event,"Round info", json_object_new_string(" "));
-                        json_object_object_add(json_obj_event,"tsigns reject", json_object_new_uint64(l_round_item->round_info.reject_count));
-                        json_object_object_add(json_obj_event,"ts_update", json_object_new_string(buf));
+                        if (l_round_item->round_info.reject_count)
+                            json_object_object_add(json_obj_event,"signs rejects", json_object_new_uint64(l_round_item->round_info.reject_count));
                         dap_nanotime_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_round_item->round_info.ts_update);
                         json_object_object_add(json_obj_event,"datum_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_round_item->round_info.datum_hash)));
                         json_object_object_add(json_obj_event,"ts_update", json_object_new_string(buf));
@@ -1602,14 +1606,14 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
 
                     // Header
                     json_object_object_add(json_obj_event,"Header", json_object_new_string("empty"));
-                    sprintf(l_buf,"%hu",l_event->header.version);
+                    snprintf(l_buf, sizeof(l_buf), "%hu",l_event->header.version);
                     json_object_object_add(json_obj_event,"version", json_object_new_string(l_buf));
                     json_object_object_add(json_obj_event,"round ID", json_object_new_uint64(l_event->header.round_id));
-                    sprintf(l_buf,"0x%016"DAP_UINT64_FORMAT_x"",l_event->header.cell_id.uint64);
+                    snprintf(l_buf, sizeof(l_buf), "0x%016"DAP_UINT64_FORMAT_x"",l_event->header.cell_id.uint64);
                     json_object_object_add(json_obj_event,"cell_id", json_object_new_string(l_buf));
-                    sprintf(l_buf,"0x%016"DAP_UINT64_FORMAT_x"",l_event->header.chain_id.uint64);
+                    snprintf(l_buf, sizeof(l_buf), "0x%016"DAP_UINT64_FORMAT_x"",l_event->header.chain_id.uint64);
                     json_object_object_add(json_obj_event,"chain_id", json_object_new_string(l_buf));
-                    dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
+                    dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
                     json_object_object_add(json_obj_event,"ts_created", json_object_new_string(l_buf));
 
                     // Hash links
@@ -1628,7 +1632,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type)
                     json_object_object_add(json_obj_event,"Datum", json_object_new_string("empty"));
                     json_object_object_add(json_obj_event,"datum_size", json_object_new_uint64(l_datum_size));
-                    sprintf(l_buf,"0x%02hhX",l_datum->header.version_id);
+                    snprintf(l_buf, sizeof(l_buf), "0x%02hhX",l_datum->header.version_id);
                     json_object_object_add(json_obj_event,"version", json_object_new_string(l_buf));
                     json_object_object_add(json_obj_event,"type_id", json_object_new_string(l_datum_type));
                     dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
@@ -1656,7 +1660,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
 
                         l_offset += l_sign_size;
                     }
-                    dap_chain_datum_dump_json(*a_json_arr_reply, json_obj_event, l_datum, l_hash_out_type, l_net->pub.id);
+                    dap_chain_datum_dump_json(*a_json_arr_reply, json_obj_event, l_datum, l_hash_out_type, l_net->pub.id, true);
                     json_object_array_add(*a_json_arr_reply, json_obj_event);
 
                     ret=0;
@@ -1809,7 +1813,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
             } break;
             case SUBCMD_EVENT_LAST:{
                 json_object * json_obj_out = json_object_new_object();
-                char l_tmp_buff[70] = {0};
+                char l_tmp_buff[128] = {0};
                 pthread_mutex_lock(&PVT(l_dag)->events_mutex);
                 dap_chain_cs_dag_event_item_t *l_last_item = HASH_LAST(PVT(l_dag)->events);
                 pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
@@ -1822,7 +1826,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 json_object_object_add(json_obj_out, "ts_created", json_object_new_string(l_last_item ? l_buf : "never"));
 
                 size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
-                sprintf(l_tmp_buff,"%s.%s has events", l_net->pub.name, l_chain->name);
+                snprintf(l_tmp_buff, sizeof(l_tmp_buff), "%s.%s has events", l_net->pub.name, l_chain->name);
                 json_object_object_add(json_obj_out, l_tmp_buff, json_object_new_uint64(l_event_count));
                 json_object_array_add(*a_json_arr_reply, json_obj_out);
             } break;
@@ -1869,7 +1873,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
                     if (l_cert && l_cert->enc_key->priv_key_data) {
                         size_t l_event_size = l_round_item->event_size;
-                        dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
+                        dap_chain_cs_dag_event_t *l_event = DAP_DUP_SIZE((dap_chain_cs_dag_event_t*)l_round_item->event_n_signs, l_event_size);
                         size_t l_event_size_new = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size, l_cert->enc_key);
                         if ( l_event_size_new ) {
                             dap_chain_hash_fast_t l_event_new_hash;
@@ -2003,4 +2007,61 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
     }
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     return l_list;
+}
+
+
+static json_object *s_dap_chain_callback_atom_to_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type){
+    json_object *l_jobj = json_object_new_object();
+    dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)a_atom;
+    char l_buf[150] = {'\0'};
+    // Header
+    snprintf(l_buf, sizeof(l_buf), "%hu",l_event->header.version);
+    json_object_object_add(l_jobj,"version", json_object_new_string(l_buf));
+    json_object_object_add(l_jobj,"round ID", json_object_new_uint64(l_event->header.round_id));
+    snprintf(l_buf, sizeof(l_buf), "0x%016"DAP_UINT64_FORMAT_x"",l_event->header.cell_id.uint64);
+    json_object_object_add(l_jobj,"cell_id", json_object_new_string(l_buf));
+    snprintf(l_buf, sizeof(l_buf), "0x%016"DAP_UINT64_FORMAT_x"",l_event->header.chain_id.uint64);
+    json_object_object_add(l_jobj,"chain_id", json_object_new_string(l_buf));
+    dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
+    json_object_object_add(l_jobj,"ts_created", json_object_new_string(l_buf));
+    // Hash links
+    json_object *l_jobj_hash_links = json_object_new_array();
+    for (uint16_t i=0; i < l_event->header.hash_count; i++){
+        dap_chain_hash_fast_t * l_hash = (dap_chain_hash_fast_t *) (l_event->hashes_n_datum_n_signs + i*sizeof (dap_chain_hash_fast_t));
+        const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
+                                 dap_enc_base58_encode_hash_to_str_static(l_hash) :
+                                 dap_hash_fast_to_str_static(l_hash);
+        json_object_array_add(l_jobj_hash_links, json_object_new_string(l_hash_str));
+    }
+    json_object_object_add(l_jobj, "hash_links", l_jobj_hash_links);
+    size_t l_offset =  l_event->header.hash_count*sizeof (dap_chain_hash_fast_t);
+    // Nested datum
+    dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (l_event->hashes_n_datum_n_signs + l_offset);
+    const char *l_datum_type = NULL;
+    DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type)
+    json_object_object_add(l_jobj, "datum_type", json_object_new_string(l_datum_type));
+    dap_chain_datum_dump_json(*a_arr_out, l_jobj, l_datum, a_hash_out_type, a_chain->net_id, true);
+    json_object *l_jobj_signatures = json_object_new_array();
+    l_offset += dap_chain_datum_size(l_datum);
+    // Signatures
+    while (l_offset + sizeof (l_event->header) < a_atom_size ){
+        json_object *l_jobj_signature = json_object_new_object();
+        dap_sign_t * l_sign =(dap_sign_t *) (l_event->hashes_n_datum_n_signs +l_offset);
+        size_t l_sign_size = dap_sign_get_size(l_sign);
+        if (l_sign_size == 0 ){
+            dap_json_rpc_error_add(*a_arr_out, DAP_CHAIN_NODE_CLI_COM_DAG_SIGN_ERR," wrong sign size 0, stop parsing headers");
+            break;
+        }
+        dap_chain_hash_fast_t l_pkey_hash;
+        dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+        const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
+                : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
+        json_object_object_add(l_jobj_signature,"type", json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
+        json_object_object_add(l_jobj_signature,"pkey_hash", json_object_new_string(l_hash_str));
+        json_object_array_add(l_jobj_signatures, l_jobj_signature);
+        l_offset += l_sign_size;
+    }
+    json_object_object_add(l_jobj, "signatures", l_jobj_signatures);
+    return  l_jobj;
 }

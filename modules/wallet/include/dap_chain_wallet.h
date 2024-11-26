@@ -88,3 +88,6 @@ int dap_chain_wallet_activate   (const char *a_name, ssize_t a_name_len, const c
 int dap_chain_wallet_deactivate   (const char *a_name, ssize_t a_name_len);
 
 const char* dap_chain_wallet_check_sign(dap_chain_wallet_t *a_wallet);
+
+const char *dap_chain_wallet_addr_cache_get_name(dap_chain_addr_t *a_addr);
+json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path);

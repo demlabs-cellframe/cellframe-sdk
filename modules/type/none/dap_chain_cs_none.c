@@ -72,6 +72,8 @@ static void s_nonconsensus_callback_atom_iter_delete(dap_chain_atom_iter_t * a_a
 static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter,
         dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 
+static json_object *s_nonconsensus_callback_atom_to_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type);
+
 // Get event(s) from gdb
 static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size);
 static dap_chain_atom_ptr_t *s_nonconsensus_callback_atom_iter_get_links(dap_chain_atom_iter_t *a_atom_iter, size_t *a_links_size_ptr, size_t **a_lasts_sizes_ptr); //    Get list of linked events
@@ -190,6 +192,7 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
     a_chain->callback_atom_iter_delete = s_nonconsensus_callback_atom_iter_delete;
     a_chain->callback_atom_iter_get = s_nonconsensus_callback_atom_iter_get; // Linear pass through
     a_chain->callback_atom_find_by_hash = s_nonconsensus_callback_atom_iter_find_by_hash;
+    a_chain->callback_atom_dump_json = s_nonconsensus_callback_atom_to_json;
 
     a_chain->callback_atom_iter_get_links = s_nonconsensus_callback_atom_iter_get_links; // Get the next element from chain from the current one
 
@@ -428,6 +431,23 @@ static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_find_by_hash(dap_c
     return l_ret;
 }
 
+
+/**
+ * @brief Serializes dap_chain_atom_ptr in none consensus to JSON
+ * @param a_chain
+ * @param a_atom
+ * @param a_atom_size
+ * @param a_hash_out_type
+ * @return
+ */
+static json_object *s_nonconsensus_callback_atom_to_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type)
+{
+    json_object *obj_ret = json_object_new_object();
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t*)a_atom;
+    dap_chain_datum_dump_json(*a_arr_out, obj_ret, l_datum, a_hash_out_type, a_chain->net_id, true);
+    return obj_ret;
+}
+
 /**
  * @brief Get the first dag event from database
  *
@@ -437,9 +457,9 @@ static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_find_by_hash(dap_c
  */
 static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size)
 {
-    dap_return_val_if_fail(a_atom_iter, NULL);
-    if (a_atom_iter->cur_item) { /* Iterator creates copies, free them at delete routine! */
-        DAP_DEL_Z(a_atom_iter->cur);
+    dap_return_val_if_fail(a_atom_iter && a_atom_iter->chain, NULL);
+    if (a_atom_iter->cur_item) { /* Iterator creates copies (WTF?...), free them at delete routine! */
+        DAP_FREE(a_atom_iter->cur);
         DAP_DEL_Z(a_atom_iter->cur_hash);
     }
     dap_nonconsensus_datum_hash_item_t *l_head = PVT(DAP_NONCONSENSUS(a_atom_iter->chain))->hash_items;
@@ -554,8 +574,7 @@ static void s_nonconsensus_callback_datum_iter_delete(dap_chain_datum_iter_t *a_
 
 static dap_chain_datum_t *s_nonconsensus_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter)
 {
-    if (!a_datum_iter)
-        return NULL;
+    dap_return_val_if_fail(a_datum_iter && a_datum_iter->chain, NULL);
     if (a_datum_iter->cur_item) { /* Iterator creates copies, free them at delete routine! */
         DAP_DEL_Z(a_datum_iter->cur);
         DAP_DEL_Z(a_datum_iter->cur_hash);
@@ -607,6 +626,7 @@ static dap_chain_datum_t *s_nonconsensus_callback_datum_iter_get_next(dap_chain_
 static dap_chain_datum_t *s_nonconsensus_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
                                                                    dap_chain_hash_fast_t *a_atom_hash, int *a_ret_code)
 {
+    dap_return_val_if_fail(a_chain, NULL);
     dap_nonconsensus_datum_hash_item_t *l_item;
     DL_FOREACH(PVT(DAP_NONCONSENSUS(a_chain))->hash_items, l_item) {
         if (dap_hash_fast_compare(a_datum_hash, &l_item->datum_data_hash)) {

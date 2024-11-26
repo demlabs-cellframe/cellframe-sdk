@@ -183,7 +183,7 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
             l_node_client->remote_node_addr = *(dap_chain_node_addr_t*)a_pkt_net->data;
         }
         pthread_mutex_lock(&l_node_client->wait_mutex);
-        l_node_client->callbacks_arg = DAP_DUP_SIZE(a_pkt_net->data, a_pkt_net_data_size);
+        l_node_client->callbacks_arg = DAP_DUP_SIZE((byte_t*)a_pkt_net->data, a_pkt_net_data_size);
         l_node_client->state = NODE_CLIENT_STATE_VALID_READY;
         pthread_cond_signal(&l_node_client->wait_cond);
         pthread_mutex_unlock(&l_node_client->wait_mutex);
@@ -400,7 +400,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
         // prepare for signal waiting
         struct timespec l_cond_timeout;
         clock_gettime(CLOCK_REALTIME, &l_cond_timeout);
-        l_cond_timeout.tv_sec += a_timeout_ms;
+        l_cond_timeout.tv_sec += a_timeout_ms/1000;
         int l_ret_wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &l_cond_timeout);
         if (l_ret_wait == 0) {
             if (a_client->state != a_waited_state) {
