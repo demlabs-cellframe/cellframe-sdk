@@ -21,8 +21,8 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "dap_common.h"
-#include "dap_chain_datum_tx_items.h"
+#pragma once
+#include "dap_chain_common.h"
 
 typedef struct dap_chain_tx_in_reward {
     dap_chain_tx_item_type_t type;          /// @param type             @brief Transaction item type
