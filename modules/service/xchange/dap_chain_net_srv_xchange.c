@@ -56,8 +56,49 @@ typedef enum tx_opt_status {
     TX_STATUS_INACTIVE
 } tx_opt_status_t;
 
+typedef enum xchange_cache_state{
+    XCHANGE_CACHE_DISABLED = 0,
+    XCHANGE_CACHE_ENABLED,
+} xchange_cache_state_t;
+ 
+typedef struct xchange_tx_cache {
+    dap_chain_hash_fast_t hash;
+    dap_chain_datum_tx_t *tx;
+    xchange_tx_type_t tx_type;
+    uint256_t rate;
+    char buy_token[DAP_CHAIN_TICKER_SIZE_MAX];
+    char sell_token[DAP_CHAIN_TICKER_SIZE_MAX];
+    union {
+        struct {
+            dap_chain_net_srv_xchange_order_status_t order_status;
+            uint256_t value_amount;
+            uint256_t value;
+            dap_chain_addr_t seller_addr;
+        } order_info;
+        struct {
+            dap_hash_fast_t order_hash;
+            dap_hash_fast_t prev_hash;
+            dap_chain_addr_t buyer_addr;
+            uint256_t buy_value;
+        } exchange_info;
+        struct {
+            dap_hash_fast_t order_hash;
+            dap_hash_fast_t prev_hash;
+        } invalidate_info;
+    } tx_info;
+    UT_hash_handle hh;
+} xchange_tx_cache_t;
+
+typedef struct xchange_orders_cache_net {
+    dap_chain_net_t *net;
+    xchange_tx_cache_t cache;
+} xchange_orders_cache_net_t;
+
 static dap_chain_net_srv_fee_item_t *s_service_fees = NULL; // Governance statements for networks
 static pthread_rwlock_t s_service_fees_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+
+static dap_list_t *s_net_cache = NULL;
+static xchange_cache_state_t s_xchange_cache_state = XCHANGE_CACHE_DISABLED;
 
 static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
 static int s_xchange_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
@@ -73,6 +114,7 @@ static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t 
 static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
 static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx, tx_opt_status_t a_filter_by_status, bool a_append_prev_hash, bool a_print_status,bool a_print_ts);
 dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_order, uint256_t *a_fee, bool a_ret_is_invalid);
+static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chan_ledger_notify_opcodes_t a_opcode);
 
 static dap_chain_net_srv_xchange_t *s_srv_xchange;
 static bool s_debug_more = false;
@@ -209,6 +251,22 @@ int dap_chain_net_srv_xchange_init()
     s_srv_xchange->enabled = false;
     s_debug_more = dap_config_get_item_bool_default(g_config, "srv_xchange", "debug_more", s_debug_more);
 
+    const char *l_cache_state_str = dap_config_get_item_str_default(g_config, "srv_xchange", "cache", "disabled");
+
+    if (!strcmp(l_cache_state_str, "disabled"))
+        s_xchange_cache_state = XCHANGE_CACHE_DISABLED;
+    else if (!strcmp(l_cache_state_str, "enabled"))
+        s_xchange_cache_state = XCHANGE_CACHE_ENABLED;
+
+
+    if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
+        for(dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net=dap_chain_net_iter_next(l_net)){
+            xchange_orders_cache_net_t *l_net_cache = (xchange_orders_cache_net_t *)DAP_NEW_SIZE(xchange_orders_cache_net_t, sizeof(xchange_orders_cache_net_t));
+            l_net_cache->net = l_net;
+            dap_ledger_tx_add_notify(l_net->pub.ledger, s_ledger_tx_add_notify, NULL);
+        }
+    }
+    
 
     /*************************/
     /*int l_fee_type = dap_config_get_item_int64_default(g_config, "srv_xchange", "fee_type", (int)SERIVCE_FEE_NATIVE_PERCENT);
@@ -2002,6 +2060,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             dap_string_t *l_reply_str = dap_string_new("");
             // Iterate blockchain, find txs with xchange cond out and without cond input
             dap_list_t *l_tx_list = NULL;
+            
+            // TODO: SWITCH TO CACHE!!!!!!!!!!!!!!!!!!!!!!!
             dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET, s_tx_is_order_check, &l_tx_list);
 
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-status", &l_status_str);
@@ -2793,4 +2853,9 @@ dap_chain_net_srv_xchange_purchase_error_t dap_chain_net_srv_xchange_purchase(da
     } else {
         return XCHANGE_PURCHASE_ERROR_SPECIFIED_ORDER_NOT_FOUND;
     }
+}
+
+static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chan_ledger_notify_opcodes_t a_opcode)
+{
+
 }
