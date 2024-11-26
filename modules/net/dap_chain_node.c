@@ -381,9 +381,11 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
         log_it(L_TPS, "Get %zu datums from mempool", l_objs_size);
 #endif
         for (size_t i = 0; i < l_objs_size; i++) {
-            if (!l_objs[i].value_len)
+            if (l_objs[i].value_len < sizeof(dap_chain_datum_t))
                 continue;
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+            if (dap_chain_datum_size(l_datum) != l_objs[i].value_len)
+                continue;
             if (dap_chain_node_mempool_need_process(a_chain, l_datum)) {
 
                 if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX &&
@@ -554,10 +556,11 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
     return l_ret;
 }
 
-int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object* a_json_arr_reply, int *a_arg_index, int a_argc,
-                                                           char **a_argv,
+int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object *a_json_arr_reply, int *a_arg_index,
+                                                           int a_argc, char **a_argv,
                                                            dap_chain_t **a_chain, dap_chain_net_t **a_net,
-                                                           dap_chain_type_t a_default_chain_type) {
+                                                           dap_chain_type_t a_default_chain_type)
+{
     const char * l_chain_str = NULL;
     const char * l_net_str = NULL;
 
