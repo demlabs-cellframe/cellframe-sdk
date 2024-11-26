@@ -35,9 +35,6 @@
 #include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
-#ifndef DAP_OS_ANDROID
-#include <magic.h>
-#endif
 #include <sys/stat.h>
 
 #ifdef WIN32
@@ -54,7 +51,6 @@
 #include <signal.h>
 #endif
 #include <pthread.h>
-#include <iputils/iputils.h>
 
 #include "uthash.h"
 #include "utlist.h"
@@ -8355,7 +8351,7 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
         #ifndef DAP_OS_ANDROID
         case SIGNER_MIME_MAGIC:
             {
-                magic_t l_magic = magic_open(MAGIC_MIME);
+                /*magic_t l_magic = magic_open(MAGIC_MIME);
                 if (l_magic == NULL) return NULL;
                 if (magic_load (l_magic, NULL)) {
                     magic_close(l_magic);
@@ -8369,8 +8365,8 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
                     l_ret = dap_tsd_create_string(SIGNER_MIME_MAGIC, l_str_magic_file);
                 } while (0);
                 magic_close (l_magic);
-                return l_ret;
-
+                return l_ret;*/
+                return dap_tsd_create_string(SIGNER_MIME_MAGIC, "application/octet-stream");
             }
             break;
         #endif
