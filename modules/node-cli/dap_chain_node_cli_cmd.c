@@ -2020,7 +2020,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             uint256_t l_value_sum = uint256_0;
             if (l_value_str){
                 uint256_t l_value_datoshi = dap_chain_balance_scan(l_value_str);
-                l_outs_list = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum);
+                l_outs_list = dap_chain_wallet_get_list_tx_outs_with_val(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum);
             } else {
                 l_outs_list = dap_ledger_get_list_tx_outs(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum);
             }
@@ -6732,8 +6732,7 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
             if (!dap_strcmp(l_native_token, l_main_token)) {
                 SUM_256_256(l_value_need_check, l_value_need, &l_value_need_check);
                 SUM_256_256(l_value_need_check, l_value_need_fee, &l_value_need_check);
-                if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_json_item_token, l_addr_from, &l_list_used_out, l_value_need_check, &l_value_transfer) == -101)
-                    l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
+                l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
                                                                                             l_addr_from, l_value_need_check, &l_value_transfer);                      
                 if(!l_list_used_out) {
                     log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -6746,8 +6745,7 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
                 }
             } else {
                 //CHECK value need
-                if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_json_item_token, l_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
-                    l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
+                l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
                                                                                             l_addr_from, l_value_need, &l_value_transfer);
                 if(!l_list_used_out) {
                     log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -6759,8 +6757,7 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
                     continue;
                 }
                 //CHECK value fee
-                if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_token, l_addr_from, &l_list_used_out_fee, l_value_need_fee, &l_value_transfer_fee) == -101)
-                    l_list_used_out_fee = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_token,
+                l_list_used_out_fee = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_token,
                                                                                     l_addr_from, l_value_need_fee, &l_value_transfer_fee);
                 if(!l_list_used_out_fee) {
                     log_it(L_WARNING, "Not enough funds in previous tx to transfer");
