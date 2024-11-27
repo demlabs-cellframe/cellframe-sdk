@@ -483,8 +483,11 @@ void dap_chain_net_balancer_request(void *a_arg)
         l_item->net_id = l_arg->net->pub.id;
         HASH_ADD(hh, s_request_info_items, net_id, sizeof(l_item->net_id), l_item);
     }
-    if (l_item->request_time + DAP_CHAIN_NET_BALANCER_REQUEST_DELAY > dap_time_now())
-        return log_it(L_DEBUG, "Who understands life, he is in no hurry. Dear %s, please wait few seconds", l_arg->net->pub.name);
+    if (l_item->request_time + DAP_CHAIN_NET_BALANCER_REQUEST_DELAY > dap_time_now()) {
+        log_it(L_DEBUG, "Who understands life, he is in no hurry. Dear %s, please wait few seconds", l_arg->net->pub.name);
+        DAP_DELETE(a_arg);
+        return;
+    }
 // preparing to request
     size_t
         l_ignored_addrs_size = 0,
@@ -497,13 +500,13 @@ void dap_chain_net_balancer_request(void *a_arg)
         log_it(L_INFO, "%"DAP_UINT64_FORMAT_U" links successful prepared from global-db in net %s", l_links->count_node, l_arg->net->pub.name);
         s_balancer_link_prepare_success(l_arg->net, l_links, NULL, 0);
         if (l_links->count_node >= l_required_links_count)
-            return DAP_DEL_MULTY(l_ignored_addrs, l_links);
+            return DAP_DEL_MULTY(a_arg, l_ignored_addrs, l_links);
         l_required_links_count -= l_links->count_node;
         DAP_DELETE(l_links);
     }
 // links from http balancer request
     if (!l_arg->host_addr || !*l_arg->host_addr || !l_arg->host_port)
-        return DAP_DELETE(l_ignored_addrs), log_it(L_INFO, "Can't read seed nodes addresses in net %s, work with local balancer only",
+        return DAP_DEL_MULTY(a_arg, l_ignored_addrs), log_it(L_INFO, "Can't read seed nodes addresses in net %s, work with local balancer only",
                                                             l_arg->net->pub.name);
     l_arg->worker = dap_worker_get_current();
     l_arg->required_links_count = l_required_links_count;
