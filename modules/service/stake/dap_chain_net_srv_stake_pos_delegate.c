@@ -3637,6 +3637,9 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, sizeof(l_pkey_hash_str));
                 dap_chain_net_srv_stake_item_t *l_stake = NULL;
                 HASH_FIND(hh, l_srv_stake->itemlist, &l_pkey_hash, sizeof(dap_hash_fast_t), l_stake);
+                json_object* json_block_hash1 = json_object_new_object();
+                if(l_stake)json_object_object_add(json_block_hash1, "addr - ", json_object_new_string(dap_chain_addr_to_str_static(&l_stake->signing_addr)));
+                json_object_array_add(json_obj_reward, json_block_hash1); 
                 if (a_addr || (!a_all && a_pkey)) {
                     if (!l_stake || (a_addr && !dap_chain_addr_compare(a_addr, &l_stake->signing_addr)) 
                                  || (!a_addr && !dap_hash_fast_compare(a_pkey, &l_pkey_hash))) {
@@ -3651,7 +3654,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 }               
 
                 json_object* json_obj_sign = json_object_new_object();
-                if (l_stake) {
+                if (l_stake && !a_brief) {
                     char *l_addr = dap_strdup_printf(""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
                     json_object_object_add(json_obj_sign, "validator addr", json_object_new_string(l_addr));
                     DAP_DELETE(l_addr);
@@ -3659,7 +3662,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 
                 //json_object_object_add(json_obj_sign, "type sig",json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
                 //json_object_object_add(json_obj_sign, "size sig",json_object_new_uint64(l_sign_size));
-                //json_object_object_add(json_obj_sign, "pkey_hash",json_object_new_string(l_pkey_hash_str));
+                json_object_object_add(json_obj_sign, "pkey_hash",json_object_new_string(l_pkey_hash_str));
                 dap_pkey_t * l_block_sign_pkey = dap_pkey_get_from_sign(l_sign);
                 uint256_t l_value_reward = a_chain->callback_calc_reward(a_chain, &l_block_cache->block_hash,
                                                              l_block_sign_pkey);
