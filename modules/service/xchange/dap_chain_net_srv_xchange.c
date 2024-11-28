@@ -90,8 +90,8 @@ typedef struct xchange_tx_cache {
 } xchange_tx_cache_t;
 
 typedef struct xchange_orders_cache_net {
-    dap_chain_net_t *net;
-    xchange_tx_cache_t cache;
+    dap_chain_net_id_t net_id;
+    xchange_tx_cache_t *cache;
 } xchange_orders_cache_net_t;
 
 static dap_chain_net_srv_fee_item_t *s_service_fees = NULL; // Governance statements for networks
@@ -114,11 +114,24 @@ static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t 
 static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
 static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx, tx_opt_status_t a_filter_by_status, bool a_append_prev_hash, bool a_print_status,bool a_print_ts);
 dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_order, uint256_t *a_fee, bool a_ret_is_invalid);
-static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chan_ledger_notify_opcodes_t a_opcode);
+static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
 
 static dap_chain_net_srv_xchange_t *s_srv_xchange;
 static bool s_debug_more = false;
 
+static xchange_tx_cache_t *s_get_xchange_cache_by_net_id(dap_chain_net_id_t a_net_id)
+{
+    xchange_tx_cache_t *l_cache = NULL;
+
+    for (dap_list_t *l_temp = s_net_cache; l_temp; l_temp=l_temp->next){
+        if (((xchange_orders_cache_net_t*)l_temp->data)->net_id.uint64 == a_net_id.uint64){
+            l_cache = ((xchange_orders_cache_net_t*)l_temp->data)->cache;
+            break;
+        }
+    }
+
+    return l_cache;
+}
 
 static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
@@ -262,7 +275,7 @@ int dap_chain_net_srv_xchange_init()
     if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
         for(dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net=dap_chain_net_iter_next(l_net)){
             xchange_orders_cache_net_t *l_net_cache = (xchange_orders_cache_net_t *)DAP_NEW_SIZE(xchange_orders_cache_net_t, sizeof(xchange_orders_cache_net_t));
-            l_net_cache->net = l_net;
+            l_net_cache->net_id.uint64 = l_net->pub.id.uint64;
             dap_ledger_tx_add_notify(l_net->pub.ledger, s_ledger_tx_add_notify, NULL);
         }
     }
@@ -2855,7 +2868,37 @@ dap_chain_net_srv_xchange_purchase_error_t dap_chain_net_srv_xchange_purchase(da
     }
 }
 
-static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chan_ledger_notify_opcodes_t a_opcode)
+static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode)
 {
+    if (a_opcode == 'a'){
+        // check and add tx into cache
+        dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
+        int l_item_idx = 0;
+        dap_chain_tx_out_cond_t *l_out_prev_cond_item = NULL;
+        xchange_tx_type_t l_tx_type = dap_chain_net_srv_xchange_tx_get_type(a_ledger, a_tx, &l_out_cond_item, &l_item_idx, &l_out_prev_cond_item);
 
+        if (l_tx_type == TX_TYPE_UNDEFINED)
+            return;
+
+        
+
+        if (l_tx_type == TX_TYPE_ORDER){
+
+        } else if (l_tx_type == TX_TYPE_EXCHANGE){
+
+        } else if (l_tx_type == TX_TYPE_INVALIDATE){
+
+        }
+    } else if (a_opcode == 'd') {
+        // delete tx from cache if present
+        xchange_tx_cache_t* l_cache = s_get_xchange_cache_by_net_id(a_ledger->net->pub.id);
+        xchange_tx_cache_t* l_cache_found = NULL;
+        if (l_cache){
+            HASH_FIND(hh, l_cache, a_tx_hash, sizeof(dap_hash_fast_t), l_cache_found);
+            if (l_cache_found){
+                HASH_DEL(l_cache, l_cache_found);
+                DAP_DELETE(l_cache_found);
+            }
+        }
+    } 
 }
