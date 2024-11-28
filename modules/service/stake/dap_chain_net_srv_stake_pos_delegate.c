@@ -100,7 +100,7 @@ static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_
 
 static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
 static void s_uncache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
-static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr_reply, dap_chain_addr_t *a_addr, dap_chain_t *a_chain, 
+static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr_reply, dap_chain_node_info_t *a_node_info, dap_chain_t *a_chain,
                                  dap_chain_net_t *a_net, dap_hash_t *a_pkey, dap_time_t a_time_form, dap_time_t a_time_to,  
                                  size_t a_limit, size_t a_offset,bool a_all, bool a_brief, bool a_head);
 
@@ -3394,7 +3394,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-pkey", &l_pkey_str);
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_wallet_name);
+            //dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_wallet_name);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-date_from", &l_d_from_str);
@@ -3409,23 +3409,22 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 
             dap_chain_node_addr_t l_node_addr = {}, l_link;
             uint32_t l_info_size = sizeof(dap_chain_node_info_t);
-            dap_chain_node_info_t *l_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, l_info_size);
-            memset(l_node_info, 0, l_info_size);;
+            dap_chain_node_info_t *l_node_info = NULL;
 
-            if (!l_addr_str && !l_wallet_name && !l_is_tx_all ) {
+            if (!l_addr_str  && !l_is_tx_all ) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR,
                                 "reward requires parameter '-addr' or '-w' or '-all'");
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR;
             }
 
-            if (!l_net_str && !l_addr_str && l_wallet_name) {
+            if (!l_net_str && !l_addr_str) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR,
                                 "reward requires parameter '-net' or '-addr' or '-w'");
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR;
             }
             
             // Select chain network
-            if (!l_addr_str && l_net_str) {
+            if (l_net_str) {
                 l_net = dap_chain_net_by_name(l_net_str);
                 if (!l_net) { // Can't find such network
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_PARAM_ERR,
@@ -3456,6 +3455,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             // Get chain address
             if (l_addr_str) {
 
+                l_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, l_info_size);
+                memset(l_node_info, 0, l_info_size);
                 if (dap_chain_node_addr_from_str(&l_node_info->address, l_addr_str)) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NODE_ADDR_ERR,
                                                                 "Can't parse node address %s", l_addr_str);
@@ -3474,7 +3475,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 
             if (!l_net) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_ERR, "Could not determine the network from which to "
-                                                       "extract data for the tx_history command to work.");
+                                                       "extract data for the reward command to work.");
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_ERR;
             }
 
@@ -3485,7 +3486,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                                 "can't find the required chain");
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_CHAIN_PARAM_ERR;
             }
-            json_object* l_json_arr_reply = s_dap_chain_net_srv_stake_reward_all(*a_json_arr_reply, l_addr, l_chain, 
+            json_object* l_json_arr_reply = s_dap_chain_net_srv_stake_reward_all(*a_json_arr_reply, l_node_info, l_chain,
                                  l_net, &l_hash_public_key, l_from_time, l_to_time, l_limit, l_offset, l_is_tx_all, l_brief, l_head);
             json_object_array_add(*a_json_arr_reply, l_json_arr_reply);                                    
         } break;
@@ -3499,7 +3500,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 }
 
 
-static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr_reply, dap_chain_addr_t *a_addr, dap_chain_t *a_chain, 
+static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr_reply, dap_chain_node_info_t *a_node_info, dap_chain_t *a_chain,
                                  dap_chain_net_t *a_net, dap_hash_t *a_pkey, dap_time_t a_time_form, dap_time_t a_time_to,  
                                  size_t a_limit, size_t a_offset, bool a_all, bool a_brief, bool a_head)
 {
@@ -3605,9 +3606,19 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, sizeof(l_pkey_hash_str));
                 dap_chain_net_srv_stake_item_t *l_stake = NULL;
                 HASH_FIND(hh, l_srv_stake->itemlist, &l_pkey_hash, sizeof(dap_hash_fast_t), l_stake);
-                json_object* json_block_hash1 = json_object_new_object();
-                if(l_stake)json_object_object_add(json_block_hash1, "addr - ", json_object_new_string(dap_chain_addr_to_str_static(&l_stake->signing_addr)));
-                json_object_array_add(json_obj_reward, json_block_hash1); 
+
+                if (a_node_info) {
+                    if (!l_stake || a_node_info->address.uint64 != l_stake->node_addr.uint64) {
+                        if (json_object_array_length(json_arr_sign_out) == 0) {
+                            json_object_put(json_arr_sign_out);
+                            json_object_put(json_block_hash);
+                            json_arr_sign_out = NULL;
+                            json_block_hash = NULL;
+                        }
+                        continue;
+                    }
+                }
+                /*
                 if (a_addr || (!a_all && a_pkey)) {
                     if (!l_stake || (a_addr && !dap_chain_addr_compare(a_addr, &l_stake->signing_addr)) 
                                  || (!a_addr && !dap_hash_fast_compare(a_pkey, &l_pkey_hash))) {
@@ -3619,7 +3630,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                         }                        
                         continue;                    
                     }
-                }               
+                }*/
 
                 json_object* json_obj_sign = json_object_new_object();
                 if (l_stake && !a_brief) {
