@@ -2055,6 +2055,12 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         json_object_put(json_arr_out);
                         return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR;
                     }
+                    if (l_pass_str && !dap_check_valid_password(l_pass_str, dap_strlen(l_pass_str))) {
+                        dap_json_rpc_error_add(*a_json_arr_reply,
+                                               DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INVALID_CHARACTERS_USED_FOR_PASSWORD,
+                                               "Invalid characters used for password.");
+                        return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INVALID_CHARACTERS_USED_FOR_PASSWORD;
+                    }
                     // create wallet backup 
                     dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
                     snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%012lu%s", c_wallets_path, l_wallet_name, time(NULL),".backup");
@@ -2187,15 +2193,11 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         }
                     }
                     // Checking that if a password is set, it contains only Latin characters, numbers and special characters, except for spaces.
-                    if (l_pass_str) {
-                        for (size_t i=0; i < dap_strlen(l_pass_str); i++) {
-                            if (l_pass_str[i] < '!' || l_pass_str[i] > '~') {
-                                dap_json_rpc_error_add(*a_json_arr_reply,
-                                                       DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INVALID_CHARACTERS_USED_FOR_PASSWORD,
-                                                       "Invalid characters used for password.");
-                                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INVALID_CHARACTERS_USED_FOR_PASSWORD;
-                            }
-                        }
+                    if (l_pass_str && !dap_check_valid_password(l_pass_str, dap_strlen(l_pass_str))) {
+                        dap_json_rpc_error_add(*a_json_arr_reply,
+                                               DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INVALID_CHARACTERS_USED_FOR_PASSWORD,
+                                               "Invalid characters used for password.");
+                        return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INVALID_CHARACTERS_USED_FOR_PASSWORD;
                     }
 
                     // Creates new wallet
