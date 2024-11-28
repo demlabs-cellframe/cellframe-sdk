@@ -420,7 +420,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("testCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, l_seed_ph, l_seed_ph_size);
     l_poa_pvt->auth_certs[0] = l_cert;
 #endif
-
+    dap_chain_cs_type_start("dag", a_chain);
     return 0;
 }
 

@@ -180,7 +180,7 @@ static bool s_debug_more = false;
 int dap_chain_cs_blocks_init()
 {
     dap_chain_block_init();
-    dap_chain_cs_type_add("blocks", s_chain_cs_blocks_new);
+    dap_chain_cs_type_add("blocks", s_chain_cs_blocks_new, NULL);
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains",
@@ -1528,27 +1528,30 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "0", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
 
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
-        l_ret++;
-        if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
-            PVT(a_blocks)->tx_count++;  
-        // Save datum hash -> block_hash link in hash table
-        dap_chain_block_datum_index_t *l_datum_index = DAP_NEW_Z(dap_chain_block_datum_index_t);
-        if (!l_datum_index) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            return 1;
+        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED){ // If this is any datum other than a already cached transaction
+            l_ret++;
+            if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
+                PVT(a_blocks)->tx_count++;  
+            // Save datum hash -> block_hash link in hash table
+            dap_chain_block_datum_index_t *l_datum_index = DAP_NEW_Z(dap_chain_block_datum_index_t);
+            if (!l_datum_index) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                return 1;
+            }
+            l_datum_index->ts_added = time(NULL);
+            l_datum_index->block_cache = a_block_cache;
+            l_datum_index->datum_hash = *l_datum_hash;
+            l_datum_index->ret_code = l_res;
+            l_datum_index->datum_index = i;
+            l_datum_index->action = l_datum_index_data.action;
+            l_datum_index->service_uid = l_datum_index_data.uid;
+            dap_strncpy(l_datum_index->token_ticker, l_datum_index_data.token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+            pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
+            HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
+            pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
+            dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
+            dap_chain_datum_notify(l_cell, l_datum_hash, (byte_t*)l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
         }
-        l_datum_index->ts_added = time(NULL);
-        l_datum_index->block_cache = a_block_cache;
-        l_datum_index->datum_hash = *l_datum_hash;
-        l_datum_index->ret_code = l_res;
-        l_datum_index->datum_index = i;
-        l_datum_index->action = l_datum_index_data.action;
-        l_datum_index->service_uid = l_datum_index_data.uid;
-        dap_strncpy(l_datum_index->token_ticker, l_datum_index_data.token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
-        pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
-        HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
-        pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
-
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
              l_ret == (int)a_block_cache->datum_count ? "all correct" : "there are rejected datums");
@@ -1579,6 +1582,9 @@ static int s_delete_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block
                 dap_chain_datum_remove(a_blocks->chain, l_datum, l_datum_size, l_datum_hash);
             l_ret++;
             HASH_DEL(PVT(a_blocks)->datum_index, l_datum_index);
+            // notify datum removed
+            dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
+            dap_chain_datum_removed_notify(l_cell, l_datum_hash);
         }
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
