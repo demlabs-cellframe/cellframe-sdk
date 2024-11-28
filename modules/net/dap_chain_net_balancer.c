@@ -429,7 +429,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     dap_net_links_t *l_link_full_node_list = s_balancer_issue_link(l_net_str, l_links_need, l_protocol_version, l_ignored_str);
     if (!l_link_full_node_list) {
         log_it(L_DEBUG, "Can't issue link for network %s, no acceptable links found", l_net_str);
-        *l_return_code = Http_Status_NotFound;
+        *l_return_code = Http_Status_NoContent;
         return;
     }
     *l_return_code = Http_Status_OK;
