@@ -77,6 +77,7 @@ typedef struct dap_chain_datum_tx_item_groups {
     dap_list_t *items_out_cond_srv_xchange;
     dap_list_t *items_out_cond_srv_stake_pos_delegate;
     dap_list_t *items_out_cond_srv_stake_lock;
+    dap_list_t *items_out_cond_srv_emit_delegate;
     dap_list_t *items_out_cond_unknonwn;
     dap_list_t *items_out_cond_undefined;
 
@@ -205,7 +206,7 @@ dap_sign_t *dap_chain_datum_tx_get_sign(dap_chain_datum_tx_t *a_tx, int a_sign_n
  *
  * return 1 Ok, 0 Invalid sign, -1 Not found sing or other Error
  */
-int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx);
+int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num);
 
 
 int dap_chain_datum_tx_get_fee_value (dap_chain_datum_tx_t *a_tx, uint256_t *a_value);
