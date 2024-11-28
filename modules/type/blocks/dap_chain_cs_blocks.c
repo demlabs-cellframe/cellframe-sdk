@@ -965,7 +965,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 if (l_from_time && l_ts < l_from_time)
                     continue;
                 if (l_to_time && l_ts >= l_to_time)
-                    break;
+                    continue;
                 if (l_from_hash_str && !l_hash_flag) {
                    if (!dap_hash_fast_compare(&l_from_hash, &l_block_cache->block_hash))
                        continue;
