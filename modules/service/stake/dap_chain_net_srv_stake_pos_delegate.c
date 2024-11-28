@@ -77,7 +77,7 @@ typedef enum s_cli_srv_stake_err{
 
     DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_PARAM_ERR,
-    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_WALLET_ADDR_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NODE_ADDR_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ID_NET_ADDR_DIF_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ADDR_WALLET_DIF_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_WALLET_ERR,
@@ -3379,7 +3379,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 
         case CMD_REWARD: {
             const char *l_net_str = NULL,
-                       *l_addr_base58 = NULL,
+                       *l_addr_str = NULL,
                        *l_wallet_name = NULL,
                        *l_limit_str = NULL,
                        *l_pkey_str = NULL,
@@ -3392,7 +3392,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             dap_chain_net_t * l_net = NULL;
             dap_time_t l_from_time = 0, l_to_time = 0;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_base58);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-pkey", &l_pkey_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_wallet_name);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
@@ -3407,20 +3407,25 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 
             bool l_is_tx_all = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-all", NULL);
 
-            if (!l_addr_base58 && !l_wallet_name && !l_is_tx_all ) {
+            dap_chain_node_addr_t l_node_addr = {}, l_link;
+            uint32_t l_info_size = sizeof(dap_chain_node_info_t);
+            dap_chain_node_info_t *l_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, l_info_size);
+            memset(l_node_info, 0, l_info_size);;
+
+            if (!l_addr_str && !l_wallet_name && !l_is_tx_all ) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR,
                                 "reward requires parameter '-addr' or '-w' or '-all'");
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR;
             }
 
-            if (!l_net_str && !l_addr_base58 && l_wallet_name) {
+            if (!l_net_str && !l_addr_str && l_wallet_name) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR,
                                 "reward requires parameter '-net' or '-addr' or '-w'");
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR;
             }
             
             // Select chain network
-            if (!l_addr_base58 && l_net_str) {
+            if (!l_addr_str && l_net_str) {
                 l_net = dap_chain_net_by_name(l_net_str);
                 if (!l_net) { // Can't find such network
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_PARAM_ERR,
@@ -3447,61 +3452,25 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
                 l_to_time = mktime(l_localtime);
             } 
-                      
-            
+
             // Get chain address
-            dap_chain_addr_t *l_addr = NULL;
-            if (l_addr_base58) {
-                
-                l_addr = dap_chain_addr_from_str(l_addr_base58);
-                if (!l_addr) {
-                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_WALLET_ADDR_ERR,
-                                                                "Wallet address not recognized");
-                    return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_WALLET_ADDR_ERR;
+            if (l_addr_str) {
+
+                if (dap_chain_node_addr_from_str(&l_node_info->address, l_addr_str)) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NODE_ADDR_ERR,
+                                                                "Can't parse node address %s", l_addr_str);
+                    return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NODE_ADDR_ERR;
                 }
-                if (l_net) {
-                    if (l_net->pub.id.uint64 != l_addr->net_id.uint64) {
-                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ID_NET_ADDR_DIF_ERR,
-                                                "Network ID with '-net' param and network ID with '-addr' param are different");
-                        DAP_DELETE(l_addr);
-                        return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ID_NET_ADDR_DIF_ERR;
-                    }
-                } else
-                    l_net = dap_chain_net_by_id(l_addr->net_id);
+
             }
-            if (l_wallet_name) {
-                const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-                dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
-                if (l_wallet) {
-                    const char *l_sign_str = dap_chain_wallet_check_sign(l_wallet);
-                    //TODO add warning about deprecated signs
-                    dap_chain_addr_t *l_addr_tmp = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
-                    if (l_addr) {
-                        if (!dap_chain_addr_compare(l_addr, l_addr_tmp)) {
-                            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ADDR_WALLET_DIF_ERR,
-                                                    "Address with '-addr' param and address with '-w' param are different");
-                            DAP_DELETE(l_addr);
-                            DAP_DELETE(l_addr_tmp);
-                            return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ADDR_WALLET_DIF_ERR;
-                        }
-                        DAP_DELETE(l_addr_tmp);
-                    } else
-                        l_addr = l_addr_tmp;
-                    dap_chain_wallet_close(l_wallet);
-                } else {
-                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_WALLET_ERR,
-                                            "The wallet %s is not activated or it doesn't exist", l_wallet_name);
-                    DAP_DELETE(l_addr);
-                    return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_WALLET_ERR;
-                }
-            }
+
             dap_chain_hash_fast_t l_hash_public_key = {0};
-            
+            /*
             if (!l_addr && l_pkey_str)
                 if (dap_chain_hash_fast_from_str(l_pkey_str, &l_hash_public_key)) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_INVALID_PKEY_ERR, "Invalid pkey hash format");
                     return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_INVALID_PKEY_ERR;
-                }
+                }*/
 
             if (!l_net) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_ERR, "Could not determine the network from which to "
@@ -3518,8 +3487,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             }
             json_object* l_json_arr_reply = s_dap_chain_net_srv_stake_reward_all(*a_json_arr_reply, l_addr, l_chain, 
                                  l_net, &l_hash_public_key, l_from_time, l_to_time, l_limit, l_offset, l_is_tx_all, l_brief, l_head);
-            json_object_array_add(*a_json_arr_reply, l_json_arr_reply);                        
-            DAP_DELETE(l_addr);
+            json_object_array_add(*a_json_arr_reply, l_json_arr_reply);                                    
         } break;
 
         default: {
