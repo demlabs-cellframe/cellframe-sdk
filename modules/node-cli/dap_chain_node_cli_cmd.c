@@ -1279,11 +1279,11 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     } break;
 
     case  CMD_BAN: {
-        dap_chain_net_t *l_netl = NULL;
-        dap_chain_t *l_chain = NULL;
-        if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_netl,
-                                                         CHAIN_TYPE_DECREE) < 0)
+        dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE);
+        if(!l_chain) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s does not support decrees.", l_net->pub.name);
             return -11;
+        }
         const char * l_hash_out_type = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
         if(!l_hash_out_type)
@@ -1317,7 +1317,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
         l_decree->header.common_decree_params.net_id = l_net->pub.id;
         l_decree->header.common_decree_params.chain_id = l_chain->id;
-        l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(l_netl);
+        l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(l_net);
         l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN;
         l_decree->header.data_size = dap_tsd_size(l_addr_tsd);
         l_decree->header.signs_size = 0;
@@ -1342,11 +1342,11 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     } break;
 
     case CMD_UNBAN: {
-        dap_chain_net_t *l_netl = NULL;
-        dap_chain_t *l_chain = NULL;
-        if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_netl,
-                                                         CHAIN_TYPE_DECREE) < 0)
+        dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE);
+        if(!l_chain) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s does not support decrees.", l_net->pub.name);
             return -11;
+        }
         const char * l_hash_out_type = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
         if(!l_hash_out_type)
@@ -1380,7 +1380,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
         l_decree->header.common_decree_params.net_id = l_net->pub.id;
         l_decree->header.common_decree_params.chain_id = l_chain->id;
-        l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(l_netl);
+        l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(l_net);
         l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN;
         l_decree->header.data_size = dap_tsd_size(l_addr_tsd);
         l_decree->header.signs_size = 0;
