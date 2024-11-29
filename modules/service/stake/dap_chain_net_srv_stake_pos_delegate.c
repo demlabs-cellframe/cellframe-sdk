@@ -3454,7 +3454,6 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 
             // Get chain address
             if (l_addr_str) {
-
                 l_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, l_info_size);
                 memset(l_node_info, 0, l_info_size);
                 if (dap_chain_node_addr_from_str(&l_node_info->address, l_addr_str)) {
@@ -3565,6 +3564,21 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                                      : dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_datum_hash);
         json_object* json_arr_sign_out = NULL;
         json_object* json_block_hash = NULL;
+        uint256_t l_value_out = uint256_0;
+        if (!a_brief) {
+            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT, NULL);
+            dap_list_t *l_list_out_cond_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_COND, NULL);
+            for(dap_list_t *it = l_list_out_cond_items; it; it = it->next) {
+                 dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)it;
+                 SUM_256_256(l_value_out, l_tx_out->header.value, &l_value_out);
+            }
+            for(dap_list_t *it = l_list_out_items; it; it = it->next) {
+                 dap_chain_tx_out_cond_t *l_tx_out_cound = (dap_chain_tx_out_cond_t *)it;
+                 SUM_256_256(l_value_out, l_tx_out_cound->header.value, &l_value_out);
+            }
+            dap_list_free(l_list_out_items);
+            dap_list_free(l_list_out_cond_items);
+        }
         for(dap_list_t *it = l_list_in_items; it; it = it->next)
         {
             dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t *) it->data;            
@@ -3661,7 +3675,13 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 json_object_array_add(json_obj_reward, json_block_hash);
             }                        
         }
-        dap_list_free(l_list_in_items);         
+        const char  *l_coins_out_str,
+            *l_value_str = dap_uint256_to_char(l_value_out, &l_coins_out_str);
+        json_object* json_value_out = json_object_new_object();
+        json_object_object_add(json_value_out, "Rewards value (calculated)", json_object_new_string(l_value_str));
+        json_object_object_add(json_value_out, "Rewards coins (calculated)", json_object_new_string(l_coins_out_str));
+        json_object_array_add(json_obj_reward, json_value_out);
+        dap_list_free(l_list_in_items);
     }
     a_chain->callback_datum_iter_delete(l_datum_iter);
     return json_obj_reward;
