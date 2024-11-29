@@ -643,7 +643,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 l_err_num = DAP_LEDGER_TX_CHECK_OUT_ITEM_ALREADY_USED;
                 char l_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_chain_hash_fast_to_str(&l_spender, l_hash, sizeof(l_hash));
-                debug_if(g_debug_ledger, L_INFO, "'Out' item of previous tx %s already spent by %s", l_tx_prev_hash_str, l_hash);
+                debug_if(g_debug_ledger, L_INFO, "'Out' item %u of previous tx %s already spent by %s", l_tx_prev_out_idx, l_tx_prev_hash_str, l_hash);
                 break;
             }
 
@@ -753,7 +753,9 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 if (l_verificator_error != DAP_LEDGER_CHECK_OK) { // TODO add string representation for verificator return codes
                     debug_if(g_debug_ledger, L_WARNING, "Verificator check error %d for conditional input %s",
                                                                     l_verificator_error, dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp));
-                    l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
+
+                    // Retranslate NO_SIGNS code to upper level
+                    l_err_num = l_verificator_error == DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS ? l_verificator_error : DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
                     break;
                 }
                 l_bound_item->cond = l_tx_prev_out_cond;
@@ -2082,37 +2084,37 @@ dap_chain_datum_tx_t *dap_ledger_tx_unspent_find_by_hash(dap_ledger_t *a_ledger,
 dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash)
 {
     dap_return_val_if_fail(a_ledger && a_tx_hash, (dap_hash_fast_t) {});
-    dap_hash_fast_t l_hash = *a_tx_hash, l_hash_tmp;
-    dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, a_tx_hash);
-    byte_t *l_iter = l_prev_tx->tx_items;
-    while (( l_iter = dap_chain_datum_tx_item_get(l_prev_tx, NULL, l_iter, TX_ITEM_TYPE_IN_COND, NULL) )) {
-        l_hash_tmp =  ((dap_chain_tx_in_cond_t *)l_iter)->header.tx_prev_hash;
-        if ( dap_hash_fast_is_blank(&l_hash_tmp) )
-            return l_hash_tmp;
-        if (( l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_hash_tmp) ) &&
-                ( dap_chain_datum_tx_out_cond_get(l_prev_tx, a_cond_type, NULL) )) {
-            l_hash = l_hash_tmp;
-            l_iter = l_prev_tx->tx_items;
+    dap_hash_fast_t l_hash = *a_tx_hash;
+    dap_chain_datum_tx_t *l_prev_tx = NULL;
+    while ( (l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_hash)) ) {
+        byte_t *l_iter = l_prev_tx->tx_items;
+        dap_chain_tx_in_cond_t *l_cond_in = NULL;
+        while ( (l_cond_in = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(l_prev_tx, NULL, l_iter, TX_ITEM_TYPE_IN_COND, NULL)) ) {
+            dap_hash_fast_t l_hash_tmp = l_cond_in->header.tx_prev_hash;
+            if ( (l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_hash_tmp)) &&
+                    dap_chain_datum_tx_out_cond_get(l_prev_tx, a_cond_type, NULL) ) {
+                l_hash = l_hash_tmp;
+                break;
+            }
         }
+        if (!l_cond_in)
+            break;
     }
     return l_hash;
 }
 
 dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash)
 {
-    dap_chain_hash_fast_t l_hash = { }, l_hash_tmp;
-    if (!a_ledger || !a_tx_hash || dap_hash_fast_is_blank(a_tx_hash))
-        return l_hash;
-
+    dap_return_val_if_fail(a_ledger && a_tx_hash, (dap_hash_fast_t) {});
     dap_chain_datum_tx_t *l_tx = NULL;
-    l_hash = *a_tx_hash;
-    int l_out_num = 0;
+    dap_chain_hash_fast_t l_hash = *a_tx_hash;
     dap_ledger_tx_item_t *l_item = NULL;
     while (( l_tx = s_tx_find_by_hash(a_ledger, &l_hash, &l_item, false) )) {
-        if ( !dap_chain_datum_tx_out_cond_get(l_tx, a_cond_type, &l_out_num)
-            || dap_hash_fast_is_blank(&l_item->out_metadata[l_out_num].tx_spent_hash_fast))
+        int l_out_num = 0;
+        if (!dap_chain_datum_tx_out_cond_get(l_tx, a_cond_type, &l_out_num))
+            return (dap_hash_fast_t) {};
+        else if (dap_hash_fast_is_blank(&l_item->out_metadata[l_out_num].tx_spent_hash_fast))
             break;
-
         l_hash = l_item->out_metadata[l_out_num].tx_spent_hash_fast;
     }
     return l_hash;

@@ -253,6 +253,10 @@ static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, d
     }
 
     dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, a_tx_in_hash);
+    if (dap_hash_fast_is_blank(&l_final_tx_hash))
+        m_tx_fail(ERROR_FUNDS, "Nothing to emit (not enough funds)");
+
+    log_it(L_NOTICE, "Actual TX hash with unspent output %s will be used for taking TX composing", dap_hash_fast_to_str_static(&l_final_tx_hash));
     dap_chain_datum_tx_t *l_tx_in = dap_ledger_tx_find_by_hash(l_ledger, &l_final_tx_hash);
     assert(l_tx_in);
     int l_prev_cond_idx = 0;
@@ -260,7 +264,7 @@ static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, d
     if (!l_cond_prev)
         m_tx_fail(ERROR_TX_MISMATCH, "Requested conditional transaction requires conditional output");
 
-    if (dap_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_in_hash, l_prev_cond_idx, NULL))
+    if (dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_final_tx_hash, l_prev_cond_idx, NULL))
         m_tx_fail(ERROR_TX_MISMATCH, "Requested conditional transaction is already used out");
 
     if (compare256(l_cond_prev->header.value, l_value) == -1)
@@ -326,6 +330,8 @@ static dap_chain_datum_tx_t *s_taking_tx_sign(json_object *a_json_arr_reply, dap
     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, &l_cond_idx);
     if (!l_cond)
         m_sign_fail(ERROR_TX_MISMATCH, "Requested conditional transaction requires conditional output");
+    if (!dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL))
+        m_sign_fail(ERROR_TX_MISMATCH, "No need to sign holding TX");
     if (!s_is_key_present(l_cond, a_enc_key))
         m_sign_fail(ERROR_TX_MISMATCH, "Requested conditional transaction restrict provided sign key");
     size_t l_my_pkey_size = 0;
