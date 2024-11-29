@@ -119,7 +119,6 @@
 
 static bool s_debug_more = false;
 static const int c_sync_timer_period = 5000;  // msec
-static bool s_server_enabled = false;
 
 struct request_link_info {
     char addr[DAP_HOSTADDR_STRLEN + 1];
@@ -550,7 +549,7 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
         }
     }
     dap_chain_node_info_t *l_node_info = NULL;
-    if (!l_host || !l_host[0] || !l_port) {
+    if (!l_host || !*l_host || !l_port) {
         for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
             if (( l_node_info = dap_chain_node_info_read(net, &a_link->addr) ))
                 break;
@@ -706,10 +705,7 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
                 *a_native_ticker= dap_config_get_item_str(a_cfg, "general", "native_ticker");
     dap_chain_net_id_t l_net_id;
 
-    if(!a_node_role)
-        return log_it(L_ERROR, "Can't create l_net, can't read node role config"), NULL;
-
-    if(!l_net_name_str || !l_net_id_str || dap_chain_net_id_parse(l_net_id_str, &l_net_id))
+    if (!l_net_name_str || !*l_net_name_str || !l_net_id_str || dap_chain_net_id_parse(l_net_id_str, &l_net_id))
         return log_it(L_ERROR, "Can't create l_net, can't read name or ID config"), NULL;
 
     dap_chain_net_t *l_net_sought = NULL;
@@ -724,38 +720,38 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
                         l_net_sought->pub.id.uint64);
         return NULL;
     }
+
+    if (!a_native_ticker)
+        return log_it(L_ERROR, "Invalid native ticker, check [general] \"native_ticker\" in %s.cfg", l_net_name_str), NULL;
+    
+    if (!a_node_role)
+        return log_it(L_ERROR, "Can't create l_net, can't read node role config"), NULL;
+
+    uint32_t l_role;
+    if ( !strcmp (a_node_role, "root_master") )
+        l_role = NODE_ROLE_ROOT_MASTER;
+    else if ( !strcmp(a_node_role,"root") )
+        l_role = NODE_ROLE_ROOT;
+    else if ( !strcmp(a_node_role,"archive") )
+        l_role = NODE_ROLE_ARCHIVE;
+    else if ( !strcmp(a_node_role,"cell_master") )
+        l_role = NODE_ROLE_CELL_MASTER;
+    else if ( !strcmp(a_node_role,"master") )
+        l_role = NODE_ROLE_MASTER;
+    else if ( !strcmp(a_node_role,"full") )
+        l_role = NODE_ROLE_FULL;
+    else if ( !strcmp(a_node_role,"light") )
+        l_role = NODE_ROLE_LIGHT;
+    else
+        return log_it(L_ERROR,"Unknown node role \"%s\" for network '%s'", a_node_role, l_net_name_str), NULL;
+
     dap_chain_net_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t), NULL);
     PVT(l_ret)->node_info = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1, NULL, l_ret);
-
     l_ret->pub.id = l_net_id;
-    if (strcmp (a_node_role, "root_master")==0){
-        PVT(l_ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
-    } else if (strcmp( a_node_role,"root") == 0){
-        PVT(l_ret)->node_role.enums = NODE_ROLE_ROOT;
-    } else if (strcmp( a_node_role,"archive") == 0){
-        PVT(l_ret)->node_role.enums = NODE_ROLE_ARCHIVE;
-    } else if (strcmp( a_node_role,"cell_master") == 0){
-        PVT(l_ret)->node_role.enums = NODE_ROLE_CELL_MASTER;
-    }else if (strcmp( a_node_role,"master") == 0){
-        PVT(l_ret)->node_role.enums = NODE_ROLE_MASTER;
-    }else if (strcmp( a_node_role,"full") == 0){
-        PVT(l_ret)->node_role.enums = NODE_ROLE_FULL;
-    }else if (strcmp( a_node_role,"light") == 0){
-        PVT(l_ret)->node_role.enums = NODE_ROLE_LIGHT;
-    }else{
-        log_it(L_ERROR,"Unknown node role \"%s\" for network '%s'", a_node_role, l_net_name_str);
-        DAP_DELETE(l_ret);
-        return NULL;
-    }
-    if (!( l_net_name_str ))
-        return DAP_DELETE(l_ret), log_it(L_ERROR, "Invalid net name, check [general] \"name\" in netconfig"), NULL;
-    dap_strncpy(l_ret->pub.name, l_net_name_str, sizeof(l_ret->pub.name));
-    if (!( l_ret->pub.native_ticker = a_native_ticker ))
-        return DAP_DEL_MULTY(l_ret->pub.name, l_ret),
-               log_it(L_ERROR, "Invalid native ticker, check [general] \"native_ticker\" in %s.cfg",
-                                l_net_name_str),
-                NULL;
+    PVT(l_ret)->node_role.enums = l_role;
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, l_net_name_str);
+    dap_strncpy(l_ret->pub.name, l_net_name_str, sizeof(l_ret->pub.name));
+    l_ret->pub.native_ticker = a_native_ticker;
     l_ret->pub.config = a_cfg;
     l_ret->pub.gdb_groups_prefix
         = dap_config_get_item_str_default( a_cfg, "general", "gdb_groups_prefix", dap_config_get_item_str(a_cfg, "general", "name") );
@@ -792,34 +788,20 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg) {
  */
 void dap_chain_net_load_all()
 {
-    if ( dap_config_get_item_bool_default(g_config, "server", "enabled", false) ) {
-        char l_local_ip[INET6_ADDRSTRLEN] = { '\0' };
-        uint16_t l_in_port = 0;
-        const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
-        if ( l_listening ) {
-            if ( dap_net_parse_config_address(*l_listening, l_local_ip, &l_in_port, NULL, NULL) < 0 )
-                log_it(L_ERROR, "Invalid server IP address, check [server] section in cellframe-node.cfg");
-            else {
-                // power of short-circuit
-                if ( l_in_port || ( l_in_port = dap_config_get_item_int16_default(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT, 8079 ))) {
-                    s_server_enabled = true;
-                    log_it(L_INFO, "Server is enabled on [%s : %u]", l_local_ip, l_in_port);
-                }
-            }
-        }
-    }
-    uint16_t l_nets_count = HASH_COUNT(s_nets_by_name);
+    int l_nets_count = HASH_COUNT(s_nets_by_name), i = 0, l_err;
     if (!l_nets_count)
         return log_it(L_ERROR, "No networks initialized!");
     pthread_t l_tids[l_nets_count];
-    dap_chain_net_t *l_net = s_nets_by_name;
     dap_timerfd_t *l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_net_disk_load_notify_callback, NULL);
-    for (int i = 0; i < l_nets_count; ++i) {
-        pthread_create(&l_tids[i], NULL, s_net_load, l_net);
-        l_net = l_net->hh.next;
+    for ( dap_chain_net_t *l_net = s_nets_by_name; l_net && !( l_err = pthread_create(&l_tids[i], NULL, s_net_load, l_net) ); l_net = l_net->hh.next, ++i );
+    if ( i < l_nets_count ) {
+        log_it(L_ERROR, "%s%d of %d nets are loading! Thread creation error %d: \"%s\"",
+                        i ? "Only " : "", i, l_nets_count, l_err, dap_strerror(l_err));
+        l_nets_count = i;
     }
-    for (int i = 0; i < l_nets_count; ++i) {
-        pthread_join(l_tids[i], NULL);
+    for ( i = 0; i < l_nets_count; ++i ) {
+        if (( l_err = pthread_join(l_tids[i], NULL) ))
+            log_it(L_ERROR, "Thread %d join error %d: \"%s\"", l_err, dap_strerror(l_err));
     }
     dap_timerfd_delete_mt(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
 }
@@ -1875,16 +1857,16 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
             ++j;
         }
         l_net->pub.bridged_networks_count = j;
-        if (j < i)
-            l_net->pub.bridged_networks = DAP_REALLOC_COUNT(l_net->pub.bridged_networks, j); // Can be NULL, it's ok
+        if (j < i) 
+            l_net->pub.bridged_networks = j ? DAP_REALLOC_COUNT(l_net->pub.bridged_networks, j) : ( DAP_DELETE(l_net->pub.bridged_networks), NULL );
     }
 
     // read nodes addrs and hosts
     if (
-        dap_config_stream_addrs_parse(l_cfg, "general", "permanent_nodes_addrs", &l_net_pvt->permanent_links_addrs, &l_net_pvt->permanent_links_addrs_count) ||
-        s_nodes_hosts_init(l_net, l_cfg, "permanent_nodes_hosts", &l_net_pvt->permanent_links_hosts, &l_net_pvt->permanent_links_hosts_count) ||
-        s_nodes_hosts_init(l_net, l_cfg, "seed_nodes_hosts", &l_net_pvt->seed_nodes_hosts, &l_net_pvt->seed_nodes_count) || 
-        (!l_net_pvt->seed_nodes_count && s_nodes_hosts_init(l_net, l_cfg, "bootstrap_hosts", &l_net_pvt->seed_nodes_hosts, &l_net_pvt->seed_nodes_count) )
+        dap_config_stream_addrs_parse(l_cfg, "general", "permanent_nodes_addrs", &l_net_pvt->permanent_links_addrs, &l_net_pvt->permanent_links_addrs_count)
+     || s_nodes_hosts_init(l_net, l_cfg, "permanent_nodes_hosts", &l_net_pvt->permanent_links_hosts, &l_net_pvt->permanent_links_hosts_count)
+     || s_nodes_hosts_init(l_net, l_cfg, "seed_nodes_hosts", &l_net_pvt->seed_nodes_hosts, &l_net_pvt->seed_nodes_count)
+     || ( !l_net_pvt->seed_nodes_count && s_nodes_hosts_init(l_net, l_cfg, "bootstrap_hosts", &l_net_pvt->seed_nodes_hosts, &l_net_pvt->seed_nodes_count) )
     ) {
         dap_chain_net_delete(l_net);
         dap_config_close(l_cfg);
@@ -1896,6 +1878,10 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
     // Get list chains name for enabled debug mode
     bool is_esbocs_debug = dap_config_get_item_bool_default(l_cfg, "esbocs", "consensus_debug", false);
 
+    if ( dap_server_enabled() && ( l_net_pvt->node_info->ext_port = dap_config_get_item_uint16(g_config, "server", "ext_port") ))
+        log_it(L_INFO, "Set external port %u for adding in node list", l_net_pvt->node_info->ext_port);
+
+    
     /* *** Chains init by configs *** */
     DIR *l_chains_dir = opendir(a_path);
     if (!l_chains_dir)
@@ -1936,8 +1922,7 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
             for ( ; i < k; ++i) {
                 if ( l_occupied_default_types[l_types_arr[i]] ) {
                     if ( i < k - 1 )
-                        l_types_arr[i] =
-                            l_types_arr[k - 1];
+                        l_types_arr[i] = l_types_arr[k - 1];
                     --i;
                     --k;
                 } else
@@ -1950,9 +1935,8 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
             if (!dap_strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "esbocs") && is_esbocs_debug) {
                 dap_chain_esbocs_change_debug_mode(l_chain, true);
             }
-        } else {
+        } else
             HASH_DEL(l_all_chain_configs, l_chain_config);
-        }
     }
     HASH_CLEAR(hh, l_all_chain_configs);
     // LEDGER model
@@ -1984,7 +1968,7 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
     }
     if (!l_net->pub.keys)
         log_it(L_WARNING, "PoA certificates for net %s not found", l_net->pub.name);
-
+    
     // init LEDGER model
     l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
     // Decrees initializing
@@ -2002,16 +1986,8 @@ static void *s_net_load(void *a_arg)
         l_err_code = -1;
         goto ret;
     }
-
+    
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
-
-    // reload ledger cache at once
-    /*if (s_chain_net_reload_ledger_cache_once(l_net)) {
-        log_it(L_WARNING,"Start one time ledger cache reloading");
-        dap_ledger_purge(l_net->pub.ledger, false);
-        dap_chain_net_srv_stake_purge(l_net);
-    } else
-        dap_chain_net_srv_stake_load_cache(l_net);*/
 
     // load chains
     dap_chain_t *l_chain = l_net->pub.chains;
@@ -2181,11 +2157,6 @@ static void *s_net_load(void *a_arg)
     DL_FOREACH(l_net->pub.chains, l_chain)
         if (l_chain->callback_created)
             l_chain->callback_created(l_chain, l_net->pub.config);
-
-    if ( s_server_enabled ) {
-        if (( l_net_pvt->node_info->ext_port = dap_config_get_item_uint16(g_config, "server", "ext_port") ))
-            log_it(L_INFO, "Set external port %u for adding in node list", l_net_pvt->node_info->ext_port);
-    }
 
     l_net_pvt->node_info->address.uint64 = g_node_addr.uint64;
 

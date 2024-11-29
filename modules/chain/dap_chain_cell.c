@@ -103,8 +103,7 @@ int dap_chain_cell_init(void)
     }
     
 #endif
-    //s_cells_path = dap_config_get_item_str(g_config,"resources","cells_storage");
-    return  0;
+    return 0;
 }
 
 #ifndef DAP_OS_WINDOWS
