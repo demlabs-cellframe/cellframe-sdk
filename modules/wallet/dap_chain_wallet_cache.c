@@ -175,14 +175,11 @@ int dap_chain_wallet_cache_init()
         dap_chain_wallet_add_wallet_opened_notify(s_wallet_opened_callback, NULL);
         dap_chain_wallet_add_wallet_created_notify(s_wallet_opened_callback, NULL);
     }
-        
-    
     return 0;
 }
 
 int dap_chain_wallet_cache_deinit()
 {
-
     return 0;
 }
 

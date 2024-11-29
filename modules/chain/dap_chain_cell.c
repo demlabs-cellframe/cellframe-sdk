@@ -167,7 +167,8 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
     err = pfnNtMapViewOfSection(hSection, GetCurrentProcess(), (HANDLE)&a_cell->map, 0, 0, 
                                 &Offset, &l_map_size, ViewUnmap, MEM_RESERVE, PAGE_WRITECOPY);
     if ( !NT_SUCCESS(err) )
-        return NtClose(hSection), log_it(L_ERROR, "NtMapViewOfSection() failed, status %lx", err), -1;
+        return NtClose(hSection), log_it(L_ERROR, "NtMapViewOfSection() failed, status %lx: \"%s\"",
+                                                  err, dap_str_ntstatus(err) ), -1;
 #else
     if (a_load)
         s_cell_reclaim_cur_volume(a_cell);
