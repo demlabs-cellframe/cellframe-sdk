@@ -535,10 +535,7 @@ struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_
     if (pos) {
         size_t l_addr_len = pos - a_bal->key;
         char *l_addr_str = DAP_NEW_STACK_SIZE(char, l_addr_len + 1);
-        if ( !l_addr_str )
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        memcpy(l_addr_str, a_bal->key, pos - a_bal->key);
-        *(l_addr_str + l_addr_len) = '\0';
+        dap_strncpy(l_addr_str, a_bal->key, l_addr_len);
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
         const char *l_wallet_name = dap_chain_wallet_addr_cache_get_name(l_addr);
         DAP_DELETE(l_addr);
@@ -4259,8 +4256,10 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
     /* Notify the world*/
     if ( !dap_chain_net_get_load_mode(a_ledger->net) ) {
         struct json_object *l_json = wallet_info_json_collect(a_ledger, a_balance);
-        dap_notify_server_send_mt(json_object_get_string(l_json));
-        json_object_put(l_json);
+        if (l_json) {
+            dap_notify_server_send_mt(json_object_get_string(l_json));
+            json_object_put(l_json);
+        }
     }
     return 0;
 }
