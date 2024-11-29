@@ -97,8 +97,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node balancer -net <net_name>\n"
                     "node dump [-net <net_name> | -addr <node_address>]\n\n"
                     "node list -net <net_name> [-addr <node_address> | -alias <node_alias>] [-full]\n\n"
-                    "node ban -net <net_name> -chain <chain_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
-                    "node unban -net <net_name> -chain <chain_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
+                    "node ban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
+                    "node unban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
                     "node banlist\n\n");
     #ifndef DAP_OS_ANDROID
     dap_cli_server_cmd_add ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
@@ -353,15 +353,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Decree create command
     dap_cli_server_cmd_add ("decree", cmd_decree, "Work with decree",
-            "decree create common -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -certs <certs_list> {-fee <net_fee_value> -to_addr <net_fee_wallet_addr> | -new_certs <new_owners_certs_list> | -signs_verify <value>}\n"
+            "decree create [common] -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -certs <certs_list> {-fee <net_fee_value> -to_addr <net_fee_wallet_addr> | -hardfork_from <atom_number> | -new_certs <new_owners_certs_list> | -signs_verify <value>}\n"
             "Creates common network decree in net <net_name>. Decree adds to chain -chain and applies to chain -decree_chain. If -chain and -decree_chain is different you must create anchor in -decree_chain that is connected to this decree."
             "\nCommon decree parameters:\n"
             "\t -fee <value>: sets network fee\n"
             "\t -to_addr <wallet_addr>: sets wallet addr for network fee\n"
             "\t -new_certs <certs_list>: sets new owners set for net\n"
             "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n\n"
-            "decree create service -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -srv_id <service_id> -certs <certs_list> -fee <value> -to_addr <wallet_addr> -new_certs <certs_list> -signs_verify <value>\n"
-            "Creates service decree in net <net_name> for service -srv_id.\n\n"
             "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
             "Signs decree with hash -datum.\n\n"
             "decree anchor -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
