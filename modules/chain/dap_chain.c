@@ -86,6 +86,7 @@ void dap_chain_deinit(void)
     dap_chain_item_t * l_item = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {
           dap_chain_delete(l_item->chain);
+          DAP_DELETE(l_item);
     }
 }
 
@@ -142,7 +143,7 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
  * delete dap chain object
  * @param a_chain dap_chain_t object
  */
-void dap_chain_delete(dap_chain_t * a_chain)
+void dap_chain_delete(dap_chain_t *a_chain)
 {
     dap_chain_item_t * l_item = NULL;
     dap_chain_item_id_t l_chain_item_id = {
@@ -161,15 +162,17 @@ void dap_chain_delete(dap_chain_t * a_chain)
     }
     pthread_rwlock_unlock(&s_chain_items_rwlock);
     dap_list_free_full(a_chain->atom_notifiers, NULL);
-    dap_config_close(a_chain->config);
     if (a_chain->callback_delete)
         a_chain->callback_delete(a_chain);
+    dap_config_close(a_chain->config);
     if (DAP_CHAIN_PVT(a_chain)) {
         DAP_DEL_MULTY(DAP_CHAIN_PVT(a_chain)->file_storage_dir, DAP_CHAIN_PVT(a_chain));
     }
-    DAP_DEL_MULTY(a_chain->name, a_chain->net_name, a_chain->datum_types, a_chain->autoproc_datum_types, a_chain->authorized_nodes_addrs, a_chain->_inheritor, a_chain);
+    DAP_DEL_MULTY(a_chain->name, a_chain->net_name, a_chain->datum_types, a_chain->autoproc_datum_types,
+                  a_chain->authorized_nodes_addrs, a_chain->_inheritor);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
+    DAP_DELETE(a_chain);
 }
 
 /**
