@@ -167,11 +167,13 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
     }
     
     //not voting or vote...
-    if (a_items_grp->items_vote || a_items_grp->items_voting || a_items_grp->items_tsd)
+    if (a_items_grp->items_vote || a_items_grp->items_voting || dap_list_length(a_items_grp->items_tsd) > 1 || (a_items_grp->items_tsd && !dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT)))
         return false;
 
-    //not tsd sects (staking!)
-    if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+    //not tsd sects (staking!) or only batching tsd
+    if(a_action) {
+        *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+    }
     return true;
 }
 
