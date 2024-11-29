@@ -185,7 +185,7 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
     a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map_end = a_cell->map + l_map_size);
 #ifndef DAP_OS_WINDOWS    
     if (a_load)
-        madvise(a_cell->map, l_map_size, MADV_SEQUENTIAL);
+        madvise(a_cell->map, l_map_size, MADV_RANDOM);
 #endif
     return 0;
 }
