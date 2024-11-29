@@ -48,6 +48,7 @@
 #include "dap_chain_net_srv.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
+#include "dap_enc_base64.h"
 
 #define LOG_TAG "chain_node_cli_cmd_tx"
 
@@ -2849,7 +2850,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR, c_error_memory_alloc);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
         }
-        const char **l_value_array = dap_strsplit(str_tmp, ",", l_value_el_count);
+        char **l_value_array = dap_strsplit(str_tmp, ",", l_value_el_count);
         if (!l_value_array) {
             DAP_DELETE(l_value);
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "Can't read '-to_addr' arg");
@@ -2863,7 +2864,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
                 return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE;
             }
         }
-        DAP_DELETE(l_value_array);
+        dap_strfreev(l_value_array);
     
         l_addr_to = DAP_NEW_Z_COUNT(dap_chain_addr_t *, l_addr_el_count);
         if (!l_addr_to) {
@@ -2872,7 +2873,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR, c_error_memory_alloc);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
         }
-        const char **l_addr_base58_to_array = dap_strsplit(addr_base58_to, ",", l_addr_el_count);
+        char **l_addr_base58_to_array = dap_strsplit(addr_base58_to, ",", l_addr_el_count);
         if (!l_addr_base58_to_array) {
             DAP_DEL_MULTY(l_addr_to, l_value);
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "Can't read '-to_addr' arg");
@@ -2889,7 +2890,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
                 return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID;
             }
         }
-        DAP_DELETE(l_addr_base58_to_array);
+        dap_strfreev(l_addr_base58_to_array);
     }
 
     int l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CREATE_OK;
@@ -2952,7 +2953,6 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
     const dap_chain_addr_t *l_addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
     if(!l_addr_from) {
-        DAP_DELETE(l_addr_to);
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_priv_key);
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID, "source address is invalid");
@@ -2979,7 +2979,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
     }
 
     for (size_t i = 0; i < l_addr_el_count; ++i) {
-        if (l_addr_to[i]->net_id.uint64 != l_net->pub.id.uint64 && !dap_chain_addr_is_blank(l_addr_to)) {
+        if (l_addr_to[i]->net_id.uint64 != l_net->pub.id.uint64 && !dap_chain_addr_is_blank(l_addr_to[i])) {
             bool l_found = false;
             for (size_t j = 0; j < l_net->pub.bridged_networks_count; ++j) {
                 if (l_net->pub.bridged_networks[j].uint64 == l_addr_to[i]->net_id.uint64) {
@@ -3019,7 +3019,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
         l_jobj_transfer_status = json_object_new_string((l_ret == 0) ? "Ok" : (l_ret == -2) ? "False, not enough funds for transfer" : "False");
         json_object_object_add(l_jobj_result, "transfer", l_jobj_transfer_status);
     } else {
-        char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, l_addr_from, (const dap_chain_addr_t **)l_addr_to,
+        char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, l_addr_from, (dap_chain_addr_t *const *)l_addr_to,
                                                                   l_token_ticker, l_value, l_value_fee, l_hash_out_type, l_addr_el_count);
         if (l_tx_hash_str) {
             l_jobj_transfer_status = json_object_new_string("Ok");

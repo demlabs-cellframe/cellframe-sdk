@@ -4138,6 +4138,46 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply)
     }
 }
 
+/* Decree section */
+
+/**
+ * @brief
+ * sign data (datum_decree) by certificates (1 or more)
+ * successful count of signes return in l_sign_counter
+ * @param a_certs - array with certificates loaded from dcert file
+ * @param a_datum_anchor - updated pointer for l_datum_token variable after realloc
+ * @param a_certs_count - count of certificate
+ * @param a_total_sign_count - counter of successful data signing operation
+ * @return dap_chain_datum_anchor_t*
+ */
+static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_anchor_t *a_datum_anchor,
+                    size_t a_certs_count, size_t *a_total_sign_count)
+{
+    size_t l_cur_sign_offset = a_datum_anchor->header.data_size + a_datum_anchor->header.signs_size;
+    size_t l_total_signs_size = a_datum_anchor->header.signs_size, l_total_sign_count = 0;
+
+    for(size_t i = 0; i < a_certs_count; i++)
+    {
+        dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_anchor,
+           sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size, 0);
+
+        if (l_sign) {
+            size_t l_sign_size = dap_sign_get_size(l_sign);
+            a_datum_anchor = DAP_REALLOC(a_datum_anchor, sizeof(dap_chain_datum_anchor_t) + l_cur_sign_offset + l_sign_size);
+            memcpy((byte_t*)a_datum_anchor->data_n_sign + l_cur_sign_offset, l_sign, l_sign_size);
+            l_total_signs_size += l_sign_size;
+            l_cur_sign_offset += l_sign_size;
+            a_datum_anchor->header.signs_size = l_total_signs_size;
+            DAP_DELETE(l_sign);
+            log_it(L_DEBUG,"<-- Signed with '%s'", a_certs[i]->name);
+            l_total_sign_count++;
+        }
+    }
+
+    *a_total_sign_count = l_total_sign_count;
+    return a_datum_anchor;
+}
+
 // Decree commands handlers
 int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
 {
