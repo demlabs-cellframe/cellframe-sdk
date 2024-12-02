@@ -31,6 +31,7 @@
 #include "dap_math_ops.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_tx_tsd.h"
 
 /**
   * @struct dap_chain_datum_tx
@@ -77,6 +78,7 @@ typedef struct dap_chain_datum_tx_item_groups {
     dap_list_t *items_out_cond_srv_xchange;
     dap_list_t *items_out_cond_srv_stake_pos_delegate;
     dap_list_t *items_out_cond_srv_stake_lock;
+    dap_list_t *items_out_cond_srv_emit_delegate;
     dap_list_t *items_out_cond_unknonwn;
     dap_list_t *items_out_cond_undefined;
 
@@ -205,7 +207,7 @@ dap_sign_t *dap_chain_datum_tx_get_sign(dap_chain_datum_tx_t *a_tx, int a_sign_n
  *
  * return 1 Ok, 0 Invalid sign, -1 Not found sing or other Error
  */
-int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx);
+int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num);
 
 
 int dap_chain_datum_tx_get_fee_value (dap_chain_datum_tx_t *a_tx, uint256_t *a_value);
@@ -240,3 +242,6 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
 // Get output by output index
 #define dap_chain_datum_tx_out_get_by_out_idx(a_tx, a_out_num) \
     dap_chain_datum_tx_item_get_nth(a_tx, TX_ITEM_TYPE_OUT_ALL, a_out_num);
+
+
+dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t *a_tx, int a_type);
