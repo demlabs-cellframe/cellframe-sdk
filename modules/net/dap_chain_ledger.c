@@ -535,10 +535,7 @@ struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_
     if (pos) {
         size_t l_addr_len = pos - a_bal->key;
         char *l_addr_str = DAP_NEW_STACK_SIZE(char, l_addr_len + 1);
-        if ( !l_addr_str )
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        memcpy(l_addr_str, a_bal->key, pos - a_bal->key);
-        *(l_addr_str + l_addr_len) = '\0';
+        dap_strncpy(l_addr_str, a_bal->key, l_addr_len);
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
         const char *l_wallet_name = dap_chain_wallet_addr_cache_get_name(l_addr);
         DAP_DELETE(l_addr);
@@ -3144,14 +3141,18 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_datum_by_hash(dap_ledger_t *a_ledger, c
 
 dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_subtype_t a_cond_type)
 {
-    dap_hash_fast_t l_hash = { };
+    dap_hash_fast_t l_hash = { }, l_hash_tmp;
     dap_return_val_if_fail(a_ledger && a_tx, l_hash);
     dap_chain_datum_tx_t *l_prev_tx = a_tx;
     byte_t *l_iter = a_tx->tx_items;
     while (( l_iter = dap_chain_datum_tx_item_get(l_prev_tx, NULL, l_iter, TX_ITEM_TYPE_IN_COND, NULL) )) {
-        l_hash = ((dap_chain_tx_in_cond_t *)l_iter)->header.tx_prev_hash;
-        if ( (l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_hash)) )
-            l_iter = l_prev_tx->tx_items;
+        l_hash_tmp =  ((dap_chain_tx_in_cond_t *)l_iter)->header.tx_prev_hash;
+        if ( dap_hash_fast_is_blank(&l_hash_tmp) )
+            return l_hash_tmp;
+        if (( l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_hash_tmp) ) &&
+                ( dap_chain_datum_tx_out_cond_get(l_prev_tx, a_cond_type, NULL) )) {
+            l_hash = l_hash_tmp;
+        }
     }
     return l_hash;
 }
@@ -4250,8 +4251,10 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
     /* Notify the world*/
     if ( !dap_chain_net_get_load_mode(a_ledger->net) ) {
         struct json_object *l_json = wallet_info_json_collect(a_ledger, a_balance);
-        dap_notify_server_send_mt(json_object_get_string(l_json));
-        json_object_put(l_json);
+        if (l_json) {
+            dap_notify_server_send_mt(json_object_get_string(l_json));
+            json_object_put(l_json);
+        }
     }
     return 0;
 }

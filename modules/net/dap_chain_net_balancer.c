@@ -248,6 +248,9 @@ static dap_chain_net_links_t *s_get_node_addrs(dap_chain_net_t *a_net, uint16_t 
     if (a_external_call) {
         l_nodes_count = dap_min(l_nodes_count, s_max_links_response_count);
     }
+    if (!l_nodes_count) {
+        return NULL;
+    }
 // memory alloc
     dap_chain_net_links_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_links_t, sizeof(dap_chain_net_links_t) + l_nodes_count * sizeof(dap_link_info_t));
     if (!l_ret) {
@@ -285,6 +288,9 @@ static dap_chain_net_links_t *s_get_node_addrs_old(dap_chain_net_t *a_net, uint1
        l_nodes_count = dap_min(l_nodes_count, a_links_need);
     }
     l_nodes_count = dap_min(l_nodes_count, s_max_links_response_count);
+    if (!l_nodes_count) {
+        return NULL;
+    }
 // memory alloc
     dap_chain_net_links_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_links_t, sizeof(dap_chain_net_links_t) + l_nodes_count * sizeof(dap_chain_node_info_old_t));
     if (!l_ret) {
@@ -410,8 +416,8 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     log_it(L_DEBUG, "HTTP balancer parser retrieve netname %s", l_net_str);
     dap_chain_net_links_t *l_link_full_node_list = s_balancer_issue_link(l_net_str, l_links_need, l_protocol_version, l_ignored_str);
     if (!l_link_full_node_list) {
-        log_it(L_WARNING, "Can't issue link for network %s, no acceptable links found", l_net_str);
-        *l_return_code = Http_Status_NotFound;
+        log_it(L_DEBUG, "Can't issue link for network %s, no acceptable links found", l_net_str);
+        *l_return_code = Http_Status_NoContent;
         return;
     }
     *l_return_code = Http_Status_OK;
@@ -465,8 +471,11 @@ void dap_chain_net_balancer_request(void *a_arg)
         l_item->net_id = l_arg->net->pub.id;
         HASH_ADD(hh, s_request_info_items, net_id, sizeof(l_item->net_id), l_item);
     }
-    if (l_item->request_time + DAP_CHAIN_NET_BALANCER_REQUEST_DELAY > dap_time_now())
-        return log_it(L_DEBUG, "Who understands life, he is in no hurry. Dear %s, please wait few seconds", l_arg->net->pub.name);
+    if (l_item->request_time + DAP_CHAIN_NET_BALANCER_REQUEST_DELAY > dap_time_now()) {
+        log_it(L_DEBUG, "Who understands life, he is in no hurry. Dear %s, please wait few seconds", l_arg->net->pub.name);
+        DAP_DELETE(a_arg);
+        return;
+    }
 // preparing to request
     size_t
         l_ignored_addrs_size = 0,
@@ -479,13 +488,13 @@ void dap_chain_net_balancer_request(void *a_arg)
         log_it(L_INFO, "%"DAP_UINT64_FORMAT_U" links successful prepared from global-db in net %s", l_links->count_node, l_arg->net->pub.name);
         s_balancer_link_prepare_success(l_arg->net, l_links, NULL, 0);
         if (l_links->count_node >= l_required_links_count)
-            return DAP_DEL_MULTY(l_ignored_addrs, l_links);
+            return DAP_DEL_MULTY(a_arg, l_ignored_addrs, l_links);
         l_required_links_count -= l_links->count_node;
         DAP_DELETE(l_links);
     }
 // links from http balancer request
     if (!l_arg->host_addr || !*l_arg->host_addr || !l_arg->host_port)
-        return DAP_DELETE(l_ignored_addrs), log_it(L_INFO, "Can't read seed nodes addresses in net %s, work with local balancer only",
+        return DAP_DEL_MULTY(a_arg, l_ignored_addrs), log_it(L_INFO, "Can't read seed nodes addresses in net %s, work with local balancer only",
                                                             l_arg->net->pub.name);
     l_arg->worker = dap_worker_get_current();
     l_arg->required_links_count = l_required_links_count;
@@ -538,10 +547,10 @@ dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
     dap_return_val_if_pass(!a_net, NULL);
 // func work
     dap_chain_net_links_t *l_links_info_list = s_get_node_addrs(a_net, 0, NULL, false);  // TODO
-    dap_string_t *l_ret = dap_string_new(l_links_info_list ?
+    dap_string_t *l_ret = dap_string_new(
         "-----------------------------------------------------------------\n"
         "|\t\tNode addr\t|\tHost addr\t\t|\n"
-        "--Send in balancer http response---------------------------------\n" : "Empty\n");
+        "--Send in balancer http response---------------------------------\n");
     uint64_t l_node_num = l_links_info_list ? l_links_info_list->count_node : 0;
     for (uint64_t i = 0; i < l_node_num; ++i) {
         dap_link_info_t *l_link_info = (dap_link_info_t *)l_links_info_list->nodes_info + i;

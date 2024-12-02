@@ -1280,7 +1280,7 @@ static bool s_session_directive_ready(dap_chain_esbocs_session_t *a_session, boo
 {
     size_t l_list_length = dap_list_length(a_session->cur_round.all_validators);
     if (a_session->cur_round.total_validators_synced * 3 < l_list_length * 2) {
-        log_it(L_INFO, "Not enough validator online for directive, %hu * 3 < %zu * 2",
+        log_it(L_INFO, "Not enough validator online for directive, %u * 3 < %zu * 2",
                        a_session->cur_round.total_validators_synced, l_list_length );
         return false; // Not a valid round, less than 2/3 participants
     }

@@ -35,9 +35,6 @@
 #include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
-#ifndef DAP_OS_ANDROID
-#include <magic.h>
-#endif
 #include <sys/stat.h>
 
 #ifdef WIN32
@@ -54,7 +51,6 @@
 #include <signal.h>
 #endif
 #include <pthread.h>
-#include <iputils/iputils.h>
 
 #include "uthash.h"
 #include "utlist.h"
@@ -103,6 +99,7 @@
 #include "dap_json_rpc_errors.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_chain_wallet_cache.h"
 #include "dap_json_rpc.h"
 #include "dap_json_rpc_request.h"
 #include "dap_client_pvt.h"
@@ -1485,264 +1482,6 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     }
     return 0;
 }
-
-
-#ifndef DAP_OS_ANDROID
-/**
- * @brief Traceroute command
- * return 0 OK, -1 Err
- * @param argc
- * @param argv
- * @param arg_func
- * @param str_reply
- * @return int
- */
-int com_traceroute(int argc, char** argv, void **a_str_reply)
-{
-#ifdef DAP_OS_LINUX
-    const char *addr = NULL;
-    int hops = 0, time_usec = 0;
-    if(argc > 1)
-        addr = argv[1];
-    iputils_set_verbose();
-    int res = (addr) ? traceroute_util(addr, &hops, &time_usec) : -EADDRNOTAVAIL;
-    if(res >= 0) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s hops=%d time=%.1lf ms", addr, hops,
-                time_usec * 1. / 1000);
-    }
-    else {
-        if(a_str_reply) {
-            switch (-res)
-            {
-            case EADDRNOTAVAIL:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s error: %s", (addr) ? addr : "",
-                        (addr) ? "Name or service not known" : "Host not defined");
-                break;
-            case 2:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s error: %s", addr,
-                        "Unknown traceroute module");
-                break;
-            case 3:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s error: %s", addr, "first hop out of range");
-                break;
-            case 4:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s error: %s", addr,
-                        "max hops cannot be more than 255");
-                break;
-            case 5:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s error: %s", addr,
-                        "no more than 10 probes per hop");
-                break;
-            case 6:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s error: %s", addr,
-                        "bad wait specifications");
-                break;
-            case 7:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s error: %s", addr, "too big packetlen ");
-                break;
-            case 8:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s error: %s", addr,
-                        "IP version mismatch in addresses specified");
-                break;
-            case 9:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s error: %s", addr, "bad sendtime");
-                break;
-            case 10:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s error: %s", addr, "init_ip_options");
-                break;
-            case 11:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s error: %s", addr, "calloc");
-                break;
-            case 12:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s error: %s", addr, "parse cmdline");
-                break;
-            case 13:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s error: %s", addr,
-                        "trace method's init failed");
-                break;
-            default:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "traceroute %s error(%d) %s", addr, res,
-                        "trace not found");
-            }
-        }
-    }
-    return res;
-#else
-    UNUSED(argc);
-    UNUSED(argv);
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "Not realized for your platform");
-    return -1;
-#endif
-}
-
-
-
-/**
- * @brief com_tracepath
- * Tracepath command
- * @param argc
- * @param argv
- * @param arg_func
- * @param str_reply
- * @return int
- * return 0 OK, -1 Err
- */
-int com_tracepath(int argc, char** argv, void **a_str_reply)
-{
-#ifdef DAP_OS_LINUX
-    const char *addr = NULL;
-    int hops = 0, time_usec = 0;
-    if(argc > 1)
-        addr = argv[1];
-    iputils_set_verbose();
-    int res = (addr) ? tracepath_util(addr, &hops, &time_usec) : -EADDRNOTAVAIL;
-    if(res >= 0) {
-        if(a_str_reply)
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tracepath %s hops=%d time=%.1lf ms", addr, hops,
-                    time_usec * 1. / 1000);
-    }
-    else {
-        if(a_str_reply) {
-            switch (-res)
-            {
-            case EADDRNOTAVAIL:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "tracepath %s error: %s", (addr) ? addr : "",
-                        (addr) ? "Name or service not known" : "Host not defined");
-                break;
-            case ESOCKTNOSUPPORT:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "tracepath %s error: %s", addr, "Can't create socket");
-                break;
-            case 2:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "tracepath %s error: %s", addr,
-                        "Can't setsockopt IPV6_MTU_DISCOVER");
-                break;
-            case 3:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "tracepath %s error: %s", addr,
-                        "Can't setsockopt IPV6_RECVERR");
-                break;
-            case 4:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "tracepath %s error: %s", addr,
-                        "Can't setsockopt IPV6_HOPLIMIT");
-                break;
-            case 5:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "tracepath %s error: %s", addr,
-                        "Can't setsockopt IP_MTU_DISCOVER");
-                break;
-            case 6:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "tracepath %s error: %s", addr,
-                        "Can't setsockopt IP_RECVERR");
-                break;
-            case 7:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "tracepath %s error: %s", addr,
-                        "Can't setsockopt IP_RECVTTL");
-                break;
-            case 8:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "tracepath %s error: %s", addr, "malloc");
-                break;
-            case 9:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "tracepath %s error: %s", addr,
-                        "Can't setsockopt IPV6_UNICAST_HOPS");
-                break;
-            case 10:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "tracepath %s error: %s", addr, "Can't setsockopt IP_TTL");
-                break;
-            default:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "tracepath %s error(%d) %s", addr, res, "trace not found");
-            }
-        }
-    }
-    return res;
-#else
-    UNUSED(argc);
-    UNUSED(argv);
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "Not realized for your platform");
-    return -1;
-#endif
-}
-
-
-/**
- * @brief Ping command
- * return 0 OK, -1 Err
- * @param argc
- * @param argv
- * @param arg_func
- * @param str_reply
- * @return int
- */
-int com_ping(int a_argc, char**a_argv, void **a_str_reply)
-{
-#ifdef DAP_OS_LINUX
-
-    int n = 4,w = 0;
-    if (a_argc < 2) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Host not specified");
-        return -1;
-    }
-    const char *n_str = NULL;
-    const char *w_str = NULL;
-    int argc_host = 1;
-    int argc_start = 1;
-    argc_start = dap_cli_server_cmd_find_option_val(a_argv, argc_start, a_argc, "-n", &n_str);
-    if(argc_start) {
-        argc_host = argc_start + 1;
-        n = (n_str) ? atoi(n_str) : 4;
-    }
-    else {
-        argc_start = dap_cli_server_cmd_find_option_val(a_argv, argc_start, a_argc, "-c", &n_str);
-        if(argc_start) {
-            argc_host = argc_start + 1;
-            n = (n_str) ? atoi(n_str) : 4;
-        }
-        else
-        {
-            argc_start = dap_cli_server_cmd_find_option_val(a_argv, argc_start, a_argc, "-w", &w_str);
-            if(argc_start) {
-                argc_host = argc_start + 1;
-                n = 4;
-                w = (w_str) ? atoi(w_str) : 5;
-            }
-        }
-    }
-    if(n <= 1)
-        n = 1;
-    const char *addr = a_argv[argc_host];
-    iputils_set_verbose();
-    ping_handle_t *l_ping_handle = ping_handle_create();
-    int res = (addr) ? ping_util(l_ping_handle, addr, n, w) : -EADDRNOTAVAIL;
-    DAP_DELETE(l_ping_handle);
-    if(res >= 0) {
-        if(a_str_reply)
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Ping %s time=%.1lf ms", addr, res * 1. / 1000);
-    }
-    else {
-        if(a_str_reply) {
-            switch (-res)
-            {
-            case EDESTADDRREQ:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Ping %s error: %s", addr, "Destination address required");
-                break;
-            case EADDRNOTAVAIL:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Ping %s error: %s", (addr) ? addr : "",
-                        (addr) ? "Host not found" : "Host not defined");
-                break;
-            case EPFNOSUPPORT:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Ping %s error: %s", addr, "Unknown protocol family");
-                break;
-            default:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Ping %s error(%d)", addr, -res);
-            }
-        }
-    }
-    return res;
-#else
-    UNUSED(a_argc);
-    UNUSED(a_argv);
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "Not realized for your platform");
-    return -1;
-#endif
-}
-#endif /* !ANDROID (1582) */
 
 /**
  * @brief com_version
@@ -6823,8 +6562,9 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                 if (!dap_strcmp(l_native_token, l_main_token)) {
                     SUM_256_256(l_value_need_check, l_value_need, &l_value_need_check);
                     SUM_256_256(l_value_need_check, l_value_need_fee, &l_value_need_check);
-                    l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
-                                                                                             l_addr_from, l_value_need_check, &l_value_transfer);
+                    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_json_item_token, l_addr_from, &l_list_used_out, l_value_need_check, &l_value_transfer) == -101)
+                        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
+                                                                                             l_addr_from, l_value_need_check, &l_value_transfer);                      
                     if(!l_list_used_out) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
                         json_object *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds in previous tx "
@@ -6836,7 +6576,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                     }
                 } else {
                     //CHECK value need
-                    l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
+                    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_json_item_token, l_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+                        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
                                                                                              l_addr_from, l_value_need, &l_value_transfer);
                     if(!l_list_used_out) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -6848,7 +6589,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                         continue;
                     }
                     //CHECK value fee
-                    l_list_used_out_fee = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_native_token,
+                    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_native_token, l_addr_from, &l_list_used_out_fee, l_value_need_fee, &l_value_transfer_fee) == -101)
+                        l_list_used_out_fee = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_native_token,
                                                                                      l_addr_from, l_value_need_fee, &l_value_transfer_fee);
                     if(!l_list_used_out_fee) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -8613,7 +8355,7 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
         #ifndef DAP_OS_ANDROID
         case SIGNER_MIME_MAGIC:
             {
-                magic_t l_magic = magic_open(MAGIC_MIME);
+                /*magic_t l_magic = magic_open(MAGIC_MIME);
                 if (l_magic == NULL) return NULL;
                 if (magic_load (l_magic, NULL)) {
                     magic_close(l_magic);
@@ -8627,8 +8369,8 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
                     l_ret = dap_tsd_create_string(SIGNER_MIME_MAGIC, l_str_magic_file);
                 } while (0);
                 magic_close (l_magic);
-                return l_ret;
-
+                return l_ret;*/
+                return dap_tsd_create_string(SIGNER_MIME_MAGIC, "application/octet-stream");
             }
             break;
         #endif
