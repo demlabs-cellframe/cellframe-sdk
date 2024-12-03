@@ -1847,15 +1847,31 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 } break;
                 // convert wallet
                 case CMD_WALLET_CONVERT: {
+                    bool l_remove_password = false;
+                    if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-remove_password", NULL)) {
+                        l_remove_password = true;
+                        switch (dap_chain_wallet_activate(l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str), 60)) {
+                            case 0:
+                            case -EBUSY:
+                                break;
+                            default: {
+                                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR,
+                                                    "Wrong password");
+                                json_object_put(json_arr_out);
+                                return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR;
+                            }
+                        }
+                    }
+
                     l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
                     if (!l_wallet) {
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR,
                                                "wrong password");
                         json_object_put(json_arr_out);
                         return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR;
-                    } else if (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) {
+                    } else if (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE && !l_remove_password) {
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR,
-                                               "Wallet can't be converted twice");
+                                            "Wallet can't be converted twice");
                         json_object_put(json_arr_out);
                         return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR;
                     }
@@ -1868,9 +1884,17 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         json_object_put(json_arr_out);
                         return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_BACKUP_ERR;
                     }
+                    if (l_remove_password) {  
+                        if (dap_chain_wallet_deactivate(l_wallet_name, strlen(l_wallet_name))){
+                            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_BACKUP_ERR,
+                                                "Can't deactivate wallet");
+                            json_object_put(json_arr_out);
+                            return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_DEACT_ERR;
+                        }
+                    }
                     // change to old filename
                     snprintf(l_file_name->file_name, sizeof(l_file_name->file_name), "%s/%s%s", c_wallets_path, l_wallet_name, ".dwallet");
-                    if ( dap_chain_wallet_save(l_wallet, l_pass_str) ) {
+                    if ( dap_chain_wallet_save(l_wallet, l_remove_password ? NULL : l_pass_str) ) {
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR,
                                                "Wallet is not converted because of internal error");
                         json_object_put(json_arr_out);
