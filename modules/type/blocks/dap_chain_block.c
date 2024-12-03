@@ -166,7 +166,7 @@ size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_bloc
     }
     if (a_datum_size + l_block->hdr.meta_n_datum_n_signs_size < UINT32_MAX && l_block->hdr.datum_count < UINT16_MAX) {
         // If were signs - they would be deleted after because signed should be all the block filled
-        l_block = DAP_REALLOC_RET_VAL_IF_FAIL(l_block, sizeof(l_block->hdr) + l_offset + a_datum_size, a_block_size);
+        l_block = DAP_REALLOC_RET_VAL_IF_FAIL(*a_block_ptr, sizeof(l_block->hdr) + l_offset + a_datum_size, a_block_size);
         *a_block_ptr = l_block;
         memcpy(l_block->meta_n_datum_n_sign + l_offset, a_datum, a_datum_size);
         l_offset += a_datum_size;
@@ -219,7 +219,7 @@ size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_
         // Check datum hash and delete if compares successfuly
         if (dap_hash_fast_compare(&l_datum_hash,a_datum_hash)){
             memmove(l_datum, (byte_t*)l_datum + l_datum_size, a_block_size - sizeof(l_block->hdr) - l_offset - l_datum_size);
-            l_block = DAP_REALLOC_RET_VAL_IF_FAIL(l_block, a_block_size - l_datum_size, a_block_size);
+            l_block = DAP_REALLOC_RET_VAL_IF_FAIL(*a_block_ptr, a_block_size - l_datum_size, a_block_size);
             *a_block_ptr = l_block;
             l_block->hdr.datum_count--;
             l_block->hdr.meta_n_datum_n_signs_size -= l_datum_size;
@@ -287,7 +287,7 @@ size_t dap_chain_block_sign_add(dap_chain_block_t **a_block_ptr, size_t a_block_
     size_t l_block_sign_size = dap_sign_get_size(l_block_sign);
     if (!l_block_sign_size)
         return 0;
-    l_block = DAP_REALLOC_RET_VAL_IF_FAIL(l_block, l_block_sign_size + a_block_size, 0);
+    l_block = DAP_REALLOC_RET_VAL_IF_FAIL(*a_block_ptr, l_block_sign_size + a_block_size, 0);
     *a_block_ptr = l_block;
     memcpy(((byte_t *)l_block) + a_block_size, l_block_sign, l_block_sign_size);
     DAP_DELETE(l_block_sign);
@@ -449,7 +449,7 @@ size_t dap_chain_block_meta_add(dap_chain_block_t ** a_block_ptr, size_t a_block
     }
 
     size_t l_add_size = sizeof(l_meta->hdr) + a_data_size;
-    l_block = DAP_REALLOC_RET_VAL_IF_FAIL(l_block, a_block_size + l_add_size, 0);
+    l_block = DAP_REALLOC_RET_VAL_IF_FAIL(*a_block_ptr, a_block_size + l_add_size, 0);
     *a_block_ptr = l_block;
     size_t l_offset = s_block_get_datum_offset(l_block, a_block_size);
     l_meta = (dap_chain_block_meta_t *)(l_block->meta_n_datum_n_sign + l_offset); // Update data end in reallocated block
@@ -648,7 +648,8 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
                     *a_block_links = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(dap_hash_t, l_links_count_max, -5);
                 else if (l_links_count == l_links_count_max) {
                     l_links_count_max *= 2;
-                    *a_block_links = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(*a_block_links, l_links_count_max, -5);
+                    dap_chain_hash_fast_t **l_new_block_links = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(*a_block_links, l_links_count_max, -5);
+                    *a_block_links = l_new_block_links;
                 }
                 l_meta_data = s_meta_extract(l_meta);
                 if (l_meta_data)
