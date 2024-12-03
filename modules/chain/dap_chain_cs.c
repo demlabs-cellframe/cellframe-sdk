@@ -71,7 +71,7 @@ void dap_chain_cs_deinit(void)
 void dap_chain_cs_class_add(const char *a_cs_str, dap_chain_cs_class_callbacks_t a_callbacks)
 {
     dap_chain_cs_class_callbacks_item_t *l_item = DAP_NEW_Z_RET_IF_FAIL(dap_chain_cs_class_callbacks_item_t);
-    dap_strncpy(l_item->name, a_cs_str, sizeof (l_item->name) - 1);
+    dap_strncpy(l_item->name, a_cs_str, sizeof (l_item->name));
     l_item->callbacks = a_callbacks;
     HASH_ADD_STR(s_class_callbacks, name, l_item);
 }
@@ -133,7 +133,7 @@ int dap_chain_cs_class_purge(dap_chain_t *a_chain)
 void dap_chain_cs_add(const char * a_cs_str,  dap_chain_cs_callbacks_t a_callbacks)
 {
     dap_chain_cs_callbacks_item_t *l_item = DAP_NEW_Z_RET_IF_FAIL(dap_chain_cs_callbacks_item_t);
-    dap_strncpy(l_item->name, a_cs_str, sizeof (l_item->name) - 1);
+    dap_strncpy(l_item->name, a_cs_str, sizeof (l_item->name));
     l_item->callbacks = a_callbacks;
     HASH_ADD_STR(s_cs_callbacks, name, l_item);
 }

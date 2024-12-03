@@ -1118,8 +1118,8 @@ static struct json_object *s_wallet_info_json_collect(dap_ledger_t *a_ledger, da
     char *pos = strrchr(a_bal->key, ' ');
     if (pos) {
         size_t l_addr_len = pos - a_bal->key;
-        char *l_addr_str = DAP_NEW_STACK_SIZE(char, l_addr_len + 1);
-        dap_strncpy(l_addr_str, a_bal->key, l_addr_len);
+        char l_addr_str[l_addr_len + 1];
+        dap_strncpy(l_addr_str, a_bal->key, l_addr_len + 1);
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
         const char *l_wallet_name = dap_chain_wallet_addr_cache_get_name(l_addr);
         DAP_DELETE(l_addr);

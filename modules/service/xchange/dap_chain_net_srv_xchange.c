@@ -1116,7 +1116,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
         return NULL;
     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_srv_xchange_price_t, NULL);
     l_price->creation_date = a_order->header.ts_created;
-    dap_strncpy(l_price->token_buy, l_out_cond->subtype.srv_xchange.buy_token, sizeof(l_price->token_buy) - 1);
+    dap_strncpy(l_price->token_buy, l_out_cond->subtype.srv_xchange.buy_token, sizeof(l_price->token_buy));
     MULT_256_COIN(l_out_cond->header.value, l_out_cond->subtype.srv_xchange.rate, &l_price->datoshi_buy);
 
     dap_hash_fast_t l_tx_hash;

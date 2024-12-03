@@ -391,7 +391,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t * a_chain_cfg)
                 if (!( l_poa_pvt->auth_certs[i] = dap_cert_find_by_name(l_cert_name) )) {
                     if (l_pos > MAX_PATH - 4)
                         return log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name), -1;
-                    dap_strncpy(l_cert_name + l_pos, ".pub", sizeof(l_cert_name) - l_pos - 1);
+                    dap_strncpy(l_cert_name + l_pos, ".pub", sizeof(l_cert_name) - l_pos);
                     if (!( l_poa_pvt->auth_certs[i] = dap_cert_find_by_name(l_cert_name) ))
                         return log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name), -1;
                 }

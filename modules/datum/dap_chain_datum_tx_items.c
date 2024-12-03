@@ -261,7 +261,7 @@ dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_a
     l_item->header.type = TX_ITEM_TYPE_OUT_EXT;
     l_item->header.value = a_value;
     l_item->addr = *a_addr;
-    dap_strncpy((char*)l_item->token, a_token, sizeof(l_item->token) - 1);
+    dap_strncpy((char*)l_item->token, a_token, sizeof(l_item->token));
     return l_item;
 }
 

@@ -93,7 +93,7 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
             l_info_size = sizeof(dap_chain_node_net_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
             dap_chain_node_net_states_info_t *l_info = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
             l_info->version_info = DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION;
-            dap_strncpy(l_info->version_node, DAP_VERSION, sizeof(l_info->version_node) - 1);
+            dap_strncpy(l_info->version_node, DAP_VERSION, sizeof(l_info->version_node));
             l_info->role = dap_chain_net_get_role(l_net);
             l_info->info_v1.address.uint64 = g_node_addr.uint64;
             l_info->info_v1.uplinks_count = l_uplinks_count;
@@ -514,7 +514,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
         }
         l_item->link_info.node_addr.uint64 = ((dap_chain_node_info_t*)(l_objs + i)->value)->address.uint64;
         l_item->link_info.uplink_port = ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_port;
-        dap_strncpy(l_item->link_info.uplink_addr, ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_host, sizeof(l_item->link_info.uplink_addr) - 1);
+        dap_strncpy(l_item->link_info.uplink_addr, ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_host, sizeof(l_item->link_info.uplink_addr));
 
         dap_nanotime_t l_state_timestamp = 0;
         size_t l_data_size = 0;

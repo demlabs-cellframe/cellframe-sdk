@@ -59,7 +59,7 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
     *l_info = (dap_chain_node_info_t) {
         .ext_port = a_port
     };
-    l_info->ext_host_len = dap_strncpy(l_info->ext_host, a_addr, INET6_ADDRSTRLEN) - l_info->ext_host;
+    l_info->ext_host_len = dap_strncpy(l_info->ext_host, a_addr, INET6_ADDRSTRLEN) - (char*)l_info->ext_host;
     const char l_channels[] = {DAP_CHAIN_NET_SRV_CH_ID, '\0'};
     l_ret->node_client = dap_chain_node_client_create_n_connect(a_net, l_info, l_channels, &l_callbacks, l_ret);
     l_ret->node_client->notify_callbacks.srv_pkt_in = (dap_stream_ch_callback_packet_t)s_srv_client_pkt_in;

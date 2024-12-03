@@ -261,7 +261,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     int l_dot_pos = strlen(l_auth_certs_prefix), l_len = l_dot_pos + 16, l_pos2 = 0;
     char l_cert_name[l_len];
-    dap_strncpy(l_cert_name, l_auth_certs_prefix, l_dot_pos);
+    strncpy(l_cert_name, l_auth_certs_prefix, l_dot_pos);
     for (i = 0; i < l_auth_certs_count; ++i) {
         dap_cert_t *l_cert_cur;
         l_pos2 = snprintf(l_cert_name + l_dot_pos, 16, ".%u", i);

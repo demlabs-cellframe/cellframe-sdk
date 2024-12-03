@@ -25,7 +25,7 @@
 #pragma once
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
-#include "dap_chain_ledger.h"
+//#include "dap_chain_ledger.h"
 
 int dap_chain_wallet_cache_init();
 int dap_chain_wallet_cache_deinit();
