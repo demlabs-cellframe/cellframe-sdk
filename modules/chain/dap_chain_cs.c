@@ -70,15 +70,10 @@ void dap_chain_cs_deinit(void)
  */
 void dap_chain_cs_class_add(const char *a_cs_str, dap_chain_cs_class_callbacks_t a_callbacks)
 {
-    dap_chain_cs_class_callbacks_item_t *l_item = DAP_NEW_Z(dap_chain_cs_class_callbacks_item_t);
-    if ( !l_item ) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return;
-    }
-    strncpy(l_item->name, a_cs_str, sizeof (l_item->name) - 1);
-    l_item->name[sizeof (l_item->name) - 1] = '\0';
+    dap_chain_cs_class_callbacks_item_t *l_item = DAP_NEW_Z_RET_IF_FAIL(dap_chain_cs_class_callbacks_item_t);
+    dap_strncpy(l_item->name, a_cs_str, sizeof (l_item->name) - 1);
     l_item->callbacks = a_callbacks;
-    HASH_ADD_STR( s_class_callbacks, name, l_item);
+    HASH_ADD_STR(s_class_callbacks, name, l_item);
 }
 
 /**
@@ -91,39 +86,42 @@ int dap_chain_cs_class_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_cs_class_callbacks_item_t *l_item = NULL;
     HASH_FIND_STR(s_class_callbacks, DAP_CHAIN_PVT(a_chain)->cs_type, l_item);
-    if (l_item && l_item->callbacks.callback_init)
-        return l_item->callbacks.callback_init(a_chain, a_chain_cfg);
-    return -1;
+    return l_item && l_item->callbacks.callback_init
+        ? l_item->callbacks.callback_init(a_chain, a_chain_cfg)
+        : -1;
 }
 
 int dap_chain_cs_load(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_cs_callbacks_item_t *l_item = NULL;
     HASH_FIND_STR(s_cs_callbacks, DAP_CHAIN_PVT(a_chain)->cs_name, l_item);
-    dap_return_val_if_fail(l_item, -1);
-    if (!l_item->callbacks.callback_load)
-        return 0;
-    return l_item->callbacks.callback_load(a_chain, a_chain_cfg);
+    if (!l_item)
+        return log_it(L_ERROR, "Callbacks for cs %s not found!", DAP_CHAIN_PVT(a_chain)->cs_name), -1;
+    return l_item->callbacks.callback_load
+        ? l_item->callbacks.callback_load(a_chain, a_chain_cfg)
+        : 0;
 }
 
 int dap_chain_cs_class_delete(dap_chain_t *a_chain)
 {
     dap_chain_cs_class_callbacks_item_t *l_item = NULL;
     HASH_FIND_STR(s_class_callbacks, DAP_CHAIN_PVT(a_chain)->cs_type, l_item);
-    dap_return_val_if_fail(l_item, -1);
-    if (!l_item->callbacks.callback_delete)
-        return 0;
-    return l_item->callbacks.callback_delete(a_chain);
+    if (!l_item)
+        return log_it(L_ERROR, "Callbacks for cs %s not found!", DAP_CHAIN_PVT(a_chain)->cs_name), -1;
+    return l_item->callbacks.callback_delete
+        ? l_item->callbacks.callback_delete(a_chain)
+        : 0;
 }
 
 int dap_chain_cs_class_purge(dap_chain_t *a_chain)
 {
     dap_chain_cs_class_callbacks_item_t *l_item = NULL;
     HASH_FIND_STR(s_class_callbacks, DAP_CHAIN_PVT(a_chain)->cs_type, l_item);
-    dap_return_val_if_fail(l_item, -1);
-    if (!l_item->callbacks.callback_purge)
-        return 0;
-    return l_item->callbacks.callback_purge(a_chain);
+    if (!l_item)
+        return log_it(L_ERROR, "Callbacks for cs %s not found!", DAP_CHAIN_PVT(a_chain)->cs_name), -1;
+    return l_item->callbacks.callback_purge
+        ? l_item->callbacks.callback_purge(a_chain)
+        : 0;
 }
 
 /**
@@ -134,15 +132,10 @@ int dap_chain_cs_class_purge(dap_chain_t *a_chain)
  */
 void dap_chain_cs_add(const char * a_cs_str,  dap_chain_cs_callbacks_t a_callbacks)
 {
-    dap_chain_cs_callbacks_item_t *l_item = DAP_NEW_Z(dap_chain_cs_callbacks_item_t);
-    if ( !l_item ) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return;
-    }
-    strncpy(l_item->name, a_cs_str, sizeof (l_item->name) - 1);
-    l_item->name[sizeof (l_item->name) - 1] = '\0';
+    dap_chain_cs_callbacks_item_t *l_item = DAP_NEW_Z_RET_IF_FAIL(dap_chain_cs_callbacks_item_t);
+    dap_strncpy(l_item->name, a_cs_str, sizeof (l_item->name) - 1);
     l_item->callbacks = a_callbacks;
-    HASH_ADD_STR( s_cs_callbacks, name, l_item);
+    HASH_ADD_STR(s_cs_callbacks, name, l_item);
 }
 
 /**
