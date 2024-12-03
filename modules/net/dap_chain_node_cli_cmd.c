@@ -8792,22 +8792,22 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     return 0;
 }
 
-static int s_print_last_n_lines(const char *filename, int N, json_object* a_json_arr_out) {
+static char* dap_log_get_last_n_lines(const char *filename, int N) {
 
     unsigned l_len = 2048 * 8;
     char l_line[l_len];
 	FILE *file = fopen(filename, "rb+"); // rb+ is for unignoring \r
 	if (!file) {
-		return -1;
+		return NULL;
 	}
     int counter = 0;
     if (fseek(file, 0, SEEK_END) != 0) {
-        return -1;
+        return NULL;
     }
 
     long l_file_pos = ftell(file);
     if (l_file_pos < 0) {
-        return -1;
+        return NULL;
     }
     long l_end_pos = l_file_pos;
     long l_n_line_pos = 0;
@@ -8817,12 +8817,12 @@ static int s_print_last_n_lines(const char *filename, int N, json_object* a_json
         l_file_pos -= to_read;
 
         if (fseek(file, l_file_pos, SEEK_SET) != 0) {
-            return -1;
+            return NULL;
         }
 
         size_t res = fread(buf, 1, to_read, file);
         if (ferror(file)) {
-            return -1;
+            return NULL;
         }
 
         for (int i = res - 1; i >= 0; i--) {
@@ -8845,75 +8845,25 @@ static int s_print_last_n_lines(const char *filename, int N, json_object* a_json
     fseek(file, l_n_line_pos, SEEK_SET);
     fread(l_res, l_read_size, 1, file);
 	fclose(file);
-    json_object_array_add(a_json_arr_out, json_object_new_string(l_res));
-    return 0;
+
+    return l_res;
 }
 
 
-static int s_export_last_n_lines(const char *src_file_str, const char *dest_file_str, int N) {
-    if (N <= 0) {
+int dap_log_export_string(const char *a_string, const char *dest_file_str, int N) {
+    if (!a_string)
+        return -1;
+    
+    if (N <= 0)
         return -3;
-    }
 
-    unsigned l_len = 2048 * 8;
-    char l_line[l_len];
-	FILE *file = fopen(src_file_str, "rb+"); // rb+ is for unignoring \r
-	if (!file) {
-		return -1;
-	}
     FILE *dest_file = fopen(dest_file_str, "wb");
-    if (!dest_file) {
-        fclose(file);
+    if (!dest_file)
         return -2;
-    }
-    int counter = 0;
-    if (fseek(file, 0, SEEK_END) != 0) {
-        return -1;
-    }
 
-    long l_file_pos = ftell(file);
-    if (l_file_pos < 0) {
-        return -1;
-    }
-    long l_end_pos = l_file_pos;
-    long l_n_line_pos = 0;
-    while (l_file_pos > 0) {
-        char buf[l_len];
-        size_t to_read = (l_file_pos >= l_len) ? l_len : l_file_pos;
-        l_file_pos -= to_read;
+    size_t l_read_size = strlen(a_string) + 1;
 
-        if (fseek(file, l_file_pos, SEEK_SET) != 0) {
-            return -1;
-        }
-
-        size_t res = fread(buf, 1, to_read, file);
-        if (ferror(file)) {
-            return -1;
-        }
-
-        for (int i = res - 1; i >= 0; i--) {
-            if (buf[i] == '\n') {
-                counter++;
-                if (counter > N) {
-                    l_n_line_pos = l_file_pos + i + 1;
-                    break;
-                }
-            }
-        }
-
-        if (l_file_pos == 0 || l_n_line_pos > 0) {
-            break;
-        }
-    }
-
-    long l_read_size = l_end_pos - l_n_line_pos - 1;
-    char * l_res = DAP_NEW_Z_SIZE(char, l_read_size);
-    fseek(file, l_n_line_pos, SEEK_SET);
-    fread(l_res, l_read_size, 1, file);
-
-    fwrite(l_res, l_read_size, 1, dest_file);
-
-    fclose(file);
+    fwrite(a_string, l_read_size, 1, dest_file);
     fclose(dest_file);
     return 0;
 }
@@ -9007,29 +8957,22 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
         strncpy(l_file_full_path, l_path_str, sizeof(l_file_full_path) - 1);
         l_file_full_path[sizeof(l_file_full_path) - 1] = '\0';
     }
-    json_object * l_json_arr_res = json_object_new_array();
+    char * l_res = NULL;
+    if (!CMD_CLEAN_LOG) {
+        if (l_num_line) {
+            l_res = dap_log_get_last_n_lines(l_file_full_path, l_num_line);
+        } else {
+            l_res = dap_log_get_item(l_ts_after, l_limit);
+        }
+    }
     switch(l_cmd_num) {
         case CMD_PRINT : {
-            int res = s_print_last_n_lines(l_file_full_path, l_num_line, l_json_arr_res);
-            switch (res) {
-                case 0: {
-                    json_object_array_add(*a_json_arr_reply, l_json_arr_res);
-                    break;
-                }
-                case -1: {
-                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, "Can't open source file %s", l_file_full_path);
-                    json_object_put(l_json_arr_res);
-                    return DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR;
-                }
-                case -3: {
-                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR, "Wrong line number %d", l_num_line);
-                    json_object_put(l_json_arr_res);
-                    return DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR;
-
-                }
-                default:
-                    json_object_put(l_json_arr_res);
-                    break;
+            if (l_res) {
+                json_object_array_add(*a_json_arr_reply, json_object_new_string(l_res));
+                DAP_DELETE(l_res);
+            } else {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, "Can't open source file %s or wrong line number %d", l_file_full_path, l_num_line);
+                return DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR;
             }
             break;
         }
@@ -9040,31 +8983,25 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Command file require -log or -path arguments");
                 return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
             }
-            int res = s_export_last_n_lines(l_file_full_path, l_dest_str, l_num_line);
+            int res = dap_log_export_last_n_lines(l_res, l_dest_str, l_num_line);
             switch (res) {
                 case 0: {
-                    json_object_array_add(l_json_arr_res, json_object_new_string("Export success"));
-                    json_object_array_add(*a_json_arr_reply, l_json_arr_res);
+                    json_object_array_add(*a_json_arr_reply, json_object_new_string("Export success"));
                     break;
                 }
                 case -1: {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, "Can't open source file %s", l_file_full_path);
-                    json_object_put(l_json_arr_res);
                     return DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR;
                 }
                 case -2: {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_DEST_FILE_ERR, "Can't open dest file %s", l_file_full_path);
-                    json_object_put(l_json_arr_res);
                     return DAP_CHAIN_NODE_CLI_COM_FILE_DEST_FILE_ERR;
                 }
                 case -3: {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR, "Wrong line number %s", l_num_line);
-                    json_object_put(l_json_arr_res);
                     return DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR;
-
                 }
                 default:
-                    json_object_put(l_json_arr_res);
                     break;
             }
             break;
@@ -9073,17 +9010,14 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
             int res = s_clear_file(l_file_full_path);
             switch (res) {
                 case 0: {
-                    json_object_array_add(l_json_arr_res, json_object_new_string("Log file has been cleaned"));
-                    json_object_array_add(*a_json_arr_reply, l_json_arr_res);
+                    json_object_array_add(*a_json_arr_reply, json_object_new_string("Log file has been cleaned"));
                     break;
                 }
                 case -1: {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, "Can't open log file %s", l_file_full_path);
-                    json_object_put(l_json_arr_res);
                     return DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR;
                 }
                 default:
-                    json_object_put(l_json_arr_res);
                     break;
             }
             break;
