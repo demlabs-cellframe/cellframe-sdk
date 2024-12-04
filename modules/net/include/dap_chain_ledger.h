@@ -185,11 +185,9 @@ typedef enum dap_chain_tx_tag_action_type {
 
     DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
     DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
-    
-    
+   
     DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
 } dap_chain_tx_tag_action_type_t;
-
 
 typedef struct dap_ledger_datum_iter {
     dap_chain_net_t *net;
