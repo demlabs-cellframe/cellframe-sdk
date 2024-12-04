@@ -916,7 +916,7 @@ void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
             .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
             .hash = *a_hash,
-            .datum = a_chain_cell->chain->is_mapped ? (byte_t*)a_datum : DAP_DUP_SIZE(a_datum, a_datum_size),
+            .datum = a_chain_cell->chain->is_mapped ? (byte_t*)a_datum : DAP_DUP_SIZE((uint8_t*)a_datum, a_datum_size),
             .datum_size = a_datum_size,
             .ret_code = a_ret_code,
             .action = a_action,
