@@ -1792,7 +1792,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 json_object_put(json_arr_out);
                 return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR;
             }
-            if( cmd_num != CMD_WALLET_DEACTIVATE && !l_pass_str && cmd_num != CMD_WALLET_NEW) {
+            if( cmd_num != CMD_WALLET_DEACTIVATE && !l_pass_str && cmd_num != CMD_WALLET_NEW && cmd_num != CMD_WALLET_CONVERT) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR,
                                        "Wallet password option <-password>  not defined");
                 json_object_put(json_arr_out);
@@ -1848,25 +1848,13 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 // convert wallet
                 case CMD_WALLET_CONVERT: {
                     bool l_remove_password = false;
-                    if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-remove_password", NULL)) {
+                    if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-remove_password", NULL))
                         l_remove_password = true;
-                        switch (dap_chain_wallet_activate(l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str), 60)) {
-                            case 0:
-                            case -EBUSY:
-                                break;
-                            default: {
-                                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR,
-                                                    "Wrong password");
-                                json_object_put(json_arr_out);
-                                return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR;
-                            }
-                        }
-                    }
 
                     l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
                     if (!l_wallet) {
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR,
-                                               "wrong password");
+                                               "Can't open wallet check activation");
                         json_object_put(json_arr_out);
                         return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR;
                     } else if (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE && !l_remove_password) {
@@ -1891,6 +1879,11 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             json_object_put(json_arr_out);
                             return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_DEACT_ERR;
                         }
+                    } else if (!l_pass_str) {
+                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR,
+                                       "Wallet password option <-password>  not defined");
+                        json_object_put(json_arr_out);
+                        return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR;
                     }
                     // change to old filename
                     snprintf(l_file_name->file_name, sizeof(l_file_name->file_name), "%s/%s%s", c_wallets_path, l_wallet_name, ".dwallet");
