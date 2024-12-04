@@ -328,15 +328,16 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net)
 
 static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_anchored)
 {
-    uint256_t l_value;
-    uint32_t l_sign_type;
-    uint16_t l_owners_num;
-    uint8_t l_action;
-    dap_chain_addr_t l_addr = {};
-    dap_hash_fast_t l_hash = {};
-    dap_chain_node_addr_t l_node_addr = {};
-    dap_list_t *l_owners_list = NULL;
-    const char *l_ban_addr;
+uint256_t l_value;
+uint64_t l_block_num;
+uint32_t l_sign_type;
+uint16_t l_owners_num;
+uint8_t l_action;
+dap_chain_addr_t l_addr = {};
+dap_hash_fast_t l_hash = {};
+dap_chain_node_addr_t l_node_addr = {};
+dap_list_t *l_owners_list = NULL;
+const char *l_ban_addr;
 
     dap_return_val_if_fail(a_decree && a_net, -112);
 
@@ -512,8 +513,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             if (!a_apply)
                 break;
             uint64_t l_cur_block_num = l_chain->callback_count_atom(l_chain);
-            dap_chain_net_add_reward(a_net, l_value, l_cur_block_num);
-        } break;
+            return dap_chain_net_add_reward(a_net, l_value, l_cur_block_num);
+        }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT: {
             if (dap_chain_datum_decree_get_value(a_decree, &l_value)) {
                 log_it(L_WARNING,"Can't get value from decree.");
@@ -535,10 +536,11 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             if (!a_apply)
                 break;
             dap_chain_net_srv_stake_set_percent_max(a_net->pub.id, l_value);
-        } break;
+            return 0;
+        }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE: {
             if (dap_chain_datum_decree_get_action(a_decree, &l_action)) {
-                log_it(L_WARNING,"Can't get action from decree.");
+                log_it(L_WARNING, "Can't get action from decree.");
                 return -103;
             }
             dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
@@ -552,8 +554,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
-            dap_chain_esbocs_set_signs_struct_check(l_chain, l_action);
-        } break;
+            return dap_chain_esbocs_set_signs_struct_check(l_chain, l_action);
+        }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS: {
             if (dap_chain_datum_decree_get_action(a_decree, &l_action)) {
                 log_it(L_WARNING,"Can't get action from decree.");
@@ -578,8 +580,16 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
-            dap_chain_esbocs_set_emergency_validator(l_chain, l_action, l_sign_type, &l_hash);
-        } break;
+            return dap_chain_esbocs_set_emergency_validator(l_chain, l_action, l_sign_type, &l_hash);
+        }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK:
+            if (dap_chain_datum_decree_get_atom_num(a_decree, &l_block_num)) {
+                log_it(L_WARNING, "Can't get atom number from hardfork prepare decree");
+                return -103;
+            }
+            if (!a_apply)
+                break;
+            return dap_chain_hardfork_prepare(l_chain, l_block_num);
         default:
             return -1;
     }

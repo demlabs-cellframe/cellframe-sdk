@@ -149,6 +149,13 @@ int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, cons
     return l_tsd ? ( *a_addr = dap_tsd_get_string_const(l_tsd), !dap_strcmp(*a_addr, DAP_TSD_CORRUPTED_STRING) ) : 1;
 }
 
+int dap_chain_datum_decree_get_atom_num(dap_chain_datum_decree_t *a_decree, uint64_t *a_atom_num)
+{
+    dap_return_val_if_fail(a_decree && a_atom_num, -1);
+    dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM);
+    return l_tsd && l_tsd->size == sizeof(uint64_t) ? ( _dap_tsd_get_scalar(l_tsd, a_atom_num), 0 ) : 1;
+}
+
 void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type)
 {
     char *l_type_str = "";
@@ -308,6 +315,15 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             _dap_tsd_get_scalar(l_tsd, &l_type);
             dap_sign_type_t l_sign_type = { .type = l_type };
             json_object_object_add(a_json_out, "Signature type", json_object_new_string(dap_sign_type_to_str(l_sign_type)));
+            break;
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM:
+            if (l_tsd->size != sizeof(uint64_t)) {
+                json_object_object_add(a_json_out, "Signature type", json_object_new_string("WRONG SIZE"));
+                break;
+            }
+            uint64_t l_num = 0;
+            _dap_tsd_get_scalar(l_tsd, &l_type);
+            json_object_object_add(a_json_out, "Signature type", json_object_new_uint64(l_num));
             break;
         default:
             json_object_object_add(a_json_out, "UNKNOWN_TYPE_TSD_SECTION", json_object_new_string(""));

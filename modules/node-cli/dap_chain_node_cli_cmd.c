@@ -4345,6 +4345,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             *(uint256_t*)(l_tsd->data) = dap_uint256_scan_uninteger(l_param_value_str);
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-harfork_from", &l_param_value_str)) {
+            l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK;
             l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint64_t);
             l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
             if (!l_tsd) {

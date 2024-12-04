@@ -149,6 +149,11 @@ int dap_chain_purge(dap_chain_t *a_chain)
     return ret + dap_chain_cs_purge(a_chain);
 }
 
+int dap_chain_hardfork_preare(dap_chain_t *a_chain, uint64_t a_atom_num)
+{
+
+}
+
 /**
  * @brief
  * delete dap chain object
