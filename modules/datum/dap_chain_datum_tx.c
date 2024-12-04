@@ -363,8 +363,10 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
         switch (*l_item) {
         case TX_ITEM_TYPE_OUT_COND:
-            if ( l_idx >= 0 && ((dap_chain_tx_out_cond_t*)l_item)->header.subtype == a_cond_subtype )
-                return (a_out_num ? (*a_out_num = l_idx) : 0), (dap_chain_tx_out_cond_t*)l_item;
+            if ( l_idx >= 0 && ((dap_chain_tx_out_cond_t*)l_item)->header.subtype == a_cond_subtype ) {
+                if (a_out_num) *a_out_num += l_idx;
+                return (dap_chain_tx_out_cond_t*)l_item;
+            }
         case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_OLD: case TX_ITEM_TYPE_OUT_EXT:
             ++l_idx;
         default:
