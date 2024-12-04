@@ -255,7 +255,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                             l_key_out_str, l_datum_hash_out_str);
                     rc = -2;
                 }
-                DAP_DEL_MULTY(l_key_str, l_datum_hash_hex_str, l_datum_hash_base58_str, l_datum, l_gdb_group_mempool);
+                DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str, l_datum, l_gdb_group_mempool);
                 return rc;
             } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
