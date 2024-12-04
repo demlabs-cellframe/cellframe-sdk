@@ -6943,7 +6943,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR, c_error_memory_alloc);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
         }
-        const char **l_addr_base58_to_array = dap_strsplit(addr_base58_to, ",", l_addr_el_count);
+        char **l_addr_base58_to_array = dap_strsplit(addr_base58_to, ",", l_addr_el_count);
         if (!l_addr_base58_to_array) {
             DAP_DEL_MULTY(l_addr_to, l_value);
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "Can't read '-to_addr' arg");
@@ -7050,7 +7050,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
     }
 
     for (size_t i = 0; i < l_addr_el_count; ++i) {
-        if (l_addr_to[i]->net_id.uint64 != l_net->pub.id.uint64 && !dap_chain_addr_is_blank(l_addr_to)) {
+        if (!dap_chain_addr_is_blank(l_addr_to[i]) && l_addr_to[i]->net_id.uint64 != l_net->pub.id.uint64) {
             bool l_found = false;
             for (size_t j = 0; j < l_net->pub.bridged_networks_count; ++j) {
                 if (l_net->pub.bridged_networks[j].uint64 == l_addr_to[i]->net_id.uint64) {
