@@ -40,6 +40,7 @@
 #include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_tx_in_reward.h"
+#include "dap_chain_datum_tx_pkey.h"
 
 typedef struct dap_chain_datum_tx dap_chain_datum_tx_t;
 
