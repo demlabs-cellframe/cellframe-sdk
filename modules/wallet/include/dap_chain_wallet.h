@@ -23,8 +23,7 @@
 */
 
 #pragma once
-#include "dap_config.h"
-#include "dap_chain_common.h"
+#include "dap_chain.h"
 #include "dap_enc_key.h"
 #include "dap_pkey.h"
 #include "dap_sign.h"

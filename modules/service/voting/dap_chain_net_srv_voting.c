@@ -24,6 +24,8 @@
 
 #include "dap_common.h"
 #include "dap_chain_net_srv_voting.h"
+#include "dap_chain_datum_tx_voting.h"
+#include "dap_chain_datum_service_state.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
@@ -199,7 +201,7 @@ uint64_t *dap_chain_net_srv_voting_get_result(dap_ledger_t *a_ledger, dap_chain_
         return NULL;
     }
     size_t l_options_count = dap_list_length(l_voting->params->options);
-    uint64_t *l_voting_results = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(uint64_t, l_options_count);
+    uint64_t *l_voting_results = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(uint64_t, l_options_count, NULL);
 
     for (dap_list_t *it = l_voting->votes; it; it = it->next) {
         struct vote *l_vote = it->data;
@@ -1009,10 +1011,8 @@ int dap_chain_net_srv_voting_create(const char *a_question, dap_list_t *a_option
     SUM_256_256(l_net_fee, a_fee, &l_total_fee);
 
     dap_ledger_t* l_ledger = a_net->pub.ledger;
-    dap_list_t *l_list_used_out = NULL;
-    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, l_addr_from, &l_list_used_out, l_total_fee, &l_value_transfer) == -101)
-        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                               l_addr_from, l_total_fee, &l_value_transfer);
+    dap_list_t *l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+                                                                             l_addr_from, l_total_fee, &l_value_transfer);
     if (!l_list_used_out) {
         return DAP_CHAIN_NET_VOTE_CREATE_NOT_ENOUGH_FUNDS_TO_TRANSFER;
     }
@@ -1536,7 +1536,7 @@ static int s_votings_restore(dap_chain_net_id_t a_net_id, dap_chain_datum_servic
                     break;
                 }
                 case VOTING_TSD_TYPE_VOTE: {
-                    struct vote *l_vote = DAP_DUP_SIZE(l_tsd->data, l_tsd->size);
+                    struct vote *l_vote = DAP_DUP_SIZE((byte_t*)l_tsd->data, l_tsd->size);
                     if (!l_vote) {
                         dap_list_free_full(l_voting->votes, NULL);
                         dap_chain_datum_tx_voting_params_delete(l_voting->params);

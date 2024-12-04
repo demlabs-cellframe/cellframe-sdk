@@ -97,7 +97,7 @@ static dap_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, size_t 
     }
     l_size = sizeof(dap_net_links_t) + sizeof(dap_stream_node_addr_t) * (l_links_count + l_low_availability_count + 1);
     // memory alloc
-    dap_chain_net_links_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_net_links_t, l_size, NULL, l_links, l_low_availability);
+    dap_net_links_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_net_links_t, l_size, NULL, l_links, l_low_availability);
     l_ret->count_node = l_links_count + l_low_availability_count + 1;
     if (dap_log_level_get() <= L_DEBUG ) {
         char l_ignored_str[4096];
@@ -334,19 +334,19 @@ static dap_net_links_t *s_balancer_issue_link(const char *a_net_name, uint16_t a
         return s_get_node_addrs_old(l_net, a_links_need);
     // prepare list of the ignred addrs
     size_t l_ignored_size = 0;
-    dap_chain_net_links_t *l_ignored_dec = NULL;
+    dap_net_links_t *l_ignored_dec = NULL;
     if (a_ignored_enc && *a_ignored_enc) {
         l_ignored_size = strlen(a_ignored_enc);
-        l_ignored_dec = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_net_links_t, DAP_ENC_BASE64_DECODE_SIZE(l_ignored_size) + 1, NULL);
+        l_ignored_dec = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_net_links_t, DAP_ENC_BASE64_DECODE_SIZE(l_ignored_size) + 1, NULL);
         dap_enc_base64_decode(a_ignored_enc, l_ignored_size, l_ignored_dec, DAP_ENC_DATA_TYPE_B64);
-        size_t l_check_size = sizeof(dap_chain_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node;
+        size_t l_check_size = sizeof(dap_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node;
         if (l_ignored_size < l_check_size) {
             log_it(L_ERROR, "Can't decode ignored node list in net %s, actual and expected sizes mismath: %zu < %zu",
                             a_net_name, l_ignored_size, l_check_size);
             DAP_DEL_Z(l_ignored_dec);
         }
     }
-    dap_chain_net_links_t *l_ret = s_get_node_addrs(l_net, a_links_need, l_ignored_dec, true);
+    dap_net_links_t *l_ret = s_get_node_addrs(l_net, a_links_need, l_ignored_dec, true);
     DAP_DELETE(l_ignored_dec);
     return l_ret;
 }
@@ -552,7 +552,7 @@ dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
 // sanity check
     dap_return_val_if_pass(!a_net, NULL);
 // func work
-    dap_chain_net_links_t *l_links_info_list = s_get_node_addrs(a_net, 0, NULL, false);  // TODO
+    dap_net_links_t *l_links_info_list = s_get_node_addrs(a_net, 0, NULL, false);  // TODO
     dap_string_t *l_ret = dap_string_new(
         "-----------------------------------------------------------------\n"
         "|\t\tNode addr\t|\tHost addr\t\t|\n"
