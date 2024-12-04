@@ -1483,7 +1483,7 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
     const char *l_native_token = a_net->pub.native_ticker;
     const char *l_main_token = NULL;
     // Create transaction
-    dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
+    dap_chain_datum_tx_t *l_tx = DAP_NEW_Z(dap_chain_datum_tx_t);
     if(!l_tx) {
         dap_json_rpc_allocation_error(*a_out_jobj_error);
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
@@ -2177,14 +2177,14 @@ void json_rpc_tx_create(json_object *a_param, json_object *a_reply){
         json_object_object_add(a_reply, "hash", l_jobj_hash);
         json_object_object_add(a_reply, "ledger_code", l_jobj_ledger_ret_code);
         json_object_object_add(a_reply, "total_items", l_jobj_total_items);
-        DAP_DEL_Z(l_datum_tx);
+        DAP_DELETE(l_datum_tx);
         return ;
     }
 
     char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
     bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx, l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
 
-    DAP_DEL_Z(l_datum_tx);
+    DAP_DELETE(l_datum_tx);
     DAP_DELETE(l_gdb_group_mempool_base_tx);
     if(!l_placed) {
         dap_json_rpc_error_add(a_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL,
@@ -3194,36 +3194,23 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply)
     return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_CONDITIONAL_TX_CREATE;
 }
 
-static dap_list_t* s_hashes_parse_str_list(const char * a_hashes_str)
+static dap_list_t* s_hashes_parse_str_list(const char *a_hashes_str)
 {
     dap_list_t *l_ret_list = NULL;
-    char * l_hashes_tmp_ptrs = NULL;
-    char * l_hash_str_dup = strdup(a_hashes_str);
-    if (!l_hash_str_dup) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
-        return NULL;
-    }
-    char *l_hash_str = strtok_r(l_hash_str_dup, ",", &l_hashes_tmp_ptrs);
-
-    // Second pass we parse them all
-    strcpy(l_hash_str_dup, a_hashes_str);
-    l_hash_str = strtok_r(l_hash_str_dup, ",", &l_hashes_tmp_ptrs);
-
-    while(l_hash_str) {
-        // trim whitespace in certificate's name
-        l_hash_str = dap_strstrip(l_hash_str);// removes leading and trailing spaces
-        // get certificate by name
-        dap_hash_fast_t* l_hash = DAP_NEW_Z(dap_hash_fast_t);
-        if (dap_chain_hash_fast_from_str(l_hash_str, l_hash)){
-            log_it(L_ERROR, "Can't get hash from string. Continue.");
-            DAP_DEL_Z(l_hash);
+    char *l_hash_str_dup = strdup(a_hashes_str), *l_hash_str, *l_hashes_tmp_ptrs = NULL;
+    if (!l_hash_str_dup)
+        return log_it(L_CRITICAL, "%s", c_error_memory_alloc), NULL;
+    dap_hash_fast_t l_hash = { };
+    while (( l_hash_str = strtok_r(l_hash_str_dup, ",", &l_hashes_tmp_ptrs) )) {
+        l_hash_str = dap_strstrip(l_hash_str);
+        if (dap_chain_hash_fast_from_str(l_hash_str, &l_hash)){
+            log_it(L_ERROR, "Can't get hash of string \"%s\". Continue.", l_hash_str);
             continue;
         }
-        l_ret_list = dap_list_append(l_ret_list, l_hash);
-        l_hash_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
+        l_ret_list = dap_list_append(l_ret_list, DAP_DUP(&l_hash));
     }
-    free(l_hash_str_dup);
-    return  l_ret_list;
+    DAP_DELETE(l_hash_str_dup);
+    return l_ret_list;
 }
 
 int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply)

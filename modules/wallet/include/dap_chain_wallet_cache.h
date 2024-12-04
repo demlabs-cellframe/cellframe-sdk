@@ -77,7 +77,7 @@ int dap_chain_wallet_cache_tx_find(dap_chain_addr_t *a_addr, char *a_token, dap_
  *         -101 - addr is not found in cache
  */
 int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a_token, int* a_ret_code, dap_chain_tx_tag_action_type_t *a_action,
-                                    dap_chain_srv_uid_t *a_uid, dap_chain_datum_tx_t **a_tx, dap_hash_fast_t *a_tx_hash_curr);
+                                              dap_chain_srv_uid_t *a_uid, dap_chain_datum_tx_t **a_tx, dap_hash_fast_t *a_tx_hash_curr);
 
 
 /**
