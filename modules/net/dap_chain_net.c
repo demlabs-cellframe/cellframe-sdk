@@ -1901,7 +1901,7 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
         char *l_service_cfg_path = dap_strdup_printf("network/%s/services/%s", l_net->pub.name, l_entry_name);
         dap_config_t *l_cfg_new = dap_config_open(l_service_cfg_path);
         if (l_cfg_new) {
-            char *l_service_name = DAP_DUP_SIZE(l_entry_name, l_entry_len - 3);
+            char *l_service_name = DAP_DUP_SIZE((char *)l_entry_name, l_entry_len - 3);
             l_service_name[l_entry_len - 4] = 0;
             dap_chain_srv_start(l_net->pub.id, l_service_name, l_cfg_new);
             dap_config_close(l_cfg_new);

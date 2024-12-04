@@ -52,7 +52,7 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
         return 0;
     }
     size_t i;
-    strncpy(a_str, "0x", 2);
+    memcpy(a_str, "0x", 2);
     size_t l_pos = 2;
     for (i = 0; i < sizeof(a_hash->raw) && l_pos <= a_str_max; ++i)
         l_pos += snprintf( a_str + i * 2 + 2, a_str_max - l_pos, "%02x", a_hash->raw[i] );

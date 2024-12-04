@@ -617,7 +617,7 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         json_object_object_add(a_json_obj_out, "tx_cond_hash", json_object_new_string(l_hash_str));
         if (a_order->ext_size) {
             char *l_ext_out = DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 3);
-            strncpy(l_ext_out, "0x", 2);
+            memcpy(l_ext_out, "0x", 2);
             dap_bin2hex(l_ext_out + 2, a_order->ext_n_sign, a_order->ext_size);
             json_object_object_add(a_json_obj_out, "ext", json_object_new_string(l_ext_out));
             DAP_DELETE(l_ext_out);

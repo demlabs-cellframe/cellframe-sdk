@@ -643,22 +643,23 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
             }
         break;
         case DAP_CHAIN_BLOCK_META_LINK:
-            if (a_block_links) {
-                if (l_links_count == 0)
-                    *a_block_links = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(dap_hash_t, l_links_count_max, -5);
-                else if (l_links_count == l_links_count_max) {
-                    l_links_count_max *= 2;
-                    dap_chain_hash_fast_t **l_new_block_links = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(*a_block_links, l_links_count_max, -5);
-                    *a_block_links = l_new_block_links;
-                }
-                l_meta_data = s_meta_extract(l_meta);
-                if (l_meta_data)
-                    *a_block_links[l_links_count++] = *(dap_hash_t *)l_meta_data;
-                else
-                    return -4;
-                if (a_block_links_count)
-                    *a_block_links_count = l_links_count;
+            if (!a_block_links || !a_block_links_count)
+                return -6;
+            dap_hash_fast_t *l_block_links = *a_block_links;
+            if (l_links_count == 0)
+                l_block_links = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(dap_hash_t, l_links_count_max, -5);
+            else if (l_links_count == l_links_count_max) {
+                l_links_count_max *= 2;
+                dap_chain_hash_fast_t *l_new_block_links = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_block_links, l_links_count_max, -5);
+                l_block_links = l_new_block_links;
             }
+            l_meta_data = s_meta_extract(l_meta);
+            if (l_meta_data)
+                l_block_links[l_links_count++] = *(dap_hash_t *)l_meta_data;
+            *a_block_links_count = l_links_count;
+            *a_block_links = l_block_links;
+            if (!l_meta_data)
+                return -4;
         break;
         case DAP_CHAIN_BLOCK_META_NONCE:
             if (l_was_nonce) {
