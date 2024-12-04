@@ -3560,6 +3560,8 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 continue;
         if (a_time_to && l_datum->header.ts_create >= a_time_to)
                 continue;
+        if (i_tmp >= l_arr_end)
+                break;
         
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
         dap_list_t *l_list_in_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_REWARD, NULL);
