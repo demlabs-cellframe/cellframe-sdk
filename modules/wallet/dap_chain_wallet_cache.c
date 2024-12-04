@@ -314,7 +314,7 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
     }
         
     if (a_tx_hash_curr)
-        memset(a_tx_hash_curr, 0, sizeof(*a_tx_hash_curr));
+        *a_tx_hash_curr = (dap_hash_fast_t) { };
     if (a_datum)
         *a_datum = NULL;
     if(a_ret_code)
@@ -475,8 +475,9 @@ int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const c
     return 0;
 }
 
-static int s_save_tx_into_wallet_cache(dap_chain_t *a_chain, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, int a_ret_code, char* a_main_token_ticker,
-                                                dap_chain_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action)
+static int s_save_tx_into_wallet_cache(dap_chain_t *a_chain, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
+                                       int a_ret_code, char* a_main_token_ticker,
+                                       dap_chain_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action)
 {
     int l_ret_val = 0;
     int l_items_cnt = 0;
@@ -667,7 +668,7 @@ static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg)
 
 
 static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, int a_ret_code, char* a_main_token_ticker,
-                                                dap_chain_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action)
+                                    dap_chain_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action)
 {
     int l_ret_val = 0;
     int l_items_cnt = 0;
@@ -812,11 +813,11 @@ static void s_callback_datum_removed_notify(void *a_arg, dap_chain_hash_fast_t *
             HASH_DEL(l_wallet_item->wallet_txs, l_wallet_tx_item);
             dap_list_free_full(l_wallet_tx_item->tx_wallet_inputs, NULL);
             dap_list_free_full(l_wallet_tx_item->tx_wallet_outputs, NULL);
-            DAP_DEL_Z(l_wallet_tx_item);
+            DAP_DELETE(l_wallet_tx_item);
         }
         if (!l_wallet_item->wallet_txs){
             HASH_DEL(s_wallets_cache, l_wallet_item);
-            DAP_DEL_Z(l_wallet_item);
+            DAP_DELETE(l_wallet_item);
         }            
     }
     pthread_rwlock_unlock(&s_wallet_cache_rwlock);

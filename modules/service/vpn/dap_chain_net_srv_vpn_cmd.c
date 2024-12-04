@@ -281,7 +281,7 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply)
         uint256_t l_value_datoshi = uint256_0;
         //dap_chain_net_vpn_client_get_wallet_info(l_net, &l_wallet_name, &l_str_token, &l_value_datoshi);
 
-        const char *l_status_txt = "";
+        const char *l_status_txt;
         switch (dap_chain_net_vpn_client_status()) {
         case VPN_CLIENT_STATUS_NOT_STARTED:
             l_status_txt = "VPN client not started";

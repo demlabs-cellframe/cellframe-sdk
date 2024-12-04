@@ -28,12 +28,7 @@
 #ifdef DAP_OS_WINDOWS
 #include <time.h>
 #endif
-#include "dap_common.h"
-#include "dap_sign.h"
 #include "dap_chain_common.h"
-#include "dap_enc_base58.h"
-#include "dap_hash.h"
-#include "dap_strfuncs.h"
 
 #define LOG_TAG "dap_chain_common"
 
@@ -57,12 +52,10 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
         return 0;
     }
     size_t i;
-    sprintf(a_str, "0x");
-
-    for (i = 0; i < sizeof(a_hash->raw); ++i)
-        sprintf( a_str + i * 2 + 2, "%02x", a_hash->raw[i] );
-
-    a_str[c_hash_str_size] = '\0';
+    strncpy(a_str, "0x", 2);
+    size_t l_pos = 2;
+    for (i = 0; i < sizeof(a_hash->raw) && l_pos <= a_str_max; ++i)
+        l_pos += snprintf( a_str + i * 2 + 2, a_str_max - l_pos, "%02x", a_hash->raw[i] );
 
     return strlen(a_str);
 }
@@ -72,13 +65,14 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
  * @param a_addr
  * @return
  */
-const char *dap_chain_addr_to_str_static(const dap_chain_addr_t *a_addr)
+dap_chain_addr_str_t dap_chain_addr_to_str_static_(const dap_chain_addr_t *a_addr)
 {
-    dap_return_val_if_pass(!a_addr, NULL);
+    dap_return_val_if_pass(!a_addr, (dap_chain_addr_str_t){ "null" });
+    dap_chain_addr_str_t res;
     if (dap_chain_addr_is_blank(a_addr))
-        return "null";
-    static _Thread_local char s_buf[DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_addr_t))] = { '\0' };
-    return dap_enc_base58_encode(a_addr, sizeof(dap_chain_addr_t), s_buf) ? s_buf : NULL;
+        return strcpy((char*)&res, "null"), res;
+    dap_enc_base58_encode(a_addr, sizeof(dap_chain_addr_t), (char*)&res);
+    return res;
 }
 
 /**
@@ -96,9 +90,10 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
     }
     size_t l_ret_size = DAP_ENC_BASE58_DECODE_SIZE(l_str_len);
     dap_chain_addr_t *l_addr = DAP_NEW_Z_SIZE(dap_chain_addr_t, l_ret_size);
-    return (dap_enc_base58_decode(a_str, l_addr) == sizeof(dap_chain_addr_t)) && !dap_chain_addr_check_sum(l_addr)
+    return ( dap_enc_base58_decode(a_str, l_addr) == sizeof(dap_chain_addr_t) ) 
+        && !dap_chain_addr_check_sum(l_addr)
             ? l_addr
-            : ({ DAP_DELETE(l_addr); NULL; });
+            : ( DAP_DELETE(l_addr), NULL );
 }
 
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr)

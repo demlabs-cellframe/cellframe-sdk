@@ -134,7 +134,7 @@ static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply)
             char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
 
             size_t l_path_length = strlen(l_system_datum_folder)+8+strlen(l_datum_hash_str);
-            char *l_path = DAP_NEW_Z_SIZE(char, l_path_length);
+            char l_path[l_path_length];
             snprintf(l_path, l_path_length, "%s/%s.datum", l_system_datum_folder, l_datum_hash_str);
             
             char * l_file_dir = dap_path_get_dirname(l_path);
@@ -169,7 +169,7 @@ static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply)
         if ( strcmp(l_datum_cmd_str, "load") == 0 ) {
 
             size_t l_path_length = strlen(l_system_datum_folder)+8+strlen(l_datum_hash_str);
-            char *l_path = DAP_NEW_Z_SIZE(char, l_path_length);
+            char l_path[l_path_length];
             snprintf(l_path, l_path_length, "%s/%s.datum", l_system_datum_folder, l_datum_hash_str);
 
             size_t l_datum_data_size = 0;
