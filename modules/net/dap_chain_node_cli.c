@@ -355,13 +355,15 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "min_validators_count, ban, unban, reward, validator_max_weight, emergency_validators, check_signs_structure\n");
 
 
-    dap_cli_server_cmd_add ("file", com_file, "Work with files",
-                "file print -num_line <number_of_lines> {-log | -path <path_to_file>}\n"
-                "\t print <num_line> lines from log or from <path_to_file> file \n"
-                "file export -num_line <number_of_lines> {-log | -path <path_to_file>} -dest <destination_path>\n"
-                "\t export <num_line> lines from log or from <path_to_file> file to <destination_path> file\n"
-                "file clean_log\n"
-                "\t CAUTION !!! clean log file\n");
+    dap_cli_server_cmd_add ("file", com_file, "Work with logs and files",
+                "file print {-num_line <number_of_lines> | -ts_after <m/d/Y-H:M:S>} {-log | -path <path_to_file>}\n"
+                "\t print the last <num_line> lines from the log file or all logs after the specified date and time\n"
+                "\t -path <path_to_file> allows printing from a text file, but -ts_after option might not work\n"
+                "file export {-num_line <number_of_lines> | -ts_after <m/d/Y-H:M:S>} {-log | -path <path_to_file>} -dest <destination_path>\n"
+                "\t export last <num_line> lines from the log file or all logs after the specified date and time\n"
+                "\t -path <path_to_file> allows exporting from a text file, but -ts_after option might not work\n"
+                "file clear_log\n"
+                "\t CAUTION !!! This command will clear the entire log file\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
