@@ -8792,98 +8792,11 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     return 0;
 }
 
-static char* dap_log_get_last_n_lines(const char *filename, int N) {
-
-    unsigned l_len = 2048 * 8;
-    char l_line[l_len];
-	FILE *file = fopen(filename, "rb+"); // rb+ is for unignoring \r
-	if (!file) {
-		return NULL;
-	}
-    int counter = 0;
-    if (fseek(file, 0, SEEK_END) != 0) {
-        return NULL;
-    }
-
-    long l_file_pos = ftell(file);
-    if (l_file_pos < 0) {
-        return NULL;
-    }
-    long l_end_pos = l_file_pos;
-    long l_n_line_pos = 0;
-    while (l_file_pos > 0) {
-        char buf[l_len];
-        size_t to_read = (l_file_pos >= l_len) ? l_len : l_file_pos;
-        l_file_pos -= to_read;
-
-        if (fseek(file, l_file_pos, SEEK_SET) != 0) {
-            return NULL;
-        }
-
-        size_t res = fread(buf, 1, to_read, file);
-        if (ferror(file)) {
-            return NULL;
-        }
-
-        for (int i = res - 1; i >= 0; i--) {
-            if (buf[i] == '\n') {
-                counter++;
-                if (counter > N) {
-                    l_n_line_pos = l_file_pos + i + 1;
-                    break;
-                }
-            }
-        }
-
-        if (l_file_pos == 0 || l_n_line_pos > 0) {
-            break;
-        }
-    }
-
-    long l_read_size = l_end_pos - l_n_line_pos - 1;
-    char * l_res = DAP_NEW_Z_SIZE(char, l_read_size);
-    fseek(file, l_n_line_pos, SEEK_SET);
-    fread(l_res, l_read_size, 1, file);
-	fclose(file);
-
-    return l_res;
-}
-
-
-int dap_log_export_string(const char *a_string, const char *dest_file_str, int N) {
-    if (!a_string)
-        return -1;
-    
-    if (N <= 0)
-        return -3;
-
-    FILE *dest_file = fopen(dest_file_str, "wb");
-    if (!dest_file)
-        return -2;
-
-    size_t l_read_size = strlen(a_string) + 1;
-
-    fwrite(a_string, l_read_size, 1, dest_file);
-    fclose(dest_file);
-    return 0;
-}
-
-static int s_clear_file(const char *filename) {
-    FILE *file = fopen(filename, "w");
-    if (!file) {
-        return -1;
-    }
-
-    fclose(file);
-    return 0;
-}
-
-
 int com_file(int a_argc, char ** a_argv, void **a_str_reply)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {
-        CMD_NONE, CMD_PRINT, CMD_EXPORT, CMD_CLEAN_LOG
+        CMD_NONE, CMD_PRINT, CMD_EXPORT, CMD_CLEAR_LOG
     };
     int l_arg_index = 1;
 
@@ -8894,8 +8807,8 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
     else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "export", NULL)) {
         l_cmd_num = CMD_EXPORT;
     }
-    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "clean_log", NULL)) {
-        l_cmd_num = CMD_CLEAN_LOG;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "clear_log", NULL)) {
+        l_cmd_num = CMD_CLEAR_LOG;
     }
 
     const char * l_num_line_str = NULL, *l_path_str = NULL, * l_str_ts_after = NULL, * l_str_limit = NULL;
@@ -8903,7 +8816,7 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
     int l_num_line = 0;
     int64_t l_ts_after = 0;
     long l_limit = 0;
-    if (l_cmd_num != CMD_CLEAN_LOG) {
+    if (l_cmd_num != CMD_CLEAR_LOG) {
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-num_line", &l_num_line_str);
         l_num_line = l_num_line_str ? atoi(l_num_line_str) : 0;
 
@@ -8946,7 +8859,7 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
         }
     }
 
-    if (l_cmd_num == CMD_CLEAN_LOG)
+    if (l_cmd_num == CMD_CLEAR_LOG)
         l_log =true;
 
     char l_file_full_path[MAX_PATH] = {'\0'};
@@ -8958,7 +8871,7 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
         l_file_full_path[sizeof(l_file_full_path) - 1] = '\0';
     }
     char * l_res = NULL;
-    if (!CMD_CLEAN_LOG) {
+    if (l_cmd_num != CMD_CLEAR_LOG) {
         if (l_num_line) {
             l_res = dap_log_get_last_n_lines(l_file_full_path, l_num_line);
         } else {
@@ -8983,7 +8896,7 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Command file require -log or -path arguments");
                 return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
             }
-            int res = dap_log_export_last_n_lines(l_res, l_dest_str, l_num_line);
+            int res = dap_log_export_string_to_file(l_res, l_dest_str, l_num_line);
             switch (res) {
                 case 0: {
                     json_object_array_add(*a_json_arr_reply, json_object_new_string("Export success"));
@@ -9006,11 +8919,11 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
             }
             break;
         }
-        case CMD_CLEAN_LOG: {
-            int res = s_clear_file(l_file_full_path);
+        case CMD_CLEAR_LOG: {
+            int res = dap_log_clear_file(l_file_full_path);
             switch (res) {
                 case 0: {
-                    json_object_array_add(*a_json_arr_reply, json_object_new_string("Log file has been cleaned"));
+                    json_object_array_add(*a_json_arr_reply, json_object_new_string("Log file has been cleared"));
                     break;
                 }
                 case -1: {
