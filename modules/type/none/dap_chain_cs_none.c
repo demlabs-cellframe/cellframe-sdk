@@ -463,9 +463,9 @@ static json_object *s_nonconsensus_callback_atom_to_json(json_object **a_arr_out
  */
 static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size)
 {
-    dap_return_val_if_fail(a_atom_iter, NULL);
-    if (a_atom_iter->cur_item) { /* Iterator creates copies, free them at delete routine! */
-        DAP_DEL_Z(a_atom_iter->cur);
+    dap_return_val_if_fail(a_atom_iter && a_atom_iter->chain, NULL);
+    if (a_atom_iter->cur_item) { /* Iterator creates copies (WTF?...), free them at delete routine! */
+        DAP_FREE(a_atom_iter->cur);
         DAP_DEL_Z(a_atom_iter->cur_hash);
     }
     dap_nonconsensus_datum_hash_item_t *l_head = PVT(DAP_NONCONSENSUS(a_atom_iter->chain))->hash_items;
@@ -580,8 +580,7 @@ static void s_nonconsensus_callback_datum_iter_delete(dap_chain_datum_iter_t *a_
 
 static dap_chain_datum_t *s_nonconsensus_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter)
 {
-    if (!a_datum_iter)
-        return NULL;
+    dap_return_val_if_fail(a_datum_iter && a_datum_iter->chain, NULL);
     if (a_datum_iter->cur_item) { /* Iterator creates copies, free them at delete routine! */
         DAP_DEL_Z(a_datum_iter->cur);
         DAP_DEL_Z(a_datum_iter->cur_hash);
@@ -633,6 +632,7 @@ static dap_chain_datum_t *s_nonconsensus_callback_datum_iter_get_next(dap_chain_
 static dap_chain_datum_t *s_nonconsensus_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
                                                                    dap_chain_hash_fast_t *a_atom_hash, int *a_ret_code)
 {
+    dap_return_val_if_fail(a_chain, NULL);
     dap_nonconsensus_datum_hash_item_t *l_item;
     DL_FOREACH(PVT(DAP_NONCONSENSUS(a_chain))->hash_items, l_item) {
         if (dap_hash_fast_compare(a_datum_hash, &l_item->datum_data_hash)) {

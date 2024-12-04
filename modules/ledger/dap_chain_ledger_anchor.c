@@ -302,7 +302,7 @@ int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a
                 dap_ledger_decree_reset_applied(l_net, &l_hash);
                 dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
                 s_delete_anchor(l_net, a_anchor_hash);
-                if (l_new_anchor){// if previous anchor is founded apply it
+                if (l_new_anchor){
                     dap_chain_hash_fast_t l_hash = {0};
                     if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_new_anchor, &l_hash)) != 0){
                         log_it(L_WARNING,"Can not find datum hash in anchor data");
@@ -339,7 +339,7 @@ int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a
                 dap_ledger_decree_reset_applied(l_net, &l_hash);
                 dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
                 s_delete_anchor(l_net, a_anchor_hash);
-                if (l_new_anchor){// if previous anchor is founded apply it
+                if (l_new_anchor){
                     dap_chain_hash_fast_t l_hash = {0};
                     if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_new_anchor, &l_hash)) != 0){
                         log_it(L_WARNING,"Can not find datum hash in anchor data");
@@ -356,27 +356,25 @@ int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a
                 dap_ledger_decree_reset_applied(l_net, &l_hash);
                 dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
                 s_delete_anchor(l_net, a_anchor_hash);
-                if (l_new_anchor){// if previous anchor is founded apply it
+                if (l_new_anchor) {
                     dap_chain_hash_fast_t l_hash = {0};
-                    if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_new_anchor, &l_hash)) != 0){
+                    if (( ret_val = dap_chain_datum_anchor_get_hash_from_data(l_new_anchor, &l_hash) )) {
                         log_it(L_WARNING,"Can not find datum hash in anchor data");
                         return -109;
                     }
-                    if((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, a_anchor_hash))!=0){
+                    if (( ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, a_anchor_hash) )) {
                         log_it(L_WARNING,"Decree applying failed");
                         return ret_val;
                     }
-                } else {
-                    dap_chain_addr_t a_addr = {};
+                } else
                     dap_chain_net_srv_stake_set_allowed_min_value(a_chain->net_id, dap_chain_balance_coins_scan("1.0"));
-                }
             }
             break;
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:{
                 dap_ledger_decree_reset_applied(l_net, &l_hash);
                 dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
                 s_delete_anchor(l_net, a_anchor_hash);
-                if (l_new_anchor){// if previous anchor is founded apply it
+                if (l_new_anchor){
                     dap_chain_hash_fast_t l_hash = {0};
                     if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_new_anchor, &l_hash)) != 0){
                         log_it(L_WARNING,"Can not find datum hash in anchor data");
@@ -459,14 +457,7 @@ static inline dap_sign_t *s_concate_all_signs_in_array(dap_sign_t *a_in_signs, s
             return NULL;
         }
 
-        dap_sign_t *l_signs_arr_temp = (dap_sign_t *)DAP_REALLOC(l_signs_arr, l_signs_arr_size + l_sign_size);
-
-        if (!l_signs_arr_temp)
-        {
-            log_it(L_WARNING,"Memory allocate fail");
-            DAP_DELETE(l_signs_arr);
-            return NULL;
-        }
+        dap_sign_t *l_signs_arr_temp = DAP_REALLOC_RET_VAL_IF_FAIL(l_signs_arr, l_signs_arr_size + l_sign_size, NULL, l_signs_arr);
 
         l_signs_arr = l_signs_arr_temp;
         memcpy((byte_t *)l_signs_arr + l_signs_arr_size, cur_sign, l_sign_size);

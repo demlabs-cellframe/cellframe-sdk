@@ -63,7 +63,7 @@ size_t dap_chain_net_ch_pkt_write_f(dap_stream_ch_t *a_ch, uint8_t a_type,dap_ch
 
     l_buf_size++; // include trailing 0
     char *l_buf = DAP_NEW_Z_SIZE(char, l_buf_size);
-    vsprintf(l_buf, a_str, ap_copy);
+    vsnprintf(l_buf, l_buf_size, a_str, ap_copy);
     va_end(ap_copy);
     size_t ret = dap_chain_net_ch_pkt_write(a_ch, a_type, a_net_id, l_buf, l_buf_size);
     DAP_DELETE(l_buf);
