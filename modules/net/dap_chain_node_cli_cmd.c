@@ -801,10 +801,9 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
 static dap_tsd_t* s_chain_node_cli_com_node_create_tsd_addr(char **a_argv, int a_arg_start, int a_arg_end, void **a_str_reply, const char *a_specified_decree) {
     const char *l_ban_addr_str = NULL;
     if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-addr", &l_ban_addr_str)) {
-        dap_chain_addr_t *l_format = dap_chain_addr_from_str(l_ban_addr_str);
-        if (!l_format)
+        dap_stream_node_addr_t l_addr = {0};
+        if (dap_stream_node_addr_from_str(&l_addr, l_ban_addr_str))
             return dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't convert the -addr option value to node address"), NULL;
-        DAP_DELETE(l_format);
         return dap_tsd_create_string(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING, l_ban_addr_str);
     } else if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-host", &l_ban_addr_str))
         return dap_tsd_create_string(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST, l_ban_addr_str);
