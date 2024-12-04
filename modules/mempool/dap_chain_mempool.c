@@ -66,6 +66,7 @@
 #include "dap_chain_net_srv.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_wallet_cache.h"
 
 #include "dap_chain_mempool_rpc.h"
 
@@ -162,15 +163,18 @@ char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_fr
     if (l_single_channel)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
     else if (!IS_ZERO_256(l_total_fee)) {
-        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, a_addr_from, &l_list_fee_out, l_total_fee, &l_fee_transfer) == -101)
+            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                     a_addr_from, l_total_fee, &l_fee_transfer);
         if (!l_list_fee_out) {
             log_it(L_WARNING, "Not enough funds to pay fee");
             return NULL;
         }
     }
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
-                                                                             a_addr_from, l_value_need, &l_value_transfer);
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
+                                            a_addr_from, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_WARNING, "Not enough funds to transfer");
         return NULL;
@@ -587,8 +591,10 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     const char *l_balance; dap_uint256_to_char(l_value_need, &l_balance);
     log_it(L_DEBUG, "Create %"DAP_UINT64_FORMAT_U" transactions, summary %s", a_tx_num, l_balance);
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
-                                                                       a_addr_from, l_value_need, &l_value_transfer);
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
+                                                                a_addr_from, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_WARNING,"Not enough funds to transfer");
         DAP_DELETE(l_objs);
@@ -625,12 +631,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 break;
         }
         if (compare256(l_value_to_items, l_single_val) == -1) {
-            char l_log_str[256] = { '\0' };
-            l_balance = dap_uint256_to_char(l_value_to_items, NULL);
-            snprintf(l_log_str, sizeof(l_log_str),
-                         "Not enough values on output to produce enough inputs: %s when need ", l_balance);
-            strcat(l_log_str, dap_uint256_to_char(l_single_val, NULL));
-            log_it(L_ERROR, "%s", l_log_str);
+            log_it(L_ERROR, "Not enough values on output to produce enough inputs: %s when need %s", l_balance, dap_uint256_to_char(l_single_val, NULL));
             dap_list_free_full(l_list_used_out, NULL);
             DAP_DELETE(l_objs);
             return -5;
@@ -932,8 +933,10 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
     dap_chain_addr_t l_addr_from;
     dap_chain_addr_fill_from_key(&l_addr_from, a_key_from, a_net->pub.id);
     // list of transaction with 'out' items
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
-                                                                             &l_addr_from, l_value_need, &l_value_transfer);
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_token_ticker, &l_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
+                                            &l_addr_from, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
         log_it( L_ERROR, "Nothing to transfer (not enough funds)");
         return NULL;
@@ -1059,7 +1062,9 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
         }
         dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
         // list of transaction with 'out' items
-        dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+        dap_list_t *l_list_used_out = NULL;
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, &l_addr_from_fee, &l_list_used_out, l_total_fee, &l_value_transfer) == -101)
+            l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                      &l_addr_from_fee, l_total_fee, &l_value_transfer);
         if (!l_list_used_out) {
             log_it(L_WARNING,"Not enough funds to transfer");
@@ -1223,22 +1228,17 @@ uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t 
     for(int i = 0; i < datum_mempool->datum_count; i++) {
         a_request_size += dap_chain_datum_size(datum_mempool->data[i]) + sizeof(uint16_t);
     }
-    uint8_t *a_request = DAP_NEW_SIZE(uint8_t, a_request_size);
-    memcpy(a_request + shift_size, &(datum_mempool->version), sizeof(uint16_t));
-    shift_size += sizeof(uint16_t);
-    memcpy(a_request + shift_size, &(datum_mempool->datum_count), sizeof(uint16_t));
-    shift_size += sizeof(uint16_t);
+    uint8_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(uint8_t, a_request_size, NULL);
+    uint8_t *l_pos = dap_mempcpy(l_ret, &datum_mempool->version, sizeof(uint16_t));
+    l_pos = dap_mempcpy(l_pos, &datum_mempool->datum_count, sizeof(uint16_t));
     for(int i = 0; i < datum_mempool->datum_count; i++) {
         size_t size_one = dap_chain_datum_size(datum_mempool->data[i]);
-        memcpy(a_request + shift_size, &size_one, sizeof(uint16_t));
-        shift_size += sizeof(uint16_t);
-        memcpy(a_request + shift_size, datum_mempool->data[i], size_one);
-        shift_size += size_one;
+        l_pos = dap_mempcpy( dap_mempcpy(l_pos, &size_one, sizeof(uint16_t)), datum_mempool->data[i], size_one );
     }
-    assert(shift_size == a_request_size);
+    assert((size_t)(l_pos - l_ret) == a_request_size);
     if(size)
         *size = a_request_size;
-    return a_request;
+    return l_ret;
 }
 
 dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *a_datum_mempool_ser, size_t a_datum_mempool_ser_size)

@@ -86,6 +86,7 @@ void dap_chain_deinit(void)
     dap_chain_item_t * l_item = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {
           dap_chain_delete(l_item->chain);
+          DAP_DELETE(l_item);
     }
 }
 
@@ -113,7 +114,7 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
     dap_chain_t *l_ret = DAP_NEW(dap_chain_t);
     if ( !l_ret ) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return pthread_rwlock_unlock(&s_chain_items_rwlock), NULL;   
+        return pthread_rwlock_unlock(&s_chain_items_rwlock), NULL;
     }
     *l_ret = (dap_chain_t) {
         .rwlock     = PTHREAD_RWLOCK_INITIALIZER,
@@ -125,13 +126,13 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
         .cell_rwlock= PTHREAD_RWLOCK_INITIALIZER,
         ._pvt       = DAP_NEW_Z(dap_chain_pvt_t)
     };
-    
+
     l_chain_item = DAP_NEW(dap_chain_item_t);
     *l_chain_item = (dap_chain_item_t) {
         .item_id    = l_id,
         .chain      = l_ret
     };
-    
+
     HASH_ADD(hh, s_chain_items, item_id, sizeof(dap_chain_item_id_t), l_chain_item);
     pthread_rwlock_unlock(&s_chain_items_rwlock);
     return l_ret;
@@ -142,7 +143,7 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
  * delete dap chain object
  * @param a_chain dap_chain_t object
  */
-void dap_chain_delete(dap_chain_t * a_chain)
+void dap_chain_delete(dap_chain_t *a_chain)
 {
     dap_chain_item_t * l_item = NULL;
     dap_chain_item_id_t l_chain_item_id = {
@@ -161,20 +162,17 @@ void dap_chain_delete(dap_chain_t * a_chain)
     }
     pthread_rwlock_unlock(&s_chain_items_rwlock);
     dap_list_free_full(a_chain->atom_notifiers, NULL);
-    DAP_DEL_Z(a_chain->name);
-    DAP_DEL_Z(a_chain->net_name);
-    if (DAP_CHAIN_PVT(a_chain)){
-        DAP_DEL_Z(DAP_CHAIN_PVT(a_chain)->file_storage_dir);
-        DAP_DELETE(DAP_CHAIN_PVT(a_chain));
-    }
-    DAP_DELETE(a_chain->datum_types);
-    DAP_DELETE(a_chain->autoproc_datum_types);
     if (a_chain->callback_delete)
         a_chain->callback_delete(a_chain);
-    DAP_DEL_Z(a_chain->_inheritor);
     dap_config_close(a_chain->config);
+    if (DAP_CHAIN_PVT(a_chain)) {
+        DAP_DEL_MULTY(DAP_CHAIN_PVT(a_chain)->file_storage_dir, DAP_CHAIN_PVT(a_chain));
+    }
+    DAP_DEL_MULTY(a_chain->name, a_chain->net_name, a_chain->datum_types, a_chain->autoproc_datum_types,
+                  a_chain->authorized_nodes_addrs, a_chain->_inheritor);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
+    DAP_DELETE(a_chain);
 }
 
 /**
@@ -350,7 +348,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 {
     if (!a_chain_net_name || !a_cfg)
         return NULL;
-    dap_chain_id_t l_chain_id = { }; 
+    dap_chain_id_t l_chain_id = { };
     const char *l_chain_name    = dap_config_get_item_str(a_cfg, "chain", "name"),
                *l_chain_id_str  = dap_config_get_item_str(a_cfg, "chain", "id");
     if (!l_chain_name || !l_chain_id_str || dap_chain_id_parse(l_chain_id_str, &l_chain_id) )
@@ -407,7 +405,6 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
     {
         l_chain->default_datum_types = DAP_NEW_Z_COUNT(dap_chain_type_t, l_default_datum_types_count);
         if ( !l_chain->default_datum_types ) {
-            DAP_DELETE(l_chain->datum_types);
             return log_it(L_CRITICAL, "%s", c_error_memory_alloc), dap_chain_delete(l_chain), NULL;
         }
         for (i = 0; i < l_default_datum_types_count; i++)
@@ -419,15 +416,13 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
         }
     } else
         log_it(L_WARNING, "Can't read chain default datum types for chain %s", l_chain_id_str);
-        
+
     l_datum_types = dap_config_get_array_str(a_cfg, "chain", "mempool_auto_types", &l_datum_types_count);
     // add datum types for autoproc
     if (l_datum_types && l_datum_types_count)
     {
         l_chain->autoproc_datum_types = DAP_NEW_Z_COUNT(uint16_t, l_chain->datum_types_count);
         if ( !l_chain->autoproc_datum_types ) {
-            DAP_DELETE(l_chain->datum_types);
-            DAP_DELETE(l_chain->default_datum_types);
             return log_it(L_CRITICAL, "%s", c_error_memory_alloc), dap_chain_delete(l_chain), NULL;
         }
         for (i = 0; i < l_datum_types_count; i++)
@@ -446,6 +441,14 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
         }
     } else
         log_it(L_WARNING, "Can't read chain mempool auto types for chain %s", l_chain_id_str);
+    if (l_chain->id.uint64 == 0) {  // for zerochain only
+        if (dap_config_stream_addrs_parse(a_cfg, "chain", "authorized_nodes_addrs", &l_chain->authorized_nodes_addrs, &l_chain->authorized_nodes_count)) {
+            dap_chain_delete(l_chain);
+            return NULL;
+        }
+        if (!l_chain->authorized_nodes_count)
+            log_it(L_WARNING, "Can't read PoA nodes addresses");
+    }
     return l_chain;
 }
 
@@ -635,6 +638,66 @@ void dap_chain_add_callback_notify(dap_chain_t *a_chain, dap_chain_callback_noti
 
 
 /**
+ * @brief Add a callback to monitor adding new atom into index
+ * @param a_chain
+ * @param a_callback
+ * @param a_arg
+ */
+void dap_chain_add_callback_datum_index_notify(dap_chain_t *a_chain, dap_chain_callback_datum_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_callback_arg)
+{
+    if(!a_chain){
+        log_it(L_ERROR, "NULL chain passed to dap_chain_add_callback_notify()");
+        return;
+    }
+    if(!a_callback){
+        log_it(L_ERROR, "NULL callback passed to dap_chain_add_callback_notify()");
+        return;
+    }
+    dap_chain_datum_notifier_t * l_notifier = DAP_NEW_Z(dap_chain_datum_notifier_t);
+    if (l_notifier == NULL){
+        log_it(L_ERROR, "Can't allocate memory for notifier in dap_chain_add_callback_notify()");
+        return;
+    }
+
+    l_notifier->callback = a_callback;
+    l_notifier->proc_thread = a_thread;
+    l_notifier->arg = a_callback_arg;
+    pthread_rwlock_wrlock(&a_chain->rwlock);
+    a_chain->datum_notifiers = dap_list_append(a_chain->datum_notifiers, l_notifier);
+    pthread_rwlock_unlock(&a_chain->rwlock);
+}
+
+/**
+ * @brief Add a callback to monitor adding new atom into index
+ * @param a_chain
+ * @param a_callback
+ * @param a_arg
+ */
+void dap_chain_add_callback_datum_removed_from_index_notify(dap_chain_t *a_chain, dap_chain_callback_datum_removed_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_callback_arg)
+{
+    if(!a_chain){
+        log_it(L_ERROR, "NULL chain passed to dap_chain_add_callback_notify()");
+        return;
+    }
+    if(!a_callback){
+        log_it(L_ERROR, "NULL callback passed to dap_chain_add_callback_notify()");
+        return;
+    }
+    dap_chain_datum_removed_notifier_t * l_notifier = DAP_NEW_Z(dap_chain_datum_removed_notifier_t);
+    if (l_notifier == NULL){
+        log_it(L_ERROR, "Can't allocate memory for notifier in dap_chain_add_callback_notify()");
+        return;
+    }
+
+    l_notifier->callback = a_callback;
+    l_notifier->proc_thread = a_thread;
+    l_notifier->arg = a_callback_arg;
+    pthread_rwlock_wrlock(&a_chain->rwlock);
+    a_chain->datum_removed_notifiers = dap_list_append(a_chain->datum_removed_notifiers, l_notifier);
+    pthread_rwlock_unlock(&a_chain->rwlock);
+}
+
+/**
  * @brief Add a callback to monitor blocks received enough confirmations
  * @param a_chain
  * @param a_callback
@@ -694,6 +757,28 @@ struct chain_thread_notifier {
     size_t atom_size;
 };
 
+struct chain_thread_datum_notifier {
+    dap_chain_callback_datum_notify_t callback;
+    void *callback_arg;
+    dap_chain_t *chain;
+    dap_chain_cell_id_t cell_id;
+    dap_hash_fast_t hash;
+    void *datum;
+    uint32_t action;
+    dap_chain_net_srv_uid_t uid;
+    size_t datum_size;
+    int ret_code;
+};
+
+struct chain_thread_datum_removed_notifier {
+    dap_chain_callback_datum_removed_notify_t callback;
+    void *callback_arg;
+    dap_chain_t *chain;
+    dap_chain_cell_id_t cell_id;
+    dap_hash_fast_t hash;
+    int ret_code;
+};
+
 static bool s_notify_atom_on_thread(void *a_arg)
 {
     struct chain_thread_notifier *l_arg = a_arg;
@@ -701,6 +786,27 @@ static bool s_notify_atom_on_thread(void *a_arg)
     l_arg->callback(l_arg->callback_arg, l_arg->chain, l_arg->cell_id, &l_arg->hash, l_arg->atom, l_arg->atom_size);
     if ( !l_arg->chain->is_mapped )
         DAP_DELETE(l_arg->atom);
+    DAP_DELETE(l_arg);
+    return false;
+}
+
+static bool s_notify_datum_on_thread(void *a_arg)
+{
+    struct chain_thread_datum_notifier *l_arg = a_arg;
+    assert(l_arg->datum && l_arg->callback);
+    l_arg->callback(l_arg->callback_arg, &l_arg->hash, l_arg->datum, l_arg->datum_size, l_arg->ret_code, l_arg->action, l_arg->uid);
+    if ( !l_arg->chain->is_mapped )
+        DAP_DELETE(l_arg->datum);
+    DAP_DELETE(l_arg);
+    return false;
+}
+
+
+static bool s_notify_datum_removed_on_thread(void *a_arg)
+{
+    struct chain_thread_datum_removed_notifier *l_arg = a_arg;
+    assert(l_arg->callback);
+    l_arg->callback(l_arg->callback_arg, &l_arg->hash);
     DAP_DELETE(l_arg);
     return false;
 }
@@ -747,7 +853,7 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
     char cert_path[cert_path_length];
     snprintf(cert_path, cert_path_length, "%s/%s/%s.dcert", s_system_chain_ca_dir, net_name, cert_name);
     // In cert_path resolve all `..` and `.`s
-    char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
+    char *cert_path_c = dap_canonicalize_path(cert_path, NULL);
     // Protect the ca folder from using "/.." in cert_name
     if(dap_strncmp(s_system_chain_ca_dir, cert_path_c, dap_strlen(s_system_chain_ca_dir))) {
         log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
@@ -785,9 +891,60 @@ void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_ha
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
             .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
             .hash = *a_hash,
-            .atom = a_chain_cell->chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE(a_atom, a_atom_size),
+            .atom = a_chain_cell->chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE((byte_t*)a_atom, a_atom_size),
             .atom_size = a_atom_size };
         dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
+    }
+}
+
+void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid) {
+#ifdef DAP_CHAIN_BLOCKS_TEST
+    return;
+#endif
+
+    if ( !a_chain_cell->chain->datum_notifiers )
+        return;
+    dap_list_t *l_iter;
+    DL_FOREACH(a_chain_cell->chain->datum_notifiers, l_iter) {
+        dap_chain_datum_notifier_t *l_notifier = (dap_chain_datum_notifier_t*)l_iter->data;
+        struct chain_thread_datum_notifier *l_arg = DAP_NEW_Z(struct chain_thread_datum_notifier);
+        if (!l_arg) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            continue;
+        }
+        *l_arg = (struct chain_thread_datum_notifier) {
+            .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
+            .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
+            .hash = *a_hash,
+            .datum = a_chain_cell->chain->is_mapped ? (byte_t*)a_datum : DAP_DUP_SIZE(a_datum, a_datum_size),
+            .datum_size = a_datum_size,
+            .ret_code = a_ret_code,
+            .action = a_action,
+            .uid =  a_uid};
+        dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_datum_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
+    }
+}
+
+void dap_chain_datum_removed_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash) {
+#ifdef DAP_CHAIN_BLOCKS_TEST
+    return;
+#endif
+
+    if ( !a_chain_cell->chain->datum_removed_notifiers )
+        return;
+    dap_list_t *l_iter;
+    DL_FOREACH(a_chain_cell->chain->datum_removed_notifiers, l_iter) {
+        dap_chain_datum_removed_notifier_t *l_notifier = (dap_chain_datum_removed_notifier_t*)l_iter->data;
+        struct chain_thread_datum_removed_notifier *l_arg = DAP_NEW_Z(struct chain_thread_datum_removed_notifier);
+        if (!l_arg) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            continue;
+        }
+        *l_arg = (struct chain_thread_datum_removed_notifier) {
+            .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
+            .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
+            .hash = *a_hash};
+        dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_datum_removed_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }
 }
 
@@ -820,6 +977,6 @@ const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type) {
             return "decree";
         case CHAIN_TYPE_ANCHOR:
             return "anchor";
+        default: break;
     }
-    return "invalid";
 }
