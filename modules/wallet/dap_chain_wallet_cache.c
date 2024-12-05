@@ -122,7 +122,7 @@ static char * s_wallet_cache_type_to_str(dap_s_wallets_cache_type_t a_type)
 
 int dap_chain_wallet_cache_init()
 {
-    char *l_walet_cache_type_str = dap_config_get_item_str(g_config, "wallets","wallets_cache");
+    const char *l_walet_cache_type_str = dap_config_get_item_str(g_config, "wallets","wallets_cache");
     if (l_walet_cache_type_str){
         if (!dap_strcmp(l_walet_cache_type_str, "disable")){
             s_wallets_cache_type = DAP_WALLET_CACHE_TYPE_DISABLED;
@@ -175,8 +175,6 @@ int dap_chain_wallet_cache_init()
         dap_chain_wallet_add_wallet_opened_notify(s_wallet_opened_callback, NULL);
         dap_chain_wallet_add_wallet_created_notify(s_wallet_opened_callback, NULL);
     }
-        
-    
     return 0;
 }
 
