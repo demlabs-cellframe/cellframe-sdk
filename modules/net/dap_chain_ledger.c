@@ -4063,7 +4063,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             continue;
         }
         if (!dap_chain_addr_is_blank(&l_tx_out_to)) {
-            if (l_tx_out_to.net_id.uint64 != a_ledger->net->pub.id.uint64)
+            if (l_tx_out_to.net_id.uint64 != a_ledger->net->pub.id.uint64) {
                 if (!l_cross_network) {
                     l_cross_network = true;
                 } else {
@@ -4071,6 +4071,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     l_err_num = DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET;
                     break;
                 }
+            }
         }
 
         if (l_err_num)
