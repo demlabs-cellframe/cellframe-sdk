@@ -253,6 +253,10 @@ static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, d
     }
 
     dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, a_tx_in_hash);
+    if (dap_hash_fast_is_blank(&l_final_tx_hash))
+        m_tx_fail(ERROR_FUNDS, "Nothing to emit (not enough funds)");
+
+    log_it(L_NOTICE, "Actual TX hash with unspent output %s will be used for taking TX composing", dap_hash_fast_to_str_static(&l_final_tx_hash));
     dap_chain_datum_tx_t *l_tx_in = dap_ledger_tx_find_by_hash(l_ledger, &l_final_tx_hash);
     assert(l_tx_in);
     int l_prev_cond_idx = 0;
@@ -260,7 +264,7 @@ static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, d
     if (!l_cond_prev)
         m_tx_fail(ERROR_TX_MISMATCH, "Requested conditional transaction requires conditional output");
 
-    if (dap_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_in_hash, l_prev_cond_idx, NULL))
+    if (dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_final_tx_hash, l_prev_cond_idx, NULL))
         m_tx_fail(ERROR_TX_MISMATCH, "Requested conditional transaction is already used out");
 
     if (compare256(l_cond_prev->header.value, l_value) == -1)
@@ -326,8 +330,27 @@ static dap_chain_datum_tx_t *s_taking_tx_sign(json_object *a_json_arr_reply, dap
     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, &l_cond_idx);
     if (!l_cond)
         m_sign_fail(ERROR_TX_MISMATCH, "Requested conditional transaction requires conditional output");
+    if (!dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL))
+        m_sign_fail(ERROR_TX_MISMATCH, "No need to sign holding TX");
     if (!s_is_key_present(l_cond, a_enc_key))
         m_sign_fail(ERROR_TX_MISMATCH, "Requested conditional transaction restrict provided sign key");
+    size_t l_my_pkey_size = 0;
+    byte_t *l_my_pkey = dap_enc_key_serialize_pub_key(a_enc_key, &l_my_pkey_size);
+    if (l_my_pkey)
+        m_sign_fail(ERROR_COMPOSE, "Can't serialize sign public key");
+    size_t l_tsd_hashes_count = l_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
+    byte_t *l_item; size_t l_tx_item_size;
+    TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx_in) {
+        if (*l_item != TX_ITEM_TYPE_SIG)
+            continue;
+        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_item);
+        size_t l_sign_pkey_size = 0;
+        byte_t *l_sign_pkey = dap_sign_get_pkey(l_sign, &l_sign_pkey_size);
+        if (l_sign_pkey_size == l_my_pkey_size && !memcmp(l_sign_pkey, l_my_pkey, l_my_pkey_size))
+            m_sign_fail(ERROR_TX_MISMATCH, "Sign is already present in taking tx");
+        if (--l_tsd_hashes_count == 0)
+            m_sign_fail(ERROR_TX_MISMATCH, "Too many signs in taking tx");
+    }
     dap_chain_datum_tx_t *l_tx = DAP_DUP_SIZE(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in));
     if (!l_tx)
         m_sign_fail(ERROR_FUNDS, c_error_memory_alloc);
@@ -429,6 +452,11 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
     if (!l_hashes_count) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_hash_str_buf);
+        DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
+        return ERROR_VALUE;
+    }
+    if (l_hashes_count < l_signs_min) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Quantity of pkey_hashes %zu should not be less than signs_minimum (%zu)", l_hashes_count, l_signs_min);
         DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
         return ERROR_VALUE;
     }

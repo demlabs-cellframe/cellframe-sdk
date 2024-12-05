@@ -89,15 +89,11 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
                 l_uplinks_count = 0,
                 l_downlinks_count = 0,
                 l_info_size = 0;
-        // memory alloc first
             dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, true);
-            dap_chain_node_net_states_info_t *l_info = NULL;
             l_info_size = sizeof(dap_chain_node_net_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
-            DAP_NEW_Z_SIZE_RET(l_info, dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
-        // func work
-            // data preparing
+            dap_chain_node_net_states_info_t *l_info = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
             l_info->version_info = DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION;
-            dap_strncpy(l_info->version_node, DAP_VERSION, sizeof(l_info->version_node) - 1);
+            dap_strncpy(l_info->version_node, DAP_VERSION, sizeof(l_info->version_node));
             l_info->role = dap_chain_net_get_role(l_net);
             l_info->info_v1.address.uint64 = g_node_addr.uint64;
             l_info->info_v1.uplinks_count = l_uplinks_count;
@@ -518,7 +514,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
         }
         l_item->link_info.node_addr.uint64 = ((dap_chain_node_info_t*)(l_objs + i)->value)->address.uint64;
         l_item->link_info.uplink_port = ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_port;
-        dap_strncpy(l_item->link_info.uplink_addr, ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_host, sizeof(l_item->link_info.uplink_addr) - 1);
+        dap_strncpy(l_item->link_info.uplink_addr, ((dap_chain_node_info_t*)(l_objs + i)->value)->ext_host, sizeof(l_item->link_info.uplink_addr));
 
         dap_nanotime_t l_state_timestamp = 0;
         size_t l_data_size = 0;
@@ -561,11 +557,10 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object *a_json_a
                                                            dap_chain_t **a_chain, dap_chain_net_t **a_net,
                                                            dap_chain_type_t a_default_chain_type)
 {
-    const char * l_chain_str = NULL;
-    const char * l_net_str = NULL;
+    const char *l_chain_str = NULL, *l_net_str = NULL;
 
     // Net name
-    if (a_net)
+    if(a_net)
         dap_cli_server_cmd_find_option_val(a_argv, *a_arg_index, a_argc, "-net", &l_net_str);
     else {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_INTERNAL_COMMAND_PROCESSING,
@@ -574,56 +569,44 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object *a_json_a
     }
 
     // Select network
-    if (!l_net_str) {
+    if(!l_net_str) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_STR_IS_NUL, "%s requires parameter '-net'", a_argv[0]);
         return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_STR_IS_NUL;
     }
 
-    if((*a_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
-        char l_str_to_reply_chain[500] = {0};
-        char *l_str_to_reply = NULL;
-        sprintf(l_str_to_reply_chain, "%s can't find network \"%s\"\n", a_argv[0], l_net_str);
-        l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
-        dap_string_t* l_net_str = dap_cli_list_net();
-        l_str_to_reply = dap_strcat2(l_str_to_reply,l_net_str->str);
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND, "%s", l_str_to_reply);
-        DAP_DELETE(l_str_to_reply);
-        dap_string_free(l_net_str, true);
-        return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND;
+    if (! (*a_net = dap_chain_net_by_name(l_net_str)) ) { // Can't find such network
+        return dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND,
+                                                        "Network %s not found", l_net_str),
+                DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND;
     }
 
     // Chain name
-    if (a_chain) {
+    if(a_chain) {
         dap_cli_server_cmd_find_option_val(a_argv, *a_arg_index, a_argc, "-chain", &l_chain_str);
 
         // Select chain
         if(l_chain_str) {
             if ((*a_chain = dap_chain_net_get_chain_by_name(*a_net, l_chain_str)) == NULL) { // Can't find such chain
-                char l_str_to_reply_chain[500] = {0};
-                char *l_str_to_reply = NULL;
-                sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
-                        a_argv[0], l_net_str, l_chain_str);
-                l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
-                dap_chain_t * l_chain;
-                dap_chain_net_t * l_chain_net = *a_net;
-                l_str_to_reply = dap_strcat2(l_str_to_reply,"\nAvailable chains:\n");
-                DL_FOREACH(l_chain_net->pub.chains, l_chain) {
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\t");
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
-                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
+                dap_string_t *l_reply = dap_string_new("");
+                dap_string_append_printf(l_reply, "Invalid '-chain' parameter \"%s\", not found in net %s\n"
+                                                  "Available chains:",
+                                                  l_chain_str, l_net_str);
+                dap_chain_t *l_chain;
+                DL_FOREACH((*a_net)->pub.chains, l_chain) {
+                    dap_string_append_printf(l_reply, "\n\t%s", l_chain->name);
                 }
-                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND, l_str_to_reply);
-                return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND;
+                char *l_str_reply = dap_string_free(l_reply, false);
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND, "%s", l_str_reply);
+                return DAP_DELETE(l_str_reply), DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND;
             }
         } else if (a_default_chain_type != CHAIN_TYPE_INVALID) {
-            if ((*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type)) != NULL) {
+            if (!( *a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type) ))
                 return 0;
-            } else {
-                dap_json_rpc_error_add(a_json_arr_reply,
+            else {
+                dap_json_rpc_error_add(a_json_arr_reply, 
                         DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE,
                         "Unable to get the default chain of type %s for the network.", dap_chain_type_to_str(a_default_chain_type));
                 return DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE;
-
             }
         }
     }

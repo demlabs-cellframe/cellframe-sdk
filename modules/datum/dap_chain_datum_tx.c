@@ -26,7 +26,6 @@
 #include <assert.h>
 #include "dap_common.h"
 #include "dap_sign.h"
-#include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_voting.h"
 
@@ -73,12 +72,9 @@ size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx)
 int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
 {
     size_t size = 0;
-    if ( !a_tx || !*a_tx || !(size = dap_chain_datum_item_tx_get_size(a_item, 0)) )
-        return -1;
-    dap_chain_datum_tx_t *tx_new = DAP_REALLOC( *a_tx, dap_chain_datum_tx_get_size(*a_tx) + size );
-    if (!tx_new)
-        return -2;
-    memcpy((uint8_t*) tx_new->tx_items + tx_new->header.tx_items_size, a_item, size);
+    dap_return_val_if_pass(!a_tx || !*a_tx || !(size = dap_chain_datum_item_tx_get_size(a_item, 0)), -1 );
+    dap_chain_datum_tx_t *tx_new = DAP_REALLOC_RET_VAL_IF_FAIL( *a_tx, dap_chain_datum_tx_get_size(*a_tx) + size, -2 );
+    memcpy((uint8_t*)tx_new->tx_items + tx_new->header.tx_items_size, a_item, size);
     tx_new->header.tx_items_size += size;
     *a_tx = tx_new;
     return 1;
@@ -508,4 +504,17 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
         }
     }
     return true;
+}
+
+dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t *a_tx, int a_type)
+{   
+    dap_return_val_if_pass(!a_tx, NULL);
+    
+    byte_t *l_item = NULL;
+    size_t l_tx_item_size = 0;
+    TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
+        if (*l_item == TX_ITEM_TYPE_TSD && ((dap_tsd_t *)(((dap_chain_tx_tsd_t *)l_item)->tsd))->type ==  a_type)
+        return (dap_chain_tx_tsd_t *)l_item;
+    }
+    return NULL;
 }

@@ -130,7 +130,7 @@ typedef struct dap_chain_datum_token {
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 
 typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
-    byte_t      ticker_token_from[DAP_CHAIN_TICKER_SIZE_MAX];
+    char        ticker_token_from[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t   emission_rate;  // In "coins", 1^18 == 1.0
     byte_t      padding[4];     // Some free space for future
 } DAP_ALIGN_PACKED dap_chain_datum_token_tsd_delegate_from_stake_lock_t;
@@ -395,6 +395,9 @@ typedef struct dap_chain_datum_token_emission {
 #define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SIGNATURS         0x000E
 #define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_UNIQUE_ID         0x000F
 #define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_BASE_TX_HASH      0x0010
+
+// TSD sections with transfer additional params
+#define DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT         0x0013
 
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_STAKING "STAKING"
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_STAKING_STAKE_CROSSCHAIN "CONTRACT"

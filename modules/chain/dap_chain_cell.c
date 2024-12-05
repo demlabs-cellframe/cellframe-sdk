@@ -132,7 +132,6 @@ DAP_STATIC_INLINE int s_cell_file_write_header(dap_chain_cell_t *a_cell)
 }
 
 DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_fpos, bool a_load) {
-    int l_fildes = fileno(a_cell->file_storage);
 #ifdef DAP_OS_WINDOWS
     HANDLE hSection = NULL;
     if ( !a_fpos ) {
@@ -145,8 +144,8 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
             .QuadPart = l_ssize 
         };
         
-        NTSTATUS err = pfnNtCreateSection(&hSection, SECTION_MAP_READ|SECTION_EXTEND_SIZE|SECTION_MAP_WRITE, 
-                                          NULL, &SectionSize, PAGE_READWRITE, SEC_RESERVE, (HANDLE)_get_osfhandle(l_fildes));
+        NTSTATUS err = pfnNtCreateSection(&hSection, SECTION_MAP_READ|SECTION_EXTEND_SIZE|SECTION_MAP_WRITE,
+                                          NULL, &SectionSize, PAGE_READWRITE, SEC_RESERVE, (HANDLE)_get_osfhandle(fileno(a_cell->file_storage)));
         if ( !NT_SUCCESS(err) )
             return log_it(L_ERROR, "NtCreateSection() failed, status %lx", err), -1;
         a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, hSection);

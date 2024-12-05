@@ -97,17 +97,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node balancer -net <net_name>\n"
                     "node dump [-net <net_name> | -addr <node_address>]\n\n"
                     "node list -net <net_name> [-addr <node_address> | -alias <node_alias>] [-full]\n\n"
-                    "node ban -net <net_name> -chain <chain_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
-                    "node unban -net <net_name> -chain <chain_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
+                    "node ban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
+                    "node unban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
                     "node banlist\n\n");
-    #ifndef DAP_OS_ANDROID
-    dap_cli_server_cmd_add ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
-            "ping [-c <count>] host\n");
-    dap_cli_server_cmd_add ("traceroute", com_traceroute, "Print the hops and time of packets trace to network host",
-            "traceroute host\n");
-    dap_cli_server_cmd_add ("tracepath", com_tracepath,"Traces path to a network host along this path",
-            "tracepath host\n");
-    #endif
     
     dap_cli_server_cmd_add ("version", com_version, "Return software version",
                                         "version\n"
@@ -122,6 +114,45 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "? [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
+    dap_cli_server_cmd_add ("token_update", com_token_update, "Token update",
+                            "\nPrivate or CF20 token update\n"
+                            "token_update -net <net_name> [-chain <chain_name>] -token <existing_token_ticker> -type <CF20|private> [-total_supply_change <value>] "
+                            "-certs <name_certs> [-flag_set <flag>] [-flag_unset <flag>] [-total_signs_valid <value>] [-description <value>] "
+                            "[-tx_receiver_allowed <value>] [-tx_receiver_blocked <value>] [-tx_sender_allowed <value>] [-tx_sender_blocked <value>] "
+                            "[-add_cert <name_certs>] [-remove_certs <pkeys_hash>]\n"
+                            "==Flags==\n"
+                            "\tALL_BLOCKED: \t\t\t\tBlocks all permissions.\n"
+                            "\tALL_ALLOWED: \t\t\t\tAllows all permissions unless they are blocked. Be careful with this mode.\n"
+                            "\tALL_FROZEN: \t\t\t\tTemporarily freezes all permissions\n"
+                            "\tALL_UNFROZEN: \t\t\t\tUnfreezes all frozen permissions\n"
+                            "\tSTATIC_ALL: \t\t\t\tBlocks manipulations with a token after declaration. Tokens are declared statically.\n"
+                            "\tSTATIC_FLAGS: \t\t\t\tBlocks manipulations with token flags after declaration.\n"
+                            "\tSTATIC_PERMISSIONS_ALL: \t\tBlocks all manipulations with permissions list after declaration.\n"
+                            "\tSTATIC_PERMISSIONS_DATUM_TYPE: \t\tBlocks all manipulations with datum permissions list after declaration.\n"
+                            "\tSTATIC_PERMISSIONS_TX_SENDER: \t\tBlocks all manipulations with transaction senders permissions list after declaration.\n"
+                            "\tSTATIC_PERMISSIONS_TX_RECEIVER: \tBlocks all manipulations with transaction receivers permissions list after declaration.\n"
+                            "\n"
+                            "==Params==\n"
+                            "General:\n"
+                            "\t -total_supply_change <value>:\t\t Sets the maximum amount of token supply. Specify “INF” to set unlimited total supply.\n"
+                            "\t -certs <name_certs>:\t\t\t Here use the very certificates which were used to sign the token being updated.\n"
+                            "Additional:\n"
+                            "\t -description <token_description>:\t Shows updated description for this token.\n"
+                            "Installing and removing the flag:\n"
+                            "\t -flag_set <flag_name>:\t\t\t Adds specified flag to the list of active flags.\n"
+                            "\t -flag_unset <flag_name>:\t\t Removes specified flag from the list of active flags.\n"
+                            "Work with the number of signatures required for the issue:\n"
+                            "\t -total_signs_valid <value>:\t\t Sets the minimum amount of valid signatures.\n"
+                            "\t -add_certs <cert_list>:\t\t Adds certificates to the certificates list of the token.\n"
+                            "\t -remove_certs <pkeys_hash>:\t\t Removes certificates from the certificates list using theirs public key hashes.\n"
+                            "Tx receiver addresses allowed/blocked:\n"
+                            "\t -tx_receiver_allowed <wallet_addr>:\t Adds specified wallet address to the list of allowed receivers.\n"
+                            "\t -tx_receiver_blocked <wallet_addr>:\t Adds specified wallet address to the list of blocked receivers.\n"
+                            "\nTx sender addresses allowed/blocked:\n"
+                            "\t -tx_sender_allowed <wallet_addr>:\t Adds specified wallet address to the list of allowed senders.\n"
+                            "\t -tx_sender_blocked <wallet_addr>:\t Adds specified wallet address to the list of blocked senders.\n"
+                            "\n"
+    );
     dap_cli_server_cmd_add ("wallet", com_tx_wallet, "Wallet operations",
                             "wallet list\n"
                             "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value> | -restore_legacy <restore_string>] [-net <net_name>] [-force] [-password <password>]\n"
@@ -175,7 +206,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
                             "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
                             "wallet deactivate -w <wallet_name> -password <password>\n"
-                            "wallet convert -w <wallet_name> -password <password>\n");
+                            "wallet convert -w <wallet_name> -password <password>\n"
+                            "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [-value <uint256_value>]");
 
 
     // Token commands
@@ -370,6 +402,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "Hint:\n"
             "\texample coins amount syntax (only natural) 1.0 123.4567\n"
             "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
+
+    dap_cli_server_cmd_add ("exec_cmd", com_exec_cmd, "Execute command on remote node",
+            "exec_cmd -net <net_name> -addr <node_addr> -cmd <command,and,all,args,separated,by,commas>\n" );
 
     //Find command
     dap_cli_server_cmd_add("find", cmd_find, "The command searches for the specified elements by the specified attributes",

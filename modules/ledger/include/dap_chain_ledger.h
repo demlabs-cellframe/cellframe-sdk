@@ -215,8 +215,7 @@ typedef enum dap_chain_tx_tag_action_type {
 
     DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
     DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
-    
-    
+   
     DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
 } dap_chain_tx_tag_action_type_t;
 
@@ -383,7 +382,8 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
 
 int dap_ledger_service_add(dap_chain_srv_uid_t a_uid, char *tag_str, dap_ledger_tag_check_callback_t a_callback);
 
-const char *dap_ledger_tx_calculate_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc);
+dap_chain_token_ticker_str_t dap_ledger_tx_calculate_main_ticker_(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc);
+#define dap_ledger_tx_calculate_main_ticker(l, tx, rc) dap_ledger_tx_calculate_main_ticker_(l, tx, rc).s
 
 /**
  * Delete all transactions from the cache

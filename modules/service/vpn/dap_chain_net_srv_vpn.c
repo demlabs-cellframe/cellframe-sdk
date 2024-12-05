@@ -857,8 +857,7 @@ static void *s_vpn_service_create(dap_chain_net_id_t a_net_id, dap_config_t *a_c
         log_it(L_CRITICAL, "VPN service initialization failed");
         return NULL;
     }
-    dap_chain_net_srv_vpn_t *l_srv_vpn;
-    DAP_NEW_Z_RET_VAL(l_srv_vpn, dap_chain_net_srv_vpn_t, NULL, l_srv);
+    dap_chain_net_srv_vpn_t *l_srv_vpn = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_srv_vpn_t, NULL, l_srv);
     l_srv->_pvt = l_srv_vpn;
     return l_srv;
 }
@@ -1031,9 +1030,8 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
 static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client,
                     const void * a_receipt_next, size_t a_receipt_next_size)
 {
-    dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_srv_client->ch->stream->session->_inheritor;
-    dap_chain_net_srv_ch_vpn_t * l_srv_ch_vpn =(dap_chain_net_srv_ch_vpn_t*) a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID] ?
-            a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]->internal : NULL;
+    dap_chain_net_srv_ch_vpn_t * l_srv_ch_vpn = a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]
+        ? (dap_chain_net_srv_ch_vpn_t*)a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]->internal : NULL;
 
     if ( ! l_srv_ch_vpn ){
         log_it(L_ERROR, "No VPN service stream channel, its closed?");
@@ -1495,17 +1493,12 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 static void send_pong_pkt(dap_stream_ch_t* a_ch)
 {
 //    log_it(L_DEBUG,"---------------------------------- PONG!");
-    dap_stream_ch_vpn_pkt_t *pkt_out = (dap_stream_ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
-    if (!pkt_out) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return;
-    }
-    pkt_out->header.op_code = VPN_PACKET_OP_CODE_PONG;
+    dap_stream_ch_vpn_pkt_t pkt_out = { };
+    pkt_out.header.op_code = VPN_PACKET_OP_CODE_PONG;
 
-    dap_stream_ch_pkt_write_unsafe(a_ch, 'd', pkt_out,
-            pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
+    dap_stream_ch_pkt_write_unsafe(a_ch, 'd', &pkt_out,
+                                   sizeof(dap_stream_ch_vpn_pkt_t));
     dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
-    DAP_DELETE(pkt_out);
 }
 
 /**
@@ -1805,6 +1798,8 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 dap_chain_net_srv_vpn_tun_socket_t *l_tun =  l_es ? l_es->_inheritor : NULL; //!!! a_es->_inheritor = dap_stream_t
                 //ch_sf_tun_socket_t * l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
                 assert(l_tun);
+                if (!l_tun)
+                    return log_it(L_ERROR, "Tun not found!"), false;
                 size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
                 l_srv_session->stats.bytes_sent += l_ret;
                 if (l_ret == l_vpn_pkt->header.op_data.data_size) {
@@ -2115,19 +2110,15 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
     http_status_code_t * l_return_code = (http_status_code_t*)a_arg;
     *l_return_code = Http_Status_OK;
     strcpy(a_http_simple->reply_mime, "text/text");
-
-    const char* l_query = a_http_simple->http_client->in_query_string;
-    uint32_t l_query_length = a_http_simple->http_client->in_query_string_len;
-
-    const char *l_net_id_str = NULL;
-    const char *l_user_pkey_hash_str = NULL;
+    const char *l_net_id_str = NULL, *l_user_pkey_hash_str = NULL;
     dap_chain_net_id_t l_net_id = {};
     // request parsing
     // example: net_id=id&user_pkey_hash=pkeyhash
-    char *l_first_param = DAP_DUP_SIZE(l_query, l_query_length);
+    char *l_first_param = DAP_DUP_SIZE((char*)a_http_simple->http_client->in_query_string, a_http_simple->http_client->in_query_string_len);
     char *l_second_param = strchr(l_first_param, '&');
     if (!l_second_param || strlen(l_second_param) == 1){
         dap_http_simple_reply_f(a_http_simple, "Wrong parameters!");
+        DAP_DELETE(l_first_param);
         *l_return_code = Http_Status_OK;
         return;
     }
@@ -2156,6 +2147,7 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
     if (!l_net_id_str || !l_user_pkey_hash_str){
         dap_http_simple_reply_f(a_http_simple, "Wrong parameters!");
         *l_return_code = Http_Status_OK;
+        DAP_DELETE(l_first_param);
         return;
     }
 
@@ -2173,6 +2165,7 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
             log_it(L_ERROR, "Can't get pkey from cert %s.", l_cert_name);
             dap_http_simple_reply_f(a_http_simple, "Internal error!");
             *l_return_code = Http_Status_OK;
+            DAP_DELETE(l_first_param);
             return;
         }
 
@@ -2183,6 +2176,7 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
             log_it(L_DEBUG, "Can't get server pkey hash.");
             dap_http_simple_reply_f(a_http_simple, "Internal error!");
             *l_return_code = Http_Status_OK;
+            DAP_DELETE(l_first_param);
             return;
         }
 
@@ -2192,6 +2186,7 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
             dap_http_simple_reply_f(a_http_simple, "Can't find net with id %"DAP_UINT64_FORMAT_U"!", l_net_id.uint64);
             DAP_DEL_Z(l_server_pkey_hash);
             *l_return_code = Http_Status_OK;
+            DAP_DELETE(l_first_param);
             return;
         }
         char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s", l_net->pub.gdb_groups_prefix, (uint64_t)DAP_CHAIN_NET_SRV_VPN_ID, l_server_pkey_hash);
@@ -2226,9 +2221,9 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
         strcpy(a_http_simple->reply_mime, "application/json");
         json_object_put(l_json_response);
         DAP_DEL_Z(l_server_pkey_hash);
-        DAP_DEL_Z(l_first_param);
     } else {
         dap_http_simple_reply_f(a_http_simple, "Internal error!");
         *l_return_code = Http_Status_InternalServerError;
     }
+    DAP_DELETE(l_first_param);
 }

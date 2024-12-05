@@ -124,9 +124,8 @@ typedef struct dap_chain_esbocs {
     dap_chain_t *chain;
     dap_chain_cs_blocks_t *blocks;
     dap_chain_esbocs_session_t *session;
-    dap_time_t last_directive_vote_timestamp;
-    dap_time_t last_directive_accept_timestamp;
-    dap_time_t last_submitted_candidate_timestamp;
+    dap_time_t last_directive_vote_timestamp, last_directive_accept_timestamp,
+               last_submitted_candidate_timestamp, last_accepted_block_timestamp;
     void *_pvt;
 } dap_chain_esbocs_t;
 
@@ -142,6 +141,8 @@ typedef struct dap_chain_esbocs_directive {
 typedef struct dap_chain_esbocs_round {
     uint64_t id;
     uint64_t sync_attempt;
+    dap_time_t round_start_ts;
+    dap_time_t prev_round_start_ts;
 
     dap_hash_fast_t last_block_hash;
     dap_hash_fast_t directive_hash;
@@ -183,36 +184,22 @@ typedef struct dap_chain_esbocs_penalty_item {
 #define DAP_CHAIN_ESBOCS_PENALTY_KICK   3U      // Number of missed rounds to kick
 
 typedef struct dap_chain_esbocs_session {
-    //pthread_mutex_t mutex;
-    bool cs_timer;
     dap_proc_thread_t *proc_thread;
     dap_chain_block_t *processing_candidate;
-
     dap_chain_t *chain;
     dap_chain_esbocs_t *esbocs;
-
-    dap_chain_node_addr_t my_addr;
-    uint8_t state; // session state
-    uint8_t old_state; // for previous state return
-    dap_chain_esbocs_round_t cur_round;
-    bool round_fast_forward;
-    unsigned int listen_ensure;
-    bool sync_failed;
-    bool new_round_enqueued;
-
-    dap_time_t ts_round_sync_start; // time of start sync
-    dap_time_t ts_stage_entry; // time of current stage entrance
-
+    dap_time_t ts_round_sync_start, ts_stage_entry;
     dap_chain_esbocs_sync_item_t *sync_items;
-
-    dap_chain_addr_t my_signing_addr;
-
     dap_chain_esbocs_penalty_item_t *penalty;
     dap_global_db_cluster_t *db_cluster;
-    dap_global_db_driver_hash_t db_hash;
-    bool is_actual_hash;
-
     struct dap_chain_esbocs_session *prev, *next;
+    dap_chain_esbocs_round_t cur_round;
+    unsigned int listen_ensure;
+    dap_chain_node_addr_t my_addr;
+    uint8_t state, old_state;
+    bool cs_timer, round_fast_forward, sync_failed, new_round_enqueued, is_actual_hash;
+    dap_global_db_driver_hash_t db_hash;
+    dap_chain_addr_t my_signing_addr;
 } dap_chain_esbocs_session_t;
 
 typedef struct dap_chain_esbocs_block_collect{

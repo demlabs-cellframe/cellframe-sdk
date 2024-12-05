@@ -86,7 +86,7 @@ static dap_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, size_t 
         l_downlinks_count = 0,
         l_links_count = 0,
         l_low_availability_count = 0;
-    const dap_stream_node_addr_t
+    dap_stream_node_addr_t
         *l_curr_addr = &dap_chain_net_get_my_node_info(a_net)->address,
         *l_links = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, false),
         *l_low_availability = dap_link_manager_get_ignored_addrs(&l_low_availability_count, a_net->pub.id.uint64);
@@ -97,30 +97,31 @@ static dap_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, size_t 
     }
     l_size = sizeof(dap_net_links_t) + sizeof(dap_stream_node_addr_t) * (l_links_count + l_low_availability_count + 1);
     // memory alloc
-    dap_net_links_t *l_ret = NULL;
-    DAP_NEW_Z_SIZE_RET_VAL(l_ret, dap_net_links_t, l_size, NULL, l_links, l_low_availability);
+    dap_net_links_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_net_links_t, l_size, NULL, l_links, l_low_availability);
     l_ret->count_node = l_links_count + l_low_availability_count + 1;
     if (dap_log_level_get() <= L_DEBUG ) {
-        char *l_ignored_str = NULL;
-        DAP_NEW_Z_SIZE_RET_VAL(l_ignored_str, char, 50 * (l_ret->count_node) + 200 + strlen(a_net->pub.name), NULL, l_links, l_low_availability);
-        sprintf(l_ignored_str + strlen(l_ignored_str), "Second %zu nodes will be ignored in balancer links preparing in net %s:\n\tSelf:\n\t\t"NODE_ADDR_FP_STR"\n", l_ret->count_node, a_net->pub.name, NODE_ADDR_FP_ARGS(l_curr_addr));
-        sprintf(l_ignored_str + strlen(l_ignored_str), "\tActive links (%zu):\n", l_links_count);
-        for (size_t i = 0; i < l_links_count; ++i) {
-            sprintf(l_ignored_str + strlen(l_ignored_str), "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_links + i));
+        char l_ignored_str[4096];
+        int l_pos = snprintf(l_ignored_str, sizeof(l_ignored_str), 
+                             "Next %zu nodes will be ignored in balancer links preparing in net %s:\n"
+                             "\tSelf:\n\t\t"NODE_ADDR_FP_STR"\n\tActive links (%zu):\n",
+                             l_ret->count_node, a_net->pub.name, NODE_ADDR_FP_ARGS(l_curr_addr), l_links_count);
+        for (size_t i = 0; i < l_links_count && l_pos < (int)sizeof(l_ignored_str); ++i) {
+            l_pos += snprintf(l_ignored_str + l_pos, sizeof(l_ignored_str) - l_pos, "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_links + i));
         }
-        sprintf(l_ignored_str + strlen(l_ignored_str), "\tCooling (%zu):\n", l_low_availability_count);
-        for (size_t i = 0; i < l_low_availability_count; ++i) {
-            sprintf(l_ignored_str + strlen(l_ignored_str), "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_low_availability + i));
+        if (l_pos < (int)sizeof(l_ignored_str)) {
+            l_pos += snprintf(l_ignored_str + l_pos, sizeof(l_ignored_str) - l_pos, "\tCooling (%zu):\n", l_low_availability_count);
+            for (size_t i = 0; i < l_low_availability_count && l_pos < (int)sizeof(l_ignored_str); ++i) {
+                l_pos += snprintf(l_ignored_str + l_pos, sizeof(l_ignored_str) - l_pos, "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_low_availability + i));
+            }
         }
         log_it(L_DEBUG, "%s", l_ignored_str);
-        DAP_DELETE(l_ignored_str);
     }
 // func work
-    memcpy(l_ret->nodes_info, l_curr_addr, sizeof(dap_stream_node_addr_t));
+    byte_t *l_mempos = dap_mempcpy(l_ret->nodes_info, l_curr_addr, sizeof(dap_stream_node_addr_t));
     if(l_links)
-        memcpy(l_ret->nodes_info + sizeof(dap_stream_node_addr_t), l_links, l_links_count * sizeof(dap_stream_node_addr_t));
+        l_mempos = dap_mempcpy(l_mempos, l_links, l_links_count * sizeof(dap_stream_node_addr_t));
     if(l_low_availability)
-        memcpy(l_ret->nodes_info + (l_links_count + 1) * sizeof(dap_stream_node_addr_t), l_low_availability, l_low_availability_count * sizeof(dap_stream_node_addr_t));
+        dap_mempcpy(l_mempos, l_low_availability, l_low_availability_count * sizeof(dap_stream_node_addr_t));
     if (a_size)
         *a_size = l_size;
     DAP_DEL_MULTY(l_links, l_low_availability);
@@ -137,16 +138,16 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_net_link
 {
     char l_err_str[128] = {0};
     if (dap_log_level_get() <= L_DEBUG ) {
-        char *l_links_str = NULL;
-        DAP_NEW_Z_SIZE_RET(l_links_str, char, (DAP_HOSTADDR_STRLEN + 50) * a_link_full_node_list->count_node + 200 + strlen(a_net->pub.name), NULL);
-        sprintf(l_links_str + strlen(l_links_str), "Second %"DAP_UINT64_FORMAT_U" links was prepared from balancer in net %s:\n", a_link_full_node_list->count_node, a_net->pub.name);
-        for (size_t i = 0; i < a_link_full_node_list->count_node; ++i) {
-            dap_link_info_t *l_link_info = (dap_link_info_t *)a_link_full_node_list->nodes_info + i;
-            sprintf(l_links_str + strlen(l_links_str), "\t"NODE_ADDR_FP_STR " [ %s : %u ]\n",
-               NODE_ADDR_FP_ARGS_S(l_link_info->node_addr), l_link_info->uplink_addr, l_link_info->uplink_port);
+        char l_links_str[1024];
+        int l_pos = snprintf(l_links_str, sizeof(l_links_str) - 1,
+                             "Next %"DAP_UINT64_FORMAT_U" links prepared from balancer in net %s:\n",
+                             a_link_full_node_list->count_node, a_net->pub.name);
+        for (size_t i = 0; i < a_link_full_node_list->count_node && l_pos < (int)sizeof(l_links_str); ++i) {
+            dap_link_info_t *l_link_info = (dap_link_info_t*)a_link_full_node_list->nodes_info + i;
+            l_pos += snprintf(l_links_str + l_pos, sizeof(l_links_str) - l_pos - 1, "\t"NODE_ADDR_FP_STR " [ %s : %u ]\n",
+                              NODE_ADDR_FP_ARGS_S(l_link_info->node_addr), l_link_info->uplink_addr, l_link_info->uplink_port);
         }
         log_it(L_DEBUG, "%s", l_links_str);
-        DAP_DELETE(l_links_str);
     }
     struct json_object *l_json;
     for (size_t i = 0; i < a_link_full_node_list->count_node; ++i) {
@@ -172,7 +173,7 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_net_link
 static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request, const char *a_host_addr, uint16_t a_host_port, int a_errno)
 {
     struct json_object *l_json = s_balancer_states_json_collect(a_request->net, a_host_addr, a_host_port);
-    char l_err_str[512] = { '\0' };
+    char l_err_str[256] = { '\0' };
     snprintf(l_err_str, sizeof(l_err_str)
             , "Links from balancer %s:%u in net %s can't be prepared, connection errno %d"
             , a_host_addr, a_host_port, a_request->net->pub.name, a_errno);
@@ -324,33 +325,29 @@ static dap_net_links_t *s_get_node_addrs_old(dap_chain_net_t *a_net, uint16_t a_
  */
 static dap_net_links_t *s_balancer_issue_link(const char *a_net_name, uint16_t a_links_need, int a_protocol_version, const char *a_ignored_enc)
 {
-// sanity check
     dap_return_val_if_pass(!a_net_name, NULL);
-// preparing
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
-    if (!l_net) {
-        log_it(L_WARNING, "There isn't any network by name \"%s\"", a_net_name);
-        return NULL;
-    }
-    if(a_protocol_version == 1)
+    if (!l_net)
+        return log_it(L_WARNING, "There isn't any network by name \"%s\"", a_net_name), NULL;
+        
+    if ( a_protocol_version == 1 )
         return s_get_node_addrs_old(l_net, a_links_need);
-// func work
     // prepare list of the ignred addrs
-    size_t l_ignored_size = a_ignored_enc ? strlen(a_ignored_enc) : 0;
+    size_t l_ignored_size = 0;
     dap_net_links_t *l_ignored_dec = NULL;
-    if (l_ignored_size) {
-        DAP_NEW_Z_SIZE_RET_VAL(l_ignored_dec, dap_net_links_t, l_ignored_size, NULL, NULL);
+    if (a_ignored_enc && *a_ignored_enc) {
+        l_ignored_size = strlen(a_ignored_enc);
+        l_ignored_dec = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_net_links_t, DAP_ENC_BASE64_DECODE_SIZE(l_ignored_size) + 1, NULL);
         dap_enc_base64_decode(a_ignored_enc, l_ignored_size, l_ignored_dec, DAP_ENC_DATA_TYPE_B64);
-        if (l_ignored_size < DAP_ENC_BASE64_ENCODE_SIZE((sizeof(dap_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node))) {
-            log_it(L_ERROR, "Can't decode ignored node list, received size %zu < expected size %zu in net %s",
-                l_ignored_size,
-                DAP_ENC_BASE64_ENCODE_SIZE((sizeof(dap_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node)),
-                a_net_name);
+        size_t l_check_size = sizeof(dap_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node;
+        if (l_ignored_size < l_check_size) {
+            log_it(L_ERROR, "Can't decode ignored node list in net %s, actual and expected sizes mismath: %zu < %zu",
+                            a_net_name, l_ignored_size, l_check_size);
             DAP_DEL_Z(l_ignored_dec);
         }
     }
     dap_net_links_t *l_ret = s_get_node_addrs(l_net, a_links_need, l_ignored_dec, true);
-    DAP_DEL_Z(l_ignored_dec);
+    DAP_DELETE(l_ignored_dec);
     return l_ret;
 }
 
@@ -359,9 +356,7 @@ static dap_net_links_t *s_balancer_issue_link(const char *a_net_name, uint16_t a
  */
 void dap_chain_net_balancer_deinit()
 {
-    dap_balancer_request_info_t
-        *l_item = NULL,
-        *l_tmp = NULL;
+    dap_balancer_request_info_t *l_item = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_request_info_items, l_item, l_tmp)
         HASH_DEL(s_request_info_items, l_item);
 }
@@ -396,8 +391,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     }
     int l_protocol_version = 0;
     char l_issue_method = 0;
-    const char l_net_token[] = "net=";
-    const char l_ignored_token[] = "ignored=";
+    const char l_net_token[] = "net=", l_ignored_token[] = "ignored=";
     uint16_t l_links_need = 0;
     sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,needlink=%hu",
                                                             &l_protocol_version, &l_issue_method, &l_links_need);
@@ -479,7 +473,7 @@ void dap_chain_net_balancer_request(void *a_arg)
     dap_balancer_request_info_t *l_item = NULL;
     HASH_FIND(hh, s_request_info_items, &l_arg->net->pub.id, sizeof(l_arg->net->pub.id), l_item);
     if (!l_item) {
-        DAP_NEW_Z_RET(l_item, dap_balancer_request_info_t, NULL);
+        l_item = DAP_NEW_Z_RET_IF_FAIL(dap_balancer_request_info_t);
         l_item->net_id = l_arg->net->pub.id;
         HASH_ADD(hh, s_request_info_items, net_id, sizeof(l_item->net_id), l_item);
     }
@@ -517,9 +511,7 @@ void dap_chain_net_balancer_request(void *a_arg)
     if (l_arg->type == DAP_CHAIN_NET_BALANCER_TYPE_HTTP) {
         char *l_ignored_addrs_str = NULL;
         if (l_ignored_addrs) {
-            DAP_NEW_Z_SIZE_RET(
-                l_ignored_addrs_str, char, DAP_ENC_BASE64_ENCODE_SIZE(l_ignored_addrs_size) + 1,
-                l_ignored_addrs, l_arg);
+            l_ignored_addrs_str = DAP_NEW_Z_SIZE_RET_IF_FAIL(char, DAP_ENC_BASE64_ENCODE_SIZE(l_ignored_addrs_size) + 1, l_ignored_addrs, l_arg);
             dap_enc_base64_encode(l_ignored_addrs, l_ignored_addrs_size, l_ignored_addrs_str, DAP_ENC_DATA_TYPE_B64);
             DAP_DELETE(l_ignored_addrs);
         }
@@ -577,6 +569,6 @@ dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
     }
     dap_string_prepend_printf(l_ret, "Balancer link list for total %" DAP_UINT64_FORMAT_U " records:\n", l_node_num);
     dap_string_append(l_ret, "-----------------------------------------------------------------\n");
-    DAP_DEL_Z(l_links_info_list);
+    DAP_DELETE(l_links_info_list);
     return l_ret;
 }
