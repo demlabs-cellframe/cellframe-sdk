@@ -3662,32 +3662,29 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
             SUM_256_256(l_value_total, l_value_reward, &l_value_total);
             l_value_reward = uint256_0;
             if (json_arr_sign_out && json_object_array_length(json_arr_sign_out) > 0) {
-                if (!a_brief)
-                    json_object_object_add(json_block_hash, "Tx_hash", 
-                                                json_object_new_string(dap_chain_hash_fast_to_str_static(&l_ttx_hash)));
                 json_object_object_add(json_block_hash, "REWARDS", json_arr_sign_out);
                 json_object_array_add(json_obj_reward, json_block_hash);
             }                        
         }
-        if (!a_node_info) {
+        //if (!a_node_info) {
             const char  *l_coins_out_str, *l_value_str;
             json_object* json_value_out = json_object_new_object();
             l_value_str = dap_uint256_to_char(l_value_out, &l_coins_out_str);
             json_object_object_add(json_value_out, "Rewards value (calculated)", json_object_new_string(l_value_str));
             json_object_object_add(json_value_out, "Rewards coins (calculated)", json_object_new_string(l_coins_out_str));
             json_object_array_add(json_obj_reward, json_value_out);
-        }
+        //}
         i_tmp++;
         dap_list_free(l_list_in_items);
     }
-    if (a_node_info) {
+   // if (a_node_info) {
         const char  *l_coins_out_str, *l_value_str;
         json_object* json_value_out = json_object_new_object();
         l_value_str = dap_uint256_to_char(l_value_total, &l_coins_out_str);
         json_object_object_add(json_value_out, "Rewards value (total)", json_object_new_string(l_value_str));
         json_object_object_add(json_value_out, "Rewards coins (total)", json_object_new_string(l_coins_out_str));
         json_object_array_add(json_obj_reward, json_value_out);
-    }    
+    //}
     a_chain->callback_datum_iter_delete(l_datum_iter);
     return json_obj_reward;
 }
