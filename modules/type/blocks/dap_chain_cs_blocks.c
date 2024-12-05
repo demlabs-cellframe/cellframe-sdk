@@ -567,6 +567,20 @@ static int block_list_sort_by_date(const void *a, const void *b)
     return time_a - time_b;
 }
 
+static int block_list_sort_by_date_back(const void *a, const void *b)
+{
+    struct json_object *obj_a = *(struct json_object **)a;
+    struct json_object *obj_b = *(struct json_object **)b;
+
+    struct json_object *timestamp_a = json_object_object_get(obj_a, "timestamp");
+    struct json_object *timestamp_b = json_object_object_get(obj_b, "timestamp");
+
+    int64_t time_a = json_object_get_int64(timestamp_a);
+    int64_t time_b = json_object_get_int64(timestamp_b);
+
+    return time_b - time_a;
+}
+
 /**
  * @brief s_cli_blocks
  * @param argc
@@ -1022,7 +1036,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             }
             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
             //sort by time
-            json_object_array_sort(json_arr_bl_cache_out, block_list_sort_by_date);
+            if (!l_head)
+                json_object_array_sort(json_arr_bl_cache_out, block_list_sort_by_date_back);
+            else
+                json_object_array_sort(json_arr_bl_cache_out, block_list_sort_by_date);
             // Remove the timestamp and change block num
             size_t l_length = json_object_array_length(json_arr_bl_cache_out);
             for (size_t i = 0; i < l_length; i++) {
