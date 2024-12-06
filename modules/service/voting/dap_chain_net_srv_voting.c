@@ -978,7 +978,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         json_object* json_vote_out = json_object_new_object();
         json_object_object_add(json_vote_out, "hash of voting", 
                                     json_object_new_string(l_hash_str));
-        json_object_object_add(json_vote_out, "Voting dump", 
+        json_object_object_add(json_vote_out, "question", 
                                     json_object_new_string_len((char*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset),
                               l_voting->voting_params.voting_question_length));
         if (l_voting->voting_params.voting_expire) {
@@ -1009,7 +1009,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         for (uint64_t i = 0; i < dap_list_length(l_voting->voting_params.option_offsets_list); i++){
             json_object* json_vote_obj = json_object_new_object();
             char *l_val = NULL;
-            l_val = dap_strdup_printf(" %"DAP_UINT64_FORMAT_U")  ", i);
+            l_val = dap_strdup_printf(" %"DAP_UINT64_FORMAT_U" ", i);
             json_object_object_add(json_vote_obj, "#", json_object_new_string(l_val));
             DAP_DELETE(l_val);
             dap_list_t* l_option = dap_list_nth(l_voting->voting_params.option_offsets_list, (uint64_t)i);
@@ -1024,9 +1024,10 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             MULT_256_COIN(l_weight_percentage, dap_chain_coins_to_balance("100.0"), &l_weight_percentage);
             const char *l_weight_percentage_str = dap_uint256_decimal_to_round_char(l_weight_percentage, 2, true);
             const char *l_w_coins, *l_w_datoshi = dap_uint256_to_char(l_results[i].weights, &l_w_coins);
-            l_val = dap_strdup_printf("Votes: %"DAP_UINT64_FORMAT_U" (%.2f%%)\nWeight: %s (%s) %s (%s%%)",
-                                     l_results[i].num_of_votes, l_percentage, l_w_coins, l_w_datoshi, l_net->pub.native_ticker, l_weight_percentage_str);
-            json_object_object_add(json_vote_obj, "price", json_object_new_string(l_val));
+            l_val = dap_strdup_printf("%"DAP_UINT64_FORMAT_U" (%.2f%%)", l_results[i].num_of_votes);
+            json_object_object_add(json_vote_obj, "votes", json_object_new_string(l_val));
+            l_val = dap_strdup_printf("%s (%s) %s (%s%%)",  l_percentage, l_w_coins, l_w_datoshi, l_net->pub.native_ticker, l_weight_percentage_str);
+            json_object_object_add(json_vote_obj, "weight", json_object_new_string(l_val));
             DAP_DELETE(l_val);
             json_object_array_add(json_arr_vote_out, json_vote_obj);
         }
@@ -1034,11 +1035,11 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         DAP_DELETE(l_results);
         char *l_val = NULL;
         l_val = dap_strdup_printf(" %"DAP_UINT64_FORMAT_U, l_votes_count);
-        json_object_object_add(json_vote_out, "Total number of votes", json_object_new_string(l_val));
+        json_object_object_add(json_vote_out, "total number of votes", json_object_new_string(l_val));
         DAP_DELETE(l_val);
         const char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
         l_val = dap_strdup_printf("%s (%s) %s\n\n", l_tw_coins, l_tw_datoshi, l_net->pub.native_ticker);
-        json_object_object_add(json_vote_out, "Total weight", json_object_new_string(l_val));
+        json_object_object_add(json_vote_out, "total weight", json_object_new_string(l_val));
         DAP_DELETE(l_val);
         json_object_array_add(*json_arr_reply, json_vote_out);
     }break;
