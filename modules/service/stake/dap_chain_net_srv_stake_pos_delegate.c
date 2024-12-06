@@ -3514,7 +3514,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
 
     size_t l_arr_start = 0;
     size_t l_arr_end = 0;
-    s_set_offset_limit_json(json_obj_reward, &l_arr_start, &l_arr_end, a_limit, a_offset, 0);  
+    s_set_offset_limit_json(json_obj_reward, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
 
     size_t i_tmp = 0;
     uint256_t l_value_total = uint256_0;
