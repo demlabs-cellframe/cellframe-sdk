@@ -73,7 +73,7 @@ typedef struct dap_wallet_tx_cache {
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     bool multichannel;
     int ret_code;
-    dap_chain_net_srv_uid_t tag; 
+    dap_chain_net_srv_uid_t srv_uid; 
     dap_chain_tx_tag_action_type_t action;
     dap_list_t *tx_wallet_inputs;
     dap_list_t *tx_wallet_outputs;
@@ -175,8 +175,6 @@ int dap_chain_wallet_cache_init()
         dap_chain_wallet_add_wallet_opened_notify(s_wallet_opened_callback, NULL);
         dap_chain_wallet_add_wallet_created_notify(s_wallet_opened_callback, NULL);
     }
-        
-    
     return 0;
 }
 
@@ -307,7 +305,7 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
         if(a_action)
             *a_action = l_current_wallet_tx->action;
         if(a_uid)
-            *a_uid = l_current_wallet_tx->tag;
+            *a_uid = l_current_wallet_tx->srv_uid;
         if (a_token)
             *a_token = l_current_wallet_tx->token_ticker;
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
@@ -521,10 +519,9 @@ static int s_save_tx_into_wallet_cache(dap_chain_t *a_chain, dap_chain_datum_tx_
                 l_wallet_tx_item = DAP_NEW_Z(dap_wallet_tx_cache_t);
                 l_wallet_tx_item->tx_hash = *a_tx_hash;
                 l_wallet_tx_item->tx = a_tx;
-                if (a_main_token_ticker)
-                    dap_strncpy(l_wallet_tx_item->token_ticker, a_main_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+                dap_strncpy(l_wallet_tx_item->token_ticker, a_main_token_ticker ? a_main_token_ticker : "0", DAP_CHAIN_TICKER_SIZE_MAX);
                 l_wallet_tx_item->ret_code = a_ret_code;
-                l_wallet_tx_item->tag = a_srv_uid;
+                l_wallet_tx_item->srv_uid = a_srv_uid;
                 l_wallet_tx_item->action = a_action;
                 HASH_ADD(hh, l_wallet_item->wallet_txs, tx_hash, sizeof(dap_hash_fast_t), l_wallet_tx_item);
             } 
@@ -584,11 +581,10 @@ static int s_save_tx_into_wallet_cache(dap_chain_t *a_chain, dap_chain_datum_tx_
                     l_wallet_tx_item = DAP_NEW_Z(dap_wallet_tx_cache_t);
                     l_wallet_tx_item->tx_hash = *a_tx_hash;
                     l_wallet_tx_item->tx = a_tx;
-                    if(a_main_token_ticker)
-                        dap_strncpy(l_wallet_tx_item->token_ticker, a_main_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+                    dap_strncpy(l_wallet_tx_item->token_ticker, a_main_token_ticker ? a_main_token_ticker : "0", DAP_CHAIN_TICKER_SIZE_MAX);
                     l_wallet_tx_item->multichannel = l_multichannel;
                     l_wallet_tx_item->ret_code = a_ret_code;
-                    l_wallet_tx_item->tag = a_srv_uid;
+                    l_wallet_tx_item->srv_uid = a_srv_uid;
                     l_wallet_tx_item->action = a_action;
                     HASH_ADD(hh, l_wallet_item->wallet_txs, tx_hash, sizeof(dap_hash_fast_t), l_wallet_tx_item);
                 }
@@ -711,10 +707,9 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                 l_wallet_tx_item = DAP_NEW_Z(dap_wallet_tx_cache_t);
                 l_wallet_tx_item->tx_hash = *a_tx_hash;
                 l_wallet_tx_item->tx = a_tx;
-                if (a_main_token_ticker)
-                    dap_strncpy(l_wallet_tx_item->token_ticker, a_main_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+                dap_strncpy(l_wallet_tx_item->token_ticker, a_main_token_ticker ? a_main_token_ticker : "0", DAP_CHAIN_TICKER_SIZE_MAX);
                 l_wallet_tx_item->ret_code = a_ret_code;
-                l_wallet_tx_item->tag = a_srv_uid;
+                l_wallet_tx_item->srv_uid = a_srv_uid;
                 l_wallet_tx_item->action = a_action;
                 HASH_ADD(hh, l_wallet_item->wallet_txs, tx_hash, sizeof(dap_hash_fast_t), l_wallet_tx_item);
             } 
@@ -773,11 +768,10 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                     l_wallet_tx_item = DAP_NEW_Z(dap_wallet_tx_cache_t);
                     l_wallet_tx_item->tx_hash = *a_tx_hash;
                     l_wallet_tx_item->tx = a_tx;
-                    if(a_main_token_ticker)
-                        dap_strncpy(l_wallet_tx_item->token_ticker, a_main_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+                    dap_strncpy(l_wallet_tx_item->token_ticker, a_main_token_ticker ? a_main_token_ticker : "0", DAP_CHAIN_TICKER_SIZE_MAX);
                     l_wallet_tx_item->multichannel = l_multichannel;
                     l_wallet_tx_item->ret_code = a_ret_code;
-                    l_wallet_tx_item->tag = a_srv_uid;
+                    l_wallet_tx_item->srv_uid = a_srv_uid;
                     l_wallet_tx_item->action = a_action;
                     HASH_ADD(hh, l_wallet_item->wallet_txs, tx_hash, sizeof(dap_hash_fast_t), l_wallet_tx_item);
                 }

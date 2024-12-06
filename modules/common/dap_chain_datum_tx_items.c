@@ -720,3 +720,16 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
     return true;
 
 }
+
+dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t *a_tx, int a_type)
+{   
+    dap_return_val_if_pass(!a_tx, NULL);
+    
+    byte_t *l_item = NULL;
+    size_t l_tx_item_size = 0;
+    TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
+        if (*l_item == TX_ITEM_TYPE_TSD && ((dap_tsd_t *)(((dap_chain_tx_tsd_t *)l_item)->tsd))->type ==  a_type)
+        return (dap_chain_tx_tsd_t *)l_item;
+    }
+    return NULL;
+}

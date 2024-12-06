@@ -58,6 +58,7 @@
 #include "dap_notify_srv.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_net_tx.h"
 
 #define LOG_TAG "dap_ledger"
 
@@ -407,11 +408,13 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
     }
     
     //not voting or vote...
-    if (a_items_grp->items_vote || a_items_grp->items_voting || a_items_grp->items_tsd)
+    if (a_items_grp->items_vote || a_items_grp->items_voting || dap_list_length(a_items_grp->items_tsd) > 1 || (a_items_grp->items_tsd && !dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT)))
         return false;
 
-    //not tsd sects (staking!)
-    if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+    //not tsd sects (staking!) or only batching tsd
+    if(a_action) {
+        *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
+    }
     return true;
 }
 
@@ -3952,8 +3955,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         return l_err_num;
     }
 
-    // 6. Compare sum of values in 'out' items in the current transaction and in the previous transactions
-    // Calculate the sum of values in 'out' items from the current transaction
+    // 6. Compare sum of values in 'out' items in the current transaction and in the previous transa    // Calculate the sum of values in 'out' items from the current transaction
     bool l_multichannel = false;
     if (HASH_COUNT(l_values_from_prev_tx) > 1) {
         l_multichannel = true;
@@ -3987,6 +3989,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     bool l_tax_check = l_key_item && !dap_chain_addr_is_blank(&l_key_item->sovereign_addr) && !IS_ZERO_256(l_key_item->sovereign_tax);
 
     // find 'out' items
+    bool l_cross_network = false;
     uint256_t l_value = {}, l_fee_sum = {}, l_tax_sum = {};
     bool l_fee_check = !IS_ZERO_256(a_ledger->net->pub.fee_value) && !dap_chain_addr_is_blank(&a_ledger->net->pub.fee_addr);
     int l_item_idx = 0;
@@ -4053,6 +4056,17 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         } break;
         default:
             continue;
+        }
+        if (!dap_chain_addr_is_blank(&l_tx_out_to)) {
+            if (l_tx_out_to.net_id.uint64 != a_ledger->net->pub.id.uint64) {
+                if (!l_cross_network) {
+                    l_cross_network = true;
+                } else {
+                    log_it(L_WARNING, "The transaction was rejected because it contains multiple outputs to other network.");
+                    l_err_num = DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET;
+                    break;
+                }
+            }
         }
 
         if (l_err_num)
