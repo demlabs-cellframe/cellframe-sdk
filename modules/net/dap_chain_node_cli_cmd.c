@@ -6656,10 +6656,9 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
 
             json_object *l_jobj_pub_key = json_object_object_get(l_json_item_obj, "pub_key_b64");
             const char *l_pub_key_str = json_object_get_string(l_jobj_pub_key);
-            
-            size_t l_proc_buf_size = 0;                    
+                              
             void *l_proc_buf = DAP_NEW_SIZE(void,DAP_ENC_BASE64_DECODE_SIZE(l_pkey_size));
-            l_proc_buf_size = dap_enc_base64_decode(l_pub_key_str, l_pkey_size, l_proc_buf, DAP_ENC_DATA_TYPE_B64);              
+            dap_enc_base64_decode(l_pub_key_str, l_pkey_size, l_proc_buf, DAP_ENC_DATA_TYPE_B64);              
             if (dap_enc_key_deserialize_pub_key(l_ret, l_proc_buf, l_pkey_size)) {
                 log_it(L_ERROR, "Error in enc pub key deserialize");
                 DAP_DEL_Z(l_ret);
