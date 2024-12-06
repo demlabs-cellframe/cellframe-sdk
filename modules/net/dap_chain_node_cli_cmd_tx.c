@@ -358,6 +358,12 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
    
     dap_hash_fast_t l_curr_tx_hash = {};
     bool l_from_cache = dap_chain_wallet_cache_tx_find_in_history(a_addr, NULL, NULL, NULL, NULL, NULL, &l_curr_tx_hash) == 0 ? true : false;
+    if (l_from_cache && a_addr->net_id.uint64 != l_net->pub.id.uint64){
+        log_it(L_WARNING, "Can't find wallet with addr %s in net %s", l_addr_str, l_net->pub.name);
+        dap_json_rpc_error_add(a_json_arr_reply, -1, "Can't find wallet with addr %s in net %s", l_addr_str, l_net->pub.name);
+        json_object_put(json_obj_datum);
+        return NULL;
+    }
     memset(&l_curr_tx_hash, 0, sizeof(dap_hash_fast_t));
     dap_chain_datum_tx_t *l_tx = NULL;
     
@@ -387,10 +393,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
     else
         l_cur_tx_cache = dap_chain_wallet_cache_iter_get(l_wallet_cache_iter, cache_iter_begin);
 
-    size_t l_tx_cnt = 0;
     while (l_datum || l_cur_tx_cache){
-        l_tx_cnt++;
-        log_it(L_INFO, "cnt = %"DAP_UINT64_FORMAT_U" l_datum: %p", l_tx_cnt, l_datum);
+
         if (i_tmp >= l_arr_end)
             break;
 

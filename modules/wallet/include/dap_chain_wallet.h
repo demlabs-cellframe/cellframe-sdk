@@ -93,3 +93,4 @@ const char *dap_chain_wallet_addr_cache_get_name(dap_chain_addr_t *a_addr);
 json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path);
 int dap_chain_wallet_add_wallet_opened_notify(dap_chain_wallet_opened_callback_t a_callback, void *a_arg);
 int dap_chain_wallet_add_wallet_created_notify(dap_chain_wallet_opened_callback_t a_callback, void *a_arg);
+dap_list_t* dap_chain_wallet_get_local_addr();
