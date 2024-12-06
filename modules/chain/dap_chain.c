@@ -977,4 +977,5 @@ const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type)
         default:
             return "unknown";
     }
+    return "UNKNOWN";
 }
