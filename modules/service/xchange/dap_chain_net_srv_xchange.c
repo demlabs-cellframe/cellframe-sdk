@@ -1633,6 +1633,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
             }
 
             dap_chain_datum_tx_t * l_last_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_last_tx_hash);
+            log_it(L_INFO, "Last tx hash %s", dap_hash_fast_to_str_static(&l_last_tx_hash));
             if (!l_last_tx){
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find last tx");
                 return -18;
