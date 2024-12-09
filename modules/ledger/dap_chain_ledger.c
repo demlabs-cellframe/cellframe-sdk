@@ -199,7 +199,7 @@ int dap_ledger_service_add(dap_chain_srv_uid_t a_uid, char *tag_str, dap_ledger_
     }
     l_new_sinfo->service_uid = a_uid;
     l_new_sinfo->callback = a_callback;
-    strcpy(l_new_sinfo->tag_str, tag_str);
+    dap_strncpy(l_new_sinfo->tag_str, tag_str, sizeof(l_new_sinfo->tag_str));
     
     pthread_rwlock_wrlock(&s_services_rwlock);
     HASH_ADD_INT(s_services, service_uid.raw_ui64, l_new_sinfo);
@@ -713,17 +713,15 @@ bool dap_ledger_pvt_cache_gdb_load_balances_callback(dap_global_db_instance_t *a
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return false;
         }
-        l_balance_item->key = DAP_NEW_Z_SIZE(char, strlen(a_values[i].key) + 1);
+        l_balance_item->key = dap_strdup(a_values[i].key);
         if (!l_balance_item->key) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             DAP_DEL_Z(l_balance_item);
             return false;
         }
-        strcpy(l_balance_item->key, a_values[i].key);
         char *l_ptr = strchr(l_balance_item->key, ' ');
-        if (l_ptr++) {
-            strcpy(l_balance_item->token_ticker, l_ptr);
-        }
+        if (l_ptr++)
+            dap_strncpy(l_balance_item->token_ticker, l_ptr, sizeof(l_balance_item->token_ticker));
         l_balance_item->balance = *(uint256_t *)a_values[i].value;
         HASH_ADD_KEYPTR(hh, l_ledger_pvt->balance_accounts, l_balance_item->key,
                         strlen(l_balance_item->key), l_balance_item);
@@ -1136,87 +1134,6 @@ uint256_t dap_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t
     }
     DAP_DELETE(l_wallet_balance_key);
     return l_ret;
-}
-
-/**
- * Get the transaction in the cache by the addr in out item
- *
- * a_public_key[in] public key that signed the transaction
- * a_public_key_size[in] public key size
- * a_tx_first_hash [in/out] hash of the initial transaction/ found transaction, if 0 start from the beginning
- */
-static dap_ledger_tx_item_t *tx_item_find_by_addr(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
-                                                        const char * a_token, dap_chain_hash_fast_t *a_tx_first_hash)
-{
-    if(!a_addr || !a_tx_first_hash)
-        return NULL;
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-
-    bool is_tx_found = false, is_search_started = dap_hash_fast_is_blank(a_tx_first_hash);
-    dap_ledger_tx_item_t *l_iter_start = NULL, *l_iter_current, *l_item_tmp;
-    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
-    if (!dap_hash_fast_is_blank(a_tx_first_hash)) {
-        HASH_FIND(hh, l_ledger_pvt->ledger_items, a_tx_first_hash, sizeof(dap_hash_t), l_iter_start);
-        if (!l_iter_start || !l_iter_start->hh.next){
-            pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-            return NULL;            
-        }
-         // start searching from the next hash after a_tx_first_hash
-        l_iter_start = l_iter_start->hh.next;
-    } else
-        l_iter_start = l_ledger_pvt->ledger_items;
-    HASH_ITER(hh, l_iter_start, l_iter_current, l_item_tmp) {
-        // If a_token is setup we check if its not our token - miss it
-        if (a_token && *l_iter_current->cache_data.token_ticker &&
-                dap_strcmp(l_iter_current->cache_data.token_ticker, a_token) &&
-                !l_iter_current->cache_data.multichannel)
-            continue;
-        // Now work with it
-        dap_chain_datum_tx_t *l_tx = l_iter_current->tx;
-        dap_chain_hash_fast_t *l_tx_hash = &l_iter_current->tx_hash_fast;
-        // Get 'out' items from transaction
-        byte_t *it; size_t l_size;
-        TX_ITEM_ITER_TX(it, l_size, l_tx) {
-            dap_chain_addr_t l_addr = { };
-            switch (*it) {
-            case TX_ITEM_TYPE_OUT:
-                l_addr = ((dap_chain_tx_out_t*)it)->addr;
-                break;
-            case TX_ITEM_TYPE_OUT_OLD:
-                l_addr = ((dap_chain_tx_out_old_t*)it)->addr;
-                break;
-            case TX_ITEM_TYPE_OUT_EXT:
-                if ( a_token && dap_strcmp(a_token, ((dap_chain_tx_out_ext_t*)it)->token) )
-                    continue;
-                l_addr = ((dap_chain_tx_out_ext_t*)it)->addr;
-                break;
-            default:
-                continue;
-            }
-            if ( dap_chain_addr_compare(a_addr, &l_addr) ) {
-                *a_tx_first_hash = *l_tx_hash;
-                is_tx_found = true;
-                break;
-            }
-        }
-        if (is_tx_found)
-            break;
-    }
-    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-    return is_tx_found ? l_iter_current : NULL;
-}
-
-/**
- * @brief dap_ledger_tx_find_by_addr
- * @param a_addr
- * @param a_tx_first_hash
- * @return
- */
- dap_chain_datum_tx_t* dap_ledger_tx_find_by_addr(dap_ledger_t *a_ledger , const char * a_token ,
-         const dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_tx_first_hash)
-{
-    dap_ledger_tx_item_t* l_tx_item = tx_item_find_by_addr(a_ledger, a_addr, a_token, a_tx_first_hash);
-    return (l_tx_item) ? l_tx_item->tx : NULL;
 }
 
  bool dap_ledger_tx_check_recipient(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_tx_prev_hash, dap_chain_addr_t *a_addr)

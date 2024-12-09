@@ -158,10 +158,7 @@ typedef struct dap_chain_net_pvt {
 
     uint16_t permanent_links_hosts_count;
     struct request_link_info **permanent_links_hosts;
-
-    uint16_t authorized_nodes_count;
-    dap_stream_node_addr_t *authorized_nodes_addrs;
-
+    
     uint16_t seed_nodes_count;
     struct request_link_info **seed_nodes_hosts;
 
@@ -270,7 +267,7 @@ int dap_chain_net_init()
             "\tPrint list of PoA cerificates for this network\n");
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
-    char l_path[MAX_PATH + 1] = { '\0' }, *l_end = NULL;
+    char l_path[MAX_PATH + 1], *l_end = NULL;
     int l_pos = snprintf(l_path, MAX_PATH, "%s/network/", dap_config_path());
     if (l_pos >= MAX_PATH - 4)
         return log_it(L_ERROR, "Invalid path to net configs, fix it!"), -1;
@@ -476,7 +473,7 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
            l_net ? l_net->pub.name : "(unknown)", NODE_ADDR_FP_ARGS_S(a_link->addr));
     if (l_net){
         struct json_object *l_json = dap_chain_net_states_json_collect(l_net);
-        char l_err_str[512] = { };
+        char l_err_str[DAP_HOSTADDR_STRLEN + 80];
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
                      , NODE_ADDR_FP_ARGS_S(a_link->addr), a_link->uplink.client->link_info.uplink_addr, a_error);
@@ -694,7 +691,6 @@ dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
 static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
 {
     dap_return_val_if_fail(a_cfg, NULL);
-    dap_chain_net_t *l_ret = NULL;
     const char  *l_net_name_str = dap_config_get_item_str_default(a_cfg, "general", "name", a_net_name),
                 *l_net_id_str   = dap_config_get_item_str(a_cfg, "general", "id"),
                 *a_node_role    = dap_config_get_item_str(a_cfg, "general", "node-role" ),
@@ -719,8 +715,8 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
                         l_net_sought->pub.id.uint64);
         return NULL;
     }
-    DAP_NEW_Z_SIZE_RET_VAL(l_ret, dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t), NULL, NULL);
-    DAP_NEW_Z_SIZE_RET_VAL(PVT(l_ret)->node_info, dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1, NULL, l_ret);
+    dap_chain_net_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t), NULL);
+    PVT(l_ret)->node_info = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1, NULL, l_ret);
 
     l_ret->pub.id = l_net_id;
     if (strcmp (a_node_role, "root_master")==0){
@@ -1772,6 +1768,15 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
         dap_ledger_purge(a_net->pub.ledger, true);
         dap_ledger_handle_free(a_net->pub.ledger);
     }
+    if (a_net->pub.chains) {
+        dap_chain_t
+            *l_cur = NULL,
+            *l_tmp = NULL;
+        DL_FOREACH_SAFE(a_net->pub.chains, l_cur, l_tmp) {
+            DL_DELETE(a_net->pub.chains, l_cur);
+            dap_chain_delete(l_cur);
+        }
+    }
     HASH_DEL(s_nets_by_name, a_net);
     HASH_DELETE(hh2, s_nets_by_id, a_net);
     DAP_DELETE(a_net);
@@ -1883,7 +1888,7 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
     dap_chain_srv_start(l_net->pub.id, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_LITERAL, NULL);    // Harcoded core service starting for delegated keys storage
     char *l_services_path = dap_strdup_printf("%s/network/%s/services", dap_config_path(), l_net->pub.name);
     DIR *l_service_cfg_dir = opendir(l_services_path);
-    DAP_DEL_Z(l_services_path);
+    DAP_DELETE(l_services_path);
     while (l_service_cfg_dir && (l_dir_entry = readdir(l_service_cfg_dir)) != NULL) {
         if (l_dir_entry->d_name[0] == '\0')
             continue;
@@ -1896,7 +1901,7 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
         char *l_service_cfg_path = dap_strdup_printf("network/%s/services/%s", l_net->pub.name, l_entry_name);
         dap_config_t *l_cfg_new = dap_config_open(l_service_cfg_path);
         if (l_cfg_new) {
-            char *l_service_name = DAP_DUP_SIZE(l_entry_name, l_entry_len - 3);
+            char *l_service_name = DAP_DUP_SIZE((char *)l_entry_name, l_entry_len - 3);
             l_service_name[l_entry_len - 4] = 0;
             dap_chain_srv_start(l_net->pub.id, l_service_name, l_cfg_new);
             dap_config_close(l_cfg_new);
@@ -1905,7 +1910,6 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
         DAP_DELETE(l_service_cfg_path);
     }
     closedir(l_service_cfg_dir);
-    DAP_DELETE(l_services_path);
 
     /* *** Chains init by configs *** */
     DIR *l_chains_dir = opendir(a_path);
@@ -1963,6 +1967,8 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
         } else {
             HASH_DEL(l_all_chain_configs, l_chain_config);
             dap_config_close(l_chain_config);
+            dap_chain_net_delete(l_net);
+            return -5;
         }
     }
     HASH_CLEAR(hh, l_all_chain_configs);
@@ -2564,7 +2570,7 @@ const char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datu
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
         return dap_ledger_check_error_str(a_code);
     default:
-        return !a_code ? "DAP_CHAIN_DATUM_VERIFY_OK" : dap_itoa(a_code);
+        return !a_code ? "DAP_CHAIN_DATUM_VERIFY_OK" : "UNKNOWN_ERROR";
 
     }
 }
@@ -2908,11 +2914,8 @@ static int s_net_try_online(dap_chain_net_t *a_net)
 // sanity check
     dap_return_val_if_pass(!a_net || !PVT(a_net), -1);
 // func work
-    dap_chain_net_t *l_net = a_net;
-    dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
-    dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
-    log_it(L_INFO, "Network \"%s\" goes online",l_net->pub.name);
-    return 0;
+    log_it(L_INFO, "Network \"%s\" goes online",a_net->pub.name);
+    return dap_chain_net_state_go_to(a_net, NET_STATE_ONLINE);
 }
 
 /**

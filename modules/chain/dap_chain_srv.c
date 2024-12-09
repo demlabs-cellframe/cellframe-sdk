@@ -137,8 +137,7 @@ int dap_chain_srv_start(dap_chain_net_id_t a_net_id, const char *a_name, dap_con
     void *l_internal_service = NULL;
     if (l_service->callbacks.start)
         l_internal_service = l_service->callbacks.start(a_net_id, a_config);
-    struct network_service *l_net_service;
-    DAP_NEW_Z_RET_VAL(l_net_service, struct network_service, -2, NULL);
+    struct network_service *l_net_service = DAP_NEW_Z_RET_VAL_IF_FAIL(struct network_service, -2);
     *l_net_service = (struct network_service) { .service = l_internal_service, .net_id = a_net_id };
     l_service->networks = dap_list_append(l_service->networks, l_net_service);
     return 0;
