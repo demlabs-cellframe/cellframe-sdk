@@ -3639,6 +3639,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
 
     size_t i_tmp = 0;
     uint256_t l_value_total = uint256_0;
+
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_chain->net_id);
 
     // load transactions
