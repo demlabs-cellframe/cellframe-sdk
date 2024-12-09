@@ -119,7 +119,6 @@ bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
             json_object_array_add(json_arr_items, l_json_obj_datum);
             l_spent = true;
         }
-        break;
     }
     json_object_object_add(json_obj_out, "Spent OUTs", json_arr_items);
     json_object_object_add(json_obj_out, "all OUTs yet unspent", l_spent ? json_object_new_string("no") : json_object_new_string("yes"));
