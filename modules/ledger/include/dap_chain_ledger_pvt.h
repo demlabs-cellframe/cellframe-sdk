@@ -186,12 +186,13 @@ typedef struct dap_ledger_private {
     dap_ledger_decree_item_t *decrees;
     dap_ledger_anchor_item_t *anchors;
 
-    // Save/load operations condition
+    // Save/load cache operations condition
     pthread_mutex_t load_mutex;
     pthread_cond_t load_cond;
     bool load_end;
     // Ledger flags
-    bool check_ds, check_cells_ds, check_token_emission, cached, mapped, threshold_enabled;
+    //bool check_ds, check_cells_ds, check_token_emission, cached, mapped, threshold_enabled;
+    uint16_t flags;
     //notifiers
     dap_list_t *bridged_tx_notifiers;
     dap_list_t *tx_add_notifiers;
@@ -201,6 +202,13 @@ typedef struct dap_ledger_private {
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
+
+#define is_ledger_ds_chk(l)         ( l->flags & DAP_LEDGER_CHECK_LOCAL_DS )
+#define is_ledger_cells_ds_chk(l)   ( l->flags & DAP_LEDGER_CHECK_CELLS_DS )
+#define is_ledger_ems_chk(l)        ( l->flags & DAP_LEDGER_CHECK_TOKEN_EMISSION )
+#define is_ledger_mapped(l)         ( l->flags & DAP_LEDGER_MAPPED )
+#define is_ledger_cached(l)         ( l->flags & DAP_LEDGER_CACHE_ENABLED )
+#define is_ledger_threshld(l)       ( l->flags & DAP_LEDGER_THRESHOLD_ENABLED )
 
 extern bool g_debug_ledger;
 

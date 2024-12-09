@@ -103,8 +103,7 @@ int dap_chain_cell_init(void)
     }
     
 #endif
-    //s_cells_path = dap_config_get_item_str(g_config,"resources","cells_storage");
-    return  0;
+    return 0;
 }
 
 #ifndef DAP_OS_WINDOWS
@@ -147,7 +146,8 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
         NTSTATUS err = pfnNtCreateSection(&hSection, SECTION_MAP_READ|SECTION_EXTEND_SIZE|SECTION_MAP_WRITE,
                                           NULL, &SectionSize, PAGE_READWRITE, SEC_RESERVE, (HANDLE)_get_osfhandle(fileno(a_cell->file_storage)));
         if ( !NT_SUCCESS(err) )
-            return log_it(L_ERROR, "NtCreateSection() failed, status %lx", err), -1;
+            return log_it(L_ERROR, "NtCreateSection() failed, status %lx: \"%s\"",
+                                   err, dap_str_ntstatus(err) ), -1;
         a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, hSection);
     }
 #endif
@@ -168,7 +168,8 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
     err = pfnNtMapViewOfSection(hSection, GetCurrentProcess(), (HANDLE)&a_cell->map, 0, 0, 
                                 &Offset, &l_map_size, ViewUnmap, MEM_RESERVE, PAGE_WRITECOPY);
     if ( !NT_SUCCESS(err) )
-        return NtClose(hSection), log_it(L_ERROR, "NtMapViewOfSection() failed, status %lx", err), -1;
+        return NtClose(hSection), log_it(L_ERROR, "NtMapViewOfSection() failed, status %lx: \"%s\"",
+                                                  err, dap_str_ntstatus(err) ), -1;
 #else
     if (a_load)
         s_cell_reclaim_cur_volume(a_cell);
@@ -658,7 +659,8 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
                 HANDLE hSection = (HANDLE)a_cell->map_range_bounds->data;
                 NTSTATUS err = pfnNtExtendSection(hSection, &SectionSize);
                 if ( !NT_SUCCESS(err) ) {
-                    log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
+                    log_it(L_ERROR, "NtExtendSection() failed, status %lx: \"%s\"",
+                                    err, dap_str_ntstatus(err) );
                     l_err = true;
                 }
             }

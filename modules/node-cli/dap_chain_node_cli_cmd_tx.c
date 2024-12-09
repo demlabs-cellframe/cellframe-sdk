@@ -2882,9 +2882,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
         for (size_t i = 0; i < l_addr_el_count; ++i) {
             l_addr_to[i] = dap_chain_addr_from_str(l_addr_base58_to_array[i]);
             if(!l_addr_to[i]) {
-                for (size_t j = 0; j < i; ++j) {
-                    DAP_DELETE(l_addr_to[j]);
-                }
+                DAP_DEL_ARRAY(l_addr_to, i);
                 DAP_DEL_MULTY(l_addr_to, l_addr_base58_to_array, l_value);
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID, "destination address is invalid");
                 return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID;
@@ -2921,9 +2919,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
             l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_ADD_DATUM_IN_MEMPOOL;
         }
         json_object_array_add(*a_json_arr_reply, l_jobj_emission);
-        for (size_t i = 0; i < l_addr_el_count; ++i) {
-                DAP_DELETE(l_addr_to[i]);
-            }
+        DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
         DAP_DEL_MULTY(l_addr_to, l_value);
         if (l_wallet_fee) {
             dap_chain_wallet_close(l_wallet_fee);
@@ -2938,9 +2934,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
     if(!l_wallet) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WALLET_DOES_NOT_EXIST,
                                "wallet %s does not exist", l_from_wallet_name);
-        for (size_t i = 0; i < l_addr_el_count; ++i) {
-                DAP_DELETE(l_addr_to[i]);
-        }
+        DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
         DAP_DEL_MULTY(l_addr_to, l_value);
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WALLET_DOES_NOT_EXIST;
     } else {
@@ -2957,9 +2951,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
         dap_enc_key_delete(l_priv_key);
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID, "source address is invalid");
         json_object_put(l_jobj_result);
-        for (size_t i = 0; i < l_addr_el_count; ++i) {
-            DAP_DELETE(l_addr_to[i]);
-        }
+        DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
         DAP_DEL_MULTY(l_addr_to, l_value);
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID;
     }
@@ -2970,9 +2962,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
             dap_enc_key_delete(l_priv_key);
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS, "The transaction cannot be directed to the same address as the source.");
             json_object_put(l_jobj_result);
-            for (size_t j = 0; j < l_addr_el_count; ++j) {
-                    DAP_DELETE(l_addr_to[j]);
-            }
+            DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
             DAP_DEL_MULTY(l_addr_to, l_value);
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS;
         }
@@ -3000,9 +2990,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
                 dap_string_free(l_allowed_list, true);
                 json_object_put(l_jobj_result);
 
-                for (size_t j = 0; j < l_addr_el_count; ++j) {
-                    DAP_DELETE(l_addr_to[j]);
-                }
+                DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
                 DAP_DEL_MULTY(l_addr_to, l_value);
                 return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_NETWORK_IS_UNREACHEBLE;
             }
@@ -3036,9 +3024,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
     json_object_array_add(*a_json_arr_reply, l_jobj_result);
 
     
-    for (size_t i = 0; i < l_addr_el_count; ++i) {
-        DAP_DELETE(l_addr_to[i]);
-    }
+    DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
     DAP_DEL_MULTY(l_addr_to, l_value);
     dap_chain_wallet_close(l_wallet);
     dap_enc_key_delete(l_priv_key);

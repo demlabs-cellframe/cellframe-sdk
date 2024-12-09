@@ -546,8 +546,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
         return -3;
     }
     for (struct dirent *l_dir_entry = readdir(l_dir); l_dir_entry != NULL; l_dir_entry = readdir(l_dir)) {
-        const char * l_filename = l_dir_entry->d_name;
-        const char l_suffix[] = ".dchaincell";
+        const char *l_filename = l_dir_entry->d_name, l_suffix[] = ".dchaincell";
         size_t l_suffix_len = strlen(l_suffix);
         if (!strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len)) {
             uint64_t l_cell_id_uint64 = 0;
