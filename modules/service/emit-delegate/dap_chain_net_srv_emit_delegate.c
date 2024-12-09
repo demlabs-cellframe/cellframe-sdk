@@ -49,14 +49,45 @@ enum emit_delegation_error {
 
 #define LOG_TAG "dap_chain_net_srv_emit_delegate"
 
-static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner)
+static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool UNUSED_ARG a_owner)
 {
     size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
-    dap_sign_t *l_signs[l_tsd_hashes_count];
+    dap_sign_t *l_signs[l_tsd_hashes_count * 2];
     uint32_t l_signs_counter = 0, l_signs_verified = 0;
+    uint256_t l_writeoff_value = uint256_0;
+    dap_chain_tx_out_cond_t *l_cond_out = NULL;
+    dap_chain_addr_t l_net_fee_addr;
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_ledger->net->pub.id, NULL, &l_net_fee_addr);
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx_in) {
-        if (*l_item == TX_ITEM_TYPE_SIG) {
+        switch (*l_item) {
+        // Verify change
+        case TX_ITEM_TYPE_OUT_COND:
+            if (a_cond->header.subtype == ((dap_chain_tx_out_cond_t *)l_item)->header.subtype) {
+                if (l_cond_out) {
+                    log_it(L_ERROR, "Only the condional output allowed for target subtype");
+                    return -3;
+                }
+                l_cond_out = (dap_chain_tx_out_cond_t *)l_item;
+            }
+            break;
+        case TX_ITEM_TYPE_TSD: {
+            dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)l_item)->tsd;
+            if (l_tsd->type != DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF)
+                break; // Skip it
+            if (l_tsd->size != sizeof(uint256_t)) {
+                log_it(L_ERROR, "TSD section size control error");
+                return -4;
+            }
+            if (!IS_ZERO_256(l_writeoff_value)) {
+                log_it(L_ERROR, "More than one TSD section is forbidden");
+                return -5;
+            }
+            l_writeoff_value = dap_tsd_get_scalar(l_tsd, uint256_t);
+            break;
+        }
+        // Verify signs
+        case TX_ITEM_TYPE_SIG: {
             dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_item);
             bool l_dup = false;
             for (uint32_t i = 0; i < l_signs_counter; i++)
@@ -67,8 +98,8 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_datum_t
             if (l_dup)
                 continue;
             l_signs[l_signs_counter] = l_sign;
-            if (l_signs_counter >= l_tsd_hashes_count) {
-                log_it(L_WARNING, "Too many signs in tx %s, can't process more than %zu", dap_hash_fast_to_str_static(a_tx_in_hash), l_tsd_hashes_count);
+            if (l_signs_counter >= l_tsd_hashes_count * 2) {
+                log_it(L_WARNING, "Too many signs in tx %s, can't process more than %zu", dap_hash_fast_to_str_static(a_tx_in_hash), l_tsd_hashes_count * 2);
                 return -1;
             }
             dap_hash_fast_t l_pkey_hash;
@@ -81,7 +112,44 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_datum_t
                     l_signs_verified++;
             }
         }
+        default:
+            break;
+        }
     }
+    if (IS_ZERO_256(l_writeoff_value)) {
+        log_it(L_ERROR, "Write-off value not found, can't process");
+        return -6;
+    }
+
+    uint256_t l_change_value;
+    if (SUBTRACT_256_256(a_cond->header.value, l_writeoff_value, &l_change_value)) {
+        char *l_balance = dap_uint256_decimal_to_char(a_cond->header.value);
+        const char *l_writeoff; dap_uint256_to_char(l_writeoff_value, &l_writeoff);
+        log_it(L_ERROR, "Write-off value %s is greater than account balance %s", l_writeoff, l_balance);
+        DAP_DELETE(l_balance);
+        return -7;
+    }
+    if (!IS_ZERO_256(l_change_value)) {
+        if (!l_cond_out) {
+            log_it(L_ERROR, "Changeback on conditional output is need but not found");
+            return -8;
+        }
+        if (compare256(l_change_value, l_cond_out->header.value) != 0) {
+            char *l_change = dap_uint256_decimal_to_char(l_change_value);
+            const char *l_cond_out_value; dap_uint256_to_char(l_cond_out->header.value, &l_cond_out_value);
+            log_it(L_ERROR, "Changeback on conditional output is %s but not is expected %s", l_cond_out_value, l_change);
+            return -9;
+        }
+        if (a_cond->tsd_size != l_cond_out->tsd_size ||
+                memcmp(l_cond_out->tsd, a_cond->tsd, a_cond->tsd_size)) {
+            log_it(L_ERROR, "Condtional output in current TX have different TSD sections vs previous TX's one");
+            return -11;
+        }
+    } else if (l_cond_out) {
+        log_it(L_ERROR, "Changeback on conditional output is not need but found");
+        return -10;
+    }
+
     if (l_signs_verified < a_cond->subtype.srv_emit_delegate.signers_minimum) {
         log_it(L_WARNING, "Not enough valid signs (%u from %u) for delegated emission in tx %s",
                                     l_signs_verified, a_cond->subtype.srv_emit_delegate.signers_minimum, dap_hash_fast_to_str_static(a_tx_in_hash));
@@ -235,22 +303,18 @@ static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, d
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used && SUM_256_256(l_fee_total, l_net_fee, &l_fee_total))
         m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
-    if (l_taking_native && SUM_256_256(l_value, l_fee_total, &l_value))
-        m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
 
     dap_chain_addr_t l_owner_addr;
-    if (!l_taking_native) {
-        dap_chain_addr_fill_from_key(&l_owner_addr, a_enc_key, a_net->pub.id);
-        dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
-                                                                          &l_owner_addr, l_fee_total, &l_fee_transfer);
-        if (!l_list_fee_out)
-            m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
-        // add 'in' items to pay fee
-        uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
-        dap_list_free_full(l_list_fee_out, NULL);
-        if (!EQUAL_256(l_value_fee_items, l_fee_transfer))
-            m_tx_fail(ERROR_COMPOSE, "Can't compose the fee transaction input");
-    }
+    dap_chain_addr_fill_from_key(&l_owner_addr, a_enc_key, a_net->pub.id);
+    dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
+                                                                            &l_owner_addr, l_fee_total, &l_fee_transfer);
+    if (!l_list_fee_out)
+        m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
+    // add 'in' items to pay fee
+    uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
+    dap_list_free_full(l_list_fee_out, NULL);
+    if (!EQUAL_256(l_value_fee_items, l_fee_transfer))
+        m_tx_fail(ERROR_COMPOSE, "Can't compose the fee transaction input");
 
     dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, a_tx_in_hash);
     if (dap_hash_fast_is_blank(&l_final_tx_hash))
@@ -291,11 +355,17 @@ static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, d
     if (!IS_ZERO_256(l_value_back)) {
         dap_chain_tx_out_cond_t *l_out_cond = DAP_DUP_SIZE(l_cond_prev, sizeof(dap_chain_tx_out_cond_t) + l_cond_prev->tsd_size);
         if (!l_out_cond)
-            m_tx_fail(ERROR_FUNDS, c_error_memory_alloc);
+            m_tx_fail(ERROR_COMPOSE, c_error_memory_alloc);
         l_out_cond->header.value = l_value_back;
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond);
         DAP_DELETE(l_out_cond);
     }
+
+    // add track for takeoff from conditional value
+    dap_chain_tx_tsd_t *l_takeoff_tsd = dap_chain_datum_tx_item_tsd_create(&l_value, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF, sizeof(uint256_t));
+    if (!l_takeoff_tsd || dap_chain_datum_tx_add_item(&l_tx, l_takeoff_tsd) != 1)
+        m_tx_fail(ERROR_COMPOSE, "Can't add TSD section item with withdraw value");
+    DAP_DELETE(l_takeoff_tsd);
 
     // add fee items
     if (l_net_fee_used) {
@@ -307,13 +377,11 @@ static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, d
     if (!IS_ZERO_256(a_fee) && dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1)
         m_tx_fail(ERROR_COMPOSE, "Cant add validator fee output");
 
-    if (!l_taking_native) {
-        uint256_t l_fee_back = {};
-        // fee coin back
-        SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
-        if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, a_net->pub.native_ticker) != 1)
-            m_tx_fail(ERROR_COMPOSE, "Cant add fee back output");
-    }
+    uint256_t l_fee_back = {};
+    // fee coin back
+    SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
+    if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, a_net->pub.native_ticker) != 1)
+        m_tx_fail(ERROR_COMPOSE, "Cant add fee back output");
 
     // add 'sign' item
     if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1)
@@ -339,6 +407,7 @@ static dap_chain_datum_tx_t *s_taking_tx_sign(json_object *a_json_arr_reply, dap
     if (l_my_pkey)
         m_sign_fail(ERROR_COMPOSE, "Can't serialize sign public key");
     size_t l_tsd_hashes_count = l_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
+    size_t l_signs_limit = l_tsd_hashes_count * 2;
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx_in) {
         if (*l_item != TX_ITEM_TYPE_SIG)
@@ -348,7 +417,7 @@ static dap_chain_datum_tx_t *s_taking_tx_sign(json_object *a_json_arr_reply, dap
         byte_t *l_sign_pkey = dap_sign_get_pkey(l_sign, &l_sign_pkey_size);
         if (l_sign_pkey_size == l_my_pkey_size && !memcmp(l_sign_pkey, l_my_pkey, l_my_pkey_size))
             m_sign_fail(ERROR_TX_MISMATCH, "Sign is already present in taking tx");
-        if (--l_tsd_hashes_count == 0)
+        if (--l_signs_limit == 0)
             m_sign_fail(ERROR_TX_MISMATCH, "Too many signs in taking tx");
     }
     dap_chain_datum_tx_t *l_tx = DAP_DUP_SIZE(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in));

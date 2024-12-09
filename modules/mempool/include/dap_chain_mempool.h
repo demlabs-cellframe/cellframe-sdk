@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include "dap_chain_net.h"
 #include "dap_chain_datum.h"
+#include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_ledger.h"
 #include "dap_http_server.h"
 #include "dap_cert.h"

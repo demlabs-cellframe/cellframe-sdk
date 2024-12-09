@@ -278,7 +278,7 @@ static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum
             while ((l_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_item_idx))){
                 if ( l_out_cond->header.srv_uid.uint64 == l_args->srv_uid.uint64 ){ // We found output with target service uuid
                     l_args->tx_last = a_tx; // Record current transaction as the last in tx chain
-                    memcpy(&l_args->tx_last_hash, l_tx_hash, sizeof(*l_tx_hash)); // Record current hash
+                    l_args->tx_last_hash = *l_tx_hash;
                     l_args->tx_last_cond_idx = l_item_idx;
                     l_args->ret = dap_list_append(NULL, a_tx);
                     break;
