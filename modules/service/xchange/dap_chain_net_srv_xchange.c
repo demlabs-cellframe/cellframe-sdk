@@ -2936,7 +2936,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     size_t l_pairs_count = 0;
                     if(l_tickers){
                         size_t l_arr_start = 0;
-                        size_t l_arr_end  = l_tickers_count;
+                        size_t l_arr_end  = 0;
                         if (l_offset > 1) {
                             l_arr_start = l_limit * l_offset;
                         }
@@ -2946,8 +2946,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         size_t i_tmp = 0;
                         for(size_t i = 0; i< l_tickers_count; i++){
                             for(size_t j = i+1; j< l_tickers_count; j++){
-                                if(l_tickers[i] && l_tickers[j]){
-                                    if (i_tmp < l_arr_start || i_tmp > l_arr_end) {
+                                if(l_tickers[i] && l_tickers[j] && i != j){
+                                    if ((l_arr_start && i_tmp < l_arr_start) || 
+                                        (l_arr_end &&i_tmp > l_arr_end)) {
                                         i_tmp++;
                                         continue;
                                     }
