@@ -6179,12 +6179,12 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
 
-    struct json_object *l_json_timestamp = json_object_object_get(l_json, "timestamp");
+    struct json_object *l_json_timestamp = json_object_object_get(l_json, "ts_created");
     if (l_json_timestamp)
         l_tx->header.ts_created = json_object_get_int64(l_json_timestamp);
     else
         l_tx->header.ts_created = time(NULL);
-        
+
     size_t l_items_ready = 0;
     dap_list_t *l_sign_list = NULL;// list 'sing' items
     dap_list_t *l_in_list = NULL;// list 'in' items
