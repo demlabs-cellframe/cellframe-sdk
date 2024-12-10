@@ -6475,50 +6475,52 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
         case TX_ITEM_TYPE_SIG:{          
             const char *l_sign_type_str = s_json_get_text(l_json_item_obj, "sig_type");          
             if (l_sign_type_str) {
+                dap_sign_type_t l_sign_type = dap_sign_type_from_str(l_sign_type_str);
+                if (l_sign_type.type == SIG_TYPE_NULL) {
+                    json_object *l_jobj_err = json_object_new_string("Can't define sign type");
+                    json_object_array_add(l_jobj_errors, l_jobj_err);
+                    log_it(L_ERROR, "Json TX: Can't define sign type \"%s\"", l_sign_type_str);
+                    break;
+                }
                 int64_t l_pkey_size, l_sig_size, l_hash_type = 0;
 
                 s_json_get_int64(l_json_item_obj, "hash_type", &l_hash_type);
                 s_json_get_int64(l_json_item_obj, "pub_key_size", &l_pkey_size);
                 s_json_get_int64(l_json_item_obj, "sig_size", &l_sig_size);
-                if (l_pkey_size == 0 || l_sig_size == 0){
-                    json_object *l_jobj_err = json_object_new_string("Can't get sign for transactions. Sign or pkey length is 0.");
-                    json_object_array_add(l_jobj_errors, l_jobj_err);
-                    log_it(L_ERROR, "Json TX: Can't get sign for transactions. Sign or pkey length is 0.");
-                    break;
-                }
+                debug_if(!l_pkey_size || !l_sig_size, L_WARNING,
+                         "\"pub_key_size\" or \"sig_size\" not provided! Will be calculated automatically");
                 
                 json_object *l_jobj_pub_key = json_object_object_get(l_json_item_obj, "pub_key_b64"),
                             *l_jobj_sign = json_object_object_get(l_json_item_obj, "sig_b64");
                 if (!l_jobj_pub_key || !l_jobj_sign) {
-                    json_object *l_jobj_err = json_object_new_string("Can't get b64 encoded sign and/or pkey!");
+                    json_object *l_jobj_err = json_object_new_string("Can't get base64-encoded sign or pkey!");
                     json_object_array_add(l_jobj_errors, l_jobj_err);
-                    log_it(L_ERROR, "Json TX: Can't get b64 encoded sign and/or pkey!");
+                    log_it(L_ERROR, "Json TX: Can't get base64-encoded sign or pkey!");
                     break;
                 }
                 const char *l_pub_key_str = json_object_get_string(l_jobj_pub_key),
                            *l_sign_str = json_object_get_string(l_jobj_sign);
-                //char *l_pkey_buf = DAP_NEW_Z_SIZE(char, DAP_ENC_BASE64_DECODE_SIZE(l_pkey_size));
                 int64_t l_pkey_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(strlen(l_pub_key_str)),
                         l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(strlen(l_sign_str));
-                if (l_pkey_size != l_pkey_decoded_size) {
-                    log_it(L_ERROR, "Json TX: pkey size mismatch, %zu != %zu", l_pkey_size, l_pkey_decoded_size);
-                    l_pkey_size = l_pkey_decoded_size;
-                }
                 
-                if (l_sign_decoded_size != l_sig_size) {
-                    log_it(L_ERROR, "Json TX: sign size mismatch, %zu != %zu", l_sign_decoded_size, l_sig_size);
-                    l_sig_size = l_sign_decoded_size;
-                }
-                dap_sign_t *l_sign = DAP_NEW_SIZE(dap_sign_t, sizeof(dap_sign_t) + l_pkey_size + l_sig_size);
+                dap_sign_t *l_sign = DAP_NEW_SIZE(dap_sign_t, sizeof(dap_sign_t) + l_pkey_decoded_size + l_sign_decoded_size);
                 *l_sign = (dap_sign_t) {
-                    .header.type = dap_sign_type_from_str(l_sign_type_str),
+                    .header.type = l_sign_type,
                     .header.hash_type = (uint8_t)l_hash_type,
-                    .header.sign_size = l_sig_size,
-                    .header.sign_pkey_size = l_pkey_size
                 };
-                dap_enc_base64_decode(l_pub_key_str, strlen(l_pub_key_str), l_sign->pkey_n_sign, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-                dap_enc_base64_decode(l_sign_str, dap_strlen(l_sign_str), l_sign->pkey_n_sign + l_pkey_size, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-                size_t l_sign_full_size = dap_sign_get_size(l_sign); // sign data
+                l_pkey_decoded_size = dap_enc_base64_decode(l_pub_key_str, strlen(l_pub_key_str),
+                                                            l_sign->pkey_n_sign, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+                debug_if(l_pkey_size != l_pkey_decoded_size, L_ERROR, "Json TX: pkey size mismatch, %zu != %zu",
+                                                                      l_pkey_size, l_pkey_decoded_size);
+
+                l_sign_decoded_size = dap_enc_base64_decode(l_sign_str, strlen(l_sign_str),
+                                                            l_sign->pkey_n_sign + l_pkey_decoded_size, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+                debug_if(l_sig_size != l_sign_decoded_size, L_ERROR, "Json TX: sign size mismatch, %zu != %zu",
+                                                                     l_sig_size, l_sign_decoded_size);
+
+                l_sign->header.sign_size = l_sign_decoded_size;
+                l_sign->header.sign_pkey_size = l_pkey_decoded_size;
+                size_t l_sign_full_size = dap_sign_get_size(l_sign);
                 
                 dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_full_size);
                 l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
