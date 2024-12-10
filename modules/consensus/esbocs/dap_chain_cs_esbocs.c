@@ -307,7 +307,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             dap_hash_fast_t l_stake_tx_hash = {};
             uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
             dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, &l_stake_tx_hash,
-                                                 l_weight, &l_signer_node_addr);
+                                                 l_weight, &l_signer_node_addr, l_cert_cur->enc_key->pub_key_data, l_cert_cur->enc_key->pub_key_data_size);
         }
     }
     if (!i)
@@ -747,7 +747,7 @@ static int s_callback_purge(dap_chain_t *a_chain)
     for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
         dap_chain_esbocs_validator_t *l_validator = it->data;
         dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
-                                             l_weight, &l_validator->node_addr);
+                                             l_weight, &l_validator->node_addr, NULL, 0);
     }
     l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
     return 0;

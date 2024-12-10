@@ -237,7 +237,7 @@ static void s_pos_delegate_delete(void *a_service_internal)
     HASH_ITER(hh, l_srv_stake->itemlist, l_stake, l_tmp) {
         // Clang bug at this, l_stake should change at every loop cycle
         HASH_DEL(l_srv_stake->itemlist, l_stake);
-        DAP_DELETE(l_stake);
+        DAP_DEL_MULTY(l_stake->pkey_data, l_stake);
     }
     struct cache_item *l_cache_item = NULL, *l_cache_tmp = NULL;
     HASH_ITER(hh, l_srv_stake->cache, l_cache_item, l_cache_tmp) {
@@ -445,7 +445,7 @@ static void s_stake_recalculate_weights(dap_chain_net_id_t a_net_id)
 }
 
 void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_hash_fast_t *a_stake_tx_hash,
-                                          uint256_t a_value, dap_chain_node_addr_t *a_node_addr)
+                                          uint256_t a_value, dap_chain_node_addr_t *a_node_addr, byte_t *a_pkey_data, size_t a_pkey_data_size)
 {
     dap_return_if_fail(a_net && a_signing_addr && a_node_addr && a_stake_tx_hash);
     struct srv_stake *l_srv_stake = s_srv_stake_by_net_id(a_net->pub.id);
@@ -468,6 +468,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     l_stake->value = l_stake->locked_value = a_value;
     l_stake->tx_hash = *a_stake_tx_hash;
     l_stake->is_active = true;
+    l_stake->pkey_data = DAP_DUP_SIZE(a_pkey_data, a_pkey_data_size);
     if (!l_found)
         HASH_ADD(hh, l_srv_stake->itemlist, signing_addr.data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
     if (!dap_hash_fast_is_blank(a_stake_tx_hash)) {
