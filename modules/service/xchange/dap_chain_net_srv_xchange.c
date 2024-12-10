@@ -2703,9 +2703,16 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         l_cache = s_get_xchange_cache_by_net_id(l_net->pub.id);
                         xchange_tx_cache_t* l_temp, *l_item;
                         HASH_ITER(hh, l_cache->cache, l_item, l_temp){
-                            if (l_item->tx->header.ts_created >= l_time_from && 
-                            l_item->tx->header.ts_created <= l_time_to && l_item->tx_type == TX_TYPE_ORDER)
-                                l_tx_cache_list = dap_list_append(l_tx_cache_list, l_item);
+                            if (l_item->tx_type != TX_TYPE_EXCHANGE)
+                                continue;
+
+                            if (l_time_from && l_item->tx->header.ts_created < l_time_from)
+                                continue;
+                            
+                            if (l_time_to && l_item->tx->header.ts_created > l_time_to)
+                                break;
+
+                            l_tx_cache_list = dap_list_append(l_tx_cache_list, l_item);
                         }
                         l_list = l_tx_cache_list;
                     } else {
@@ -2725,33 +2732,29 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         dap_hash_fast_t l_tx_hash = {};
                         const char * l_tx_input_ticker = NULL;
                         const char * l_tx_out_ticker = NULL;
-                        dap_chain_net_srv_xchange_order_status_t l_order_status = XCHANGE_ORDER_STATUS_UNKNOWN;
-                        uint256_t l_value_sell = {0};
+                        uint256_t l_b_rate = {};
                         
                         if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
                             xchange_tx_cache_t* l_item = (xchange_tx_cache_t*)l_cur->data;
                             l_tx = l_item->tx;
                             l_tx_hash = l_item->hash;
                             l_tx_input_ticker = l_item->sell_token;
-                            l_order_status = l_item->tx_info.order_info.order_status;
-                            l_value_sell = l_item->tx_info.order_info.value;
-                            l_rate = l_item->rate;
+                            l_tx_out_ticker = l_item->buy_token;
+                            l_b_rate = l_item->rate;
                         } else {
                             dap_chain_datum_tx_cond_list_item_t *l_item = (dap_chain_datum_tx_cond_list_item_t *)l_cur->data;
                             l_tx_hash = l_item->hash;
                             l_tx = l_item->tx;
                             int l_cond_idx = 0;
                             dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
-                            if (dap_chain_net_srv_xchange_tx_get_type(l_net->pub.ledger, l_tx, &l_out_cond_item, &l_cond_idx, NULL) != TX_TYPE_ORDER){
+                            if (dap_chain_net_srv_xchange_tx_get_type(l_net->pub.ledger, l_tx, &l_out_cond_item, &l_cond_idx, NULL) != TX_TYPE_EXCHANGE){
                                 l_cur = dap_list_next(l_cur);
                                 continue;
                             }
                             
                             l_tx_input_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, &l_tx_hash);
                             l_tx_out_ticker = l_out_cond_item->subtype.srv_xchange.buy_token;
-                            l_order_status = s_tx_check_for_open_close(l_net, l_tx);
-                            l_value_sell = l_out_cond_item->header.value;
-                            l_rate = l_out_cond_item->subtype.srv_xchange.rate;
+                            l_b_rate = l_out_cond_item->subtype.srv_xchange.rate;
                         }
                         
                         if (!l_tx_input_ticker || strcmp(l_tx_input_ticker, l_token_from_str)){
@@ -2763,37 +2766,33 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                             l_cur = dap_list_next(l_cur);
                             continue;
                         }
-
-
-                        if (l_order_status != XCHANGE_ORDER_STATUS_OPENED){
-                            l_cur = dap_list_next(l_cur);
-                            continue;
-                        }
-                       
+                      
+                        l_rate = l_b_rate;
                         l_last_rate_time = l_tx->header.ts_created;
-                            if (!IS_ZERO_256(l_value_sell)) {
-                                if(SUM_256_256(l_rate, l_total_rates, &l_total_rates )!= 0)
-                                    log_it(L_ERROR, "Overflow on average price calculation (summing)");
-                                INCR_256(&l_total_rates_count);
-                            }else{
-                                log_it(L_ERROR, "Sell value is 0 in avarage price calculation (summing)");
-                            }
+                        if(SUM_256_256(l_rate, l_total_rates, &l_total_rates )!= 0)
+                            log_it(L_ERROR, "Overflow on average price calculation (summing)");
+                        INCR_256(&l_total_rates_count);
 
                         l_cur = dap_list_next(l_cur);
                     }
 
-                    // dap_list_free(l_tx_cond_list);
-                    uint256_t l_rate_average = {0};
-                    if (!IS_ZERO_256(l_total_rates_count))
-                        DIV_256(l_total_rates,l_total_rates_count,&l_rate_average);
+                    dap_list_free(l_list);
 
-                    char l_tmp_buf[DAP_TIME_STR_SIZE];
-                    dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_last_rate_time);
-                    const char *l_rate_average_str; dap_uint256_to_char(l_rate_average, &l_rate_average_str);
-                    dap_string_append_printf(l_reply_str,"Average rate: %s\n", l_rate_average_str);
-                    const char *l_last_rate_str; dap_uint256_to_char(l_rate, &l_last_rate_str);
-                    dap_string_append_printf(l_reply_str, "Last rate: %s Last rate time: %s",
-                                             l_last_rate_str, l_tmp_buf);
+                    if (IS_ZERO_256(l_total_rates) || IS_ZERO_256(l_rate) || !l_last_rate_time){
+                        dap_string_append_printf(l_reply_str,"Can't find orders for specified token pair\n");
+                    } else {
+                        uint256_t l_rate_average = {0};
+                        if (!IS_ZERO_256(l_total_rates_count))
+                            DIV_256(l_total_rates,l_total_rates_count,&l_rate_average);
+
+                        char l_tmp_buf[DAP_TIME_STR_SIZE];
+                        dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_last_rate_time);
+                        const char *l_rate_average_str; dap_uint256_to_char(l_rate_average, &l_rate_average_str);
+                        dap_string_append_printf(l_reply_str,"Average rate: %s\n", l_rate_average_str);
+                        const char *l_last_rate_str; dap_uint256_to_char(l_rate, &l_last_rate_str);
+                        dap_string_append_printf(l_reply_str, "Last rate: %s Last rate time: %s",
+                                                l_last_rate_str, l_tmp_buf);
+                    }
                     *a_str_reply = dap_string_free(l_reply_str, false);
                     break;
                 }else if (strcmp(l_price_subcommand,"history") == 0){
@@ -2886,15 +2885,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                                 l_tx_buy_ticker = l_out_cond_item->subtype.srv_xchange.buy_token;
                         }   
 
-                        if (i_tmp < l_arr_start) {
-                            i_tmp++;
-                            l_cur = dap_list_next(l_cur);
-                            continue;
-                        }
-                        if (i_tmp >= l_arr_end)
-                            break;
-                        
-                        i_tmp++;                  
 
                         if (!l_tx_sell_ticker || strcmp(l_tx_sell_ticker, l_token_from_str)){
                             l_cur = dap_list_next(l_cur);
@@ -2905,6 +2895,16 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                             l_cur = dap_list_next(l_cur);
                             continue;
                         }
+
+                        if (i_tmp < l_arr_start) {
+                            i_tmp++;
+                            l_cur = dap_list_next(l_cur);
+                            continue;
+                        }
+                        if (i_tmp >= l_arr_end)
+                            break;
+
+                        i_tmp++; 
 
                         if(s_string_append_tx_cond_info(l_reply_str, l_net, l_tx, &l_tx_hash, TX_STATUS_ALL, false, false, true))
                             l_total++;
