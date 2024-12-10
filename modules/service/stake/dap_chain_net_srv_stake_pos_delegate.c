@@ -3635,12 +3635,12 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
 
     size_t l_arr_start = 0;
     size_t l_arr_end = 0;
-    s_set_offset_limit_json(json_obj_reward, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
+    dap_chain_set_offset_limit_json(json_obj_reward, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
 
     size_t i_tmp = 0;
     uint256_t l_value_total = uint256_0;
 
-    dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_chain->net_id);
+    struct srv_stake *l_srv_stake = s_srv_stake_by_net_id(a_chain->net_id);
 
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
