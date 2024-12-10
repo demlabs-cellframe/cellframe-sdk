@@ -6498,7 +6498,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                 const char *l_pub_key_str = json_object_get_string(l_jobj_pub_key),
                            *l_sign_str = json_object_get_string(l_jobj_sign);
                 //char *l_pkey_buf = DAP_NEW_Z_SIZE(char, DAP_ENC_BASE64_DECODE_SIZE(l_pkey_size));
-                size_t  l_pkey_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(strlen(l_pub_key_str)),
+                int64_t l_pkey_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(strlen(l_pub_key_str)),
                         l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(strlen(l_sign_str));
                 if (l_pkey_size != l_pkey_decoded_size) {
                     log_it(L_ERROR, "Json TX: pkey size mismatch, %zu != %zu", l_pkey_size, l_pkey_decoded_size);
