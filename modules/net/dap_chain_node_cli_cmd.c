@@ -6475,11 +6475,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
         case TX_ITEM_TYPE_SIG:{          
             const char *l_sign_type_str = s_json_get_text(l_json_item_obj, "sig_type");          
             if (l_sign_type_str) {
-                int64_t l_pkey_size;
-                int64_t l_sig_size;
-                int64_t l_hash_type = 0;
-                dap_sign_t *l_sign = NULL;
-                dap_sign_type_t l_type = dap_sign_type_from_str(l_sign_type_str);
+                int64_t l_pkey_size, l_sig_size, l_hash_type = 0;
 
                 s_json_get_int64(l_json_item_obj, "hash_type", &l_hash_type);
                 s_json_get_int64(l_json_item_obj, "pub_key_size", &l_pkey_size);
@@ -6490,43 +6486,48 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                     log_it(L_ERROR, "Json TX: Can't get sign for transactions. Sign or pkey length is 0.");
                     break;
                 }
-
-                l_sign = DAP_NEW_Z_SIZE(dap_sign_t, sizeof(dap_sign_t) + l_pkey_size + l_sig_size);
-
-
-                json_object *l_jobj_sign = json_object_object_get(l_json_item_obj, "sig_b64");
-                const char *l_sign_str = json_object_get_string(l_jobj_sign);
-                void *l_sig_buf = DAP_NEW_SIZE(void,DAP_ENC_BASE64_ENCODE_SIZE(l_sig_size));
-                size_t l_sign_decoded_size = dap_enc_base64_decode(l_sign_str, dap_strlen(l_sign_str), l_sig_buf, DAP_ENC_DATA_TYPE_B64_URLSAFE);
                 
+                json_object *l_jobj_pub_key = json_object_object_get(l_json_item_obj, "pub_key_b64"),
+                            *l_jobj_sign = json_object_object_get(l_json_item_obj, "sig_b64");
+                if (!l_jobj_pub_key || !l_jobj_sign) {
+                    json_object *l_jobj_err = json_object_new_string("Can't get b64 encoded sign and/or pkey!");
+                    json_object_array_add(l_jobj_errors, l_jobj_err);
+                    log_it(L_ERROR, "Json TX: Can't get b64 encoded sign and/or pkey!");
+                    break;
+                }
+                const char *l_pub_key_str = json_object_get_string(l_jobj_pub_key),
+                           *l_sign_str = json_object_get_string(l_jobj_sign);
+                //char *l_pkey_buf = DAP_NEW_Z_SIZE(char, DAP_ENC_BASE64_DECODE_SIZE(l_pkey_size));
+                size_t  l_pkey_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(strlen(l_pub_key_str)),
+                        l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(strlen(l_sign_str));
+                if (l_pkey_size != l_pkey_decoded_size) {
+                    log_it(L_ERROR, "Json TX: pkey size mismatch, %zu != %zu", l_pkey_size, l_pkey_decoded_size);
+                    l_pkey_size = l_pkey_decoded_size;
+                }
                 
-                json_object *l_jobj_pub_key = json_object_object_get(l_json_item_obj, "pub_key_b64");
-                const char *l_pub_key_str = json_object_get_string(l_jobj_pub_key);    
-                void *l_pkey_buf = DAP_NEW_SIZE(void,DAP_ENC_BASE64_ENCODE_SIZE(l_pkey_size));
-                size_t l_pkey_decoded_size = dap_enc_base64_decode(l_pub_key_str, strlen(l_pub_key_str), l_pkey_buf, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-
-                l_sign->header.sign_pkey_size = l_pkey_size;
-                l_sign->header.sign_size = l_sig_size;
-                l_sign->header.type = l_type;
-                l_sign->header.hash_type = (uint8_t)l_hash_type;
-                memcpy(l_sign->pkey_n_sign, l_pkey_buf, l_pkey_decoded_size);
-                memcpy(l_sign->pkey_n_sign + l_pkey_decoded_size, l_sig_buf, l_sign_decoded_size);
-                DAP_DELETE(l_pkey_buf);
-                DAP_DELETE(l_sig_buf);
-
-                size_t l_chain_sign_size = dap_sign_get_size(l_sign); // sign data
+                if (l_sign_decoded_size != l_sig_size) {
+                    log_it(L_ERROR, "Json TX: sign size mismatch, %zu != %zu", l_sign_decoded_size, l_sig_size);
+                    l_sig_size = l_sign_decoded_size;
+                }
+                dap_sign_t *l_sign = DAP_NEW_SIZE(dap_sign_t, sizeof(dap_sign_t) + l_pkey_size + l_sig_size);
+                *l_sign = (dap_sign_t) {
+                    .header.type = dap_sign_type_from_str(l_sign_type_str),
+                    .header.hash_type = (uint8_t)l_hash_type,
+                    .header.sign_size = l_sig_size,
+                    .header.sign_pkey_size = l_pkey_size
+                };
+                dap_enc_base64_decode(l_pub_key_str, strlen(l_pub_key_str), l_sign->pkey_n_sign, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+                dap_enc_base64_decode(l_sign_str, dap_strlen(l_sign_str), l_sign->pkey_n_sign + l_pkey_size, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+                size_t l_sign_full_size = dap_sign_get_size(l_sign); // sign data
                 
-                dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t,
-                        sizeof(dap_chain_tx_sig_t) + l_chain_sign_size);
+                dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_full_size);
                 l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
-                l_tx_sig->header.sig_size =(uint32_t) l_chain_sign_size;
-                memcpy(l_tx_sig->sig, l_sign, l_chain_sign_size);
-                // dap_chain_datum_tx_add_item(&l_tx, l_tx_sig);
+                l_tx_sig->header.sig_size = (uint32_t)l_sign_full_size;
+                memcpy(l_tx_sig->sig, l_sign, l_sign_full_size);
                 l_item = (const uint8_t*)l_tx_sig;
                 DAP_DELETE(l_sign);
                 break;
-            }
-            else              
+            } else              
                 l_sign_list = dap_list_append(l_sign_list,l_json_item_obj);
         }
             break;
