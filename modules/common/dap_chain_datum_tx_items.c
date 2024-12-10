@@ -30,9 +30,10 @@
 #include "dap_chain_common.h"
 #include "dap_sign.h"
 #include "dap_hash.h"
-#include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_chain_datum_tx_pkey.h"
+#include "dap_chain_datum_tx_receipt.h"
 
 #define LOG_TAG "dap_chain_datum_tx_items"
 
@@ -260,7 +261,7 @@ dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_a
     l_item->header.type = TX_ITEM_TYPE_OUT_EXT;
     l_item->header.value = a_value;
     l_item->addr = *a_addr;
-    strcpy((char *)l_item->token, a_token);
+    dap_strncpy((char*)l_item->token, a_token, sizeof(l_item->token) - 1);
     return l_item;
 }
 
@@ -544,7 +545,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
         switch (*l_item) {
         case TX_ITEM_TYPE_OUT_COND:
             if ( l_idx >= 0 && ((dap_chain_tx_out_cond_t*)l_item)->header.subtype == a_cond_subtype )
-                return (a_out_num ? (*a_out_num = l_idx) : 0), (dap_chain_tx_out_cond_t*)l_item;
+                return ( a_out_num ? (*a_out_num += l_idx) : 0 ), (dap_chain_tx_out_cond_t*)l_item;
         case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_OLD: case TX_ITEM_TYPE_OUT_EXT:
             ++l_idx;
         default:
@@ -681,4 +682,17 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
     }
     return true;
 
+}
+
+dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t *a_tx, int a_type)
+{   
+    dap_return_val_if_pass(!a_tx, NULL);
+    
+    byte_t *l_item = NULL;
+    size_t l_tx_item_size = 0;
+    TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
+        if (*l_item == TX_ITEM_TYPE_TSD && ((dap_tsd_t *)(((dap_chain_tx_tsd_t *)l_item)->tsd))->type ==  a_type)
+        return (dap_chain_tx_tsd_t *)l_item;
+    }
+    return NULL;
 }

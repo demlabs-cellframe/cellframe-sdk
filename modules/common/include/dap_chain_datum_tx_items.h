@@ -27,7 +27,6 @@
 #include <string.h>
 
 #include "dap_common.h"
-#include "dap_strfuncs.h"
 #include "dap_list.h"
 #include "dap_chain_common.h"
 #include "dap_sign.h"
@@ -38,9 +37,7 @@
 #include "dap_chain_datum_tx_in_cond.h"
 #include "dap_chain_datum_tx_out_cond.h"
 #include "dap_chain_datum_tx_sig.h"
-#include "dap_chain_datum_tx_pkey.h"
 #include "dap_chain_datum_tx_in_ems.h"
-#include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_tx_in_reward.h"
 
@@ -250,6 +247,7 @@ json_object* dap_chain_datum_tx_item_sig_to_json(const dap_chain_tx_sig_t *a_sig
 dap_sign_t *dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig);
 
 byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_type, size_t *a_size);
+dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t *a_tx, int a_type);
 
 /**
  * Get item from transaction
