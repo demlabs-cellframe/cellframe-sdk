@@ -2815,9 +2815,13 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         l_cache = s_get_xchange_cache_by_net_id(l_net->pub.id);
                         xchange_tx_cache_t* l_temp, *l_item;
                         HASH_ITER(hh, l_cache->cache, l_item, l_temp){
-                            if (((l_time_from && l_item->tx->header.ts_created >= l_time_from) && 
-                            (l_time_to && l_item->tx->header.ts_created <= l_time_to)) || !l_time_from || !l_time_from)
-                                l_tx_cache_list = dap_list_append(l_tx_cache_list, l_item);
+                            if (l_time_from && l_item->tx->header.ts_created < l_time_from)
+                                continue;
+                            
+                            if (l_time_to && l_item->tx->header.ts_created > l_time_to)
+                                break;
+
+                            l_tx_cache_list = dap_list_append(l_tx_cache_list, l_item);
                         }
                         l_list = l_tx_cache_list;
                     } else {
@@ -2887,7 +2891,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                             l_cur = dap_list_next(l_cur);
                             continue;
                         }
-                        if (i_tmp > l_arr_end)
+                        if (i_tmp >= l_arr_end)
                             break;
                         
                         i_tmp++;                  
