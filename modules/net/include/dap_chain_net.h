@@ -152,19 +152,6 @@ int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_add
 
 void dap_chain_net_purge(dap_chain_net_t *l_net);
 
-/**
- * @brief dap_chain_net_get_gdb_group_mempool
- * @param l_chain
- * @return
- */
-DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_mempool_new(dap_chain_t *a_chain)
-{
-    dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
-    return l_net
-            ? dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix, a_chain->name)
-            : NULL;
-}
-
 DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_nochain_new(dap_chain_t *a_chain)
 {
     dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;

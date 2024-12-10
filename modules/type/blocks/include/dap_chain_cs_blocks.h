@@ -91,6 +91,8 @@ int dap_chain_cs_blocks_init();
 void dap_chain_cs_blocks_deinit();
 dap_chain_block_cache_t *dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_t *a_blocks, dap_chain_hash_fast_t *a_block_hash);
 
+dap_chain_cs_blocks_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chain_t *a_chain);
+
 DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_fee_group(const char *a_net_name)
 {
     return dap_strdup_printf("local.%s.fees", a_net_name);

@@ -156,7 +156,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
             return -7;
         }
 
-        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+        char * l_gdb_group_mempool = dap_chain_mempool_group_new(l_chain);
         if(!l_gdb_group_mempool) {
             l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
         }
@@ -960,7 +960,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
 
     // Add datum to mempool with datum_token hash as a key
     char *l_gdb_group_mempool = l_chain
-            ? dap_chain_net_get_gdb_group_mempool_new(l_chain)
+            ? dap_chain_mempool_group_new(l_chain)
             : dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
     if (!l_gdb_group_mempool) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "No suitable chain for placing token datum found");
@@ -1141,7 +1141,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
 
     // Add datum to mempool with datum_token hash as a key
     char *l_gdb_group_mempool = l_chain
-            ? dap_chain_net_get_gdb_group_mempool_new(l_chain)
+            ? dap_chain_mempool_group_new(l_chain)
             : dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
     if (!l_gdb_group_mempool) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "No suitable chain for placing token datum found");
@@ -1345,7 +1345,7 @@ int com_token_emit(int a_argc, char **a_argv, void **a_str_reply)
 
     //remove previous emission datum from mempool if have new signed emission datum
     if (l_emission_hash_str_remove) {
-        char *l_gdb_group_mempool_emission = dap_chain_net_get_gdb_group_mempool_new(l_chain_emission);
+        char *l_gdb_group_mempool_emission = dap_chain_mempool_group_new(l_chain_emission);
         dap_global_db_del_sync(l_gdb_group_mempool_emission, l_emission_hash_str_remove);
         DAP_DEL_Z(l_gdb_group_mempool_emission);
     }

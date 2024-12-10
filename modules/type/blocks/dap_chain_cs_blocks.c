@@ -694,7 +694,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         }break;
         case SUBCMD_NEW_DATUM_ADD:{
             size_t l_datums_count=1;
-            char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+            char * l_gdb_group_mempool = dap_chain_mempool_group_new(l_chain);
             dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,
                                                            sizeof(dap_chain_datum_t*)*l_datums_count);
             if (!l_datums) {

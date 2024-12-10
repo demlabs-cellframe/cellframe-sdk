@@ -2474,7 +2474,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
     {
         for(int i = 0; i < l_chain->datum_types_count; i++) {
             if(l_chain->datum_types[i] == a_datum_type)
-                return dap_chain_net_get_gdb_group_mempool_new(l_chain);
+                return dap_chain_mempool_group_new(l_chain);
         }
     }
     return NULL;

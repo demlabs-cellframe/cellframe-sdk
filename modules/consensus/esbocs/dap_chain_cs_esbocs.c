@@ -41,6 +41,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_cs_esbocs"
 
+static const dap_chain_cell_id_t c_cell_id_hardfork = { .uint64 = INT64_MIN }; // 0x800...
+
 enum s_esbocs_session_state {
     DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START,
     DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC,
@@ -735,6 +737,15 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
     return 0;
 }
 
+int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint64_t a_block_num)
+{
+    uint64_t l_last_num = a_chain->callback_count_atom(a_chain);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    l_esbocs->hardfork_from = dap_max(l_last_num, a_block_num);
+    return a_block_num && a_block_num < l_last_num ? 1 : 0;
+}
+
 static int s_callback_purge(dap_chain_t *a_chain)
 {
     dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
@@ -1120,7 +1131,7 @@ static bool s_session_round_new(void *a_arg)
     a_session->ts_stage_entry = 0;
 
     dap_hash_fast_t l_last_block_hash;
-    dap_chain_get_atom_last_hash(a_session->chain, c_dap_chain_cell_id_null, &l_last_block_hash);
+    dap_chain_get_atom_last_hash(a_session->chain, a_session->is_hardfork ? c_dap_chain_cell_id_null : c_cell_id_hardfork, &l_last_block_hash);
     if (!dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash) ||
             (!dap_hash_fast_is_blank(&l_last_block_hash) &&
                 dap_hash_fast_is_blank(&a_session->cur_round.last_block_hash))) {
@@ -1191,6 +1202,10 @@ static bool s_session_round_new(void *a_arg)
     a_session->new_round_enqueued = false;
     a_session->sync_failed = false;
     a_session->listen_ensure = 0;
+    uint64_t l_cur_atom_count = a_session->chain->callback_count_atom(a_session->chain);
+    a_session->is_hardfork = a_session->esbocs->hardfork_from && l_cur_atom_count >= a_session->esbocs->hardfork_from;
+    if (l_cur_atom_count && l_cur_atom_count == a_session->esbocs->hardfork_from)
+        dap_chain_node_hardfork_prepare(a_session->chain);
     return false;
 }
 
@@ -1647,7 +1662,10 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     size_t l_candidate_size = 0;
     dap_hash_fast_t l_candidate_hash = {0};
-    dap_chain_node_mempool_process_all(a_session->chain, false);
+    if (a_session->is_hardfork)
+        dap_chain_node_hardfork_process(a_session->chain);
+    else
+        dap_chain_node_mempool_process_all(a_session->chain, false);
     dap_chain_block_t *l_candidate = l_blocks->callback_new_block_move(l_blocks, &l_candidate_size);
     if (l_candidate && l_candidate_size) {
         if (PVT(a_session->esbocs)->emergency_mode)

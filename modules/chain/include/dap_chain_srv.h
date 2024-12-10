@@ -66,6 +66,14 @@ typedef struct dap_chain_static_srv_callbacks {
     // And no more =)
 } dap_chain_static_srv_callbacks_t;
 
+typedef struct dap_chain_srv_hardfork_state {
+    dap_chain_srv_uid_t uid;
+    byte_t *data;
+    uint64_t size;
+    uint32_t count;
+    struct dap_chain_srv_hardfork_state *prev, *next;
+} dap_chain_srv_hardfork_state_t;
+
 // Fees section
 typedef enum dap_chain_srv_fee_tsd_type {
     TSD_FEE = 0x0001,
@@ -111,5 +119,5 @@ dap_list_t *dap_chain_srv_list(dap_chain_net_id_t a_net_id);
 
 int dap_chain_srv_purge(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid);
 int dap_chain_srv_purge_all(dap_chain_net_id_t a_net_id);
-void dap_chain_srv_hardfork_all(dap_chain_net_id_t a_net_id);
+dap_chain_srv_hardfork_state_t *dap_chain_srv_hardfork_all(dap_chain_net_id_t a_net_id);
 json_object *dap_chain_srv_get_fees(dap_chain_net_id_t a_net_id);
