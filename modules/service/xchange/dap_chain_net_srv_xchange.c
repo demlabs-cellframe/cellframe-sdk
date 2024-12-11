@@ -2148,7 +2148,7 @@ static int s_cli_srv_xchange_tx_list_addr(dap_chain_net_t *a_net, dap_time_t a_a
             if ( a_before && (l_datum_tx->header.ts_created > a_before) )
                 continue;
 
-            if (s_string_append_tx_cond_info(l_reply_str, a_net, l_datum_tx, &l_hash_curr, a_opt_status, false, true, false))
+            if (s_string_append_tx_cond_info(l_reply_str, a_net, l_datum_tx, &l_hash_curr, a_opt_status, false, true, true))
                 l_tx_count++;
         }
     } else {
@@ -2167,7 +2167,7 @@ static int s_cli_srv_xchange_tx_list_addr(dap_chain_net_t *a_net, dap_time_t a_a
             if ( a_before && (l_datum_tx->header.ts_created > a_before) )
                 continue;
 
-            if (s_string_append_tx_cond_info(l_reply_str, a_net, l_datum_tx, &l_hash_curr, a_opt_status, false, true, false))
+            if (s_string_append_tx_cond_info(l_reply_str, a_net, l_datum_tx, &l_hash_curr, a_opt_status, false, true, true))
                 l_tx_count++;
         }
         dap_chain_wallet_cache_iter_delete(l_iter);
@@ -2604,7 +2604,13 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 l_cache = s_get_xchange_cache_by_net_id(l_net->pub.id);
                 xchange_tx_cache_t* l_temp, *l_item;
                 HASH_ITER(hh, l_cache->cache, l_item, l_temp){
-                    if (s_string_append_tx_cond_info(l_reply_str, l_net, l_item->tx, &l_item->hash, l_opt_status, false, true, false))
+                    if (l_time[0] && l_item->tx->header.ts_created < l_time[0])
+                        continue;
+
+                    if (l_time[1] && l_item->tx->header.ts_created > l_time[1])
+                        break;
+
+                    if (s_string_append_tx_cond_info(l_reply_str, l_net, l_item->tx, &l_item->hash, l_opt_status, false, true, true))
                         l_show_tx_nr++;
                 }
             } else {
@@ -2615,9 +2621,15 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     dap_list_t *l_datum_list = l_datum_list0;
                     while(l_datum_list) {
                         dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*) ((dap_chain_datum_t*) l_datum_list->data)->data;
+                        if (l_time[0] && l_datum_tx->header.ts_created < l_time[0])
+                            continue;
+
+                        if (l_time[1] && l_datum_tx->header.ts_created > l_time[1])
+                            break;
+
                         dap_hash_fast_t l_hash = {};
                         dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_hash);
-                        if (s_string_append_tx_cond_info(l_reply_str, l_net, l_datum_tx, &l_hash, l_opt_status, false, true, false))
+                        if (s_string_append_tx_cond_info(l_reply_str, l_net, l_datum_tx, &l_hash, l_opt_status, false, true, true))
                             l_show_tx_nr++;
                         l_datum_list = dap_list_next(l_datum_list);
                     } 
@@ -2939,14 +2951,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
                     size_t l_pairs_count = 0;
                     if(l_tickers){
-                        size_t l_arr_start = 0;
+                        size_t l_arr_start = l_offset;
                         size_t l_arr_end  = 0;
-                        if (l_offset > 1) {
-                            l_arr_start = l_limit * l_offset;
-                        }
                         if (l_limit) {
-                            l_arr_end = l_arr_start + l_limit;
+                            l_arr_end = l_arr_start + l_limit - 1;
                         }
+
                         size_t i_tmp = 0;
                         for(size_t i = 0; i< l_tickers_count; i++){
                             for(size_t j = i+1; j< l_tickers_count; j++){
