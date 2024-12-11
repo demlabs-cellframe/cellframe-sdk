@@ -976,7 +976,6 @@ const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type)
             return "decree";
         case CHAIN_TYPE_ANCHOR:
             return "anchor";
-        case CHAIN_TYPE_INVALID:
         default:
             break;
     }

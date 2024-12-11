@@ -56,7 +56,6 @@
 #include "dap_cert_file.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
-#include "dap_enc_key.h"
 #include "crc32c_adler.h"
 #include "dap_chain_ledger.h"
 #include "dap_strfuncs.h"
