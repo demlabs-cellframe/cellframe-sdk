@@ -144,7 +144,7 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_REWARD_ITEM_ALREADY_USED: return "Double spend attempt for reward";
     case DAP_LEDGER_TX_CHECK_REWARD_ITEM_ILLEGAL: return "Wrongful reward item in transaction";
     case DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER: return "Can't calculate main ticker found for transaction";
-    case DAP_LEDGER_TX_CHECK_UNEXPECTED_TOKENIZED_OUT: return "Tokenized out is forbidden for single-channel trandactions";
+    case DAP_LEDGER_TX_CHECK_UNEXPECTED_TOKENIZED_OUT: return "Tokenized out is forbidden for single-channel transactions";
     case DAP_LEDGER_TX_CHECK_NOT_ENOUGH_FEE: return "Not enough network fee for transaction processing";
     case DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX: return "Not enough sovereign tax provided with current transaction";
     case DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX: return "Can't find tx in ledger for removing.";

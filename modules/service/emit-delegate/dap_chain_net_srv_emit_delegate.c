@@ -335,9 +335,6 @@ static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, d
     if (compare256(l_cond_prev->header.value, l_value) == -1)
         m_tx_fail(ERROR_FUNDS, "Conditional output of requested TX have not enough funs");
 
-    if (!s_is_key_present(l_cond_prev, a_enc_key))
-        m_tx_fail(ERROR_TX_MISMATCH, "Requested conditional transaction restrict provided sign key");
-
     // add 'in_cond' item
     if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_tx_hash, l_prev_cond_idx, -1) != 1) {
         log_it(L_ERROR, "Can't compose the transaction conditional input");
