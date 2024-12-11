@@ -329,7 +329,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
     if ( a_price_ticker)
         strncpy(l_order->price_ticker, a_price_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
     l_order->units = a_units;
-    dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
+    dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, DAP_SIGN_HASH_TYPE_DEFAULT);
     if (!l_sign) {
         DAP_DELETE(l_order);
         return NULL;

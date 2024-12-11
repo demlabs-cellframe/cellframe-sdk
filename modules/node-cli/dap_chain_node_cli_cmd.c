@@ -5326,7 +5326,7 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
         DAP_DELETE(l_buffer);
         return -8;
     }
-    *a_signed = dap_sign_create(l_cert->enc_key, l_data, l_full_size_for_sign, 0);
+    *a_signed = dap_sign_create(l_cert->enc_key, l_data, l_full_size_for_sign, DAP_SIGN_HASH_TYPE_DEFAULT);
     if (*a_signed == NULL) {
         DAP_DELETE(l_buffer);
         return -9;
