@@ -517,7 +517,6 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             NTSTATUS err = pfnNtExtendSection(hSection, &SectionSize);
             if ( !NT_SUCCESS(err) ) {
                 log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
-                l_err = true;
             }
         } else
 #endif
