@@ -5271,9 +5271,11 @@ static dap_ledger_tx_item_t *tx_item_find_by_addr(dap_ledger_t *a_ledger, const 
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     if (!dap_hash_fast_is_blank(a_tx_first_hash)) {
         HASH_FIND(hh, l_ledger_pvt->ledger_items, a_tx_first_hash, sizeof(dap_hash_t), l_iter_start);
-        if (!l_iter_start || !l_iter_start->hh.next)
+        if (!l_iter_start || !l_iter_start->hh.next){
+            pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
             return NULL;
-         // start searching from the next hash after a_tx_first_hash
+        }
+        // start searching from the next hash after a_tx_first_hash
         l_iter_start = l_iter_start->hh.next;
     } else
         l_iter_start = l_ledger_pvt->ledger_items;
@@ -5691,6 +5693,7 @@ dap_list_t *dap_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_
     pthread_rwlock_rdlock(&PVT(a_ledger)->ledger_rwlock);
     size_t l_offset = a_page < 2 ? 0 : a_count * (a_page - 1);
     if (!l_ledger_pvt->ledger_items || l_offset > HASH_COUNT(l_ledger_pvt->ledger_items)){
+        pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
         return NULL;
     }
     dap_list_t *l_list = NULL;
