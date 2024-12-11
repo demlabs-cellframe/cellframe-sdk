@@ -8594,13 +8594,15 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
             l_log = true;
 
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ts_after", &l_str_ts_after);
-            struct tm l_tm = { };
-            strptime(l_str_ts_after, /* "[%x-%X" */ "%m/%d/%Y-%H:%M:%S", &l_tm);
-            l_tm.tm_year += 2000;
-            l_ts_after = mktime(&l_tm);
+            if (l_str_ts_after) {
+                struct tm l_tm = { };
+                strptime(l_str_ts_after, /* "[%x-%X" */ "%m/%d/%Y-%H:%M:%S", &l_tm);
+                l_tm.tm_year += 2000;
+                l_ts_after = mktime(&l_tm);
+            }
         }
 
-        if (l_num_line && l_ts_after>=0) {
+        if (!l_num_line && l_ts_after<=0) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Requires only one argument '-num_line' or '-ts_after'");
             return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
         } else if (l_num_line) {
