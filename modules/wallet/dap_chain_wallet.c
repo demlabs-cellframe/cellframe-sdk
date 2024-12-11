@@ -627,7 +627,7 @@ if ( a_pass )
         return  log_it(L_ERROR, "Error create key context"), -EINVAL;
 
 #ifdef DAP_OS_WINDOWS
-    l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, /*FILE_SHARE_READ | FILE_SHARE_WRITE */ 0, NULL, CREATE_ALWAYS,
+    l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, FILE_SHARE_READ /* | FILE_SHARE_WRITE */, NULL, CREATE_ALWAYS,
                           /*FILE_FLAG_RANDOM_ACCESS | FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING*/ 0, NULL);
     if (l_fh != INVALID_HANDLE_VALUE) {
         SetEndOfFile(l_fh);
@@ -770,7 +770,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 
 #ifdef DAP_OS_WINDOWS
     DWORD l_rc = 0;
-    if ((l_fh = CreateFile(a_file_name, GENERIC_READ, 0, 0,
+    if ((l_fh = CreateFile(a_file_name, GENERIC_READ, FILE_SHARE_READ, NULL,
                            OPEN_EXISTING,
                            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_RANDOM_ACCESS, 0)) == INVALID_HANDLE_VALUE) {
         l_err = GetLastError();
