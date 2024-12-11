@@ -23,13 +23,13 @@
 */
 
 #pragma once
-#include "dap_chain_net.h"
+#include "dap_config.h"
 #include "dap_chain_common.h"
 #include "dap_enc_key.h"
 #include "dap_pkey.h"
 #include "dap_sign.h"
 #include "dap_cert.h"
-
+#include "dap_chain_ledger.h"
 
 /* @RRL: #6131 */
 #define DAP_WALLET$SZ_NAME  64                                              /* Maximum length of the wallet's name */
@@ -65,7 +65,6 @@ DAP_STATIC_INLINE dap_chain_wallet_t * dap_chain_wallet_create_with_seed(const c
 dap_chain_wallet_t * dap_chain_wallet_create_with_pass(const char * a_wallet_name, const char * a_wallets_path,
         const void* a_pass, size_t a_pass_sz);
 
-
 dap_chain_wallet_t  *dap_chain_wallet_create(const char * a_wallet_name, const char * a_wallets_path, dap_sign_type_t a_sig_type, const char *a_pass); // Creates new one if not found
 dap_chain_wallet_t  *dap_chain_wallet_open_file(const char * a_file_name, const char *a_pass, unsigned int *a_out_stat);
 dap_chain_wallet_t *dap_chain_wallet_open(const char * a_wallet_name, const char * a_wallets_path, unsigned int * a_out_stat);
@@ -91,6 +90,9 @@ int dap_chain_wallet_deactivate   (const char *a_name, ssize_t a_name_len);
 const char* dap_chain_wallet_check_sign(dap_chain_wallet_t *a_wallet);
 const char *dap_chain_wallet_addr_cache_get_name(dap_chain_addr_t *a_addr);
 json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path);
+
+int dap_chain_wallet_get_pkey_hash(dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_out_hash);
+
 int dap_chain_wallet_add_wallet_opened_notify(dap_chain_wallet_opened_callback_t a_callback, void *a_arg);
 int dap_chain_wallet_add_wallet_created_notify(dap_chain_wallet_opened_callback_t a_callback, void *a_arg);
 dap_list_t* dap_chain_wallet_get_local_addr();
