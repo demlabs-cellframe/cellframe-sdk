@@ -7405,48 +7405,6 @@ int com_exit(int a_argc, char **a_argv, void **a_str_reply)
 }
 
 /**
- * @brief com_print_log Print log info
- * print_log [ts_after <timestamp >] [limit <line numbers>]
- * @param argc
- * @param argv
- * @param arg_func
- * @param str_reply
- * @return int
- */
-int com_print_log(int a_argc, char **a_argv, void **a_str_reply)
-{
-    int arg_index = 1;
-    const char * l_str_ts_after = NULL;
-    const char * l_str_limit = NULL;
-    int64_t l_ts_after = 0;
-    long l_limit = 0;
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "ts_after", &l_str_ts_after);
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "limit", &l_str_limit);
-
-    l_ts_after = (l_str_ts_after) ? strtoll(l_str_ts_after, 0, 10) : -1;
-    l_limit = (l_str_limit) ? strtol(l_str_limit, 0, 10) : -1;
-
-    if(l_ts_after < 0 || !l_str_ts_after) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "requires valid parameter 'l_ts_after'");
-        return -1;
-    }
-    if(l_limit <= 0) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "requires valid parameter 'limit'");
-        return -1;
-    }
-
-    // get logs from list
-    char *l_str_ret = dap_log_get_item(l_ts_after, (int) l_limit);
-    if(!l_str_ret) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "no logs");
-        return -1;
-    }
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret);
-    DAP_DELETE(l_str_ret);
-    return 0;
-}
-
-/**
  * @brief cmd_gdb_export
  * action for cellframe-node-cli gdb_export command
  * @param argc
@@ -8556,8 +8514,8 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
     const char * l_num_line_str = NULL, *l_path_str = NULL, * l_str_ts_after = NULL, * l_str_limit = NULL;
     bool l_log = false;
     int l_num_line = 0;
-    int64_t l_ts_after = 0;
     long l_limit = 0;
+    time_t l_ts_after = 0;
     if (l_cmd_num != CMD_CLEAR_LOG) {
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-num_line", &l_num_line_str);
         l_num_line = l_num_line_str ? atoi(l_num_line_str) : 0;
@@ -8566,7 +8524,10 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
             l_log = true;
 
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ts_after", &l_str_ts_after);
-            l_ts_after = (l_str_ts_after) ? strtoll(l_str_ts_after, 0, 10) : -1;
+            struct tm l_tm = { };
+            strptime(l_str_ts_after, /* "[%x-%X" */ "%m/%d/%Y-%H:%M:%S", &l_tm);
+            l_tm.tm_year += 2000;
+            l_ts_after = mktime(&l_tm);
         }
 
         if (l_num_line && l_ts_after>=0) {
@@ -8676,6 +8637,9 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
                     break;
             }
             break;
+        }
+        default: {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "require 'print', 'export' or 'clear_log' args" );
         }
     }
     return 0;

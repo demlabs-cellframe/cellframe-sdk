@@ -333,10 +333,6 @@ char *dap_chain_node_cli_com_tx_history_err(int a_code);
  */
 int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply);
 
-
-// Print log info
-int com_print_log(int a_argc, char **a_argv, void **a_str_reply);
-
 // Print statistics
 int com_stats(int a_argc, char **a_argv, void **a_str_reply);
 
