@@ -5418,7 +5418,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply)
             continue;
         }
         // Get owner tx
-        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_cond_tx, l_tx_out_cond);
+        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_cond_tx, l_tx_out_cond->header.subtype);
         dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
             ? l_cond_tx:
             dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
@@ -5688,7 +5688,7 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_arr_reply)
         }
 
         // Check sign
-        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_data_tx->tx, l_out_cond);
+        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_data_tx->tx, l_out_cond->header.subtype);
         dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
             ? l_tx
             : dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);

@@ -1018,10 +1018,6 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     return  l_wallet;
 }
 
-
-
-
-
 /**
  * @brief dap_chain_wallet_open
  * @param a_wallet_name
@@ -1194,4 +1190,15 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
         else if (res) json_object_object_add(l_obj_ret, "status", json_object_new_string("invalid"));
         return l_obj_ret;
     }
+}
+
+int dap_chain_wallet_get_pkey_hash(dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_out_hash)
+{
+    dap_return_val_if_fail(a_wallet && a_out_hash , -1);
+    dap_enc_key_t *l_key = dap_chain_wallet_get_key(a_wallet, 0);
+    if (!l_key)
+        return -2;
+    int ret = dap_enc_key_get_pkey_hash(l_key, a_out_hash);
+    DAP_DELETE(l_key);
+    return ret;
 }
