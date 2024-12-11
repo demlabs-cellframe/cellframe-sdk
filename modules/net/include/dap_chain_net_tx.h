@@ -54,6 +54,11 @@ typedef struct dap_chain_datum_tx_spends_item{
     UT_hash_handle hh;
 }dap_chain_datum_tx_spends_item_t;
 
+typedef struct dap_chain_datum_tx_cond_list_item {
+    dap_hash_fast_t hash;
+    dap_chain_datum_tx_t *tx;
+} dap_chain_datum_tx_cond_list_item_t;
+
 typedef struct dap_chain_datum_tx_spends_items{
     dap_chain_datum_tx_spends_item_t * tx_outs;
     dap_chain_datum_tx_spends_item_t * tx_ins;
