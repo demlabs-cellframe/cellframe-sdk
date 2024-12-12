@@ -259,12 +259,6 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
             l_declined = true;
     }
 
-    // dap_hash_fast_t l_tx_atom_hash = {};
-    // dap_chain_datum_iter_t *l_iter = a_chain->callback_datum_iter_create(a_chain);
-    // a_chain->callback_datum_find_by_hash(a_chain, a_tx_hash, &l_tx_atom_hash, NULL);
-    // a_chain->callback_datum_iter_delete(l_iter);
-    
-
     char *l_tx_hash_str, *l_atom_hash_str;
     if (!dap_strcmp(a_hash_out_type, "hex")) {
         l_tx_hash_str = dap_chain_hash_fast_to_str_new(a_tx_hash);
@@ -281,14 +275,16 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
 
 
     bool srv_found = a_uid.uint64 ? true : false; 
-    
+
     if (srv_found)
     {
         json_object_object_add(json_obj_datum, "action", json_object_new_string(dap_ledger_tx_action_str(a_action)));
+        json_object_object_add(json_obj_datum, "service", json_object_new_string(dap_ledger_tx_tag_str_by_uid(a_uid)));
     }
     else
     {
         json_object_object_add(json_obj_datum, "action", json_object_new_string("UNKNOWN"));
+        json_object_object_add(json_obj_datum, "service", json_object_new_string("UNKNOWN"));
     }
 
     json_object_object_add(json_obj_datum, "batching", json_object_new_string(!dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT) ? "false" : "true"));
