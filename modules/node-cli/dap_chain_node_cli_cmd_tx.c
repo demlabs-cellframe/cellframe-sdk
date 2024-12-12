@@ -1733,7 +1733,7 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
                 const char *l_pkey_str = s_json_get_text(l_json_item_obj, "pkey");
                 if(l_pkey_str) {
                     size_t l_pkey_str_len = strlen(l_pkey_str);
-                    l_pkey = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_pkey_t, DAP_ENC_BASE64_DECODE_SIZE(l_pkey_str_len) + 1);
+                    l_pkey = DAP_NEW_Z_SIZE(dap_pkey_t, DAP_ENC_BASE64_DECODE_SIZE(l_pkey_str_len) + 1);
                     if (!l_pkey) {
                         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         break;
