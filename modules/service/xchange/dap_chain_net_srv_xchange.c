@@ -3354,11 +3354,39 @@ static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chai
         if (l_cache){
             HASH_FIND(hh, l_cache->cache, a_tx_hash, sizeof(dap_hash_fast_t), l_cache_found);
             if (l_cache_found){
+                xchange_tx_type_t l_tx_type = l_cache_found->tx_type;
+
+                if (l_tx_type == TX_TYPE_EXCHANGE){
+                    xchange_tx_cache_t* l_cache_prev_tx = NULL;
+                    HASH_FIND(hh, l_cache->cache, &l_cache_found->tx_info.exchange_info.prev_hash, sizeof(dap_hash_fast_t), l_cache_prev_tx);
+                    if(l_cache_prev_tx){
+                        if (l_cache_prev_tx->tx_type == TX_TYPE_EXCHANGE){
+                                l_cache_prev_tx->tx_info.exchange_info.next_hash = (dap_hash_fast_t){0};
+                                //update order ammount
+                        } else if (l_cache_prev_tx->tx_type == TX_TYPE_ORDER){
+                                l_cache_prev_tx->tx_info.exchange_info.next_hash = (dap_hash_fast_t){0};
+                        }
+                    }
+
+                } else if (l_tx_type == TX_TYPE_INVALIDATE){
+                    
+                    // find prev tx and clear next_hash
+
+                    xchange_tx_cache_t* l_cache_prev_tx = NULL;
+                    HASH_FIND(hh, l_cache_net->cache, &l_cache->tx_info.invalidate_info.prev_hash, sizeof(dap_hash_fast_t), l_cache_prev_tx);
+                    if(l_cache_prev_tx){
+                        if (l_cache_prev_tx->tx_type == TX_TYPE_EXCHANGE){
+                                l_cache_prev_tx->tx_info.exchange_info.next_hash = *a_tx_hash;
+                        }
+                    }
+                }
+
                 HASH_DEL(l_cache->cache, l_cache_found);
                 DAP_DELETE(l_cache_found);
             }
 
             // Delete all connection of this tx with other in cache
+            
         }
     } 
 }
