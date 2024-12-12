@@ -148,6 +148,22 @@ DAP_STATIC_INLINE char *s_get_approved_group(dap_chain_net_t *a_net)
 {
     return a_net ? dap_strdup_printf("%s.orders.stake.approved", a_net->pub.gdb_groups_prefix) : NULL;
 }
+DAP_STATIC_INLINE uint8_t *s_get_pkey_by_hash_callback(const uint8_t *a_hash, size_t *a_pkey_size)
+{
+    dap_list_t *l_srv_stake_list = dap_chain_srv_get_internal((dap_chain_net_id_t) { .uint64 = 0 }, (dap_chain_srv_uid_t) { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID });
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+    for ( ; l_srv_stake_list && !l_stake; l_srv_stake_list = l_srv_stake_list->next) {
+        struct srv_stake *l_srv_stake = l_srv_stake_list->data;
+        HASH_FIND(hh, l_srv_stake->itemlist, a_hash, sizeof(dap_hash_fast_t), l_stake);
+    
+    }
+    if (l_stake) {
+        if (a_pkey_size)
+            *a_pkey_size = l_stake->pkey_data_size;
+        return l_stake->pkey_data;
+    }
+    return NULL;
+}
 
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
@@ -197,7 +213,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "\texample coins amount syntax (only natural) 1.0 123.4567\n"
     "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n"
     );
-
+    dap_sign_set_pkey_by_hash_callback(s_get_pkey_by_hash_callback);
     dap_chain_static_srv_callbacks_t l_callbacks = { .start = s_pos_delegate_start,
                                                      .delete = s_pos_delegate_delete,
                                                      .purge = s_pos_delegate_purge,
