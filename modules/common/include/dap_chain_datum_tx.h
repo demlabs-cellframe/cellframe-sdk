@@ -55,6 +55,7 @@ typedef struct dap_chain_datum_tx {
     for ( item_size = 0, item_index = 0, item = NULL;                                                                            \
         !!( item = dap_chain_datum_tx_item_get(tx, &item_index, (byte_t*)item + item_size, item_type, &item_size) );\
         item_index = 0 )
+
 /**
  * Create empty transaction
  *
@@ -166,7 +167,7 @@ dap_sign_t *dap_chain_datum_tx_get_sign(dap_chain_datum_tx_t *a_tx, int a_sign_n
  *
  * return 1 Ok, 0 Invalid sign, -1 Not found sing or other Error
  */
-int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx);
+int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num);
 
 
 int dap_chain_datum_tx_get_fee_value (dap_chain_datum_tx_t *a_tx, uint256_t *a_value);
