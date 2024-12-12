@@ -280,7 +280,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_check_error_str(a_ret_code)));
 
 
-    bool srv_found = a_uid.uint64 ? true : false;
+    bool srv_found = a_uid.uint64 ? true : false; 
     
     if (srv_found)
     {
@@ -423,7 +423,6 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         uint32_t l_action = l_from_cache ? l_wallet_cache_iter->action : l_datum_iter->action;
         dap_chain_net_srv_uid_t l_uid = l_from_cache ? l_wallet_cache_iter->uid : l_datum_iter->uid;
         dap_hash_fast_t l_atom_hash = l_from_cache ? *l_wallet_cache_iter->cur_atom_hash : *l_datum_iter->cur_atom_hash;
-        //const char *l_src_token = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
 
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
         for (dap_list_t *it = l_list_in_items; it; it = it->next) {

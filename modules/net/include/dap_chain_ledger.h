@@ -37,7 +37,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_net.h"
 
-#define DAP_CHAIN_NET_SRV_TRANSFER_ID 0x07
+#define DAP_CHAIN_NET_SRV_TRANSFER_ID 0x09
 #define DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID 0x08
 
 typedef struct dap_ledger {
