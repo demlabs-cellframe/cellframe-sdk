@@ -275,6 +275,9 @@ DAP_STATIC_INLINE uint256_t dap_chain_balance_scan(const char *a_balance)
     return l_ret;
 }
 
+#define dap_chain_balance_print dap_uint256_uninteger_to_char
+#define dap_chain_balance_to_coins dap_uint256_decimal_to_char
+
 DAP_STATIC_INLINE uint64_t dap_chain_balance_to_coins_uint64(uint256_t val)
 {
     DIV_256_COIN(val, dap_chain_balance_coins_scan("1000000000000000000.0"), &val);

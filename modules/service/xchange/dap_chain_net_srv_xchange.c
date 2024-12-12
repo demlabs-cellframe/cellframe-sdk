@@ -1922,8 +1922,7 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
     return true;
 }
 
-
-**
+/**
  * @brief Append tx info to the reply string
  * @param a_json_out
  * @param a_net
