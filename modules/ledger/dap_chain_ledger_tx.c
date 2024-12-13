@@ -1421,7 +1421,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
             pthread_rwlock_unlock(&s_verificators_rwlock);
             if (l_verificator && l_verificator->callback_out_add)
-                l_verificator->callback_out_add(a_ledger, a_tx, a_tx_hash, l_cond, );
+                l_verificator->callback_out_add(a_ledger, a_tx, a_tx_hash, l_cond);
             SUM_256_256(l_native_value, l_cond->header.value, &l_native_value);
             continue;   // balance raise will be with next conditional transaction
         }
