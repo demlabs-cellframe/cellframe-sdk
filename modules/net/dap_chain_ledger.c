@@ -4628,7 +4628,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     dap_list_t *l_notifier;
     DL_FOREACH(PVT(a_ledger)->tx_add_notifiers, l_notifier) {
         dap_ledger_tx_notifier_t *l_notify = (dap_ledger_tx_notifier_t*)l_notifier->data;
-        l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx, DAP_LEDGER_NOTIFY_OPCODE_ADDED);
+        l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx,  a_tx_hash, DAP_LEDGER_NOTIFY_OPCODE_ADDED);
     }
     if (l_cross_network) {
         dap_list_t *l_notifier;
@@ -4943,7 +4943,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     if (l_tx_item) {
         DL_FOREACH(PVT(a_ledger)->tx_add_notifiers, l_notifier) {
             dap_ledger_tx_notifier_t *l_notify = (dap_ledger_tx_notifier_t*)l_notifier->data;
-            l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx, DAP_LEDGER_NOTIFY_OPCODE_DELETED);
+            l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx, a_tx_hash, DAP_LEDGER_NOTIFY_OPCODE_DELETED);
         }
     }
     if (l_cross_network) {
