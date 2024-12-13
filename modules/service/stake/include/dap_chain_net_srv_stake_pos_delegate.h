@@ -42,8 +42,7 @@ typedef struct dap_chain_net_srv_stake_item { // TODO move it to private section
     dap_chain_node_addr_t node_addr;
     dap_chain_addr_t sovereign_addr;
     uint256_t sovereign_tax;
-    byte_t *pkey_data;
-    uint64_t pkey_data_size;
+    dap_pkey_t *pkey;
     UT_hash_handle hh, ht;
 } dap_chain_net_srv_stake_item_t;
 
@@ -51,7 +50,7 @@ int dap_chain_net_srv_stake_pos_delegate_init();
 void dap_chain_net_srv_stake_pos_delegate_deinit();
 
 void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_hash_fast_t *a_stake_tx_hash,
-                                          uint256_t a_value, dap_chain_node_addr_t *a_node_addr, byte_t *a_pkey_data, size_t a_pkey_size);
+                                          uint256_t a_value, dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey);
 void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr);
 void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint256_t a_new_value, dap_hash_fast_t *a_new_tx_hash);
 void dap_chain_net_srv_stake_set_allowed_min_value(dap_chain_net_id_t a_net_id, uint256_t a_value);

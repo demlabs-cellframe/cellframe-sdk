@@ -411,13 +411,12 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             if (!a_apply)
                 break;
 
-            dap_hash_fast_t l_tx_hash = {};
-            dap_chain_datum_decree_get_hash(a_decree, &l_tx_hash);
-            dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(dap_ledger_by_net_name(a_net->pub.name), &l_tx_hash);
+            dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(dap_ledger_by_net_name(a_net->pub.name), &l_hash);
             dap_chain_tx_out_cond_t *l_cond_tx = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL);
-            dap_pkey_t *l_pkey = (dap_tsd_find(l_cond_tx->tsd, l_cond_tx->tsd_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD))->data;
+            dap_tsd_t *l_cond_tx_tsd = l_cond_tx ? dap_tsd_find(l_cond_tx->tsd, l_cond_tx->tsd_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD) : NULL;
+            dap_pkey_t *l_pkey = l_cond_tx_tsd ? l_cond_tx_tsd->data : NULL;
             
-            dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, &l_hash, l_value, &l_node_addr, l_pkey->pkey, l_pkey->header.size);
+            dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, &l_hash, l_value, &l_node_addr, l_pkey);
             dap_chain_net_srv_stake_add_approving_decree_info(a_decree, a_net);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE: {
