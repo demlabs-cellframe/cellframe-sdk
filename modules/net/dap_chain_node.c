@@ -43,6 +43,7 @@
 #include "dap_chain_net.h"
 #include "dap_global_db.h"
 #include "dap_chain_node.h"
+#include "dap_chain_node_client.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_balancer.h"
@@ -219,8 +220,16 @@ void dap_chain_node_list_cluster_del_callback(dap_store_obj_t *a_obj, void *a_ar
         dap_strfreev(l_group_strings);
         return;
     }
-    if (dap_chain_net_balancer_handshake(l_node_info, l_net)) {
-        dap_global_db_set_sync(a_obj->group, a_obj->key, a_obj->value, a_obj->value_len, false);
+    int l_ret = -1;
+    for (size_t i = 0; i < 3 || l_ret == 0; i++) {
+        dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net, l_node_info);
+        if (l_client)
+            l_ret = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 30000);
+        dap_chain_node_client_close_unsafe(l_client);
+    }
+    if (l_ret == 0) {
+        a_obj->timestamp = dap_time_now();
+        dap_global_db_set_raw_sync(a_obj, 1);
     } else {
         dap_global_db_driver_delete(a_obj, 1);
         log_it(L_DEBUG, "Can't do handshake with %s [ %s : %u ] delete from node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
