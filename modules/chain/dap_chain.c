@@ -916,7 +916,8 @@ void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
             .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
             .hash = *a_hash,
-            .datum = a_chain_cell->chain->is_mapped ? (byte_t*)a_datum : DAP_DUP_SIZE((uint8_t*)a_datum, a_datum_size),
+            .datum = a_chain_cell->chain->is_mapped ? (byte_t*)a_datum
+                                                    : DAP_DUP_SIZE((byte_t *)a_datum, a_datum_size),
             .datum_size = a_datum_size,
             .ret_code = a_ret_code,
             .action = a_action,
@@ -958,11 +959,9 @@ void dap_chain_atom_add_from_threshold(dap_chain_t *a_chain) {
     } while(l_atom_treshold);
 }
 
-const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type) {
-    switch (a_default_chain_type)
-    {
-        case CHAIN_TYPE_INVALID:
-            return "invalid";
+const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type)
+{
+    switch (a_default_chain_type) {
         case CHAIN_TYPE_TOKEN:
             return "token";
         case CHAIN_TYPE_EMISSION:
@@ -977,6 +976,8 @@ const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type) {
             return "decree";
         case CHAIN_TYPE_ANCHOR:
             return "anchor";
-        default: break;
+        default:
+            break;
     }
+    return "invalid";
 }

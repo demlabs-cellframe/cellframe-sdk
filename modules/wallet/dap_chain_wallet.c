@@ -56,7 +56,6 @@
 #include "dap_cert_file.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
-#include "dap_enc_key.h"
 #include "crc32c_adler.h"
 #include "dap_chain_ledger.h"
 #include "dap_strfuncs.h"
@@ -628,7 +627,7 @@ if ( a_pass )
         return  log_it(L_ERROR, "Error create key context"), -EINVAL;
 
 #ifdef DAP_OS_WINDOWS
-    l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, /*FILE_SHARE_READ | FILE_SHARE_WRITE */ 0, NULL, CREATE_ALWAYS,
+    l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, FILE_SHARE_READ /* | FILE_SHARE_WRITE */, NULL, CREATE_ALWAYS,
                           /*FILE_FLAG_RANDOM_ACCESS | FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING*/ 0, NULL);
     if (l_fh != INVALID_HANDLE_VALUE) {
         SetEndOfFile(l_fh);
@@ -771,7 +770,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 
 #ifdef DAP_OS_WINDOWS
     DWORD l_rc = 0;
-    if ((l_fh = CreateFile(a_file_name, GENERIC_READ, 0, 0,
+    if ((l_fh = CreateFile(a_file_name, GENERIC_READ, FILE_SHARE_READ, NULL,
                            OPEN_EXISTING,
                            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_RANDOM_ACCESS, 0)) == INVALID_HANDLE_VALUE) {
         l_err = GetLastError();
@@ -1018,10 +1017,6 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     return  l_wallet;
 }
 
-
-
-
-
 /**
  * @brief dap_chain_wallet_open
  * @param a_wallet_name
@@ -1194,4 +1189,15 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
         else if (res) json_object_object_add(l_obj_ret, "status", json_object_new_string("invalid"));
         return l_obj_ret;
     }
+}
+
+int dap_chain_wallet_get_pkey_hash(dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_out_hash)
+{
+    dap_return_val_if_fail(a_wallet && a_out_hash , -1);
+    dap_enc_key_t *l_key = dap_chain_wallet_get_key(a_wallet, 0);
+    if (!l_key)
+        return -2;
+    int ret = dap_enc_key_get_pkey_hash(l_key, a_out_hash);
+    DAP_DELETE(l_key);
+    return ret;
 }
