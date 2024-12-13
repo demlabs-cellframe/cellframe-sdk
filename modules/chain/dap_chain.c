@@ -763,6 +763,7 @@ struct chain_thread_datum_notifier {
     dap_chain_t *chain;
     dap_chain_cell_id_t cell_id;
     dap_hash_fast_t hash;
+    dap_hash_fast_t atom_hash;
     void *datum;
     uint32_t action;
     dap_chain_net_srv_uid_t uid;
@@ -794,7 +795,7 @@ static bool s_notify_datum_on_thread(void *a_arg)
 {
     struct chain_thread_datum_notifier *l_arg = a_arg;
     assert(l_arg->datum && l_arg->callback);
-    l_arg->callback(l_arg->callback_arg, &l_arg->hash, l_arg->datum, l_arg->datum_size, l_arg->ret_code, l_arg->action, l_arg->uid);
+    l_arg->callback(l_arg->callback_arg, &l_arg->hash, &l_arg->atom_hash, l_arg->datum, l_arg->datum_size, l_arg->ret_code, l_arg->action, l_arg->uid);
     if ( !l_arg->chain->is_mapped )
         DAP_DELETE(l_arg->datum);
     DAP_DELETE(l_arg);
@@ -897,7 +898,7 @@ void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_ha
     }
 }
 
-void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid) {
+void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, dap_hash_fast_t *a_atom_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid) {
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
@@ -916,7 +917,9 @@ void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
             .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
             .hash = *a_hash,
-            .datum = a_chain_cell->chain->is_mapped ? (byte_t*)a_datum : DAP_DUP_SIZE((uint8_t*)a_datum, a_datum_size),
+            .atom_hash = *a_atom_hash,
+            .datum = a_chain_cell->chain->is_mapped ? (byte_t*)a_datum
+                                                    : DAP_DUP_SIZE((byte_t *)a_datum, a_datum_size),
             .datum_size = a_datum_size,
             .ret_code = a_ret_code,
             .action = a_action,
@@ -958,11 +961,9 @@ void dap_chain_atom_add_from_threshold(dap_chain_t *a_chain) {
     } while(l_atom_treshold);
 }
 
-const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type) {
-    switch (a_default_chain_type)
-    {
-        case CHAIN_TYPE_INVALID:
-            return "invalid";
+const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type)
+{
+    switch (a_default_chain_type) {
         case CHAIN_TYPE_TOKEN:
             return "token";
         case CHAIN_TYPE_EMISSION:
@@ -977,6 +978,7 @@ const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type) {
             return "decree";
         case CHAIN_TYPE_ANCHOR:
             return "anchor";
-        default: break;
+        default:
+            return "unknown";
     }
 }
