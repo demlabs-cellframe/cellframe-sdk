@@ -226,6 +226,8 @@ void dap_chain_node_list_cluster_del_callback(dap_store_obj_t *a_obj, void *a_ar
         if (l_client)
             l_ret = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 30000);
         dap_chain_node_client_close_unsafe(l_client);
+        if (!l_ret)
+            break;
     }
     if (l_ret == 0) {
         a_obj->timestamp = dap_time_now();
