@@ -84,13 +84,14 @@ typedef struct dap_chain_cs_dag_pvt {
     dap_chain_cs_dag_event_item_t * events_treshold_conflicted;
     dap_chain_cs_dag_event_item_t * events_lasts_unlinked;
     dap_chain_cs_dag_blocked_t *removed_events_from_treshold;
-    dap_interval_timer_t treshold_fee_timer;
+    dap_interval_timer_t treshold_free_timer;
     uint64_t tx_count;
 } dap_chain_cs_dag_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
 
 static int s_chain_cs_dag_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
+static void s_chain_cs_dag_start(dap_chain_t *a_chain);
 static void s_chain_cs_dag_delete(dap_chain_t *a_chain);
 static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain);
 static void s_threshold_free(dap_chain_cs_dag_t *a_dag);
@@ -147,7 +148,7 @@ static bool s_seed_mode = false, s_debug_more = false, s_threshold_enabled = fal
 int dap_chain_cs_dag_init()
 {
     srand((unsigned int) time(NULL));
-    dap_chain_cs_type_add( "dag", s_chain_cs_dag_new );
+    dap_chain_cs_type_add( "dag", s_chain_cs_dag_new, s_chain_cs_dag_start);
     s_seed_mode         = dap_config_get_item_bool_default(g_config, "general", "seed_mode",        false);
     s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
     s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
@@ -190,7 +191,7 @@ void dap_chain_cs_dag_deinit(void)
  */
 static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
-    dap_chain_cs_dag_t * l_dag = DAP_NEW_Z(dap_chain_cs_dag_t);
+    dap_chain_cs_dag_t *l_dag = DAP_NEW_Z(dap_chain_cs_dag_t);
     if (!l_dag){
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
@@ -288,11 +289,20 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->gdb_group_events_round_new = dap_strdup_printf(l_dag->is_celled ? "dag-%s-%s-%016llx-round.new" : "dag-%s-%s-round.new",
                                         "Snet", a_chain->name, 0LLU);
 #endif
-    PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_threshold_free, l_dag);
-
     log_it (L_NOTICE, "DAG chain initialized (%s)", l_dag->is_single_line ? "single line" : "multichain");
-
     return 0;
+}
+
+/**
+ * @brief s_chain_cs_dag_start
+ * @param a_chain
+ */
+static void s_chain_cs_dag_start(dap_chain_t *a_chain)
+{
+    dap_return_if_pass(!a_chain || !a_chain->_inheritor);
+    dap_chain_cs_dag_t *l_dag = a_chain->_inheritor;
+    dap_return_if_pass(!PVT(l_dag));
+    PVT(l_dag)->treshold_free_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_threshold_free, l_dag);
 }
 
 static void s_threshold_free(dap_chain_cs_dag_t *a_dag)
@@ -378,8 +388,11 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
  */
 static void s_chain_cs_dag_delete(dap_chain_t * a_chain)
 {
+    dap_return_if_pass(!a_chain || !a_chain->_inheritor);
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG ( a_chain );
+    dap_return_if_pass(!PVT(l_dag));
+    dap_interval_timer_delete(PVT(l_dag)->treshold_free_timer);
     s_dap_chain_cs_dag_purge(a_chain);
-    dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     pthread_mutex_destroy(& PVT(l_dag)->events_mutex);
     if(l_dag->callback_delete )
         l_dag->callback_delete(l_dag);
@@ -1349,7 +1362,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
         return -DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
     }
 
-    if(dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &arg_index, argc, argv, &l_chain, &l_net,CHAIN_TYPE_TX) < 0)
+    if(dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &arg_index, argc, argv, &l_chain, &l_net,CHAIN_TYPE_TOKEN) < 0)
         return -DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
 
     if ((l_net == NULL) || (l_chain == NULL)){

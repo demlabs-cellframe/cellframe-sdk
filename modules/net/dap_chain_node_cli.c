@@ -65,14 +65,20 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
         return log_it(L_ERROR, "Can't init CLI server!"), -1;
 
     dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database",
-            "global_db cells add -cell <cell_id> \n"
-            "global_db flush \n\n"
+            "global_db flush\n"
+                "\tFlushes the current state of the database to disk.\n\n"
             "global_db write -group <group_name> -key <key_name> -value <value>\n"
+                "\tWrites a key value to a specified group in the database.\n\n"
             "global_db read -group <group_name> -key <key_name>\n"
+                "\tReads a value by key from a specified group.\n\n"
             "global_db delete -group <group_name> -key <key_name>\n"
+                "\tRemoves a value by key from a specified group.\n\n"
             "global_db group_list\n"
+                "\tGets a list of groups in the database.\n\n"
             "global_db drop_table -group <group_name>\n"
-            "global_db get_keys -group <group_name>"
+                "\tPerforms deletion of the entire group in the database.\n\n"
+            "global_db get_keys -group <group_name>\n"
+                "\tGets all record keys from a specified group.\n"
 
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
@@ -91,8 +97,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node balancer -net <net_name>\n"
                     "node dump [-net <net_name> | -addr <node_address>]\n\n"
                     "node list -net <net_name> [-addr <node_address> | -alias <node_alias>] [-full]\n\n"
-                    "node ban -net <net_name> -chain <chain_name> -certs <certs_name> [-addr <node_address> | -ip <ip_v4_or_v6_address>]\n"
-                    "node unban -net <net_name> -chain <chain_name> -certs <certs_name> [-addr <node_address> | -ip <ip_v4_or_v6_address>]\n"
+                    "node ban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
+                    "node unban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
                     "node banlist\n\n");
     
     dap_cli_server_cmd_add ("version", com_version, "Return software version",
@@ -153,7 +159,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
                             "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
                             "wallet deactivate -w <wallet_name>>\n"
-                            "wallet convert -w <wallet_name> -password <password>\n");
+                            "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [-value <uint256_value>]"
+                            "wallet convert -w <wallet_name> {-password <password> | -remove_password }\n");
 
 
     // Token commands

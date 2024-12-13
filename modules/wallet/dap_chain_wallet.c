@@ -56,7 +56,6 @@
 #include "dap_cert_file.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
-#include "dap_enc_key.h"
 #include "crc32c_adler.h"
 #include "dap_chain_ledger.h"
 #include "dap_strfuncs.h"
@@ -72,6 +71,11 @@
 
 #define LOG_TAG "dap_chain_wallet"
 
+typedef struct dap_chain_wallet_notificator {
+    dap_chain_wallet_opened_callback_t callback;
+    void *arg;
+} dap_chain_wallet_notificator_t;
+
 #ifndef DAP_OS_WINDOWS                                    /* An argument for open()/create() */
 static const mode_t s_fileprot =  ( S_IREAD | S_IWRITE) | (S_IREAD >> 3) | (S_IREAD >> 6) ;
 #endif
@@ -79,6 +83,8 @@ static char const s_wallet_ext [] = ".dwallet", *s_wallets_path = NULL;
 
 static  pthread_rwlock_t s_wallet_n_pass_lock = PTHREAD_RWLOCK_INITIALIZER; /* Coordinate access to the hash-table */
 static  dap_chain_wallet_n_pass_t   *s_wallet_n_pass;                       /* A hash table to keep passwords for wallets */
+static  dap_list_t *s_wallet_open_notificators = NULL;
+static  dap_list_t *s_wallet_created_notificators = NULL;
 
 struct wallet_addr_cache {
     char name[DAP_WALLET$SZ_NAME + 1];
@@ -437,6 +443,18 @@ dap_chain_wallet_internal_t *l_wallet_internal = NULL;
     }
 
     l_wallet->_internal = l_wallet_internal;
+    if ( !dap_chain_wallet_save(l_wallet, a_pass) ) {
+        log_it(L_INFO, "Wallet %s has been created (%s)", a_wallet_name, l_wallet_internal->file_name);
+
+        for (dap_list_t *l_tmp = s_wallet_created_notificators; l_tmp; l_tmp=l_tmp->next){
+            dap_chain_wallet_notificator_t *l_notificator = (dap_chain_wallet_notificator_t*)l_tmp->data;
+            if (l_notificator->callback)
+                l_notificator->callback(l_wallet, l_notificator->arg); 
+        }
+
+        return l_wallet;
+    }
+
     return dap_chain_wallet_save(l_wallet, a_pass)
         ? ( log_it(L_ERROR,"Can't save the new wallet (%s) to disk, errno=%d", l_wallet_internal->file_name, errno),
             dap_chain_wallet_close(l_wallet),
@@ -609,7 +627,7 @@ if ( a_pass )
         return  log_it(L_ERROR, "Error create key context"), -EINVAL;
 
 #ifdef DAP_OS_WINDOWS
-    l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, /*FILE_SHARE_READ | FILE_SHARE_WRITE */ 0, NULL, CREATE_ALWAYS,
+    l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, FILE_SHARE_READ /* | FILE_SHARE_WRITE */, NULL, CREATE_ALWAYS,
                           /*FILE_FLAG_RANDOM_ACCESS | FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING*/ 0, NULL);
     if (l_fh != INVALID_HANDLE_VALUE) {
         SetEndOfFile(l_fh);
@@ -752,7 +770,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 
 #ifdef DAP_OS_WINDOWS
     DWORD l_rc = 0;
-    if ((l_fh = CreateFile(a_file_name, GENERIC_READ, 0, 0,
+    if ((l_fh = CreateFile(a_file_name, GENERIC_READ, FILE_SHARE_READ, NULL,
                            OPEN_EXISTING,
                            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_RANDOM_ACCESS, 0)) == INVALID_HANDLE_VALUE) {
         l_err = GetLastError();
@@ -988,14 +1006,16 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
                 s_wallet_addr_cache_add(l_addr, l_wallet->name);
             DAP_DELETE(l_addr);
         }
+
+        for (dap_list_t *l_tmp = s_wallet_open_notificators; l_tmp; l_tmp=l_tmp->next){
+            dap_chain_wallet_notificator_t *l_notificator = (dap_chain_wallet_notificator_t*)l_tmp->data;
+            if (l_notificator->callback)
+                l_notificator->callback(l_wallet, l_notificator->arg); 
+        }
     }
 
     return  l_wallet;
 }
-
-
-
-
 
 /**
  * @brief dap_chain_wallet_open
@@ -1070,6 +1090,33 @@ const char* dap_chain_wallet_check_sign(dap_chain_wallet_t *a_wallet) {
     return "";
 }
 
+int dap_chain_wallet_add_wallet_opened_notify(dap_chain_wallet_opened_callback_t a_callback, void *a_arg)
+{
+    if (!a_callback)
+        return -100;
+
+    dap_chain_wallet_notificator_t *l_notificator = DAP_NEW_Z(dap_chain_wallet_notificator_t);
+    l_notificator->callback = a_callback;
+    l_notificator->arg = a_arg;
+
+    s_wallet_open_notificators = dap_list_append(s_wallet_open_notificators, l_notificator);
+
+    return 0;
+}
+
+int dap_chain_wallet_add_wallet_created_notify(dap_chain_wallet_opened_callback_t a_callback, void *a_arg)
+{
+    if (!a_callback)
+        return -100;
+
+    dap_chain_wallet_notificator_t *l_notificator = DAP_NEW_Z(dap_chain_wallet_notificator_t);
+    l_notificator->callback = a_callback;
+    l_notificator->arg = a_arg;
+
+    s_wallet_created_notificators = dap_list_append(s_wallet_created_notificators, l_notificator);
+
+    return 0;
+}
 json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path) {
     unsigned int res = 0;
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_name, a_path, &res);
@@ -1142,4 +1189,15 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
         else if (res) json_object_object_add(l_obj_ret, "status", json_object_new_string("invalid"));
         return l_obj_ret;
     }
+}
+
+int dap_chain_wallet_get_pkey_hash(dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_out_hash)
+{
+    dap_return_val_if_fail(a_wallet && a_out_hash , -1);
+    dap_enc_key_t *l_key = dap_chain_wallet_get_key(a_wallet, 0);
+    if (!l_key)
+        return -2;
+    int ret = dap_enc_key_get_pkey_hash(l_key, a_out_hash);
+    DAP_DELETE(l_key);
+    return ret;
 }

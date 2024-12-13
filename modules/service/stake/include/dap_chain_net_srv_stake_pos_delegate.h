@@ -65,6 +65,7 @@ typedef struct dap_chain_net_srv_stake {
     dap_chain_net_srv_stake_cache_item_t *cache;
 } dap_chain_net_srv_stake_t;
 
+
 int dap_chain_net_srv_stake_pos_delegate_init();
 void dap_chain_net_srv_stake_pos_delegate_deinit();
 

@@ -510,6 +510,16 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     if ( l_pos < l_full_size ) {
         log_it(L_ERROR, "Chain \"%s\" has incomplete tail, truncating %zu bytes",
                         a_cell->file_storage_path, l_full_size - l_pos );
+#ifdef DAP_OS_WINDOWS
+        if (a_cell->chain->is_mapped) {
+            LARGE_INTEGER SectionSize = (LARGE_INTEGER) { .QuadPart = l_pos };
+            HANDLE hSection = (HANDLE)a_cell->map_range_bounds->data;
+            NTSTATUS err = pfnNtExtendSection(hSection, &SectionSize);
+            if ( !NT_SUCCESS(err) ) {
+                log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
+            }
+        } else
+#endif
         ftruncate(fileno(a_cell->file_storage), l_pos);
     }
     fseeko(a_cell->file_storage, l_pos, SEEK_SET);
