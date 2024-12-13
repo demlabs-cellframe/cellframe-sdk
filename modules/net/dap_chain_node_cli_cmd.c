@@ -4388,6 +4388,53 @@ static int s_token_decl_check_params(int a_argc, char **a_argv, void **a_str_rep
     return 0;
 }
 
+
+static int s_token_decl_check_params_json(int a_argc, char **a_argv, json_object* a_json_arr_reply, dap_sdk_cli_params *a_params, bool a_update_token)
+{
+    int l_parse_params = s_parse_common_token_decl_arg(a_argc,a_argv,a_str_reply,a_params, a_update_token);
+    if (l_parse_params)
+        return l_parse_params;
+
+    l_parse_params = s_parse_additional_token_decl_arg(a_argc,a_argv,a_str_reply,a_params, a_update_token);
+    if (l_parse_params)
+        return l_parse_params;
+
+    //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL uses decimals parameter
+    if (!a_update_token) {
+        //// check l_decimals in CF20 token TODO: At the moment the checks are the same.
+        if(!a_params->decimals_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl requires parameter '-decimals'");
+            return -3;
+        } else if (dap_strcmp(a_params->decimals_str, "18")) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                                "token_decl support '-decimals' to be 18 only");
+            return -4;
+        }
+    }
+
+    if (!a_params->signs_emission && !a_update_token) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl requires parameter '-signs_emission'");
+        return -5;
+    }
+
+    if (!a_params->signs_total && !a_update_token){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl requires parameter '-signs_total'");
+        return -7;
+    }
+
+    if(!a_params->ticker){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-token'", a_update_token ? "token_update" : "token_decl");
+        return -2;
+    }
+
+    // Check certs list
+    if(!a_params->certs_str){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter 'certs'", a_update_token ? "token_update" : "token_decl");
+        return -9;
+    }
+    return 0;
+}
+
 /**
  * @brief com_token_decl
  * @param argc
