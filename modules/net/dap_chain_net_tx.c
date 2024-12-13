@@ -436,13 +436,15 @@ static void s_tx_cond_all_by_srv_uid_callback(UNUSED_ARG dap_chain_net_t* a_net,
         || ( l_ret->time_to && a_tx->header.ts_created > l_ret->time_to ))
         return;
 
-    byte_t *item; size_t l_size;
-    dap_chain_datum_tx_cond_list_item_t *l_item = (dap_chain_datum_tx_cond_list_item_t*) DAP_NEW_Z(dap_chain_datum_tx_cond_list_item_t);
-    TX_ITEM_ITER_TX(item, l_size, a_tx) {
-        if ( *item == TX_ITEM_TYPE_OUT_COND && l_ret->srv_uid.uint64 == ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64 ){
+    byte_t *item = NULL; size_t l_size;
+    int i;
+    TX_ITEM_ITER_TX_TYPE(item, TX_ITEM_TYPE_OUT_COND, l_size, i, a_tx) {
+        if (l_ret->srv_uid.uint64 == ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64){
+            dap_chain_datum_tx_cond_list_item_t *l_item = DAP_NEW_Z(dap_chain_datum_tx_cond_list_item_t);
             l_item->hash = *a_tx_hash;
             l_item->tx = a_tx;
             l_ret->ret = dap_list_append(l_ret->ret, l_item);
+            break;
         }
     }
 }

@@ -1534,7 +1534,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                 dap_hash_fast_t l_order_tx_hash = {};
                 dap_chain_hash_fast_from_str(l_order_hash_str, &l_order_tx_hash);
                 if(s_xchange_cache_state == XCHANGE_CACHE_DISABLED){
-                    dap_chain_datum_tx_t * l_tx = dap_chain_net_get_tx_by_hash(l_net, &l_order_tx_hash, TX_SEARCH_TYPE_NET);
+                    dap_chain_datum_tx_t* l_tx = dap_chain_net_get_tx_by_hash(l_net, &l_order_tx_hash, TX_SEARCH_TYPE_NET);
                     if( l_tx){
                         xchange_tx_type_t l_tx_type = dap_chain_net_srv_xchange_tx_get_type(l_net->pub.ledger, l_tx, NULL, NULL, NULL);
                         char *l_tx_hash = dap_chain_hash_fast_to_str_new(&l_order_tx_hash);
@@ -1560,6 +1560,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                                 *a_str_reply = dap_string_free(l_str_reply, false);
                             }
                         }
+                        DAP_DELETE(l_tx_hash);
                     }else{
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "No history");
                     }
