@@ -8592,14 +8592,14 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
 
         if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-log", NULL) ){
             l_log = true;
+        }
 
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ts_after", &l_str_ts_after);
-            if (l_str_ts_after) {
-                struct tm l_tm = { };
-                strptime(l_str_ts_after, /* "[%x-%X" */ "%m/%d/%Y-%H:%M:%S", &l_tm);
-                l_tm.tm_year += 2000;
-                l_ts_after = mktime(&l_tm);
-            }
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ts_after", &l_str_ts_after);
+        if (l_str_ts_after) {
+            struct tm l_tm = { };
+            strptime(l_str_ts_after, /* "[%x-%X" */ "%m/%d/%Y-%H:%M:%S", &l_tm);
+            l_tm.tm_year += 2000;
+            l_ts_after = mktime(&l_tm);
         }
 
         if (!l_num_line && l_ts_after<=0) {
@@ -8650,7 +8650,7 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
         if (l_num_line) {
             l_res = dap_log_get_last_n_lines(l_file_full_path, l_num_line);
         } else {
-            l_res = dap_log_get_item(l_ts_after, l_limit);
+            l_res = dap_log_get_item(l_file_full_path, l_ts_after, l_limit);
         }
     }
     switch(l_cmd_num) {
@@ -8671,7 +8671,7 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Command file require -log or -path arguments");
                 return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
             }
-            int res = dap_log_export_string_to_file(l_res, l_dest_str, l_num_line);
+            int res = dap_log_export_string_to_file(l_res, l_dest_str);
             switch (res) {
                 case 0: {
                     json_object_array_add(*a_json_arr_reply, json_object_new_string("Export success"));
