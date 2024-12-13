@@ -63,11 +63,9 @@
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
-#include "dap_chain_net_srv.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
-
-#include "dap_chain_mempool_rpc.h"
+#include "dap_chain_wallet_cache.h"
 
 #define LOG_TAG "dap_chain_mempool"
 
@@ -140,20 +138,27 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
  *
  * return 0 Ok, -2 not enough funds to transfer, -1 other Error
  */
-char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
-        const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
+char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
+        const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t** a_addr_to,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint256_t a_value, uint256_t a_value_fee, const char *a_hash_out_type)
+        uint256_t *a_value, uint256_t a_value_fee, const char *a_hash_out_type, size_t a_tx_num)
 {
     // check valid param
     dap_return_val_if_pass(!a_chain | !a_key_from || !a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
-            dap_chain_addr_check_sum(a_addr_from) || (a_addr_to && dap_chain_addr_check_sum(a_addr_to)) || IS_ZERO_256(a_value), NULL);
+            dap_chain_addr_check_sum(a_addr_from) || !a_tx_num || !a_value, NULL);
+    for (size_t i = 0; i < a_tx_num; ++i) {
+        dap_return_val_if_pass((a_addr_to && dap_chain_addr_check_sum(a_addr_to[i])) || IS_ZERO_256(a_value[i]), NULL);
+    }
 
     const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
     bool l_single_channel = !dap_strcmp(a_token_ticker, l_native_ticker);
     // find the transactions from which to take away coins
     uint256_t l_value_transfer = {}; // how many coins to transfer
-    uint256_t l_value_need = a_value, l_net_fee = {}, l_total_fee = {}, l_fee_transfer = {};
+    uint256_t l_value_total = {}, l_net_fee = {}, l_total_fee = {}, l_fee_transfer = {};
+    for (size_t i = 0; i < a_tx_num; ++i) {
+        SUM_256_256(l_value_total, a_value[i], &l_value_total);
+    }
+    uint256_t l_value_need = l_value_total;
     dap_chain_addr_t l_addr_fee = {};
     dap_list_t *l_list_fee_out = NULL;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_fee);
@@ -162,15 +167,18 @@ char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_fr
     if (l_single_channel)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
     else if (!IS_ZERO_256(l_total_fee)) {
-        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, a_addr_from, &l_list_fee_out, l_total_fee, &l_fee_transfer) == -101)
+            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                     a_addr_from, l_total_fee, &l_fee_transfer);
         if (!l_list_fee_out) {
             log_it(L_WARNING, "Not enough funds to pay fee");
             return NULL;
         }
     }
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
-                                                                             a_addr_from, l_value_need, &l_value_transfer);
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
+                                            a_addr_from, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_WARNING, "Not enough funds to transfer");
         return NULL;
@@ -189,14 +197,21 @@ char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_fr
         }
 
     }
-
+    if (a_tx_num > 1) {
+        uint32_t l_tx_num = a_tx_num;
+        dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_tx_num, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t));
+        dap_chain_datum_tx_add_item(&l_tx, l_out_count);
+    }
+    
     if (l_single_channel) { // add 'out' items
         uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
-        if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, a_value) == 1) {
-            SUM_256_256(l_value_pack, a_value, &l_value_pack);
-        } else {
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+        for (size_t i = 0; i < a_tx_num; ++i) {
+            if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to[i], a_value[i]) == 1) {
+                SUM_256_256(l_value_pack, a_value[i], &l_value_pack);
+            } else {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
         }
         // Network fee
         if (l_net_fee_used) {
@@ -226,13 +241,15 @@ char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_fr
             }
         }
     } else { // add 'out_ext' items
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to, a_value, a_token_ticker) != 1) {
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+        for (size_t i = 0; i < a_tx_num; ++i) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to[i], a_value[i], a_token_ticker) != 1) {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
         }
         // coin back
         uint256_t l_value_back;
-        SUBTRACT_256_256(l_value_transfer, a_value, &l_value_back);
+        SUBTRACT_256_256(l_value_transfer, l_value_total, &l_value_back);
         if(!IS_ZERO_256(l_value_back)) {
             if(dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_from, l_value_back, a_token_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
@@ -587,8 +604,10 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     const char *l_balance; dap_uint256_to_char(l_value_need, &l_balance);
     log_it(L_DEBUG, "Create %"DAP_UINT64_FORMAT_U" transactions, summary %s", a_tx_num, l_balance);
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
-                                                                       a_addr_from, l_value_need, &l_value_transfer);
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
+                                                                a_addr_from, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_WARNING,"Not enough funds to transfer");
         DAP_DELETE(l_objs);
@@ -625,12 +644,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 break;
         }
         if (compare256(l_value_to_items, l_single_val) == -1) {
-            char l_log_str[256] = { '\0' };
-            l_balance = dap_uint256_to_char(l_value_to_items, NULL);
-            snprintf(l_log_str, sizeof(l_log_str),
-                         "Not enough values on output to produce enough inputs: %s when need ", l_balance);
-            strcat(l_log_str, dap_uint256_to_char(l_single_val, NULL));
-            log_it(L_ERROR, "%s", l_log_str);
+            log_it(L_ERROR, "Not enough values on output to produce enough inputs: %s when need %s", l_balance, dap_uint256_to_char(l_single_val, NULL));
             dap_list_free_full(l_list_used_out, NULL);
             DAP_DELETE(l_objs);
             return -5;
@@ -932,8 +946,10 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
     dap_chain_addr_t l_addr_from;
     dap_chain_addr_fill_from_key(&l_addr_from, a_key_from, a_net->pub.id);
     // list of transaction with 'out' items
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
-                                                                             &l_addr_from, l_value_need, &l_value_transfer);
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_token_ticker, &l_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
+                                            &l_addr_from, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
         log_it( L_ERROR, "Nothing to transfer (not enough funds)");
         return NULL;
@@ -1059,7 +1075,9 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
         }
         dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
         // list of transaction with 'out' items
-        dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+        dap_list_t *l_list_used_out = NULL;
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, &l_addr_from_fee, &l_list_used_out, l_total_fee, &l_value_transfer) == -101)
+            l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                      &l_addr_from_fee, l_total_fee, &l_value_transfer);
         if (!l_list_used_out) {
             log_it(L_WARNING,"Not enough funds to transfer");
@@ -1136,20 +1154,10 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
 
 dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_chain, const char *a_emission_hash_str)
 {
-    size_t l_emission_size;
-    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    dap_chain_datum_t *l_emission = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
-                                                    a_emission_hash_str, &l_emission_size,NULL, NULL );
-    if (!l_emission) {
-        char *l_emission_hash_str_from_base58 = dap_enc_base58_to_hex_str_from_str(a_emission_hash_str);
-        l_emission = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
-                                    l_emission_hash_str_from_base58, &l_emission_size, NULL, NULL );
-        DAP_DELETE(l_emission_hash_str_from_base58);
-    }
-    DAP_DELETE(l_gdb_group);
+    dap_chain_datum_t *l_emission = dap_chain_mempool_datum_get(a_chain, a_emission_hash_str);
     if (!l_emission || l_emission->header.type_id != DAP_CHAIN_DATUM_TOKEN_EMISSION)
         return NULL;
-    l_emission_size = l_emission_size - sizeof(l_emission->header);
+    size_t l_emission_size = l_emission->header.data_size;
     dap_chain_datum_token_emission_t *l_ret = dap_chain_datum_emission_read(l_emission->data, &l_emission_size);
     DAP_DELETE(l_emission);
     return l_ret;
@@ -1162,15 +1170,17 @@ dap_chain_datum_t *dap_chain_mempool_datum_get(dap_chain_t *a_chain, const char 
     dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
                                                     a_datum_hash_str, &l_datum_size, NULL, NULL );
     if (!l_datum) {
-        char *l_emission_hash_str_from_base58 = dap_enc_base58_to_hex_str_from_str(a_datum_hash_str);
+        char *l_datum_hash_str_base58 = dap_enc_base58_to_hex_str_from_str(a_datum_hash_str);
         l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
-                                    l_emission_hash_str_from_base58, &l_datum_size, NULL, NULL );
-        DAP_DELETE(l_emission_hash_str_from_base58);
+                                    l_datum_hash_str_base58, &l_datum_size, NULL, NULL );
+        DAP_DELETE(l_datum_hash_str_base58);
     }
-    
     DAP_DELETE(l_gdb_group);
     
-    return l_datum;
+    if (l_datum_size >= sizeof(dap_chain_datum_t) && l_datum_size == dap_chain_datum_size(l_datum))
+        return l_datum;
+    DAP_DEL_Z(l_datum);
+    return NULL;
 }
 
 dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_chain_t *a_chain, byte_t *a_data, size_t a_size)
@@ -1223,22 +1233,17 @@ uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t 
     for(int i = 0; i < datum_mempool->datum_count; i++) {
         a_request_size += dap_chain_datum_size(datum_mempool->data[i]) + sizeof(uint16_t);
     }
-    uint8_t *a_request = DAP_NEW_SIZE(uint8_t, a_request_size);
-    memcpy(a_request + shift_size, &(datum_mempool->version), sizeof(uint16_t));
-    shift_size += sizeof(uint16_t);
-    memcpy(a_request + shift_size, &(datum_mempool->datum_count), sizeof(uint16_t));
-    shift_size += sizeof(uint16_t);
+    uint8_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(uint8_t, a_request_size, NULL);
+    uint8_t *l_pos = dap_mempcpy(l_ret, &datum_mempool->version, sizeof(uint16_t));
+    l_pos = dap_mempcpy(l_pos, &datum_mempool->datum_count, sizeof(uint16_t));
     for(int i = 0; i < datum_mempool->datum_count; i++) {
         size_t size_one = dap_chain_datum_size(datum_mempool->data[i]);
-        memcpy(a_request + shift_size, &size_one, sizeof(uint16_t));
-        shift_size += sizeof(uint16_t);
-        memcpy(a_request + shift_size, datum_mempool->data[i], size_one);
-        shift_size += size_one;
+        l_pos = dap_mempcpy( dap_mempcpy(l_pos, &size_one, sizeof(uint16_t)), datum_mempool->data[i], size_one );
     }
-    assert(shift_size == a_request_size);
+    assert((size_t)(l_pos - l_ret) == a_request_size);
     if(size)
         *size = a_request_size;
-    return a_request;
+    return l_ret;
 }
 
 dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *a_datum_mempool_ser, size_t a_datum_mempool_ser_size)
