@@ -1691,7 +1691,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                 uint256_t l_completed = {};
                 SUBTRACT_256_256(l_item->tx_info.order_info.value, l_item->tx_info.order_info.value_ammount, &l_completed);
                 DIV_256_COIN(l_completed, l_item->tx_info.order_info.value, &l_completed);
-                MULT_256_COIN(l_completed, dap_chain_coins_to_balance("100.0"), &l_completed);
+                MULT_256_COIN(l_completed, dap_uint256_scan_decimal("100.0"), &l_completed);
 
                 l_percent_completed = dap_chain_balance_to_coins_uint64(l_completed);
 
@@ -1761,7 +1761,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
             
             l_amount_datoshi_str = dap_uint256_uninteger_to_char(l_amount);
             l_amount_coins_str = dap_uint256_decimal_to_char(l_amount);
-            l_cp_rate = dap_chain_balance_to_coins(l_rate); 
+            l_cp_rate = dap_chain_balance_coins_print(l_rate); 
 
             dap_cli_server_cmd_set_reply_text(a_str_reply, "orderHash: %s\n ts_created: %s\n Status: %s, amount: %s (%s) %s, filled: %lu%%, rate (%s/%s): %s, net: %s\n\n",
                                      l_order_hash_str,
@@ -2299,7 +2299,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     uint256_t l_completed = {};
                     SUBTRACT_256_256(l_item->tx_info.order_info.value, l_item->tx_info.order_info.value_ammount, &l_completed);
                     DIV_256_COIN(l_completed, l_item->tx_info.order_info.value, &l_completed);
-                    MULT_256_COIN(l_completed, dap_chain_coins_to_balance("100.0"), &l_completed);
+                    MULT_256_COIN(l_completed, dap_chain_balance_coins_scan("100.0"), &l_completed);
 
                     l_percent_completed = dap_chain_balance_to_coins_uint64(l_completed);
                 } else {

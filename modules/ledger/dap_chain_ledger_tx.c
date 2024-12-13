@@ -1043,8 +1043,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 debug_if(g_debug_ledger, L_WARNING, "Verificator check error for voting item");
                 l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
             }
-            if (a_tag)
-                a_tag->uint64 = DAP_CHAIN_TX_TAG_ACTION_VOTING;
+            if (a_action) 
+               *a_action = DAP_CHAIN_TX_TAG_ACTION_VOTING;
         } else if ( dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL) ) {
            if (s_voting_callbacks.voting_callback) {
                if ((l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash, false))) {
@@ -1055,8 +1055,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                debug_if(g_debug_ledger, L_WARNING, "Verificator check error for vote item");
                l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
            }
-           if (a_tag)
-               a_tag->uint64 = DAP_CHAIN_TX_TAG_ACTION_VOTE;
+           if (a_action) 
+               *a_action = DAP_CHAIN_TX_TAG_ACTION_VOTE;
         }
     }
 
@@ -1390,7 +1390,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_prev_item_out->cache_data.ts_spent = a_tx->header.ts_created;
     }
 
-    if (l_tag.uint64 == DAP_CHAIN_TX_TAG_ACTION_VOTE) {
+    if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTE) {
         dap_ledger_tracker_t *l_new_tracker = DAP_NEW_Z(dap_ledger_tracker_t);
         if (!l_new_tracker) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -1495,9 +1495,9 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     }
     int l_err_num = 0;
     if (s_voting_callbacks.voting_callback) {
-        if (l_tag.uint64 == DAP_CHAIN_TX_TAG_ACTION_VOTING)
+        if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTING)
             l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, a_tx_hash, true);
-        else if (l_tag.uint64 == DAP_CHAIN_TX_TAG_ACTION_VOTE)
+        else if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTE)
             l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash, true);
     }
     assert(!l_err_num);
@@ -1651,6 +1651,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     dap_list_t *l_list_bound_items = NULL;
     dap_list_t *l_list_tx_out = NULL;
     dap_chain_srv_uid_t l_tag =  { .uint64 = 0 };
+    dap_chain_tx_tag_action_type_t l_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
     char l_main_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX] = { '\0' };
 
     char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -1661,7 +1662,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     int l_ret_check;
     if( (l_ret_check = s_tx_cache_check(a_ledger, a_tx, a_tx_hash, false,
                                                        &l_list_bound_items, &l_list_tx_out,
-                                                       l_main_token_ticker, &l_tag, NULL, true))) {
+                                                       l_main_token_ticker, &l_tag, &l_action, true))) {
         debug_if(g_debug_ledger, L_WARNING, "dap_ledger_tx_remove() tx %s not passed the check: %s ", l_tx_hash_str,
                     dap_ledger_check_error_str(l_ret_check));
         return l_ret_check;
@@ -1872,9 +1873,9 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     }
 
     if (s_voting_callbacks.voting_delete_callback) {
-        if (l_tag.uint64 == DAP_CHAIN_TX_TAG_ACTION_VOTING)
+        if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTING)
             s_voting_callbacks.voting_delete_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, a_tx_hash);
-        else if (l_tag.uint64 == DAP_CHAIN_TX_TAG_ACTION_VOTE)
+        else if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTE)
             s_voting_callbacks.voting_delete_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash);
     }
 
