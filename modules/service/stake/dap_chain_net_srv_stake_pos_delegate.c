@@ -24,6 +24,7 @@
 
 #include <math.h>
 #include "dap_chain_wallet.h"
+#include "dap_chain_wallet_cache.h"
 #include "dap_config.h"
 #include "dap_string.h"
 #include "dap_list.h"
@@ -75,6 +76,17 @@ typedef enum s_cli_srv_stake_err{
     DAP_CHAIN_NODE_CLI_SRV_STAKE_PERCENT_ERR,
     DAP_CHAIN_NODE_CLI_SRV_STAKE_UNRECOGNIZE_COM_ERR,
 
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NODE_ADDR_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ID_NET_ADDR_DIF_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ADDR_WALLET_DIF_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_WALLET_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_CHAIN_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ERR,
+    DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_INVALID_PKEY_ERR,
+
     /* add custom codes here */
 
     //DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
@@ -89,6 +101,9 @@ static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_
 
 static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
 static void s_uncache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
+static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr_reply, dap_chain_node_info_t *a_node_info, dap_chain_t *a_chain,
+                                 dap_chain_net_t *a_net, dap_time_t a_time_form, dap_time_t a_time_to,
+                                 size_t a_limit, size_t a_offset, bool a_brief, bool a_head);
 
 static dap_list_t *s_srv_stake_list = NULL;
 
@@ -163,7 +178,9 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "srv_stake max_weight -net <net_name> [-chain <chain_name>] -poa_cert <poa_cert_name> -percent <value>\n"
         "\tSets maximum validator related weight (in percent)\n"
     "srv_stake check -net <net_name> -tx <tx_hash>\n"
-        "\tCheck remote validator"
+        "\tCheck remote validator\n"
+    "srv_stake reward -net <net_name> {-node_addr <node_address>} [-date_from <YYMMDD> -date_to <YYMMDD>] [-brief] [-limit] [-offset] [-head]\n"
+        "\tShow the number of rewards for the validators\n"
     );
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
@@ -183,8 +200,7 @@ static dap_chain_net_srv_stake_t *s_srv_stake_by_net_id(dap_chain_net_id_t a_net
 
 int dap_chain_net_srv_stake_net_add(dap_chain_net_id_t a_net_id)
 {
-    dap_chain_net_srv_stake_t *l_srv_stake;
-    DAP_NEW_Z_RET_VAL(l_srv_stake, dap_chain_net_srv_stake_t, -1, NULL);
+    dap_chain_net_srv_stake_t *l_srv_stake = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_srv_stake_t, -1);
     l_srv_stake->net_id = a_net_id;
     l_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
     dap_list_t *l_list_last = dap_list_last(s_srv_stake_list);
@@ -426,8 +442,9 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
 {
     dap_return_if_fail(a_net && a_signing_addr && a_node_addr && a_stake_tx_hash);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_net->pub.id);
-    dap_return_if_fail(l_srv_stake);
-
+    if (!l_srv_stake)
+        return log_it(L_ERROR, "Can't delegate key: no stake service found by net id %"DAP_UINT64_FORMAT_U" from address %s",
+                                a_signing_addr->net_id.uint64, dap_chain_addr_to_str_static(a_signing_addr));
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     bool l_found = false;
     HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
@@ -471,9 +488,13 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
 {
     dap_return_if_fail(a_signing_addr);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_signing_addr->net_id);
-    dap_return_if_fail(l_srv_stake);
+    if (!l_srv_stake)
+        return log_it(L_ERROR, "Can't invalidate key: no stake service found by net id%"DAP_UINT64_FORMAT_U" from address %s",
+                                a_signing_addr->net_id.uint64, dap_chain_addr_to_str_static(a_signing_addr));
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
+    if (!l_stake)
+        return log_it(L_INFO, "No delegated stake found by addr %s to invalidate", dap_chain_addr_to_str_static(a_signing_addr));
     dap_return_if_fail(l_stake);
     dap_chain_esbocs_remove_validator_from_clusters(l_stake->signing_addr.net_id, &l_stake->node_addr);
     HASH_DEL(l_srv_stake->itemlist, l_stake);
@@ -489,11 +510,13 @@ void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint25
 {
     dap_return_if_fail(a_signing_addr && a_new_tx_hash);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_signing_addr->net_id);
-    dap_return_if_fail(l_srv_stake);
+    if (!l_srv_stake)
+        return log_it(L_ERROR, "Can't update key: no stake service found by net id %"DAP_UINT64_FORMAT_U" from address %s",
+                                a_signing_addr->net_id.uint64, dap_chain_addr_to_str_static(a_signing_addr));
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
     if (!l_stake)
-        return; // It's update for non delegated key, it's OK
+        return log_it(L_INFO, "No delegated found by addr %s to update", dap_chain_addr_to_str_static(a_signing_addr));
     HASH_DELETE(ht, l_srv_stake->tx_itemlist, l_stake);
     char *l_old_value_str = dap_chain_balance_to_coins(l_stake->locked_value);
     l_stake->locked_value = l_stake->value = a_new_value;
@@ -561,7 +584,7 @@ dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, 
     const uint16_t l_arr_resize_step = 64;
     size_t l_arr_size = l_arr_resize_step, l_arr_idx = 1, l_list_idx = 0;
     if (a_excluded_list)
-        DAP_NEW_Z_COUNT_RET_VAL(*a_excluded_list, uint16_t, l_arr_size, NULL, NULL);
+        *a_excluded_list = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(uint16_t, l_arr_size, NULL);
     for (dap_chain_net_srv_stake_item_t *l_stake = l_srv_stake->itemlist; l_stake; l_stake = l_stake->hh.next) {
         if (l_stake->is_active || !a_only_active) {
             void *l_data = DAP_DUP(l_stake);
@@ -573,7 +596,7 @@ dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, 
             (*a_excluded_list)[l_arr_idx++] = l_list_idx;
             if (l_arr_idx == l_arr_size) {
                 l_arr_size += l_arr_resize_step;
-                void *l_new_arr = DAP_REALLOC(*a_excluded_list, l_arr_size * sizeof(uint16_t));
+                void *l_new_arr = DAP_REALLOC_COUNT(*a_excluded_list, l_arr_size);
                 if (!l_new_arr)
                     goto fail_ret;
                 else
@@ -731,7 +754,10 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_enc_
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used)
         SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
-    dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+
+    dap_list_t *l_list_fee_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, &l_owner_addr, &l_list_fee_out, l_fee_total, &l_fee_transfer) == -101)
+        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                       &l_owner_addr, l_fee_total, &l_fee_transfer);
     if (!l_list_fee_out) {
         log_it(L_WARNING, "Nothing to pay for fee (not enough funds)");
@@ -742,7 +768,9 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_enc_
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
     if (!a_prev_tx) {
-        dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker,
+        dap_list_t *l_list_used_out = NULL  ;
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_delegated_ticker, &l_owner_addr, &l_list_used_out, a_value, &l_value_transfer) == -101)
+            l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker,
                                                                            &l_owner_addr, a_value, &l_value_transfer);
         if (!l_list_used_out) {
             log_it(L_WARNING, "Nothing to pay for delegate (not enough funds)");
@@ -850,7 +878,9 @@ static dap_chain_datum_tx_t *s_stake_tx_update(dap_chain_net_t *a_net, dap_hash_
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used)
         SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
-    dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+    dap_list_t *l_list_fee_out = NULL; 
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, &l_owner_addr, &l_list_fee_out, l_fee_total, &l_fee_transfer) == -101)
+        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                       &l_owner_addr, l_fee_total, &l_fee_transfer);
     if (!l_list_fee_out) {
         log_it(L_WARNING, "Nothing to pay for fee (not enough funds)");
@@ -889,7 +919,9 @@ static dap_chain_datum_tx_t *s_stake_tx_update(dap_chain_net_t *a_net, dap_hash_
     if (l_increasing) {
         uint256_t l_refund_value = {};
         SUBTRACT_256_256(a_new_value, l_value_prev, &l_refund_value);
-        dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker,
+        dap_list_t *l_list_used_out = NULL;
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_delegated_ticker, &l_owner_addr, &l_list_used_out, l_refund_value, &l_value_transfer) == -101)
+            l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker,
                                                                            &l_owner_addr, l_refund_value, &l_value_transfer);
         if (!l_list_used_out) {
             log_it(L_WARNING, "Nothing to pay for delegate (not enough funds)");
@@ -1118,15 +1150,11 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
 
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
-        l_decree = DAP_REALLOC(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
-        if (!l_decree) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            DAP_DELETE(l_sign);
-            return NULL;
-        }
+        dap_chain_datum_decree_t *l_new_decree
+            = DAP_REALLOC_RET_VAL_IF_FAIL(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size, NULL, l_decree, l_sign);
+        l_decree = l_new_decree;
         memcpy((byte_t*)l_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
         l_total_signs_size += l_sign_size;
-        l_cur_sign_offset += l_sign_size;
         l_decree->header.signs_size = l_total_signs_size;
         DAP_DELETE(l_sign);
         log_it(L_DEBUG,"<-- Signed with '%s'", a_cert->name);
@@ -1210,7 +1238,9 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used)
         SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
-    dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+    dap_list_t *l_list_fee_out = NULL; 
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, &l_owner_addr, &l_list_fee_out, l_fee_total, &l_fee_transfer) == -101)
+        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                             &l_owner_addr, l_fee_total, &l_fee_transfer);
     if (!l_list_fee_out) {
         log_it(L_WARNING, "Nothing to pay for fee (not enough funds)");
@@ -1357,15 +1387,11 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
 
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
-        l_decree = DAP_REALLOC(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
-        if (!l_decree) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            DAP_DELETE(l_sign);
-            return NULL;
-        }
+        dap_chain_datum_decree_t *l_new_decree
+            = DAP_REALLOC_RET_VAL_IF_FAIL(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size, NULL, l_decree, l_sign);
+        l_decree = l_new_decree;
         memcpy((byte_t*)l_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
         l_total_signs_size += l_sign_size;
-        l_cur_sign_offset += l_sign_size;
         l_decree->header.signs_size = l_total_signs_size;
         DAP_DELETE(l_sign);
         log_it(L_DEBUG,"<-- Signed with '%s'", a_cert->name);
@@ -2695,7 +2721,7 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     uint256_t l_sov_tax_percent = uint256_0;
     MULT_256_256(a_stake->sovereign_tax, GET_256_FROM_64(100), &l_sov_tax_percent);
     char *l_sov_tax_str = dap_chain_balance_to_coins(l_sov_tax_percent);
-    char l_node_addr[32] = {};
+    char l_node_addr[32];
     snprintf(l_node_addr, 32, ""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(a_stake->node_addr));
     json_object_object_add(l_json_obj_stake, "pkey_hash", json_object_new_string(l_pkey_hash_str));
     json_object_object_add(l_json_obj_stake, "stake_value", json_object_new_string(l_balance));
@@ -2875,7 +2901,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {
-        CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_UPDATE, CMD_APPROVE, CMD_LIST, CMD_INVALIDATE, CMD_MIN_VALUE, CMD_CHECK, CMD_MAX_WEIGHT
+        CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_UPDATE, CMD_APPROVE, CMD_LIST, CMD_INVALIDATE, CMD_MIN_VALUE, CMD_CHECK, CMD_MAX_WEIGHT, CMD_REWARD 
     };
     int l_arg_index = 1;
 
@@ -2921,6 +2947,9 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "check", NULL)) {
         l_cmd_num = CMD_CHECK;
+    }
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "reward", NULL)) {
+        l_cmd_num = CMD_REWARD;
     }
 
     switch (l_cmd_num) {
@@ -3056,8 +3085,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_DECREE_ERR;
             }
             DAP_DELETE(l_decree);
-            char l_approve_str[128] = {'\0'};
-            sprintf(l_approve_str,"Approve decree %s successfully created", l_decree_hash_str);
+            char l_approve_str[128];
+            snprintf(l_approve_str, sizeof(l_approve_str), "Approve decree %s successfully created", l_decree_hash_str);
             json_object_array_add(*a_json_arr_reply, json_object_new_string(l_approve_str));
             DAP_DELETE(l_decree_hash_str);
         } break;
@@ -3360,6 +3389,102 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             }
         } break;
 
+        case CMD_REWARD: {
+            const char *l_net_str = NULL,
+                       *l_addr_str = NULL,
+                       *l_limit_str = NULL,
+                       *l_pkey_str = NULL,
+                       *l_offset_str = NULL,
+                       *l_d_from_str = NULL,
+                       *l_d_to_str = NULL,
+                       *l_head_str = NULL;
+
+            dap_chain_t * l_chain = NULL;
+            dap_chain_net_t * l_net = NULL;
+            dap_time_t l_from_time = 0, l_to_time = 0;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-node_addr", &l_addr_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-pkey", &l_pkey_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-date_from", &l_d_from_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-date_to", &l_d_to_str);
+            bool l_head = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-head", &l_head_str) ? true : false;
+            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+            size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
+
+            bool l_brief = (dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "-brief") != -1) ? true : false;
+
+            uint32_t l_info_size = sizeof(dap_chain_node_info_t);
+            dap_chain_node_info_t *l_node_info = NULL;
+
+            if (!l_net_str && !l_addr_str) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR,
+                                "reward requires parameter '-net' or '-node_addr'");
+                return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_PARAM_ERR;
+            }
+            
+            // Select chain network
+            if (l_net_str) {
+                l_net = dap_chain_net_by_name(l_net_str);
+                if (!l_net) { // Can't find such network
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_PARAM_ERR,
+                                            "reward requires parameter '-net' to be valid chain network name");
+                    return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_PARAM_ERR;
+                }
+            }
+
+            if (l_d_from_str) {
+                l_from_time = dap_time_from_str_simplified(l_d_from_str);
+                if (!l_from_time) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ERR, "Can't convert \"%s\" to date", l_d_from_str);
+                    return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ERR;
+                }
+            }
+
+            if (l_d_to_str) {
+                l_to_time = dap_time_from_str_simplified(l_d_to_str);
+                if (!l_to_time) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ERR, "Can't convert \"%s\" to date", l_d_to_str);
+                    return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_ERR;
+                }
+                struct tm *l_localtime = localtime((time_t *)&l_to_time);
+                l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
+                l_to_time = mktime(l_localtime);
+            } 
+
+            // Get chain address
+            if (l_addr_str) {
+                l_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, l_info_size);
+                memset(l_node_info, 0, l_info_size);
+                if (dap_chain_node_addr_from_str(&l_node_info->address, l_addr_str)) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NODE_ADDR_ERR,
+                                                                "Can't parse node address %s", l_addr_str);
+                    return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NODE_ADDR_ERR;
+                }
+
+            }
+
+            dap_chain_hash_fast_t l_hash_public_key = {0};
+
+            if (!l_net) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_ERR, "Could not determine the network from which to "
+                                                       "extract data for the reward command to work.");
+                return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_ERR;
+            }
+
+            l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+
+            if (!l_chain) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_CHAIN_PARAM_ERR,
+                                "can't find the required chain");
+                return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_CHAIN_PARAM_ERR;
+            }
+            json_object* l_json_arr_reply = s_dap_chain_net_srv_stake_reward_all(*a_json_arr_reply, l_node_info, l_chain,
+                                 l_net, l_from_time, l_to_time, l_limit, l_offset, l_brief, l_head);
+            json_object_array_add(*a_json_arr_reply, l_json_arr_reply);                                    
+        } break;
+
         default: {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_UNRECOGNIZE_COM_ERR, "Command %s not recognized", a_argv[l_arg_index]);
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_UNRECOGNIZE_COM_ERR;
@@ -3367,6 +3492,185 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
     }
     return 0;
 }
+
+
+static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr_reply, dap_chain_node_info_t *a_node_info, dap_chain_t *a_chain,
+                                 dap_chain_net_t *a_net, dap_time_t a_time_form, dap_time_t a_time_to,
+                                 size_t a_limit, size_t a_offset, bool a_brief, bool a_head)
+{
+    json_object* json_obj_reward = json_object_new_array();
+    if (!json_obj_reward){
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        dap_json_rpc_error_add(a_json_arr_reply, -44, "Memory allocation error");
+        return NULL;
+    }
+    const char *l_native_ticker = a_net->pub.native_ticker;
+    if (!a_chain->callback_datum_iter_create) {
+        log_it(L_WARNING, "Not defined callback_datum_iter_create for chain \"%s\"", a_chain->name);
+        dap_json_rpc_error_add(a_json_arr_reply, -1, "Not defined callback_datum_iter_create for chain \"%s\"", a_chain->name);
+        json_object_put(json_obj_reward);
+        return NULL;
+    }
+
+    size_t l_arr_start = 0;
+    size_t l_arr_end = 0;
+    s_set_offset_limit_json(json_obj_reward, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
+
+    size_t i_tmp = 0;
+    uint256_t l_value_total = uint256_0;
+    dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_chain->net_id);
+
+    // load transactions
+    dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
+    
+    dap_chain_datum_callback_iters  iter_begin;
+    dap_chain_datum_callback_iters  iter_direc;
+    iter_begin = a_head ? a_chain->callback_datum_iter_get_first
+                        : a_chain->callback_datum_iter_get_last;
+    iter_direc = a_head ? a_chain->callback_datum_iter_get_next
+                        : a_chain->callback_datum_iter_get_prev;
+        
+    for (dap_chain_datum_t *l_datum = iter_begin(l_datum_iter);
+                            l_datum;
+                            l_datum = iter_direc(l_datum_iter))
+    {
+        dap_hash_fast_t l_ttx_hash = {0};
+        dap_chain_hash_fast_t l_datum_hash;        
+        if (a_limit && i_tmp >= l_arr_end)
+            break;
+        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
+            // go to next datum
+            continue;
+        
+        if (a_time_form && l_datum->header.ts_create < a_time_form)
+            continue;
+        if (a_time_to && l_datum->header.ts_create >= a_time_to)
+            continue;
+        if (i_tmp >= l_arr_end)
+            break;
+        
+        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+        dap_list_t *l_list_in_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_REWARD, NULL);
+        if (!l_list_in_items) // a bad tx
+            continue;
+        if (i_tmp < l_arr_start) {
+            i_tmp++;
+            continue;
+        }
+        // all in items should be from the same address
+        dap_hash_fast(l_tx, l_datum->header.data_size, &l_ttx_hash);
+        dap_hash_fast(l_datum, dap_chain_datum_size(l_datum), &l_datum_hash);
+        json_object* json_obj_hash = json_object_new_object();
+        json_object_object_add(json_obj_hash, "tx_hash",
+                                        json_object_new_string(dap_chain_hash_fast_to_str_static(&l_ttx_hash)));
+        json_object_array_add(json_obj_reward, json_obj_hash);
+
+        /*
+        const char * l_tx_token_ticker = l_datum_iter ? l_datum_iter->token_ticker
+                                     : dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_datum_hash);*/
+        json_object* json_arr_sign_out = NULL;
+        json_object* json_block_hash = NULL;
+        uint256_t l_value_reward = uint256_0, l_value_out = uint256_0;
+        
+        dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT, NULL);
+        dap_list_t *l_list_out_cond_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_COND, NULL);
+        for(dap_list_t *it = l_list_out_items; it; it = it->next) {
+             dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)it->data;
+             SUM_256_256(l_value_out, l_tx_out->header.value, &l_value_out);
+        }
+        for(dap_list_t *it = l_list_out_cond_items; it; it = it->next) {
+             dap_chain_tx_out_cond_t *l_tx_out_cound = (dap_chain_tx_out_cond_t *)it->data;
+             SUM_256_256(l_value_out, l_tx_out_cound->header.value, &l_value_out);
+        }
+        dap_list_free(l_list_out_items);
+        dap_list_free(l_list_out_cond_items);
+        
+        for(dap_list_t *it = l_list_in_items; it; it = it->next)
+        {
+            dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t *) it->data;            
+            dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(a_chain), &l_in_reward->block_hash);
+            char *l_block_hash = NULL;
+            json_arr_sign_out = json_object_new_array();
+            l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
+            json_block_hash = json_object_new_object();
+            json_object_object_add(json_block_hash, "block hash", json_object_new_string(l_block_hash));
+            DAP_DELETE(l_block_hash);
+
+
+            for (uint32_t i=0; i < l_block_cache->sign_count ; i++) {
+                if (!json_arr_sign_out) {
+                    json_arr_sign_out = json_object_new_array();
+                    l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
+                    json_block_hash = json_object_new_object();
+                    json_object_object_add(json_block_hash, "block hash", json_object_new_string(l_block_hash));
+                    DAP_DELETE(l_block_hash);
+                }
+                            
+                dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
+                size_t l_sign_size = dap_sign_get_size(l_sign);
+                dap_chain_hash_fast_t l_pkey_hash;
+                dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+                char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, sizeof(l_pkey_hash_str));
+                dap_chain_net_srv_stake_item_t *l_stake = NULL;
+                HASH_FIND(hh, l_srv_stake->itemlist, &l_pkey_hash, sizeof(dap_hash_fast_t), l_stake);
+                if (a_node_info) {
+                    if (!l_stake || a_node_info->address.uint64 != l_stake->node_addr.uint64) {
+                        if (json_object_array_length(json_arr_sign_out) == 0) {
+                            json_object_put(json_arr_sign_out);
+                            json_object_put(json_block_hash);
+                            json_arr_sign_out = NULL;
+                            json_block_hash = NULL;
+                        }
+                        continue;
+                    }
+                }
+                json_object* json_obj_sign = json_object_new_object();
+                if (l_stake && !a_brief) {
+                    char *l_addr = dap_strdup_printf(""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
+                    json_object_object_add(json_obj_sign, "validator addr", json_object_new_string(l_addr));
+                    DAP_DELETE(l_addr);
+                }
+                dap_pkey_t * l_block_sign_pkey = dap_pkey_get_from_sign(l_sign);
+                l_value_reward = a_chain->callback_calc_reward(a_chain, &l_block_cache->block_hash,
+                                                             l_block_sign_pkey);
+                DAP_DELETE(l_block_sign_pkey);
+                if (!a_brief) {
+                    json_object_object_add(json_obj_sign, "pkey_hash",json_object_new_string(l_pkey_hash_str));                
+                    const char  *l_coins_str,
+                        *l_value_str = dap_uint256_to_char(l_value_reward, &l_coins_str);
+                    json_object_object_add(json_obj_sign, "reward value", json_object_new_string(l_value_str));
+                    json_object_object_add(json_obj_sign, "reward coins", json_object_new_string(l_coins_str));
+                }                
+                if (json_object_object_length(json_obj_sign))
+                    json_object_array_add(json_arr_sign_out, json_obj_sign);
+            }
+            SUM_256_256(l_value_total, l_value_reward, &l_value_total);
+            l_value_reward = uint256_0;
+            if (json_arr_sign_out && json_object_array_length(json_arr_sign_out) > 0) {
+                json_object_object_add(json_block_hash, "REWARDS", json_arr_sign_out);
+                json_object_array_add(json_obj_reward, json_block_hash);
+            }                        
+        }
+        const char  *l_coins_out_str, *l_value_str;
+        json_object* json_value_out = json_object_new_object();
+        l_value_str = dap_uint256_to_char(l_value_out, &l_coins_out_str);
+        json_object_object_add(json_value_out, "Rewards value (calculated)", json_object_new_string(l_value_str));
+        json_object_object_add(json_value_out, "Rewards coins (calculated)", json_object_new_string(l_coins_out_str));
+        json_object_array_add(json_obj_reward, json_value_out);
+        i_tmp++;
+        dap_list_free(l_list_in_items);
+    }
+        const char  *l_coins_out_str, *l_value_str;
+        json_object* json_value_out = json_object_new_object();
+        l_value_str = dap_uint256_to_char(l_value_total, &l_coins_out_str);
+        json_object_object_add(json_value_out, "Rewards value (total)", json_object_new_string(l_value_str));
+        json_object_object_add(json_value_out, "Rewards coins (total)", json_object_new_string(l_coins_out_str));
+        json_object_array_add(json_obj_reward, json_value_out);
+    a_chain->callback_datum_iter_delete(l_datum_iter);
+    return json_obj_reward;
+}
+
 
 bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
                                                 uint256_t *a_max_fee, uint256_t *a_average_fee, uint256_t *a_min_fee, uint256_t *a_median_fee)
@@ -3434,9 +3738,8 @@ void dap_chain_net_srv_stake_get_fee_validators_str(dap_chain_net_t *a_net, dap_
         return;
     uint256_t l_min = uint256_0, l_max = uint256_0, l_average = uint256_0, l_median = uint256_0;
     dap_chain_net_srv_stake_get_fee_validators(a_net, &l_max, &l_average, &l_min, &l_median);
-    const char *l_native_token  = a_net->pub.native_ticker;
-    const char *l_coins_str,
-    *l_min_balance      = dap_strdup(dap_uint256_to_char(l_min, &l_coins_str)),     *l_min_coins    = dap_strdup(l_coins_str),
+    const char *l_native_token  = a_net->pub.native_ticker, *l_coins_str;
+    char *l_min_balance = dap_strdup(dap_uint256_to_char(l_min, &l_coins_str)),     *l_min_coins    = dap_strdup(l_coins_str),
     *l_max_balance      = dap_strdup(dap_uint256_to_char(l_max, &l_coins_str)),     *l_max_coins    = dap_strdup(l_coins_str),
     *l_average_balance  = dap_strdup(dap_uint256_to_char(l_average, &l_coins_str)), *l_average_coins= dap_strdup(l_coins_str),
     *l_median_balance   = dap_strdup(dap_uint256_to_char(l_median, &l_coins_str)),  *l_median_coins = dap_strdup(l_coins_str);
