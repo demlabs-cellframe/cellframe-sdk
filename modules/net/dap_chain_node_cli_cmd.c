@@ -6068,7 +6068,7 @@ static dap_pkey_t* s_json_get_pkey(struct json_object *a_json)
 int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_object *a_items,
                              dap_chain_datum_tx_t **a_out_tx, size_t *a_out_items_ready, json_object **a_out_jobj_error) {
     size_t l_items_count;
-    if (!l_items_count || !json_object_is_type(a_items, json_type_array) || !(l_items_count = json_object_array_length(a_items))) {
+    if (!json_object_is_type(a_items, json_type_array) || !(l_items_count = json_object_array_length(a_items))) {
         dap_json_rpc_error_add(*a_out_jobj_error, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS,
                                "Wrong json format: not found array 'items' or array is empty");
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
@@ -6377,6 +6377,7 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
                 DAP_DELETE(l_str_err);
                 json_object_array_add(l_jobj_errors, l_jobj_err);
                 break;
+	    }
 	}
             break;
         case TX_ITEM_TYPE_SIG:{
@@ -6389,7 +6390,9 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
                     log_it(L_ERROR, "Json TX: Can't define sign type \"%s\"", l_sign_type_str);
                     break;
                 }
-                int64_t l_pkey_size, l_sig_size, l_hash_type = 0;
+                int64_t l_pkey_size = 0, 
+			l_sig_size  = 0, 
+			l_hash_type = 0;
 
                 s_json_get_int64(l_json_item_obj, "hash_type", &l_hash_type);
                 s_json_get_int64(l_json_item_obj, "pub_key_size", &l_pkey_size);
@@ -6569,7 +6572,7 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
             if (!dap_strcmp(l_native_token, l_main_token)) {
                 SUM_256_256(l_value_need_check, l_value_need, &l_value_need_check);
                 SUM_256_256(l_value_need_check, l_value_need_fee, &l_value_need_check);
-                l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
+                l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
                                                                                             l_addr_from, l_value_need_check, &l_value_transfer);
                 if(!l_list_used_out) {
                     log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -6582,7 +6585,7 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
                 }
             } else {
                 //CHECK value need
-                l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
+                l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
                                                                                             l_addr_from, l_value_need, &l_value_transfer);
                 if(!l_list_used_out) {
                     log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -6594,7 +6597,7 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
                     continue;
                 }
                 //CHECK value fee
-                l_list_used_out_fee = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_native_token,
+                l_list_used_out_fee = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_token,
                                                                                     l_addr_from, l_value_need_fee, &l_value_transfer_fee);
                 if(!l_list_used_out_fee) {
                     log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -6662,9 +6665,6 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
         if (l_wallet) {
             l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
         } else if (l_cert && l_cert->enc_key) {
-            l_enc_key = l_cert->enc_key;
-        }
-        else{
             l_enc_key = l_cert->enc_key;
         } else {
             json_object *l_jobj_err = json_object_new_string("Can't create sign for transactions.");
@@ -6844,8 +6844,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
     const char *l_chain_name = NULL; // optional parameter
     const char *l_json_file_path = NULL;
     const char *l_json_str = NULL;
-    const char *l_native_token = NULL;
-    const char *l_main_token = NULL;
 
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_name); // optional parameter
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &l_chain_name); // optional parameter
@@ -6899,7 +6897,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
         json_object_put(l_json);
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME;
     }
-    l_native_token = l_net->pub.native_ticker;
 
     // Read chain from json file
     if(!l_chain_name) {
