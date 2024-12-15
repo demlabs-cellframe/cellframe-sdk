@@ -27,9 +27,6 @@
 #include "dap_chain_common.h"
 #include "dap_chain_ledger.h"
 
-int dap_chain_wallet_cache_init();
-int dap_chain_wallet_cache_deinit();
-
 typedef enum dap_chain_wallet_getting_type {
     DAP_CHAIN_WALLET_CACHE_GET_FIRST = 0,
     DAP_CHAIN_WALLET_CACHE_GET_LAST,
@@ -39,6 +36,7 @@ typedef enum dap_chain_wallet_getting_type {
 typedef struct dap_chain_wallet_cache_iter {
     dap_chain_datum_tx_t *cur_tx;
     dap_chain_hash_fast_t *cur_hash;
+    dap_chain_hash_fast_t *cur_atom_hash;
     uint32_t action;
     dap_chain_net_srv_uid_t uid;
     int ret_code;
@@ -46,6 +44,9 @@ typedef struct dap_chain_wallet_cache_iter {
     void *cur_item;
     void *cur_addr_cache;
 } dap_chain_wallet_cache_iter_t;
+
+int dap_chain_wallet_cache_init();
+int dap_chain_wallet_cache_deinit();
 
 /**
  * @brief Find next transactions after l_tx_hash_curr for wallet addr and save pointer to datum into a_tx. If l_tx_hash_curr is NULL then function find first tx for addr.

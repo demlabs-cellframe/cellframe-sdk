@@ -1566,7 +1566,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
             pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
             dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
-            dap_chain_datum_notify(l_cell, l_datum_hash, (byte_t*)l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
+            dap_chain_datum_notify(l_cell, l_datum_hash, &l_datum_index->block_cache->block_hash, (byte_t*)l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
         }
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
