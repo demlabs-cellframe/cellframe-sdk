@@ -528,7 +528,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     json_object_object_add(json_obj_rec, "pinned status", json_object_new_string("record already pinned"));
                     break;
                 }
-                if(dap_global_db_set_sync( l_group, l_key, l_value, l_value_len, true) ==0 ){
+                if(dap_global_db_pin_sync( l_group, l_key) ==0 ){
                     json_object_object_add(json_obj_rec, "pinned status", json_object_new_string("record successfully pinned"));
                 }
                 else{
@@ -544,7 +544,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     json_object_object_add(json_obj_rec, "unpinned status", json_object_new_string("record already unpinned"));
                     break;
                 }
-                if(dap_global_db_set_sync(l_group,l_key, l_value, l_value_len, false) == 0 ) {
+                if(dap_global_db_unpin_sync(l_group,l_key) == 0 ) {
                     json_object_object_add(json_obj_rec, "unpinned status", json_object_new_string("record successfully unpinned"));
                 }
                 else {
