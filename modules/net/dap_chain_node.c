@@ -71,7 +71,16 @@ typedef struct dap_chain_node_net_states_info {
 
 #define node_info_v1_shift ( sizeof(uint16_t) + 16 + sizeof(dap_chain_node_role_t) )
 
+enum hardfork_state {
+    STATE_BALANCES = 0,
+    STATE_CONDOUTS,
+    STATE_ANCHORS,
+    STATE_FEES,
+    STATE_SERVICES
+};
+
 struct hardfork_states {
+    enum hardfork_state state_current;
     dap_ledger_hardfork_balances_t *balances;
     dap_ledger_hardfork_condouts_t *condouts;
     dap_ledger_hardfork_anchors_t  *anchors;
@@ -470,9 +479,68 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
         DL_DELETE(l_states->service_states, it);
         DAP_DELETE(it);
     }
+    a_chain->hardfork_data = l_states;
+    DAP_CHAIN_CS_BLOCKS(a_chain)->is_hardfork_data = true;
+    l_net->pub.ledger->is_hardfork_data = true;
     return 0;
 }
 
+dap_chain_datum_t *s_datum_tx_create(dap_chain_addr_t *a_addr, const char *a_ticker, uint256_t a_value, dap_list_t *a_trackers)
+{
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx)
+        return NULL;
+    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr, a_value, a_ticker) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    for (dap_list_t *it = a_trackers; it; it = it->next) {
+        dap_ledger_tracker_t *l_tracker = it->data;
+        dap_chain_tx_tsd_t *l_tracker_tsd = dap_chain_datum_tx_item_tsd_create(l_tracker, DAP_CHAIN_DATUM_TX_TSD_TYPE_TRACKER, sizeof(dap_ledger_tracker_t));
+        if (!l_tracker_tsd) {
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        if (dap_chain_datum_tx_add_item(&l_tx, l_tracker_tsd) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+    dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
+    dap_chain_datum_tx_delete(l_tx);
+    return l_datum_tx;
+}
+
+int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
+{
+    dap_return_val_if_fail(a_chain, -1);
+    if (!a_chain->hardfork_data)
+        return log_it(L_ERROR, "Can't process chain with no harfork data. Use dap_chain_node_hardfork_prepare() for collect it first"), -2;
+    struct hardfork_states *l_states = a_chain->hardfork_data;
+    switch (l_states->state_current) {
+    case STATE_BALANCES:
+        for (dap_ledger_hardfork_balances_t *it = l_states->balances; it; it = it->next) {
+            dap_chain_datum_t *l_tx = s_datum_tx_create(&it->addr, it->ticker, it->value, it->trackers);
+            if (!l_tx)
+                return -3;
+            if (!a_chain->callback_add_datums(a_chain, &l_tx, 1)) {
+                log_it(L_NOTICE, "Hardfork processed to datum tx with addr %s", dap_chain_addr_to_str_static(&it->addr));
+                break;
+            }
+        }
+        break;
+    case STATE_CONDOUTS:
+        break;
+    case STATE_ANCHORS:
+        break;
+    case STATE_FEES:
+        break;
+    case STATE_SERVICES:
+        break;
+    // No default here
+    }
+    return 0;
+}
 
 /**
  * @brief

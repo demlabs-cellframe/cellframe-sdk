@@ -150,11 +150,6 @@ int dap_chain_purge(dap_chain_t *a_chain)
     return ret + dap_chain_cs_purge(a_chain);
 }
 
-int dap_chain_hardfork_preare(dap_chain_t *a_chain, uint64_t a_atom_num)
-{
-
-}
-
 /**
  * @brief
  * delete dap chain object
@@ -185,7 +180,7 @@ void dap_chain_delete(dap_chain_t *a_chain)
         DAP_DEL_MULTY(DAP_CHAIN_PVT(a_chain)->file_storage_dir, DAP_CHAIN_PVT(a_chain));
     }
     DAP_DEL_MULTY(a_chain->name, a_chain->net_name, a_chain->datum_types,
-        a_chain->autoproc_datum_types, a_chain->authorized_nodes_addrs, a_chain->_inheritor);
+        a_chain->autoproc_datum_types, a_chain->authorized_nodes_addrs), a_chain->_inheritor);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
     DAP_DELETE(a_chain);
@@ -732,7 +727,7 @@ void dap_chain_atom_confirmed_notify_add(dap_chain_t *a_chain, dap_chain_callbac
  * @param a_atom_hash
  * @return
  */
-bool dap_chain_get_atom_last_hash_num(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash, uint64_t *a_atom_num)
+bool dap_chain_get_atom_last_hash_num_ts(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash, uint64_t *a_atom_num, dap_time_t *a_atom_timestamp)
 {
     dap_return_val_if_fail(a_atom_hash || a_atom_num, false);
     dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, a_cell_id, NULL);
@@ -743,6 +738,8 @@ bool dap_chain_get_atom_last_hash_num(dap_chain_t *a_chain, dap_chain_cell_id_t 
         *a_atom_hash = l_iter->cur_hash ? *l_iter->cur_hash : (dap_hash_fast_t){0};
     if (a_atom_num)
         *a_atom_num = l_iter->cur_num;
+    if (a_atom_timestamp)
+        *a_atom_timestamp = l_iter->cur_ts;
     a_chain->callback_atom_iter_delete(l_iter);
     return true;
 }

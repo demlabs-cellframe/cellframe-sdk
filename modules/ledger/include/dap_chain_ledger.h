@@ -40,16 +40,18 @@
 
 #define DAP_CHAIN_NET_SRV_TRANSFER_ID 0x07
 #define DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID 0x08
+#define DAP_CHAIN_DATUM_TX_TSD_TYPE_TRACKER 0xf0fa
 
 typedef struct dap_ledger {
     dap_chain_net_t *net;
+    bool is_hardfork_data;
     void *_internal;
 } dap_ledger_t;
 
 typedef struct dap_ledger_tracker {
     dap_hash_fast_t voting_hash;
     uint256_t colored_value;
-} dap_ledger_tracker_t;
+} DAP_ALIGN_PACKED dap_ledger_tracker_t;
 
 typedef struct dap_ledger_hardfork_balances {
     dap_chain_addr_t addr;

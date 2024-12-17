@@ -215,10 +215,11 @@ void dap_chain_cs_esbocs_deinit(void)
 {
 }
 
-void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable){
-    dap_chain_cs_blocks_t *l_bocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_chain_esbocs_pvt_t *pvt = PVT(l_bocks);
-    pvt->debug = a_enable;
+void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable)
+{
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    PVT(l_esbocs)->debug = a_enable;
 }
 
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
@@ -1204,8 +1205,11 @@ static bool s_session_round_new(void *a_arg)
     a_session->listen_ensure = 0;
     uint64_t l_cur_atom_count = a_session->chain->callback_count_atom(a_session->chain);
     a_session->is_hardfork = a_session->esbocs->hardfork_from && l_cur_atom_count >= a_session->esbocs->hardfork_from;
-    if (l_cur_atom_count && l_cur_atom_count == a_session->esbocs->hardfork_from)
-        dap_chain_node_hardfork_prepare(a_session->chain);
+    if (l_cur_atom_count && l_cur_atom_count == a_session->esbocs->hardfork_from) {
+        dap_time_t l_last_block_timestamp = 0;
+        dap_chain_get_atom_last_hash_num_ts(a_session->chain, c_cell_id_hardfork, NULL, NULL, &l_last_block_timestamp);
+        dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp);
+    }
     return false;
 }
 
@@ -1724,8 +1728,7 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
     }
     // Process candidate
     a_session->processing_candidate = a_candidate;
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_session->chain);
-    dap_chain_atom_verify_res_t l_verify_status = l_blocks->chain->callback_atom_verify(l_blocks->chain, a_candidate, a_candidate_size, a_candidate_hash);
+    dap_chain_atom_verify_res_t l_verify_status = a_session->chain->callback_atom_verify(a_session->chain, a_candidate, a_candidate_size, a_candidate_hash);
     if (l_verify_status == ATOM_ACCEPT || l_verify_status == ATOM_FORK) {
         // validation - OK, gen event Approve
         s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_APPROVE, a_candidate_hash,

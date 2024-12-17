@@ -45,6 +45,7 @@ typedef struct dap_chain_cs_blocks
    // For new block creating
    dap_chain_block_t * block_new;
    size_t block_new_size;
+   bool is_hardfork_data;
 
    dap_chain_cs_blocks_callback_t callback_delete;
    dap_chain_cs_blocks_callback_block_create_t callback_block_create;

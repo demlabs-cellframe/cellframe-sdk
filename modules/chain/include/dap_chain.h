@@ -240,6 +240,7 @@ typedef struct dap_chain {
 
     dap_config_t *config;
 
+    struct hardfork_states *hardfork_data;
     void * _pvt; // private data
     void * _inheritor; // inheritor object
 } dap_chain_t;
@@ -275,6 +276,7 @@ typedef struct dap_chain_pvt {
     char *cs_type;
     bool cs_started;
     bool need_reorder;
+
 } dap_chain_pvt_t;
 
 #define DAP_CHAIN_PVT(a) ((dap_chain_pvt_t *)a->_pvt)
@@ -315,10 +317,10 @@ void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_
 void dap_chain_datum_removed_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash);
 void dap_chain_atom_add_from_threshold(dap_chain_t *a_chain);
 dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
-bool dap_chain_get_atom_last_hash_num(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash, uint64_t *a_atom_num);
+bool dap_chain_get_atom_last_hash_num_ts(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash, uint64_t *a_atom_num, dap_time_t *a_atom_timestamp);
 DAP_STATIC_INLINE bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash)
 {
-    return dap_chain_get_atom_last_hash_num(a_chain, a_cell_id, a_atom_hash, NULL);
+    return dap_chain_get_atom_last_hash_num_ts(a_chain, a_cell_id, a_atom_hash, NULL, NULL);
 }
 ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size, dap_hash_fast_t *a_new_atom_hash);
 int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name);
