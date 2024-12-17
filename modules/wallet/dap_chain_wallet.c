@@ -99,10 +99,23 @@ void s_wallet_addr_cache_add(dap_chain_addr_t *a_addr, const char *a_wallet_name
     l_cache->addr = *a_addr;
     HASH_ADD(hh, s_wallet_addr_cache, addr, sizeof(dap_chain_addr_t), l_cache);
 }
+
 const char *dap_chain_wallet_addr_cache_get_name(dap_chain_addr_t *a_addr){
     struct wallet_addr_cache *l_tmp = NULL;
     HASH_FIND(hh, s_wallet_addr_cache, a_addr, sizeof(dap_chain_addr_t), l_tmp);
     return l_tmp ? l_tmp->name : NULL;
+}
+
+dap_list_t* dap_chain_wallet_get_local_addr(){
+
+    dap_list_t *l_list = NULL;
+    struct wallet_addr_cache *l_item, *l_tmp;
+    HASH_ITER(hh, s_wallet_addr_cache, l_item, l_tmp){
+        dap_chain_addr_t *l_addr = DAP_NEW_Z(dap_chain_addr_t);
+        memcpy (l_addr, &l_item->addr, sizeof(dap_chain_addr_t));
+        l_list = dap_list_append(l_list, l_addr);
+    }
+    return l_list;
 }
 
 /*
