@@ -4525,7 +4525,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
     // Load certs lists
     dap_cert_parse_str_list(l_params->certs_str, &l_certs, &l_certs_count);
     if(!l_certs_count){
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_NOT_VALID_CERT_ERR,
                                        "token_decl command requres at least one valid certificate to sign token");
         DAP_DEL_Z(l_params);
         return -10;
@@ -4803,6 +4803,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
  */
 int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
 {
+    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     const char * l_ticker = NULL;
     uint256_t l_total_supply = {}; // 256
     uint16_t l_signs_emission = 0;
@@ -4823,7 +4824,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
     l_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
     l_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE;
 
-    int l_parse_params = s_token_decl_check_params(a_argc,a_argv,a_str_reply,l_params, true);
+    int l_parse_params = s_token_decl_check_params_json(a_argc,a_argv,a_json_arr_reply,l_params, true);
     if (l_parse_params)
         return l_parse_params;
 
@@ -4833,8 +4834,9 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
     // Load certs lists
     dap_cert_parse_str_list(l_params->certs_str, &l_certs, &l_certs_count);
     if(!l_certs_count){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                          "com_token_update command requres at least one valid certificate to sign token");
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                       "com_token_update command requres at least one valid certificate to sign token");
+        DAP_DEL_Z(l_params);
         return -10;
     }
 
@@ -4900,8 +4902,8 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
                 l_datum_token->header_simple.decimals = 0;
         }break;
         default:
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                              "Unknown token type");
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                       "Unknown token type");
             return -8;
     }
     dap_uuid_generate_nonce(&l_datum_token->nonce, DAP_CHAIN_DATUM_NONCE_SIZE);
@@ -4936,14 +4938,16 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
             ? dap_chain_net_get_gdb_group_mempool_new(l_chain)
             : dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
     if (!l_gdb_group_mempool) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "No suitable chain for placing token datum found");
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                   "No suitable chain for placing token datum found");
         DAP_DELETE(l_datum);
         return -10;
     }
     bool l_placed = !dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, (uint8_t *)l_datum, l_datum_size, false);
     DAP_DELETE(l_gdb_group_mempool);
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s with token update for ticker %s is%s placed in datum pool",
-                                      l_key_str_out, l_ticker, l_placed ? "" : " not");
+    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                           "Datum %s with token update for ticker %s is%s placed in datum pool",
+                                                                 l_key_str_out, l_ticker, l_placed ? "" : " not");
     DAP_DELETE(l_key_str);
     DAP_DELETE(l_datum);
     DAP_DELETE(l_params);
