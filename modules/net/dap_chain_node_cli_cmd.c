@@ -6084,6 +6084,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
     const char *l_json_str = NULL;
     const char *l_native_token = NULL;
     const char *l_main_token = NULL;
+    bool l_multichanel = false;
 
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_name); // optional parameter
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &l_chain_name); // optional parameter
@@ -6265,11 +6266,14 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                             json_object_array_add(l_jobj_errors, l_jobj_err);
                         }
                         l_item = (const uint8_t*) l_out_item;
+                        if (l_item)
+                            SUM_256_256(l_value_need, l_value, &l_value_need);
                     }
                     else if(l_item_type == TX_ITEM_TYPE_OUT_EXT) {
                         // Read address and value
                         const char *l_token = s_json_get_text(l_json_item_obj, "token");
                         l_main_token = l_token;
+                        l_multichanel = true;
                         if(l_token) {
                             // Create OUT_EXT item
                             dap_chain_tx_out_ext_t *l_out_ext_item = dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
@@ -6281,15 +6285,17 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                                 json_object_array_add(l_jobj_errors, l_jobj_err);
                             }
                             l_item = (const uint8_t*) l_out_ext_item;
+                            if (l_item){
+                                if (!dap_strcmp(l_token, l_native_token))
+                                    SUM_256_256(l_value_need_fee, l_value, &l_value_need_fee);
+                                else 
+                                    SUM_256_256(l_value_need, l_value, &l_value_need);
+                            }
                         }
                         else {
                             log_it(L_WARNING, "Invalid 'out_ext' item %zu", i);
                             continue;
                         }
-                    }
-                    // Save value for using in In item
-                    if(l_item) {
-                        SUM_256_256(l_value_need, l_value, &l_value_need);
                     }
                 } else {
                     if(l_item_type == TX_ITEM_TYPE_OUT) {
@@ -6729,7 +6735,10 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                 uint256_t l_value_back;
                 SUBTRACT_256_256(l_value_got, l_value_need, &l_value_back);
                 if(!IS_ZERO_256(l_value_back)) {
-                    dap_chain_datum_tx_add_out_item(&l_tx, l_addr_from, l_value_back);
+                    if (l_multichanel)
+                        dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_value_back, l_main_token);
+                    else
+                        dap_chain_datum_tx_add_out_item(&l_tx, l_addr_from, l_value_back);
                     l_items_ready++;
                 }
             }
