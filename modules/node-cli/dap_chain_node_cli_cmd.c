@@ -23,37 +23,25 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
-#include <stdbool.h>
 #include <errno.h>
-#include <assert.h>
-#include <ctype.h>
-#include <dirent.h>
 #include <sys/stat.h>
-
-#ifdef WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#include "wepoll.h"
-#else
-#include <sys/types.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <signal.h>
+#include <string.h>
+#ifndef __USE_XOPEN
+#define __USE_XOPEN
 #endif
-#include <pthread.h>
+#include <time.h>
+#include "dap_common.h"
+#include "dap_time.h"
 
 #include "uthash.h"
 #include "utlist.h"
+
+#ifdef DAP_OS_UNIX
+#include <dirent.h>
+#endif
+
+#include "dap_common.h"
+#include "dap_time.h"
 #include "dap_string.h"
 #include "dap_hash.h"
 #include "dap_chain_common.h"
@@ -74,15 +62,9 @@
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_net.h"
-#include "dap_chain_net_tx.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_chain_cell.h"
 #include "dap_enc_base64.h"
-
-#ifdef DAP_OS_UNIX
-#include <dirent.h>
-#endif
-
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_token.h"
@@ -98,12 +80,9 @@
 #include "dap_json_rpc_errors.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_datum_tx_voting.h"
-#include "dap_chain_wallet_cache.h"
 #include "dap_json_rpc.h"
 #include "dap_json_rpc_request.h"
 #include "dap_client_pvt.h"
-#include "dap_enc.h"
-
 
 #define LOG_TAG "chain_node_cli_cmd"
 
