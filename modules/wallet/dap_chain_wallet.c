@@ -107,6 +107,19 @@ const char *dap_chain_wallet_addr_cache_get_name(dap_chain_addr_t *a_addr){
     return l_tmp ? l_tmp->name : NULL;
 }
 
+
+dap_list_t* dap_chain_wallet_get_local_addr(){
+
+    dap_list_t *l_list = NULL;
+    struct wallet_addr_cache *l_item, *l_tmp;
+    HASH_ITER(hh, s_wallet_addr_cache, l_item, l_tmp){
+        dap_chain_addr_t *l_addr = DAP_NEW_Z(dap_chain_addr_t);
+        memcpy (l_addr, &l_item->addr, sizeof(dap_chain_addr_t));
+        l_list = dap_list_append(l_list, l_addr);
+    }
+    return l_list;
+}
+
 /*
  *  DESCRIPTION: Add/update a record for wallet into the internaly used table of name/password pair.
  *      Thhose records are supposed to be used for operations with the password-protected wallets.
