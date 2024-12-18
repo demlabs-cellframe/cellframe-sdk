@@ -404,11 +404,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         uint256_t l_corr_value = {}, l_cond_value = {};
         bool l_recv_from_cond = false, l_send_to_same_cond = false;
         json_object *l_corr_object = NULL, *l_cond_recv_object = NULL, *l_cond_send_object = NULL;
-        dap_list_t *l_list_in_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_ALL, NULL);
-        if (!l_list_in_items) // a bad tx
-            goto next_step;
-        // all in items should be from the same address
-        
+           
         dap_chain_addr_t *l_src_addr = NULL;
         bool l_base_tx = false, l_reward_collect = false;
         const char *l_noaddr_token = NULL;
@@ -421,23 +417,26 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         dap_hash_fast_t l_atom_hash = l_from_cache ? *l_wallet_cache_iter->cur_atom_hash : *l_datum_iter->cur_atom_hash;
 
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
-        for (dap_list_t *it = l_list_in_items; it; it = it->next) {
+        uint8_t *l_tx_item = NULL;
+        size_t l_size; int i, q = 0;
+        // Проход по входам
+        TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_IN_ALL, l_size, i, l_tx) {
             dap_chain_hash_fast_t *l_tx_prev_hash = NULL;
             int l_tx_prev_out_idx;
             dap_chain_datum_tx_t *l_tx_prev = NULL;
-            switch (*(byte_t *)it->data) {
+            switch (*l_tx_item) {
             case TX_ITEM_TYPE_IN: {
-                dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)it->data;
+                dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)l_tx_item;
                 l_tx_prev_hash = &l_tx_in->header.tx_prev_hash;
                 l_tx_prev_out_idx = l_tx_in->header.tx_out_prev_idx;
             } break;
             case TX_ITEM_TYPE_IN_COND: {
-                dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)it->data;
+                dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)l_tx_item;
                 l_tx_prev_hash = &l_tx_in_cond->header.tx_prev_hash;
                 l_tx_prev_out_idx = l_tx_in_cond->header.tx_out_prev_idx;
             } break;
             case TX_ITEM_TYPE_IN_EMS: {
-                dap_chain_tx_in_ems_t *l_tx_in_ems = (dap_chain_tx_in_ems_t *)it->data;
+                dap_chain_tx_in_ems_t *l_tx_in_ems = (dap_chain_tx_in_ems_t *)l_tx_item;
                 l_base_tx = true;
                 l_noaddr_token = l_tx_in_ems->header.ticker;
             } break;
@@ -482,7 +481,6 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 break;  //it's not our addr
             
         }        
-        dap_list_free(l_list_in_items);
 
         // find OUT items
         bool l_header_printed = false;
