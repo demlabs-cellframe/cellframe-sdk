@@ -1902,8 +1902,6 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
     if (!l_net_pvt->seed_nodes_count)
         log_it(L_WARNING, "Can't read seed nodes addresses, work with local balancer only");
 
-    // Get list chains name for enabled debug mode
-    bool is_esbocs_debug = dap_config_get_item_bool_default(l_cfg, "esbocs", "consensus_debug", false);
 
     /* *** Chains init by configs *** */
     DIR *l_chains_dir = opendir(a_path);
@@ -1955,9 +1953,6 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
             if ( k < l_chain->default_datum_types_count ) {
                 l_chain->default_datum_types_count = k;
                 l_chain->default_datum_types = DAP_REALLOC_COUNT(l_chain->default_datum_types, k);
-            }
-            if (!dap_strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "esbocs") && is_esbocs_debug) {
-                dap_chain_esbocs_change_debug_mode(l_chain, true);
             }
         } else {
             HASH_DEL(l_all_chain_configs, l_chain_config);
