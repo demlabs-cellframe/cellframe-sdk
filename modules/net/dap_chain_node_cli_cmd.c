@@ -6430,8 +6430,21 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                     log_it(L_ERROR, "Json TX: bad node_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                     break;
                 }
+                dap_pkey_t *l_pkey = NULL;
+                const char *l_pkey_str = s_json_get_text(l_json_item_obj, "pkey");
+                if(l_pkey_str) {
+                    size_t l_pkey_str_len = strlen(l_pkey_str);
+                    l_pkey = DAP_NEW_Z_SIZE(dap_pkey_t, DAP_ENC_BASE64_DECODE_SIZE(l_pkey_str_len) + 1);
+                    if (!l_pkey) {
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                        break;
+                    }
+                    size_t l_pkey_len = dap_enc_base64_decode(l_pkey_str, l_pkey_str_len, l_pkey, DAP_ENC_DATA_TYPE_B64);
+                    debug_if(l_pkey_len != l_pkey->header.size + sizeof(dap_pkey_t), L_ERROR, "Json TX: bad pkey in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
+                }
+
                 dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_srv_uid, l_value, l_signing_addr,
-                                                                                                             &l_signer_node_addr, NULL, uint256_0);
+                                                                                                             &l_signer_node_addr, NULL, uint256_0, l_pkey);
                 l_item = (const uint8_t*) l_out_cond_item;
                 // Save value for using in In item
                 if(l_item) {
@@ -8412,7 +8425,7 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
         DAP_DELETE(l_buffer);
         return -8;
     }
-    *a_signed = dap_sign_create(l_cert->enc_key, l_data, l_full_size_for_sign, 0);
+    *a_signed = dap_sign_create(l_cert->enc_key, l_data, l_full_size_for_sign, DAP_SIGN_HASH_TYPE_DEFAULT);
     if (*a_signed == NULL) {
         DAP_DELETE(l_buffer);
         return -9;

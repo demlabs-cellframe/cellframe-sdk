@@ -135,6 +135,20 @@ static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_t
     return false;
 }
 
+DAP_STATIC_INLINE dap_pkey_t *s_get_pkey_by_hash_callback(const uint8_t *a_hash)
+{
+    
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+    for (dap_list_t *l_srv_stake_list = s_srv_stake_list; l_srv_stake_list && !l_stake; l_srv_stake_list = l_srv_stake_list->next) {
+        dap_chain_net_srv_stake_t *l_srv_stake = l_srv_stake_list->data;
+        HASH_FIND(hh, l_srv_stake->itemlist, a_hash, sizeof(dap_hash_fast_t), l_stake);
+    }
+    if (l_stake) {
+        return l_stake->pkey;
+    }
+    return NULL;
+}
+
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
  * @return 0 if everything is okay, lesser then zero if errors
@@ -185,6 +199,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
     dap_ledger_service_add(l_uid, "pos_delegate", s_tag_check_key_delegation);
+    dap_sign_set_pkey_by_hash_callback(s_get_pkey_by_hash_callback);
     return 0;
 }
 
@@ -229,7 +244,7 @@ static void s_stake_net_clear(dap_chain_net_t *a_net)
     HASH_ITER(hh, l_srv_stake->itemlist, l_stake, l_tmp) {
         // Clang bug at this, l_stake should change at every loop cycle
         HASH_DEL(l_srv_stake->itemlist, l_stake);
-        DAP_DELETE(l_stake);
+        DAP_DEL_MULTY(l_stake->pkey, l_stake);
     }
     dap_chain_net_srv_stake_cache_item_t *l_cache_item = NULL, *l_cache_tmp = NULL;
     HASH_ITER(hh, l_srv_stake->cache, l_cache_item, l_cache_tmp) {
@@ -438,7 +453,7 @@ static void s_stake_recalculate_weights(dap_chain_net_id_t a_net_id)
 }
 
 void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_hash_fast_t *a_stake_tx_hash,
-                                          uint256_t a_value, dap_chain_node_addr_t *a_node_addr)
+                                          uint256_t a_value, dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey)
 {
     dap_return_if_fail(a_net && a_signing_addr && a_node_addr && a_stake_tx_hash);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_net->pub.id);
@@ -460,14 +475,27 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     l_stake->value = l_stake->locked_value = a_value;
     l_stake->tx_hash = *a_stake_tx_hash;
     l_stake->is_active = true;
+    l_stake->pkey = DAP_DUP_SIZE(a_pkey, dap_pkey_get_size(a_pkey));
     if (!l_found)
         HASH_ADD(hh, l_srv_stake->itemlist, signing_addr.data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
     if (!dap_hash_fast_is_blank(a_stake_tx_hash)) {
         HASH_ADD(ht, l_srv_stake->tx_itemlist, tx_hash, sizeof(dap_hash_fast_t), l_stake);
         dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, a_stake_tx_hash);
         if (l_tx) {
+            dap_pkey_t *l_pkey = NULL;
             dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL);
-            if (l_cond && l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size()) {
+            if (!l_stake->pkey) {
+                if (l_cond && l_cond->tsd_size) {
+                    dap_tsd_t *l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD);
+                    l_pkey = l_tsd ? (dap_pkey_t *)l_tsd->data : NULL;
+                    l_stake->pkey = DAP_DUP_SIZE(l_pkey, dap_pkey_get_size(l_pkey));
+                }
+                if (!l_stake->pkey) {
+                    l_pkey = dap_ledger_find_pkey_by_hash(a_net->pub.ledger, &a_signing_addr->data.hash_fast);
+                    l_stake->pkey = DAP_DUP_SIZE(l_pkey, dap_pkey_get_size(l_pkey));
+                }
+            }
+            if (l_cond && (l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, dap_pkey_get_size(l_stake->pkey)))) {
                 dap_tsd_t *l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_ADDR);
                 l_stake->sovereign_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
                 l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
@@ -736,10 +764,9 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_enc_
                                                uint256_t a_value, uint256_t a_fee,
                                                dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_node_addr,
                                                dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax,
-                                               dap_chain_datum_tx_t *a_prev_tx)
+                                               dap_chain_datum_tx_t *a_prev_tx, dap_pkey_t *a_pkey)
 {
-    if (!a_net || !a_key || IS_ZERO_256(a_value) || !a_signing_addr || !a_node_addr)
-        return NULL;
+    dap_return_val_if_pass (!a_net || !a_key || IS_ZERO_256(a_value) || !a_signing_addr || !a_node_addr, NULL);
 
     const char *l_native_ticker = a_net->pub.native_ticker;
     char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
@@ -805,7 +832,8 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_enc_
     // add 'out_cond' & 'out_ext' items
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
     dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_uid, a_value, a_signing_addr, a_node_addr,
-                                                                                          a_sovereign_addr, a_sovereign_tax);
+                                                                                          a_sovereign_addr, a_sovereign_tax, a_pkey);
+
     if (!l_tx_out) {
         log_it(L_ERROR, "Can't compose the transaction conditional output");
         goto tx_fail;
@@ -999,7 +1027,7 @@ static dap_chain_datum_tx_t *s_order_tx_create(dap_chain_net_t * a_net, dap_enc_
     dap_chain_node_addr_t l_node_addr = {};
     return s_stake_tx_create(a_net, a_key, a_value, a_fee,
                              (dap_chain_addr_t *)&c_dap_chain_addr_blank, &l_node_addr,
-                             a_sovereign_addr, a_sovereign_tax, NULL);
+                             a_sovereign_addr, a_sovereign_tax, NULL, NULL);
 }
 
 // Put the transaction to mempool
@@ -1927,7 +1955,10 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                         dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_order->tx_cond_hash);
                         if (l_tx) {
                             dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL);
-                            if (l_cond && l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size()) {
+                            if (
+                                l_cond && (l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, false) || 
+                                l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, true))
+                                ) {
                                 dap_tsd_t *l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_ADDR);
                                 l_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
                                 l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
@@ -2021,6 +2052,8 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
                *l_fee_str = NULL,
                *l_node_addr_str = NULL,
                *l_order_hash_str = NULL;
+    
+    dap_pkey_t *l_pkey = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str);
     if (!l_net_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_PARAM_ERR, "Command 'delegate' requires parameter -net");
@@ -2090,16 +2123,28 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
             dap_enc_key_delete(l_enc_key);
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_WRONG_CERT_ERR;
         }
+        l_pkey = dap_pkey_from_enc_key(l_signing_cert->enc_key);
         dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-node_addr", &l_node_addr_str);
     } else if (l_pkey_str) {
-        dap_chain_hash_fast_t l_hash_public_key = {0};
         dap_sign_type_t l_type = dap_sign_type_from_str(l_sign_type_str);
         if (l_type.type == SIG_TYPE_NULL) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_WRONG_SIGN_ERR, "Wrong sign type");
             dap_enc_key_delete(l_enc_key);
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_WRONG_SIGN_ERR;
         }
-        if (dap_chain_hash_fast_from_str(l_pkey_str, &l_hash_public_key)) {
+        l_pkey = dap_pkey_get_from_str(l_pkey_str);
+        if (!l_pkey) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "Invalid pkey string format");
+            dap_enc_key_delete(l_enc_key);
+            return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR;
+        }
+        if (l_pkey->header.type.type != dap_pkey_type_from_sign_type(l_type).type) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "pkey and sign types is different");
+            dap_enc_key_delete(l_enc_key);
+            return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR;
+        }
+        dap_chain_hash_fast_t l_hash_public_key = {0};
+        if (!dap_pkey_get_hash(l_pkey, &l_hash_public_key)) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "Invalid pkey hash format");
             dap_enc_key_delete(l_enc_key);
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR;
@@ -2162,7 +2207,9 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
                 log_it(L_WARNING, "Requested conditional transaction have another ticker (not %s)", l_delegated_ticker);
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_ANOTHER_TICKER_ERR;
             }
-            if (l_cond->tsd_size != dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size()) {
+            if (
+                l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, 0)
+                ) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_COND_TX_FORMAT_ERR, "The order's conditional transaction has invalid format");
                 dap_enc_key_delete(l_enc_key);
                 DAP_DELETE(l_order);
@@ -2247,6 +2294,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_UNSIGNED_ORDER_ERR;
             }
             dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_net->pub.id);
+            l_pkey = dap_pkey_get_from_sign(l_sign);
             char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX];
             dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_net->pub.native_ticker);
             if (dap_strcmp(l_order->price_ticker, l_delegated_ticker_str)) {
@@ -2265,6 +2313,11 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_TAX_ERR;
         }
         DIV_256(l_sovereign_tax, GET_256_FROM_64(100), &l_sovereign_tax);
+    }
+    if (!l_pkey) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "pkey not defined");
+        dap_enc_key_delete(l_enc_key);
+        return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR;
     }
 
     int l_check_result = dap_chain_net_srv_stake_verify_key_and_node(&l_signing_addr, &l_node_addr);
@@ -2296,8 +2349,9 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
 
     // Create conditional transaction
     dap_chain_datum_tx_t *l_tx = s_stake_tx_create(l_net, l_enc_key, l_value, l_fee, &l_signing_addr, &l_node_addr,
-                                                   l_order_hash_str ? &l_sovereign_addr : NULL, l_sovereign_tax, l_prev_tx);
+                                                   l_order_hash_str ? &l_sovereign_addr : NULL, l_sovereign_tax, l_prev_tx, l_pkey);
     dap_enc_key_delete(l_enc_key);
+    DAP_DELETE(l_pkey);
     char *l_tx_hash_str;
     if (!l_tx || !(l_tx_hash_str = s_stake_tx_put(l_tx, l_net, a_hash_out_type))) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_STAKE_ERR, "Stake transaction error");
@@ -2312,6 +2366,61 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
     json_object_object_add(l_json_obj_deligate, "tx_hash", json_object_new_string(l_tx_hash_str));
     json_object_array_add(*a_json_arr_reply, l_json_obj_deligate);
     DAP_DELETE(l_tx_hash_str);
+    return 0;
+}
+
+static int s_cli_srv_stake_pkey_show(int a_argc, char **a_argv, int a_arg_index, void **a_str_reply, const char *a_hash_out_type)
+{
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    const char *l_net_str = NULL,
+               *l_pkey_hash_str = NULL;
+    dap_hash_fast_t l_pkey_hash = {};
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str);
+    if (!l_net_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_PARAM_ERR, "Command 'delegate' requires parameter -net");
+        return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_PARAM_ERR;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+    if (!l_net) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_NET_ERR, "Network %s not found", l_net_str);
+        return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_NET_ERR;
+    }
+
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-pkey", &l_pkey_hash_str);
+
+    if (!l_pkey_hash_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_PARAM_ERR, "Command 'delegate' requires parameter -pkey");
+        return -13;
+    }
+
+    if (dap_chain_hash_fast_from_str(l_pkey_hash_str, &l_pkey_hash)) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "pkey not defined");
+        return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR;
+    }
+
+    dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(l_net->pub.id);
+    if (!l_srv_stake) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "Specified net have no stake service activated");
+        return -25;
+    }
+    // search in curren
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+    HASH_FIND(hh, l_srv_stake->itemlist, &l_pkey_hash, sizeof(dap_hash_fast_t), l_stake);
+    dap_pkey_t *l_pkey = l_stake ? l_stake->pkey : NULL;
+    if (!l_pkey) {
+        l_pkey = dap_ledger_find_pkey_by_hash(l_net->pub.ledger, &l_pkey_hash);
+    }
+    if (!l_pkey) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "pkey not finded");
+        return -25;
+    }
+    char *l_pkey_str = dap_pkey_to_str(l_pkey, a_hash_out_type);
+    json_object* l_json_obj_pkey = json_object_new_object();
+    json_object_object_add(l_json_obj_pkey, "hash", json_object_new_string(l_pkey_hash_str));
+    json_object_object_add(l_json_obj_pkey, "pkey", json_object_new_string(l_pkey_str));
+
+    json_object_array_add(*a_json_arr_reply, l_json_obj_pkey);
+    DAP_DELETE(l_pkey_str);
     return 0;
 }
 
@@ -2901,7 +3010,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {
-        CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_UPDATE, CMD_APPROVE, CMD_LIST, CMD_INVALIDATE, CMD_MIN_VALUE, CMD_CHECK, CMD_MAX_WEIGHT, CMD_REWARD 
+        CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_UPDATE, CMD_APPROVE, CMD_LIST, CMD_INVALIDATE, CMD_MIN_VALUE, CMD_CHECK, CMD_MAX_WEIGHT, CMD_REWARD, CMD_PKEY_SHOW
     };
     int l_arg_index = 1;
 
@@ -2951,6 +3060,9 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
     else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "reward", NULL)) {
         l_cmd_num = CMD_REWARD;
     }
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "pkey_show", NULL)) {
+        l_cmd_num = CMD_PKEY_SHOW;
+    }
 
     switch (l_cmd_num) {
 
@@ -2965,6 +3077,9 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 
         case CMD_INVALIDATE:
             return s_cli_srv_stake_invalidate(a_argc, a_argv, l_arg_index + 1, a_str_reply, l_hash_out_type);
+        
+        case CMD_PKEY_SHOW:
+            return s_cli_srv_stake_pkey_show(a_argc, a_argv, l_arg_index + 1, a_str_reply, l_hash_out_type);
 
         case CMD_CHECK:
         {
