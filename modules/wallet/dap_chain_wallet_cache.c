@@ -685,12 +685,13 @@ static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg)
         HASH_FIND(hh, s_wallets_cache, l_addr, sizeof(dap_chain_addr_t), l_wallet_item);
         if (!l_wallet_item){
             l_wallet_item = DAP_NEW_Z(dap_wallet_cache_t);
-            memcpy (&l_wallet_item->wallet_addr, &l_addr, sizeof(dap_chain_addr_t));
+            memcpy(&l_wallet_item->wallet_addr, l_addr, sizeof(dap_chain_addr_t));
             HASH_ADD(hh, s_wallets_cache, wallet_addr, sizeof(dap_chain_addr_t), l_wallet_item);
             pthread_rwlock_unlock(&s_wallet_cache_rwlock);
             s_save_cache_for_addr_in_net(l_net, l_addr);
         } else 
             pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+        DAP_DEL_Z(l_addr);
     }
 }
 

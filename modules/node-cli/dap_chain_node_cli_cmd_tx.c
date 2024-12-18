@@ -262,10 +262,10 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     char *l_tx_hash_str, *l_atom_hash_str;
     if (!dap_strcmp(a_hash_out_type, "hex")) {
         l_tx_hash_str = dap_chain_hash_fast_to_str_new(a_tx_hash);
-        l_atom_hash_str = dap_chain_hash_fast_to_str_new(&a_atom_hash);
+        l_atom_hash_str = dap_chain_hash_fast_to_str_new(a_atom_hash);
     } else {
         l_tx_hash_str = dap_enc_base58_encode_hash_to_str(a_tx_hash);
-        l_atom_hash_str = dap_enc_base58_encode_hash_to_str(&a_atom_hash);
+        l_atom_hash_str = dap_enc_base58_encode_hash_to_str(a_atom_hash);
     }
     json_object_object_add(json_obj_datum, "status", json_object_new_string(l_declined ? "DECLINED" : "ACCEPTED"));
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_tx_hash_str));
@@ -2629,9 +2629,9 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
             json_object_object_add(l_jobj_result, "warning", l_obj_wgn_str);
         }
     }
-    const dap_chain_addr_t *l_addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+    dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
-    if(!l_addr_from) {
+    if (!l_addr_from) {
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_priv_key);
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID, "source address is invalid");
@@ -2718,7 +2718,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
     for (size_t i = 0; i < l_addr_el_count; ++i) {
         DAP_DELETE(l_addr_to[i]);
     }
-    DAP_DEL_MULTY(l_addr_to, l_value);
+    DAP_DEL_MULTY(l_addr_from, l_addr_to, l_value);
     dap_chain_wallet_close(l_wallet);
     dap_enc_key_delete(l_priv_key);
     return l_ret;

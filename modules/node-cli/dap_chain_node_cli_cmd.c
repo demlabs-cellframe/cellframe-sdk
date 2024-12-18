@@ -2002,10 +2002,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         json_object_object_add(json_obj_wall, "Sign type", json_object_new_string(l_sign_type_str));
                     json_object_object_add(json_obj_wall, "Status", json_object_new_string("successfully created"));
 
-                    const char *l_addr_str = NULL;
-                    if ( l_net && (l_addr_str = dap_chain_addr_to_str_static(dap_chain_wallet_get_addr(l_wallet,l_net->pub.id))) ) {
-                        json_object_object_add(json_obj_wall, "new address", json_object_new_string(l_addr_str) );
-                    }
+                    dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+                    if (l_net && l_addr)
+                        json_object_object_add(json_obj_wall, "new address", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+                    DAP_DEL_Z(l_addr);
                     json_object_array_add(json_arr_out, json_obj_wall);
                     dap_chain_wallet_close(l_wallet);
                     break;
