@@ -36,6 +36,7 @@ typedef enum dap_chain_wallet_getting_type {
 typedef struct dap_chain_wallet_cache_iter {
     dap_chain_datum_tx_t *cur_tx;
     dap_chain_hash_fast_t *cur_hash;
+    dap_chain_hash_fast_t *cur_atom_hash;
     uint32_t action;
     dap_chain_srv_uid_t uid;
     int ret_code;
