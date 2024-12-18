@@ -1198,6 +1198,14 @@ int dap_chain_wallet_get_pkey_hash(dap_chain_wallet_t *a_wallet, dap_hash_fast_t
     if (!l_key)
         return -2;
     int ret = dap_enc_key_get_pkey_hash(l_key, a_out_hash);
-    DAP_DELETE(l_key);
+    dap_enc_key_delete(l_key);
     return ret;
+}
+
+char *dap_chain_wallet_get_pkey_str(dap_chain_wallet_t *a_wallet, const char *a_str_type)
+{
+    dap_pkey_t *l_pkey = dap_chain_wallet_get_pkey(a_wallet, 0);
+    char *l_ret = dap_pkey_to_str(l_pkey, a_str_type);
+    DAP_DELETE(l_pkey);
+    return l_ret;
 }
