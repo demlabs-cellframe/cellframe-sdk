@@ -853,6 +853,8 @@ const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag)
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EXTEND) return "extend";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_CLOSE) return "close";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_CHANGE) return "change";
+    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_VOTING) return "voting";
+    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_VOTE) return "vote";
 
     return "WTFSUBTAG";
 
@@ -873,6 +875,9 @@ dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *
     if (strcmp("extend", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EXTEND;
     if (strcmp("close", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_CLOSE;
     if (strcmp("change", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_CHANGE;
+    if (strcmp("voting", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_VOTING;
+    if (strcmp("vote", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_VOTE;
+
 
     return DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
 }
@@ -953,6 +958,20 @@ bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
     return l_res;
 }
+
+const char *dap_ledger_tx_tag_str_by_uid(dap_chain_srv_uid_t a_service_uid)
+{
+    dap_ledger_service_info_t *l_new_sinfo = NULL;
+    
+    int l_tmp = a_service_uid.raw_ui64;
+
+    pthread_rwlock_rdlock(&s_services_rwlock);
+    HASH_FIND_INT(s_services, &l_tmp, l_new_sinfo);
+    pthread_rwlock_unlock(&s_services_rwlock);
+    
+    return l_new_sinfo ? l_new_sinfo->tag_str : "unknown";
+}
+
 
 /**
  * Delete all transactions from the cache
