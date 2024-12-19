@@ -548,6 +548,50 @@ static int s_save_tx_into_wallet_cache(dap_chain_t *a_chain, dap_chain_datum_tx_
     int l_out_idx = 0, i = 0;
     uint8_t *l_tx_item = NULL;
     size_t l_size;
+
+    bool l_recv_from_cond = false, l_send_to_same_cond = false;
+    dap_chain_addr_t *l_src_addr = NULL;
+    bool l_base_tx = false, l_reward_collect = false;
+    const char *l_noaddr_token = NULL;
+    dap_chain_addr_t *l_dst_addr = NULL;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, a_tx) {
         uint8_t l_out_type = *l_tx_item;
         dap_chain_addr_t l_addr = {};

@@ -416,6 +416,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         dap_chain_net_srv_uid_t l_uid = l_from_cache ? l_wallet_cache_iter->uid : l_datum_iter->uid;
         dap_hash_fast_t l_atom_hash = l_from_cache ? *l_wallet_cache_iter->cur_atom_hash : *l_datum_iter->cur_atom_hash;
 
+
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
         uint8_t *l_tx_item = NULL;
         size_t l_size; int i, q = 0;
@@ -485,7 +486,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         // find OUT items
         bool l_header_printed = false;
         uint256_t l_fee_sum = uint256_0;
-        dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
+        // dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
         json_object * j_arr_data = json_object_new_array();
         json_object * j_obj_tx = json_object_new_object();
         if (!j_obj_tx || !j_arr_data) {
@@ -496,15 +497,17 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         }
         if (!l_src_addr) {
             bool l_dst_addr_present = false;
-            for (dap_list_t *it = l_list_out_items; it; it = it->next) {
-                uint8_t l_type = *(uint8_t *)it->data;
+            uint8_t *l_tx_item = NULL;
+            size_t l_size; int i, q = 0;
+            TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, l_tx) {
+                uint8_t l_type = *l_tx_item;
                 dap_chain_addr_t *l_dst_addr = NULL;
                 switch (l_type) {
                 case TX_ITEM_TYPE_OUT:
-                    l_dst_addr = &((dap_chain_tx_out_t *)it->data)->addr;
+                    l_dst_addr = &((dap_chain_tx_out_t *)l_tx_item)->addr;
                     break;
                 case TX_ITEM_TYPE_OUT_EXT:
-                    l_dst_addr = &((dap_chain_tx_out_ext_t *)it->data)->addr;
+                    l_dst_addr = &((dap_chain_tx_out_ext_t *)l_tx_item)->addr;
                 default:
                     break;
                 }
@@ -518,31 +521,33 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 json_object_put(j_arr_data);
                 j_arr_data = NULL;
                 json_object_put(j_obj_tx);
-                dap_list_free(l_list_out_items);
+                // dap_list_free(l_list_out_items);
                 goto next_step;
             }                
         }
 
-        for (dap_list_t *it = l_list_out_items; it; it = it->next) {
+            uint8_t *l_tx_item = NULL;
+            size_t l_size; int i, q = 0;
+            TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, l_tx) {
             dap_chain_addr_t *l_dst_addr = NULL;
-            uint8_t l_type = *(uint8_t *)it->data;
+            uint8_t l_type = *l_tx_item;
             uint256_t l_value;
             const char *l_dst_token = NULL;
             switch (l_type) {
             case TX_ITEM_TYPE_OUT:
-                l_dst_addr = &((dap_chain_tx_out_t *)it->data)->addr;
-                l_value = ((dap_chain_tx_out_t *)it->data)->header.value;
+                l_dst_addr = &((dap_chain_tx_out_t *)l_tx_item)->addr;
+                l_value = ((dap_chain_tx_out_t *)l_tx_item)->header.value;
                 l_dst_token = l_src_token;
                 break;
             case TX_ITEM_TYPE_OUT_EXT:
-                l_dst_addr = &((dap_chain_tx_out_ext_t *)it->data)->addr;
-                l_value = ((dap_chain_tx_out_ext_t *)it->data)->header.value;
-                l_dst_token = ((dap_chain_tx_out_ext_t *)it->data)->token;
+                l_dst_addr = &((dap_chain_tx_out_ext_t *)l_tx_item)->addr;
+                l_value = ((dap_chain_tx_out_ext_t *)l_tx_item)->header.value;
+                l_dst_token = ((dap_chain_tx_out_ext_t *)l_tx_item)->token;
                 break;
             case TX_ITEM_TYPE_OUT_COND:
-                l_value = ((dap_chain_tx_out_cond_t *)it->data)->header.value;
-                if (((dap_chain_tx_out_cond_t *)it->data)->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
-                    SUM_256_256(l_fee_sum, ((dap_chain_tx_out_cond_t *)it->data)->header.value, &l_fee_sum);
+                l_value = ((dap_chain_tx_out_cond_t *)l_tx_item)->header.value;
+                if (((dap_chain_tx_out_cond_t *)l_tx_item)->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
+                    SUM_256_256(l_fee_sum, ((dap_chain_tx_out_cond_t *)l_tx_item)->header.value, &l_fee_sum);
                     l_dst_token = l_native_ticker;
                 } else
                     l_dst_token = l_src_token;
@@ -625,7 +630,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     l_corr_object = j_obj_data;
                 
             } else if (!l_src_addr || dap_chain_addr_compare(l_src_addr, a_addr)) {
-                if (!l_dst_addr && ((dap_chain_tx_out_cond_t *)it->data)->header.subtype == l_src_subtype && l_src_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
+                if (!l_dst_addr && ((dap_chain_tx_out_cond_t *)l_tx_item)->header.subtype == l_src_subtype && l_src_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                     continue;
                 if (!l_src_addr && l_dst_addr && !dap_chain_addr_compare(l_dst_addr, &l_net_fee_addr))
                     continue;
@@ -649,7 +654,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 if (l_dst_addr)
                     l_dst_addr_str = dap_chain_addr_to_str_static(l_dst_addr);
                 else {
-                    dap_chain_tx_out_cond_subtype_t l_dst_subtype = ((dap_chain_tx_out_cond_t *)it->data)->header.subtype;
+                    dap_chain_tx_out_cond_subtype_t l_dst_subtype = ((dap_chain_tx_out_cond_t *)l_tx_item)->header.subtype;
                     l_dst_addr_str = dap_chain_tx_out_cond_subtype_to_str(l_dst_subtype);
                     if (l_recv_from_cond && l_dst_subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE && l_dst_subtype == l_src_subtype)
                         l_send_to_same_cond = true;
@@ -720,7 +725,6 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             j_arr_data = NULL;
             json_object_put(j_obj_tx);
         }
-        dap_list_free(l_list_out_items);
 
 next_step:
         if (!l_from_cache)
