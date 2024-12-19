@@ -60,7 +60,10 @@ typedef struct dap_chain_datum_tx_spends_items{
 } dap_chain_datum_tx_spends_items_t;
 typedef void (dap_chain_net_tx_hash_callback_t)(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg);
 
-
+typedef struct dap_chain_datum_tx_cond_list_item {
+    dap_hash_fast_t hash;
+    dap_chain_datum_tx_t *tx;
+} dap_chain_datum_tx_cond_list_item_t;
 // TX functions
 dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
                                                      dap_chain_net_tx_search_type_t a_search_type);
@@ -69,7 +72,7 @@ dap_list_t * dap_chain_net_get_tx_cond_chain(dap_chain_net_t * a_net, dap_hash_f
 
 void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_type_t a_search_type ,dap_chain_net_tx_hash_callback_t a_tx_callback, void * a_arg);
 
-
+//return list of dap_chain_datum_tx_cond_list_item_t
 dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_net_srv_uid_t a_srv_uid,
                                                       const dap_time_t a_time_from, const dap_time_t a_time_to,
                                                      const dap_chain_net_tx_search_type_t a_search_type);
