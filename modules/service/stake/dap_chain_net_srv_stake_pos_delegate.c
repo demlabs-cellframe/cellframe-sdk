@@ -185,7 +185,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "srv_stake order remove -net <net_name> -order <order_hash>\n"
         "\tRemove order with specified hash\n"
             "\t\t === Commands for work with stake delegate ===\n"
-    "srv_stake delegate {[-cert <pub_cert_name> | -pkey <pkey> -sign_type <sign_type>] -value <datoshi> | "
+    "srv_stake delegate {[-cert <pub_cert_name> | {-pkey <pkey_hash> | -pkey_full <pkey>}-sign_type <sign_type>] -value <datoshi> | "
                                 "-order <order_hash> {[-tax_addr <wallet_addr_for_tax_collecting>] | "
                                         "-cert <priv_cert_name> [-node_addr <for_validator_node>]}}"
                         " -net <net_name> -w <wallet_name> -fee <value>\n"
@@ -2132,6 +2132,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
                *l_wallet_str = NULL,
                *l_cert_str = NULL,
                *l_pkey_str = NULL,
+               *l_pkey_full_str = NULL,
                *l_sign_type_str = NULL,
                *l_value_str = NULL,
                *l_fee_str = NULL,
@@ -2168,14 +2169,20 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
     uint256_t l_sovereign_tax = uint256_0;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_str);
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-pkey", &l_pkey_str);
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-pkey_full", &l_pkey_full_str);
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-sign_type", &l_sign_type_str);
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-order", &l_order_hash_str);
-    if (!l_cert_str && !l_order_hash_str && !l_pkey_str) {
+    if (!l_cert_str && !l_order_hash_str && !l_pkey_str && !l_pkey_full_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_PARAM_ERR, "Command 'delegate' requires parameter -cert and/or -order and/or -pkey");
         dap_enc_key_delete(l_enc_key);
-        return -13;
+        return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_PARAM_ERR;
     }
-    if (l_pkey_str && !l_sign_type_str) {
+    if (l_pkey_str && l_pkey_full_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_PARAM_ERR, "Command 'delegate' requires only one, -pkey or -pkey_full");
+        dap_enc_key_delete(l_enc_key);
+        return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_PARAM_ERR;
+    }
+    if ((l_pkey_str || l_pkey_full_str) && !l_sign_type_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_PARAM_ERR, "Command 'delegate' requires parameter -sign_type for pkey");
         dap_enc_key_delete(l_enc_key);
         return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_PARAM_ERR;
@@ -2211,14 +2218,20 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
         }
         l_pkey = dap_pkey_from_enc_key(l_signing_cert->enc_key);
         dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-node_addr", &l_node_addr_str);
-    } else if (l_pkey_str) {
+    } else if (l_pkey_str || l_pkey_full_str) {
         dap_sign_type_t l_type = dap_sign_type_from_str(l_sign_type_str);
         if (l_type.type == SIG_TYPE_NULL) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_WRONG_SIGN_ERR, "Wrong sign type");
             dap_enc_key_delete(l_enc_key);
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_WRONG_SIGN_ERR;
         }
-        l_pkey = dap_pkey_get_from_str(l_pkey_str);
+        if (l_pkey_full_str) {
+            l_pkey = dap_pkey_get_from_str(l_pkey_full_str);
+        } else {
+            dap_hash_fast_t l_pkey_hash = {};
+            if (!dap_chain_hash_fast_from_str(l_pkey_str, &l_pkey_hash))
+                l_pkey = dap_ledger_find_pkey_by_hash(l_net->pub.ledger, &l_pkey_hash);
+        }
         if (!l_pkey) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "Invalid pkey string format");
             dap_enc_key_delete(l_enc_key);
