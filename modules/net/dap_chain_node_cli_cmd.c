@@ -4512,7 +4512,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
     l_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
     l_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
 
-    int l_parse_params = s_token_decl_check_params_json(a_argc,a_argv,a_json_arr_reply,l_params, false);
+    int l_parse_params = s_token_decl_check_params_json(a_argc,a_argv,*a_json_arr_reply, l_params, false);
     if (l_parse_params) {
         DAP_DEL_Z(l_params);
         return l_parse_params;
@@ -5150,7 +5150,9 @@ int com_token_emit(int a_argc, char **a_argv, void **a_str_reply)
         dap_global_db_del_sync(l_gdb_group_mempool_emission, l_emission_hash_str_remove);
         DAP_DEL_Z(l_gdb_group_mempool_emission);
     }
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_reply_tmp);
+    json_object* json_obj_out = json_object_new_object();
+    json_object_object_add(json_obj_out, "result", json_object_new_string(l_str_reply_tmp));
+    json_object_array_add(*a_json_arr_reply, json_obj_out);
     return DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr), 0;
 }
 
@@ -5958,6 +5960,7 @@ int com_chain_ca_copy( int a_argc,  char ** a_argv, void **a_str_reply)
  */
 int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply)
 {
+    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     int arg_index = 1;
     // Read params
     const char * l_ca_name = NULL;
@@ -5965,20 +5968,20 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply)
     dap_chain_t * l_chain = NULL;
 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc, a_argv, a_str_reply, &l_chain, &l_net, CHAIN_TYPE_CA);
+    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &arg_index,a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_CA);
 
     dap_cert_t * l_cert = dap_cert_find_by_name( l_ca_name );
     if( l_cert == NULL ){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't find \"%s\" certificate", l_ca_name );
-        return -4;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_FIND_CERT_ERR,
+                                       "Can't find \"%s\" certificate", l_ca_name );
+        return -DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_FIND_CERT_ERR;
     }
 
 
     if( l_cert->enc_key == NULL ){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Corrupted certificate \"%s\" without keys certificate", l_ca_name );
-        return -5;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CORRUPTED_CERT_ERR,
+                                       "Corrupted certificate \"%s\" without keys certificate", l_ca_name );
+        return -DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CORRUPTED_CERT_ERR;
     }
 
     // Create empty new cert
@@ -6007,31 +6010,31 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply)
     uint32_t l_cert_serialized_size = 0;
     byte_t * l_cert_serialized = dap_cert_mem_save( l_cert_new, &l_cert_serialized_size );
     if(!l_cert_serialized){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't serialize in memory certificate" );
-        return -7;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CORRUPTED_CERT_ERR,
+                                       "Can't serialize in memory certificate" );
+        return -DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CORRUPTED_CERT_ERR;
     }
     // Now all the chechs passed, forming datum for mempool
     dap_chain_datum_t * l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_CA, l_cert_serialized , l_cert_serialized_size);
     DAP_DELETE(l_cert_serialized);
     if(!l_datum){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't produce datum from certificate");
-        return -7;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_PRODUCE_CERT_ERR,
+                                       "Can't serialize in memory certificate" );
+        return -DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_PRODUCE_CERT_ERR;
     }
 
     // Finaly add datum to mempool
     char *l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
     DAP_DELETE(l_datum);
     if (l_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Datum %s was successfully placed to mempool", l_hash_str);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_OK,
+                                       "Datum %s was successfully placed to mempool", l_hash_str);
         DAP_DELETE(l_hash_str);
         return 0;
     } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't place certificate \"%s\" to mempool", l_ca_name);
-        return -8;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_PLACE_CERT_ERR,
+                                       "Can't place certificate \"%s\" to mempool", l_ca_name);
+        return -DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_PLACE_CERT_ERR;
     }
 }
 

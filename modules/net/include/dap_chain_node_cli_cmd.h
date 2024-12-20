@@ -323,6 +323,15 @@ typedef enum s_com_token_emit_err{
 
 }s_com_token_emit_err_t;
 
+typedef enum s_com_chain_ca_pub_err{
+    DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_FIND_CERT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CORRUPTED_CERT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_PRODUCE_CERT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_PLACE_CERT_ERR
+
+}s_com_chain_ca_pub_err_t;
+
 int com_tx_cond_remove(int a_argc, char **a_argv, void **reply);
 typedef enum s_com_tx_cond_unspent_find{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_OK = 0,
