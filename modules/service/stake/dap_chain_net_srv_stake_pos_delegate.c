@@ -3682,7 +3682,7 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
     DAP_DELETE(l_gdb_group_str);
     uint256_t l_min = uint256_0, l_max = uint256_0, l_average = uint256_0, l_median = uint256_0;
     uint64_t l_order_fee_count = 0;
-    uint256_t l_all_fees[l_orders_count * sizeof(uint256_t)];
+    uint256_t* l_all_fees = DAP_NEW_Z_COUNT(uint256_t, l_orders_count);
     for (size_t i = 0; i < l_orders_count; i++) {
         const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_orders[i].key, l_orders[i].value, l_orders[i].value_len);
         if (!l_order) {
@@ -3729,6 +3729,7 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
         *a_median_fee = l_median;
     if (a_max_fee)
         *a_max_fee = l_max;
+    DAP_DELETE(l_all_fees);
     return true;
 }
 
