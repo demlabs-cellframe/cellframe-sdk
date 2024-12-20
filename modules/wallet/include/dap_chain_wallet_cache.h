@@ -33,6 +33,34 @@ typedef enum dap_chain_wallet_getting_type {
     DAP_CHAIN_WALLET_CACHE_GET_NEXT,
     DAP_CHAIN_WALLET_CACHE_GET_PREVIOUS,
 } dap_chain_wallet_getting_type_t;
+
+typedef enum dap_chain_wallet_history_item_type {
+    DAP_CHAIN_WALLET_CACHE_HISTORY_ITEM_TYPE_RECV = 0,
+    DAP_CHAIN_WALLET_CACHE_HISTORY_ITEM_TYPE_SEND,
+    DAP_CHAIN_WALLET_CACHE_HISTORY_ITEM_TYPE_CORRECTION,
+    DAP_CHAIN_WALLET_CACHE_HISTORY_ITEM_TYPE_SAME_COND
+} dap_chain_wallet_history_item_type_t;
+
+
+typedef struct dap_wallet_cache_history_item {
+    dap_chain_wallet_history_item_type_t type;
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint256_t value;
+    union {
+        struct {
+            bool emission;
+            dap_chain_addr_t addr;
+            dap_chain_tx_out_cond_subtype_t subtype;
+            bool reward;
+        } src;
+        struct {
+            dap_chain_addr_t addr;
+            dap_chain_tx_out_cond_subtype_t subtype;
+        } dst;
+    } addr;
+
+} dap_wallet_cache_history_item_t;
+
 typedef struct dap_chain_wallet_cache_iter {
     dap_chain_datum_tx_t *cur_tx;
     dap_chain_hash_fast_t *cur_hash;
@@ -43,7 +71,9 @@ typedef struct dap_chain_wallet_cache_iter {
     char *token_ticker;
     void *cur_item;
     void *cur_addr_cache;
+    dap_list_t *history_items_list;
 } dap_chain_wallet_cache_iter_t;
+
 
 int dap_chain_wallet_cache_init();
 int dap_chain_wallet_cache_deinit();

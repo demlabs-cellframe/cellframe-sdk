@@ -56,12 +56,6 @@ typedef enum dap_s_wallets_cache_type{
     DAP_WALLET_CACHE_TYPE_ALL
 } dap_s_wallets_cache_type_t;
 
-typedef struct dap_wallet_tx_cache_input{
-    dap_chain_hash_fast_t tx_prev_hash; 
-    int tx_out_prev_idx;
-    uint256_t value;
-} dap_wallet_tx_cache_input_t;
-
 typedef struct dap_wallet_tx_cache_output{
     void* tx_out;
     int tx_out_idx;
@@ -76,8 +70,8 @@ typedef struct dap_wallet_tx_cache {
     int ret_code;
     dap_chain_net_srv_uid_t srv_uid; 
     dap_chain_tx_tag_action_type_t action;
-    dap_list_t *tx_wallet_inputs;
     dap_list_t *tx_wallet_outputs;
+    dap_list_t *history_items_list;
     UT_hash_handle hh;
 } dap_wallet_tx_cache_t;
 
@@ -549,25 +543,226 @@ static int s_save_tx_into_wallet_cache(dap_chain_t *a_chain, dap_chain_datum_tx_
     uint8_t *l_tx_item = NULL;
     size_t l_size;
 
+    bool l_is_need_correction = false;
+    bool l_continue = true;
+    uint256_t l_corr_value = {}, l_cond_value = {};
     bool l_recv_from_cond = false, l_send_to_same_cond = false;
+        
     dap_chain_addr_t *l_src_addr = NULL;
     bool l_base_tx = false, l_reward_collect = false;
     const char *l_noaddr_token = NULL;
-    dap_chain_addr_t *l_dst_addr = NULL;
 
+    dap_chain_addr_t  l_net_fee_addr = {};
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_net->pub.id, NULL, &l_net_fee_addr);
+    const char *l_native_ticker = l_net->pub.native_ticker;
 
+    int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
+    uint8_t *l_tx_item = NULL;
+    size_t l_size; int i, q = 0;
+    TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_IN_ALL, l_size, i, a_tx) {
+        dap_chain_hash_fast_t *l_tx_prev_hash = NULL;
+        int l_tx_prev_out_idx;
+        dap_chain_datum_tx_t *l_tx_prev = NULL;
+        switch (*l_tx_item) {
+        case TX_ITEM_TYPE_IN: {
+            dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)l_tx_item;
+            l_tx_prev_hash = &l_tx_in->header.tx_prev_hash;
+            l_tx_prev_out_idx = l_tx_in->header.tx_out_prev_idx;
+        } break;
+        case TX_ITEM_TYPE_IN_COND: {
+            dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)l_tx_item;
+            l_tx_prev_hash = &l_tx_in_cond->header.tx_prev_hash;
+            l_tx_prev_out_idx = l_tx_in_cond->header.tx_out_prev_idx;
+        } break;
+        case TX_ITEM_TYPE_IN_EMS: {
+            dap_chain_tx_in_ems_t *l_tx_in_ems = (dap_chain_tx_in_ems_t *)l_tx_item;
+            l_base_tx = true;
+            l_noaddr_token = l_tx_in_ems->header.ticker;
+        } break;
+        case TX_ITEM_TYPE_IN_REWARD: {
+            l_base_tx = l_reward_collect = true;
+            l_noaddr_token = l_native_ticker;
+        }
+        default:
+            continue;
+        }
 
+        dap_chain_datum_t *l_datum_prev = l_tx_prev_hash ?
+                    a_chain->callback_datum_find_by_hash(a_chain, l_tx_prev_hash, NULL, NULL) : NULL;
+        l_tx_prev = l_datum_prev && l_datum_prev->header.type_id == DAP_CHAIN_DATUM_TX ? (dap_chain_datum_tx_t *)l_datum_prev->data : NULL;
+        if (l_tx_prev) {
+            uint8_t *l_prev_out_union = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_tx_prev_out_idx);
+            if (!l_prev_out_union)
+                continue;
+            switch (*l_prev_out_union) {
+            case TX_ITEM_TYPE_OUT:
+                l_src_addr = &((dap_chain_tx_out_t *)l_prev_out_union)->addr;
+                break;
+            case TX_ITEM_TYPE_OUT_EXT:
+                l_src_addr = &((dap_chain_tx_out_ext_t *)l_prev_out_union)->addr;
+                break;
+            case TX_ITEM_TYPE_OUT_COND: {
+                dap_chain_tx_out_cond_t *l_cond_prev = (dap_chain_tx_out_cond_t *)l_prev_out_union;
+                l_src_subtype = l_cond_prev->header.subtype;
+                if (l_cond_prev->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
+                    l_noaddr_token = l_native_ticker;
+                else {
+                    l_recv_from_cond = true;
+                    l_cond_value = l_cond_prev->header.value;
+                    l_noaddr_token = a_main_token_ticker;
+                }
+            } break;
+            default:
+                break;
+            }
+        }
+        // if (l_src_addr && !dap_chain_addr_compare(l_src_addr, a_addr))
+        //     break;  //it's not our addr        
+    }
+    
+    uint256_t l_fee_sum = uint256_0;
+    uint8_t *l_tx_item = NULL;
+    size_t l_size; int i, q = 0;
+    TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, a_tx) {
+        dap_chain_addr_t *l_dst_addr = NULL;
+        uint8_t l_type = *l_tx_item;
+        uint256_t l_value;
+        const char *l_dst_token = NULL;
+        switch (l_type) {
+        case TX_ITEM_TYPE_OUT:
+            l_dst_addr = &((dap_chain_tx_out_t *)l_tx_item)->addr;
+            l_value = ((dap_chain_tx_out_t *)l_tx_item)->header.value;
+            l_dst_token = a_main_token_ticker;
+            break;
+        case TX_ITEM_TYPE_OUT_EXT:
+            l_dst_addr = &((dap_chain_tx_out_ext_t *)l_tx_item)->addr;
+            l_value = ((dap_chain_tx_out_ext_t *)l_tx_item)->header.value;
+            l_dst_token = ((dap_chain_tx_out_ext_t *)l_tx_item)->token;
+            break;
+        case TX_ITEM_TYPE_OUT_COND:
+            l_value = ((dap_chain_tx_out_cond_t *)l_tx_item)->header.value;
+            if (((dap_chain_tx_out_cond_t *)l_tx_item)->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
+                SUM_256_256(l_fee_sum, ((dap_chain_tx_out_cond_t *)l_tx_item)->header.value, &l_fee_sum);
+                l_dst_token = l_native_ticker;
+            } else
+                l_dst_token = a_main_token_ticker;
+        default:
+            break;
+        }
 
+        if (l_src_addr && l_dst_addr &&
+                dap_chain_addr_compare(l_dst_addr, l_src_addr) &&
+                dap_strcmp(l_noaddr_token, l_dst_token))
+            continue;   // sent to self (coinback)
 
+        if (l_dst_addr && l_net_fee_used && dap_chain_addr_compare(&l_net_fee_addr, l_dst_addr))
+            SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
+        
+        if (l_dst_addr) {  
 
+            dap_wallet_cache_history_item_t *l_item = DAP_NEW_Z(dap_wallet_cache_history_item_t);
+            const char *l_src_str = NULL;
+            if (l_base_tx){
+                l_src_str = l_reward_collect ? "reward collecting" : "emission";
+                if (l_reward_collect)
+                    l_item->addr.src.reward = true;
+                else
+                    l_item->addr.src.emission = true;
+            } else if (l_src_addr && dap_strcmp(l_dst_token, l_noaddr_token)) { 
+                l_src_str = dap_chain_addr_to_str_static(l_src_addr);
+                l_item->addr.src.addr = *l_src_addr;
+            } else {
+                l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
+                l_item->addr.src.subtype = l_src_subtype;
+            }
 
+            if (l_recv_from_cond)
+                l_value = l_cond_value;
+            else if (!dap_strcmp(l_native_ticker, l_noaddr_token)) {
+                l_is_need_correction = true;
+                l_corr_value = l_value;
+            }
 
+            l_item->type = DAP_CHAIN_WALLET_CACHE_HISTORY_ITEM_TYPE_RECV;
+            if(l_dst_token)
+                dap_strncpy(l_item->token_ticker, l_dst_token, DAP_CHAIN_TICKER_SIZE_MAX);
+            else
+                dap_strncpy(l_item->token_ticker, "UNKNOWN", DAP_CHAIN_TICKER_SIZE_MAX);
 
+            l_item->value = l_value;
+                                     
+            if (l_recv_from_cond && !l_cond_recv_object)
+                // l_cond_recv_object = j_obj_data;
+            else
+                // json_object_array_add(j_arr_data, j_obj_data);
 
+            if (l_is_need_correction){
+                // l_corr_object = j_obj_data;
+            }
+                
 
-
-
-
+            // Save into cache
+            
+        } else if (!l_src_addr || dap_chain_addr_compare(l_src_addr, a_addr)) {
+            if (!l_dst_addr && ((dap_chain_tx_out_cond_t *)l_tx_item)->header.subtype == l_src_subtype && l_src_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
+                continue;
+            if (!l_src_addr && l_dst_addr && !dap_chain_addr_compare(l_dst_addr, &l_net_fee_addr))
+                continue;
+            const char *l_dst_addr_str = NULL;
+            if (l_dst_addr)
+                l_dst_addr_str = dap_chain_addr_to_str_static(l_dst_addr);
+            else {
+                dap_chain_tx_out_cond_subtype_t l_dst_subtype = ((dap_chain_tx_out_cond_t *)l_tx_item)->header.subtype;
+                l_dst_addr_str = dap_chain_tx_out_cond_subtype_to_str(l_dst_subtype);
+                if (l_recv_from_cond && l_dst_subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE && l_dst_subtype == l_src_subtype)
+                    l_send_to_same_cond = true;
+            }
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
+                            
+  
+            json_object_object_add(j_obj_data, "tx_type", json_object_new_string("send"));
+            json_object_object_add(j_obj_data, "send_coins", json_object_new_string(l_coins_str));
+            json_object_object_add(j_obj_data, "send_datoshi", json_object_new_string(l_value_str));
+            json_object_object_add(j_obj_data, "token", l_dst_token ? json_object_new_string(l_dst_token)
+                                                                    : json_object_new_string("UNKNOWN"));
+            json_object_object_add(j_obj_data, "destination_address", json_object_new_string(l_dst_addr_str));
+            if (l_send_to_same_cond && !l_cond_send_object)
+                l_cond_send_object = j_obj_data;
+            else
+                json_object_array_add(j_arr_data, j_obj_data);
+        }
+    }  
+    if (l_is_need_correction) {
+        SUM_256_256(l_corr_value, l_fee_sum, &l_corr_value);
+        const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_corr_value, &l_coins_str);
+        json_object_object_add(l_corr_object, "recv_coins", json_object_new_string(l_coins_str));
+        json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));
+    }
+    if (l_send_to_same_cond) {
+        json_object *l_cond_recv_value_obj = json_object_object_get(l_cond_recv_object, "recv_datoshi");
+        const char *l_cond_recv_value_str = json_object_get_string(l_cond_recv_value_obj);
+        uint256_t l_cond_recv_value = dap_uint256_scan_uninteger(l_cond_recv_value_str);
+        json_object *l_cond_send_value_obj = json_object_object_get(l_cond_send_object, "send_datoshi");
+        const char *l_cond_send_value_str = json_object_get_string(l_cond_send_value_obj);
+        uint256_t l_cond_send_value = dap_uint256_scan_uninteger(l_cond_send_value_str);
+        assert(!IS_ZERO_256(l_cond_recv_value) && !IS_ZERO_256(l_cond_send_value));
+        int l_direction = compare256(l_cond_recv_value, l_cond_send_value);
+        if (l_direction > 0) {
+            SUBTRACT_256_256(l_cond_recv_value, l_cond_send_value, &l_cond_recv_value);
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_cond_recv_value, &l_coins_str);
+            json_object_object_add(l_cond_recv_object, "recv_coins", json_object_new_string(l_coins_str));
+            json_object_object_add(l_cond_recv_object, "recv_datoshi", json_object_new_string(l_value_str));
+            json_object_array_add(j_arr_data, l_cond_recv_object);
+        } else if (l_direction < 0) {
+            SUBTRACT_256_256(l_cond_send_value, l_cond_recv_value, &l_cond_send_value);
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_cond_send_value, &l_coins_str);
+            json_object_object_add(l_cond_send_object, "send_coins", json_object_new_string(l_coins_str));
+            json_object_object_add(l_cond_send_object, "send_datoshi", json_object_new_string(l_value_str));
+            json_object_array_add(j_arr_data, l_cond_send_object);
+        }
+    } else if (l_recv_from_cond)
+        json_object_array_add(j_arr_data, l_cond_recv_object);
 
 
 
@@ -717,11 +912,6 @@ static int s_save_tx_into_wallet_cache(dap_chain_t *a_chain, dap_chain_datum_tx_
                     l_wallet_tx_item->action = a_action;
                     HASH_ADD(hh, l_wallet_item->wallet_txs, tx_hash, sizeof(dap_hash_fast_t), l_wallet_tx_item);
                 }
-                dap_wallet_tx_cache_input_t *l_tx_in = DAP_NEW_Z(dap_wallet_tx_cache_input_t);
-                l_tx_in->tx_prev_hash = l_prev_tx_hash;
-                l_tx_in->tx_out_prev_idx = l_prev_idx;
-                l_tx_in->value = l_value;
-                l_wallet_tx_item->tx_wallet_inputs = dap_list_append(l_wallet_tx_item->tx_wallet_inputs, l_tx_in);
                 if (!a_ret_code){
                     unspent_cache_hh_key key = {0};
                     key.tx_hash = l_prev_tx_hash;
@@ -939,11 +1129,6 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                     l_wallet_tx_item->action = a_action;
                     HASH_ADD(hh, l_wallet_item->wallet_txs, tx_hash, sizeof(dap_hash_fast_t), l_wallet_tx_item);
                 }
-                dap_wallet_tx_cache_input_t *l_tx_in = DAP_NEW_Z(dap_wallet_tx_cache_input_t);
-                l_tx_in->tx_prev_hash = l_prev_tx_hash;
-                l_tx_in->tx_out_prev_idx = l_prev_idx;
-                l_tx_in->value = l_value;
-                l_wallet_tx_item->tx_wallet_inputs = dap_list_append(l_wallet_tx_item->tx_wallet_inputs, l_tx_in);
                 // Delete unspent out from unspent outs cache
                 if (!a_ret_code){
                     unspent_cache_hh_key key;
@@ -1007,7 +1192,6 @@ static void s_callback_datum_removed_notify(void *a_arg, dap_chain_hash_fast_t *
                 HASH_FIND(hh, l_wallet_item->wallet_txs, a_datum_hash, sizeof(dap_hash_fast_t), l_wallet_tx_item);
                 if (l_wallet_tx_item){
                     HASH_DEL(l_wallet_item->wallet_txs, l_wallet_tx_item);
-                    dap_list_free_full(l_wallet_tx_item->tx_wallet_inputs, NULL);
                     dap_list_free_full(l_wallet_tx_item->tx_wallet_outputs, NULL);
                     DAP_DEL_Z(l_wallet_tx_item);
                 }
@@ -1071,7 +1255,6 @@ static void s_callback_datum_removed_notify(void *a_arg, dap_chain_hash_fast_t *
                     HASH_FIND(hh, l_wallet_item->wallet_txs, a_datum_hash, sizeof(dap_hash_fast_t), l_wallet_tx_item);
                     if (l_wallet_tx_item){
                         HASH_DEL(l_wallet_item->wallet_txs, l_wallet_tx_item);
-                        dap_list_free_full(l_wallet_tx_item->tx_wallet_inputs, NULL);
                         dap_list_free_full(l_wallet_tx_item->tx_wallet_outputs, NULL);
                         DAP_DEL_Z(l_wallet_tx_item);
                     }
