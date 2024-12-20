@@ -485,10 +485,14 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
             dap_pkey_t *l_pkey = NULL;
             dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL);
             if (!l_stake->pkey) {
-                if (l_cond && l_cond->tsd_size) {
+                if (l_cond && DAP_SIGN_GET_PKEY_HASHING_FLAG(l_cond->subtype.srv_stake_pos_delegate.flags)) {
                     dap_tsd_t *l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD);
-                    l_pkey = l_tsd ? (dap_pkey_t *)l_tsd->data : NULL;
-                    l_stake->pkey = DAP_DUP_SIZE(l_pkey, dap_pkey_get_size(l_pkey));
+                    if (!l_tsd) {
+                        log_it(L_WARNING, "NULL tsd pkey in tx_out_cond with active PKEY_HASHING_FLAG");
+                    } else {
+                        l_pkey = (dap_pkey_t *)l_tsd->data;
+                        l_stake->pkey = DAP_DUP_SIZE(l_pkey, dap_pkey_get_size(l_pkey));
+                    }
                 }
                 if (!l_stake->pkey) {
                     l_pkey = dap_ledger_find_pkey_by_hash(a_net->pub.ledger, &a_signing_addr->data.hash_fast);
@@ -1955,16 +1959,24 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                         dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_order->tx_cond_hash);
                         if (l_tx) {
                             dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL);
-                            if (
-                                l_cond && (l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, false) || 
-                                l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, true))
-                                ) {
-                                dap_tsd_t *l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_ADDR);
-                                l_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
-                                l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
-                                l_tax = dap_tsd_get_scalar(l_tsd, uint256_t);
-                                MULT_256_256(l_tax, GET_256_FROM_64(100), &l_tax);
-                                l_error = false;
+                            if (l_cond) {
+                                dap_pkey_t *l_pkey = NULL;
+                                if (DAP_SIGN_GET_PKEY_HASHING_FLAG(l_cond->subtype.srv_stake_pos_delegate.flags)) {
+                                    dap_tsd_t *l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD);
+                                    if (!l_tsd) {
+                                        log_it(L_WARNING, "NULL tsd pkey in tx_out_cond with active PKEY_HASHING_FLAG");
+                                    } else {
+                                        l_pkey = (dap_pkey_t *)l_tsd->data;
+                                    }
+                                }
+                                if (l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, dap_pkey_get_size(l_pkey))) {
+                                    dap_tsd_t *l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_ADDR);
+                                    l_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
+                                    l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
+                                    l_tax = dap_tsd_get_scalar(l_tsd, uint256_t);
+                                    MULT_256_256(l_tax, GET_256_FROM_64(100), &l_tax);
+                                    l_error = false;
+                                }
                             }
                         }                   
                         if (!l_error) {
