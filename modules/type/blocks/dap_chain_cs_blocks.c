@@ -712,7 +712,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                                                                                               &l_datum_size, NULL, NULL);
             l_datums[0] = l_datum;
             for (size_t i = 0; i < l_datums_count; i++) {
-                if ( dap_chain_node_mempool_process(l_chain, l_datums[i], l_subcmd_str_arg) ) {
+                if ( dap_chain_node_mempool_process(l_chain, l_datums[i], l_subcmd_str_arg, NULL) ) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_VERIF_ERR, "Error! Datum %s doesn't pass verifications, examine node log files",
                                                       l_subcmd_str_arg);
                     DAP_DEL_MULTY(l_datum, l_datums, l_gdb_group_mempool);

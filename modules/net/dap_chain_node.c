@@ -304,7 +304,7 @@ bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t
 }
 
 /* Return true if processed datum should be deleted from mempool */
-bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_datum_hash_str)
+bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_datum_hash_str, int * a_ret)
 {
     if (!a_chain->callback_add_datums) {
         log_it(L_ERROR, "Not found chain callback for datums processing");
@@ -333,8 +333,11 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS &&
-            l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE)
-        return true;
+            l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE) {
+                if (a_ret)
+                    *a_ret = l_verify_datum;
+                return true;
+        }
     return false;
 }
 
@@ -407,11 +410,13 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                         }
                     }
                 }
-
-                if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key)) {
+                int l_ret = 0;
+                if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key, &l_ret)) {
                     // Delete processed objects
                     log_it(L_INFO, " ! Delete datum %s from mempool", l_objs[i].key);
-                    dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
+                    char* l_ret_str = dap_strdup_printf("%d", l_ret);
+                    dap_global_db_del_ex(l_gdb_group_mempool, l_objs[i].key, l_ret_str, strlen(l_ret_str), NULL, NULL);
+                    DAP_DELETE(l_ret_str);
                 } else {
                     log_it(L_INFO, " ! Datum %s remains in mempool", l_objs[i].key);
                 }
