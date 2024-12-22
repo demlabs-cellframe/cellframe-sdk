@@ -1763,28 +1763,37 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             uint256_t l_value_sum = uint256_0;
             if (l_value_str){
                 uint256_t l_value_datoshi = dap_chain_balance_scan(l_value_str);
-                l_outs_list = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum);
+                if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum))
+                    l_outs_list = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum);
             } else {
-                l_outs_list = dap_ledger_get_list_tx_outs(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum);
+                if (dap_chain_wallet_cache_tx_find_outs(l_net, l_token_tiker, l_addr, &l_outs_list, &l_value_sum))
+                    l_outs_list = dap_ledger_get_list_tx_outs(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum);
             }
-
-            json_object_object_add(json_obj_wall, "total_value", json_object_new_string(dap_uint256_to_char(l_value_sum, NULL)));
+            json_object_object_add(json_obj_wall, "wallet_addr", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+            const char *l_out_total_value_str = dap_chain_balance_print(l_value_sum);
+            const char *l_out_total_value_coins_str = dap_chain_balance_to_coins(l_value_sum);
+            json_object_object_add(json_obj_wall, "total_value_coins", json_object_new_string(l_out_total_value_coins_str));
+            json_object_object_add(json_obj_wall, "total_value_datoshi", json_object_new_string(l_out_total_value_str));
+            DAP_DEL_Z(l_out_total_value_str);
+            DAP_DEL_Z(l_out_total_value_coins_str);
             struct json_object *l_json_outs_arr = json_object_new_array();
             for (dap_list_t *l_temp = l_outs_list; l_temp; l_temp = l_temp->next){
                 dap_chain_tx_used_out_item_t *l_item = l_temp->data;
                 json_object* json_obj_item = json_object_new_object();
-                const char *l_out_value_str = dap_uint256_to_char(l_item->value, NULL);
+                const char *l_out_value_str = dap_chain_balance_print(l_item->value);
+                const char *l_out_value_coins_str = dap_chain_balance_to_coins(l_item->value);
                 json_object_object_add(json_obj_item,"item_type", json_object_new_string("unspent_out"));
-                json_object_object_add(json_obj_item,"value", json_object_new_string(l_out_value_str));
+                json_object_object_add(json_obj_item,"value_coins", json_object_new_string(l_out_value_coins_str));
+                json_object_object_add(json_obj_item,"value_datosi", json_object_new_string(l_out_value_str));
                 json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx_hash_fast)));  
                 json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_int64(l_item->num_idx_out));   
                 json_object_array_add(l_json_outs_arr, json_obj_item);
+                DAP_DEL_Z(l_out_value_str);
+                DAP_DEL_Z(l_out_value_coins_str);
             }
             dap_list_free_full(l_outs_list, NULL);
             json_object_object_add(json_obj_wall, "outs", l_json_outs_arr);
             json_object_array_add(json_arr_out, json_obj_wall);
-
-
         } break;
         default: {
             if( !l_wallet_name ) {
