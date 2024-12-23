@@ -29,7 +29,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_wallet.h"
 
-#define DAP_CHAIN_WALLETS_FILE_SIGNATURE 0x1a167bef15feea18
+#define DAP_CHAIN_WALLETS_FILE_SIGNATURE (uint64_t)0x1a167bef15feea18
 
 
 enum    {

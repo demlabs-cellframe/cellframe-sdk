@@ -88,13 +88,9 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
                 l_uplinks_count = 0,
                 l_downlinks_count = 0,
                 l_info_size = 0;
-        // memory alloc first
             dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, true);
-            dap_chain_node_net_states_info_t *l_info = NULL;
             l_info_size = sizeof(dap_chain_node_net_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
-            DAP_NEW_Z_SIZE_RET(l_info, dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
-        // func work
-            // data preparing
+            dap_chain_node_net_states_info_t *l_info = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
             l_info->version_info = DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION;
             dap_strncpy(l_info->version_node, DAP_VERSION, sizeof(l_info->version_node) - 1);
             l_info->role = dap_chain_net_get_role(l_net);
@@ -185,6 +181,20 @@ dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream
         }
     } else {
         s_states_info_to_str(a_net, l_node_addr_str, l_ret);
+    }
+    if (!l_ret->len) {
+        const char *l_prefix = !a_addr.uint64 ? "my" : a_addr.uint64 == g_node_addr.uint64 ? "my" : "";
+        if (a_net){
+            dap_string_append_printf(l_ret, "Can't find state of %s node %s in net %s", l_prefix, l_node_addr_str, a_net->pub.name);
+        } else {
+            dap_string_append_printf(l_ret, "Can't find state of %s node %s in nets ", l_prefix, l_node_addr_str);
+            dap_chain_net_t *l_current_net = NULL, *l_next_net = dap_chain_net_iter_start();
+            while(l_next_net) {
+                l_current_net = l_next_net;
+                l_next_net = dap_chain_net_iter_next(l_next_net);
+                dap_string_append_printf(l_ret, l_next_net ? "%s, " : "%s", l_current_net->pub.name);
+            }
+        }
     }
     return l_ret;
 }
@@ -365,10 +375,12 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
 #ifdef DAP_TPS_TEST
         log_it(L_TPS, "Get %zu datums from mempool", l_objs_size);
 #endif
-        for (size_t i = 0; i < l_objs_size; i++) {
-            if (!l_objs[i].value_len)
+        for (size_t i = 0; i < l_objs_size; i++) {           
+            if (l_objs[i].value_len < sizeof(dap_chain_datum_t))
                 continue;
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+            if (dap_chain_datum_size(l_datum) != l_objs[i].value_len)
+                continue;
             if (dap_chain_node_mempool_need_process(a_chain, l_datum)) {
 
                 if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX &&
