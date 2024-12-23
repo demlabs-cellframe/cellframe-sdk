@@ -1432,13 +1432,19 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
  */
 int com_version(int argc, char ** argv, void **a_str_reply)
 {
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
     (void) argc;
     (void) argv;
 #ifndef DAP_VERSION
 #pragma message "[!WRN!] DAP_VERSION IS NOT DEFINED. Manual override engaged."
 #define DAP_VERSION "0.9-15"
 #endif
-    return dap_cli_server_cmd_set_reply_text(a_str_reply, "%s version "DAP_VERSION"\n", dap_get_appname()), 0;
+    json_object* json_obj_out = json_object_new_object();
+    char *l_vers = dap_strdup_printf("%s version "DAP_VERSION"\n", dap_get_appname());
+    json_object_object_add(json_obj_out, "status", json_object_new_string(l_vers));
+    DAP_DELETE(l_vers);
+    json_object_array_add(*a_json_arr_reply, json_obj_out);
+    return 0;
 }
 
 
@@ -7820,18 +7826,21 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply)
  */
 int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
 {
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
     int arg_index = 1;
     const char *l_filename = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "filename", &l_filename);
     if (!l_filename) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "gdb_import requires parameter 'filename'");
-        return -1;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GDB_IMPORT_REQUIRES_PARAMETER_FILENAME, 
+                                                        "gdb_import requires parameter 'filename'");
+        return -DAP_CHAIN_NODE_CLI_COM_GDB_IMPORT_REQUIRES_PARAMETER_FILENAME;
     }
     const char *l_gdb_path = dap_config_get_item_str(g_config, "global_db", "path");
     if (!l_gdb_path) {
         log_it(L_ERROR, "Can't find gdb path in config file");
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find gdb path in the config file");
-        return -1;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GDB_IMPORT_CANT_FIND_GDB_PATH_ERR, 
+                                                        "Can't find gdb path in the config file");
+        return -DAP_CHAIN_NODE_CLI_COM_GDB_IMPORT_CANT_FIND_GDB_PATH_ERR;
     }
     char l_path[MAX_PATH + 1];
     snprintf(l_path, sizeof(l_path), "%s/%s.json", l_gdb_path, l_filename);
@@ -7842,7 +7851,8 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Import error occured: code %d",errno);
 #else
         log_it(L_CRITICAL, "Import error occured: %s", json_util_get_last_err());
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", json_util_get_last_err());
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GENERAL_ERR, 
+                                                        "%s", json_util_get_last_err());
 #endif
         return -1;
     }
@@ -7946,6 +7956,7 @@ typedef struct _pvt_net_nodes_list {
 
 int cmd_remove(int a_argc, char **a_argv, void **a_str_reply)
 {
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
     //default init
     const char		*return_message	=	NULL;
     const char		*l_gdb_path		=	NULL;
@@ -8062,15 +8073,21 @@ int cmd_remove(int a_argc, char **a_argv, void **a_str_reply)
                          "The list of available networks can be viewed using the command:"
                          "'net list'";
     }
-
+    json_object* json_obj_out;
+    char *l_out_mes;
     if (error) {
-       dap_cli_server_cmd_set_reply_text(a_str_reply, "Error when deleting, because:\n%s", return_message);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_REMOVE_GENERAL_ERR, "Error when deleting, because:\n%s", return_message);
     }
     else if (successful) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Successful removal: %s", successful & REMOVED_GDB && successful & REMOVED_CHAINS ? "gdb, chains" : successful & REMOVED_GDB ? "gdb" : successful & REMOVED_CHAINS ? "chains" : "");
+        json_obj_out = json_object_new_object();
+        l_out_mes = dap_strdup_printf("Successful removal: %s", successful & REMOVED_GDB && successful & REMOVED_CHAINS ? "gdb, chains" : successful & REMOVED_GDB ? "gdb" : successful & REMOVED_CHAINS ? "chains" : "");
+        json_object_object_add(json_obj_out, "status", json_object_new_string(l_out_mes));
+        DAP_DELETE(l_out_mes);
+        json_object_array_add(*a_json_arr_reply,json_obj_out);
     } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Nothing to delete. Check if the command is correct.\nUse flags: -gdb or/and -chains [-net <net_name> | -all]\n"
-                                                       "Be careful, the '-all' option will delete ALL CHAINS and won't ask you for permission!");
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_REMOVE_NOTHING_TO_DEL_ERR, 
+                                                    "Nothing to delete. Check if the command is correct.\nUse flags: -gdb or/and -chains [-net <net_name> | -all]\n"
+                                                    "Be careful, the '-all' option will delete ALL CHAINS and won't ask you for permission!");
     }
 
     for (dap_list_t *it = l_net_returns; it; it = it->next)

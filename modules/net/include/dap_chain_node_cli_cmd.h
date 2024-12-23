@@ -333,6 +333,21 @@ typedef enum s_com_chain_ca_pub_err{
 
 }s_com_chain_ca_pub_err_t;
 
+typedef enum s_com_remove_err{
+    DAP_CHAIN_NODE_CLI_COM_REMOVE_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_REMOVE_GENERAL_ERR,
+    DAP_CHAIN_NODE_CLI_COM_REMOVE_NOTHING_TO_DEL_ERR
+
+}s_com_remove_err_t;
+
+typedef enum s_com_gdb_import_err{
+    DAP_CHAIN_NODE_CLI_COM_GDB_IMPORT_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_GDB_IMPORT_REQUIRES_PARAMETER_FILENAME,
+    DAP_CHAIN_NODE_CLI_COM_GENERAL_ERR,
+    DAP_CHAIN_NODE_CLI_COM_GDB_IMPORT_CANT_FIND_GDB_PATH_ERR
+
+}s_com_gdb_import_err_t;
+
 int com_tx_cond_remove(int a_argc, char **a_argv, void **reply);
 typedef enum s_com_tx_cond_unspent_find{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_OK = 0,
