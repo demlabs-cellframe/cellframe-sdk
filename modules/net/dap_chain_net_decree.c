@@ -444,6 +444,18 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             
             dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, &l_hash, l_value, &l_node_addr, NULL);
             break;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_UPDATE:
+            if (!a_anchored)
+                break;
+            if (!a_apply)
+                break;
+            dap_pkey_t *l_pkey = NULL;
+            if (dap_chain_datum_decree_get_pkey(a_decree, &l_pkey)){
+                log_it(L_WARNING,"Can't get pkey from decree.");
+                return -105;
+            }
+            dap_chain_net_srv_stake_pkey_update(a_net, &l_pkey);
+            break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE: {
             if (dap_chain_datum_decree_get_stake_signing_addr(a_decree, &l_addr)){
                 log_it(L_WARNING,"Can't get signing address from decree.");
