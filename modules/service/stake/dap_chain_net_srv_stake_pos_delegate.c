@@ -211,6 +211,8 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "\texample coins amount syntax (only natural) 1.0 123.4567\n"
     "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n"
     );
+
+    s_debug_more = dap_config_get_item_bool_default(g_config, "stake", "debug_more", s_debug_more);
     dap_sign_set_pkey_by_hash_callback(s_get_pkey_by_hash_callback);
     dap_chain_static_srv_callbacks_t l_callbacks = { .start = s_pos_delegate_start,
                                                      .delete = s_pos_delegate_delete,
@@ -3023,6 +3025,9 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     char l_node_addr[32];
     snprintf(l_node_addr, 32, ""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(a_stake->node_addr));
     json_object_object_add(l_json_obj_stake, "pkey_hash", json_object_new_string(l_pkey_hash_str));
+    if (s_debug_more) {
+        json_object_object_add(l_json_obj_stake, "pkey_full", json_object_new_string(a_stake->pkey ? "true" : "false"));
+    }
     json_object_object_add(l_json_obj_stake, "stake_value", json_object_new_string(l_balance));
     json_object_object_add(l_json_obj_stake, "effective_value", json_object_new_string(l_effective_weight));
     json_object_object_add(l_json_obj_stake, "related_weight", json_object_new_string(l_rel_weight_str));
