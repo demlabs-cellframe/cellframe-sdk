@@ -199,6 +199,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
     dap_ledger_service_add(l_uid, "pos_delegate", s_tag_check_key_delegation);
+    s_debug_more = dap_config_get_item_bool_default(g_config, "stake", "debug_more", s_debug_more);
     dap_sign_set_pkey_by_hash_callback(s_get_pkey_by_hash_callback);
     return 0;
 }
@@ -2925,6 +2926,9 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     char l_node_addr[32];
     snprintf(l_node_addr, 32, ""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(a_stake->node_addr));
     json_object_object_add(l_json_obj_stake, "pkey_hash", json_object_new_string(l_pkey_hash_str));
+    if (s_debug_more) {
+        json_object_object_add(l_json_obj_stake, "pkey_full", json_object_new_string(a_stake->pkey ? "true" : "false"));
+    }
     json_object_object_add(l_json_obj_stake, "stake_value", json_object_new_string(l_balance));
     json_object_object_add(l_json_obj_stake, "effective_value", json_object_new_string(l_effective_weight));
     json_object_object_add(l_json_obj_stake, "related_weight", json_object_new_string(l_rel_weight_str));
