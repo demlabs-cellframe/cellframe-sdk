@@ -1280,7 +1280,7 @@ static bool s_session_directive_ready(dap_chain_esbocs_session_t *a_session, boo
 {
     size_t l_list_length = dap_list_length(a_session->cur_round.all_validators);
     if (a_session->cur_round.total_validators_synced * 3 < l_list_length * 2) {
-        log_it(L_INFO, "Not enough validator online for directive, %zu * 3 < %zu * 2",
+        log_it(L_INFO, "Not enough validator online for directive, %u * 3 < %zu * 2",
                        a_session->cur_round.total_validators_synced, l_list_length );
         return false; // Not a valid round, less than 2/3 participants
     }
@@ -3062,8 +3062,8 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "add") > 0 && l_subcmd == SUBCMD_EMERGENCY_VALIDATOR) ||
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "remove") > 0 && l_subcmd == SUBCMD_EMERGENCY_VALIDATOR))
         {
-            if (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "enable") ||
-                    dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "add"))
+            if (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "enable") != -1 ||
+                    dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "add") != -1)
                 l_subcommand_add = true;
             const char *l_cert_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
