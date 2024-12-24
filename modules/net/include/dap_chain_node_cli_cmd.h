@@ -348,6 +348,18 @@ typedef enum s_com_gdb_import_err{
 
 }s_com_gdb_import_err_t;
 
+typedef enum s_com_stats_err{
+    DAP_CHAIN_NODE_CLI_COM_STATS_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR
+}s_com_stats_err_t;
+
+typedef enum s_com_print_log_err{
+    DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_REQUIRES_PARAMETER_AFTER,
+    DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_REQUIRES_PARAMETER_LIMIT,
+    DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_NO_LOGS
+}s_com_print_log_err_t;
+
 int com_tx_cond_remove(int a_argc, char **a_argv, void **reply);
 typedef enum s_com_tx_cond_unspent_find{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_OK = 0,

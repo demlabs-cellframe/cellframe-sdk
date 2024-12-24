@@ -4066,7 +4066,7 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, json_object
     }
 
     int l_arg_index = 0;
-    int l_res = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&l_arg_index, a_argc, a_argv, a_json_arr_reply,
+    int l_res = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply, &l_arg_index, a_argc, a_argv,
                                                               &a_params->chain, &a_params->net, CHAIN_TYPE_TOKEN);
 
     if(!a_params->net || !a_params->chain)
@@ -7594,6 +7594,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
  */
 int com_stats(int argc, char **a_argv, void **a_str_reply)
 {
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {
         CMD_NONE, CMD_STATS_CPU
     };
@@ -7606,31 +7607,33 @@ int com_stats(int argc, char **a_argv, void **a_str_reply)
     switch (cmd_num) {
     case CMD_NONE:
     default:
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "format of command: stats cpu");
-        return -1;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
+                        "format of command: stats cpu");
+        return -DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR;
     case CMD_STATS_CPU:
 #if (defined DAP_OS_UNIX) || (defined __WIN32)
     {
         dap_cpu_monitor_init();
         dap_usleep(500000);
-        char *l_str_reply_prev = DAP_NEW_Z_SIZE(char, 1);
+        json_object* json_arr_cpu_out = json_object_new_array();        
         char *l_str_delimiter;
+        char *l_str_cpu_num;
         dap_cpu_stats_t s_cpu_stats = dap_cpu_get_stats();
         for (uint32_t n_cpu_num = 0; n_cpu_num < s_cpu_stats.cpu_cores_count; n_cpu_num++) {
-            if ((n_cpu_num % 4 == 0) && (n_cpu_num != 0)) {
-                l_str_delimiter = dap_strdup_printf("\n");
-            } else if (n_cpu_num == s_cpu_stats.cpu_cores_count - 1) {
-                l_str_delimiter = DAP_NEW_Z_SIZE(char, 1);
-            } else {
-                l_str_delimiter = dap_strdup_printf(" ");
-            }
-            *a_str_reply = dap_strdup_printf("%sCPU-%d: %f%%%s", l_str_reply_prev, n_cpu_num, s_cpu_stats.cpus[n_cpu_num].load, l_str_delimiter);
-            DAP_DELETE(l_str_reply_prev);
+            json_object* json_obj_cpu = json_object_new_object();
+            l_str_cpu_num = dap_strdup_printf("CPU-%d", n_cpu_num);
+            l_str_delimiter = dap_strdup_printf("%f%%", s_cpu_stats.cpus[n_cpu_num].load);
+            json_object_object_add(json_obj_cpu, l_str_cpu_num, json_object_new_string(l_str_delimiter));
+            json_object_array_add(json_arr_cpu_out, json_obj_cpu);
+            DAP_DELETE(l_str_cpu_num);
             DAP_DELETE(l_str_delimiter);
-            l_str_reply_prev = *a_str_reply;
         }
-        *a_str_reply = dap_strdup_printf("%s\nTotal: %f%%", l_str_reply_prev, s_cpu_stats.cpu_summary.load);
-        DAP_DELETE(l_str_reply_prev);
+        json_object* json_obj_total = json_object_new_object();
+        l_str_delimiter = dap_strdup_printf("%f%%", s_cpu_stats.cpu_summary.load);
+        json_object_object_add(json_obj_total, "Total", json_object_new_string(l_str_delimiter));
+        json_object_array_add(json_arr_cpu_out, json_obj_total);
+        DAP_DELETE(l_str_delimiter);
+        json_object_array_add(*a_json_arr_reply, json_arr_cpu_out);
         break;
     }
 #else
@@ -7638,7 +7641,7 @@ int com_stats(int argc, char **a_argv, void **a_str_reply)
         return -1;
 #endif // DAP_OS_UNIX
     }
-    return 0;
+    return DAP_CHAIN_NODE_CLI_COM_STATS_OK;
 }
 
 /**
@@ -7671,6 +7674,7 @@ int com_exit(int a_argc, char **a_argv, void **a_str_reply)
  */
 int com_print_log(int a_argc, char **a_argv, void **a_str_reply)
 {
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
     int arg_index = 1;
     const char * l_str_ts_after = NULL;
     const char * l_str_limit = NULL;
@@ -7683,23 +7687,27 @@ int com_print_log(int a_argc, char **a_argv, void **a_str_reply)
     l_limit = (l_str_limit) ? strtol(l_str_limit, 0, 10) : -1;
 
     if(l_ts_after < 0 || !l_str_ts_after) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "requires valid parameter 'l_ts_after'");
-        return -1;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_REQUIRES_PARAMETER_AFTER, 
+                                                                        "requires valid parameter 'l_ts_after'");
+        return -DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_REQUIRES_PARAMETER_AFTER;
     }
     if(l_limit <= 0) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "requires valid parameter 'limit'");
-        return -1;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_REQUIRES_PARAMETER_LIMIT, 
+                                                                        "requires valid parameter 'limit'");
+        return -DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_REQUIRES_PARAMETER_LIMIT;
     }
 
     // get logs from list
     char *l_str_ret = dap_log_get_item(l_ts_after, (int) l_limit);
     if(!l_str_ret) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "no logs");
-        return -1;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_NO_LOGS, 
+                                                                        "no logs");
+        return -DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_NO_LOGS;
     }
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret);
+    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_OK, 
+                                                        "%s", l_str_ret);
     DAP_DELETE(l_str_ret);
-    return 0;
+    return DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_OK;
 }
 
 /**
