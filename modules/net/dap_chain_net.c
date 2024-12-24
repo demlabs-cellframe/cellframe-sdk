@@ -3327,4 +3327,21 @@ DAP_INLINE dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t 
     return PVT(a_net)->state_target;
 }
 
+bool dap_chain_net_stop(dap_chain_net_t *a_net)
+{
+    int l_attempts_count = 0;
+    bool l_ret = false;
+    if (dap_chain_net_get_target_state(a_net) == NET_STATE_ONLINE) {
+        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+        l_ret = true;
+    } else if (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE) {
+        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+    }
+    while (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE && l_attempts_count++ < 5) { sleep(1); }
+    if (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE) {
+        log_it(L_ERROR, "Can't stop net %s", a_net->pub.name);
+    }
+    return l_ret;
+}
+
 /*------------------------------------State machine block end---------------------------------*/
