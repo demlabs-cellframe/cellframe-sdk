@@ -680,6 +680,22 @@ static void s_net_states_notify(dap_chain_net_t *a_net)
 }
 
 /**
+ * @brief s_net_states_notify
+ * @param l_net
+ */
+static bool s_net_states_notify_timer_callback(UNUSED_ARG void *a_arg)
+{
+    for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
+        struct json_object *l_json = dap_chain_net_states_json_collect(net);
+        json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
+        dap_notify_server_send_mt(json_object_get_string(l_json));
+        json_object_put(l_json);
+    }
+
+    return true;
+}
+
+/**
  * @brief dap_chain_net_get_role
  * @param a_net
  * @return
@@ -814,6 +830,7 @@ void dap_chain_net_load_all()
     pthread_t l_tids[l_nets_count];
     dap_chain_net_t *l_net = s_nets_by_name;
     dap_timerfd_t *l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_net_disk_load_notify_callback, NULL);
+    dap_timerfd_t *l_net_status_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_net_states_notify_timer_callback, NULL);
     for (int i = 0; i < l_nets_count; ++i) {
         pthread_create(&l_tids[i], NULL, s_net_load, l_net);
         l_net = l_net->hh.next;
@@ -822,6 +839,7 @@ void dap_chain_net_load_all()
         pthread_join(l_tids[i], NULL);
     }
     dap_timerfd_delete_mt(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
+    dap_timerfd_delete_mt(l_net_status_notify_timer->worker, l_net_status_notify_timer->esocket_uuid);
 }
 
 dap_string_t* dap_cli_list_net()
