@@ -568,7 +568,7 @@ void dap_chain_net_srv_stake_pkey_update(dap_chain_net_t *a_net, dap_pkey_t *a_p
     dap_return_if_pass(!a_net || !a_pkey);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_net->pub.id);
     if (!l_srv_stake)
-        return log_it(L_ERROR, "Can't update pkey: no stake service found by net id %"DAP_UINT64_FORMAT_U" from address %s", a_net->pub.id);
+        return log_it(L_ERROR, "Can't update pkey: no stake service found by net id %"DAP_UINT64_FORMAT_U, a_net->pub.id.uint64);
     dap_hash_fast_t l_pkey_hash = {};
     dap_pkey_get_hash(a_pkey, &l_pkey_hash);
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
@@ -1159,6 +1159,23 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     *(dap_chain_node_addr_t*)(l_tsd->data) = l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr;
     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
 
+    if (DAP_SIGN_GET_PKEY_HASHING_FLAG(l_tx_out_cond->subtype.srv_stake_pos_delegate.flags)) {
+        dap_tsd_t *l_tsd = dap_tsd_find(l_tx_out_cond->tsd, l_tx_out_cond->tsd_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD);
+        if (!l_tsd) {
+            log_it(L_WARNING, "NULL tsd pkey in tx_out_cond with active PKEY_HASHING_FLAG");
+        } else {
+            l_total_tsd_size += dap_tsd_size(l_tsd);
+            l_tsd = DAP_DUP_SIZE(l_tsd, dap_tsd_size(l_tsd));
+            if (!l_tsd) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                dap_list_free_full(l_tsd_list, NULL);
+                return NULL;
+            }
+            l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY;
+            l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+        }
+    }
+
     l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
     if (!l_decree) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -1247,7 +1264,7 @@ static dap_chain_datum_decree_t *s_decree_pkey_update(dap_chain_net_t *a_net, da
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_UPDATE;
     l_decree->header.data_size = l_total_tsd_size;
     l_decree->header.signs_size = 0;
-    dap_tsd_write((byte_t*)l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_PKEY, a_pkey, dap_pkey_get_size(a_pkey));
+    dap_tsd_write((byte_t*)l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY, a_pkey, dap_pkey_get_size(a_pkey));
 
     dap_sign_t *l_sign = dap_cert_sign(a_cert,  l_decree,
        sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size, DAP_SIGN_HASH_TYPE_DEFAULT);
@@ -2499,7 +2516,7 @@ static int s_cli_srv_stake_pkey_show(int a_argc, char **a_argv, int a_arg_index,
     // search in curren
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, l_srv_stake->itemlist, &l_pkey_hash, sizeof(dap_hash_fast_t), l_stake);
-    dap_pkey_t *l_pkey = l_stake ? l_stake->pkey : NULL;
+    const dap_pkey_t *l_pkey = l_stake ? l_stake->pkey : NULL;
     if (!l_pkey) {
         l_pkey = dap_ledger_find_pkey_by_hash(l_net->pub.ledger, &l_pkey_hash);
     }
@@ -2507,7 +2524,7 @@ static int s_cli_srv_stake_pkey_show(int a_argc, char **a_argv, int a_arg_index,
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "pkey not finded");
         return -25;
     }
-    char *l_pkey_str = dap_pkey_to_str(l_pkey, a_hash_out_type);
+    const char *l_pkey_str = dap_pkey_to_str(l_pkey, a_hash_out_type);
     json_object* l_json_obj_pkey = json_object_new_object();
     json_object_object_add(l_json_obj_pkey, "hash", json_object_new_string(l_pkey_hash_str));
     json_object_object_add(l_json_obj_pkey, "pkey", json_object_new_string(l_pkey_str));
@@ -3332,7 +3349,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_NOT_POA_ERR, "Specified certificate is not PoA root one");
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_NOT_POA_ERR;
             }
-            char *l_pkey_full_str = NULL;
+            const char *l_pkey_full_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-pkey_full", &l_pkey_full_str);
             if (!l_pkey_full_str) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_PARAM_ERR, "Command 'pkey_update' requires parameter -pkey_full");

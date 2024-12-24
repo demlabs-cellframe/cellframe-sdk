@@ -94,7 +94,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING                              0x0115
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION                              0x010A
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE                      0x010B
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_PKEY                                0x010C
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY                          0x010C
 
 DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_decree_subtype)
 {
