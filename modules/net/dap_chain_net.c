@@ -2485,7 +2485,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
  * @param l_net
  * @return
  */
-inline dap_chain_net_state_t dap_chain_net_get_state (dap_chain_net_t *a_net)
+DAP_INLINE dap_chain_net_state_t dap_chain_net_get_state (dap_chain_net_t *a_net)
 {
     return PVT(a_net)->state;
 }
