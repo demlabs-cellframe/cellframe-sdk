@@ -7917,12 +7917,15 @@ int cmd_remove(int a_argc, char **a_argv, void **a_str_reply)
             l_gdb_nodes_list = dap_list_append(l_gdb_nodes_list, l_gdb_groups);
         }
 
-        dap_global_db_deinit();
-        const char *l_gdb_driver = dap_config_get_item_str_default(g_config, "global_db", "driver", "mdbx");
-        char *l_gdb_rm_path = dap_strdup_printf("%s/gdb-%s", l_gdb_path, l_gdb_driver);
-        dap_rm_rf(l_gdb_rm_path);
-        DAP_DELETE(l_gdb_rm_path);
-        dap_global_db_init();
+        dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*");
+        for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list)) {
+            dap_global_db_erase_table_sync((const char *)(l_list->data));
+        }
+        dap_list_free_full(l_group_list, NULL);
+        uint32_t l_version = DAP_GLOBAL_DB_VERSION;
+        if ( (error = dap_global_db_set_sync(DAP_GLOBAL_DB_LOCAL_GENERAL, "gdb_version", &l_version, sizeof(l_version), false)) )
+            log_it(L_ERROR, "Can't add information about gdb_version");
+
         for (dap_list_t *ptr = l_gdb_nodes_list; ptr; ptr = dap_list_next(ptr)) {
             _pvt_net_nodes_list_t *l_tmp = (_pvt_net_nodes_list_t*)ptr->data;
             for (size_t i = 0; i < l_tmp->count_nodes; i++) {
