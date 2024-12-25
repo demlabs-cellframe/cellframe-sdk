@@ -799,6 +799,7 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg) {
     json_object_object_add(json_obj, "nets", l_jobj_nets);
     dap_notify_server_send_mt(json_object_get_string(json_obj));
     json_object_put(json_obj);
+    s_net_states_notify_timer_callback(NULL);
     return true;
 }
 
@@ -830,7 +831,6 @@ void dap_chain_net_load_all()
     pthread_t l_tids[l_nets_count];
     dap_chain_net_t *l_net = s_nets_by_name;
     dap_timerfd_t *l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_net_disk_load_notify_callback, NULL);
-    dap_timerfd_t *l_net_status_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_net_states_notify_timer_callback, NULL);
     for (int i = 0; i < l_nets_count; ++i) {
         pthread_create(&l_tids[i], NULL, s_net_load, l_net);
         l_net = l_net->hh.next;
@@ -839,7 +839,6 @@ void dap_chain_net_load_all()
         pthread_join(l_tids[i], NULL);
     }
     dap_timerfd_delete_mt(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
-    dap_timerfd_delete_mt(l_net_status_notify_timer->worker, l_net_status_notify_timer->esocket_uuid);
 }
 
 dap_string_t* dap_cli_list_net()

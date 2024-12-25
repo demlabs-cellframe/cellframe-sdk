@@ -104,11 +104,13 @@
 #include "dap_json_rpc_request.h"
 #include "dap_client_pvt.h"
 #include "dap_enc.h"
-
+#include "dap_notify_srv.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
 
 int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply);
+static void s_new_wallet_info_notify(const char *a_wallet_name); 
+struct json_object *wallet_list_json_collect();
 
 dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_hash) {
     dap_chain_t *l_chain = NULL;
@@ -1832,6 +1834,11 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet_name));
                         json_object_object_add(json_obj_wall, "protection", cmd_num == CMD_WALLET_ACTIVATE ?
                         json_object_new_string("is activated") : json_object_new_string("is deactivated"));
+                        // Notify about wallet
+                        s_new_wallet_info_notify(l_wallet_name);
+                        struct json_object *l_json_wallets = wallet_list_json_collect();
+                        dap_notify_server_send_mt(json_object_get_string(l_json_wallets));
+                        json_object_put(l_json_wallets);
                         break;
                     case -EBUSY:
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ALREADY_ERR,
@@ -1918,6 +1925,12 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     json_object_object_add(json_obj_wall, "Status", json_object_new_string("successfully converted"));
                     dap_chain_wallet_close(l_wallet);
                     json_object_array_add(json_arr_out, json_obj_wall);
+
+                    // Notify about wallet
+                    s_new_wallet_info_notify(l_wallet_name);
+                    struct json_object *l_json_wallets = wallet_list_json_collect();
+                    dap_notify_server_send_mt(json_object_get_string(l_json_wallets));
+                    json_object_put(l_json_wallets);
                     break;
                 }
                 // new wallet
@@ -2062,6 +2075,11 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
                     json_object_array_add(json_arr_out, json_obj_wall);
                     dap_chain_wallet_close(l_wallet);
+                    // Notify about wallet
+                    s_new_wallet_info_notify(l_wallet_name);
+                    struct json_object *l_json_wallets = wallet_list_json_collect();
+                    dap_notify_server_send_mt(json_object_get_string(l_json_wallets));
+                    json_object_put(l_json_wallets);
                     break;
                 }
             }
@@ -8660,6 +8678,17 @@ void dap_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void 
         dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_net_states));
         json_object_put(l_json_net_states);
     }
+}
+
+static void s_new_wallet_info_notify(const char *a_wallet_name)
+{
+    struct json_object *l_json = json_object_new_object();
+    json_object_object_add(l_json, "class", json_object_new_string("WalletInfo"));
+    struct json_object *l_json_wallet_info = json_object_new_object();
+    json_object_object_add(l_json_wallet_info, a_wallet_name, dap_chain_wallet_info_to_json(a_wallet_name, dap_chain_wallet_get_path(g_config)));
+    json_object_object_add(l_json, "wallet", l_json_wallet_info);
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
 }
 
 static void s_stage_connected_callback(dap_client_t* a_client, void * a_arg) {
