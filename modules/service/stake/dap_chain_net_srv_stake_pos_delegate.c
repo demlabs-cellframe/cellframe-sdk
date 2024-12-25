@@ -2684,12 +2684,12 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, vo
             l_switch_ret = DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_TX_SIGN_OUTPUT_ERR; } break;
         case -14: {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_TX_ARGS_ERR, "Args error");
-            l_switch_ret = -54; } break;
+            l_switch_ret = DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_TX_ARGS_ERR; } break;
         default: {} break;
     }
     dap_chain_wallet_close(l_wallet);
     dap_enc_key_delete(l_enc_key);
-    if (l_switch_ret < 0)
+    if (l_switch_ret != 0)
         return l_switch_ret;
     char *l_out_hash_str = NULL;
     l_ret = s_stake_tx_put(l_tx_new, l_net, a_hash_out_type, &l_out_hash_str);
@@ -2706,7 +2706,7 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, vo
     default: {} break;
     }
     DAP_DEL_Z(l_tx_new);
-    if (l_switch_ret < 0) {
+    if (l_switch_ret != 0) {
         l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx_hash);
         dap_json_rpc_error_add(*a_json_arr_reply, l_switch_ret, "Can't compose updating transaction %s", l_tx_hash_str);
         DAP_DELETE(l_out_hash_str);
