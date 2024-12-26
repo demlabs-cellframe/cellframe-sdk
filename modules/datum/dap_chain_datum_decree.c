@@ -149,14 +149,13 @@ int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, cons
     return l_tsd ? ( *a_addr = dap_tsd_get_string_const(l_tsd), !dap_strcmp(*a_addr, DAP_TSD_CORRUPTED_STRING) ) : 1;
 }
 
-int dap_chain_datum_decree_get_pkey(dap_chain_datum_decree_t *a_decree, dap_pkey_t **a_pkey)
+dap_pkey_t *dap_chain_datum_decree_get_pkey(dap_chain_datum_decree_t *a_decree)
 {
-    dap_return_val_if_fail(a_decree, -1);
+    dap_return_val_if_fail(a_decree, NULL);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY);
     if (!l_tsd)
-        return -2;
-    dap_pkey_t *l_pkey = (dap_pkey_t *)l_tsd->data;
-    return dap_pkey_get_size(l_pkey) == l_tsd->size ? 0 : 1;
+        return NULL;
+    return dap_pkey_get_size((dap_pkey_t *)l_tsd->data) == l_tsd->size ? (dap_pkey_t *)l_tsd->data : NULL;
 }
 
 void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type)
