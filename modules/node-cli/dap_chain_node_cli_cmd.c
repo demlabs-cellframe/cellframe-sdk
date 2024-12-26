@@ -23,37 +23,25 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
-#include <stdbool.h>
 #include <errno.h>
-#include <assert.h>
-#include <ctype.h>
-#include <dirent.h>
 #include <sys/stat.h>
-
-#ifdef WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#include "wepoll.h"
-#else
-#include <sys/types.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <signal.h>
+#include <string.h>
+#ifndef __USE_XOPEN
+#define __USE_XOPEN
 #endif
-#include <pthread.h>
+#include <time.h>
+#include "dap_common.h"
+#include "dap_time.h"
 
 #include "uthash.h"
 #include "utlist.h"
+
+#ifdef DAP_OS_UNIX
+#include <dirent.h>
+#endif
+
+#include "dap_common.h"
+#include "dap_time.h"
 #include "dap_string.h"
 #include "dap_hash.h"
 #include "dap_chain_common.h"
@@ -74,15 +62,9 @@
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_net.h"
-#include "dap_chain_net_tx.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_chain_cell.h"
 #include "dap_enc_base64.h"
-
-#ifdef DAP_OS_UNIX
-#include <dirent.h>
-#endif
-
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_token.h"
@@ -98,12 +80,9 @@
 #include "dap_json_rpc_errors.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_datum_tx_voting.h"
-#include "dap_chain_wallet_cache.h"
 #include "dap_json_rpc.h"
 #include "dap_json_rpc_request.h"
 #include "dap_client_pvt.h"
-#include "dap_enc.h"
-
 
 #define LOG_TAG "chain_node_cli_cmd"
 
@@ -528,7 +507,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     json_object_object_add(json_obj_rec, "pinned status", json_object_new_string("record already pinned"));
                     break;
                 }
-                if(dap_global_db_set_sync( l_group, l_key, l_value, l_value_len, true) ==0 ){
+                if(dap_global_db_pin_sync( l_group, l_key) ==0 ){
                     json_object_object_add(json_obj_rec, "pinned status", json_object_new_string("record successfully pinned"));
                 }
                 else{
@@ -544,7 +523,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     json_object_object_add(json_obj_rec, "unpinned status", json_object_new_string("record already unpinned"));
                     break;
                 }
-                if(dap_global_db_set_sync(l_group,l_key, l_value, l_value_len, false) == 0 ) {
+                if(dap_global_db_unpin_sync(l_group,l_key) == 0 ) {
                     json_object_object_add(json_obj_rec, "unpinned status", json_object_new_string("record successfully unpinned"));
                 }
                 else {
@@ -2023,10 +2002,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         json_object_object_add(json_obj_wall, "Sign type", json_object_new_string(l_sign_type_str));
                     json_object_object_add(json_obj_wall, "Status", json_object_new_string("successfully created"));
 
-                    const char *l_addr_str = NULL;
-                    if ( l_net && (l_addr_str = dap_chain_addr_to_str_static(dap_chain_wallet_get_addr(l_wallet,l_net->pub.id))) ) {
-                        json_object_object_add(json_obj_wall, "new address", json_object_new_string(l_addr_str) );
-                    }
+                    dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+                    if (l_net && l_addr)
+                        json_object_object_add(json_obj_wall, "new address", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+                    DAP_DEL_Z(l_addr);
                     json_object_array_add(json_arr_out, json_obj_wall);
                     dap_chain_wallet_close(l_wallet);
                     break;
@@ -4488,48 +4467,6 @@ int com_exit(int a_argc, char **a_argv, void **a_str_reply)
 }
 
 /**
- * @brief com_print_log Print log info
- * print_log [ts_after <timestamp >] [limit <line numbers>]
- * @param argc
- * @param argv
- * @param arg_func
- * @param str_reply
- * @return int
- */
-int com_print_log(int a_argc, char **a_argv, void **a_str_reply)
-{
-    int arg_index = 1;
-    const char * l_str_ts_after = NULL;
-    const char * l_str_limit = NULL;
-    int64_t l_ts_after = 0;
-    long l_limit = 0;
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "ts_after", &l_str_ts_after);
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "limit", &l_str_limit);
-
-    l_ts_after = (l_str_ts_after) ? strtoll(l_str_ts_after, 0, 10) : -1;
-    l_limit = (l_str_limit) ? strtol(l_str_limit, 0, 10) : -1;
-
-    if(l_ts_after < 0 || !l_str_ts_after) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "requires valid parameter 'l_ts_after'");
-        return -1;
-    }
-    if(l_limit <= 0) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "requires valid parameter 'limit'");
-        return -1;
-    }
-
-    // get logs from list
-    char *l_str_ret = dap_log_get_item(l_ts_after, (int) l_limit);
-    if(!l_str_ret) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "no logs");
-        return -1;
-    }
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret);
-    DAP_DELETE(l_str_ret);
-    return 0;
-}
-
-/**
  * @brief cmd_gdb_export
  * action for cellframe-node-cli gdb_export command
  * @param argc
@@ -5614,5 +5551,160 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
     }
     DAP_DEL_Z(node_info);
     dap_json_rpc_request_free(l_request);
+    return 0;
+}
+
+int com_file(int a_argc, char ** a_argv, void **a_str_reply)
+{
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    enum {
+        CMD_NONE, CMD_PRINT, CMD_EXPORT, CMD_CLEAR_LOG
+    };
+    int l_arg_index = 1;
+
+    int l_cmd_num = CMD_NONE;
+    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "print", NULL)) {
+        l_cmd_num = CMD_PRINT;
+    }
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "export", NULL)) {
+        l_cmd_num = CMD_EXPORT;
+    }
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "clear_log", NULL)) {
+        l_cmd_num = CMD_CLEAR_LOG;
+    }
+
+    const char * l_num_line_str = NULL, *l_path_str = NULL, * l_str_ts_after = NULL, * l_str_limit = NULL;
+    bool l_log = false;
+    int l_num_line = 0;
+    long l_limit = 0;
+    time_t l_ts_after = 0;
+    if (l_cmd_num != CMD_CLEAR_LOG) {
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-num_line", &l_num_line_str);
+        l_num_line = l_num_line_str ? atoi(l_num_line_str) : 0;
+
+        if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-log", NULL) ){
+            l_log = true;
+        }
+
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ts_after", &l_str_ts_after);
+        if (l_str_ts_after) {
+            struct tm l_tm = { };
+            strptime(l_str_ts_after, /* "[%x-%X" */ "%m/%d/%Y-%H:%M:%S", &l_tm);
+            l_tm.tm_year += 2000;
+            l_ts_after = mktime(&l_tm);
+        }
+
+        if (!l_num_line && l_ts_after<=0) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Requires only one argument '-num_line' or '-ts_after'");
+            return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+        } else if (l_num_line) {
+            if (l_num_line <= 0) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Wrong line number %d", l_num_line);
+                return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+            }
+        } else if (l_ts_after) {
+            if(l_ts_after < 0) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Requires valid parameter '-ts_after'");
+                return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+            }
+        } else {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Requires parameters '-num_line' or '-ts_after'");
+            return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+        }
+
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-path", &l_path_str);
+        if (!l_log && !l_path_str) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Command file require '-log' or '-path' arguments");
+            return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+        }
+
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_str_limit);
+        l_limit = (l_str_limit) ? strtol(l_str_limit, 0, 10) : -1;
+        if(l_str_limit && l_limit <= 0) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "requires valid parameter '-limit'");
+            return -1;
+        }
+    }
+
+    if (l_cmd_num == CMD_CLEAR_LOG)
+        l_log =true;
+
+    char l_file_full_path[MAX_PATH] = {'\0'};
+    if (l_log) {
+        const char * l_log_file_path = "var/log/cellframe-node.log";
+        sprintf(l_file_full_path, "%s/%s", g_sys_dir_path, l_log_file_path);
+    } else {
+        strncpy(l_file_full_path, l_path_str, sizeof(l_file_full_path) - 1);
+        l_file_full_path[sizeof(l_file_full_path) - 1] = '\0';
+    }
+    char * l_res = NULL;
+    if (l_cmd_num != CMD_CLEAR_LOG) {
+        if (l_num_line) {
+            l_res = dap_log_get_last_n_lines(l_file_full_path, l_num_line);
+        } else {
+            l_res = dap_log_get_item(l_file_full_path, l_ts_after, l_limit);
+        }
+    }
+    switch(l_cmd_num) {
+        case CMD_PRINT : {
+            if (l_res) {
+                json_object_array_add(*a_json_arr_reply, json_object_new_string(l_res));
+                DAP_DELETE(l_res);
+            } else {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, "Can't open source file %s or wrong line number %d", l_file_full_path, l_num_line);
+                return DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR;
+            }
+            break;
+        }
+        case CMD_EXPORT: {
+            const char * l_dest_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-dest", &l_dest_str);
+            if (!l_dest_str) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Command file require -log or -path arguments");
+                return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+            }
+            int res = dap_log_export_string_to_file(l_res, l_dest_str);
+            switch (res) {
+                case 0: {
+                    json_object_array_add(*a_json_arr_reply, json_object_new_string("Export success"));
+                    break;
+                }
+                case -1: {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, "Can't open source file %s", l_file_full_path);
+                    return DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR;
+                }
+                case -2: {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_DEST_FILE_ERR, "Can't open dest file %s", l_file_full_path);
+                    return DAP_CHAIN_NODE_CLI_COM_FILE_DEST_FILE_ERR;
+                }
+                case -3: {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR, "Wrong line number %s", l_num_line);
+                    return DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR;
+                }
+                default:
+                    break;
+            }
+            break;
+        }
+        case CMD_CLEAR_LOG: {
+            int res = dap_log_clear_file(l_file_full_path);
+            switch (res) {
+                case 0: {
+                    json_object_array_add(*a_json_arr_reply, json_object_new_string("Log file has been cleared"));
+                    break;
+                }
+                case -1: {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, "Can't open log file %s", l_file_full_path);
+                    return DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR;
+                }
+                default:
+                    break;
+            }
+            break;
+        }
+        default: {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "require 'print', 'export' or 'clear_log' args" );
+        }
+    }
     return 0;
 }

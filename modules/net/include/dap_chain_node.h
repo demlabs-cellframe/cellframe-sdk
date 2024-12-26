@@ -96,6 +96,7 @@ int dap_chain_node_info_del(dap_chain_net_t * l_net,dap_chain_node_info_t *node_
 dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *l_net, dap_chain_node_addr_t *address);
 
 int dap_chain_node_init();
+int dap_chain_node_list_clean_init();
 bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
 bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_datum_hash_str);
 void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force);

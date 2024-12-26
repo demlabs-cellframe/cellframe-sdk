@@ -2173,7 +2173,7 @@ static void *s_net_load(void *a_arg)
     snprintf(l_net->pub.gdb_nodes, sizeof(l_net->pub.gdb_nodes), "%s.%s", l_net->pub.gdb_groups_prefix, s_gdb_nodes_postfix);
     l_net_pvt->nodes_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
-                                                         l_net->pub.gdb_nodes, 0, true,
+                                                         l_net->pub.gdb_nodes, 7200, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
                                                          DAP_CLUSTER_TYPE_EMBEDDED);
     if (!l_net_pvt->nodes_cluster) {
@@ -2782,7 +2782,22 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
         case DAP_CHAIN_DATUM_CUSTOM:
             break;
         default:
-            return -666;
+            return -600;
+    }
+    return 0;
+}
+
+int dap_chain_datum_add_hardfork_data(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data)
+{
+    int ret = dap_chain_datum_add(a_chain, a_datum, a_datum_size, a_datum_hash, a_datum_index_data);
+    if (ret)
+        return ret;
+    dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+    switch (a_datum->header.type_id) {
+    case DAP_CHAIN_DATUM_TX: {
+        return dap_ledger_tx_load_hardfork_data(l_ledger, (dap_chain_datum_tx_t *)a_datum->data, a_datum_hash, (dap_ledger_datum_iter_data_t *)a_datum_index_data);
+    }
+    default: return -601;
     }
     return 0;
 }

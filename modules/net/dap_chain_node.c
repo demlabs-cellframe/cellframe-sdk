@@ -50,9 +50,12 @@
 #include "dap_chain_srv.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_datum_service_state.h"
+#include "dap_chain_node_client.h"
 
 #define LOG_TAG "dap_chain_node"
+
 #define DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION 2
+
 typedef struct dap_chain_node_net_states_info_v1 {
     dap_chain_node_addr_t address;
     uint64_t events_count;
@@ -219,6 +222,57 @@ dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream
         }
     }
     return l_ret;
+}
+
+void dap_chain_node_list_cluster_del_callback(dap_store_obj_t *a_obj, void *a_arg) {
+    UNUSED(a_arg);
+    dap_return_if_fail(a_obj);
+    log_it(L_DEBUG, "Start check node list %s group %s key", a_obj->group, a_obj->key);
+
+    if (a_obj->value_len == 0) {
+        dap_global_db_del_sync(a_obj->group, a_obj->key);
+        log_it(L_DEBUG, "Can't find value in %s group %s key delete from node list", a_obj->group, a_obj->key);
+        return;
+    }
+    dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)a_obj->value;
+    dap_return_if_fail(l_node_info);
+    char ** l_group_strings = dap_strsplit(a_obj->group, ".", 3);
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_group_strings[0]);
+    if (dap_strcmp("nodes", l_group_strings[1]) || dap_strcmp("list", l_group_strings[2])) {
+        log_it(L_ERROR, "Try to delete from nodelist by the %s group %s key", a_obj->group, a_obj->key);
+        dap_strfreev(l_group_strings);
+        return;
+    }
+    int l_ret = -1;
+    for (size_t i = 0; i < 3 || l_ret == 0; i++) {
+        dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net, l_node_info);
+        if (l_client)
+            l_ret = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 30000);
+        dap_chain_node_client_close_unsafe(l_client);
+        if (!l_ret)
+            break;
+    }
+    if (l_ret == 0) {
+        a_obj->timestamp = dap_time_now();
+        dap_global_db_driver_apply(a_obj, 1);
+    } else {
+        dap_global_db_driver_delete(a_obj, 1);
+        log_it(L_DEBUG, "Can't do handshake with %s [ %s : %u ] delete from node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
+    }
+    dap_strfreev(l_group_strings);
+}
+
+int dap_chain_node_list_clean_init() {
+    for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
+        if (l_role.enums == NODE_ROLE_ROOT) {
+            char * l_group_name = dap_strdup_printf("%s.nodes.list", l_net->pub.name);
+            dap_global_db_cluster_t *l_cluster = dap_global_db_cluster_by_group(dap_global_db_instance_get_default(), l_group_name);
+            l_cluster->del_callback = dap_chain_node_list_cluster_del_callback;
+            log_it(L_DEBUG, "Node list clean inited for net %s", l_net->pub.name);
+        }
+    }
+    return 0;
 }
 
 int dap_chain_node_init()
@@ -539,6 +593,11 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         break;
     // No default here
     }
+    return 0;
+}
+
+int dap_chain_node_hardfork_confirm(dap_chain_t *a_chain, dap_chain_datum_t *a_datum)
+{
     return 0;
 }
 
