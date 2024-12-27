@@ -318,6 +318,13 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             dap_sign_type_t l_sign_type = { .type = l_type };
             json_object_object_add(a_json_out, "Signature type", json_object_new_string(dap_sign_type_to_str(l_sign_type)));
             break;
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY:
+            if (l_tsd->size != dap_pkey_get_size((dap_pkey_t *)(l_tsd->data))) {
+                json_object_object_add(a_json_out, "pkey type", json_object_new_string("WRONG SIZE"));
+                break;
+            }
+            json_object_object_add(a_json_out, "pkey type", json_object_new_string( dap_pkey_type_to_str(((dap_pkey_t *)(l_tsd->data))->header.type) ));
+            break; 
         default:
             json_object_object_add(a_json_out, "UNKNOWN_TYPE_TSD_SECTION", json_object_new_string(""));
             break;
