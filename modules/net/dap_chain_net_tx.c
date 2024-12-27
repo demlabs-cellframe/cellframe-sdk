@@ -278,7 +278,7 @@ static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum
             while ((l_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_item_idx))){
                 if ( l_out_cond->header.srv_uid.uint64 == l_args->srv_uid.uint64 ){ // We found output with target service uuid
                     l_args->tx_last = a_tx; // Record current transaction as the last in tx chain
-                    memcpy(&l_args->tx_last_hash, l_tx_hash, sizeof(*l_tx_hash)); // Record current hash
+                    l_args->tx_last_hash = *l_tx_hash;
                     l_args->tx_last_cond_idx = l_item_idx;
                     l_args->ret = dap_list_append(NULL, a_tx);
                     break;
@@ -428,7 +428,7 @@ dap_list_t * dap_chain_net_get_tx_cond_all_for_addr(dap_chain_net_t * a_net, dap
     return l_ret;
 }
 
-static void s_tx_cond_all_by_srv_uid_callback(UNUSED_ARG dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, UNUSED_ARG dap_hash_fast_t *a_tx_hash, void *a_arg)
+static void s_tx_cond_all_by_srv_uid_callback(UNUSED_ARG dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
 {
     cond_all_by_srv_uid_arg_t *l_ret = (cond_all_by_srv_uid_arg_t*)a_arg;
 
@@ -437,9 +437,14 @@ static void s_tx_cond_all_by_srv_uid_callback(UNUSED_ARG dap_chain_net_t* a_net,
         return;
 
     byte_t *item; size_t l_size;
+    dap_chain_datum_tx_cond_list_item_t *l_item = (dap_chain_datum_tx_cond_list_item_t*) DAP_NEW_Z(dap_chain_datum_tx_cond_list_item_t);
     TX_ITEM_ITER_TX(item, l_size, a_tx) {
-        if ( *item == TX_ITEM_TYPE_OUT_COND && l_ret->srv_uid.uint64 == ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64 )
-            l_ret->ret = dap_list_append(l_ret->ret, a_tx);
+        if ( *item == TX_ITEM_TYPE_OUT_COND && 
+                l_ret->srv_uid.uint64 == ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64 ) {
+            l_item->hash = *a_tx_hash;
+            l_item->tx = a_tx;
+            l_ret->ret = dap_list_append(l_ret->ret, l_item);
+        }
     }
 }
 

@@ -59,17 +59,8 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash
     if (! a_block)
         return NULL;
 
-    dap_chain_block_cache_t * l_block_cache = DAP_NEW_Z(dap_chain_block_cache_t);
-    if (!l_block_cache) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return NULL;
-    }
-    l_block_cache->block = a_copy_block ? DAP_DUP_SIZE(a_block, a_block_size) : a_block;
-    if (!l_block_cache->block) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        DAP_DEL_Z(l_block_cache);
-        return NULL;
-    }
+    dap_chain_block_cache_t * l_block_cache = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_block_cache_t, NULL);
+    l_block_cache->block = a_copy_block ? DAP_DUP_SIZE_RET_VAL_IF_FAIL(a_block, a_block_size, NULL, l_block_cache) : a_block;
     l_block_cache->block_size = a_block_size;
     l_block_cache->block_number = a_block_number;
     l_block_cache->ts_created = a_block->hdr.ts_created;

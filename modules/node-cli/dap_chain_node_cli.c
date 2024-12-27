@@ -65,14 +65,20 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
         return log_it(L_ERROR, "Can't init CLI server!"), -1;
 
     dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database",
-            "global_db cells add -cell <cell_id> \n"
-            "global_db flush \n\n"
+            "global_db flush \n"
+                "\tFlushes the current state of the database to disk.\n\n"
             "global_db write -group <group_name> -key <key_name> -value <value>\n"
+                "\tWrites a key value to a specified group in the database.\n\n"
             "global_db read -group <group_name> -key <key_name>\n"
+                "\tReads a value by key from a specified group.\n\n"
             "global_db delete -group <group_name> -key <key_name>\n"
+                "\tRemoves a value by key from a specified group.\n\n"
             "global_db group_list\n"
+                "\tGets a list of groups in the database.\n\n"
             "global_db drop_table -group <group_name>\n"
-            "global_db get_keys -group <group_name>"
+                "\tPerforms deletion of the entire group in the database.\n\n"
+            "global_db get_keys -group <group_name>\n"
+                "\tGets all record keys from a specified group.\n"
 
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
@@ -91,17 +97,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node balancer -net <net_name>\n"
                     "node dump [-net <net_name> | -addr <node_address>]\n\n"
                     "node list -net <net_name> [-addr <node_address> | -alias <node_alias>] [-full]\n\n"
-                    "node ban -net <net_name> -chain <chain_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
-                    "node unban -net <net_name> -chain <chain_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
+                    "node ban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
+                    "node unban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
                     "node banlist\n\n");
-    #ifndef DAP_OS_ANDROID
-    dap_cli_server_cmd_add ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
-            "ping [-c <count>] host\n");
-    dap_cli_server_cmd_add ("traceroute", com_traceroute, "Print the hops and time of packets trace to network host",
-            "traceroute host\n");
-    dap_cli_server_cmd_add ("tracepath", com_tracepath,"Traces path to a network host along this path",
-            "tracepath host\n");
-    #endif
     
     dap_cli_server_cmd_add ("version", com_version, "Return software version",
                                         "version\n"
@@ -116,6 +114,45 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "? [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
+    dap_cli_server_cmd_add ("token_update", com_token_update, "Token update",
+                            "\nPrivate or CF20 token update\n"
+                            "token_update -net <net_name> [-chain <chain_name>] -token <existing_token_ticker> -type <CF20|private> [-total_supply_change <value>] "
+                            "-certs <name_certs> [-flag_set <flag>] [-flag_unset <flag>] [-total_signs_valid <value>] [-description <value>] "
+                            "[-tx_receiver_allowed <value>] [-tx_receiver_blocked <value>] [-tx_sender_allowed <value>] [-tx_sender_blocked <value>] "
+                            "[-add_cert <name_certs>] [-remove_certs <pkeys_hash>]\n"
+                            "==Flags==\n"
+                            "\tALL_BLOCKED: \t\t\t\tBlocks all permissions.\n"
+                            "\tALL_ALLOWED: \t\t\t\tAllows all permissions unless they are blocked. Be careful with this mode.\n"
+                            "\tALL_FROZEN: \t\t\t\tTemporarily freezes all permissions\n"
+                            "\tALL_UNFROZEN: \t\t\t\tUnfreezes all frozen permissions\n"
+                            "\tSTATIC_ALL: \t\t\t\tBlocks manipulations with a token after declaration. Tokens are declared statically.\n"
+                            "\tSTATIC_FLAGS: \t\t\t\tBlocks manipulations with token flags after declaration.\n"
+                            "\tSTATIC_PERMISSIONS_ALL: \t\tBlocks all manipulations with permissions list after declaration.\n"
+                            "\tSTATIC_PERMISSIONS_DATUM_TYPE: \t\tBlocks all manipulations with datum permissions list after declaration.\n"
+                            "\tSTATIC_PERMISSIONS_TX_SENDER: \t\tBlocks all manipulations with transaction senders permissions list after declaration.\n"
+                            "\tSTATIC_PERMISSIONS_TX_RECEIVER: \tBlocks all manipulations with transaction receivers permissions list after declaration.\n"
+                            "\n"
+                            "==Params==\n"
+                            "General:\n"
+                            "\t -total_supply_change <value>:\t\t Sets the maximum amount of token supply. Specify “INF” to set unlimited total supply.\n"
+                            "\t -certs <name_certs>:\t\t\t Here use the very certificates which were used to sign the token being updated.\n"
+                            "Additional:\n"
+                            "\t -description <token_description>:\t Shows updated description for this token.\n"
+                            "Installing and removing the flag:\n"
+                            "\t -flag_set <flag_name>:\t\t\t Adds specified flag to the list of active flags.\n"
+                            "\t -flag_unset <flag_name>:\t\t Removes specified flag from the list of active flags.\n"
+                            "Work with the number of signatures required for the issue:\n"
+                            "\t -total_signs_valid <value>:\t\t Sets the minimum amount of valid signatures.\n"
+                            "\t -add_certs <cert_list>:\t\t Adds certificates to the certificates list of the token.\n"
+                            "\t -remove_certs <pkeys_hash>:\t\t Removes certificates from the certificates list using theirs public key hashes.\n"
+                            "Tx receiver addresses allowed/blocked:\n"
+                            "\t -tx_receiver_allowed <wallet_addr>:\t Adds specified wallet address to the list of allowed receivers.\n"
+                            "\t -tx_receiver_blocked <wallet_addr>:\t Adds specified wallet address to the list of blocked receivers.\n"
+                            "\nTx sender addresses allowed/blocked:\n"
+                            "\t -tx_sender_allowed <wallet_addr>:\t Adds specified wallet address to the list of allowed senders.\n"
+                            "\t -tx_sender_blocked <wallet_addr>:\t Adds specified wallet address to the list of blocked senders.\n"
+                            "\n"
+    );
     dap_cli_server_cmd_add ("wallet", com_tx_wallet, "Wallet operations",
                             "wallet list\n"
                             "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value> | -restore_legacy <restore_string>] [-net <net_name>] [-force] [-password <password>]\n"
@@ -169,7 +206,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
                             "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
                             "wallet deactivate -w <wallet_name> -password <password>\n"
-                            "wallet convert -w <wallet_name> -password <password>\n");
+                            "wallet convert -w <wallet_name> -password <password>\n"
+                            "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [-value <uint256_value>]");
 
 
     // Token commands
@@ -307,7 +345,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction history
     dap_cli_server_cmd_add("tx_history", com_tx_history, "Transaction history (for address or by hash)",
-            "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} [-net <net_name>] [-chain <chain_name>] [-limit] [-offset] [-head]\n"
+            "tx_history  {-addr <addr> | {-w <wallet_name> | -tx <tx_hash>} -net <net_name>} [-chain <chain_name>] [-limit] [-offset] [-head]\n"
             "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset] [-head]\n"
             "tx_history -count -net <net_name>\n");
 
@@ -322,10 +360,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add("token", com_token, "Token info",
             "token list -net <net_name>\n"
             "token info -net <net_name> -name <token_ticker>\n");
-
-    // Log
-    dap_cli_server_cmd_add ("print_log", com_print_log, "Print log info",
-                "print_log [ts_after <timestamp>] [limit <line_numbers>]\n" );
 
     // Statisticss
     dap_cli_server_cmd_add("stats", com_stats, "Print statistics",
@@ -346,15 +380,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Decree create command
     dap_cli_server_cmd_add ("decree", cmd_decree, "Work with decree",
-            "decree create common -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -certs <certs_list> {-fee <net_fee_value> -to_addr <net_fee_wallet_addr> | -new_certs <new_owners_certs_list> | -signs_verify <value>}\n"
+            "decree create [common] -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -certs <certs_list> {-fee <net_fee_value> -to_addr <net_fee_wallet_addr> | -hardfork_from <atom_number> | -new_certs <new_owners_certs_list> | -signs_verify <value>}\n"
             "Creates common network decree in net <net_name>. Decree adds to chain -chain and applies to chain -decree_chain. If -chain and -decree_chain is different you must create anchor in -decree_chain that is connected to this decree."
             "\nCommon decree parameters:\n"
             "\t -fee <value>: sets network fee\n"
             "\t -to_addr <wallet_addr>: sets wallet addr for network fee\n"
             "\t -new_certs <certs_list>: sets new owners set for net\n"
             "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n\n"
-            "decree create service -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -srv_id <service_id> -certs <certs_list> -fee <value> -to_addr <wallet_addr> -new_certs <certs_list> -signs_verify <value>\n"
-            "Creates service decree in net <net_name> for service -srv_id.\n\n"
             "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
             "Signs decree with hash -datum.\n\n"
             "decree anchor -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
@@ -367,6 +399,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\texample coins amount syntax (only natural) 1.0 123.4567\n"
             "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
 
+    dap_cli_server_cmd_add ("exec_cmd", com_exec_cmd, "Execute command on remote node",
+            "exec_cmd -net <net_name> -addr <node_addr> -cmd <command,and,all,args,separated,by,commas>\n" );
+
     //Find command
     dap_cli_server_cmd_add("find", cmd_find, "The command searches for the specified elements by the specified attributes",
                            "find datum -net <net_name> [-chain <chain_name>] -hash <datum_hash>\n"
@@ -378,8 +413,16 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "\tTypes decree: fee, owners, owners_min, stake_approve, stake_invalidate, min_value, "
                            "min_validators_count, ban, unban, reward, validator_max_weight, emergency_validators, check_signs_structure\n");
 
-    dap_cli_server_cmd_add ("exec_cmd", com_exec_cmd, "Execute command on remote node",
-            "exec_cmd -net <net_name> -addr <node_addr> -cmd <command,and,all,args,separated,by,commas>\n" );
+
+    dap_cli_server_cmd_add ("file", com_file, "Work with logs and files",
+                "file print {-num_line <number_of_lines> | -ts_after <Tue, 10 Dec 2024 18:37:47 +0700> } {-log | -path <path_to_file>}\n"
+                "\t print the last <num_line> lines from the log file or all logs after the specified date and time\n"
+                "\t -path <path_to_file> allows printing from a text file, but -ts_after option might not work\n"
+                "file export {-num_line <number_of_lines> | -ts_after <m/d/Y-H:M:S>} {-log | -path <path_to_file>} -dest <destination_path>\n"
+                "\t export last <num_line> lines from the log file or all logs after the specified date and time\n"
+                "\t -path <path_to_file> allows exporting from a text file, but -ts_after option might not work\n"
+                "file clear_log\n"
+                "\t CAUTION !!! This command will clear the entire log file\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",

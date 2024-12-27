@@ -128,7 +128,8 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_PKEY_MISMATCH,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN,
-    DAP_LEDGER_TOKEN_ADD_CHECK_TSD_OTHER_TICKER_EXPECTED
+    DAP_LEDGER_TOKEN_ADD_CHECK_TSD_OTHER_TICKER_EXPECTED,
+    DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET
 } dap_ledger_check_error_t;
 
 DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_t a_error)
@@ -175,6 +176,7 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_NOT_ENOUGH_FEE: return "Not enough network fee for transaction processing";
     case DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX: return "Not enough sovereign tax provided with current transaction";
     case DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX: return "Can't find tx in ledger for removing.";
+    case DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET: return "The transaction was rejected because it contains multiple outputs to other networks.";
     /* Emisssion check return codes */
     case DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY: return "Value of emission execeeds current token supply";
     case DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN: return "Legacy type of emissions are present for old chains comliance only";
@@ -213,8 +215,7 @@ typedef enum dap_chain_tx_tag_action_type {
 
     DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
     DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
-    
-    
+   
     DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
 } dap_chain_tx_tag_action_type_t;
 
@@ -239,7 +240,7 @@ typedef void     (*dap_ledger_cond_in_add_callback_t)(dap_ledger_t *a_ledger, da
 typedef void    (*dap_ledger_cond_out_add_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
 typedef void  (*dap_ledger_cond_in_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (*dap_ledger_cond_out_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
-typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_ledger_notify_opcodes_t a_opcode);
+typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ledger_notify_opcodes_t a_opcode);
 typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg, dap_ledger_notify_opcodes_t a_opcode);
 typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
 typedef int (*dap_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_apply);
@@ -374,6 +375,7 @@ bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, char **a_service_name, dap_chain_srv_uid_t *uid, dap_chain_tx_tag_action_type_t *action);
 const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag);
 dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *a_str);
+const char *dap_ledger_tx_tag_str_by_uid(dap_chain_srv_uid_t a_service_uid);
 
 bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, 
                                 dap_chain_srv_uid_t *a_uid, char **a_service_name,  dap_chain_tx_tag_action_type_t *a_action);
@@ -381,7 +383,8 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
 
 int dap_ledger_service_add(dap_chain_srv_uid_t a_uid, char *tag_str, dap_ledger_tag_check_callback_t a_callback);
 
-const char *dap_ledger_tx_calculate_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc);
+dap_chain_token_ticker_str_t dap_ledger_tx_calculate_main_ticker_(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc);
+#define dap_ledger_tx_calculate_main_ticker(l, tx, rc) dap_ledger_tx_calculate_main_ticker_(l, tx, rc).s
 
 /**
  * Delete all transactions from the cache
@@ -446,10 +449,6 @@ dap_list_t* dap_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger, dap_ch
 uint256_t dap_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_addr_t *a_addr,
                                                        dap_chain_tx_out_cond_t **tx_out_cond);
 
-// Get the list of 'out' items from previous transactions with summary value >= than a_value_need
-// Put this summary value to a_value_transfer
-dap_list_t *dap_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
-                                                       uint256_t a_value_need, uint256_t *a_value_transfer);
 dap_list_t *dap_ledger_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
                                         uint256_t *a_value_transfer);
 // Get the list of 'out_cond' items with summary value >= than a_value_need

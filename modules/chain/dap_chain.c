@@ -86,6 +86,7 @@ void dap_chain_deinit(void)
     dap_chain_item_t * l_item = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {
           dap_chain_delete(l_item->chain);
+          DAP_DELETE(l_item);
     }
     dap_chain_srv_deinit();
 }
@@ -132,7 +133,7 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
         .item_id    = l_id,
         .chain      = l_ret
     };
-    
+
     HASH_ADD(hh, s_chain_items, item_id, sizeof(dap_chain_item_id_t), l_chain_item);
     pthread_rwlock_unlock(&s_chain_items_rwlock);
     return l_ret;
@@ -154,7 +155,7 @@ int dap_chain_purge(dap_chain_t *a_chain)
  * delete dap chain object
  * @param a_chain dap_chain_t object
  */
-void dap_chain_delete(dap_chain_t * a_chain)
+void dap_chain_delete(dap_chain_t *a_chain)
 {
     dap_chain_item_t * l_item = NULL;
     dap_chain_item_id_t l_chain_item_id = {
@@ -178,9 +179,11 @@ void dap_chain_delete(dap_chain_t * a_chain)
     if (DAP_CHAIN_PVT(a_chain)) {
         DAP_DEL_MULTY(DAP_CHAIN_PVT(a_chain)->file_storage_dir, DAP_CHAIN_PVT(a_chain));
     }
-    DAP_DEL_MULTY(a_chain->name, a_chain->net_name, a_chain->datum_types, a_chain->autoproc_datum_types, a_chain->authorized_nodes_addrs, a_chain->_inheritor, a_chain);
+    DAP_DEL_MULTY(a_chain->name, a_chain->net_name, a_chain->datum_types,
+        a_chain->autoproc_datum_types, a_chain->authorized_nodes_addrs, a_chain->_inheritor);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
+    DAP_DELETE(a_chain);
 }
 
 /**
@@ -413,7 +416,6 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
     {
         l_chain->default_datum_types = DAP_NEW_Z_COUNT(dap_chain_type_t, l_default_datum_types_count);
         if ( !l_chain->default_datum_types ) {
-            DAP_DELETE(l_chain->datum_types);
             return log_it(L_CRITICAL, "%s", c_error_memory_alloc), dap_chain_delete(l_chain), NULL;
         }
         for (i = 0; i < l_default_datum_types_count; i++)
@@ -425,7 +427,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
         }
     } else
         log_it(L_WARNING, "Can't read chain default datum types for chain %s", l_chain_id_str);
-        
+
     l_datum_types = dap_config_get_array_str(a_cfg, "chain", "mempool_auto_types", &l_datum_types_count);
     // add datum types for autoproc
     if (l_datum_types && l_datum_types_count)
@@ -756,6 +758,7 @@ struct chain_thread_datum_notifier {
     dap_chain_t *chain;
     dap_chain_cell_id_t cell_id;
     dap_hash_fast_t hash;
+    dap_hash_fast_t atom_hash;
     void *datum;
     uint32_t action;
     dap_chain_srv_uid_t uid;
@@ -787,7 +790,7 @@ static bool s_notify_datum_on_thread(void *a_arg)
 {
     struct chain_thread_datum_notifier *l_arg = a_arg;
     assert(l_arg->datum && l_arg->callback);
-    l_arg->callback(l_arg->callback_arg, &l_arg->hash, l_arg->datum, l_arg->datum_size, l_arg->ret_code, l_arg->action, l_arg->uid);
+    l_arg->callback(l_arg->callback_arg, &l_arg->hash, &l_arg->atom_hash, l_arg->datum, l_arg->datum_size, l_arg->ret_code, l_arg->action, l_arg->uid);
     if ( !l_arg->chain->is_mapped )
         DAP_DELETE(l_arg->datum);
     DAP_DELETE(l_arg);
@@ -846,7 +849,7 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
     char cert_path[cert_path_length];
     snprintf(cert_path, cert_path_length, "%s/%s/%s.dcert", s_system_chain_ca_dir, net_name, cert_name);
     // In cert_path resolve all `..` and `.`s
-    char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
+    char *cert_path_c = dap_canonicalize_path(cert_path, NULL);
     // Protect the ca folder from using "/.." in cert_name
     if(dap_strncmp(s_system_chain_ca_dir, cert_path_c, dap_strlen(s_system_chain_ca_dir))) {
         log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
@@ -884,13 +887,13 @@ void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_ha
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
             .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
             .hash = *a_hash,
-            .atom = a_chain_cell->chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE(a_atom, a_atom_size),
+            .atom = a_chain_cell->chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE((byte_t*)a_atom, a_atom_size),
             .atom_size = a_atom_size };
         dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }
 }
 
-void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_srv_uid_t a_uid) {
+void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, dap_hash_fast_t *a_atom_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_srv_uid_t a_uid) {
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
@@ -909,7 +912,9 @@ void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
             .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
             .hash = *a_hash,
-            .datum = a_chain_cell->chain->is_mapped ? (byte_t*)a_datum : DAP_DUP_SIZE(a_datum, a_datum_size),
+            .atom_hash = *a_atom_hash,
+            .datum = a_chain_cell->chain->is_mapped ? (byte_t *)a_datum
+                                                    : DAP_DUP_SIZE((byte_t *)a_datum, a_datum_size),
             .datum_size = a_datum_size,
             .ret_code = a_ret_code,
             .action = a_action,
@@ -972,6 +977,6 @@ const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type)
         case CHAIN_TYPE_ANCHOR:
             return "anchor";
         default:
-            return "invalid";
+            return "unknown";
     }
 }

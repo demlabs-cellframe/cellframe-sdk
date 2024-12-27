@@ -177,8 +177,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
     bool l_was_tx_recv_allow_copied = false, l_was_tx_recv_block_copied = false,
          l_was_tx_send_allow_copied = false, l_was_tx_send_block_copied = false;
 
-#define m_ret_cleanup(ret_code) ({                              \
-    DAP_DELETE_COUNT(l_new_pkeys, l_new_signs_total);       \
+#define m_ret_cleanup(ret_code) ({                          \
+    DAP_DEL_ARRAY(l_new_pkeys, l_new_signs_total);          \
     DAP_DEL_MULTY(l_new_tx_recv_allow, l_new_tx_recv_block, \
                   l_new_tx_send_allow, l_new_tx_send_block, \
                   l_new_pkeys, l_new_pkey_hashes);          \
@@ -273,13 +273,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
                 }
             }
-            l_new_tx_recv_allow = l_new_tx_recv_allow
-                    ? DAP_REALLOC(l_new_tx_recv_allow, (l_new_tx_recv_allow_size + 1) * sizeof(dap_chain_addr_t))
-                    : DAP_NEW_Z(dap_chain_addr_t);
-            if (!l_new_tx_recv_allow) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
-            }
+            dap_chain_addr_t *l_tmp = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_new_tx_recv_allow, l_new_tx_recv_allow_size + 1, m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY));
+            l_new_tx_recv_allow = l_tmp;
             l_new_tx_recv_allow[l_new_tx_recv_allow_size++] = *l_add_addr;
         } break;
 
@@ -320,8 +315,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                         (l_new_tx_recv_allow_size - i - 1) * sizeof(dap_chain_addr_t));
             // Memory clearing
             if (l_new_tx_recv_allow_size)
-                l_new_tx_recv_allow = DAP_REALLOC(l_new_tx_recv_allow,
-                                                          l_new_tx_recv_allow_size * sizeof(dap_chain_addr_t));
+                l_new_tx_recv_allow = DAP_REALLOC_COUNT(l_new_tx_recv_allow, l_new_tx_recv_allow_size);
             else
                 DAP_DEL_Z(l_new_tx_recv_allow);
         } break;
@@ -366,13 +360,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
                 }
             }
-            l_new_tx_recv_block = l_new_tx_recv_block
-                    ? DAP_REALLOC(l_new_tx_recv_block, (l_new_tx_recv_block_size + 1) * sizeof(dap_chain_addr_t))
-                    : DAP_NEW_Z(dap_chain_addr_t);
-            if (!l_new_tx_recv_block) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
-            }
+            dap_chain_addr_t *l_tmp = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_new_tx_recv_block, l_new_tx_recv_block_size + 1, m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY));
+            l_new_tx_recv_block = l_tmp;
             l_new_tx_recv_block[l_new_tx_recv_block_size++] = *l_add_addr;
         } break;
 
@@ -459,13 +448,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
                 }
             }
-            l_new_tx_send_allow = l_new_tx_send_allow
-                    ? DAP_REALLOC(l_new_tx_send_allow, (l_new_tx_send_allow_size + 1) * sizeof(dap_chain_addr_t))
-                    : DAP_NEW_Z(dap_chain_addr_t);
-            if (!l_new_tx_send_allow) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
-            }
+            dap_chain_addr_t *l_tmp = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_new_tx_send_allow, l_new_tx_send_allow_size + 1, m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY));
+            l_new_tx_send_allow = l_tmp;
             l_new_tx_send_allow[l_new_tx_send_allow_size++] = *l_add_addr;
         } break;
 
@@ -555,13 +539,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             if (!a_apply)
                 break;
-            l_new_tx_send_block = l_new_tx_send_block
-                    ? DAP_REALLOC(l_new_tx_send_block, (l_new_tx_send_block_size + 1) * sizeof(dap_chain_addr_t))
-                    : DAP_NEW_Z(dap_chain_addr_t);
-            if (!l_new_tx_send_block) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
-            }
+            dap_chain_addr_t *l_tmp = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_new_tx_send_block, l_new_tx_send_block_size + 1, m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY));
+            l_new_tx_send_block = l_tmp;
             l_new_tx_send_block[l_new_tx_send_block_size++] = *l_add_addr;
         } break;
 
@@ -602,8 +581,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                         (l_new_tx_send_block_size - i - 1) * sizeof(dap_chain_addr_t));
             // Memory clearing
             if (l_new_tx_send_block_size)
-                l_new_tx_send_block = DAP_REALLOC(l_new_tx_send_block,
-                                                          l_new_tx_send_block_size * sizeof(dap_chain_addr_t));
+                l_new_tx_send_block = DAP_REALLOC_COUNT(l_new_tx_send_block, l_new_tx_send_block_size);
+
             else
                 DAP_DEL_Z(l_new_tx_send_block);
         } break;
@@ -687,12 +666,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_PKEY_MISMATCH);
                 }
             }
-            l_new_pkeys = l_new_pkeys ? DAP_REALLOC(l_new_pkeys, (l_new_signs_total + 1) * sizeof(dap_pkey_t *))
-                                      : DAP_NEW_Z(dap_pkey_t *);
-            if (!l_new_pkeys) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
-            }
+            dap_pkey_t **l_tmp = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_new_pkeys, l_new_signs_total + 1, m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY));
+            l_new_pkeys = l_tmp;
             // Pkey adding
             l_new_pkeys[l_new_signs_total] = DAP_DUP_SIZE(l_new_auth_pkey, dap_pkey_get_size(l_new_auth_pkey));
             if (!l_new_pkeys[l_new_signs_total]) {
@@ -702,12 +677,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (l_pkey_type_correction.type != DAP_PKEY_TYPE_NULL)
                 l_new_pkeys[l_new_signs_total]->header.type = l_pkey_type_correction;
 
-            l_new_pkey_hashes = l_new_pkey_hashes ? DAP_REALLOC(l_new_pkey_hashes, (l_new_signs_total + 1) * sizeof(dap_hash_t))
-                                                  : DAP_NEW_Z(dap_hash_t);
-            if (!l_new_pkey_hashes) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
-            }
+            dap_hash_fast_t *l_tmp_hashes = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_new_pkey_hashes, l_new_signs_total + 1, m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY));
+            l_new_pkey_hashes = l_tmp_hashes;
             l_new_pkey_hashes[l_new_signs_total++] = l_new_auth_pkey_hash;
         } break;
 
@@ -759,8 +730,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             // Memory clearing
             if (l_new_signs_total) {
-                l_new_pkeys = DAP_REALLOC(l_new_pkeys, l_new_signs_total * sizeof(dap_pkey_t *));
-                l_new_pkey_hashes = DAP_REALLOC(l_new_pkey_hashes, l_new_signs_total * sizeof(dap_hash_t));
+                l_new_pkeys = DAP_REALLOC_COUNT(l_new_pkeys, l_new_signs_total);
+                l_new_pkey_hashes = DAP_REALLOC_COUNT(l_new_pkey_hashes, l_new_signs_total);
             } else
                 DAP_DEL_MULTY(l_new_pkeys, l_new_pkey_hashes);
         } break;
@@ -797,7 +768,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 break;
             assert(a_item_apply_to);
             a_item_apply_to->is_delegated = true;
-            strcpy(a_item_apply_to->delegated_from, l_basic_token->ticker);
+            dap_strncpy(a_item_apply_to->delegated_from, l_basic_token->ticker, sizeof(a_item_apply_to->delegated_from));
             a_item_apply_to->emission_rate = l_delegate->emission_rate;
         } break;
 
@@ -941,14 +912,12 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
             l_size_tsd_section = l_token->header_private_decl.tsd_total_size; break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
             l_size_tsd_section = l_token->header_native_decl.tsd_total_size; break;
-        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE:
-        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC:
-            break;
         default:
             /* Bogdanoff, unknown token subtype update. What shall we TODO? */
-            log_it(L_WARNING, "Unknown token subtype '0x%0hX' update! Ticker: %s, total_supply: %s, signs_valid: %hu, signs_total: %hu",
-                   l_token->type, l_token->ticker, dap_uint256_to_char(l_token->total_supply, NULL),
-                   l_token->signs_valid, l_token->signs_total);
+            log_it(L_WARNING, "Unsupported token subtype '0x%0hX' update! "
+                              "Ticker: %s, total_supply: %s, signs_valid: %hu, signs_total: %hu",
+                              l_token->type, l_token->ticker, dap_uint256_to_char(l_token->total_supply, NULL),
+                              l_token->signs_valid, l_token->signs_total);
             /* Dump it right now */
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_PARSE_ERROR;
@@ -959,14 +928,12 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
             l_size_tsd_section = l_token->header_private_update.tsd_total_size; break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
             l_size_tsd_section = l_token->header_native_update.tsd_total_size; break;
-        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE:
-        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC:
-            break;
         default:
             /* Bogdanoff, unknown token subtype declaration. What shall we TODO? */
-            log_it(L_WARNING, "Unknown token subtype '0x%0hX' declaration! Ticker: %s, total_supply: %s, signs_valid: %hu, signs_total: %hu",
-                   l_token->type, l_token->ticker, dap_uint256_to_char(l_token->total_supply, NULL),
-                   l_token->signs_valid, l_token->signs_total);
+            log_it(L_WARNING, "Unsupported token subtype '0x%0hX' declaration! "
+                              "Ticker: %s, total_supply: %s, signs_valid: %hu, signs_total: %hu",
+                              l_token->type, l_token->ticker, dap_uint256_to_char(l_token->total_supply, NULL),
+                              l_token->signs_valid, l_token->signs_total);
             /* Dump it right now */
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_PARSE_ERROR;
@@ -1147,11 +1114,9 @@ bool dap_ledger_pvt_token_supply_check_update(dap_ledger_t *a_ledger, dap_ledger
         return true;
     if (!dap_ledger_pvt_token_supply_check(a_token_item, a_value) && !a_for_removing)
         return false;
-    int l_overflow = false;
-    if(a_for_removing)
-        l_overflow = SUM_256_256(a_token_item->current_supply, a_value, &a_token_item->current_supply);
-    else
-        l_overflow = SUBTRACT_256_256(a_token_item->current_supply, a_value, &a_token_item->current_supply);
+    int l_overflow = a_for_removing
+        ? SUM_256_256(a_token_item->current_supply, a_value, &a_token_item->current_supply)
+        : SUBTRACT_256_256(a_token_item->current_supply, a_value, &a_token_item->current_supply);
     assert(!l_overflow);
     const char *l_balance; dap_uint256_to_char(a_token_item->current_supply, &l_balance);
     log_it(L_NOTICE, "New current supply %s for token %s", l_balance, a_token_item->ticker);

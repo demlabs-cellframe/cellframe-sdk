@@ -2,7 +2,6 @@
 
 #include "dap_common.h"
 #include "dap_chain_common.h"
-#include "dap_chain_datum_tx.h"
 #include "dap_tsd.h"
 
 typedef struct dap_chain_tx_tsd {

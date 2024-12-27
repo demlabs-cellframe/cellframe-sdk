@@ -54,7 +54,6 @@ typedef enum s_com_global_db_json_err {
     DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK = 0,
 
     DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR,
-    DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_CAN_CREATE_CELL_ERR,
     DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_COMMAND_ERR,
     DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_CAN_NOT_OPEN_DIR,
     DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_CAN_NOT_INIT_DB,
@@ -159,6 +158,7 @@ typedef enum s_com_tx_wallet_err{
     DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CHAIN_PARAM_ERR,
     DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INTERNAL_ERR,
     DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CAN_NOT_GET_ADDR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INVALID_CHARACTERS_USED_FOR_PASSWORD,
 
     /* add custom codes here */
 
@@ -329,10 +329,6 @@ char *dap_chain_node_cli_com_tx_history_err(int a_code);
  */
 int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply);
 
-
-// Print log info
-int com_print_log(int a_argc, char **a_argv, void **a_str_reply);
-
 // Print statistics
 int com_stats(int a_argc, char **a_argv, void **a_str_reply);
 
@@ -381,3 +377,16 @@ int cmd_find(int a_argc, char **a_argv, void **a_str_reply);
 void dap_notify_new_client_send_info(dap_events_socket_t *a_es, void *a_arg);
 
 int com_exec_cmd(int argc, char **argv, void **reply);
+
+
+typedef enum s_com_file_err{
+    DAP_CHAIN_NODE_CLI_COM_FILE_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_FILE_MEMORY_ERR,
+    DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_FILE_DEST_FILE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR
+
+
+} s_com_file_err_t;
+int com_file(int a_argc, char ** a_argv, void **a_str_reply);
