@@ -638,17 +638,49 @@ const dap_list_t *dap_ledger_decree_get_owners_pkeys(dap_ledger_t *a_ledger)
     return PVT(a_ledger)->decree_owners_pkeys;
 }
 
-static int s_compare_anchors(dap_ledger_hardfork_anchors_t *a_list1, dap_ledger_hardfork_anchors_t *a_list2)
+static bool s_compare_anchors(dap_ledger_t *a_ledger, dap_ledger_hardfork_anchors_t *a_exist, dap_ledger_hardfork_anchors_t *a_comp)
 {
-    return a_list1->decree_subtype != a_list2->decree_subtype;
+    bool l_stake_type = false, l_ban_type = false;
+    switch (a_comp->decree_subtype) {
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:
+        if (a_exist->decree_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE &&
+                a_exist->decree_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE)
+            return false;
+        l_stake_type = true;
+        break;
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN:
+        if (a_exist->decree_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN &&
+                a_exist->decree_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN)
+            return false;
+        l_ban_type = true;
+        break;
+    default:
+        return a_exist->decree_subtype == a_comp->decree_subtype;
+    }
+    dap_hash_fast_t l_exist_hash = {}, l_comp_hash = {};
+    dap_chain_datum_anchor_get_hash_from_data(a_comp->anchor, &l_comp_hash);
+    dap_chain_datum_anchor_get_hash_from_data(a_exist->anchor, &l_exist_hash);
+    dap_chain_datum_decree_t *l_comp_decree = dap_ledger_decree_get_by_hash(a_ledger->net, &l_comp_hash, NULL);
+    dap_chain_datum_decree_t *l_exist_decree = dap_ledger_decree_get_by_hash(a_ledger->net, &l_exist_hash, NULL);
+    if (l_ban_type) {
+
+    }
+    if (l_stake_type) {
+
+    }
+    return false;
 }
 
 
-int s_aggregate_anchor(dap_ledger_hardfork_anchors_t **a_out_list, uint16_t a_subtype, dap_chain_datum_anchor_t *a_anchor)
+int s_aggregate_anchor(dap_ledger_t *a_ledger, dap_ledger_hardfork_anchors_t **a_out_list, uint16_t a_subtype, dap_chain_datum_anchor_t *a_anchor)
 {
     dap_ledger_hardfork_anchors_t l_new_anchor = { .anchor = a_anchor, .decree_subtype = a_subtype };
     dap_ledger_hardfork_anchors_t *l_exist = NULL;
-    DL_SEARCH(*a_out_list, l_exist, &l_new_anchor, s_compare_anchors);
+    DL_FOREACH(*a_out_list, l_exist)
+        if (s_compare_anchors(a_ledger, l_exist, &l_new_anchor))
+            break;
     if (!l_exist) {
         l_exist = DAP_DUP(&l_new_anchor);
         if (!l_exist) {
@@ -676,7 +708,12 @@ dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledg
                                             l_anchor_hash_str, dap_hash_fast_to_str_static(&it->decree_hash));
                 continue;
             }
-            s_aggregate_anchor(&ret, it->decree->header.sub_type, l_anchor);
+            dap_hash_fast_t l_decree_hash;
+            if (dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash)) {
+                log_it(L_ERROR, "Corrupted datum anchor %s, can't get decree hash from it", dap_hash_fast_to_str_static(&it->anchor_hash));
+                continue;
+            }
+            s_aggregate_anchor(a_ledger, &ret, it->decree->header.sub_type, l_anchor);
         }
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
     return ret;

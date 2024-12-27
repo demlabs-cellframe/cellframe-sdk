@@ -1175,7 +1175,7 @@ int s_compare_trackers(dap_list_t *a_tracker1, dap_list_t *a_tracker2)
     return memcmp(&l_tracker1->voting_hash, &l_tracker2->voting_hash, sizeof(dap_hash_fast_t));
 }
 
-dap_list_t *s_trackers_concatenate(dap_ledger_t *a_ledger, dap_list_t *a_trackers, dap_list_t *a_added, dap_time_t a_ts_creation_time)
+dap_list_t *s_trackers_aggregate(dap_ledger_t *a_ledger, dap_list_t *a_trackers, dap_list_t *a_added, dap_time_t a_ts_creation_time)
 {
     if (!s_voting_callbacks.voting_expire_callback)
         return a_trackers;
@@ -1363,7 +1363,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         // Gather colour information from previous outputs
         dap_ledger_tx_item_t *l_prev_item_out = l_bound_item->prev_item;
         l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].tx_spent_hash_fast = *a_tx_hash;
-        l_trackers_mover = s_trackers_concatenate(a_ledger, l_trackers_mover,
+        l_trackers_mover = s_trackers_aggregate(a_ledger, l_trackers_mover,
                                                   l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers, a_tx->header.ts_created);
         // add a used output
         l_prev_item_out->cache_data.n_outs_used++;
@@ -1401,7 +1401,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         assert(l_vote_tx_item);
         l_new_tracker->voting_hash = l_vote_tx_item->voting_hash;
         dap_list_t *l_new_vote = dap_list_append(NULL, l_new_tracker);
-        l_trackers_mover = s_trackers_concatenate(a_ledger, l_trackers_mover, l_new_vote, a_tx->header.ts_created);
+        l_trackers_mover = s_trackers_aggregate(a_ledger, l_trackers_mover, l_new_vote, a_tx->header.ts_created);
     }
 
     //Update balance : raise
@@ -1951,7 +1951,30 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
     return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, a_datum_index_data);
 }
 
+int dap_ledger_tx_load_hardfork_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
+{
+    dap_return_val_if_fail(a_ledger && a_tx && a_tx_hash, -1);
 
+    byte_t *l_item = NULL;
+    size_t l_tx_item_size = 0;
+    TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
+        if (*l_item != TX_ITEM_TYPE_TSD)
+            continue;
+        dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)l_item)->tsd;
+        if (l_tsd->type != DAP_CHAIN_DATUM_TX_TSD_TYPE_TRACKER)
+            continue;
+        if (l_tsd->size != sizeof(dap_ledger_tracker_t))
+            return log_it(L_ERROR, "Incorrect size of TSD tracker section %u (need %zu)", l_tsd->size, sizeof(dap_ledger_tracker_t)), -2;
+        dap_ledger_tx_item_t *l_item_tx = NULL;
+        s_tx_find_by_hash(a_ledger, a_tx_hash, &l_item_tx, true);
+        if (!l_item_tx)
+            return log_it(L_ERROR, "Can't find hardfork tx %s in ledger", dap_hash_fast_to_str_static(a_tx_hash)), -3;
+        if (l_item_tx->cache_data.n_outs != 1)
+            return log_it(L_ERROR, "Can't add hardfork data to tx %s cause it's not a single-out tx", dap_hash_fast_to_str_static(a_tx_hash)), -4;
+        l_item_tx->out_metadata[0].trackers = dap_list_append(l_item_tx->out_metadata[0].trackers, l_tsd->data);
+    }
+    return 0;
+}
 
 static void s_ledger_stake_lock_cache_update(dap_ledger_t *a_ledger, dap_ledger_stake_lock_item_t *a_stake_lock_item)
 {
@@ -2423,7 +2446,7 @@ static int s_aggregate_out(dap_ledger_hardfork_balances_t **a_out_list, dap_ledg
                                     dap_chain_addr_to_str_static(a_addr), a_ticker, dap_uint256_to_char(a_value, NULL));
         return -2;
     }
-    l_exist->trackers = s_trackers_concatenate(a_ledger, l_exist->trackers, a_trackers, a_hardfork_start_time);
+    l_exist->trackers = s_trackers_aggregate(a_ledger, l_exist->trackers, a_trackers, a_hardfork_start_time);
     return 0;
 }
 
@@ -2438,7 +2461,7 @@ static int s_aggregate_out_cond(dap_ledger_hardfork_condouts_t **a_ret_list, dap
         return -1;
     }
     *l_new_condout = (dap_ledger_hardfork_condouts_t) { .hash = *a_tx_hash, .cond = a_out_cond, .sign = a_sign };
-    l_new_condout->trackers = s_trackers_concatenate(a_ledger, NULL, a_trackers, a_hardfork_start_time);
+    l_new_condout->trackers = s_trackers_aggregate(a_ledger, NULL, a_trackers, a_hardfork_start_time);
     DL_APPEND(*a_ret_list, l_new_condout);
     return 0;
 }

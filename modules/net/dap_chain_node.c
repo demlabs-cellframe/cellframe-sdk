@@ -75,18 +75,18 @@ typedef struct dap_chain_node_net_states_info {
 #define node_info_v1_shift ( sizeof(uint16_t) + 16 + sizeof(dap_chain_node_role_t) )
 
 enum hardfork_state {
-    STATE_BALANCES = 0,
+    STATE_ANCHORS = 0,
+    STATE_BALANCES,
     STATE_CONDOUTS,
-    STATE_ANCHORS,
     STATE_FEES,
     STATE_SERVICES
 };
 
 struct hardfork_states {
     enum hardfork_state state_current;
+    dap_ledger_hardfork_anchors_t  *anchors;
     dap_ledger_hardfork_balances_t *balances;
     dap_ledger_hardfork_condouts_t *condouts;
-    dap_ledger_hardfork_anchors_t  *anchors;
     dap_chain_cs_blocks_hardfork_fees_t *fees;
     dap_chain_srv_hardfork_state_t *service_states;
 };
