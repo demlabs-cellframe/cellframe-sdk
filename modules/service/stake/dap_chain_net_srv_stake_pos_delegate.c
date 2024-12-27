@@ -211,8 +211,9 @@ int dap_chain_net_srv_stake_pos_delegate_init()
         "\tSets maximum validator related weight (in percent)\n"
     "srv_stake check -net <net_name> -tx <tx_hash>\n"
         "\tCheck remote validator\n"
-    "srv_stake reward -net <net_name> {-addr <addr> | -w <wallet_name> | -all} [-date_from <YYMMDD> -date_to <YYMMDD>] [-brief] [-limit] [-offset] [-head]\n"
-        "\tShow the number of rewards for the validators\n\n"
+    "srv_stake reward -net <net_name> {-node_addr <node_address> | -all} [-date_from <YYMMDD> -date_to <YYMMDD>] [-brief] [-limit] [-offset] [-head]\n"
+        "\tShow the number of rewards for the validators\n"
+
     "Hint:\n"
     "\texample coins amount syntax (only natural) 1.0 123.4567\n"
     "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n"
@@ -3507,7 +3508,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_MAX_WEIGHT_SET_FAILED_ERR;
             }
         } break;
-        case CMD_REWARD: {
+            case CMD_REWARD: {
             const char *l_net_str = NULL,
                        *l_addr_str = NULL,
                        *l_limit_str = NULL,
@@ -3516,6 +3517,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                        *l_d_from_str = NULL,
                        *l_d_to_str = NULL,
                        *l_head_str = NULL;
+
 
             dap_chain_t * l_chain = NULL;
             dap_chain_net_t * l_net = NULL;
@@ -3650,14 +3652,14 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
 
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
-    
+
     dap_chain_datum_callback_iters  iter_begin;
     dap_chain_datum_callback_iters  iter_direc;
     iter_begin = a_head ? a_chain->callback_datum_iter_get_first
                         : a_chain->callback_datum_iter_get_last;
     iter_direc = a_head ? a_chain->callback_datum_iter_get_next
                         : a_chain->callback_datum_iter_get_prev;
-        
+
     for (dap_chain_datum_t *l_datum = iter_begin(l_datum_iter);
                             l_datum;
                             l_datum = iter_direc(l_datum_iter))
@@ -3678,7 +3680,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
         if (!l_tx_token_ticker)//DECLINED transaction
             continue;
         if (a_time_form && l_datum->header.ts_create < a_time_form)
-                continue;
+            continue;
         if (a_time_to && l_datum->header.ts_create >= a_time_to)
                 continue;
         if (i_tmp >= l_arr_end)
@@ -3789,6 +3791,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
         json_object_array_add(json_obj_reward, json_value_out);
     a_chain->callback_datum_iter_delete(l_datum_iter);
     return json_obj_reward;
+
 }
 
 bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
