@@ -3518,7 +3518,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
 
     if (a_node_info){
         json_object* json_obj_addr = json_object_new_object();
-        char *l_addr_valid = dap_strdup_printf(""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS_S(a_node_info->address));
+        char *l_addr_valid = dap_strdup_printf(NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(a_node_info->address));
         json_object_object_add(json_obj_addr, "validator addr", json_object_new_string(l_addr_valid));
         DAP_DELETE(l_addr_valid);
         json_object_array_add(json_obj_reward, json_obj_addr);
