@@ -189,8 +189,8 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
                                                                              const char *a_token, uint256_t a_value_rate, const dap_chain_addr_t *a_seller_addr,
                                                                              const void *a_params, uint32_t a_params_size);
 
-DAP_STATIC_INLINE uint32_t dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(bool a_sovereign_addr, uint32_t a_pkey) {
-    return a_sovereign_addr ? sizeof(dap_chain_addr_t) + sizeof(uint256_t) + 2 * sizeof(dap_tsd_t) : 0 + a_pkey ? a_pkey + sizeof(dap_tsd_t) : 0;
+DAP_STATIC_INLINE uint32_t dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(bool a_sovereign_addr, uint32_t a_pkey_size) {
+    return a_sovereign_addr ? sizeof(dap_chain_addr_t) + sizeof(uint256_t) + 2 * sizeof(dap_tsd_t) : 0 + a_pkey_size ? a_pkey_size + sizeof(dap_tsd_t) : 0;
 }
 
 /**

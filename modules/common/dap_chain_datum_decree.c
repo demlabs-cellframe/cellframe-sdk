@@ -149,6 +149,11 @@ int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, cons
     return l_tsd ? ( *a_addr = dap_tsd_get_string_const(l_tsd), !dap_strcmp(*a_addr, DAP_TSD_CORRUPTED_STRING) ) : 1;
 }
 
+/**
+ * @brief get pkey from decree tsd
+ * @param a_decree
+ * @return pointer to dap_pkey_t if find, if not or error - NULL
+ */
 dap_pkey_t *dap_chain_datum_decree_get_pkey(dap_chain_datum_decree_t *a_decree)
 {
     dap_return_val_if_fail(a_decree, NULL);
