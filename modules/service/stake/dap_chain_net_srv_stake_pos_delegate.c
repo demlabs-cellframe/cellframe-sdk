@@ -3623,12 +3623,9 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
             {
                 dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t *) it->data;            
                 dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(a_chain), &l_in_reward->block_hash);
-                char *l_block_hash = NULL;
                 json_arr_sign_out = json_object_new_array();
-                l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
                 json_block_hash = json_object_new_object();
-                json_object_object_add(json_block_hash, "block hash", json_object_new_string(l_block_hash));
-                DAP_DELETE(l_block_hash); 
+                json_object_object_add(json_block_hash, "block hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_in_reward->block_hash))); 
                 dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                 size_t l_sign_size = dap_sign_get_size(l_sign);
                 dap_chain_hash_fast_t l_pkey_hash;
