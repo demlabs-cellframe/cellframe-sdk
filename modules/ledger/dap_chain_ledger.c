@@ -1208,14 +1208,11 @@ const dap_chain_datum_tx_t* dap_ledger_tx_find_by_pkey(dap_ledger_t *a_ledger,
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     return l_cur_tx;
 }
-
 /**
- * Get the transaction in the cache by the public key that signed the transaction,
- * starting from the next hash after a_tx_first_hash
- *
- * a_public_key[in] public key that signed the transaction
- * a_public_key_size[in] public key size
- * a_tx_first_hash [in/out] hash of the initial transaction/ found transaction, if 0 start from the beginning
+ * @brief dap_ledger_find_pkey_by_hash
+ * @param a_ledger to search
+ * @param a_pkey_hash - pkey hash
+ * @return pointer to dap_pkey_t if finded, other - NULL
  */
 dap_pkey_t *dap_ledger_find_pkey_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_pkey_hash)
 {

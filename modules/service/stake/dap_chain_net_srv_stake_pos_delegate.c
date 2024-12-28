@@ -149,7 +149,7 @@ DAP_STATIC_INLINE char *s_get_approved_group(dap_chain_net_t *a_net)
     return a_net ? dap_strdup_printf("%s.orders.stake.approved", a_net->pub.gdb_groups_prefix) : NULL;
 }
 
-DAP_STATIC_INLINE dap_pkey_t *s_get_pkey_by_hash_callback(const uint8_t *a_hash)
+static dap_pkey_t *s_get_pkey_by_hash_callback(const uint8_t *a_hash)
 {
     dap_list_t *l_srv_stake_list = dap_chain_srv_get_internal((dap_chain_net_id_t) { .uint64 = 0 }, (dap_chain_srv_uid_t) { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID });
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
@@ -571,6 +571,11 @@ void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint25
     s_stake_recalculate_weights(a_signing_addr->net_id);
 }
 
+/**
+ * @brief add pkey to dap_chain_net_srv_stake_item_t
+ * @param a_net to add
+ * @param a_pkey
+ */
 void dap_chain_net_srv_stake_pkey_update(dap_chain_net_t *a_net, dap_pkey_t *a_pkey)
 {
     dap_return_if_pass(!a_net || !a_pkey);
@@ -2404,9 +2409,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
                 log_it(L_WARNING, "Requested conditional transaction have another ticker (not %s)", l_delegated_ticker);
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_ANOTHER_TICKER_ERR;
             }
-            if (
-                l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, 0)
-                ) {
+            if (l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, 0)) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_COND_TX_FORMAT_ERR, "The order's conditional transaction has invalid format");
                 dap_enc_key_delete(l_enc_key);
                 DAP_DELETE(l_order);
@@ -2607,11 +2610,11 @@ static int s_cli_srv_stake_pkey_show(int a_argc, char **a_argv, int a_arg_index,
     if (!l_srv_stake) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "Specified net have no stake service activated");
         return -25;
-    }
+    } 
     // search in curren
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, l_srv_stake->itemlist, &l_pkey_hash, sizeof(dap_hash_fast_t), l_stake);
-    const dap_pkey_t *l_pkey = l_stake ? l_stake->pkey : NULL;
+    dap_pkey_t *l_pkey = l_stake ? l_stake->pkey : NULL;
     if (!l_pkey) {
         l_pkey = dap_ledger_find_pkey_by_hash(l_net->pub.ledger, &l_pkey_hash);
     }
