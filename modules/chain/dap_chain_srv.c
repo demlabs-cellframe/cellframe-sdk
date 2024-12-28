@@ -243,6 +243,8 @@ void *dap_chain_srv_get_internal(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_
     struct service_list *l_service_item = s_service_find(a_srv_uid);
     if (!l_service_item)
         return NULL;
+    if (a_net_id.uint64 == 0)
+        return l_service_item->networks;
     struct network_service *l_service = s_net_service_find(l_service_item, a_net_id);
     return l_service ? l_service->service : NULL;
 }
