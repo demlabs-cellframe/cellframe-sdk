@@ -1014,7 +1014,7 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
                                                             a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL)))
         return -3;
     if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
-        return false;
+        return -3;
     if (NULL == (l_prev_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(
                                                             a_ledger, &l_tx_in_cond->header.tx_prev_hash)))
         return -4;

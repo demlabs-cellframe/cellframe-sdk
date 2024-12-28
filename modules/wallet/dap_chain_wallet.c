@@ -107,6 +107,19 @@ const char *dap_chain_wallet_addr_cache_get_name(dap_chain_addr_t *a_addr){
     return l_tmp ? l_tmp->name : NULL;
 }
 
+
+dap_list_t* dap_chain_wallet_get_local_addr(){
+
+    dap_list_t *l_list = NULL;
+    struct wallet_addr_cache *l_item, *l_tmp;
+    HASH_ITER(hh, s_wallet_addr_cache, l_item, l_tmp){
+        dap_chain_addr_t *l_addr = DAP_NEW_Z(dap_chain_addr_t);
+        memcpy (l_addr, &l_item->addr, sizeof(dap_chain_addr_t));
+        l_list = dap_list_append(l_list, l_addr);
+    }
+    return l_list;
+}
+
 /*
  *  DESCRIPTION: Add/update a record for wallet into the internaly used table of name/password pair.
  *      Thhose records are supposed to be used for operations with the password-protected wallets.
@@ -1070,7 +1083,9 @@ uint256_t dap_chain_wallet_get_balance (
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(a_wallet, a_net_id);
 
-    return  (l_net)  ? dap_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
+    uint256_t ret = (l_net) ? dap_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
+    DAP_DEL_Z(l_addr);
+    return ret;
 }
 
 /**
@@ -1256,7 +1271,7 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
                 DAP_DELETE(l_addr_tokens[i]);
             }
             json_object_object_add(l_jobj_net, "balance", l_arr_balance);
-            DAP_DELETE(l_addr_tokens);
+            DAP_DEL_MULTY(l_addr_tokens, l_wallet_addr_in_net);
         }
         json_object_object_add(l_json_ret, "networks", l_jobj_network);
         dap_chain_wallet_close(l_wallet);

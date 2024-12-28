@@ -345,7 +345,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction history
     dap_cli_server_cmd_add("tx_history", com_tx_history, "Transaction history (for address or by hash)",
-            "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} [-net <net_name>] [-chain <chain_name>] [-limit] [-offset] [-head]\n"
+            "tx_history  {-addr <addr> | {-w <wallet_name> | -tx <tx_hash>} -net <net_name>} [-chain <chain_name>] [-limit] [-offset] [-head]\n"
             "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset] [-head]\n"
             "tx_history -count -net <net_name>\n");
 
@@ -360,10 +360,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add("token", com_token, "Token info",
             "token list -net <net_name>\n"
             "token info -net <net_name> -name <token_ticker>\n");
-
-    // Log
-    dap_cli_server_cmd_add ("print_log", com_print_log, "Print log info",
-                "print_log [ts_after <timestamp>] [limit <line_numbers>]\n" );
 
     // Statisticss
     dap_cli_server_cmd_add("stats", com_stats, "Print statistics",
@@ -417,8 +413,16 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "\tTypes decree: fee, owners, owners_min, stake_approve, stake_invalidate, min_value, "
                            "min_validators_count, ban, unban, reward, validator_max_weight, emergency_validators, check_signs_structure\n");
 
-    dap_cli_server_cmd_add ("exec_cmd", com_exec_cmd, "Execute command on remote node",
-            "exec_cmd -net <net_name> -addr <node_addr> -cmd <command,and,all,args,separated,by,commas>\n" );
+
+    dap_cli_server_cmd_add ("file", com_file, "Work with logs and files",
+                "file print {-num_line <number_of_lines> | -ts_after <Tue, 10 Dec 2024 18:37:47 +0700> } {-log | -path <path_to_file>}\n"
+                "\t print the last <num_line> lines from the log file or all logs after the specified date and time\n"
+                "\t -path <path_to_file> allows printing from a text file, but -ts_after option might not work\n"
+                "file export {-num_line <number_of_lines> | -ts_after <m/d/Y-H:M:S>} {-log | -path <path_to_file>} -dest <destination_path>\n"
+                "\t export last <num_line> lines from the log file or all logs after the specified date and time\n"
+                "\t -path <path_to_file> allows exporting from a text file, but -ts_after option might not work\n"
+                "file clear_log\n"
+                "\t CAUTION !!! This command will clear the entire log file\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
