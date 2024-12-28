@@ -784,8 +784,7 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
         dap_ledger_load_cache(l_ledger);
 #endif
     // Decrees initializing
-    dap_ledger_decree_create(l_ledger);
-
+    dap_ledger_decree_init(l_ledger);
     return l_ledger;
 }
 

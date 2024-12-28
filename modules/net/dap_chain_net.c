@@ -217,6 +217,7 @@ static bool s_net_states_proc(void *a_arg);
 static void s_net_states_notify(dap_chain_net_t * l_net);
 static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg);
 //static void s_net_proc_kill( dap_chain_net_t * a_net );
+static int s_chains_init_all(const char *a_netname, const char *a_path, int *a_ledger_flags);
 static int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx);
 static void *s_net_load(void *a_arg);
 static int s_net_try_online(dap_chain_net_t *a_net);
@@ -1809,6 +1810,77 @@ static int s_nodes_hosts_init(dap_chain_net_t *a_net, dap_config_t *a_cfg, const
     return 0;
 }
 
+static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, int *a_ledger_flags) {
+    DIR *l_chains_dir = opendir(a_path);
+    if (!l_chains_dir)
+        return log_it(L_ERROR, "Can't find any chains for network %s", a_net->pub.name), -1;
+    bool is_esbocs_debug = dap_config_get_item_bool_default(a_net->pub.config, "esbocs", "consensus_debug", false);
+    dap_config_t *l_chain_config, *l_all_chain_configs = NULL, *l_tmp_cfg;
+    char l_chain_cfg_path[MAX_PATH + 1] = { '\0' };
+    int l_pos = snprintf(l_chain_cfg_path, MAX_PATH, "network/%s/", a_net->pub.name);
+    for ( struct dirent *l_dir_entry; ( l_dir_entry = readdir(l_chains_dir) ); ) {
+        unsigned short l_len = strlen(l_dir_entry->d_name);
+        if ( l_len > 4 && !dap_strncmp(l_dir_entry->d_name + l_len - 4, ".cfg", 4) ) {
+            *(l_dir_entry->d_name + l_len - 4) = '\0';
+            log_it(L_DEBUG, "Opening chain config \"%s.%s\"", a_net->pub.name, l_dir_entry->d_name);
+            dap_strncpy(l_chain_cfg_path + l_pos, l_dir_entry->d_name, MAX_PATH - l_pos);
+            if (!( l_chain_config = dap_config_open(l_chain_cfg_path) )) {
+                log_it(L_ERROR, "Can't open chain config %s, skip it", l_dir_entry->d_name);
+                continue;
+            }
+            HASH_ADD_KEYPTR(hh, l_all_chain_configs, l_chain_config->path, strlen(l_chain_config->path), l_chain_config);
+        }
+    }
+    closedir(l_chains_dir);
+    if (!l_all_chain_configs)
+        return log_it(L_ERROR, "Can't find any chains for network %s", a_net->pub.name), -2;
+
+    HASH_SORT(l_all_chain_configs, s_cmp_cfg_pri);
+    dap_chain_t *l_chain;
+    dap_chain_type_t *l_types_arr;
+    char l_occupied_default_types[CHAIN_TYPE_MAX] = { 0 };
+    int l_poa_signers = 0, l_poa_signers_min = 0;
+    HASH_ITER(hh, l_all_chain_configs, l_chain_config, l_tmp_cfg) {
+        if (( l_chain = dap_chain_load_from_cfg(a_net->pub.name, a_net->pub.id, l_chain_config) )) {
+            DL_APPEND(a_net->pub.chains, l_chain);
+            l_types_arr = l_chain->default_datum_types;
+            uint16_t
+                i = 0,
+                k = l_chain->default_datum_types_count;
+            for ( ; i < k; ++i) {
+                if ( l_occupied_default_types[l_types_arr[i]] ) {
+                    if ( i < k - 1 )
+                        l_types_arr[i] = l_types_arr[k - 1];
+                    --i;
+                    --k;
+                } else
+                    l_occupied_default_types[l_types_arr[i]] = 1;
+            }
+            if ( k < l_chain->default_datum_types_count ) {
+                l_chain->default_datum_types_count = k;
+                l_chain->default_datum_types = DAP_REALLOC_COUNT(l_chain->default_datum_types, k);
+            }
+            if ( !dap_strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "esbocs") && is_esbocs_debug )
+                dap_chain_esbocs_change_debug_mode(l_chain, true);
+            if (l_chain->callback_load_from_gdb && a_ledger_flags) {
+                *a_ledger_flags &= ~DAP_LEDGER_MAPPED;
+                *a_ledger_flags |= DAP_LEDGER_THRESHOLD_ENABLED;
+            }
+            if ( l_chain->callback_get_poa_certs ) {
+                uint16_t l_min_count = 0;
+                a_net->pub.keys = dap_list_append(a_net->pub.keys, l_chain->callback_get_poa_certs(l_chain, NULL, &l_min_count));
+                a_net->pub.keys_min_count += l_min_count;
+            }
+        } else {
+            HASH_DEL(l_all_chain_configs, l_chain_config);
+            dap_config_close(l_chain_config);
+            return -3;
+        }
+    }
+    HASH_CLEAR(hh, l_all_chain_configs);
+    return 0;
+}
+
 /**
  * @brief load network config settings from cellframe-node.cfg file
  *
@@ -1864,107 +1936,42 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
         log_it(L_WARNING, "Can't read seed nodes addresses, work with local balancer only");
 
     // Get list chains name for enabled debug mode
-    bool is_esbocs_debug = dap_config_get_item_bool_default(l_cfg, "esbocs", "consensus_debug", false);
 
     if ( dap_server_enabled() && ( l_net_pvt->node_info->ext_port = dap_config_get_item_uint16(g_config, "server", "ext_port") ))
         log_it(L_INFO, "Set external port %u for adding in node list", l_net_pvt->node_info->ext_port);
 
-    struct dirent *l_dir_entry;
     // Services register & configure
     dap_chain_srv_start(l_net->pub.id, DAP_CHAIN_NET_SRV_XCHANGE_LITERAL, NULL);        // Harcoded core service starting for exchange capability
     dap_chain_srv_start(l_net->pub.id, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_LITERAL, NULL);    // Harcoded core service starting for delegated keys storage
     char *l_services_path = dap_strdup_printf("%s/network/%s/services", dap_config_path(), l_net->pub.name);
     DIR *l_service_cfg_dir = opendir(l_services_path);
     DAP_DELETE(l_services_path);
-    while (l_service_cfg_dir && (l_dir_entry = readdir(l_service_cfg_dir)) != NULL) {
-        if (l_dir_entry->d_name[0] == '\0')
-            continue;
-        const char *l_entry_name = l_dir_entry->d_name;
-        size_t l_entry_len = strlen(l_entry_name);
-        if (l_entry_len < 4 || // It has non zero name excluding file extension
-                strncmp(l_entry_name + l_entry_len - 4, ".cfg", 4) != 0) // its not a .cfg file
-            continue;
-        log_it(L_DEBUG, "Opening service config \"%s\"...", l_entry_name);
-        char *l_service_cfg_path = dap_strdup_printf("network/%s/services/%s", l_net->pub.name, l_entry_name);
-        dap_config_t *l_cfg_new = dap_config_open(l_service_cfg_path);
-        if (l_cfg_new) {
-            char *l_service_name = DAP_DUP_SIZE((char *)l_entry_name, l_entry_len - 3);
-            l_service_name[l_entry_len - 4] = 0;
-            dap_chain_srv_start(l_net->pub.id, l_service_name, l_cfg_new);
-            dap_config_close(l_cfg_new);
-            DAP_DELETE(l_service_name);
-        }
-        DAP_DELETE(l_service_cfg_path);
-    }
-    closedir(l_service_cfg_dir);
-
-    /* *** Chains init by configs *** */
-    DIR *l_chains_dir = opendir(a_path);
-    if (!l_chains_dir)
-        return log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name), dap_chain_net_delete(l_net), -7;
-
-    dap_config_t *l_chain_config, *l_all_chain_configs = NULL, *l_tmp_cfg;
-    char l_chain_cfg_path[MAX_PATH + 1] = { '\0' };
-    int l_pos = snprintf(l_chain_cfg_path, MAX_PATH, "network/%s/", a_net_name);
-    while (( l_dir_entry = readdir(l_chains_dir) )) {
-        unsigned short l_len = strlen(l_dir_entry->d_name);
-        if ( l_len > 4 && !dap_strncmp(l_dir_entry->d_name + l_len - 4, ".cfg", 4) ) {
-            *(l_dir_entry->d_name + l_len - 4) = '\0';
-            log_it(L_DEBUG, "Opening chain config \"%s.%s\"", a_net_name, l_dir_entry->d_name);
-            dap_strncpy(l_chain_cfg_path + l_pos, l_dir_entry->d_name, MAX_PATH - l_pos);
-            if (!( l_chain_config = dap_config_open(l_chain_cfg_path) )) {
-                log_it(L_ERROR, "Can't open chain config %s, skip it", l_dir_entry->d_name);
+    if (l_service_cfg_dir) {
+        for ( struct dirent *l_dir_entry; ( l_dir_entry = readdir(l_service_cfg_dir) ); ) {
+            const char *l_entry_name = l_dir_entry->d_name;
+            size_t l_entry_len = strlen(l_entry_name);
+            if (l_entry_len < 4 || // It has non zero name excluding file extension
+                    strncmp(l_entry_name + l_entry_len - 4, ".cfg", 4) != 0) // its not a .cfg file
                 continue;
+            log_it(L_DEBUG, "Opening service config \"%s\"...", l_entry_name);
+            char *l_service_cfg_path = dap_strdup_printf("network/%s/services/%s", l_net->pub.name, l_entry_name);
+            dap_config_t *l_cfg_new = dap_config_open(l_service_cfg_path);
+            if (l_cfg_new) {
+                char *l_service_name = DAP_DUP_SIZE((char *)l_entry_name, l_entry_len - 3);
+                l_service_name[l_entry_len - 4] = 0;
+                dap_chain_srv_start(l_net->pub.id, l_service_name, l_cfg_new);
+                dap_config_close(l_cfg_new);
+                DAP_DELETE(l_service_name);
             }
-            HASH_ADD_KEYPTR(hh, l_all_chain_configs, l_chain_config->path, strlen(l_chain_config->path), l_chain_config);
+            DAP_DELETE(l_service_cfg_path);
         }
+        closedir(l_service_cfg_dir);
     }
-    closedir(l_chains_dir);
-    if (!l_all_chain_configs)
-        return log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name), dap_chain_net_delete(l_net), -8;
-
-    HASH_SORT(l_all_chain_configs, s_cmp_cfg_pri);
-    dap_chain_t *l_chain;
-    dap_chain_type_t *l_types_arr;
-    char l_occupied_default_types[CHAIN_TYPE_MAX] = { 0 };
-    HASH_ITER(hh, l_all_chain_configs, l_chain_config, l_tmp_cfg) {
-        if (( l_chain = dap_chain_load_from_cfg(l_net->pub.name, l_net->pub.id, l_chain_config) )) {
-            DL_APPEND(l_net->pub.chains, l_chain);
-            l_types_arr = l_chain->default_datum_types;
-            uint16_t
-                i = 0,
-                k = l_chain->default_datum_types_count;
-            for ( ; i < k; ++i) {
-                if ( l_occupied_default_types[l_types_arr[i]] ) {
-                    if ( i < k - 1 )
-                        l_types_arr[i] = l_types_arr[k - 1];
-                    --i;
-                    --k;
-                } else
-                    l_occupied_default_types[l_types_arr[i]] = 1;
-            }
-            if ( k < l_chain->default_datum_types_count ) {
-                l_chain->default_datum_types_count = k;
-                l_chain->default_datum_types = DAP_REALLOC_COUNT(l_chain->default_datum_types, k);
-            }
-            if (!dap_strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "esbocs") && is_esbocs_debug) {
-                dap_chain_esbocs_change_debug_mode(l_chain, true);
-            }
-        } else {
-            HASH_DEL(l_all_chain_configs, l_chain_config);
-            dap_config_close(l_chain_config);
-            dap_chain_net_delete(l_net);
-            return -5;
-        }
-    }
-    HASH_CLEAR(hh, l_all_chain_configs);
-
-    // LEDGER model
     uint16_t l_ledger_flags = 0;
     switch ( PVT( l_net )->node_role.enums ) {
     case NODE_ROLE_LIGHT:
         //break;
-        PVT( l_net )->node_role.enums = NODE_ROLE_FULL; // TODO: implement light mode
+        PVT( a_net )->node_role.enums = NODE_ROLE_FULL; // TODO: implement light mode
     case NODE_ROLE_FULL:
         l_ledger_flags |= DAP_LEDGER_CHECK_LOCAL_DS;
         if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", false))
@@ -1975,23 +1982,12 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
     if (dap_config_get_item_bool_default(g_config, "ledger", "mapped", true))
         l_ledger_flags |= DAP_LEDGER_MAPPED;
 
-    for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
-        if (l_chain->callback_load_from_gdb) {
-            l_ledger_flags &= ~DAP_LEDGER_MAPPED;
-            l_ledger_flags |= DAP_LEDGER_THRESHOLD_ENABLED;
-            continue;
-        }
-        if (!l_chain->callback_get_poa_certs)
-            continue;
-        if (!l_net->pub.keys)
-            l_net->pub.keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
-    }
-    if (!l_net->pub.keys)
-        log_it(L_WARNING, "PoA certificates for net %s not found", l_net->pub.name);
+    int l_res = s_chains_init_all(l_net, a_path, &l_ledger_flags);
+    if ( l_res )
+        return dap_chain_net_delete(l_net), l_res;
 
     // init LEDGER model
     l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
-
     return 0;
 }
 

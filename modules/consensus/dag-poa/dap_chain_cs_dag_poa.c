@@ -379,11 +379,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t * a_chain_cfg)
         l_poa_pvt->auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg,"dag-poa","auth_certs_number",0);
         l_poa_pvt->auth_certs_count_verify = dap_config_get_item_uint16_default(a_chain_cfg,"dag-poa","auth_certs_number_verify",0);
         if (l_poa_pvt->auth_certs_count && l_poa_pvt->auth_certs_count_verify) {
-            l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t *));
-            if (!l_poa_pvt->auth_certs) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                return -1;
-            }
+            l_poa_pvt->auth_certs = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(dap_cert_t*, l_poa_pvt->auth_certs_count, -1);
             char l_cert_name[MAX_PATH + 1];
             int l_pos;
             for (uint16_t i = 0; i < l_poa_pvt->auth_certs_count ; ++i) {
@@ -910,11 +906,9 @@ dap_list_t *dap_chain_cs_dag_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_
         *a_count_verify = l_poa_pvt->auth_certs_count_verify;
 
     dap_list_t *l_keys_list = NULL;
-    for(size_t i = 0; i < l_poa_pvt->auth_certs_count; i++)
+    for (size_t i = 0; i < l_poa_pvt->auth_certs_count; ++i)
     {
-        dap_pkey_t *l_pkey = dap_cert_to_pkey(l_poa_pvt->auth_certs[i]);
-        l_keys_list = dap_list_append(l_keys_list, l_pkey);
+        l_keys_list = dap_list_append(l_keys_list, dap_cert_to_pkey(l_poa_pvt->auth_certs[i]));
     }
-
     return l_keys_list;
 }

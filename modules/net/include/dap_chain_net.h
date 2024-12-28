@@ -62,7 +62,10 @@ typedef struct dap_chain_net {
         dap_chain_net_id_t id;
         char name[DAP_CHAIN_NET_NAME_MAX + 1], gdb_nodes[DAP_CHAIN_NET_NAME_MAX + sizeof(s_gdb_nodes_postfix) + 1];
         const char *gdb_groups_prefix, *native_ticker;
+        // PoA section
         dap_list_t *keys;               // List of PoA certs for net
+        uint16_t keys_min_count;        // PoA minimum required number
+        //
         dap_chain_t *chains;            // double-linked list of chains
         dap_ledger_t *ledger;
         uint256_t fee_value;            // Net fee

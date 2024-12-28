@@ -42,31 +42,14 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
 static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply);
 
 // Public functions
-int dap_ledger_decree_create(dap_ledger_t *a_ledger)
-{
-    dap_return_val_if_fail(a_ledger, -106);
 
-    size_t l_auth_certs_count = 0;
-    dap_list_t *l_net_keys = NULL;
-    uint16_t l_count_verify = 0;
-    for (dap_chain_t *l_chain = a_ledger->net->pub.chains; l_chain; l_chain = l_chain->next) {
-        if (!l_chain->callback_get_poa_certs)
-            continue;
-        l_net_keys = l_chain->callback_get_poa_certs(l_chain, &l_auth_certs_count, &l_count_verify);
-        if (l_net_keys)
-            break;
-    }
-
-    if (!l_net_keys || !l_auth_certs_count) {
-        log_it(L_WARNING, "Certificates for net %s not found.", a_ledger->net->pub.name);
-        return -1;
-    }
+void dap_ledger_decree_init(dap_ledger_t *a_ledger) {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    l_ledger_pvt->decree_min_num_of_signers = l_count_verify;
-    l_ledger_pvt->decree_num_of_owners = l_auth_certs_count;
-    l_ledger_pvt->decree_owners_pkeys = l_net_keys;
-
-    return 0;
+    l_ledger_pvt->decree_min_num_of_signers = a_ledger->net->pub.keys_min_count;
+    l_ledger_pvt->decree_num_of_owners = dap_list_length(a_ledger->net->pub.keys);
+    l_ledger_pvt->decree_owners_pkeys = a_ledger->net->pub.keys;
+    if ( !l_ledger_pvt->decree_owners_pkeys )
+        log_it(L_WARNING, "PoA certificates for net %s not found", a_ledger->net->pub.name);
 }
 
 static int s_decree_clear(dap_ledger_t *a_ledger)
