@@ -1731,7 +1731,7 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
                 // Maybe should get pkey and tronsform to dap_pkey_t
                 dap_pkey_t *l_pkey = NULL;
                 const char *l_pkey_full_str = s_json_get_text(l_json_item_obj, "pkey_full");
-                if(l_pkey_full_str) {
+                if(l_pkey_full_str) { 
                     l_pkey = dap_pkey_get_from_str(l_pkey_full_str);
                     debug_if(!l_pkey, L_ERROR, "Json TX: bad pkey in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                 }
