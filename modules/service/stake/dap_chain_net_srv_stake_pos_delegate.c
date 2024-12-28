@@ -579,7 +579,7 @@ void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint25
 void dap_chain_net_srv_stake_pkey_update(dap_chain_net_t *a_net, dap_pkey_t *a_pkey)
 {
     dap_return_if_pass(!a_net || !a_pkey);
-    dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_net->pub.id);
+    struct srv_stake *l_srv_stake = s_srv_stake_by_net_id(a_net->pub.id);
     if (!l_srv_stake)
         return log_it(L_ERROR, "Can't update pkey: no stake service found by net id %"DAP_UINT64_FORMAT_U, a_net->pub.id.uint64);
     dap_hash_fast_t l_pkey_hash = {};
@@ -3434,7 +3434,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_NET_ERR, "Network %s not found", l_net_str);
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_NET_ERR;
             }
-            dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(l_net->pub.id);
+            struct srv_stake *l_srv_stake = s_srv_stake_by_net_id(l_net->pub.id);
             if (!l_srv_stake) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_NO_STAKE_IN_NET_ERR, "Specified net have no stake service activated");
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_NO_STAKE_IN_NET_ERR;
