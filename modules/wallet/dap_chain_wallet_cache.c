@@ -762,11 +762,6 @@ static int s_save_tx_into_wallet_cache(dap_chain_t *a_chain, dap_chain_datum_tx_
 
 static int s_save_cache_for_addr_in_net(dap_chain_net_t *a_net, dap_chain_addr_t *a_addr)
 {
-    // Find chain with transactions    
-    dap_hash_fast_t l_curr_tx_hash = {0};
-    if (dap_chain_wallet_cache_tx_find_in_history(a_addr, NULL, NULL, NULL, NULL, NULL, &l_curr_tx_hash) == 0)
-        return 0;
-
     dap_chain_t *l_chain = a_net->pub.chains;
     while (l_chain){
         for(int i = 0; i < l_chain->datum_types_count; i++) {
@@ -777,8 +772,10 @@ static int s_save_cache_for_addr_in_net(dap_chain_net_t *a_net, dap_chain_addr_t
                         l_datum;
                         l_datum = l_chain->callback_datum_iter_get_next(l_iter)){
 
-                    s_save_tx_cache_for_addr(l_chain, a_addr, (dap_chain_datum_tx_t*)l_datum->data, l_iter->cur_hash, l_iter->cur_atom_hash, l_iter->ret_code, l_iter->token_ticker, l_iter->uid, l_iter->action);
+                    if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
+                        s_save_tx_cache_for_addr(l_chain, a_addr, (dap_chain_datum_tx_t*)l_datum->data, l_iter->cur_hash, l_iter->cur_atom_hash, l_iter->ret_code, l_iter->token_ticker, l_iter->uid, l_iter->action);
                 }
+                l_chain->callback_datum_iter_delete(l_iter);
                 break;
             }
         }
@@ -831,29 +828,32 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
 {
     int l_ret_val = 0;
     int l_items_cnt = 0;
-
-    dap_list_t *l_out_list = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, &l_items_cnt);
     bool l_multichannel = false;
     int l_out_idx = 0;
-    for (dap_list_t *it=l_out_list; it; it=it->next, l_out_idx++){
-        uint8_t l_out_type = *(uint8_t *)it->data;
+    uint8_t *l_tx_item = NULL;
+    size_t l_size; int i;
+    TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, a_tx) {
+        uint8_t l_out_type = *(uint8_t *)l_tx_item;
         dap_chain_addr_t l_addr = {};
         switch(l_out_type){
             case TX_ITEM_TYPE_OUT_OLD: {
-                l_addr = ((dap_chain_tx_out_old_t*)it->data)->addr;
+                l_addr = ((dap_chain_tx_out_old_t*)l_tx_item)->addr;
             } break;
             case TX_ITEM_TYPE_OUT: {
-                l_addr = ((dap_chain_tx_out_t*)it->data)->addr;
+                l_addr = ((dap_chain_tx_out_t*)l_tx_item)->addr;
             } break;
             case TX_ITEM_TYPE_OUT_EXT: {
-                l_addr = ((dap_chain_tx_out_ext_t*)it->data)->addr;
+                l_addr = ((dap_chain_tx_out_ext_t*)l_tx_item)->addr;
                 l_multichannel = true;
             } break;
-            default:
+            default:{
+                l_out_idx++;
                 continue;
+            } 
         }
 
-        if(!dap_chain_addr_is_blank(&l_addr) && dap_chain_addr_compare(&l_addr, a_addr) &&
+        if(!dap_chain_addr_is_blank(&l_addr) && 
+                dap_chain_addr_compare(&l_addr, a_addr) &&
                 l_addr.net_id.uint64 == a_chain->net_id.uint64
             ){
             pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
@@ -879,21 +879,22 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             } 
             l_wallet_tx_item->multichannel = l_multichannel;
             dap_wallet_tx_cache_output_t *l_out = DAP_NEW_Z(dap_wallet_tx_cache_output_t);
-            l_out->tx_out = it->data;
+            l_out->tx_out = l_tx_item;
             l_out->tx_out_idx = l_out_idx;
             l_wallet_tx_item->tx_wallet_outputs = dap_list_append(l_wallet_tx_item->tx_wallet_outputs, l_out);
             pthread_rwlock_unlock(&s_wallet_cache_rwlock);
         }
+        l_out_idx++;
     }
 
-    dap_list_t *l_in_list = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_IN_ALL, &l_items_cnt);
-    for (dap_list_t *it=l_out_list; it; it=it->next ){
-        uint8_t l_cond_type = *(uint8_t *)it->data;
+    l_tx_item = NULL;
+    TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_IN_ALL, l_size, i, a_tx) {
+        uint8_t l_cond_type = *l_tx_item;
         uint256_t l_value = {};
         dap_chain_addr_t l_addr_from = {};
         if(l_cond_type == TX_ITEM_TYPE_IN){
-            dap_hash_fast_t l_prev_tx_hash = ((dap_chain_tx_in_t*)it->data)->header.tx_prev_hash;
-            int l_prev_idx = ((dap_chain_tx_in_t*)it->data)->header.tx_out_prev_idx;
+            dap_hash_fast_t l_prev_tx_hash = ((dap_chain_tx_in_t*)l_tx_item)->header.tx_prev_hash;
+            int l_prev_idx = ((dap_chain_tx_in_t*)l_tx_item)->header.tx_out_prev_idx;
             if (dap_hash_fast_is_blank(&l_prev_tx_hash))
                 continue;
             dap_chain_datum_tx_t *l_tx_prev = (dap_chain_datum_tx_t *)(a_chain->callback_datum_find_by_hash(a_chain, &l_prev_tx_hash, NULL, NULL)->data);
@@ -902,22 +903,23 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             uint8_t* l_prev_item = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT, l_prev_idx);
             if (!l_prev_item)
                 continue;
-            uint8_t l_out_type = *(uint8_t *)it->data;
+            uint8_t l_out_type = *(uint8_t *)l_prev_item;
             switch(l_out_type){
                 case TX_ITEM_TYPE_OUT_OLD: {
-                    l_value = GET_256_FROM_64(((dap_chain_tx_out_old_t*)it->data)->header.value);
-                    l_addr_from = ((dap_chain_tx_out_old_t*)it->data)->addr;
+                    l_value = GET_256_FROM_64(((dap_chain_tx_out_old_t*)l_prev_item)->header.value);
+                    l_addr_from = ((dap_chain_tx_out_old_t*)l_prev_item)->addr;
                 } break;
                 case TX_ITEM_TYPE_OUT:
                 case TX_ITEM_TYPE_OUT_EXT: {
-                    l_value = ((dap_chain_tx_out_ext_t*)it->data)->header.value;
-                    l_addr_from = ((dap_chain_tx_out_ext_t*)it->data)->addr;
+                    l_value = ((dap_chain_tx_out_ext_t*)l_prev_item)->header.value;
+                    l_addr_from = ((dap_chain_tx_out_ext_t*)l_prev_item)->addr;
                 } break;
                 default:
                     continue;
             }
 
-            if(!dap_chain_addr_is_blank(&l_addr_from)  && dap_chain_addr_compare(&l_addr_from, a_addr) &&
+            if(!dap_chain_addr_is_blank(&l_addr_from) && 
+                dap_chain_addr_compare(&l_addr_from, a_addr) &&
                 l_addr_from.net_id.uint64 == a_chain->net_id.uint64
                 ){
                 pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
@@ -952,12 +954,6 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
 
         }
     }
-
-    if (l_out_list)
-        dap_list_free(l_out_list);
-
-    if (l_in_list)
-        dap_list_free(l_in_list);
 
     return l_ret_val;
 }
