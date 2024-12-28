@@ -210,6 +210,7 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
 static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_net_id, int a_links_count);
 static int s_link_manager_fill_net_info(dap_link_t *a_link);
 static int s_link_manager_link_request(uint64_t a_net_id);
+static int s_link_manager_link_count_changed();
 
 static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .connected      = s_link_manager_callback_connected,
@@ -217,6 +218,7 @@ static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .error          = s_link_manager_callback_error,
     .fill_net_info  = s_link_manager_fill_net_info,
     .link_request   = s_link_manager_link_request,
+    .link_count_changed = s_link_manager_link_count_changed,
 };
 
 // State machine switchs here
@@ -511,6 +513,15 @@ int s_link_manager_link_request(uint64_t a_net_id)
     l_arg->host_port = l_balancer_link->port;
     l_arg->type = PVT(l_net)->balancer_type;
     return dap_worker_exec_callback_on(dap_worker_get_auto(), dap_chain_net_balancer_request, l_arg), 0;
+}
+
+static int s_link_manager_link_count_changed()
+{
+    struct json_object *l_json = dap_chain_nets_info_json_collect();
+    json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
+    return 0;
 }
 
 struct request_link_info *s_get_permanent_link_info(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
