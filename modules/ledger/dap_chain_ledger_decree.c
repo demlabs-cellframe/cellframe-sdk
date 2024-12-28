@@ -137,32 +137,33 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
 
     // Verify all keys and its signatures
     uint16_t l_signs_size_for_current_sign = 0, l_signs_verify_counter = 0;
-    a_decree->header.signs_size = 0;
-    size_t l_verify_data_size = a_decree->header.data_size + sizeof(dap_chain_datum_decree_t);
+    dap_chain_datum_decree_t *l_decree = a_net->pub.chains->is_mapped
+        ? DAP_DUP_SIZE(a_decree, a_data_size)
+        : a_decree;
+    l_decree->header.signs_size = 0;
+    size_t l_verify_data_size = l_decree->header.data_size + sizeof(dap_chain_datum_decree_t);
 
     for (size_t i = 0; i < l_num_of_unique_signs; i++) {
         size_t l_sign_max_size = dap_sign_get_size(l_unique_signs[i]);
         if (s_verify_pkey(l_unique_signs[i], a_net)) {
             // 3. verify sign
-            if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, a_decree, l_verify_data_size))
+            if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, l_decree, l_verify_data_size))
                 l_signs_verify_counter++;
         } else {
             dap_hash_fast_t l_sign_pkey_hash = {0};
             size_t l_pkey_size = 0;
             uint8_t *l_pkey = dap_sign_get_pkey(l_unique_signs[i], &l_pkey_size);
-            dap_hash_fast(l_pkey, l_pkey_size, &l_sign_pkey_hash);
-            char *l_sign_hash_str = dap_hash_fast_to_str_new(&l_sign_pkey_hash);
-            log_it(L_WARNING, "Signature [%zu] %s failed public key verification.", i, l_sign_hash_str);
-            DAP_DELETE(l_sign_hash_str);
+            log_it(L_WARNING, "Signature [%zu] %s failed public key verification.", i, dap_get_data_hash_str(l_pkey, l_pkey_size).s);
         }
         // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
         l_signs_size_for_current_sign += l_sign_max_size;
-        a_decree->header.signs_size = l_signs_size_for_current_sign;
+        l_decree->header.signs_size = l_signs_size_for_current_sign;
     }
 
-    a_decree->header.signs_size = l_signs_size;
-
-//    DAP_DELETE(l_signs_arr);
+    if ( a_net->pub.chains->is_mapped )
+        DAP_DELETE(l_decree);
+    else
+        l_decree->header.signs_size = l_signs_size;
     DAP_DELETE(l_unique_signs);
 
     if (l_signs_verify_counter < l_min_signs) {
