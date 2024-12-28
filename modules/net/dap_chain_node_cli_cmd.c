@@ -1743,7 +1743,19 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
                 }
                 l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
+                if (!l_wallet){
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                           "Can't find wallet (%s)", l_wallet_name);
+                    json_object_put(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
+                }
                 l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id );
+                if (!l_addr){
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                           "Can't get addr from wallet (%s)", l_wallet_name);
+                    json_object_put(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
+                }
             } else {
                 l_addr = dap_chain_addr_from_str(l_addr_str);
             }
