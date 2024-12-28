@@ -75,7 +75,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT                    0x000C
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS          0x000D
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE         0x000E
-#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE             0x000F
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE             0x0010 
 
 // DECREE TSD types
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE                               0x0100
@@ -94,7 +94,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING                              0x0115
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION                              0x010A
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE                      0x010B
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY                          0x010C
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY                          0x010D 
 
 DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_decree_subtype)
 {
