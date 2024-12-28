@@ -116,6 +116,7 @@ typedef struct dap_chain_tx_out_cond {
             dap_chain_addr_t signing_addr;
             // Node address of signer with this stake
             dap_chain_node_addr_t signer_node_addr;
+            uint32_t flags;
         } DAP_ALIGN_PACKED srv_stake_pos_delegate;
         struct {
             dap_time_t		time_unlock;
