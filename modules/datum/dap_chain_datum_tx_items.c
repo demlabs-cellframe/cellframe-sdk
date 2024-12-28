@@ -340,12 +340,14 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                            dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
-                                                                           dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax)
+                                                                           dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax, dap_pkey_t *a_pkey)
 {
     if (IS_ZERO_256(a_value))
         return NULL;
-    size_t l_tsd_total_size = a_sovereign_addr && !dap_chain_addr_is_blank(a_sovereign_addr) ?
-                                dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size() : 0;
+    bool l_tsd_sovereign_addr = a_sovereign_addr && !dap_chain_addr_is_blank(a_sovereign_addr);
+    size_t l_pkey_size = dap_pkey_get_size(a_pkey);
+    size_t l_tsd_total_size =  dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(l_tsd_sovereign_addr, l_pkey_size);
+    
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + l_tsd_total_size);
     if (!l_item) {
         return NULL;
@@ -358,8 +360,15 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     l_item->subtype.srv_stake_pos_delegate.signer_node_addr = *a_signer_node_addr;
     if (l_tsd_total_size) {
         l_item->tsd_size = l_tsd_total_size;
-        byte_t *l_next_tsd_ptr = dap_tsd_write(l_item->tsd, DAP_CHAIN_TX_OUT_COND_TSD_ADDR, a_sovereign_addr, sizeof(*a_sovereign_addr));
-        dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_VALUE, &a_sovereign_tax, sizeof(a_sovereign_tax));
+        byte_t *l_next_tsd_ptr = l_item->tsd;
+        if (l_tsd_sovereign_addr) {
+            l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_ADDR, a_sovereign_addr, sizeof(*a_sovereign_addr));
+            l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_VALUE, &a_sovereign_tax, sizeof(a_sovereign_tax));
+        }
+        if (l_pkey_size) {
+            dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD, a_pkey, l_pkey_size);
+            l_item->subtype.srv_stake_pos_delegate.flags = DAP_SIGN_ADD_PKEY_HASHING_FLAG(l_item->subtype.srv_stake_pos_delegate.flags);
+        }
     }
     return l_item;
 }
@@ -432,7 +441,7 @@ dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, da
         return NULL;
     }
     l_tx->header.tx_items_size = 0;
-    dap_sign_t *l_chain_sign = dap_sign_create(a_key, l_tx, l_tx_size, 0);
+    dap_sign_t *l_chain_sign = dap_sign_create(a_key, l_tx, l_tx_size, DAP_SIGN_HASH_TYPE_DEFAULT);
     DAP_DELETE(l_tx);
     if (!l_chain_sign)
         return NULL;
