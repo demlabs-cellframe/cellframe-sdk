@@ -82,7 +82,7 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
 
     for (size_t i = 0; i < l_certs_count; i++) {
         dap_sign_t * l_sign = dap_cert_sign(l_certs[i],  l_datum_token,
-           sizeof(*l_datum_token) + l_tsd_size, 0);
+           sizeof(*l_datum_token) + l_tsd_size, DAP_SIGN_HASH_TYPE_DEFAULT);
         if (l_sign) {
             size_t l_sign_size = dap_sign_get_size(l_sign);
             dap_chain_datum_token_t *l_datum_token_new

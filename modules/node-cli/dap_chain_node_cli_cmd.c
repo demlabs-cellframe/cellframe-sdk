@@ -3880,7 +3880,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
     for(size_t i = 0; i < a_certs_count; i++)
     {
         dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_anchor,
-           sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size, 0);
+           sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size, DAP_SIGN_HASH_TYPE_DEFAULT);
 
         if (l_sign) {
             size_t l_sign_size = dap_sign_get_size(l_sign);
