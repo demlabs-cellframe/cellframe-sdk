@@ -374,16 +374,25 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
     switch (a_decree->header.sub_type)
     {
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
+                // if (dap_chain_datum_decree_get_fee_addr(a_decree, &l_addr)) {
+                //     if (dap_chain_addr_is_blank(&a_net->pub.fee_addr)) {
+                //         log_it(L_WARNING, "Fee wallet address not set.");
+                //         return -111;
+                //     } else
+                //         l_addr = a_net->pub.fee_addr;
+                // }
+                if (dap_chain_datum_decree_get_fee(a_decree, &l_value)) {
+                    log_it(L_WARNING,"Can't get fee value from decree.");
+                    return -103;
+                }
+                if (!a_anchored)
+                    break;
                 if (dap_chain_datum_decree_get_fee_addr(a_decree, &l_addr)) {
                     if (dap_chain_addr_is_blank(&a_net->pub.fee_addr)) {
                         log_it(L_WARNING, "Fee wallet address not set.");
                         return -111;
                     } else
                         l_addr = a_net->pub.fee_addr;
-                }
-                if (dap_chain_datum_decree_get_fee(a_decree, &l_value)) {
-                    log_it(L_WARNING,"Can't get fee value from decree.");
-                    return -103;
                 }
                 if (!a_apply)
                     break;
