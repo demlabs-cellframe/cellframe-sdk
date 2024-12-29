@@ -687,11 +687,15 @@ static int s_save_tx_into_wallet_cache(dap_chain_t *a_chain, dap_chain_datum_tx_
                 continue;
             dap_chain_datum_t *l_prev_datum = a_chain->callback_datum_find_by_hash(a_chain, &l_prev_tx_hash, NULL, NULL);
             dap_chain_datum_tx_t *l_tx_prev = l_prev_datum ? (dap_chain_datum_tx_t *)(l_prev_datum->data) : NULL;
-            if (!l_tx_prev)
+            if (!l_tx_prev){
+                log_it(L_ERROR, "Can't find previous transactions (hash=%s)", dap_hash_fast_to_str_static(&l_prev_tx_hash));
                 continue;
+            }
             uint8_t* l_prev_item = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT, l_prev_idx);
-            if (!l_prev_item)
+            if (!l_prev_item){
+                log_it(L_ERROR, "Can't find out with index %d transactions (hash=%s)", l_prev_idx, dap_hash_fast_to_str_static(&l_prev_tx_hash));
                 continue;
+            }
             uint8_t l_out_type = *(uint8_t *)l_prev_item;
             switch(l_out_type){
                 case TX_ITEM_TYPE_OUT_OLD: {
@@ -927,11 +931,15 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                 continue;
             dap_chain_datum_t *l_prev_datum = a_chain->callback_datum_find_by_hash(a_chain, &l_prev_tx_hash, NULL, NULL);
             dap_chain_datum_tx_t *l_tx_prev = l_prev_datum ? (dap_chain_datum_tx_t *)(l_prev_datum->data) : NULL;
-            if (!l_tx_prev)
+            if (!l_tx_prev){
+                log_it(L_ERROR, "Can't find previous transactions (hash=%s)", dap_hash_fast_to_str_static(&l_prev_tx_hash));
                 continue;
+            }
             uint8_t* l_prev_item = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT, l_prev_idx);
-            if (!l_prev_item)
+            if (!l_prev_item){
+                log_it(L_ERROR, "Can't find out with index %d transactions (hash=%s)", l_prev_idx, dap_hash_fast_to_str_static(&l_prev_tx_hash));
                 continue;
+            }
             uint8_t l_out_type = *(uint8_t *)l_prev_item;
             switch(l_out_type){
                 case TX_ITEM_TYPE_OUT_OLD: {
