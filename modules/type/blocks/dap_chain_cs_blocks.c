@@ -2770,12 +2770,12 @@ static int s_aggregate_fees(dap_chain_cs_blocks_hardfork_fees_t **a_out_list, da
     }
     switch (a_type) {
     case DAP_CHAIN_BLOCK_COLLECT_FEES:
-        if (SUM_256_256(l_exist->fees_sum, a_value, &l_exist->fees_sum)) {
+        if (SUM_256_256(l_exist->fees_n_rewards_sum, a_value, &l_exist->fees_n_rewards_sum)) {
             log_it(L_ERROR, "Integer overflow of hardfork aggregated data for not withdrowed fees");
             return -2;
         } break;
     case DAP_CHAIN_BLOCK_COLLECT_REWARDS:
-        if (SUM_256_256(l_exist->rewards_sum, a_value, &l_exist->rewards_sum)) {
+        if (SUM_256_256(l_exist->fees_n_rewards_sum, a_value, &l_exist->fees_n_rewards_sum)) {
             log_it(L_ERROR, "Integer overflow of hardfork aggregated data for not withdrowed rewards");
             return -2;
         } break;

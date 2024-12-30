@@ -550,7 +550,55 @@ dap_chain_datum_t *s_datum_tx_create(dap_chain_addr_t *a_addr, const char *a_tic
     }
     for (dap_list_t *it = a_trackers; it; it = it->next) {
         dap_ledger_tracker_t *l_tracker = it->data;
-        dap_chain_tx_tsd_t *l_tracker_tsd = dap_chain_datum_tx_item_tsd_create(l_tracker, DAP_CHAIN_DATUM_TX_TSD_TYPE_TRACKER, sizeof(dap_ledger_tracker_t));
+        dap_chain_tx_tsd_t *l_tracker_tsd = dap_chain_datum_tx_item_tsd_create(l_tracker, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER, sizeof(dap_ledger_tracker_t));
+        if (!l_tracker_tsd) {
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        if (dap_chain_datum_tx_add_item(&l_tx, l_tracker_tsd) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+    dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
+    dap_chain_datum_tx_delete(l_tx);
+    return l_datum_tx;
+}
+
+dap_chain_datum_t *s_cond_tx_create(dap_chain_tx_out_cond_t *a_cond, dap_chain_tx_sig_t *a_sign, dap_hash_fast_t *a_hash, const char *a_ticker, dap_list_t *a_trackers)
+{
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx)
+        return NULL;
+    if (dap_chain_datum_tx_add_item(&l_tx, a_cond) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    if (dap_chain_datum_tx_add_item(&l_tx, a_sign) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    dap_chain_tx_tsd_t *l_tx_hash_tsd = dap_chain_datum_tx_item_tsd_create(a_hash, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TX_HASH, sizeof(dap_hash_fast_t));
+    if (!l_tx_hash_tsd) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    if (dap_chain_datum_tx_add_item(&l_tx, l_tx_hash_tsd) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    dap_chain_tx_tsd_t *l_ticker_tsd = dap_chain_datum_tx_item_tsd_create(a_hash, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TICKER, DAP_CHAIN_TICKER_SIZE_MAX);
+    if (!l_ticker_tsd) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    if (dap_chain_datum_tx_add_item(&l_tx, l_ticker_tsd) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    for (dap_list_t *it = a_trackers; it; it = it->next) {
+        dap_ledger_tracker_t *l_tracker = it->data;
+        dap_chain_tx_tsd_t *l_tracker_tsd = dap_chain_datum_tx_item_tsd_create(l_tracker, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER, sizeof(dap_ledger_tracker_t));
         if (!l_tracker_tsd) {
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
@@ -572,22 +620,51 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         return log_it(L_ERROR, "Can't process chain with no harfork data. Use dap_chain_node_hardfork_prepare() for collect it first"), -2;
     struct hardfork_states *l_states = a_chain->hardfork_data;
     switch (l_states->state_current) {
+    case STATE_ANCHORS:
+        for (dap_ledger_hardfork_anchors_t *it = l_states->anchors; it; it = it->next) {
+            dap_chain_datum_t *l_datum_anchor = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, it->anchor, dap_chain_datum_anchor_get_size(it->anchor));
+            if (!l_datum_anchor)
+                return -2;
+            if (!a_chain->callback_add_datums(a_chain, &l_datum_anchor, 1)) {
+                dap_hash_fast_t l_decree_hash;
+                dap_chain_datum_anchor_get_hash_from_data(it->anchor, &l_decree_hash);
+                log_it(L_NOTICE, "Hardfork processed to datum anchor for decree hash %s", dap_hash_fast_to_str_static(&l_decree_hash));
+                DAP_DELETE(l_datum_anchor);
+                break;
+            }
+            DAP_DELETE(l_datum_anchor);
+        }
+        break;
     case STATE_BALANCES:
         for (dap_ledger_hardfork_balances_t *it = l_states->balances; it; it = it->next) {
             dap_chain_datum_t *l_tx = s_datum_tx_create(&it->addr, it->ticker, it->value, it->trackers);
             if (!l_tx)
                 return -3;
             if (!a_chain->callback_add_datums(a_chain, &l_tx, 1)) {
+                DAP_DELETE(l_tx);
                 log_it(L_NOTICE, "Hardfork processed to datum tx with addr %s", dap_chain_addr_to_str_static(&it->addr));
                 break;
             }
+            DAP_DELETE(l_tx);
         }
         break;
     case STATE_CONDOUTS:
-        break;
-    case STATE_ANCHORS:
+        for (dap_ledger_hardfork_condouts_t *it = l_states->condouts; it; it = it->next) {
+            dap_chain_datum_t *l_cond_tx = s_cond_tx_create(it->cond, it->sign, &it->hash, it->ticker, it->trackers);
+            if (!l_cond_tx)
+                return -4;
+            if (!a_chain->callback_add_datums(a_chain, &l_cond_tx, 1)) {
+                DAP_DELETE(l_cond_tx);
+                log_it(L_NOTICE, "Hardfork processed to datum cond_tx with hash %s", dap_hash_fast_to_str_static(&it->hash));
+                break;
+            }
+            DAP_DELETE(l_cond_tx);
+        }
         break;
     case STATE_FEES:
+        for (dap_chain_cs_blocks_hardfork_fees_t *it = l_states->fees; it; it = it->next) {
+
+        }
         break;
     case STATE_SERVICES:
         break;

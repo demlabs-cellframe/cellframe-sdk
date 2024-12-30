@@ -1961,7 +1961,7 @@ int dap_ledger_tx_load_hardfork_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_
         if (*l_item != TX_ITEM_TYPE_TSD)
             continue;
         dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)l_item)->tsd;
-        if (l_tsd->type != DAP_CHAIN_DATUM_TX_TSD_TYPE_TRACKER)
+        if (l_tsd->type != DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER)
             continue;
         if (l_tsd->size != sizeof(dap_ledger_tracker_t))
             return log_it(L_ERROR, "Incorrect size of TSD tracker section %u (need %zu)", l_tsd->size, sizeof(dap_ledger_tracker_t)), -2;
@@ -2451,16 +2451,16 @@ static int s_aggregate_out(dap_ledger_hardfork_balances_t **a_out_list, dap_ledg
 }
 
 static int s_aggregate_out_cond(dap_ledger_hardfork_condouts_t **a_ret_list, dap_ledger_t *a_ledger,
-                                dap_chain_tx_out_cond_t *a_out_cond, dap_sign_t *a_sign,
-                                dap_hash_fast_t *a_tx_hash, dap_time_t a_hardfork_start_time,
-                                dap_list_t *a_trackers)
+                                dap_chain_tx_out_cond_t *a_out_cond, dap_chain_tx_sig_t *a_sign,
+                                dap_hash_fast_t *a_tx_hash, const char *a_token_ticker,
+                                dap_time_t a_hardfork_start_time, dap_list_t *a_trackers)
 {
     dap_ledger_hardfork_condouts_t *l_new_condout = DAP_NEW_Z(dap_ledger_hardfork_condouts_t);
     if (!l_new_condout) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
-    *l_new_condout = (dap_ledger_hardfork_condouts_t) { .hash = *a_tx_hash, .cond = a_out_cond, .sign = a_sign };
+    *l_new_condout = (dap_ledger_hardfork_condouts_t) { .hash = *a_tx_hash, .cond = a_out_cond, .sign = a_sign, .ticker = a_token_ticker };
     l_new_condout->trackers = s_trackers_aggregate(a_ledger, NULL, a_trackers, a_hardfork_start_time);
     DL_APPEND(*a_ret_list, l_new_condout);
     return 0;
@@ -2512,12 +2512,12 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
                     log_it(L_ERROR, "Can't find header TX for conditional TX %s", dap_hash_fast_to_str_static(&it->tx_hash_fast));
                     continue;
                 }
-                dap_sign_t *l_tx_sign = dap_chain_datum_tx_get_sign(l_tx, 0);
+                dap_chain_tx_sig_t *l_tx_sign = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get_nth(l_tx, TX_ITEM_TYPE_SIG, 0);
                 if (!l_tx_sign) {
                     log_it(L_ERROR, "Can't find sign for conditional TX %s", dap_hash_fast_to_str_static(&l_first_tx_hash));
                     continue;
                 }
-                s_aggregate_out_cond(&l_cond_ret, a_ledger, l_out, l_tx_sign, &it->tx_hash_fast, a_hardfork_decree_creation_time, l_trackers);
+                s_aggregate_out_cond(&l_cond_ret, a_ledger, l_out, l_tx_sign, &it->tx_hash_fast, it->cache_data.token_ticker, a_hardfork_decree_creation_time, l_trackers);
             }
             default:
                 log_it(L_ERROR, "Unexpected item type %hhu", l_tx_item_type);

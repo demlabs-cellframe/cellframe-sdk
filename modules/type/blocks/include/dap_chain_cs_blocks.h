@@ -81,8 +81,7 @@ typedef enum s_com_blocks_err{
 
 typedef struct dap_chain_cs_blocks_hardfork_fees {
     dap_sign_t *owner_sign;
-    uint256_t fees_sum;
-    uint256_t rewards_sum;
+    uint256_t fees_n_rewards_sum;
     struct dap_chain_cs_blocks_hardfork_fees *prev, *next;
 } dap_chain_cs_blocks_hardfork_fees_t;
 

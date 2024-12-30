@@ -678,20 +678,30 @@ static bool s_compare_anchors(dap_ledger_t *a_ledger, dap_ledger_hardfork_anchor
     dap_chain_datum_decree_t *l_comp_decree = dap_ledger_decree_get_by_hash(a_ledger->net, &l_comp_hash, NULL);
     dap_chain_datum_decree_t *l_exist_decree = dap_ledger_decree_get_by_hash(a_ledger->net, &l_exist_hash, NULL);
     if (l_ban_type) {
-
+        const char *l_comp_ban_addr = NULL, *l_exist_ban_addr = NULL;
+        dap_chain_datum_decree_get_ban_addr(l_comp_decree, &l_comp_ban_addr);
+        dap_chain_datum_decree_get_ban_addr(l_exist_decree, &l_exist_ban_addr);
+        if (!dap_strcmp(l_comp_ban_addr, l_exist_ban_addr))
+            return true;
+        return false;
     }
     if (l_stake_type) {
-
+        dap_chain_addr_t l_comp_addr = {}, l_exist_addr = {};
+        dap_chain_datum_decree_get_stake_signing_addr(l_comp_decree, &l_comp_addr);
+        dap_chain_datum_decree_get_stake_signing_addr(l_exist_decree, &l_exist_addr);
+        if (!dap_chain_addr_is_blank(&l_comp_addr) && dap_chain_addr_compare(&l_comp_addr, &l_exist_addr))
+            return true;
+        return false;
     }
-    return false;
+    return assert(false), false;
 }
 
 
 int s_aggregate_anchor(dap_ledger_t *a_ledger, dap_ledger_hardfork_anchors_t **a_out_list, uint16_t a_subtype, dap_chain_datum_anchor_t *a_anchor)
 {
     dap_ledger_hardfork_anchors_t l_new_anchor = { .anchor = a_anchor, .decree_subtype = a_subtype };
-    dap_ledger_hardfork_anchors_t *l_exist = NULL;
-    DL_FOREACH(*a_out_list, l_exist)
+    dap_ledger_hardfork_anchors_t *l_exist = NULL, *l_tmp;
+    DL_FOREACH_SAFE(*a_out_list, l_exist, l_tmp)
         if (s_compare_anchors(a_ledger, l_exist, &l_new_anchor))
             break;
     if (!l_exist) {
@@ -700,9 +710,16 @@ int s_aggregate_anchor(dap_ledger_t *a_ledger, dap_ledger_hardfork_anchors_t **a
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return -1;
         }
-        DL_APPEND(*a_out_list, l_exist);
-    } else
-        l_exist->anchor = a_anchor;
+        if (a_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE && a_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN)
+            DL_APPEND(*a_out_list, l_exist);
+    } else {
+        if (l_exist->decree_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE ||
+                l_exist->decree_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN) {
+            assert(a_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE || a_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN);
+            DL_DELETE(*a_out_list, l_exist);
+        } else
+            l_exist->anchor = a_anchor;
+    }
     return 0;
 }
 
