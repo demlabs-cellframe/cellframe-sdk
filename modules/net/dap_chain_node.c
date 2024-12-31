@@ -587,7 +587,7 @@ dap_chain_datum_t *s_cond_tx_create(dap_chain_tx_out_cond_t *a_cond, dap_chain_t
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    dap_chain_tx_tsd_t *l_ticker_tsd = dap_chain_datum_tx_item_tsd_create(a_hash, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TICKER, DAP_CHAIN_TICKER_SIZE_MAX);
+    dap_chain_tx_tsd_t *l_ticker_tsd = dap_chain_datum_tx_item_tsd_create(a_ticker, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TICKER, DAP_CHAIN_TICKER_SIZE_MAX);
     if (!l_ticker_tsd) {
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
@@ -607,6 +607,26 @@ dap_chain_datum_t *s_cond_tx_create(dap_chain_tx_out_cond_t *a_cond, dap_chain_t
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }
+    }
+    dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
+    dap_chain_datum_tx_delete(l_tx);
+    return l_datum_tx;
+}
+
+dap_chain_datum_t *s_fee_tx_create(uint256_t a_value, dap_sign_t *a_owner_sign)
+{
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx)
+        return NULL;
+    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_item_out_cond_create_fee_stack(a_value);
+    if (dap_chain_datum_tx_add_item(&l_tx, l_cond) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    dap_chain_tx_sig_t *l_tx_sig = dap_chain_tx_sig_create(a_owner_sign);
+    if (dap_chain_datum_tx_add_item(&l_tx, l_tx_sig) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
     }
     dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
     dap_chain_datum_tx_delete(l_tx);
@@ -663,7 +683,16 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         break;
     case STATE_FEES:
         for (dap_chain_cs_blocks_hardfork_fees_t *it = l_states->fees; it; it = it->next) {
-
+            dap_chain_datum_t *l_fee_tx = s_fee_tx_create(it->fees_n_rewards_sum, it->owner_sign);
+            if (!l_fee_tx)
+                return -4;
+            if (!a_chain->callback_add_datums(a_chain, &l_fee_tx, 1)) {
+                DAP_DELETE(l_fee_tx);
+                dap_hash_fast_t l_pkey_hash; dap_sign_get_pkey_hash(it->owner_sign, &l_pkey_hash);
+                log_it(L_NOTICE, "Hardfork processed to datum fee_tx with hash %s", dap_hash_fast_to_str_static(&l_pkey_hash));
+                break;
+            }
+            DAP_DELETE(l_fee_tx);
         }
         break;
     case STATE_SERVICES:
