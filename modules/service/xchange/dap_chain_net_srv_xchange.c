@@ -1695,10 +1695,11 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
             char* l_status_order = NULL;
             const char *l_token_buy = NULL;
             const char *l_token_sell = NULL;
-            const char *l_amount_coins_str = NULL, *l_amount_datoshi_str = NULL;
+            const char *l_amount_coins_str = NULL, *l_amount_datoshi_str = NULL, 
+                        *l_proposed_coins_str = NULL, *l_proposed_datoshi_str = NULL;
             uint64_t l_percent_completed = 0;
             dap_chain_datum_tx_t *l_tx = NULL;
-            uint256_t l_amount, l_rate;
+            uint256_t l_amount, l_rate, l_proposed;
 
             if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
                 xchange_orders_cache_net_t* l_cache = NULL;
@@ -1730,6 +1731,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                 
                 l_token_sell = l_item->sell_token;
                 l_token_buy = l_item->buy_token;
+                l_proposed = l_item->tx_info.order_info.value;
                 
                 uint256_t l_completed = {};
                 SUBTRACT_256_256(l_item->tx_info.order_info.value, l_item->tx_info.order_info.value_ammount, &l_completed);
@@ -1780,7 +1782,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
 
                 l_token_sell = l_price->token_sell;
                 l_token_buy = l_price->token_buy;
-                
+                l_proposed = l_price->datoshi_sell;
                 l_amount = l_out_cond_last_tx ? l_out_cond_last_tx->header.value : uint256_0;
                 l_rate = l_price->rate;
 
@@ -1804,10 +1806,15 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
 
             l_amount_datoshi_str = dap_uint256_uninteger_to_char(l_amount);
             l_amount_coins_str = dap_uint256_decimal_to_char(l_amount);
+            l_proposed_coins_str = dap_uint256_decimal_to_char(l_proposed); 
+            l_proposed_datoshi_str = dap_uint256_uninteger_to_char(l_proposed);
             l_cp_rate = dap_chain_balance_to_coins(l_rate); 
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "orderHash: %s\n ts_created: %s\n Status: %s, amount: %s (%s) %s, filled: %lu%%, rate (%s/%s): %s, net: %s\n\n",
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "orderHash: %s\n ts_created: %s\n Status: %s, proposed: %s(%s) %s, amount: %s (%s) %s, filled: %lu%%, rate (%s/%s): %s, net: %s\n\n",
                                      l_order_hash_str,
-                                     l_tmp_buf, l_status_order,
+                                     l_tmp_buf, l_status_order, 
+                                     l_proposed_coins_str ? l_proposed_coins_str : "0.0", 
+                                     l_proposed_datoshi_str ? l_proposed_datoshi_str : "0.0", 
+                                     l_token_sell,
                                      l_amount_coins_str ? l_amount_coins_str : "0.0",
                                      l_amount_datoshi_str ? l_amount_datoshi_str : "0",
                                      l_token_sell, l_percent_completed,
@@ -1819,6 +1826,8 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
             DAP_DEL_Z(l_cp_rate);
             DAP_DEL_Z(l_amount_coins_str);
             DAP_DEL_Z(l_amount_datoshi_str);
+            DAP_DEL_Z(l_proposed_coins_str);
+            DAP_DEL_Z(l_proposed_datoshi_str);
         } break;
 
         default: {
@@ -2331,9 +2340,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 dap_chain_net_srv_xchange_order_status_t l_order_status = XCHANGE_ORDER_STATUS_UNKNOWN;
                 dap_hash_fast_t l_tx_hash = {};
                 uint64_t l_percent_completed = 0;
-                uint256_t l_amount = {};
-                const char *l_amount_coins_str = NULL;
-                const char *l_amount_datoshi_str = NULL;
+                uint256_t l_amount = {}, l_proposed;
+                const char *l_amount_coins_str = NULL, *l_amount_datoshi_str = NULL, 
+                        *l_proposed_coins_str = NULL, *l_proposed_datoshi_str = NULL;
 
                 if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
                     xchange_tx_cache_t *l_item = (xchange_tx_cache_t*)it->data;
@@ -2346,7 +2355,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     l_order_status = l_item->tx_info.order_info.order_status;
                     l_rate = l_item->rate;
                     l_amount = l_item->tx_info.order_info.value_ammount;
-
+                    l_proposed = l_item->tx_info.order_info.value;
                     uint256_t l_completed = {};
                     SUBTRACT_256_256(l_item->tx_info.order_info.value, l_item->tx_info.order_info.value_ammount, &l_completed);
                     DIV_256_COIN(l_completed, l_item->tx_info.order_info.value, &l_completed);
@@ -2398,6 +2407,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     l_rate = l_price->rate;
                     l_percent_completed = dap_chain_net_srv_xchange_get_order_completion_rate(l_net, l_tx_hash);
                     l_amount = l_out_cond_last_tx ? l_out_cond_last_tx->header.value : uint256_0;
+                    l_proposed = l_price->datoshi_sell;
                     DAP_DEL_Z(l_price);
                 }
 
@@ -2433,9 +2443,14 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 l_cp_rate = dap_uint256_decimal_to_char(l_rate);
                 l_amount_datoshi_str = dap_uint256_uninteger_to_char(l_amount);
                 l_amount_coins_str = dap_uint256_decimal_to_char(l_amount);
+                l_proposed_coins_str = dap_uint256_decimal_to_char(l_proposed); 
+                l_proposed_datoshi_str = dap_uint256_uninteger_to_char(l_proposed);
 
-                dap_string_append_printf(l_reply_str, "orderHash: %s\n ts_created: %s\n Status: %s, amount: %s (%s) %s, filled: %lu%%, rate (%s/%s): %s, net: %s\n\n", l_tx_hash_str,
+                dap_string_append_printf(l_reply_str, "orderHash: %s\n ts_created: %s\n Status: %s, proposed: %s (%s) %s, amount: %s (%s) %s, filled: %lu%%, rate (%s/%s): %s, net: %s\n\n", l_tx_hash_str,
                                          l_tmp_buf, l_status_order_str,
+                                         l_proposed_coins_str ? l_proposed_coins_str : "0.0",
+                                         l_proposed_datoshi_str ? l_proposed_datoshi_str : "0",
+                                         l_sell_token, 
                                          l_amount_coins_str ? l_amount_coins_str : "0.0",
                                          l_amount_datoshi_str ? l_amount_datoshi_str : "0",
                                          l_sell_token, l_percent_completed,
@@ -2446,6 +2461,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 DAP_DEL_Z(l_cp_rate);
                 DAP_DEL_Z(l_amount_datoshi_str);
                 DAP_DEL_Z(l_amount_coins_str);
+                DAP_DEL_Z(l_proposed_coins_str);
+                DAP_DEL_Z(l_proposed_datoshi_str);
             }
             if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
                 dap_list_free(l_list);
