@@ -1470,7 +1470,6 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                 if(l_from_wallet_cache){  
                     dap_string_t * l_str_reply = dap_string_new("");
 
-                    dap_chain_datum_tx_t *l_datum_tx = NULL;
                     xchange_orders_cache_net_t* l_cache = NULL;
                     if(s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
                         l_cache = s_get_xchange_cache_by_net_id(l_net->pub.id);
@@ -1480,8 +1479,8 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                         }
                     }
                     dap_chain_wallet_cache_iter_t *l_iter = dap_chain_wallet_cache_iter_create(*l_addr);
-                    l_datum_tx = dap_chain_wallet_cache_iter_get(l_iter, DAP_CHAIN_WALLET_CACHE_GET_FIRST);
-                    while((l_datum_tx = dap_chain_wallet_cache_iter_get(l_iter, DAP_CHAIN_WALLET_CACHE_GET_NEXT)) != NULL)
+                    for(dap_chain_datum_tx_t *l_datum_tx = dap_chain_wallet_cache_iter_get(l_iter, DAP_CHAIN_WALLET_CACHE_GET_FIRST);
+                            l_datum_tx; l_datum_tx = dap_chain_wallet_cache_iter_get(l_iter, DAP_CHAIN_WALLET_CACHE_GET_NEXT))
                     {
                         if (l_iter->ret_code != 0)
                             continue; 
@@ -2153,11 +2152,14 @@ static int s_cli_srv_xchange_tx_list_addr(dap_chain_net_t *a_net, dap_time_t a_a
                 l_tx_count++;
         }
     } else {
-        dap_chain_datum_tx_t *l_datum_tx = NULL;
         int l_ret_code = 0;
-        dap_chain_wallet_cache_iter_t *l_iter = dap_chain_wallet_cache_iter_create(*a_addr);
-        l_datum_tx = dap_chain_wallet_cache_iter_get(l_iter, DAP_CHAIN_WALLET_CACHE_GET_FIRST);
-        while( (l_datum_tx = dap_chain_wallet_cache_iter_get(l_iter, DAP_CHAIN_WALLET_CACHE_GET_NEXT)) != NULL)
+        dap_chain_wallet_cache_iter_t *l_iter = dap_chain_wallet_cache_iter_create(*a_addr);// TODO add check l_iter != NULL
+        if(!l_iter){
+            log_it(L_ERROR, "Can't create iterator item for wallet %s", dap_chain_addr_to_str_static(a_addr));
+            return -1;
+        }
+        for(dap_chain_datum_tx_t *l_datum_tx = dap_chain_wallet_cache_iter_get(l_iter, DAP_CHAIN_WALLET_CACHE_GET_FIRST);
+            l_datum_tx; l_datum_tx = dap_chain_wallet_cache_iter_get(l_iter, DAP_CHAIN_WALLET_CACHE_GET_NEXT))
         {
             if (l_iter->ret_code != 0)
                 continue; 
@@ -2168,8 +2170,8 @@ static int s_cli_srv_xchange_tx_list_addr(dap_chain_net_t *a_net, dap_time_t a_a
             if ( a_before && (l_datum_tx->header.ts_created > a_before) )
                 continue;
 
-            if (s_string_append_tx_cond_info(l_reply_str, a_net, l_datum_tx, &l_hash_curr, a_opt_status, false, true, true))
-                l_tx_count++;
+            if (s_string_append_tx_cond_info(l_reply_str, a_net, l_datum_tx, l_iter->cur_hash, a_opt_status, false, true, true))
+                l_tx_count++;            
         }
         dap_chain_wallet_cache_iter_delete(l_iter);
     }
