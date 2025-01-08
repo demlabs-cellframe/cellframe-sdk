@@ -205,9 +205,10 @@ void dap_chain_cs_esbocs_deinit(void)
 }
 
 void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable){
-    dap_chain_cs_blocks_t *l_bocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_chain_esbocs_pvt_t *pvt = PVT(l_bocks);
-    pvt->debug = a_enable;
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);    
+    dap_chain_esbocs_t *l_esbocs = l_blocks->_inheritor;
+    dap_chain_esbocs_pvt_t * l_esbocs_pvt = PVT(l_esbocs);    
+    l_esbocs_pvt->debug = a_enable;
 }
 
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
@@ -2845,7 +2846,10 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     bool l_block_is_emergency = s_block_is_emergency(a_block, l_block_size);
     // Get the header on signing operation time
     size_t l_block_original = a_block->hdr.meta_n_datum_n_signs_size;
-    a_block->hdr.meta_n_datum_n_signs_size = l_block_excl_sign_size - sizeof(a_block->hdr);
+    dap_chain_block_t *l_block = a_blocks->chain->is_mapped
+        ? DAP_DUP_SIZE(a_block, l_block_size)
+        : a_block;
+    l_block->hdr.meta_n_datum_n_signs_size = l_block_excl_sign_size - sizeof(l_block->hdr);
     for (size_t i = 0; i < l_signs_count; i++) {
         dap_sign_t *l_sign = l_signs[i];
         dap_chain_addr_t l_signing_addr = { .net_id = a_blocks->chain->net_id };
@@ -2881,7 +2885,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                 l_ret = -5;
                 break;
             } else if (l_esbocs_pvt->check_signs_structure &&
-                       !s_check_signing_rights(l_esbocs, a_block, l_block_size, &l_signing_addr, true)) {
+                       !s_check_signing_rights(l_esbocs, l_block, l_block_size, &l_signing_addr, true)) {
                 if (l_esbocs_pvt->debug) {
                     char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
                     dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
@@ -2893,7 +2897,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         } else {
             if (l_block_is_emergency && !s_check_emergency_rights(l_esbocs, &l_signing_addr) &&
                     l_esbocs_pvt->check_signs_structure &&
-                    !s_check_signing_rights(l_esbocs, a_block, l_block_size, &l_signing_addr, false)) {
+                    !s_check_signing_rights(l_esbocs, l_block, l_block_size, &l_signing_addr, false)) {
                 if (l_esbocs_pvt->debug) {
                     char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
                     dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
@@ -2902,7 +2906,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                 l_ret = -5;
                 break;
             } else if (l_esbocs_pvt->check_signs_structure &&
-                    !s_check_signing_rights(l_esbocs, a_block, l_block_size, &l_signing_addr, false)) {
+                    !s_check_signing_rights(l_esbocs, l_block, l_block_size, &l_signing_addr, false)) {
                 if (l_esbocs_pvt->debug) {
                     char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
                     dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
@@ -2912,13 +2916,15 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                 break;
             }
         }
-        if (!dap_sign_verify(l_sign, a_block, l_block_excl_sign_size))
+        if (!dap_sign_verify(l_sign, l_block, l_block_excl_sign_size))
             l_signs_verified_count++;
     }
     DAP_DELETE(l_signs);
     // Restore the original header
-    a_block->hdr.meta_n_datum_n_signs_size = l_block_original;
-
+    if ( a_blocks->chain->is_mapped )
+        DAP_DELETE(l_block);
+    else
+        l_block->hdr.meta_n_datum_n_signs_size = l_block_original;
     if (l_signs_verified_count < l_esbocs_pvt->min_validators_count) {
         debug_if(l_esbocs_pvt->debug, L_ERROR, "Corrupted block %s: not enough authorized signs: %u of %u",
                     dap_hash_fast_to_str_static(a_block_hash), l_signs_verified_count, l_esbocs_pvt->min_validators_count);
