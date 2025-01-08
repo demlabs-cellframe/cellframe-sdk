@@ -79,11 +79,14 @@ enum hardfork_state {
     STATE_BALANCES,
     STATE_CONDOUTS,
     STATE_FEES,
-    STATE_SERVICES
+    STATE_SERVICES,
+    STATE_MEMPOOL,
+    STATE_OVER
 };
 
 struct hardfork_states {
     enum hardfork_state state_current;
+    size_t iterator;
     dap_ledger_hardfork_anchors_t  *anchors;
     dap_ledger_hardfork_balances_t *balances;
     dap_ledger_hardfork_condouts_t *condouts;
@@ -498,6 +501,34 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     DAP_DELETE(l_gdb_group_mempool);
 }
 
+dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t *a_state, size_t *a_datums_count)
+{
+    dap_chain_datum_t **ret = NULL;
+    size_t l_datums_count = 0;
+    const uint64_t l_max_step_size = DAP_CHAIN_ATOM_MAX_SIZE - sizeof(dap_chain_datum_service_state_t);
+    uint64_t l_step_size = dap_min(l_max_step_size, a_state->size);
+    byte_t *l_offset = a_state->data, *l_ptr = l_offset, *l_end = a_state->data + a_state->size * a_state->count;
+    while (l_offset < l_end) {
+        size_t l_cur_step_size = 0, i = 0;
+        while (l_cur_step_size < l_max_step_size && l_offset < l_end) {
+            size_t l_addition = dap_min((uint64_t)(l_end - l_offset), l_step_size);
+            l_cur_step_size += l_addition;
+            l_offset += l_addition;
+            i++;
+        }
+        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SERVICE_STATE, l_ptr, sizeof(dap_chain_datum_service_state_t) + l_cur_step_size);
+        ((dap_chain_datum_service_state_t *)l_datum->data)->srv_uid = a_state->uid;
+        ((dap_chain_datum_service_state_t *)l_datum->data)->states_count = i;
+        ret = DAP_REALLOC_RET_VAL_IF_FAIL(ret, sizeof(dap_chain_datum_t *) * (++l_datums_count), NULL, NULL);
+        ret[l_datums_count - 1] = l_datum;
+        l_ptr = l_offset;
+    }
+    assert(l_offset == l_end);
+    if (a_datums_count)
+        *a_datums_count = l_datums_count;
+    return ret;
+}
+
 int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp)
 {
     if (dap_strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR))
@@ -514,22 +545,10 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
     DL_FOREACH_SAFE(l_states->service_states, it, tmp) {
         if (it->uid.uint64 < (uint64_t)INT64_MIN)       // MSB is not set
             continue;
-        const uint64_t l_max_step_size = DAP_CHAIN_ATOM_MAX_SIZE - sizeof(dap_chain_datum_service_state_t);
-        uint64_t l_step_size = dap_min(l_max_step_size, it->size);
-        byte_t *l_offset = it->data, *l_end = it->data + it->size * it->count;
-        while (l_offset < l_end) {
-            size_t l_cur_step_size = 0, i = 0;
-            while (l_cur_step_size < l_max_step_size && l_offset < l_end) {
-                size_t l_addition = dap_min((uint64_t)(l_end - l_offset), l_step_size);
-                l_cur_step_size += l_addition;
-                l_offset += l_addition;
-                i++;
-            }
-            dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SERVICE_STATE, NULL, sizeof(dap_chain_datum_service_state_t) + l_cur_step_size);
-            ((dap_chain_datum_service_state_t *)l_datum->data)->srv_uid = it->uid;
-            ((dap_chain_datum_service_state_t *)l_datum->data)->states_count = i;
-            DAP_DELETE(dap_chain_mempool_datum_add(l_datum, a_chain, "hex"));
-        }
+        size_t l_datums_count = 0;
+        dap_chain_datum_t **l_datums = s_service_state_datums_create(it, &l_datums_count);
+        for (size_t i = 0; i < l_datums_count; i++)
+            DAP_DELETE(dap_chain_mempool_datum_add(l_datums[i], a_chain, "hex"));
         DL_DELETE(l_states->service_states, it);
         DAP_DELETE(it);
     }
@@ -636,6 +655,8 @@ dap_chain_datum_t *s_fee_tx_create(uint256_t a_value, dap_sign_t *a_owner_sign)
 int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
 {
     dap_return_val_if_fail(a_chain, -1);
+    if (!dap_chain_net_by_id(a_chain->net_id)->pub.mempool_autoproc)
+        return -2;
     if (!a_chain->hardfork_data)
         return log_it(L_ERROR, "Can't process chain with no harfork data. Use dap_chain_node_hardfork_prepare() for collect it first"), -2;
     struct hardfork_states *l_states = a_chain->hardfork_data;
@@ -696,6 +717,58 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         }
         break;
     case STATE_SERVICES:
+        for (dap_chain_srv_hardfork_state_t *it = l_states->service_states; it; it = it->next) {
+            if (it->uid.uint64 >= (uint64_t)INT64_MIN)       // MSB is set
+                continue;
+            bool l_break = false;
+            size_t l_datums_count = 0;
+            dap_chain_datum_t **l_datums = s_service_state_datums_create(it, &l_datums_count);
+            for (size_t i = l_states->iterator; i < l_datums_count; i++) {
+                if (!a_chain->callback_add_datums(a_chain, l_datums + i, 1)) {
+                    log_it(L_NOTICE, "Hardfork processed to datum service_state with uid %" DAP_UINT64_FORMAT_x " and number %zu",
+                                        it->uid.uint64, i);
+                    // save iterator to state machine
+                    l_states->iterator = i;
+                    l_break = true;
+                    break;
+                }
+
+            }
+            for (size_t i = 0; i < l_datums_count; i++)
+                DAP_DELETE(l_datums[i]);
+            DAP_DEL_Z(l_datums);
+            if (l_break)
+                break;
+        }
+        break;
+    case STATE_MEMPOOL: {
+        char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
+        size_t l_objs_size = 0;
+        dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_size);
+        if (!l_objs_size) {
+            l_states->state_current = STATE_OVER;
+            break;
+        }
+        bool l_nothing_processed = true;
+        for (size_t i = 0; i < l_objs_size; i++) {
+            if (l_objs[i].value_len < sizeof(dap_chain_datum_t))
+                continue;
+            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+            if (dap_chain_datum_size(l_datum) != l_objs[i].value_len)
+                continue;
+            if (l_datum->header.type_id != DAP_CHAIN_DATUM_SERVICE_STATE)
+                continue;
+            if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key))
+                dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
+            else
+                l_nothing_processed = false;
+        }
+        DAP_DELETE(l_gdb_group_mempool);
+        if (l_nothing_processed)
+            l_states->state_current = STATE_OVER;
+    }
+
+    case STATE_OVER:
         break;
     // No default here
     }
