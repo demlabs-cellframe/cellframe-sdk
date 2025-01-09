@@ -344,21 +344,27 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
     switch (a_decree->header.sub_type)
     {
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
-                if (dap_chain_datum_decree_get_fee_addr(a_decree, &l_addr)) {
-                    if (dap_chain_addr_is_blank(&a_net->pub.fee_addr)) {
-                        log_it(L_WARNING, "Fee wallet address not set.");
-                        return -111;
-                    } else
-                        l_addr = a_net->pub.fee_addr;
-                }
-                if (dap_chain_datum_decree_get_fee(a_decree, &l_value)) {
-                    log_it(L_WARNING,"Can't get fee value from decree.");
-                    return -103;
-                }
-                if (!a_apply)
-                    break;
-                if (!dap_chain_net_tx_set_fee(a_net->pub.id, l_value, l_addr))
-                    log_it(L_ERROR, "Can't set fee value for network %s", a_net->pub.name);
+            /* if (dap_chain_datum_decree_get_fee_addr(a_decree, &l_addr)) {
+                if (dap_chain_addr_is_blank(&a_net->pub.fee_addr)) {
+                    log_it(L_WARNING, "Fee wallet address not set.");
+                    return -111;
+                } else
+                    l_addr = a_net->pub.fee_addr;
+            } */
+            if (!a_anchored)
+                break;
+            if (dap_chain_datum_decree_get_fee(a_decree, &l_value))
+                return log_it(L_WARNING,"Can't get fee value from decree"), -103;
+            if (dap_chain_datum_decree_get_fee_addr(a_decree, &l_addr)) {
+                if (dap_chain_addr_is_blank(&a_net->pub.fee_addr))
+                    return log_it(L_WARNING, "Fee wallet address not set"), -111;
+                else
+                    l_addr = a_net->pub.fee_addr;
+            }
+            if (!a_apply)
+                break;
+            if (!dap_chain_net_tx_set_fee(a_net->pub.id, l_value, l_addr))
+                log_it(L_ERROR, "Can't set fee value for network %s", a_net->pub.name);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
             l_owners_list = dap_chain_datum_decree_get_owners(a_decree, &l_owners_num);
