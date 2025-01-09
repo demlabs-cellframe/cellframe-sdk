@@ -1780,8 +1780,9 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
             
                 l_percent_completed = dap_chain_net_srv_xchange_get_order_completion_rate(l_net, l_order_tx_hash);
 
-                l_token_sell = l_price->token_sell;
-                l_token_buy = l_price->token_buy;
+                l_token_sell = dap_strdup(l_price->token_sell);
+                l_token_buy = dap_strdup(l_price->token_buy);
+
                 l_proposed = l_price->datoshi_sell;
                 l_amount = l_out_cond_last_tx ? l_out_cond_last_tx->header.value : uint256_0;
                 l_rate = l_price->rate;
@@ -1822,7 +1823,10 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                                      l_cp_rate,
                                      l_net->pub.name);
 
-
+            if (s_xchange_cache_state != XCHANGE_CACHE_ENABLED){
+                DAP_DEL_Z(l_token_sell);
+                DAP_DEL_Z(l_token_buy);
+            }
             DAP_DEL_Z(l_cp_rate);
             DAP_DEL_Z(l_amount_coins_str);
             DAP_DEL_Z(l_amount_datoshi_str);
