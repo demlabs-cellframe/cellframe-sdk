@@ -129,12 +129,15 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_d
         return "DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE:
         return "DECREE_COMMON_SUBTYPE_STAKE_UPDATE";
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK:
+        return "DECREE_COMMON_SUBTYPE_HARDFORK";
     default:
         return "DECREE_SUBTYPE_UNKNOWN";
     }
 }
 
-DAP_STATIC_INLINE uint16_t dap_chain_datum_decree_type_from_str(const char *a_decree_type) {
+DAP_STATIC_INLINE uint16_t dap_chain_datum_decree_type_from_str(const char *a_decree_type)
+{
     if (!dap_strcmp(a_decree_type, "fee")){
         return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE;
     } else if (!dap_strcmp(a_decree_type, "owners")) {
@@ -163,6 +166,8 @@ DAP_STATIC_INLINE uint16_t dap_chain_datum_decree_type_from_str(const char *a_de
         return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE;
     } else if (!dap_strcmp(a_decree_type, "stake_update")) {
         return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE;
+    } else if (!dap_strcmp(a_decree_type, "hardfork_prepare")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK;
     } else {
         return 0;
     }
@@ -204,6 +209,8 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_tsd_type_to_str(uint16_t a_
          return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE";
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY:
          return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM:
+         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM";
     default:
         return "DECREE_TSD_TYPE_UNKNOWN";
     }
@@ -286,12 +293,12 @@ int dap_chain_datum_decree_get_value(dap_chain_datum_decree_t *a_decree, uint256
 int dap_chain_datum_decree_get_stake_signing_addr(dap_chain_datum_decree_t *a_decree, dap_chain_addr_t *a_signing_addr);
 
 /**
- * @brief dap_chain_datum_decree_get_stake_signer_node_addr get signer node address
+ * @brief dap_chain_datum_decree_get_node_addr get signer node address
  * @param a_decree pointer to decree
  * @param a_node_addr pointer to signer node address buffer
  * @return result code. 0 - success
  */
-int dap_chain_datum_decree_get_stake_signer_node_addr(dap_chain_datum_decree_t *a_decree, dap_chain_node_addr_t *a_node_addr);
+int dap_chain_datum_decree_get_node_addr(dap_chain_datum_decree_t *a_decree, dap_chain_node_addr_t *a_node_addr);
 
 /**
  * @brief dap_chain_datum_decree_get_stake_min_value get minimum stake value
@@ -312,6 +319,7 @@ int dap_chain_datum_decree_get_action(dap_chain_datum_decree_t *a_decree, uint8_
 int dap_chain_datum_decree_get_signature_type(dap_chain_datum_decree_t *a_decree, uint32_t *a_signature_type);
 int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, const char **a_addr);
 dap_pkey_t *dap_chain_datum_decree_get_pkey(dap_chain_datum_decree_t *a_decree);
+int dap_chain_datum_decree_get_atom_num(dap_chain_datum_decree_t *a_decree, uint64_t *a_atom_num);
 
 /**
  * @breif dap_chain_datum_decree_dump Dump information about decree

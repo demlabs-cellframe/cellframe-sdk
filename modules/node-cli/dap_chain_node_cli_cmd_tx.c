@@ -2242,7 +2242,7 @@ void json_rpc_tx_create(json_object *a_param, json_object *a_reply){
         return ;
     }
 
-    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
+    char *l_gdb_group_mempool_base_tx = dap_chain_mempool_group_new(l_chain);// get group name for mempool
     bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx, l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
 
     DAP_DELETE(l_datum_tx);
@@ -2396,7 +2396,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply)
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_CHECK_TX_ADD_LEDGER;
     }
 
-    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
+    char *l_gdb_group_mempool_base_tx = dap_chain_mempool_group_new(l_chain);// get group name for mempool
     bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx, l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
 
     DAP_DEL_Z(l_datum_tx);
@@ -2822,7 +2822,7 @@ int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply)
         }
     }
     size_t l_datum_size = 0;
-    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+    char *l_gdb_group = dap_chain_mempool_group_new(l_chain);
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*)dap_global_db_get_sync(l_gdb_group, l_hex_str_from58 ? l_hex_str_from58 : l_tx_hash_str, &l_datum_size, NULL, NULL);
     DAP_DEL_Z(l_hex_str_from58);
     if (!l_datum) {

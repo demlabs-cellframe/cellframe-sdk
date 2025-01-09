@@ -95,7 +95,7 @@ struct json_object *wallet_list_json_collect();
 dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_hash) {
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(a_net->pub.chains, l_chain) {
-        char *l_gdb_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+        char *l_gdb_mempool = dap_chain_mempool_group_new(l_chain);
         bool is_hash = dap_global_db_driver_is(l_gdb_mempool, a_datum_hash);
         DAP_DELETE(l_gdb_mempool);
         if (is_hash)
@@ -2145,7 +2145,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
         DAP_DELETE(l_wallet_addr);
         return;
     }
-    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    char * l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
     if(!l_gdb_group_mempool){
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CAN_NOT_GET_MEMPOOL_GROUP,
                                "%s.%s: chain not found\n", a_net->pub.name, a_chain->name);
@@ -2676,7 +2676,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
 }
 
 static int mempool_delete_for_chain(dap_chain_t *a_chain, const char * a_datum_hash_str, json_object **a_json_arr_reply) {
-        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+        char * l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
         uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash_str,
                                                      NULL, NULL, NULL);
         if (!l_data_tmp) {
@@ -2764,7 +2764,7 @@ dap_chain_datum_t *s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, cons
 {
     if (!a_datum_hash_str)
         return NULL;
-    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
     uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash_str, NULL, NULL, NULL);
     DAP_DELETE(l_gdb_group_mempool);
     return (dap_chain_datum_t *)l_data_tmp;
@@ -2959,7 +2959,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     dap_chain_t *l_chain = !a_chain ? s_get_chain_with_datum(a_net, a_datum_hash) : a_chain;
 
     int ret = 0;
-    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+    char *l_gdb_group_mempool = dap_chain_mempool_group_new(l_chain);
     if (!l_gdb_group_mempool){
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_GROUP_NAME,
                                "Failed to get mempool group name on network %s", a_net->pub.name);
@@ -3213,13 +3213,13 @@ int _cmd_mempool_dump(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
         return COM_DUMP_ERROR_NULL_IS_ARGUMENT_FUNCTION;
     }
     if (a_chain) {
-        char *l_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+        char *l_group_mempool = dap_chain_mempool_group_new(a_chain);
         _cmd_mempool_dump_from_group(a_net->pub.id, l_group_mempool, a_datum_hash, a_hash_out_type, a_json_arr_reply);
         DAP_DELETE(l_group_mempool);
     } else {
         dap_chain_t *l_chain = NULL;
         DL_FOREACH(a_net->pub.chains, l_chain){
-            char *l_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+            char *l_group_mempool = dap_chain_mempool_group_new(l_chain);
             if (!_cmd_mempool_dump_from_group(a_net->pub.id, l_group_mempool, a_datum_hash, a_hash_out_type, a_json_arr_reply)){
                 DAP_DELETE(l_group_mempool);
                 break;
@@ -3397,7 +3397,7 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
             }
             if(l_chain) {
-                l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+                l_mempool_group = dap_chain_mempool_group_new(l_chain);
                 size_t l_objs_count = 0;
                 dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
                 dap_global_db_objs_delete(l_objs, l_objs_count);
@@ -3419,7 +3419,7 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply)
                 json_object_array_add(l_jobj_chains, l_jobj_chain);
             } else {
                 DL_FOREACH(l_net->pub.chains, l_chain) {
-                    l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+                    l_mempool_group = dap_chain_mempool_group_new(l_chain);
                     size_t l_objs_count = 0;
                     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
                     dap_global_db_objs_delete(l_objs, l_objs_count);
@@ -3503,7 +3503,7 @@ void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, ui
         }
     }
     if (a_where == ALL || a_where == MEMPOOL) {
-        char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+        char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
         size_t l_mempool_count = 0;
         dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_mempool_count);
         for (size_t i = 0; i < l_mempool_count; i++) {
@@ -4066,11 +4066,11 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             *(uint256_t*)(l_tsd->data) = dap_uint256_scan_uninteger(l_param_value_str);
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-harfork_from", &l_param_value_str)) {
+            l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK;
             l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint64_t);
             l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                dap_list_free_full(l_tsd_list, NULL);
                 return -1;
             }
             l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM;
@@ -4078,10 +4078,35 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             *(uint64_t*)(l_tsd->data) = strtoll(l_param_value_str, NULL, 10);
             if (!*(uint64_t*)l_tsd->data && dap_strcmp(l_param_value_str, "0")) {
                 log_it(L_ERROR, "Can't converts %s to atom number", l_param_value_str);
-                dap_list_free_full(l_tsd_list, NULL);
+                DAP_DELETE(l_tsd);
                 return -1;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+            if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-trusted_addrs", &l_param_addr_str)) {
+                char **l_addrs = dap_strsplit(l_param_addr_str, ",", 256);
+                for (uint16_t i = 0; l_addrs[i]; i++) {
+                    dap_stream_node_addr_t l_addr_cur;
+                    if (dap_stream_node_addr_from_str(&l_addr_cur, l_addrs[i])) {
+                        log_it(L_ERROR, "Can't convert %s to node addr", l_addrs[i]);
+                        dap_list_free_full(l_tsd_list, NULL);
+                        dap_strfreev(l_addrs);
+                        return -5;
+                    }
+                    l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, sizeof(dap_tsd_t) + sizeof(dap_stream_node_addr_t));
+                    if (!l_tsd) {
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                        dap_list_free_full(l_tsd_list, NULL);
+                        dap_strfreev(l_addrs);
+                        return -1;
+                    }
+                    l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR;
+                    l_tsd->size = sizeof(dap_stream_node_addr_t);
+
+                    l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+                    l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_stream_node_addr_t);
+                }
+                dap_strfreev(l_addrs);
+            }
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-new_certs", &l_param_value_str)){
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS;
             dap_cert_parse_str_list(l_param_value_str, &l_new_certs, &l_new_certs_count);
@@ -4232,7 +4257,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 return -105;
             }
 
-            char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+            char * l_gdb_group_mempool = dap_chain_mempool_group_new(l_chain);
             if(!l_gdb_group_mempool) {
                 l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_DECREE);
             }
@@ -5003,7 +5028,7 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, void **a_str_
     dap_chain_datum_t *l_datum = NULL;
     char *l_gdb_group = NULL;
 
-    l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+    l_gdb_group = dap_chain_mempool_group_new(l_chain);
     if (!l_gdb_group) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found network group for chain: %s", l_chain->name);
         l_ret = -1;
