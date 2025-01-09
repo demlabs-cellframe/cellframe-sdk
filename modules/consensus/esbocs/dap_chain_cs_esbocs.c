@@ -41,6 +41,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_cs_esbocs"
 
+static const dap_chain_cell_id_t c_cell_id_hardfork = { .uint64 = INT64_MIN }; // 0x800...
+
 enum s_esbocs_session_state {
     DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START,
     DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC,
@@ -213,11 +215,11 @@ void dap_chain_cs_esbocs_deinit(void)
 {
 }
 
-void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable){
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);    
-    dap_chain_esbocs_t *l_esbocs = l_blocks->_inheritor;
-    dap_chain_esbocs_pvt_t * l_esbocs_pvt = PVT(l_esbocs);    
-    l_esbocs_pvt->debug = a_enable;
+void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable)
+{
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    PVT(l_esbocs)->debug = a_enable;
 }
 
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
@@ -736,6 +738,16 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
     return 0;
 }
 
+int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint64_t a_block_num, dap_list_t *a_trusted_addrs)
+{
+    uint64_t l_last_num = a_chain->callback_count_atom(a_chain);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    l_esbocs->hardfork_from = dap_max(l_last_num, a_block_num);
+    l_esbocs->hardfork_trusted_addrs = a_trusted_addrs;
+    return a_block_num && a_block_num < l_last_num ? 1 : 0;
+}
+
 static int s_callback_purge(dap_chain_t *a_chain)
 {
     dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
@@ -1121,7 +1133,7 @@ static bool s_session_round_new(void *a_arg)
     a_session->ts_stage_entry = 0;
 
     dap_hash_fast_t l_last_block_hash;
-    dap_chain_get_atom_last_hash(a_session->chain, c_dap_chain_cell_id_null, &l_last_block_hash);
+    dap_chain_get_atom_last_hash(a_session->chain, a_session->is_hardfork ? c_dap_chain_cell_id_null : c_cell_id_hardfork, &l_last_block_hash);
     if (!dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash) ||
             (!dap_hash_fast_is_blank(&l_last_block_hash) &&
                 dap_hash_fast_is_blank(&a_session->cur_round.last_block_hash))) {
@@ -1192,6 +1204,13 @@ static bool s_session_round_new(void *a_arg)
     a_session->new_round_enqueued = false;
     a_session->sync_failed = false;
     a_session->listen_ensure = 0;
+    uint64_t l_cur_atom_count = a_session->chain->callback_count_atom(a_session->chain);
+    a_session->is_hardfork = a_session->esbocs->hardfork_from && l_cur_atom_count >= a_session->esbocs->hardfork_from;
+    if (l_cur_atom_count && l_cur_atom_count == a_session->esbocs->hardfork_from) {
+        dap_time_t l_last_block_timestamp = 0;
+        dap_chain_get_atom_last_hash_num_ts(a_session->chain, c_cell_id_hardfork, NULL, NULL, &l_last_block_timestamp);
+        dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp, a_session->esbocs->hardfork_trusted_addrs);
+    }
     return false;
 }
 
@@ -1648,7 +1667,10 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     size_t l_candidate_size = 0;
     dap_hash_fast_t l_candidate_hash = {0};
-    dap_chain_node_mempool_process_all(a_session->chain, false);
+    if (a_session->is_hardfork)
+        dap_chain_node_hardfork_process(a_session->chain);
+    else
+        dap_chain_node_mempool_process_all(a_session->chain, false);
     dap_chain_block_t *l_candidate = l_blocks->callback_new_block_move(l_blocks, &l_candidate_size);
     if (l_candidate && l_candidate_size) {
         if (PVT(a_session->esbocs)->emergency_mode)
@@ -1707,8 +1729,7 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
     }
     // Process candidate
     a_session->processing_candidate = a_candidate;
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_session->chain);
-    dap_chain_atom_verify_res_t l_verify_status = l_blocks->chain->callback_atom_verify(l_blocks->chain, a_candidate, a_candidate_size, a_candidate_hash);
+    dap_chain_atom_verify_res_t l_verify_status = a_session->chain->callback_atom_verify(a_session->chain, a_candidate, a_candidate_size, a_candidate_hash);
     if (l_verify_status == ATOM_ACCEPT || l_verify_status == ATOM_FORK) {
         // validation - OK, gen event Approve
         s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_APPROVE, a_candidate_hash,
@@ -2837,9 +2858,17 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
-    if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block)
+    if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block) {
         // It's a block candidate, don't check signs
-        return a_block->hdr.version > 1 ? 0 : -3;
+        if (a_block->hdr.version <= 1) {
+            log_it(L_WARNING, "Illegal block version %d", a_block->hdr.version);
+            return -3;
+        }
+        if (a_blocks->is_hardfork_state) {
+            // Addtionally verify datums vs internal states
+
+        }
+    }
 
     size_t l_block_size = a_block_size; // /* Can't calc it for many old bugged blocks */ dap_chain_block_get_size(a_block);
     size_t l_signs_count = 0;

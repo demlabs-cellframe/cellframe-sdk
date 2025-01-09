@@ -39,12 +39,13 @@ typedef dap_chain_block_t * (*dap_chain_cs_blocks_callback_block_create_t)(dap_c
                                                                                dap_chain_datum_t *,
                                                                                dap_chain_hash_fast_t *,
                                                                                size_t, size_t*);
-typedef struct dap_chain_cs_blocks
-{
-   dap_chain_t * chain;
-   // For new block creating
-   dap_chain_block_t * block_new;
+typedef struct dap_chain_cs_blocks {
+   dap_chain_t *chain;
+   dap_chain_block_t *block_new; // For new block creating
    size_t block_new_size;
+
+   bool is_hardfork_state;
+   uint16_t generation;
 
    dap_chain_cs_blocks_callback_t callback_delete;
    dap_chain_cs_blocks_callback_block_create_t callback_block_create;
@@ -80,8 +81,7 @@ typedef enum s_com_blocks_err{
 
 typedef struct dap_chain_cs_blocks_hardfork_fees {
     dap_sign_t *owner_sign;
-    uint256_t fees_sum;
-    uint256_t rewards_sum;
+    uint256_t fees_n_rewards_sum;
     struct dap_chain_cs_blocks_hardfork_fees *prev, *next;
 } dap_chain_cs_blocks_hardfork_fees_t;
 
@@ -90,6 +90,8 @@ typedef struct dap_chain_cs_blocks_hardfork_fees {
 int dap_chain_cs_blocks_init();
 void dap_chain_cs_blocks_deinit();
 dap_chain_block_cache_t *dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_t *a_blocks, dap_chain_hash_fast_t *a_block_hash);
+
+dap_chain_cs_blocks_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chain_t *a_chain);
 
 DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_fee_group(const char *a_net_name)
 {
