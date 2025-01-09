@@ -281,7 +281,7 @@ int dap_chain_net_srv_xchange_init()
 
     if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
         for(dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net=dap_chain_net_iter_next(l_net)){
-            xchange_orders_cache_net_t *l_net_cache = (xchange_orders_cache_net_t *)DAP_NEW_SIZE(xchange_orders_cache_net_t, sizeof(xchange_orders_cache_net_t));
+            xchange_orders_cache_net_t *l_net_cache = DAP_NEW_Z(xchange_orders_cache_net_t);
             l_net_cache->net_id.uint64 = l_net->pub.id.uint64;
             s_net_cache = dap_list_append(s_net_cache, l_net_cache);
             dap_ledger_tx_add_notify(l_net->pub.ledger, s_ledger_tx_add_notify, NULL);
@@ -3253,13 +3253,7 @@ static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chai
         if(!l_cache_net)
             return;
 
-
-        xchange_tx_cache_t* l_cache = DAP_NEW_Z_SIZE(xchange_tx_cache_t, sizeof(xchange_tx_cache_t));
-        if (!l_cache){
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            return;
-        }
-
+        xchange_tx_cache_t* l_cache = DAP_NEW_Z_RET_IF_FAIL(xchange_tx_cache_t);
         l_cache->hash = *a_tx_hash;
         l_cache->tx = a_tx;
         l_cache->tx_type = l_tx_type;
