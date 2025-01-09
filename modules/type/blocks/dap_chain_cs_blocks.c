@@ -2054,7 +2054,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         }
     }
 
-    if (ret == ATOM_FORK || ret == ATOM_ACCEPT) {
+    if (ret == ATOM_ACCEPT || (!l_blocks->is_hardfork_state && ret == ATOM_FORK)) {
         // 2nd level consensus
         if (l_blocks->callback_block_verify && l_blocks->callback_block_verify(l_blocks, l_block, a_atom_hash, /* Old bug, crutch for it */ a_atom_size)) {
             // Hard accept list

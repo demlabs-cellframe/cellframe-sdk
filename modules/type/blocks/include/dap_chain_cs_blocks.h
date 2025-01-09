@@ -39,12 +39,12 @@ typedef dap_chain_block_t * (*dap_chain_cs_blocks_callback_block_create_t)(dap_c
                                                                                dap_chain_datum_t *,
                                                                                dap_chain_hash_fast_t *,
                                                                                size_t, size_t*);
-typedef struct dap_chain_cs_blocks
-{
+typedef struct dap_chain_cs_blocks {
    dap_chain_t *chain;
    dap_chain_block_t *block_new; // For new block creating
    size_t block_new_size;
-   bool is_hardfork_data;
+
+   bool is_hardfork_state;
    uint16_t generation;
 
    dap_chain_cs_blocks_callback_t callback_delete;

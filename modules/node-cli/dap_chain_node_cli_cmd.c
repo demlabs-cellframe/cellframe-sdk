@@ -4071,7 +4071,6 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                dap_list_free_full(l_tsd_list, NULL);
                 return -1;
             }
             l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM;
@@ -4079,10 +4078,35 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             *(uint64_t*)(l_tsd->data) = strtoll(l_param_value_str, NULL, 10);
             if (!*(uint64_t*)l_tsd->data && dap_strcmp(l_param_value_str, "0")) {
                 log_it(L_ERROR, "Can't converts %s to atom number", l_param_value_str);
-                dap_list_free_full(l_tsd_list, NULL);
+                DAP_DELETE(l_tsd);
                 return -1;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+            if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-trusted_addrs", &l_param_addr_str)) {
+                char **l_addrs = dap_strsplit(l_param_addr_str, ",", 256);
+                for (uint16_t i = 0; l_addrs[i]; i++) {
+                    dap_stream_node_addr_t l_addr_cur;
+                    if (dap_stream_node_addr_from_str(&l_addr_cur, l_addrs[i])) {
+                        log_it(L_ERROR, "Can't convert %s to node addr", l_addrs[i]);
+                        dap_list_free_full(l_tsd_list, NULL);
+                        dap_strfreev(l_addrs);
+                        return -5;
+                    }
+                    l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, sizeof(dap_tsd_t) + sizeof(dap_stream_node_addr_t));
+                    if (!l_tsd) {
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                        dap_list_free_full(l_tsd_list, NULL);
+                        dap_strfreev(l_addrs);
+                        return -1;
+                    }
+                    l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR;
+                    l_tsd->size = sizeof(dap_stream_node_addr_t);
+
+                    l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+                    l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_stream_node_addr_t);
+                }
+                dap_strfreev(l_addrs);
+            }
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-new_certs", &l_param_value_str)){
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS;
             dap_cert_parse_str_list(l_param_value_str, &l_new_certs, &l_new_certs_count);

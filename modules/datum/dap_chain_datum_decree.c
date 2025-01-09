@@ -71,7 +71,16 @@ int dap_chain_datum_decree_get_fee_addr(dap_chain_datum_decree_t *a_decree, dap_
 dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree, uint16_t *a_owners_num)
 {
     dap_return_val_if_fail(a_decree && a_owners_num, NULL);
-    dap_list_t *l_ret = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER);
+    dap_list_t *l_ret = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER, 0);
+    dap_list_t *it, *tmp;
+    DL_FOREACH_SAFE(l_ret, it, tmp) {
+        dap_tsd_t *l_tsd = it->data;
+        if (l_tsd->size < sizeof(dap_pkey_t) || l_tsd->size != sizeof(dap_pkey_t) + ((dap_pkey_t *)l_tsd->data)->header.size) {
+            log_it(L_ERROR, "Incorrect size %u of owner pkey", l_tsd->size);
+            DL_DELETE(l_ret, it);
+            DAP_DEL_MULTY(it->data, it);
+        }
+    }
     if (a_owners_num)
         *a_owners_num = (uint16_t)dap_list_length(l_ret);
     return l_ret;
@@ -105,7 +114,7 @@ int dap_chain_datum_decree_get_stake_signing_addr(dap_chain_datum_decree_t *a_de
     return l_tsd && l_tsd->size == sizeof(dap_chain_addr_t) ? ( _dap_tsd_get_scalar(l_tsd, a_signing_addr), 0 ) : 1;
 }
 
-int dap_chain_datum_decree_get_stake_signer_node_addr(dap_chain_datum_decree_t *a_decree, dap_chain_node_addr_t *a_node_addr)
+int dap_chain_datum_decree_get_node_addr(dap_chain_datum_decree_t *a_decree, dap_chain_node_addr_t *a_node_addr)
 {
     dap_return_val_if_fail(a_decree && a_node_addr, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR);

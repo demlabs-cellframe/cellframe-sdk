@@ -43,7 +43,7 @@
 
 typedef struct dap_ledger {
     dap_chain_net_t *net;
-    bool is_hardfork_data;
+    bool is_hardfork_state;
     void *_internal;
 } dap_ledger_t;
 

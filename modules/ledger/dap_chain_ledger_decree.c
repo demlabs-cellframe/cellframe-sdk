@@ -399,7 +399,7 @@ const char *l_ban_addr;
                 log_it(L_WARNING,"Can't get signing address from decree.");
                 return -107;
             }
-            if (dap_chain_datum_decree_get_stake_signer_node_addr(a_decree, &l_node_addr)){
+            if (dap_chain_datum_decree_get_node_addr(a_decree, &l_node_addr)){
                 log_it(L_WARNING,"Can't get signer node address from decree.");
                 return -108;
             }
@@ -611,7 +611,9 @@ const char *l_ban_addr;
             }
             if (!a_apply)
                 break;
-            return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_block_num);
+            dap_list_t *l_addrs = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size,
+                                                   DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, sizeof(dap_stream_node_addr_t));
+            return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_block_num, l_addrs);
         default:
             return -1;
     }

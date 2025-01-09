@@ -293,12 +293,12 @@ int dap_chain_datum_decree_get_value(dap_chain_datum_decree_t *a_decree, uint256
 int dap_chain_datum_decree_get_stake_signing_addr(dap_chain_datum_decree_t *a_decree, dap_chain_addr_t *a_signing_addr);
 
 /**
- * @brief dap_chain_datum_decree_get_stake_signer_node_addr get signer node address
+ * @brief dap_chain_datum_decree_get_node_addr get signer node address
  * @param a_decree pointer to decree
  * @param a_node_addr pointer to signer node address buffer
  * @return result code. 0 - success
  */
-int dap_chain_datum_decree_get_stake_signer_node_addr(dap_chain_datum_decree_t *a_decree, dap_chain_node_addr_t *a_node_addr);
+int dap_chain_datum_decree_get_node_addr(dap_chain_datum_decree_t *a_decree, dap_chain_node_addr_t *a_node_addr);
 
 /**
  * @brief dap_chain_datum_decree_get_stake_min_value get minimum stake value
