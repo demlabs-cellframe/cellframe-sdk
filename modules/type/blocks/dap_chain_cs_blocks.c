@@ -588,6 +588,7 @@ static int block_list_sort_by_date_back(const void *a, const void *b)
 static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
+
     //char ** a_str_reply = (char **) reply;    
     enum {
         SUBCMD_UNDEFINED =0,
