@@ -180,7 +180,7 @@ void dap_chain_delete(dap_chain_t *a_chain)
         DAP_DEL_MULTY(DAP_CHAIN_PVT(a_chain)->file_storage_dir, DAP_CHAIN_PVT(a_chain));
     }
     DAP_DEL_MULTY(a_chain->name, a_chain->net_name, a_chain->datum_types,
-        a_chain->autoproc_datum_types, a_chain->authorized_nodes_addrs), a_chain->_inheritor);
+        a_chain->autoproc_datum_types, a_chain->authorized_nodes_addrs, a_chain->_inheritor);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
     DAP_DELETE(a_chain);

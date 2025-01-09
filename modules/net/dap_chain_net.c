@@ -81,6 +81,7 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_node_client.h"
+#include "dap_chain_mempool.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_node_list.h"
 #include "dap_chain_net_tx.h"
