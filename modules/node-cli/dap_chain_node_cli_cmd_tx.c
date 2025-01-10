@@ -1519,7 +1519,7 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
         switch (l_item_type) {
             case TX_ITEM_TYPE_IN: {
                 const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
-                if (dap_strcmp(l_json_item_token, l_native_token)){
+                if (l_json_item_token && dap_strcmp(l_json_item_token, l_native_token)){
                     l_multichanel = true;
                     l_main_token = l_json_item_token;
                 }
@@ -1633,7 +1633,7 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
                             }
                             l_item = (const uint8_t*) l_out_item;
                             if (l_item){
-                                if (!dap_strcmp(l_token, l_native_token))
+                                if (l_multichanel && !dap_strcmp(l_token, l_native_token))
                                     SUM_256_256(l_value_need_fee, l_value, &l_value_need_fee);
                                 else 
                                     SUM_256_256(l_value_need, l_value, &l_value_need);
@@ -3462,7 +3462,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply)
         }
 
         // get final tx
-        dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash);
+        dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash, true);
         dap_chain_datum_tx_t *l_final_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_final_hash);
         if (!l_final_tx) {
             log_it(L_WARNING, "Only get final tx hash or tx is already used out.");

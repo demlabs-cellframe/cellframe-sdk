@@ -803,7 +803,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
             *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_WRONG_ADDR;
         return NULL;
     }
-    dap_chain_hash_fast_t l_tx_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, a_tx_prev_hash);
+    dap_chain_hash_fast_t l_tx_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, a_tx_prev_hash, true);
     if ( dap_hash_fast_is_blank(&l_tx_final_hash) ) {
         log_it(L_WARNING, "Requested conditional transaction is already used out");
         if (a_ret_status)
