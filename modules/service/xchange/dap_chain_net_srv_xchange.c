@@ -2971,17 +2971,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                                     MULT_256_COIN(l_out_cond_item->subtype.srv_xchange.rate, l_b_buy_value, &l_token_curr_to_value);
                                 }
                             }
-
-                            uint256_t l_rate = l_out_cond_item 
-                                ? l_out_cond_item->subtype.srv_xchange.rate
-                                : l_out_prev_cond_item->subtype.srv_xchange.rate,
-                                    l_value_from = {}, l_value_to = {};
-
-                            if (l_out_cond_item)
-                                SUBTRACT_256_256(l_out_prev_cond_item->header.value, l_out_cond_item->header.value, &l_value_from);
-                            else
-                                l_value_from = l_out_prev_cond_item->header.value;
-                            MULT_256_COIN(l_value_from, l_rate, &l_value_to);
                         }   
 
 
