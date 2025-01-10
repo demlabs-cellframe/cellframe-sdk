@@ -6252,7 +6252,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
         switch (l_item_type) {
             case TX_ITEM_TYPE_IN: {
                 const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
-                if (dap_strcmp(l_json_item_token, l_native_token)){
+                if (l_json_item_token && dap_strcmp(l_json_item_token, l_native_token)){
                     l_multichanel = true;
                     l_main_token = l_json_item_token;
                 }
