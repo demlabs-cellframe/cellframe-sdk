@@ -241,7 +241,7 @@ int dap_chain_net_srv_xchange_init()
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
     "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] [-limit <limit>] [-offset <offset>]\n"
         "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
-        "\tAll times are in RFC822. For example: \"T7 Dec 2023 21:18:04\"\n"
+        "\tAll times are in RFC822. For example: \"7 Dec 2023 21:18:04\"\n"
 
     "srv_xchange enable\n"
          "\tEnable eXchange service\n"
@@ -973,7 +973,7 @@ uint64_t dap_chain_net_srv_xchange_get_order_completion_rate(dap_chain_net_t *a_
         return 0;
     }
 
-    dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash);
+    dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash, false);
     if ( dap_hash_fast_is_blank(&l_last_tx_hash) ){
         log_it(L_ERROR, " Can't get last tx cond hash from order");
         return 0;
@@ -1030,7 +1030,7 @@ dap_chain_net_srv_xchange_order_status_t dap_chain_net_srv_xchange_get_order_sta
         return XCHANGE_ORDER_STATUS_UNKNOWN;
     }
 
-    dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash);
+    dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash, false);
     if ( dap_hash_fast_is_blank(&l_last_tx_hash) ) {
         log_it(L_ERROR, " Can't get last tx cond hash from order");
         return XCHANGE_ORDER_STATUS_UNKNOWN;
@@ -1251,7 +1251,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
     l_price->creator_addr = l_out_cond->subtype.srv_xchange.seller_addr;
     l_price->rate = l_out_cond->subtype.srv_xchange.rate;
     dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger,
-                                        DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->order_hash);
+                                        DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->order_hash, false);
     if ( !dap_hash_fast_is_blank(&l_final_hash) ) {
         l_price->tx_hash = l_final_hash;
         return l_price;
@@ -1748,6 +1748,19 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                     return -18;
                 }
 
+                // Find SRV_XCHANGE in_cond item
+                int l_item_idx = 0;
+                byte_t *l_tx_item = dap_chain_datum_tx_item_get(l_tx, &l_item_idx, NULL, TX_ITEM_TYPE_IN_COND , NULL);
+                dap_chain_tx_in_cond_t * l_in_cond = l_tx_item ? (dap_chain_tx_in_cond_t *) l_tx_item : NULL;
+                int l_prev_cond_idx = 0;
+                dap_chain_datum_tx_t * l_prev_tx = l_in_cond ? dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_in_cond->header.tx_prev_hash) : NULL;
+                dap_chain_tx_out_cond_t *l_out_prev_cond_item = l_prev_tx ? dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
+                                                                                                &l_prev_cond_idx) : NULL;
+                if(l_out_prev_cond_item){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "It's not an order");
+                    return -18;
+                }
+
                 dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
                 if (!l_out_cond || l_out_cond->header.srv_uid.uint64 != DAP_CHAIN_NET_SRV_XCHANGE_ID){
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "It's not an order");
@@ -1763,7 +1776,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
 
                 dap_ledger_t * l_ledger = dap_ledger_by_net_name(l_net->pub.name);
                 
-                dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash);
+                dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash, false);
                 if( dap_hash_fast_is_blank(&l_last_tx_hash) ){
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get last tx cond hash from order");
                     return -18;
@@ -1952,7 +1965,7 @@ static dap_chain_net_srv_xchange_order_status_t s_tx_check_for_open_close(dap_ch
 
     dap_hash_fast_t l_tx_hash = {};
     dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_hash);
-    dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_tx_hash);
+    dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_tx_hash, false);
     if ( dap_hash_fast_is_blank(&l_last_tx_hash) ) {
         log_it(L_WARNING,"Can't get last tx cond hash from order");
         return XCHANGE_ORDER_STATUS_UNKNOWN;
@@ -2204,7 +2217,7 @@ void s_tx_is_order_check(UNUSED_ARG dap_chain_net_t* a_net, dap_chain_datum_tx_t
         l_list_item->hash = *a_tx_hash;
         l_list_item->tx = a_tx;
         *l_tx_list_ptr = dap_list_append(*l_tx_list_ptr, l_list_item);
-        }
+    }
        
 }
 
@@ -2385,7 +2398,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
                     dap_ledger_t * l_ledger = dap_ledger_by_net_name(l_net->pub.name);
                     
-                    dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash);
+                    dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash, false);
                     if ( dap_hash_fast_is_blank(&l_last_tx_hash) ) {
                         log_it(L_WARNING,"Can't get last tx cond hash from order");
                         continue;
