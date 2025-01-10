@@ -1824,7 +1824,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
             l_proposed_coins_str = dap_uint256_decimal_to_char(l_proposed); 
             l_proposed_datoshi_str = dap_uint256_uninteger_to_char(l_proposed);
             l_cp_rate = dap_chain_balance_to_coins(l_rate); 
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "orderHash: %s\n ts_created: %s\n Status: %s, amount: %s (%s) %s, filled: %lu%%, rate (%s/%s): %s, net: %s\n\n"
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "orderHash: %s\n ts_created: %s\n Status: %s, proposed: %s(%s) %s, amount: %s (%s) %s, filled: %lu%%, rate (%s/%s): %s, net: %s\n\n"
                                      "owner addr: %s\n\n", l_order_hash_str,
                                      l_tmp_buf, l_status_order, 
                                      l_proposed_coins_str ? l_proposed_coins_str : "0.0", 
@@ -2525,7 +2525,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 l_proposed_coins_str = dap_uint256_decimal_to_char(l_proposed); 
                 l_proposed_datoshi_str = dap_uint256_uninteger_to_char(l_proposed);
 
-                dap_string_append_printf(l_reply_str, "orderHash: %s\n ts_created: %s\n Status: %s, amount: %s (%s) %s, filled: %lu%%, rate (%s/%s): %s, net: %s\n"
+                dap_string_append_printf(l_reply_str, "orderHash: %s\n ts_created: %s\n Status: %s, proposed: %s(%s) %s, amount: %s (%s) %s, filled: %lu%%, rate (%s/%s): %s, net: %s\n\n"
                                          "owner addr: %s\n\n", l_tx_hash_str,
                                          l_tmp_buf, l_status_order_str,
                                          l_proposed_coins_str ? l_proposed_coins_str : "0.0",
