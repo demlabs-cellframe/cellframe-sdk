@@ -424,7 +424,8 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_emit_delega
 dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, dap_chain_datum_tx_t *a_tx)
 {
     dap_return_val_if_fail(a_key && a_tx, NULL);
-    size_t l_tx_size = a_tx->header.tx_items_size + sizeof(dap_chain_datum_tx_t);
+    uint8_t *l_tx_sig_present = dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+    size_t l_tx_size = sizeof(dap_chain_datum_tx_t) + (l_tx_sig_present ? (l_tx_sig_present - (byte_t *)a_tx) : a_tx->header.tx_items_size);
     dap_chain_datum_tx_t *l_tx = DAP_DUP_SIZE(a_tx, l_tx_size);
     if (!l_tx) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
