@@ -696,6 +696,7 @@ static int s_save_tx_into_wallet_cache(dap_chain_t *a_chain, dap_chain_datum_tx_
             if (!l_prev_item){
                 log_it(L_ERROR, "Can't find out with index %d in transaction %s", l_prev_idx, dap_hash_fast_to_str_static(&l_prev_tx_hash));
                 continue;
+            }
             uint8_t l_out_type = *(uint8_t *)l_prev_item;
             switch(l_out_type){
                 case TX_ITEM_TYPE_OUT_OLD: {
@@ -936,6 +937,7 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             if (!l_prev_item){
                 log_it(L_ERROR, "Can't find out with index %d in transaction %s", l_prev_idx, dap_hash_fast_to_str_static(&l_prev_tx_hash));
                 continue;
+            }
             uint8_t l_out_type = *(uint8_t *)l_prev_item;
             switch(l_out_type){
                 case TX_ITEM_TYPE_OUT_OLD: {
