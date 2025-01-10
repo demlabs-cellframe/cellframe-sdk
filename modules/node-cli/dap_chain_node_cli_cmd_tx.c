@@ -1520,7 +1520,7 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
         switch (l_item_type) {
             case TX_ITEM_TYPE_IN: {
                 const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
-                if (dap_strcmp(l_json_item_token, l_native_token)){
+                if (l_json_item_token && dap_strcmp(l_json_item_token, l_native_token)){
                     l_multichanel = true;
                     l_main_token = l_json_item_token;
                 }
@@ -1634,7 +1634,7 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
                             }
                             l_item = (const uint8_t*) l_out_item;
                             if (l_item){
-                                if (!dap_strcmp(l_token, l_native_token))
+                                if (l_multichanel && !dap_strcmp(l_token, l_native_token))
                                     SUM_256_256(l_value_need_fee, l_value, &l_value_need_fee);
                                 else 
                                     SUM_256_256(l_value_need, l_value, &l_value_need);
