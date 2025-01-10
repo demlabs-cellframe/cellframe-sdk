@@ -51,11 +51,18 @@ int dap_datum_mempool_init(void);
 
 extern const char* c_dap_datum_mempool_gdb_group;
 
-uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t *size);
-dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *datum_mempool_str, size_t size);
-
-void dap_datum_mempool_clean(dap_datum_mempool_t *datum);
-void dap_datum_mempool_free(dap_datum_mempool_t *datum);
+/**
+ * @brief dap_chain_net_get_gdb_group_mempool
+ * @param l_chain
+ * @return
+ */
+DAP_STATIC_INLINE char *dap_chain_mempool_group_new(dap_chain_t *a_chain)
+{
+    dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
+    return l_net
+            ? dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix, a_chain->name)
+            : NULL;
+}
 
 void dap_chain_mempool_add_proc(dap_http_server_t * a_http_server, const char * a_url);
 

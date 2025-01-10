@@ -517,6 +517,7 @@ static uint8_t *s_meta_extract(dap_chain_block_meta_t *a_meta)
                s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size, sizeof(uint8_t));
     break;
     case DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS:
+    case DAP_CHAIN_BLOCK_META_GENERATION:
         if (a_meta->hdr.data_size >= sizeof(uint16_t)) {
             uint16_t l_expected_size = *(uint16_t *)a_meta->data + sizeof(uint16_t);
             if (!(l_expected_size % sizeof(uint16_t)) &&
@@ -578,12 +579,13 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
                                     size_t *a_block_links_count,
                                     bool *a_is_genesis,
                                     uint64_t *a_nonce,
-                                    uint64_t *a_nonce2)
+                                    uint64_t *a_nonce2,
+                                    uint16_t *a_generation)
 {
     dap_return_val_if_fail(a_block && a_block_size, -1);
     // Check for meta that could be faced only once
     bool l_was_prev = false, l_was_genesis = false, l_was_anchor = false, l_was_nonce = false,
-         l_was_nonce2 = false, l_was_merkle = false, l_was_reward = false;
+         l_was_nonce2 = false, l_was_merkle = false, l_was_reward = false, l_was_generation = false;
     // Init links parsing
     size_t l_links_count = 0, l_links_count_max = 5;
     if (a_block_size < sizeof(a_block->hdr)) {
@@ -699,6 +701,20 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
                 l_meta_data = s_meta_extract(l_meta);
                 if (l_meta_data)
                     *a_merkle = *(dap_hash_t *)l_meta_data;
+                else
+                    return -4;
+            }
+        break;
+        case DAP_CHAIN_BLOCK_META_GENERATION:
+            if (l_was_generation) {
+                log_it(L_WARNING, "Generaion number could be only one in the block, meta #%zu is ignored ", i);
+                break;
+            }
+            l_was_generation = true;
+            if (a_generation) {
+                l_meta_data = s_meta_extract(l_meta);
+                if (l_meta_data)
+                    *a_generation = *(uint16_t *)l_meta_data;
                 else
                     return -4;
             }

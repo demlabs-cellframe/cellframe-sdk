@@ -64,6 +64,7 @@ struct srv_voting {
 
 static void *s_callback_start(dap_chain_net_id_t UNUSED_ARG a_net_id, dap_config_t UNUSED_ARG *a_config);
 static void s_callback_delete(void *a_service_internal);
+static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count);
 
 static int s_voting_ledger_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
 static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash);
@@ -100,7 +101,7 @@ int dap_chain_net_srv_voting_init()
 
     
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
-    dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start, .delete = s_callback_delete };
+    dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start, .delete = s_callback_delete, .hardfork_prepare = s_votings_backup };
     int ret = dap_chain_srv_add(l_uid, "voting", &l_srv_callbacks);
     if (ret) {
         log_it(L_ERROR, "Can't register voting service");
@@ -1406,59 +1407,49 @@ static size_t s_voting_serial_size_calc(struct voting *a_voting, size_t *a_votes
     return ret;
 }
 
-static int s_voting_dump(dap_chain_datum_t **a_dump_datum, struct voting *a_voting)
+static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count)
 {
-    size_t l_votes_count = 0;
-    size_t l_voting_size = s_voting_serial_size_calc(a_voting, &l_votes_count);
-    dap_chain_datum_t *l_dump_datum = DAP_REALLOC(*a_dump_datum, dap_chain_datum_size(*a_dump_datum) + l_voting_size);
-    if (!l_dump_datum) {
-        DAP_DELETE(*a_dump_datum);
-        return -1;
-    }
-    l_dump_datum->header.data_size += l_voting_size;
-    struct voting_serial *cur = (struct voting_serial *)(l_dump_datum->data + l_dump_datum->header.data_size);
-    *cur = (struct voting_serial) {
-            .size = l_voting_size,
-            .hash = a_voting->hash,
-            .voting_start = a_voting->start_time,
-            .voting_expire = a_voting->params->voting_expire,
-            .votes_max_count = a_voting->params->votes_max_count,
-            .votes_count = l_votes_count,
-            .delegate_key_required = a_voting->params->delegate_key_required,
-            .vote_changing_allowed = a_voting->params->vote_changing_allowed
-    };
-    byte_t *l_tsd = dap_tsd_write(cur->question_n_options_n_votes, VOTING_TSD_TYPE_QUESTION, a_voting->params->question, strlen(a_voting->params->question));
-    for (dap_list_t *it = a_voting->params->options; it; it = it->next)
-        l_tsd = dap_tsd_write(l_tsd, VOTING_TSD_TYPE_OPTION, it->data, strlen(it->data));
-    for (dap_list_t *it = a_voting->votes; it; it = it->next)
-        l_tsd = dap_tsd_write(l_tsd, VOTING_TSD_TYPE_VOTE, it->data, sizeof(struct vote));
-    assert(l_tsd == l_dump_datum->data + l_dump_datum->header.data_size);
-    *a_dump_datum = l_dump_datum;
-    return 0;
-}
-
-static int s_votings_backup(dap_chain_net_t *a_net)
-{
-    struct voting *votings_ht = s_votings_ht_get(a_net->pub.id);
+    if (a_state_count)
+        *a_state_count = 0;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    assert(l_net);
+    struct voting *votings_ht = s_votings_ht_get(l_net->pub.id);
     if (!votings_ht) {
-        log_it(L_INFO, "No data to backup for voting service for net id 0x%016" DAP_UINT64_FORMAT_x, a_net->pub.id.uint64);
-        return 0;
+        log_it(L_INFO, "No data to backup for voting service for net id 0x%016" DAP_UINT64_FORMAT_x, l_net->pub.id.uint64);
+        return NULL;
     }
-    dap_chain_datum_t *l_hardfork_state_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SERVICE_STATE, NULL, sizeof(dap_chain_datum_service_state_t));
-    if (!l_hardfork_state_datum)
-        return -1;
-    size_t i = 0;
-    for (struct voting *it = votings_ht; it; it = it->hh.next, i++) {
-        int ret = s_voting_dump(&l_hardfork_state_datum, it);
-        if (ret)
-            return ret;
+    size_t l_states_count = HASH_COUNT(votings_ht);
+    byte_t *ret = (byte_t *)DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(struct voting_serial, l_states_count, NULL, NULL);
+    size_t l_total_size = 0;
+    for (struct voting *it = votings_ht; it; it = it->hh.next) {
+        size_t l_votes_count = 0;
+        size_t l_voting_size = s_voting_serial_size_calc(it, &l_votes_count);
+        ret = DAP_REALLOC_RET_VAL_IF_FAIL(ret, l_total_size + l_voting_size, NULL, NULL);
+        struct voting_serial *cur = (struct voting_serial *)(ret + l_total_size);
+        l_total_size += l_voting_size;
+        *cur = (struct voting_serial) {
+                .size = l_voting_size,
+                .hash = it->hash,
+                .voting_start = it->start_time,
+                .voting_expire = it->params->voting_expire,
+                .votes_max_count = it->params->votes_max_count,
+                .votes_count = l_votes_count,
+                .delegate_key_required = it->params->delegate_key_required,
+                .vote_changing_allowed = it->params->vote_changing_allowed
+        };
+        byte_t *l_tsd = dap_tsd_write(cur->question_n_options_n_votes, VOTING_TSD_TYPE_QUESTION, it->params->question, strlen(it->params->question));
+        for (dap_list_t *lst = it->params->options; lst; lst = lst->next)
+            l_tsd = dap_tsd_write(l_tsd, VOTING_TSD_TYPE_OPTION, lst->data, strlen(lst->data));
+        for (dap_list_t *lst = it->votes; lst; lst = lst->next)
+            l_tsd = dap_tsd_write(l_tsd, VOTING_TSD_TYPE_VOTE, lst->data, sizeof(struct vote));
+        assert(l_tsd == ret + l_total_size);
     }
-    ((dap_chain_datum_service_state_t *)l_hardfork_state_datum->data)->srv_uid = (dap_chain_srv_uid_t) { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
-    ((dap_chain_datum_service_state_t *)l_hardfork_state_datum->data)->states_count = i;
-    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
-    char *l_datum_hash = dap_chain_mempool_datum_add(l_hardfork_state_datum, l_chain, "hex");
-    log_it(L_INFO, "Datum hash %s with voting service states successfully placed in mempool", l_datum_hash);
-    DAP_DELETE(l_datum_hash);
+    if (a_state_count)
+        *a_state_count = l_states_count;
+    if (a_state_size)
+        *a_state_size = l_total_size / l_states_count;
+    if (*a_state_size)
+        (*a_state_size)--;
     return 0;
 }
 

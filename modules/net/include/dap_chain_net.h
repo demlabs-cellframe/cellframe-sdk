@@ -143,19 +143,6 @@ int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_add
 
 void dap_chain_net_purge(dap_chain_net_t *l_net);
 
-/**
- * @brief dap_chain_net_get_gdb_group_mempool
- * @param l_chain
- * @return
- */
-DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_mempool_new(dap_chain_t *a_chain)
-{
-    dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
-    return l_net
-            ? dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix, a_chain->name)
-            : NULL;
-}
-
 DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_nochain_new(dap_chain_t *a_chain)
 {
     dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
@@ -187,6 +174,7 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 dap_list_t *dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_chain_datum_filter_func_t *a_filter_func, void *a_filter_func_param);
 
 int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data);
+int dap_chain_datum_add_hardfork_data(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data);
 int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);

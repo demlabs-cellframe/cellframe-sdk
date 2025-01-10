@@ -191,7 +191,8 @@ dap_chain_tx_in_reward_t *dap_chain_datum_tx_item_in_reward_create(dap_chain_has
 /**
  * Create tsd section
  */
-dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(void *a_data, int a_type, size_t a_size) {
+dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(const void *a_data, int a_type, size_t a_size)
+{
     if (!a_data || !a_size) {
         return NULL;
     }
@@ -276,6 +277,16 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee(uint256_t a
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE;
+    return l_item;
+}
+
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee_stack(uint256_t a_value)
+{
+    dap_return_val_if_pass(IS_ZERO_256(a_value), NULL);
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, NULL, NULL);
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.value = a_value;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK;
     return l_item;
 }
 
@@ -426,6 +437,19 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_emit_delega
     return l_item;
 }
 
+dap_chain_tx_sig_t *dap_chain_tx_sig_create(dap_sign_t *a_sign)
+{
+    dap_return_val_if_fail(a_sign, NULL);
+    size_t l_chain_sign_size = dap_sign_get_size(a_sign); // sign data
+    dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t)
+                                                                                      + l_chain_sign_size, NULL, NULL);
+    l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
+    l_tx_sig->header.version = 1;
+    l_tx_sig->header.sig_size = (uint32_t)l_chain_sign_size;
+    memcpy(l_tx_sig->sig, a_sign, l_chain_sign_size);
+    return l_tx_sig;
+}
+
 /**
  * Create item dap_chain_tx_sig_t
  *
@@ -442,13 +466,9 @@ dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, da
     DAP_DELETE(l_tx);
     if (!l_chain_sign)
         return NULL;
-    size_t l_chain_sign_size = dap_sign_get_size(l_chain_sign); // sign data
-    dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t,
-            sizeof(dap_chain_tx_sig_t) + l_chain_sign_size);
-    l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
-    l_tx_sig->header.version = 1;
-    l_tx_sig->header.sig_size = (uint32_t)l_chain_sign_size;
-    memcpy(l_tx_sig->sig, l_chain_sign, l_chain_sign_size);
+    dap_chain_tx_sig_t *l_tx_sig = dap_chain_tx_sig_create(l_chain_sign);
+    if (!l_tx_sig)
+        return NULL;
     DAP_DELETE(l_chain_sign);
     return l_tx_sig;
 }

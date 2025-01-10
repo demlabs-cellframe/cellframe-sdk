@@ -81,6 +81,7 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_node_client.h"
+#include "dap_chain_mempool.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_node_list.h"
 #include "dap_chain_net_tx.h"
@@ -2494,7 +2495,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
     {
         for(int i = 0; i < l_chain->datum_types_count; i++) {
             if(l_chain->datum_types[i] == a_datum_type)
-                return dap_chain_net_get_gdb_group_mempool_new(l_chain);
+                return dap_chain_mempool_group_new(l_chain);
         }
     }
     return NULL;
@@ -2802,7 +2803,22 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
         case DAP_CHAIN_DATUM_CUSTOM:
             break;
         default:
-            return -666;
+            return -600;
+    }
+    return 0;
+}
+
+int dap_chain_datum_add_hardfork_data(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data)
+{
+    int ret = dap_chain_datum_add(a_chain, a_datum, a_datum_size, a_datum_hash, a_datum_index_data);
+    if (ret)
+        return ret;
+    dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+    switch (a_datum->header.type_id) {
+    case DAP_CHAIN_DATUM_TX: {
+        return dap_ledger_tx_load_hardfork_data(l_ledger, (dap_chain_datum_tx_t *)a_datum->data, a_datum_hash, (dap_ledger_datum_iter_data_t *)a_datum_index_data);
+    }
+    default: return -601;
     }
     return 0;
 }
@@ -3209,12 +3225,13 @@ static void s_sync_timer_callback(void *a_arg)
     l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_WAITING;
     dap_chain_ch_sync_request_t l_request = {};
     uint64_t l_last_num = 0;
-    if (!dap_chain_get_atom_last_hash_num(l_net_pvt->sync_context.cur_chain,
+    if (!dap_chain_get_atom_last_hash_num_ts(l_net_pvt->sync_context.cur_chain,
                                             l_net_pvt->sync_context.cur_cell
                                             ? l_net_pvt->sync_context.cur_cell->id
                                             : c_dap_chain_cell_id_null,
                                             &l_request.hash_from,
-                                            &l_last_num)) {
+                                            &l_last_num,
+                                            NULL)) {
         log_it(L_ERROR, "Can't get last atom hash and number for chain %s with net %s", l_net_pvt->sync_context.cur_chain->name,
                                                                                         l_net->pub.name);
         return;

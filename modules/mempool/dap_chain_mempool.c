@@ -124,7 +124,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
         DAP_DATUM_TYPE_STR(a_datum->header.type_id, l_type_str);
     }
 
-    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    char *l_gdb_group = dap_chain_mempool_group_new(a_chain);
     int l_res = dap_global_db_set_sync(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), false);//, NULL, NULL);
     if (l_res == DAP_GLOBAL_DB_RC_SUCCESS)
         log_it(L_NOTICE, "Datum %s with hash %s was placed in mempool group %s", l_type_str, l_key_str_out, l_gdb_group);
@@ -748,7 +748,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
     }
     dap_list_free_full(l_list_used_out, NULL);
-    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    char *l_gdb_group = dap_chain_mempool_group_new(a_chain);
     dap_global_db_set_multiple_zc(l_gdb_group, l_objs, a_tx_num, s_tx_create_massive_gdb_save_callback, NULL);
     DAP_DEL_Z(l_gdb_group);
     return 0;
@@ -1162,7 +1162,7 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_
 dap_chain_datum_t *dap_chain_mempool_datum_get(dap_chain_t *a_chain, const char *a_datum_hash_str)
 {
     size_t l_datum_size;
-    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    char *l_gdb_group = dap_chain_mempool_group_new(a_chain);
     dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
                                                     a_datum_hash_str, &l_datum_size, NULL, NULL );
     if (!l_datum) {
@@ -1223,245 +1223,6 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_c
     return DAP_DUP_SIZE(l_emission, l_datum->header.data_size);
 }
 
-uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t *size)
-{
-    size_t a_request_size = 2 * sizeof(uint16_t), shift_size = 0;
-    for(int i = 0; i < datum_mempool->datum_count; i++) {
-        a_request_size += dap_chain_datum_size(datum_mempool->data[i]) + sizeof(uint16_t);
-    }
-    uint8_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(uint8_t, a_request_size, NULL);
-    uint8_t *l_pos = dap_mempcpy(l_ret, &datum_mempool->version, sizeof(uint16_t));
-    l_pos = dap_mempcpy(l_pos, &datum_mempool->datum_count, sizeof(uint16_t));
-    for(int i = 0; i < datum_mempool->datum_count; i++) {
-        size_t size_one = dap_chain_datum_size(datum_mempool->data[i]);
-        l_pos = dap_mempcpy( dap_mempcpy(l_pos, &size_one, sizeof(uint16_t)), datum_mempool->data[i], size_one );
-    }
-    assert((size_t)(l_pos - l_ret) == a_request_size);
-    if(size)
-        *size = a_request_size;
-    return l_ret;
-}
-
-dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *a_datum_mempool_ser, size_t a_datum_mempool_ser_size)
-{
-    size_t shift_size = 0;
-    //uint8_t *a_datum_mempool_ser = DAP_NEW_Z_SIZE(uint8_t, datum_mempool_size / 2 + 1);
-    //datum_mempool_size = hex2bin(a_datum_mempool_ser, datum_mempool_str_in, datum_mempool_size) / 2;
-    dap_datum_mempool_t *datum_mempool = DAP_NEW_Z(dap_datum_mempool_t);
-    if (!datum_mempool) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return NULL;
-    }
-    datum_mempool->version = *(uint16_t*)(a_datum_mempool_ser + shift_size);
-    shift_size += sizeof(uint16_t);
-    datum_mempool->datum_count = *(uint16_t*)(a_datum_mempool_ser + shift_size);
-    shift_size += sizeof(uint16_t);
-    datum_mempool->data = DAP_NEW_Z_SIZE(dap_chain_datum_t*, datum_mempool->datum_count * sizeof(dap_chain_datum_t*));
-    for(int i = 0; i < datum_mempool->datum_count; i++) {
-        uint16_t size_one = *(uint16_t*)(a_datum_mempool_ser + shift_size);
-        shift_size += sizeof(uint16_t);
-        datum_mempool->data[i] = DAP_DUP((dap_chain_datum_t*)(a_datum_mempool_ser + shift_size));
-        shift_size += size_one;
-    }
-    assert(shift_size == a_datum_mempool_ser_size);
-    return datum_mempool;
-}
-
-void dap_datum_mempool_clean(dap_datum_mempool_t *datum)
-{
-    if(!datum)
-        return;
-    for(int i = 0; i < datum->datum_count; i++) {
-        DAP_DELETE(datum->data[i]);
-    }
-    DAP_DELETE(datum->data);
-    datum->data = NULL;
-}
-
-void dap_datum_mempool_free(dap_datum_mempool_t *datum)
-{
-    dap_datum_mempool_clean(datum);
-    DAP_DELETE(datum);
-}
-
-/**
- *
- */
-static char* s_calc_datum_hash(const void *a_datum_str, size_t datum_size)
-{
-    dap_chain_hash_fast_t a_hash;
-    dap_hash_fast( a_datum_str, datum_size, &a_hash);
-    size_t a_str_max = (sizeof(a_hash.raw) + 1) * 2 + 2; /* heading 0x */
-    char *a_str = DAP_NEW_Z_SIZE(char, a_str_max);
-
-//    size_t hash_len = dap_chain_hash_fast_to_str(&a_hash, a_str, a_str_max);
-    dap_chain_hash_fast_to_str(&a_hash, a_str, a_str_max);
-
-//    if(!hash_len) {
-//        DAP_DELETE(a_str);
-//        return NULL;
-//    }
-
-    return a_str;
-}
-
-static void enc_http_reply_encode_new(struct dap_http_simple *a_http_simple, dap_enc_key_t * key,
-        enc_http_delegate_t * a_http_delegate)
-{
-    //dap_enc_key_t * key = dap_enc_ks_find_http(a_http_simple->http);
-    if(key == NULL) {
-        log_it(L_ERROR, "Can't find http key.");
-        return;
-    }
-    if(a_http_delegate->response) {
-
-        if(a_http_simple->reply)
-            DAP_DELETE(a_http_simple->reply);
-
-        size_t l_reply_size_max = dap_enc_code_out_size(a_http_delegate->key,
-                a_http_delegate->response_size,
-                DAP_ENC_DATA_TYPE_RAW);
-
-        a_http_simple->reply = DAP_NEW_SIZE(void, l_reply_size_max);
-        a_http_simple->reply_size = dap_enc_code(a_http_delegate->key,
-                a_http_delegate->response, a_http_delegate->response_size,
-                a_http_simple->reply, l_reply_size_max,
-                DAP_ENC_DATA_TYPE_RAW);
-
-        /*/ decode test
-         size_t l_response_dec_size_max = a_http_simple->reply_size ? a_http_simple->reply_size * 2 + 16 : 0;
-         char * l_response_dec = a_http_simple->reply_size ? DAP_NEW_Z_SIZE(char, l_response_dec_size_max) : NULL;
-         size_t l_response_dec_size = 0;
-         if(a_http_simple->reply_size)
-         l_response_dec_size = dap_enc_decode(a_http_delegate->key,
-         a_http_simple->reply, a_http_simple->reply_size,
-         l_response_dec, l_response_dec_size_max,
-         DAP_ENC_DATA_TYPE_RAW);
-         l_response_dec_size_max = 0;*/
-    }
-
-}
-
-/**
- * @brief
- * @param cl_st HTTP server instance
- * @param arg for return code
- */
-void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
-{
-    http_status_code_t * return_code = (http_status_code_t*) arg;
-    // save key while it alive, i.e. still exist
-    dap_enc_key_t *l_enc_key = dap_enc_ks_find_http(cl_st->http_client);
-    //dap_enc_key_serialize_t *key_ser = dap_enc_key_serialize(key_tmp);
-    //dap_enc_key_t *key = dap_enc_key_deserialize(key_ser, sizeof(dap_enc_key_serialize_t));
-
-    // read header
-    dap_http_header_t *hdr_session_close_id =
-            (cl_st->http_client) ? dap_http_header_find(cl_st->http_client->in_headers, "SessionCloseAfterRequest") : NULL;
-    dap_http_header_t *hdr_key_id =
-            (hdr_session_close_id && cl_st->http_client) ? dap_http_header_find(cl_st->http_client->in_headers, "KeyID") : NULL;
-
-    enc_http_delegate_t *l_enc_delegate = enc_http_request_decode(cl_st);
-    if(l_enc_delegate) {
-        char *suburl = l_enc_delegate->url_path;
-        byte_t *l_request_data = l_enc_delegate->request_bytes;
-        size_t l_request_size = l_enc_delegate->request_size;
-        const char * l_gdb_datum_pool = dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool");
-        //printf("!!***!!! chain_mempool_proc arg=%d suburl=%s str=%s len=%d\n", arg, suburl, request_str, request_size);
-        if(l_request_data && l_request_size > 1) {
-            //  find what to do
-            uint8_t action = DAP_DATUM_MEMPOOL_NONE; //*(uint8_t*) request_str;
-            if(l_enc_delegate->url_path_size > 0) {
-                if(!strcmp(suburl, "add"))
-                    action = DAP_DATUM_MEMPOOL_ADD;
-                else if(!strcmp(suburl, "check"))
-                    action = DAP_DATUM_MEMPOOL_CHECK;
-                else if(!strcmp(suburl, "del"))
-                    action = DAP_DATUM_MEMPOOL_DEL;
-            }
-            dap_datum_mempool_t *datum_mempool =
-                    (action != DAP_DATUM_MEMPOOL_NONE) ?
-                            dap_datum_mempool_deserialize((uint8_t*) l_request_data, (size_t) l_request_size) : NULL;
-            if(datum_mempool){
-                dap_datum_mempool_free(datum_mempool);
-                char *a_key = s_calc_datum_hash(l_request_data, (size_t) l_request_size);
-                switch (action)
-                {
-                case DAP_DATUM_MEMPOOL_ADD: // add datum in base
-                    //a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
-                    //bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
-                    if ( dap_global_db_set_sync(l_gdb_datum_pool, a_key, l_request_data, l_request_size, false) == 0 ) {
-                        *return_code = Http_Status_OK;
-                    }
-                    log_it(L_INFO, "Insert hash: key=%s result:%s", a_key,
-                            (*return_code == Http_Status_OK) ? "OK" : "False!");
-                    break;
-
-                case DAP_DATUM_MEMPOOL_CHECK: // check datum in base
-
-                    strcpy(cl_st->reply_mime, "text/text");
-                    size_t l_datum_size = 0;
-                    byte_t *l_datum = dap_global_db_get_sync( l_gdb_datum_pool, a_key,&l_datum_size,NULL,NULL );
-                    if(l_datum) {
-                        l_enc_delegate->response = strdup("1");
-                        DAP_DEL_Z(l_datum);
-                        log_it(L_INFO, "Check hash: key=%s result: Present", a_key);
-                    }
-                    else {
-                        l_enc_delegate->response = strdup("0");
-                        log_it(L_INFO, "Check hash: key=%s result: Absent", a_key);
-                    }
-                    l_enc_delegate->response_size = l_datum_size;
-                    *return_code = Http_Status_OK;
-                    enc_http_reply_encode_new(cl_st, l_enc_key, l_enc_delegate);
-                    break;
-
-                case DAP_DATUM_MEMPOOL_DEL: // delete datum in base
-                    strcpy(cl_st->reply_mime, "text/text");
-                    if (dap_global_db_del_sync(l_gdb_datum_pool, a_key) == 0){
-                        l_enc_delegate->response = dap_strdup("1");
-                        log_it(L_INFO, "Delete hash: key=%s result: Ok", a_key);
-                    } else {
-                        l_enc_delegate->response = dap_strdup("0");
-                        log_it(L_INFO, "Delete hash: key=%s result: False!", a_key);
-                    }
-                    // TODO rework to async processing and return result of delete action
-                    *return_code = Http_Status_OK;
-                    enc_http_reply_encode_new(cl_st, l_enc_key, l_enc_delegate);
-                    break;
-
-                default: // unsupported command
-                    log_it(L_INFO, "Unknown request=%s! key=%s", (suburl) ? suburl : "-", a_key);
-                    enc_http_delegate_delete(l_enc_delegate);
-                    dap_enc_ks_delete(hdr_key_id->value);
-                    *return_code = Http_Status_BadRequest;
-                    return;
-                }
-                DAP_DEL_Z(a_key);
-            } else
-                *return_code = Http_Status_BadRequest;
-        } else
-            *return_code = Http_Status_BadRequest;
-
-        enc_http_delegate_delete(l_enc_delegate);
-    } else
-        *return_code = Http_Status_Unauthorized;
-
-    if (hdr_session_close_id && !strcmp(hdr_session_close_id->value, "yes") && hdr_key_id)
-        // close session
-        dap_enc_ks_delete(hdr_key_id->value);
-}
-
-/**
- * @brief chain_mempool_add_proc
- * @param sh HTTP server instance
- * @param url URL string
- */
-void dap_chain_mempool_add_proc(dap_http_server_t * a_http_server, const char * a_url)
-{
-    dap_http_simple_proc_add(a_http_server, a_url, 4096, chain_mempool_proc);
-}
-
 /**
  * @breif dap_chain_mempool_filter
  * @param a_chain chain whose mempool will be filtered.
@@ -1474,7 +1235,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
         return;
     }
     int l_removed = 0;
-    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    char * l_gdb_group = dap_chain_mempool_group_new(a_chain);
     size_t l_objs_size = 0;
     dap_time_t l_cut_off_time = dap_time_now() - 3 * 24 * 3600; // 3 days
     char l_cut_off_time_str[DAP_TIME_STR_SIZE] = {'\0'};
