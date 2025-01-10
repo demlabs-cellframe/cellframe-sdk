@@ -6365,7 +6365,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                             }
                             l_item = (const uint8_t*) l_out_item;
                             if (l_item){
-                                if (!dap_strcmp(l_token, l_native_token))
+                                if (l_multichanel && !dap_strcmp(l_token, l_native_token))
                                     SUM_256_256(l_value_need_fee, l_value, &l_value_need_fee);
                                 else 
                                     SUM_256_256(l_value_need, l_value, &l_value_need);
