@@ -2190,7 +2190,7 @@ dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
     return l_hash;
 }
 
-dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash)
+dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash, bool a_unspent_only)
 {
     dap_return_val_if_fail(a_ledger && a_tx_hash, (dap_hash_fast_t) {});
     dap_chain_datum_tx_t *l_tx = NULL;
@@ -2199,7 +2199,7 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
     while (( l_tx = s_tx_find_by_hash(a_ledger, &l_hash, &l_item, false) )) {
         int l_out_num = 0;
         if (!dap_chain_datum_tx_out_cond_get(l_tx, a_cond_type, &l_out_num))
-            return (dap_hash_fast_t) {};
+            return a_unspent_only ? (dap_hash_fast_t){} : l_hash;
         else if (dap_hash_fast_is_blank(&l_item->out_metadata[l_out_num].tx_spent_hash_fast))
             break;
         l_hash = l_item->out_metadata[l_out_num].tx_spent_hash_fast;
