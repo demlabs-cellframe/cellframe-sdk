@@ -241,9 +241,13 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
 {
     dap_return_val_if_pass(!a_tx, -1);
     int l_ret = -4, l_sign_num = 0;
-    byte_t *l_item = NULL; size_t l_item_size;
+    byte_t *l_item = NULL, *l_first_item = NULL; size_t l_item_size;
     TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
-        if ( *l_item == TX_ITEM_TYPE_SIG && l_sign_num++ == a_sign_num )
+        if (*l_item != TX_ITEM_TYPE_SIG)
+            continue;
+        if (!l_first_item)
+            l_first_item = l_item;
+        if (l_sign_num++ == a_sign_num)
             break;
     }
     if (!l_item || !l_item_size)
@@ -255,9 +259,9 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
     dap_chain_datum_tx_t *l_tx;
     byte_t *l_tx_data;
     if ( l_sign_item->header.version ) {
-        l_data_size = (size_t)( l_item - (byte_t*)a_tx );
+        l_data_size = (size_t)( l_first_item - (byte_t *)a_tx );
         l_tx = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true)
-            ? DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx)) : a_tx;
+            ? DAP_DUP_SIZE(a_tx, l_data_size) : a_tx;
         l_tx_data = (byte_t*)l_tx;
         l_tx->header.tx_items_size = 0;
     } else {
