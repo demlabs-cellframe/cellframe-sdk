@@ -416,35 +416,51 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_emit_delega
     return l_item;
 }
 
-/**
- * Create item dap_chain_tx_sig_t
- *
- * return item, NULL Error
- */
-dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, dap_chain_datum_tx_t *a_tx)
+dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create_from_sign(const dap_sign_t *a_sign)
 {
-    dap_return_val_if_fail(a_key && a_tx, NULL);
-    uint8_t *l_tx_sig_present = dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-    size_t l_tx_size = sizeof(dap_chain_datum_tx_t) + (l_tx_sig_present ? (size_t)(l_tx_sig_present - (byte_t *)a_tx) : a_tx->header.tx_items_size);
-    dap_chain_datum_tx_t *l_tx = DAP_DUP_SIZE(a_tx, l_tx_size);
-    if (!l_tx) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return NULL;
-    }
-    l_tx->header.tx_items_size = 0;
-    dap_sign_t *l_chain_sign = dap_sign_create(a_key, l_tx, l_tx_size, 0);
-    DAP_DELETE(l_tx);
-    if (!l_chain_sign)
-        return NULL;
-    size_t l_chain_sign_size = dap_sign_get_size(l_chain_sign); // sign data
+    dap_return_val_if_fail(a_sign, NULL);
+    size_t l_chain_sign_size = dap_sign_get_size((dap_sign_t *)a_sign); // sign data
     dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t,
             sizeof(dap_chain_tx_sig_t) + l_chain_sign_size);
     l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
     l_tx_sig->header.version = 1;
     l_tx_sig->header.sig_size = (uint32_t)l_chain_sign_size;
-    memcpy(l_tx_sig->sig, l_chain_sign, l_chain_sign_size);
-    DAP_DELETE(l_chain_sign);
+    memcpy(l_tx_sig->sig, a_sign, l_chain_sign_size);
     return l_tx_sig;
+}
+
+dap_sign_t *dap_chain_datum_tx_sign_create(dap_enc_key_t *a_key, const dap_chain_datum_tx_t *a_tx)
+{
+    dap_return_val_if_fail(a_key && a_tx, NULL);
+    uint8_t *l_tx_sig_present = dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+    size_t l_tx_size = sizeof(dap_chain_datum_tx_t) +
+                                  (l_tx_sig_present ? (size_t)(l_tx_sig_present - a_tx->tx_items)
+                                                    : a_tx->header.tx_items_size);
+    dap_chain_datum_tx_t *l_tx = DAP_DUP_SIZE((dap_chain_datum_tx_t *)a_tx, l_tx_size);
+    if (!l_tx) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return NULL;
+    }
+    l_tx->header.tx_items_size = 0;
+    dap_sign_t *ret = dap_sign_create(a_key, l_tx, l_tx_size, 0);
+    DAP_DELETE(l_tx);
+    return ret;
+}
+
+/**
+ * Create item dap_chain_tx_sig_t
+ *
+ * return item, NULL Error
+ */
+dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, const dap_chain_datum_tx_t *a_tx)
+{
+    dap_return_val_if_fail(a_key && a_tx, NULL);
+    dap_sign_t *l_chain_sign = dap_chain_datum_tx_sign_create(a_key, a_tx);
+    if (!l_chain_sign)
+        return NULL;
+    dap_chain_tx_sig_t *ret = dap_chain_datum_tx_item_sign_create_from_sign(l_chain_sign);
+    DAP_DELETE(l_chain_sign);
+    return ret;
 }
 
 /**
@@ -485,14 +501,14 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
  * a_item_out_size size[out] size of returned item
  * return item data, NULL Error index or bad format transaction
  */
-uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_idx,
+uint8_t *dap_chain_datum_tx_item_get(const dap_chain_datum_tx_t *a_tx, int *a_item_idx,
         byte_t *a_iter, dap_chain_tx_item_type_t a_type, size_t *a_item_out_size)
 {
     if (!a_tx)
         return NULL;
     int i = a_item_idx ? *a_item_idx : 0, j = -1;
-    byte_t  *l_end = a_tx->tx_items + a_tx->header.tx_items_size,
-            *l_begin = i || !a_iter || a_iter < a_tx->tx_items || a_iter > l_end ? a_tx->tx_items : a_iter;
+    const byte_t  *l_end = a_tx->tx_items + a_tx->header.tx_items_size,
+                  *l_begin = i || !a_iter || a_iter < a_tx->tx_items || a_iter > l_end ? a_tx->tx_items : a_iter;
     size_t l_left_size = (size_t)(l_end - l_begin), l_tx_item_size;
     byte_t *l_item;
 #define m_item_idx_n_size(item, idx, size) ({       \
