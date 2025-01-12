@@ -406,11 +406,7 @@ static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_c
     // Create decree
     size_t l_tsd_total_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
     size_t l_decree_size = sizeof(dap_chain_datum_decree_t) + l_tsd_total_size;
-    dap_chain_datum_decree_t *l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, l_decree_size);
-    if (!l_decree) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return NULL;
-    }
+    dap_chain_datum_decree_t *l_decree = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_datum_decree_t, l_decree_size, NULL);
     // Fill the header
     l_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
     l_decree->header.ts_created = dap_time_now();
@@ -561,20 +557,23 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object *a_jso
     DAP_DEL_MULTY(l_key, l_val);
 }
 
-
-
-static int block_list_sort_by_date(const void *a, const void *b)
+static int block_list_sort_by_date(const void *a, const void *b, bool a_forward)
 {
-    struct json_object *obj_a = *(struct json_object **)a;
-    struct json_object *obj_b = *(struct json_object **)b;
+    struct json_object *obj_a = (struct json_object*)a,
+                       *obj_b = (struct json_object*)b;
 
-    struct json_object *timestamp_a = json_object_object_get(obj_a, "timestamp");
-    struct json_object *timestamp_b = json_object_object_get(obj_b, "timestamp");
+    struct json_object *timestamp_a = json_object_object_get(obj_a, "timestamp"), 
+                       *timestamp_b = json_object_object_get(obj_b, "timestamp");
+    int l_fwd = a_forward ? 1 : -1;
+    return timestamp_a > timestamp_b ? a_forward : timestamp_a < timestamp_b ? -a_forward : 0;
+}
 
-    int64_t time_a = json_object_get_int64(timestamp_a);
-    int64_t time_b = json_object_get_int64(timestamp_b);
+static int blocks_sort_fwd(const void *a, const void *b) {
+    return block_list_sort_by_date(a, b, true);
+}
 
-    return time_a - time_b;
+static int blocks_sort_rev(const void *a, const void *b) {
+    return block_list_sort_by_date(a, b, false);
 }
 
 /**
@@ -1019,9 +1018,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 }
                 i_tmp++;
                 char l_buf[DAP_TIME_STR_SIZE];
-                json_object* json_obj_bl_cache = json_object_new_object();
                 dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
-                json_object_object_add(json_obj_bl_cache, "#",json_object_new_uint64(i_tmp));
+                json_object* json_obj_bl_cache = json_object_new_object();
                 json_object_object_add(json_obj_bl_cache, "block number",json_object_new_uint64(l_block_cache->block_number));
                 json_object_object_add(json_obj_bl_cache, "hash",json_object_new_string(l_block_cache->block_hash_str));
                 json_object_object_add(json_obj_bl_cache, "timestamp", json_object_new_uint64(l_ts));
@@ -1032,7 +1030,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             }
             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
             //sort by time
-            json_object_array_sort(json_arr_bl_cache_out, block_list_sort_by_date);
+            json_object_array_sort(json_arr_bl_cache_out, l_head ? blocks_sort_fwd : blocks_sort_rev);
             // Remove the timestamp and change block num
             size_t l_length = json_object_array_length(json_arr_bl_cache_out);
             for (size_t i = 0; i < l_length; i++) {

@@ -316,7 +316,7 @@ static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, d
     if (!EQUAL_256(l_value_fee_items, l_fee_transfer))
         m_tx_fail(ERROR_COMPOSE, "Can't compose the fee transaction input");
 
-    dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, a_tx_in_hash);
+    dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, a_tx_in_hash, true);
     if (dap_hash_fast_is_blank(&l_final_tx_hash))
         m_tx_fail(ERROR_FUNDS, "Nothing to emit (not enough funds)");
 
