@@ -111,11 +111,21 @@ bool dap_chain_net_tx_set_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, da
  *          tx will be created from json as is without any checks and conversions.
  * @param a_tx_json input json
  * @param a_net network. If NULL it means offline tx creation
- * @param a_out_tx output transaction
- * @param a_items_count count of items in transaction
+ * @param a_json_obj_error json object for tx items errors messages
+ * @param a_out_tx pointer to output transaction pointer
+ * @param a_items_count count of total items in input json transaction
+ * @param a_items_ready count of valid items in output transaction
+ * 
+ * @return s_com_tx_create_json_err_t status code
  */
 int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
-                                        dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready, void **a_json_arr_reply);
+                                        dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
 
-
+/**
+ * @brief Convert binary transaction to json
+ * @param a_tx input transaction
+ * @param a_out_json pointer to json object created by json_object_new_object()
+ * 
+ * @return s_com_tx_create_json_err_t status code
+ */
 int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json);

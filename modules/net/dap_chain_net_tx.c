@@ -654,7 +654,7 @@ static dap_pkey_t* s_json_get_pkey(struct json_object *a_json)
 }
 
 int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
-                                        dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready, void **a_json_arr_reply)
+                                        dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready)
 {
 
     json_object *l_json = a_tx_json;
@@ -677,8 +677,6 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     struct json_object *l_json_items = json_object_object_get(l_json, "items");
     size_t l_items_count;
     if(!l_json_items || !json_object_is_type(l_json_items, json_type_array) || !(l_items_count = json_object_array_length(l_json_items))) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS,
-                               "Wrong json format: not found array 'items' or array is empty");
         json_object_put(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     }
@@ -688,7 +686,6 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     if(!l_tx) {
         json_object_put(l_json);
-        dap_json_rpc_allocation_error(*a_json_arr_reply);
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
 
