@@ -127,7 +127,7 @@ void s_load_all()
             if (l_dir_entry->d_name[0]=='\0' || l_dir_entry->d_name[0]=='.')
                 continue;
             // don't search in directories
-            char l_full_path[MAX_PATH + 1] = {0};
+            char l_full_path[MAX_PATH + 1];
             snprintf(l_full_path, sizeof(l_full_path), "%s/%s", l_net_dir_str, l_dir_entry->d_name);
             if(dap_dir_test(l_full_path)) {
                 continue;
@@ -196,9 +196,10 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
     int l_report = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "report", NULL);
     if (l_report) {
         json_object* json_obj_net_srv = json_object_new_object();
-        const char *l_report_str = dap_stream_ch_chain_net_srv_create_statistic_report();
+        char *l_report_str = dap_stream_ch_chain_net_srv_create_statistic_report();
         json_object_object_add(json_obj_net_srv, "report", json_object_new_string(l_report_str));
         DAP_DEL_Z(l_report_str);
+
         json_object_array_add(*json_arr_reply, json_obj_net_srv);
         return DAP_CHAIN_NET_SRV_CLI_COM_ORDER_OK;
     }
@@ -304,7 +305,9 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                     } else {
                         if (l_ext) {
                             l_order->ext_size = strlen(l_ext) + 1;
-                            l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
+                            dap_chain_net_srv_order_t *l_order_new = DAP_REALLOC_RET_VAL_IF_FAIL(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size,
+                                                                                                 -7, l_order, l_order_hash_hex_str, l_order_hash_base58_str);
+                            l_order = l_order_new;
                             memcpy(l_order->ext_n_sign, l_ext, l_order->ext_size);
                         } else
                             dap_chain_net_srv_order_set_continent_region(&l_order, l_continent_num, l_region_str);
@@ -324,8 +327,10 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                             dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
                             if (!l_cert) {
                                 dap_json_rpc_error_add(DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_LOAD_CERT_ERR, "Can't load cert %s", l_cert_str);
+                                DAP_DEL_MULTY(l_new_order_hash_str, l_order_hash_hex_str, l_order_hash_base58_str, l_order);
                                 return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_LOAD_CERT_ERR;
                             }
+                            
                             // delete prev order
                             if(dap_strcmp(l_new_order_hash_str, l_order_hash_hex_str))
                                 dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
@@ -1209,11 +1214,10 @@ const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void)
     if(l_count_cur > 0) {
         if(l_count_cur != l_count_last) {
             DAP_DELETE(l_srv_uids);
-            l_srv_uids = DAP_NEW_SIZE(dap_chain_net_srv_uid_t, sizeof(dap_chain_net_srv_uid_t) * l_count_cur);
+            l_srv_uids = DAP_NEW_Z_COUNT(dap_chain_net_srv_uid_t, l_count_cur);
         }
         for(size_t i = 0; i < l_count_cur; i++) {
-            service_list_t *l_sdata = l_list->data;
-            memcpy(l_srv_uids + i, &l_sdata->uid, sizeof(dap_chain_net_srv_uid_t));
+            *(l_srv_uids + i) = ((service_list_t*)(l_list->data))->uid;
         }
     }
     // save new number of services

@@ -264,7 +264,7 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
                 ret = -30;
             } else {
                 size_t l_event_size = l_round_item->event_size;
-                dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
+                dap_chain_cs_dag_event_t *l_event = DAP_DUP_SIZE((dap_chain_cs_dag_event_t*)l_round_item->event_n_signs, l_event_size);
                 size_t l_event_size_new = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key);
 
                 if ( l_event_size_new ) {
@@ -380,15 +380,16 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return -1;
             }
-            char l_cert_name[512];
-            for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
-                snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu",l_poa_pvt->auth_certs_prefix, i);
-                if ((l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) == NULL) {
-                    snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu.pub",l_poa_pvt->auth_certs_prefix, i);
-                    if ((l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) == NULL) {
-                        log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
-                        return -1;
-                    }
+            char l_cert_name[MAX_PATH + 1];
+            int l_pos;
+            for (uint16_t i = 0; i < l_poa_pvt->auth_certs_count ; ++i) {
+                l_pos = snprintf(l_cert_name, sizeof(l_cert_name), "%s.%hu",l_poa_pvt->auth_certs_prefix, i);
+                if (!( l_poa_pvt->auth_certs[i] = dap_cert_find_by_name(l_cert_name) )) {
+                    if (l_pos > MAX_PATH - 4)
+                        return log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name), -1;
+                    dap_strncpy(l_cert_name + l_pos, ".pub", sizeof(l_cert_name) - l_pos - 1);
+                    if (!( l_poa_pvt->auth_certs[i] = dap_cert_find_by_name(l_cert_name) ))
+                        return log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name), -1;
                 }
                 log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
             }
@@ -419,7 +420,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("testCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, l_seed_ph, l_seed_ph_size);
     l_poa_pvt->auth_certs[0] = l_cert;
 #endif
-
+    dap_chain_cs_type_start("dag", a_chain);
     return 0;
 }
 
@@ -811,16 +812,16 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
             || !l_poa_pvt->callback_pre_sign->callback
             || !(l_ret = l_poa_pvt->callback_pre_sign->callback(a_dag->chain, l_event, l_event_size, l_poa_pvt->callback_pre_sign->arg)) 
         ) {
-            l_event = DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
+            l_event = DAP_DUP_SIZE((dap_chain_cs_dag_event_t*)l_round_item->event_n_signs, l_event_size);
             if (( l_event_size = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key) ))
-                dap_chain_cs_dag_event_gdb_set(a_dag, (char*)a_key, l_event, l_event_size, l_round_item);
+                dap_chain_cs_dag_event_gdb_set(a_dag, a_key, l_event, l_event_size, l_round_item);
             DAP_DELETE(l_event);
         } else {
-            l_round_item = DAP_DUP_SIZE(a_value, a_value_size);
+            l_round_item = DAP_DUP_SIZE((dap_chain_cs_dag_event_t*)a_value, a_value_size);
             if ( dap_chain_cs_dag_event_round_sign_add(&l_round_item, a_value_size, l_poa_pvt->events_sign_cert->enc_key) ) {
                 log_it(L_NOTICE,"Can't sign event %s, because sign rejected by pre_sign callback, ret code %d", a_key, l_ret);
                 ++l_round_item->round_info.reject_count;
-                dap_chain_cs_dag_event_gdb_set(a_dag, (char*)a_key, l_event, l_event_size, l_round_item);
+                dap_chain_cs_dag_event_gdb_set(a_dag, a_key, l_event, l_event_size, l_round_item);
             }
             DAP_DELETE(l_round_item);
         }
@@ -857,21 +858,27 @@ static int s_callback_event_verify(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_e
     }
     uint16_t l_signs_verified_count = 0;
     if (l_signs_count >= l_certs_count_verify) {
-        uint16_t l_event_signs_count = a_event->header.signs_count;
+        dap_chain_cs_dag_event_t * l_event = a_dag->chain->is_mapped
+            ? DAP_DUP_SIZE(a_event, l_event_size)
+            : a_event;
+        uint16_t l_event_signs_count = l_event->header.signs_count;
         for (size_t i = 0; i < l_signs_count; i++) {
             dap_sign_t *l_sign = (dap_sign_t *)l_signs[i];
             // Compare signature with auth_certs
-            a_event->header.signs_count = i;
+            l_event->header.signs_count = i;
             for (uint16_t j = 0; j < l_poa_pvt->auth_certs_count; j++) {
                 if (!dap_cert_compare_with_sign( l_poa_pvt->auth_certs[j], l_sign)
-                            && !dap_sign_verify(l_sign, a_event, l_offset_from_beginning)){
+                            && !dap_sign_verify(l_sign, l_event, l_offset_from_beginning)){
                     l_signs_verified_count++;
                     break;
                 }
             }
         }
-        a_event->header.signs_count = l_event_signs_count;
         DAP_DELETE(l_signs);
+        if (a_dag->chain->is_mapped)
+            DAP_DELETE(l_event);
+        else
+            a_event->header.signs_count = l_event_signs_count;
         if (l_signs_verified_count >= l_certs_count_verify)
             return 0;
     }

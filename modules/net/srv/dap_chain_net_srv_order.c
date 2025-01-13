@@ -137,7 +137,6 @@ bool dap_chain_net_srv_order_set_continent_region(dap_chain_net_srv_order_t **a_
         memcpy(l_order->ext_n_sign + 1 + sizeof(uint8_t), a_region, strlen(a_region) + 1);
     else if(l_region_prev)
         memcpy(l_order->ext_n_sign + 1 + sizeof(uint8_t), l_region_prev, strlen(l_region_prev) + 1);
-    //sprintf(l_order->ext, "\52%d-%s", a_continent_num, a_region);
     l_order->ext_size = l_ext_size;
     *a_order = l_order;
     DAP_DELETE(l_region_prev);
@@ -460,12 +459,10 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t *a_net, const dap_chain_
                 continue;
 
             size_t l_order_mem_size = dap_chain_net_srv_order_get_size(l_order);
-            dap_chain_net_srv_order_t *l_output_order = DAP_DUP_SIZE(l_order, l_order_mem_size);
-            if (!l_output_order) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                dap_global_db_objs_delete(l_orders, l_orders_count);
-                return -1;
-            }
+            dap_chain_net_srv_order_t *l_output_order = DAP_DUP_SIZE((dap_chain_net_srv_order_t*)l_order, l_order_mem_size);
+            if (!l_output_order) 
+                return dap_global_db_objs_delete(l_orders, l_orders_count), log_it(L_CRITICAL, "%s", c_error_memory_alloc), -1;
+                
             l_out_list = dap_list_append(l_out_list, l_output_order);
             l_output_orders_count++;
         }
@@ -586,11 +583,13 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         }
         char buf_time[DAP_TIME_STR_SIZE];
         dap_time_to_str_rfc822(buf_time, DAP_TIME_STR_SIZE, a_order->ts_created);
-
-        char *srv_uid = dap_strdup_printf("0x%016"DAP_UINT64_FORMAT_X" ", a_order->srv_uid.uint64);
-        json_object_object_add(a_json_obj_out, "srv_uid", json_object_new_string(srv_uid));
-        DAP_DELETE(srv_uid);
-
+        json_object_object_add(a_json_obj_out, "created", json_object_new_string(buf_time));
+        //timestamp remove after sort
+        json_object_object_add(a_json_obj_out, "timestamp", json_object_new_uint64(a_order->ts_created));
+        char buf_srv_uid[64];
+        snprintf(buf_srv_uid, sizeof(buf_srv_uid), "0x%016"DAP_UINT64_FORMAT_X"", a_order->srv_uid.uint64);
+        json_object_object_add(a_json_obj_out, "srv_uid", json_object_new_string(buf_srv_uid));
+        
         const char *l_balance_coins, *l_balance = dap_uint256_to_char(a_order->price, &l_balance_coins);
         json_object_object_add(a_json_obj_out, "created", json_object_new_string(buf_time));
 
@@ -625,20 +624,18 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
                 ? dap_enc_base58_encode_hash_to_str_static(&a_order->tx_cond_hash)
                 : dap_chain_hash_fast_to_str_static(&a_order->tx_cond_hash);
         json_object_object_add(a_json_obj_out, "tx_cond_hash", json_object_new_string(l_hash_str));
-        char *l_ext_out = a_order->ext_size ? DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 1) : NULL;
-        if(l_ext_out) {
-            dap_bin2hex(l_ext_out, a_order->ext_n_sign, a_order->ext_size);
-            char *ext = dap_strdup_printf("0x%s", l_ext_out);
-            json_object_object_add(a_json_obj_out, "ext", json_object_new_string(ext));
-            DAP_DELETE(ext);
-        }
-        else
+        if (a_order->ext_size) {
+            char *l_ext_out = DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 3);
+            dap_strncpy(l_ext_out, "0x", 2);
+            dap_bin2hex(l_ext_out + 2, a_order->ext_n_sign, a_order->ext_size);
+            json_object_object_add(a_json_obj_out, "ext", json_object_new_string(l_ext_out));
+            DAP_DELETE(l_ext_out);
+        } else
             json_object_object_add(a_json_obj_out, "ext", json_object_new_string("0x0"));
         dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
         dap_hash_fast_t l_sign_pkey = {0};
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
         const char *l_sign_pkey_hash_str = dap_hash_fast_to_str_static(&l_sign_pkey);
         json_object_object_add(a_json_obj_out, "pkey", json_object_new_string(l_sign_pkey_hash_str));
-        DAP_DELETE(l_ext_out);
     }
 }
