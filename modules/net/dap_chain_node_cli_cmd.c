@@ -659,9 +659,9 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             } else {
                 json_object_object_add(json_obj_read, "group", json_object_new_string(l_group_str));
                 json_object_object_add(json_obj_read, "key", json_object_new_string(l_key_str));
-                char *l_value_hexdump_hole = dap_dump_hex(l_read_obj->value, l_read_obj->value_len);
-                json_object_object_add(json_obj_read, "error", json_object_new_string(l_value_hexdump_hole));
-                DAP_DELETE(l_value_hexdump_hole);
+                char *l_value_hole = dap_strdup((char*)l_read_obj->value);
+                json_object_object_add(json_obj_read, "error", json_object_new_string(l_value_hole));
+                DAP_DELETE(l_value_hole);
                 dap_store_obj_free_one(l_read_obj);
             }
         } else {
