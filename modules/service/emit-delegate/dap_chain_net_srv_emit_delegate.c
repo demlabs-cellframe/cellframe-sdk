@@ -369,13 +369,9 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     DAP_DELETE(l_takeoff_tsd);
 
     //add other tsd if available
-    if (tsd_items) {
-        dap_list_t *l_tsd, *l_tmp;
-        DL_FOREACH_SAFE(tsd_items, l_tsd, l_tmp) {
-            if (dap_chain_datum_tx_add_item(&l_tx, l_tsd->data) != 1){
-                m_tx_fail(ERROR_COMPOSE, "Can't add custom TSD section item ");
-            }
-        }
+    for ( dap_list_t *l_tsd = tsd_items; l_tsd; l_tsd = l_tsd->next ) {
+        if ( dap_chain_datum_tx_add_item(&l_tx, l_tsd->data) != 1 )
+            m_tx_fail(ERROR_COMPOSE, "Can't add custom TSD section item ");
     }
 
     // add fee items

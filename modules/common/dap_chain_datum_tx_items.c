@@ -192,17 +192,10 @@ dap_chain_tx_in_reward_t *dap_chain_datum_tx_item_in_reward_create(dap_chain_has
  * Create tsd section
  */
 dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(void *a_data, int a_type, size_t a_size) {
-    if (!a_data || !a_size) {
-        return NULL;
-    }
-    dap_tsd_t *l_tsd = dap_tsd_create(a_type, a_data, a_size);
-    size_t l_tsd_sz = dap_tsd_size(l_tsd);
-    dap_chain_tx_tsd_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_tsd_t,
-                                                sizeof(dap_chain_tx_tsd_t) + l_tsd_sz);
-    memcpy(l_item->tsd, l_tsd, l_tsd_sz);
-    DAP_DELETE(l_tsd);
-    l_item->header.type = TX_ITEM_TYPE_TSD;
-    l_item->header.size = l_tsd_sz;
+    dap_return_val_if_fail(a_data && a_size, NULL);
+    dap_chain_tx_tsd_t *l_item = DAP_NEW_SIZE(dap_chain_tx_tsd_t, sizeof(dap_chain_tx_tsd_t) + sizeof(dap_tsd_t) + a_size);
+    *l_item = (dap_chain_tx_tsd_t){ .header = { .type = TX_ITEM_TYPE_TSD, .size = sizeof(dap_tsd_t) + a_size }};
+    dap_tsd_write(l_item->tsd, (uint16_t)a_type, a_data, a_size);
     return l_item;
 }
 

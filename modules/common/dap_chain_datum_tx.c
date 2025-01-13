@@ -39,10 +39,9 @@
  */
 dap_chain_datum_tx_t* dap_chain_datum_tx_create(void)
 {
-    dap_chain_datum_tx_t *tx = DAP_NEW_Z(dap_chain_datum_tx_t);
-    return tx 
-        ? tx->header.ts_created = time(NULL), tx
-        : ( log_it(L_CRITICAL, "%s", c_error_memory_alloc), NULL );
+    dap_chain_datum_tx_t *tx = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_datum_tx_t, NULL);
+    tx->header.ts_created = time(NULL);
+    return tx;
 }
 
 /**
