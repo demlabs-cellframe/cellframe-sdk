@@ -2224,7 +2224,7 @@ static int s_cli_srv_xchange_tx_list_addr(dap_chain_net_t *a_net, dap_time_t a_a
         }
     } else {
         int l_ret_code = 0;
-        dap_chain_wallet_cache_iter_t *l_iter = dap_chain_wallet_cache_iter_create(*a_addr);// TODO add check l_iter != NULL
+        dap_chain_wallet_cache_iter_t *l_iter = dap_chain_wallet_cache_iter_create(*a_addr);
         if(!l_iter){
             log_it(L_ERROR, "Can't create iterator item for wallet %s", dap_chain_addr_to_str_static(a_addr));
             return -1;
@@ -2241,7 +2241,7 @@ static int s_cli_srv_xchange_tx_list_addr(dap_chain_net_t *a_net, dap_time_t a_a
             if ( a_before && (l_datum_tx->header.ts_created > a_before) )
                 continue;
 
-            if (s_string_append_tx_cond_info(l_reply_str, a_net, NULL, NULL, l_datum_tx, &l_hash_curr, a_opt_status, false, true, true))
+            if (s_string_append_tx_cond_info(l_reply_str, a_net, NULL, NULL, l_datum_tx, l_iter->cur_hash, a_opt_status, false, true, true))
                 l_tx_count++;
         }
         dap_chain_wallet_cache_iter_delete(l_iter);
