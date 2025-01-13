@@ -215,11 +215,6 @@ void dap_chain_cs_esbocs_deinit(void)
 {
 }
 
-void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable)
-{
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
-    PVT(l_esbocs)->debug = a_enable;
 void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable){
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);    
     dap_chain_esbocs_t *l_esbocs = l_blocks->_inheritor;

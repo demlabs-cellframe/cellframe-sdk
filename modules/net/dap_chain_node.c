@@ -779,7 +779,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
                 continue;
             if (l_datum->header.type_id != DAP_CHAIN_DATUM_SERVICE_STATE)
                 continue;
-            if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key))
+            if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key, NULL))
                 dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
             else
                 l_nothing_processed = false;
