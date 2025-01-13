@@ -197,14 +197,23 @@ int dap_chain_srv_purge_all(dap_chain_net_id_t a_net_id)
  * @brief dap_chain_srv_hardfork_all
  * @param a_net_id
  */
-void dap_chain_srv_hardfork_all(dap_chain_net_id_t a_net_id)
+dap_chain_srv_hardfork_state_t *dap_chain_srv_hardfork_all(dap_chain_net_id_t a_net_id)
 {
+    dap_chain_srv_hardfork_state_t *ret = NULL;
     pthread_mutex_lock(&s_srv_list_mutex);
     for (struct service_list *it = s_srv_list; it; it = it->hh.next) {
-        if (s_net_service_find(it, a_net_id) && it->callbacks.hardfork)
-            it->callbacks.hardfork(a_net_id);
+        if (s_net_service_find(it, a_net_id) && it->callbacks.hardfork_prepare) {
+            dap_chain_srv_hardfork_state_t *l_state = DAP_NEW_Z(dap_chain_srv_hardfork_state_t), *cur, *tmp;
+            if (!l_state)
+                DL_FOREACH_SAFE(ret, cur, tmp)
+                    DAP_DELETE(cur);
+            l_state->uid = it->uuid;
+            l_state->data = it->callbacks.hardfork_prepare(a_net_id, &l_state->size, &l_state->count);
+            DL_APPEND(ret, l_state);
+        }
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
+    return ret;
 }
 
 /**
@@ -234,6 +243,8 @@ void *dap_chain_srv_get_internal(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_
     struct service_list *l_service_item = s_service_find(a_srv_uid);
     if (!l_service_item)
         return NULL;
+    if (a_net_id.uint64 == 0)
+        return l_service_item->networks;
     struct network_service *l_service = s_net_service_find(l_service_item, a_net_id);
     return l_service ? l_service->service : NULL;
 }

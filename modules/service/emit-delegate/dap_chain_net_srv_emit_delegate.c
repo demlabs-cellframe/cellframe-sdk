@@ -316,7 +316,7 @@ static dap_chain_datum_tx_t *s_taking_tx_create(json_object *a_json_arr_reply, d
     if (!EQUAL_256(l_value_fee_items, l_fee_transfer))
         m_tx_fail(ERROR_COMPOSE, "Can't compose the fee transaction input");
 
-    dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, a_tx_in_hash);
+    dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, a_tx_in_hash, true);
     if (dap_hash_fast_is_blank(&l_final_tx_hash))
         m_tx_fail(ERROR_FUNDS, "Nothing to emit (not enough funds)");
 
@@ -683,7 +683,7 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PLACE, "Can't place transaction for delegated emission in mempool");
         return ERROR_PLACE;
     }
-    char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    char *l_mempool_group = dap_chain_mempool_group_new(a_chain);
     dap_global_db_del_sync(l_mempool_group, l_tx_in_hash_str);
     DAP_DELETE(l_mempool_group);
     json_object * l_json_obj_create_val = json_object_new_object();

@@ -57,7 +57,6 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
 #include "dap_chain_wallet_cache.h"
-#include "dap_enc_key.h"
 #include "crc32c_adler.h"
 #include "dap_chain_ledger.h"
 #include "dap_strfuncs.h"
@@ -642,7 +641,7 @@ if ( a_pass )
         return  log_it(L_ERROR, "Error create key context"), -EINVAL;
 
 #ifdef DAP_OS_WINDOWS
-    l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, /*FILE_SHARE_READ | FILE_SHARE_WRITE */ 0, NULL, CREATE_ALWAYS,
+    l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, FILE_SHARE_READ /* | FILE_SHARE_WRITE */, NULL, CREATE_ALWAYS,
                           /*FILE_FLAG_RANDOM_ACCESS | FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING*/ 0, NULL);
     if (l_fh != INVALID_HANDLE_VALUE) {
         SetEndOfFile(l_fh);
@@ -785,7 +784,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 
 #ifdef DAP_OS_WINDOWS
     DWORD l_rc = 0;
-    if ((l_fh = CreateFile(a_file_name, GENERIC_READ, 0, 0,
+    if ((l_fh = CreateFile(a_file_name, GENERIC_READ, FILE_SHARE_READ, NULL,
                            OPEN_EXISTING,
                            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_RANDOM_ACCESS, 0)) == INVALID_HANDLE_VALUE) {
         l_err = GetLastError();
@@ -1265,12 +1264,12 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
                 json_object_object_add(l_balance_data, "description", l_description ?
                                                                       json_object_new_string(l_description)
                                                                                     : json_object_new_null());
-                json_object_object_add(l_balance_data, "coin", json_object_new_string(l_balance_coins));
+                json_object_object_add(l_balance_data, "coins", json_object_new_string(l_balance_coins));
                 json_object_object_add(l_balance_data, "datoshi", json_object_new_string(l_balance_datoshi));
                 json_object_array_add(l_arr_balance, l_balance_data);
                 DAP_DELETE(l_addr_tokens[i]);
             }
-            json_object_object_add(l_jobj_net, "balance", l_arr_balance);
+            json_object_object_add(l_jobj_net, "tokens", l_arr_balance);
             DAP_DEL_MULTY(l_addr_tokens, l_wallet_addr_in_net);
         }
         json_object_object_add(l_json_ret, "networks", l_jobj_network);
@@ -1291,6 +1290,14 @@ int dap_chain_wallet_get_pkey_hash(dap_chain_wallet_t *a_wallet, dap_hash_fast_t
     dap_enc_key_t *l_key = dap_chain_wallet_get_key(a_wallet, 0);
     dap_return_val_if_fail_err(l_key, -2, "Can't get wallet key!");
     int ret = dap_enc_key_get_pkey_hash(l_key, a_out_hash);
-    DAP_DELETE(l_key);
+    dap_enc_key_delete(l_key);
     return ret;
+}
+
+char *dap_chain_wallet_get_pkey_str(dap_chain_wallet_t *a_wallet, const char *a_str_type)
+{
+    dap_pkey_t *l_pkey = dap_chain_wallet_get_pkey(a_wallet, 0);
+    char *l_ret = dap_pkey_to_str(l_pkey, a_str_type);
+    DAP_DELETE(l_pkey);
+    return l_ret;
 }

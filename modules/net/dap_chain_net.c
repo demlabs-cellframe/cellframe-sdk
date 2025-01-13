@@ -81,6 +81,7 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_node_client.h"
+#include "dap_chain_mempool.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_node_list.h"
 #include "dap_chain_net_tx.h"
@@ -203,6 +204,7 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
 static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_net_id, int a_links_count);
 static int s_link_manager_fill_net_info(dap_link_t *a_link);
 static int s_link_manager_link_request(uint64_t a_net_id);
+static int s_link_manager_link_count_changed();
 
 static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .connected      = s_link_manager_callback_connected,
@@ -210,6 +212,7 @@ static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .error          = s_link_manager_callback_error,
     .fill_net_info  = s_link_manager_fill_net_info,
     .link_request   = s_link_manager_link_request,
+    .link_count_changed = s_link_manager_link_count_changed,
 };
 
 // State machine switchs here
@@ -405,11 +408,6 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
            NODE_ADDR_FP_ARGS_S(a_link->addr));
 
     struct json_object *l_json = dap_chain_net_states_json_collect(l_net);
-    char l_err_str[128] = { };
-    snprintf(l_err_str, sizeof(l_err_str)
-                 , "Established connection with link " NODE_ADDR_FP_STR
-                 , NODE_ADDR_FP_ARGS_S(a_link->addr));
-    json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
     dap_notify_server_send(json_object_get_string(l_json));
     json_object_put(l_json);
     if(l_net_pvt->state == NET_STATE_LINKS_CONNECTING ){
@@ -510,6 +508,16 @@ int s_link_manager_link_request(uint64_t a_net_id)
     l_arg->host_port = l_balancer_link->port;
     l_arg->type = PVT(l_net)->balancer_type;
     return dap_worker_exec_callback_on(dap_worker_get_auto(), dap_chain_net_balancer_request, l_arg), 0;
+}
+
+
+static int s_link_manager_link_count_changed()
+{
+    struct json_object *l_json = dap_chain_nets_info_json_collect();
+    json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
+    dap_notify_server_send(json_object_get_string(l_json));
+    json_object_put(l_json);
+    return 0;
 }
 
 struct request_link_info *s_get_permanent_link_info(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
@@ -670,6 +678,18 @@ static void s_net_states_notify(dap_chain_net_t *a_net)
     json_object_put(l_json);
 }
 
+static bool s_net_states_notify_timer_callback(UNUSED_ARG void *a_arg)
+{
+    for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
+        struct json_object *l_json = dap_chain_net_states_json_collect(net);
+        json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
+        dap_notify_server_send(json_object_get_string(l_json));
+        json_object_put(l_json);
+    }
+
+    return true;
+}
+
 /**
  * @brief dap_chain_net_get_role
  * @param a_net
@@ -775,6 +795,7 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg)
     json_object_object_add(json_obj, "nets", l_jobj_nets);
     dap_notify_server_send(json_object_get_string(json_obj));
     json_object_put(json_obj);
+    s_net_states_notify_timer_callback(NULL);
     return true;
 }
 
@@ -2474,7 +2495,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
     {
         for(int i = 0; i < l_chain->datum_types_count; i++) {
             if(l_chain->datum_types[i] == a_datum_type)
-                return dap_chain_net_get_gdb_group_mempool_new(l_chain);
+                return dap_chain_mempool_group_new(l_chain);
         }
     }
     return NULL;
@@ -2485,7 +2506,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
  * @param l_net
  * @return
  */
-dap_chain_net_state_t dap_chain_net_get_state (dap_chain_net_t *a_net)
+DAP_INLINE dap_chain_net_state_t dap_chain_net_get_state (dap_chain_net_t *a_net)
 {
     return PVT(a_net)->state;
 }
@@ -2782,7 +2803,22 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
         case DAP_CHAIN_DATUM_CUSTOM:
             break;
         default:
-            return -666;
+            return -600;
+    }
+    return 0;
+}
+
+int dap_chain_datum_add_hardfork_data(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data)
+{
+    int ret = dap_chain_datum_add(a_chain, a_datum, a_datum_size, a_datum_hash, a_datum_index_data);
+    if (ret)
+        return ret;
+    dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+    switch (a_datum->header.type_id) {
+    case DAP_CHAIN_DATUM_TX: {
+        return dap_ledger_tx_load_hardfork_data(l_ledger, (dap_chain_datum_tx_t *)a_datum->data, a_datum_hash, (dap_ledger_datum_iter_data_t *)a_datum_index_data);
+    }
+    default: return -601;
     }
     return 0;
 }
@@ -3189,12 +3225,13 @@ static void s_sync_timer_callback(void *a_arg)
     l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_WAITING;
     dap_chain_ch_sync_request_t l_request = {};
     uint64_t l_last_num = 0;
-    if (!dap_chain_get_atom_last_hash_num(l_net_pvt->sync_context.cur_chain,
+    if (!dap_chain_get_atom_last_hash_num_ts(l_net_pvt->sync_context.cur_chain,
                                             l_net_pvt->sync_context.cur_cell
                                             ? l_net_pvt->sync_context.cur_cell->id
                                             : c_dap_chain_cell_id_null,
                                             &l_request.hash_from,
-                                            &l_last_num)) {
+                                            &l_last_num,
+                                            NULL)) {
         log_it(L_ERROR, "Can't get last atom hash and number for chain %s with net %s", l_net_pvt->sync_context.cur_chain->name,
                                                                                         l_net->pub.name);
         return;
@@ -3325,6 +3362,23 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
 DAP_INLINE dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
 {
     return PVT(a_net)->state_target;
+}
+
+bool dap_chain_net_stop(dap_chain_net_t *a_net)
+{
+    int l_attempts_count = 0;
+    bool l_ret = false;
+    if (dap_chain_net_get_target_state(a_net) == NET_STATE_ONLINE) {
+        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+        l_ret = true;
+    } else if (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE) {
+        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+    }
+    while (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE && l_attempts_count++ < 5) { sleep(1); }
+    if (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE) {
+        log_it(L_ERROR, "Can't stop net %s", a_net->pub.name);
+    }
+    return l_ret;
 }
 
 /*------------------------------------State machine block end---------------------------------*/

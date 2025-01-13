@@ -37,6 +37,7 @@ enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE = 0x04,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK = 0x06,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE = 0x07,
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK = 0x08,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL = 0xFF
 };
 typedef byte_t dap_chain_tx_out_cond_subtype_t;
@@ -116,6 +117,7 @@ typedef struct dap_chain_tx_out_cond {
             dap_chain_addr_t signing_addr;
             // Node address of signer with this stake
             dap_chain_node_addr_t signer_node_addr;
+            uint32_t flags;
         } DAP_ALIGN_PACKED srv_stake_pos_delegate;
         struct {
             dap_time_t		time_unlock;

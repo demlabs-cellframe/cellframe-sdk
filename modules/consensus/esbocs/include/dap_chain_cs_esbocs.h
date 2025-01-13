@@ -23,7 +23,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 #pragma once
 
-#include "dap_timerfd.h"
 #include "dap_chain.h"
 #include "dap_chain_block.h"
 #include "dap_chain_cs_blocks.h"
@@ -124,6 +123,8 @@ typedef struct dap_chain_esbocs {
     dap_chain_t *chain;
     dap_chain_cs_blocks_t *blocks;
     dap_chain_esbocs_session_t *session;
+    uint64_t hardfork_from;
+    dap_list_t *hardfork_trusted_addrs;
     dap_time_t last_directive_vote_timestamp, last_directive_accept_timestamp,
                last_submitted_candidate_timestamp, last_accepted_block_timestamp;
     void *_pvt;
@@ -197,7 +198,8 @@ typedef struct dap_chain_esbocs_session {
     unsigned int listen_ensure;
     dap_chain_node_addr_t my_addr;
     uint8_t state, old_state;
-    bool cs_timer, round_fast_forward, sync_failed, new_round_enqueued, is_actual_hash;
+    bool cs_timer, round_fast_forward, sync_failed,
+         new_round_enqueued, is_actual_hash, is_hardfork;
     dap_global_db_driver_hash_t db_hash;
     dap_chain_addr_t my_signing_addr;
 } dap_chain_esbocs_session_t;
@@ -266,5 +268,5 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
 uint16_t dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id);
 int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash);
 int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable);
-
+int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint64_t a_block_num, dap_list_t *a_trusted_addrs);
 void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable);
