@@ -1711,6 +1711,11 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                     return -18;
                 }
 
+                if (l_item->tx_type != TX_TYPE_ORDER){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "It's not an order");
+                    return -18;
+                }
+
                 switch (l_item->tx_info.order_info.order_status)
                 {
                     case XCHANGE_ORDER_STATUS_OPENED:
