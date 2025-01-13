@@ -415,7 +415,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                     // Delete processed objects
                     log_it(L_INFO, " ! Delete datum %s from mempool", l_objs[i].key);
                     char* l_ret_str = dap_strdup_printf("%d", l_ret);
-                    dap_global_db_del_ex(l_gdb_group_mempool, l_objs[i].key, l_ret_str, strlen(l_ret_str), NULL, NULL);
+                    dap_global_db_del_ex(l_gdb_group_mempool, l_objs[i].key, l_ret_str, strlen(l_ret_str)+1 , NULL, NULL);
                     DAP_DELETE(l_ret_str);
                 } else {
                     log_it(L_INFO, " ! Datum %s remains in mempool", l_objs[i].key);
