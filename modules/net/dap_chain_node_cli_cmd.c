@@ -4868,7 +4868,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
     l_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
     l_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE;
 
-    int l_parse_params = s_token_decl_check_params_json(a_argc,a_argv,a_json_arr_reply,l_params, true);
+    int l_parse_params = s_token_decl_check_params_json(a_argc,a_argv,*a_json_arr_reply,l_params, true);
     if (l_parse_params)
         return l_parse_params;
 
