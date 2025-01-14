@@ -977,6 +977,84 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 }
             }
                 break;
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK:{
+                dap_chain_net_srv_uid_t l_srv_uid;
+                if(!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+                    // Default service DAP_CHAIN_NET_SRV_STAKE_ID
+                    l_srv_uid.uint64 = 0x12;
+                }
+                uint256_t l_value = { };
+                if(!s_json_get_uint256(l_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
+                    log_it(L_ERROR, "Json TX: bad value in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
+                    break;
+                }
+                const char* l_time_staking_str = NULL;
+                if((l_time_staking_str = s_json_get_text(l_json_item_obj, "time_staking")) == NULL || dap_strlen(l_time_staking_str) != 6)  {
+                    log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
+                    break;
+                }
+                    
+                char l_time_staking_month_str[3] = {l_time_staking_str[2], l_time_staking_str[3], 0};
+                int l_time_staking_month = atoi(l_time_staking_month_str);
+                if (l_time_staking_month < 1 || l_time_staking_month > 12){
+                    log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
+                    break;
+                }
+                    
+
+                char l_time_staking_day_str[3] = {l_time_staking_str[4], l_time_staking_str[5], 0};
+                int l_time_staking_day = atoi(l_time_staking_day_str);
+                if (l_time_staking_day < 1 || l_time_staking_day > 31){
+                    log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
+                    break;
+                }
+
+                dap_time_t l_time_staking = 0;
+                l_time_staking = dap_time_from_str_simplified(l_time_staking_str);
+                if (0 == l_time_staking){
+                    log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
+                    break;
+                }
+                dap_time_t l_time_now = dap_time_now();
+                if (l_time_staking < l_time_now){
+                    log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
+                    break;
+                }
+                l_time_staking -= l_time_now;
+
+                uint256_t l_reinvest_percent = uint256_0;
+                const char* l_reinvest_percent_str = NULL;
+                if((l_reinvest_percent_str = s_json_get_text(l_json_item_obj, "reinvest_percent"))!=NULL) {
+                    l_reinvest_percent = dap_chain_coins_to_balance(l_reinvest_percent_str);
+                    if (compare256(l_reinvest_percent, dap_chain_coins_to_balance("100.0")) == 1){
+                    log_it(L_ERROR, "Json TX: bad reinvest percent in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
+                        break;
+                    }
+                    if (IS_ZERO_256(l_reinvest_percent)) {
+                        int l_reinvest_percent_int = atoi(l_reinvest_percent_str);
+                        if (l_reinvest_percent_int < 0 || l_reinvest_percent_int > 100){
+                            log_it(L_ERROR, "Json TX: bad reinvest percent in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
+                            break;
+                        }
+                        l_reinvest_percent = dap_chain_uint256_from(l_reinvest_percent_int);
+                        MULT_256_256(l_reinvest_percent, GET_256_FROM_64(1000000000000000000ULL), &l_reinvest_percent);
+                    }
+                }               
+
+                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(l_srv_uid, l_value, l_time_staking, l_reinvest_percent);
+                l_item = (const uint8_t*) l_out_cond_item;
+                // Save value for using in In item
+                if(l_item) {
+                    SUM_256_256(l_value_need, l_value, &l_value_need);
+                } else {
+                    char *l_str_err = dap_strdup_printf("Unable to create conditional out for transaction "
+                                                         "can of type %s described in item %zu.", l_subtype_str, i);
+                    json_object *l_jobj_err = json_object_new_string(l_str_err);
+                    DAP_DELETE(l_str_err);
+                    if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
+                }
+            } 
+                break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE:{
                 dap_chain_net_srv_uid_t l_srv_uid;
                 if(!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
