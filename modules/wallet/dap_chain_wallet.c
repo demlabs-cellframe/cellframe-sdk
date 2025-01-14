@@ -1185,12 +1185,12 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
                 json_object_object_add(l_balance_data, "description", l_description ?
                                                                       json_object_new_string(l_description)
                                                                                     : json_object_new_null());
-                json_object_object_add(l_balance_data, "coin", json_object_new_string(l_balance_coins));
+                json_object_object_add(l_balance_data, "coins", json_object_new_string(l_balance_coins));
                 json_object_object_add(l_balance_data, "datoshi", json_object_new_string(l_balance_datoshi));
                 json_object_array_add(l_arr_balance, l_balance_data);
                 DAP_DELETE(l_addr_tokens[i]);
             }
-            json_object_object_add(l_jobj_net, "balance", l_arr_balance);
+            json_object_object_add(l_jobj_net, "tokens", l_arr_balance);
             DAP_DELETE(l_addr_tokens);
         }
         json_object_object_add(l_json_ret, "networks", l_jobj_network);

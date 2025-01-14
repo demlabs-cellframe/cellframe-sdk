@@ -858,21 +858,27 @@ static int s_callback_event_verify(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_e
     }
     uint16_t l_signs_verified_count = 0;
     if (l_signs_count >= l_certs_count_verify) {
-        uint16_t l_event_signs_count = a_event->header.signs_count;
+        dap_chain_cs_dag_event_t * l_event = a_dag->chain->is_mapped
+            ? DAP_DUP_SIZE(a_event, l_event_size)
+            : a_event;
+        uint16_t l_event_signs_count = l_event->header.signs_count;
         for (size_t i = 0; i < l_signs_count; i++) {
             dap_sign_t *l_sign = (dap_sign_t *)l_signs[i];
             // Compare signature with auth_certs
-            a_event->header.signs_count = i;
+            l_event->header.signs_count = i;
             for (uint16_t j = 0; j < l_poa_pvt->auth_certs_count; j++) {
                 if (!dap_cert_compare_with_sign( l_poa_pvt->auth_certs[j], l_sign)
-                            && !dap_sign_verify(l_sign, a_event, l_offset_from_beginning)){
+                            && !dap_sign_verify(l_sign, l_event, l_offset_from_beginning)){
                     l_signs_verified_count++;
                     break;
                 }
             }
         }
-        a_event->header.signs_count = l_event_signs_count;
         DAP_DELETE(l_signs);
+        if (a_dag->chain->is_mapped)
+            DAP_DELETE(l_event);
+        else
+            a_event->header.signs_count = l_event_signs_count;
         if (l_signs_verified_count >= l_certs_count_verify)
             return 0;
     }
