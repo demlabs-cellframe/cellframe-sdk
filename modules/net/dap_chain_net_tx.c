@@ -537,4 +537,4 @@ bool dap_chain_net_tx_set_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, da
     l_net->pub.fee_addr = a_addr;
 
     return true;
-}
+ }
