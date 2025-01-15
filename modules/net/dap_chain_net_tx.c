@@ -726,8 +726,57 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                     if (l_json_item_token && dap_strcmp(l_json_item_token, l_native_token)){
                         l_multichanel = true;
                         l_main_token = l_json_item_token;
+                        break;
+                    }
+                    const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
+                    int64_t l_out_prev_idx;
+                    bool l_is_out_prev_idx = s_json_get_int64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
+                    // If prev_hash and out_prev_idx were read
+                    if(l_prev_hash_str && l_is_out_prev_idx){
+                        dap_chain_hash_fast_t l_tx_prev_hash = {};
+                        if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
+                            //check out token
+                            dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_prev_hash);
+                            byte_t *l_prev_item = l_prev_tx ? dap_chain_datum_tx_item_get_nth(l_prev_tx, TX_ITEM_TYPE_OUT_ALL, l_out_prev_idx) : NULL;
+                            if (l_prev_item){
+                                const char* l_token = NULL;
+                                if (*l_prev_item == TX_ITEM_TYPE_OUT){
+                                    l_token = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_tx_prev_hash);
+                                } else if(*l_prev_item == TX_ITEM_TYPE_OUT_EXT){
+                                    l_token = ((dap_chain_tx_out_ext_t*)l_prev_item)->token;
+                                } else {
+                                    log_it(L_WARNING, "Invalid 'in' item, wrong type of item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
+                                    char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in' item, "
+                                                                        "wrong type of item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
+                                    json_object *l_jobj_err = json_object_new_string(l_str_err);
+                                    if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
+                                    break;
+                                }
+                                if (dap_strcmp(l_token, l_native_token)){
+                                    l_multichanel = true;
+                                    l_main_token = l_json_item_token;
+                                    break;
+                                }
+
+                            } else {
+                                log_it(L_WARNING, "Invalid 'in' item, can't find item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
+                                char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in' item, "
+                                                                    "can't find item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
+                                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                                if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
+                            }                            
+                        } else {
+                            log_it(L_WARNING, "Invalid 'in' item, bad prev_hash %s", l_prev_hash_str);
+                            char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in' item, "
+                                                                "bad prev_hash %s", l_prev_hash_str);
+                            json_object *l_jobj_err = json_object_new_string(l_str_err);
+                            if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
+                        }
                     }
                 }break;
+                case TX_ITEM_TYPE_IN_COND:
+                case TX_ITEM_TYPE_IN_EMS:
+                case TX_ITEM_TYPE_IN_REWARD:
                 default: continue;
             }
             if(l_multichanel)
