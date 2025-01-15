@@ -135,14 +135,38 @@ static bool s_tag_check_bridge(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_t
 
     //crosschain bridge AUTH emissions 
     
-    if (!a_items_grp->items_in_ems)
+    if (a_items_grp->items_in_ems){
+        dap_chain_tx_in_ems_t *l_tx_in_ems = a_items_grp->items_in_ems->data;
+        dap_hash_fast_t ems_hash = l_tx_in_ems->header.token_emission_hash;
+        dap_chain_datum_token_emission_t *l_emission = dap_ledger_token_emission_find(a_ledger, &ems_hash);
+        if(l_emission)
+            return s_get_ems_bridge_action(l_emission, a_action);
+    }
+
+    if (!a_items_grp->items_tsd)
         return false;
 
-    dap_chain_tx_in_ems_t *l_tx_in_ems = a_items_grp->items_in_ems->data;
-    dap_hash_fast_t ems_hash = l_tx_in_ems->header.token_emission_hash;
-    dap_chain_datum_token_emission_t *l_emission = dap_ledger_token_emission_find(a_ledger, &ems_hash);
-    if(l_emission)
-        return s_get_ems_bridge_action(l_emission, a_action);
+    bool src_bridge = false;
+    bool subtype_out = false;
+    for (dap_list_t *it = a_items_grp->items_tsd; it; it = it->next) {
+        dap_chain_tx_tsd_t *l_tx_tsd = it->data;
+        int l_type;
+        size_t l_size;
+        byte_t *l_data = dap_chain_datum_tx_item_get_data(l_tx_tsd, &l_type, &l_size);
+        
+        
+        if (l_type == DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE && s_tsd_str_cmp(l_data, l_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_BRIDGE) == 0)
+            src_bridge = true;
+        
+        if (l_type == DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE_SUBTYPE && s_tsd_str_cmp(l_data, l_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_BRIDGE_OUT) == 0)
+            subtype_out = true;
+    }
+    if (src_bridge && subtype_out)
+    {
+        if(a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_CLOSE;
+        return true;
+    }
+
 
     return false;
 }
