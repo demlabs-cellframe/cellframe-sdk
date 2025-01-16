@@ -120,7 +120,7 @@ static int s_callback_response_error(dap_chain_net_srv_t *a_srv, uint32_t a_usag
 static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 
 static dap_chain_net_srv_xchange_order_status_t s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
-static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx, tx_opt_status_t a_filter_by_status, bool a_append_prev_hash, bool a_print_status,bool a_print_ts);
+static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx, dap_hash_fast_t *a_tx_hash, tx_opt_status_t a_filter_by_status, bool a_append_prev_hash, bool a_print_status,bool a_print_ts);
 static bool s_string_append_tx_cond_info_json( json_object * a_json_out, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx, tx_opt_status_t a_filter_by_status, bool a_print_prev_hash, bool a_print_status, bool a_print_ts);
 dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_order, dap_hash_fast_t *a_order_hash, uint256_t *a_fee, bool a_ret_is_invalid);
 static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
@@ -1523,7 +1523,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                             if (!l_item)
                                 continue;
                         }
-                        if (s_string_append_tx_cond_info_json(l_json_obj_order, l_net, l_datum_tx, l_iter->cur_hash, TX_STATUS_ALL, true, true, false))
+                        if (s_string_append_tx_cond_info_json(l_json_obj_order, l_net, l_datum_tx, TX_STATUS_ALL, true, true, false))
                             l_total++;
                     }
                     dap_chain_wallet_cache_iter_delete(l_iter);
@@ -1547,7 +1547,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                             dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
                             dap_hash_fast_t l_hash = {};
                             dap_hash_fast(l_tx_cur, dap_chain_datum_tx_get_size(l_tx_cur), &l_hash);
-                            if (s_string_append_tx_cond_info_json(l_json_obj_order, l_net, l_tx_cur, &l_hash, TX_STATUS_ALL, true, true, false))
+                            if (s_string_append_tx_cond_info_json(l_json_obj_order, l_net, l_tx_cur, TX_STATUS_ALL, true, true, false))
                                 l_total++;
                             l_tx_list_temp = l_tx_list_temp->next;
                         }
