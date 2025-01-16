@@ -104,11 +104,13 @@
 #include "dap_json_rpc_request.h"
 #include "dap_client_pvt.h"
 #include "dap_enc.h"
-
+#include "dap_notify_srv.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
 
 int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply);
+static void s_new_wallet_info_notify(const char *a_wallet_name); 
+struct json_object *wallet_list_json_collect();
 
 dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_hash) {
     dap_chain_t *l_chain = NULL;
@@ -1545,7 +1547,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
 {
 json_object ** a_json_arr_reply = (json_object **) a_str_reply;
 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT };
+enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT, CMD_WALLET_OUTPUTS };
 int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
     // find  add parameter ('alias' or 'handshake')
@@ -1561,6 +1563,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
         cmd_num = CMD_WALLET_DEACTIVATE;
     else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "convert", NULL))
         cmd_num = CMD_WALLET_CONVERT;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "outputs", NULL))
+        cmd_num = CMD_WALLET_OUTPUTS;
 
     l_arg_index++;
 
@@ -1724,6 +1728,87 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 dap_chain_wallet_close(l_wallet);
             break;
         }
+        case CMD_WALLET_OUTPUTS: {
+            if ((l_wallet_name && l_addr_str) || (!l_wallet_name && !l_addr_str)) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
+                "You should use either the -w or -addr option for the wallet info command.");
+                json_object_put(json_arr_out);
+                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR;
+            }
+            if(l_wallet_name) {
+                if(!l_net) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                           "Subcommand info requires parameter '-net'");
+                    json_object_put(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
+                }
+                l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
+                if (!l_wallet){
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                           "Can't find wallet (%s)", l_wallet_name);
+                    json_object_put(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
+                }
+                l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id );
+                if (!l_addr){
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                           "Can't get addr from wallet (%s)", l_wallet_name);
+                    json_object_put(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
+                }
+            } else {
+                l_addr = dap_chain_addr_from_str(l_addr_str);
+            }
+
+            const char* l_token_tiker = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token", &l_token_tiker);
+            if (!l_token_tiker){
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
+                                           "Subcommand outputs requires parameter '-token'");
+                    json_object_put(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
+            }
+            json_object * json_obj_wall = json_object_new_object();
+            const char* l_value_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
+
+            dap_list_t *l_outs_list = NULL;
+
+            uint256_t l_value_sum = uint256_0;
+            if (l_value_str){
+                uint256_t l_value_datoshi = dap_chain_balance_scan(l_value_str);
+                if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum))
+                    l_outs_list = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum);
+            } else {
+                if (dap_chain_wallet_cache_tx_find_outs(l_net, l_token_tiker, l_addr, &l_outs_list, &l_value_sum))
+                    l_outs_list = dap_ledger_get_list_tx_outs(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum);
+            }
+            json_object_object_add(json_obj_wall, "wallet_addr", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+            const char *l_out_total_value_str = dap_chain_balance_print(l_value_sum);
+            const char *l_out_total_value_coins_str = dap_chain_balance_to_coins(l_value_sum);
+            json_object_object_add(json_obj_wall, "total_value_coins", json_object_new_string(l_out_total_value_coins_str));
+            json_object_object_add(json_obj_wall, "total_value_datoshi", json_object_new_string(l_out_total_value_str));
+            DAP_DEL_Z(l_out_total_value_str);
+            DAP_DEL_Z(l_out_total_value_coins_str);
+            struct json_object *l_json_outs_arr = json_object_new_array();
+            for (dap_list_t *l_temp = l_outs_list; l_temp; l_temp = l_temp->next){
+                dap_chain_tx_used_out_item_t *l_item = l_temp->data;
+                json_object* json_obj_item = json_object_new_object();
+                const char *l_out_value_str = dap_chain_balance_print(l_item->value);
+                const char *l_out_value_coins_str = dap_chain_balance_to_coins(l_item->value);
+                json_object_object_add(json_obj_item,"item_type", json_object_new_string("unspent_out"));
+                json_object_object_add(json_obj_item,"value_coins", json_object_new_string(l_out_value_coins_str));
+                json_object_object_add(json_obj_item,"value_datosi", json_object_new_string(l_out_value_str));
+                json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx_hash_fast)));  
+                json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_int64(l_item->num_idx_out));   
+                json_object_array_add(l_json_outs_arr, json_obj_item);
+                DAP_DEL_Z(l_out_value_str);
+                DAP_DEL_Z(l_out_value_coins_str);
+            }
+            dap_list_free_full(l_outs_list, NULL);
+            json_object_object_add(json_obj_wall, "outs", l_json_outs_arr);
+            json_object_array_add(json_arr_out, json_obj_wall);
+        } break;
         default: {
             if( !l_wallet_name ) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
@@ -1761,6 +1846,11 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet_name));
                         json_object_object_add(json_obj_wall, "protection", cmd_num == CMD_WALLET_ACTIVATE ?
                         json_object_new_string("is activated") : json_object_new_string("is deactivated"));
+                        // Notify about wallet
+                        s_new_wallet_info_notify(l_wallet_name);
+                        struct json_object *l_json_wallets = wallet_list_json_collect();
+                        dap_notify_server_send_mt(json_object_get_string(l_json_wallets));
+                        json_object_put(l_json_wallets);
                         break;
                     case -EBUSY:
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ALREADY_ERR,
@@ -1847,6 +1937,12 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     json_object_object_add(json_obj_wall, "Status", json_object_new_string("successfully converted"));
                     dap_chain_wallet_close(l_wallet);
                     json_object_array_add(json_arr_out, json_obj_wall);
+
+                    // Notify about wallet
+                    s_new_wallet_info_notify(l_wallet_name);
+                    struct json_object *l_json_wallets = wallet_list_json_collect();
+                    dap_notify_server_send_mt(json_object_get_string(l_json_wallets));
+                    json_object_put(l_json_wallets);
                     break;
                 }
                 // new wallet
@@ -1991,6 +2087,11 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
                     json_object_array_add(json_arr_out, json_obj_wall);
                     dap_chain_wallet_close(l_wallet);
+                    // Notify about wallet
+                    s_new_wallet_info_notify(l_wallet_name);
+                    struct json_object *l_json_wallets = wallet_list_json_collect();
+                    dap_notify_server_send_mt(json_object_get_string(l_json_wallets));
+                    json_object_put(l_json_wallets);
                     break;
                 }
             }
@@ -5356,7 +5457,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply)
             continue;
         }
         // Get owner tx
-        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_cond_tx, l_tx_out_cond);
+        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_cond_tx, l_tx_out_cond->header.subtype);
         dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
             ? l_cond_tx:
             dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
@@ -5626,7 +5727,7 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_arr_reply)
         }
 
         // Check sign
-        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_data_tx->tx, l_out_cond);
+        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_data_tx->tx, l_out_cond->header.subtype);
         dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
             ? l_tx
             : dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
@@ -6019,24 +6120,38 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
     const char *l_net_name = NULL; // optional parameter
     const char *l_chain_name = NULL; // optional parameter
     const char *l_json_file_path = NULL;
+    const char *l_json_str = NULL;
     const char *l_native_token = NULL;
     const char *l_main_token = NULL;
+    bool l_multichanel = false;
 
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_name); // optional parameter
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &l_chain_name); // optional parameter
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-json", &l_json_file_path);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-json_str", &l_json_str);
 
-    if(!l_json_file_path) {
+    if(!l_json_file_path && !l_json_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_REQUIRE_PARAMETER_JSON,
-                               "Command requires one of parameters '-json <json file path>'");
+                               "Command requires one of parameters '-json <json file path> or -json_srt <string>'");
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_REQUIRE_PARAMETER_JSON;
-    }
+    } 
+
     // Open json file
-    struct json_object *l_json = json_object_from_file(l_json_file_path);
-    if(!l_json) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
-                               "Can't open json file: %s", json_util_get_last_err());
-        return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
+    struct json_object *l_json = NULL;
+    if (l_json_file_path){
+        l_json = json_object_from_file(l_json_file_path);
+        if(!l_json) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
+                                "Can't open json file: %s", json_util_get_last_err());
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
+        }
+    } else if (l_json_str) {
+        l_json = json_tokener_parse(l_json_str);
+        if(!l_json) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
+                                "Can't parse input JSON-string", json_util_get_last_err());
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
+        }
     }
     if(!json_object_is_type(l_json, json_type_object)) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_WRONG_JSON_FORMAT, "Wrong json format");
@@ -6059,12 +6174,12 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
         }
     }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
-    l_native_token = l_net->pub.native_ticker;
     if(!l_net) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME, "Not found net by name '%s'", l_net_name);
         json_object_put(l_json);
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME;
     }
+    l_native_token = l_net->pub.native_ticker;
 
     // Read chain from json file
     if(!l_chain_name) {
@@ -6103,15 +6218,51 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
         dap_json_rpc_allocation_error(*a_json_arr_reply);
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
-    l_tx->header.ts_created = time(NULL);
+
+    struct json_object *l_json_timestamp = json_object_object_get(l_json, "ts_created");
+    if (l_json_timestamp)
+        l_tx->header.ts_created = json_object_get_int64(l_json_timestamp);
+    else
+        l_tx->header.ts_created = time(NULL);
+
     size_t l_items_ready = 0;
     dap_list_t *l_sign_list = NULL;// list 'sing' items
     dap_list_t *l_in_list = NULL;// list 'in' items
-    dap_list_t *l_tsd_list = NULL;// list tsd sections
     uint256_t l_value_need = { };// how many tokens are needed in the 'out' item
     uint256_t l_value_need_fee = {};
     json_object *l_jobj_errors = json_object_new_array();
-//    dap_string_t *l_err_str = dap_string_new("Errors: \n");
+    // First iteration in input file. Check the tx will be multichannel or not
+    for(size_t i = 0; i < l_items_count; ++i) {
+        struct json_object *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
+        if(!l_json_item_obj || !json_object_is_type(l_json_item_obj, json_type_object)) {
+            continue;
+        }
+        struct json_object *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
+        if(!l_json_item_type && json_object_is_type(l_json_item_type, json_type_string)) {
+            log_it(L_WARNING, "Item %zu without type", i);
+            continue;
+        }
+        const char *l_item_type_str = json_object_get_string(l_json_item_type);
+        dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_str_to_type(l_item_type_str);
+        if(l_item_type == TX_ITEM_TYPE_UNKNOWN) {
+            log_it(L_WARNING, "Item %zu has invalid type '%s'", i, l_item_type_str);
+            continue;
+        }
+
+        switch (l_item_type) {
+            case TX_ITEM_TYPE_IN: {
+                const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
+                if (l_json_item_token && dap_strcmp(l_json_item_token, l_native_token)){
+                    l_multichanel = true;
+                    l_main_token = l_json_item_token;
+                }
+            }break;
+            default: continue;
+        }
+        if(l_multichanel)
+            break;
+    }
+
     // Creating and adding items to the transaction
     for(size_t i = 0; i < l_items_count; ++i) {
         struct json_object *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
@@ -6136,7 +6287,33 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
         switch (l_item_type) {
         case TX_ITEM_TYPE_IN: {
             // Save item obj for in
-            l_in_list = dap_list_append(l_in_list, l_json_item_obj);
+            // Read prev_hash and out_prev_idx
+            const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
+            int64_t l_out_prev_idx;
+            bool l_is_out_prev_idx = s_json_get_int64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
+            // If prev_hash and out_prev_idx were read
+            if(l_prev_hash_str && l_is_out_prev_idx) {
+                dap_chain_hash_fast_t l_tx_prev_hash;
+                if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
+                    // Create IN item
+                    dap_chain_tx_in_t *l_in_item = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, (uint32_t) l_out_prev_idx);
+                    if (!l_in_item) {
+                        json_object *l_jobj_err = json_object_new_string("Unable to create in for transaction.");
+                        json_object_array_add(l_jobj_errors, l_jobj_err);
+                    }
+                    l_item = (const uint8_t*) l_in_item;
+                } else {
+                    log_it(L_WARNING, "Invalid 'in' item, bad prev_hash %s", l_prev_hash_str);
+                    char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in' item, "
+                                                        "bad prev_hash %s", l_prev_hash_str);
+                    json_object *l_jobj_err = json_object_new_string(l_str_err);
+                    json_object_array_add(l_jobj_errors, l_jobj_err);
+                }
+            }
+            // Read addr_from
+            else {
+               l_in_list = dap_list_append(l_in_list, l_json_item_obj);
+            }
         }
             break;
 
@@ -6146,43 +6323,58 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
             uint256_t l_value = { };
             const char *l_json_item_addr_str = s_json_get_text(l_json_item_obj, "addr");
             bool l_is_value = s_json_get_uint256(l_json_item_obj, "value", &l_value);
+            const char *l_token = s_json_get_text(l_json_item_obj, "token");
             if(l_is_value && l_json_item_addr_str) {
                 dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
                 if(l_addr && !IS_ZERO_256(l_value)) {
                     if(l_item_type == TX_ITEM_TYPE_OUT) {
                         // Create OUT item
-                        dap_chain_tx_out_t *l_out_item = dap_chain_datum_tx_item_out_create(l_addr, l_value);
+                        const uint8_t *l_out_item = NULL;
+                            if(l_multichanel)
+                                l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token ? l_token : (l_main_token ? l_main_token : l_native_token));
+                            else
+                                l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_create(l_addr, l_value);
                         if (!l_out_item) {
                             json_object *l_jobj_err = json_object_new_string("Failed to create transaction out. "
                                                                              "There may not be enough funds in the wallet.");
                             json_object_array_add(l_jobj_errors, l_jobj_err);
                         }
                         l_item = (const uint8_t*) l_out_item;
-                    }
-                    else if(l_item_type == TX_ITEM_TYPE_OUT_EXT) {
+                        if (l_item){
+                            if (l_multichanel && !dap_strcmp(((dap_chain_tx_out_ext_t*)l_out_item)->token, l_native_token))
+                                SUM_256_256(l_value_need_fee, l_value, &l_value_need_fee);
+                            else
+                                SUM_256_256(l_value_need, l_value, &l_value_need);
+                        }
+                            
+                    } else if(l_item_type == TX_ITEM_TYPE_OUT_EXT) {
                         // Read address and value
-                        const char *l_token = s_json_get_text(l_json_item_obj, "token");
-                        l_main_token = l_token;
                         if(l_token) {
                             // Create OUT_EXT item
-                            dap_chain_tx_out_ext_t *l_out_ext_item = dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
-                            if (!l_out_ext_item) {
+                            const uint8_t *l_out_item = NULL;
+                            if(l_multichanel)
+                                l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
+                            else
+                                l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_create(l_addr, l_value);
+                            if (!l_out_item) {
                                 json_object *l_jobj_err = json_object_new_string("Failed to create a out ext"
                                                                     "for a transaction. There may not be enough funds "
                                                                     "on the wallet or the wrong ticker token "
                                                                     "is indicated.");
                                 json_object_array_add(l_jobj_errors, l_jobj_err);
                             }
-                            l_item = (const uint8_t*) l_out_ext_item;
+                            l_item = (const uint8_t*) l_out_item;
+                            if (l_item){
+                                if (l_multichanel && !dap_strcmp(l_token, l_native_token))
+                                    SUM_256_256(l_value_need_fee, l_value, &l_value_need_fee);
+                                else 
+                                    SUM_256_256(l_value_need, l_value, &l_value_need);
+                            }
                         }
                         else {
                             log_it(L_WARNING, "Invalid 'out_ext' item %zu", i);
                             continue;
                         }
-                    }
-                    // Save value for using in In item
-                    if(l_item) {
-                        SUM_256_256(l_value_need, l_value, &l_value_need);
                     }
                 } else {
                     if(l_item_type == TX_ITEM_TYPE_OUT) {
@@ -6370,11 +6562,66 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                 break;
             }
         }
-
             break;
-        case TX_ITEM_TYPE_SIG:{
-            // Save item obj for sign
-            l_sign_list = dap_list_append(l_sign_list,l_json_item_obj);
+        case TX_ITEM_TYPE_SIG:{          
+            const char *l_sign_type_str = s_json_get_text(l_json_item_obj, "sig_type");          
+            if (l_sign_type_str) {
+                dap_sign_type_t l_sign_type = dap_sign_type_from_str(l_sign_type_str);
+                if (l_sign_type.type == SIG_TYPE_NULL) {
+                    json_object *l_jobj_err = json_object_new_string("Can't define sign type");
+                    json_object_array_add(l_jobj_errors, l_jobj_err);
+                    log_it(L_ERROR, "Json TX: Can't define sign type \"%s\"", l_sign_type_str);
+                    break;
+                }
+                int64_t l_pkey_size, l_sig_size, l_hash_type = 0;
+
+                s_json_get_int64(l_json_item_obj, "hash_type", &l_hash_type);
+                s_json_get_int64(l_json_item_obj, "pub_key_size", &l_pkey_size);
+                s_json_get_int64(l_json_item_obj, "sig_size", &l_sig_size);
+                debug_if(!l_pkey_size || !l_sig_size, L_WARNING,
+                         "\"pub_key_size\" or \"sig_size\" not provided! Will be calculated automatically");
+                
+                json_object *l_jobj_pub_key = json_object_object_get(l_json_item_obj, "pub_key_b64"),
+                            *l_jobj_sign = json_object_object_get(l_json_item_obj, "sig_b64");
+                if (!l_jobj_pub_key || !l_jobj_sign) {
+                    json_object *l_jobj_err = json_object_new_string("Can't get base64-encoded sign or pkey!");
+                    json_object_array_add(l_jobj_errors, l_jobj_err);
+                    log_it(L_ERROR, "Json TX: Can't get base64-encoded sign or pkey!");
+                    break;
+                }
+                const char *l_pub_key_str = json_object_get_string(l_jobj_pub_key),
+                           *l_sign_str = json_object_get_string(l_jobj_sign);
+                int64_t l_pkey_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(strlen(l_pub_key_str)),
+                        l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(strlen(l_sign_str));
+                
+                dap_sign_t *l_sign = DAP_NEW_SIZE(dap_sign_t, sizeof(dap_sign_t) + l_pkey_decoded_size + l_sign_decoded_size);
+                *l_sign = (dap_sign_t) {
+                    .header.type = l_sign_type,
+                    .header.hash_type = (uint8_t)l_hash_type,
+                };
+                l_pkey_decoded_size = dap_enc_base64_decode(l_pub_key_str, strlen(l_pub_key_str),
+                                                            l_sign->pkey_n_sign, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+                debug_if(l_pkey_size != l_pkey_decoded_size, L_ERROR, "Json TX: pkey size mismatch, %zu != %zu",
+                                                                      l_pkey_size, l_pkey_decoded_size);
+
+                l_sign_decoded_size = dap_enc_base64_decode(l_sign_str, strlen(l_sign_str),
+                                                            l_sign->pkey_n_sign + l_pkey_decoded_size, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+                debug_if(l_sig_size != l_sign_decoded_size, L_ERROR, "Json TX: sign size mismatch, %zu != %zu",
+                                                                     l_sig_size, l_sign_decoded_size);
+
+                l_sign->header.sign_size = l_sign_decoded_size;
+                l_sign->header.sign_pkey_size = l_pkey_decoded_size;
+                size_t l_sign_full_size = dap_sign_get_size(l_sign);
+                
+                dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_full_size);
+                l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
+                l_tx_sig->header.sig_size = (uint32_t)l_sign_full_size;
+                memcpy(l_tx_sig->sig, l_sign, l_sign_full_size);
+                l_item = (const uint8_t*)l_tx_sig;
+                DAP_DELETE(l_sign);
+                break;
+            } else              
+                l_sign_list = dap_list_append(l_sign_list,l_json_item_obj);
         }
             break;
         case TX_ITEM_TYPE_RECEIPT: {
@@ -6424,7 +6671,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
             }
             size_t l_data_size = dap_strlen(l_tsd_data);
             dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create((void*)l_tsd_data, (int)l_tsd_type, l_data_size);
-            l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+            l_item = (const uint8_t*) l_tsd;
+            // l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
         }
             break;
             //case TX_ITEM_TYPE_PKEY:
@@ -6447,56 +6695,18 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
     l_list = l_in_list;
     while(l_list) {
         struct json_object *l_json_item_obj = (struct json_object*) l_list->data;
-        // Read prev_hash and out_prev_idx
-        const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
-        int64_t l_out_prev_idx;
-        bool l_is_out_prev_idx = s_json_get_int64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
-        // If prev_hash and out_prev_idx were read
-        if(l_prev_hash_str && l_is_out_prev_idx) {
-            dap_chain_hash_fast_t l_tx_prev_hash;
-            if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
-                // Create IN item
-                dap_chain_tx_in_t *l_in_item = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, (uint32_t) l_out_prev_idx);
-                if (!l_in_item) {
-                    json_object *l_jobj_err = json_object_new_string("Unable to create in for transaction.");
-                    json_object_array_add(l_jobj_errors, l_jobj_err);
-                }
-            } else {
-                log_it(L_WARNING, "Invalid 'in' item, bad prev_hash %s", l_prev_hash_str);
-                char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in' item, "
-                                                    "bad prev_hash %s", l_prev_hash_str);
-                json_object *l_jobj_err = json_object_new_string(l_str_err);
-                json_object_array_add(l_jobj_errors, l_jobj_err);
-                // Go to the next item
-                l_list = dap_list_next(l_list);
-                continue;
-            }
-        }
-        // Read addr_from
-        else {
-            const char *l_json_item_addr_str = s_json_get_text(l_json_item_obj, "addr_from");
-            const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
-            l_main_token = l_json_item_token;
-            dap_chain_addr_t *l_addr_from = NULL;
-            if(l_json_item_addr_str) {
-                l_addr_from = dap_chain_addr_from_str(l_json_item_addr_str);
-                if (!l_addr_from) {
-                    log_it(L_WARNING, "Invalid element 'in', unable to convert string representation of addr_from: '%s' "
-                                      "to binary.", l_json_item_addr_str);
-                    char *l_str_err = dap_strdup_printf("Invalid element 'to', unable to convert string representation "
-                                                        "of addr_from: '%s' to binary.", l_json_item_addr_str);
-                    json_object *l_jobj_err = json_object_new_string(l_str_err);
-                    DAP_DELETE(l_str_err);
-                    json_object_array_add(l_jobj_errors, l_jobj_err);
-                    // Go to the next item
-                    l_list = dap_list_next(l_list);
-                    continue;
-                }
-            }
-            else {
-                log_it(L_WARNING, "Invalid 'in' item, incorrect addr_from: '%s'", l_json_item_addr_str ? l_json_item_addr_str : "[null]");
-                char *l_str_err = dap_strdup_printf("Invalid 'in' item, incorrect addr_from: '%s'",
-                                         l_json_item_addr_str ? l_json_item_addr_str : "[null]");
+
+        const char *l_json_item_addr_str = s_json_get_text(l_json_item_obj, "addr_from");
+        const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
+        l_main_token = l_json_item_token;
+        dap_chain_addr_t *l_addr_from = NULL;
+        if(l_json_item_addr_str) {
+            l_addr_from = dap_chain_addr_from_str(l_json_item_addr_str);
+            if (!l_addr_from) {
+                log_it(L_WARNING, "Invalid element 'in', unable to convert string representation of addr_from: '%s' "
+                                    "to binary.", l_json_item_addr_str);
+                char *l_str_err = dap_strdup_printf("Invalid element 'to', unable to convert string representation "
+                                                    "of addr_from: '%s' to binary.", l_json_item_addr_str);
                 json_object *l_jobj_err = json_object_new_string(l_str_err);
                 DAP_DELETE(l_str_err);
                 json_object_array_add(l_jobj_errors, l_jobj_err);
@@ -6504,100 +6714,111 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
                 l_list = dap_list_next(l_list);
                 continue;
             }
-            if(!l_json_item_token) {
-                log_it(L_WARNING, "Invalid 'in' item, not found token name");
-                json_object *l_jobj_err = json_object_new_string("Invalid 'in' item, not found token name");
-                json_object_array_add(l_jobj_errors, l_jobj_err);
-                // Go to the next item
-                l_list = dap_list_next(l_list);
-                continue;
-            }
-            if(IS_ZERO_256(l_value_need)) {
-                log_it(L_WARNING, "Invalid 'in' item, not found value in out items");
-                json_object *l_jobj_err = json_object_new_string("Invalid 'in' item, not found value in out items");
-                json_object_array_add(l_jobj_errors, l_jobj_err);
-                // Go to the next item
-                l_list = dap_list_next(l_list);
-                continue;
-            }
-            if(l_addr_from)
-            {
-                // find the transactions from which to take away coins
-                dap_list_t *l_list_used_out = NULL;
-                dap_list_t *l_list_used_out_fee = NULL;
-                uint256_t l_value_transfer = { }; // how many coins to transfer
-                uint256_t l_value_transfer_fee = { }; // how many coins to transfer
-                //SUM_256_256(a_value, a_value_fee, &l_value_need);
-                uint256_t l_value_need_check = {};
-                if (!dap_strcmp(l_native_token, l_main_token)) {
-                    SUM_256_256(l_value_need_check, l_value_need, &l_value_need_check);
-                    SUM_256_256(l_value_need_check, l_value_need_fee, &l_value_need_check);
-                    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_json_item_token, l_addr_from, &l_list_used_out, l_value_need_check, &l_value_transfer) == -101)
-                        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
-                                                                                             l_addr_from, l_value_need_check, &l_value_transfer);                      
-                    if(!l_list_used_out) {
-                        log_it(L_WARNING, "Not enough funds in previous tx to transfer");
-                        json_object *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds in previous tx "
-                                                            "to transfer");
-                        json_object_array_add(l_jobj_errors, l_jobj_err);
-                        // Go to the next item
-                        l_list = dap_list_next(l_list);
-                        continue;
-                    }
-                } else {
-                    //CHECK value need
-                    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_json_item_token, l_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
-                        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
-                                                                                             l_addr_from, l_value_need, &l_value_transfer);
-                    if(!l_list_used_out) {
-                        log_it(L_WARNING, "Not enough funds in previous tx to transfer");
-                        json_object *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds "
-                                                                         "in previous tx to transfer");
-                        json_object_array_add(l_jobj_errors, l_jobj_err);
-                        // Go to the next item
-                        l_list = dap_list_next(l_list);
-                        continue;
-                    }
-                    //CHECK value fee
-                    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_native_token, l_addr_from, &l_list_used_out_fee, l_value_need_fee, &l_value_transfer_fee) == -101)
-                        l_list_used_out_fee = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_native_token,
-                                                                                     l_addr_from, l_value_need_fee, &l_value_transfer_fee);
-                    if(!l_list_used_out_fee) {
-                        log_it(L_WARNING, "Not enough funds in previous tx to transfer");
-                        json_object *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds "
-                                                                         "in previous tx to transfer");
-                        json_object_array_add(l_jobj_errors, l_jobj_err);
-                        // Go to the next item
-                        l_list = dap_list_next(l_list);
-                        continue;
-                    }
+        }
+        else {
+            log_it(L_WARNING, "Invalid 'in' item, incorrect addr_from: '%s'", l_json_item_addr_str ? l_json_item_addr_str : "[null]");
+            char *l_str_err = dap_strdup_printf("Invalid 'in' item, incorrect addr_from: '%s'",
+                                        l_json_item_addr_str ? l_json_item_addr_str : "[null]");
+            json_object *l_jobj_err = json_object_new_string(l_str_err);
+            DAP_DELETE(l_str_err);
+            json_object_array_add(l_jobj_errors, l_jobj_err);
+            // Go to the next item
+            l_list = dap_list_next(l_list);
+            continue;
+        }
+        if(!l_json_item_token) {
+            log_it(L_WARNING, "Invalid 'in' item, not found token name");
+            json_object *l_jobj_err = json_object_new_string("Invalid 'in' item, not found token name");
+            json_object_array_add(l_jobj_errors, l_jobj_err);
+            // Go to the next item
+            l_list = dap_list_next(l_list);
+            continue;
+        }
+        if(IS_ZERO_256(l_value_need)) {
+            log_it(L_WARNING, "Invalid 'in' item, not found value in out items");
+            json_object *l_jobj_err = json_object_new_string("Invalid 'in' item, not found value in out items");
+            json_object_array_add(l_jobj_errors, l_jobj_err);
+            // Go to the next item
+            l_list = dap_list_next(l_list);
+            continue;
+        }
+        if(l_addr_from)
+        {
+            // find the transactions from which to take away coins
+            dap_list_t *l_list_used_out = NULL;
+            dap_list_t *l_list_used_out_fee = NULL;
+            uint256_t l_value_transfer = { }; // how many coins to transfer
+            uint256_t l_value_transfer_fee = { }; // how many coins to transfer
+            //SUM_256_256(a_value, a_value_fee, &l_value_need);
+            uint256_t l_value_need_check = {};
+            if (!dap_strcmp(l_native_token, l_main_token)) {
+                SUM_256_256(l_value_need_check, l_value_need, &l_value_need_check);
+                SUM_256_256(l_value_need_check, l_value_need_fee, &l_value_need_check);
+                l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
+                                                                                            l_addr_from, l_value_need_check, &l_value_transfer);
+                if(!l_list_used_out) {
+                    log_it(L_WARNING, "Not enough funds in previous tx to transfer");
+                    json_object *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds in previous tx "
+                                                        "to transfer");
+                    json_object_array_add(l_jobj_errors, l_jobj_err);
+                    // Go to the next item
+                    l_list = dap_list_next(l_list);
+                    continue;
                 }
-                // add 'in' items
-                uint256_t l_value_got = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
-                assert(EQUAL_256(l_value_got, l_value_transfer));
-                if (l_list_used_out_fee) {
-                    uint256_t l_value_got_fee = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out_fee);
-                    assert(EQUAL_256(l_value_got_fee, l_value_transfer_fee));
-                    dap_list_free_full(l_list_used_out_fee, free);
-                    // add 'out' item for coin fee back
-                    uint256_t  l_value_back;
-                    SUBTRACT_256_256(l_value_got_fee, l_value_need_fee, &l_value_back);
-                    if (!IS_ZERO_256(l_value_back)) {
-                        dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_value_back, l_native_token);
-                    }
-                } else {
-                    SUM_256_256(l_value_need, l_value_need_fee, &l_value_need);
+            } else {
+                //CHECK value need
+                l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
+                                                                                            l_addr_from, l_value_need, &l_value_transfer);
+                if(!l_list_used_out) {
+                    log_it(L_WARNING, "Not enough funds in previous tx to transfer");
+                    json_object *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds "
+                                                                        "in previous tx to transfer");
+                    json_object_array_add(l_jobj_errors, l_jobj_err);
+                    // Go to the next item
+                    l_list = dap_list_next(l_list);
+                    continue;
                 }
-                dap_list_free_full(l_list_used_out, free);
-                if(!IS_ZERO_256(l_value_got)) {
+                //CHECK value fee
+                l_list_used_out_fee = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_native_token,
+                                                                                    l_addr_from, l_value_need_fee, &l_value_transfer_fee);
+                if(!l_list_used_out_fee) {
+                    log_it(L_WARNING, "Not enough funds in previous tx to transfer");
+                    json_object *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds "
+                                                                        "in previous tx to transfer");
+                    json_object_array_add(l_jobj_errors, l_jobj_err);
+                    // Go to the next item
+                    l_list = dap_list_next(l_list);
+                    continue;
+                }
+            }
+            // add 'in' items
+            uint256_t l_value_got = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+            assert(EQUAL_256(l_value_got, l_value_transfer));
+            if (l_list_used_out_fee) {
+                uint256_t l_value_got_fee = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out_fee);
+                assert(EQUAL_256(l_value_got_fee, l_value_transfer_fee));
+                dap_list_free_full(l_list_used_out_fee, free);
+                // add 'out' item for coin fee back
+                uint256_t  l_value_back;
+                SUBTRACT_256_256(l_value_got_fee, l_value_need_fee, &l_value_back);
+                if (!IS_ZERO_256(l_value_back)) {
+                    dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_value_back, l_native_token);
                     l_items_ready++;
-
-                    // add 'out' item for coin back
-                    uint256_t l_value_back;
-                    SUBTRACT_256_256(l_value_got, l_value_need, &l_value_back);
-                    if(!IS_ZERO_256(l_value_back)) {
+                }
+            } else {
+                SUM_256_256(l_value_need, l_value_need_fee, &l_value_need);
+            }
+            dap_list_free_full(l_list_used_out, free);
+            if(!IS_ZERO_256(l_value_got)) {
+                // add 'out' item for coin back
+                uint256_t l_value_back;
+                SUBTRACT_256_256(l_value_got, l_value_need, &l_value_back);
+                if(!IS_ZERO_256(l_value_back)) {
+                    if (l_multichanel)
+                        dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_value_back, l_main_token);
+                    else
                         dap_chain_datum_tx_add_out_item(&l_tx, l_addr_from, l_value_back);
-                    }
+                    l_items_ready++;
                 }
             }
         }
@@ -6605,18 +6826,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
         l_list = dap_list_next(l_list);
     }
     dap_list_free(l_in_list);
-
-
-    
-    // Add TSD section
-    l_list = l_tsd_list;
-    while(l_list) {
-        dap_chain_datum_tx_add_item(&l_tx, l_list->data);
-        l_items_ready++;
-        l_list = dap_list_next(l_list);
-    }
-    dap_list_free(l_tsd_list);
-
 
     // Add signs
     l_list = l_sign_list;
@@ -6630,42 +6839,19 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
         dap_chain_wallet_t *l_wallet = s_json_get_wallet(l_json_item_obj, "wallet");
         const dap_cert_t *l_cert = s_json_get_cert(l_json_item_obj, "cert");
 
-        const char *l_sign_type_str = s_json_get_text(l_json_item_obj, "sig_type");
         int64_t l_pkey_size;
         int64_t l_sig_size;
         uint8_t *l_pkey = NULL;
+        int64_t l_hash_type = 0;
         dap_sign_t *l_sign = NULL;
-        dap_enc_key_type_t l_type = dap_enc_key_type_find_by_name(l_sign_type_str);
-        dap_enc_key_t * l_ret = dap_enc_key_new(l_type);
+        
 
         //wallet goes first
         if (l_wallet) {
             l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
-
         } else if (l_cert && l_cert->enc_key) {
             l_enc_key = l_cert->enc_key; 
-        } else if (l_sign_type_str) {
-            
-            s_json_get_int64(l_json_item_obj, "pub_key_size", &l_pkey_size);
-            s_json_get_int64(l_json_item_obj, "sig_size", &l_sig_size);
-
-            json_object *l_jobj_sign = json_object_object_get(l_json_item_obj, "sig_b64");
-            const char *l_sign_str = json_object_get_string(l_jobj_sign);
-            dap_sign_t *l_sign = DAP_NEW_Z_SIZE(dap_sign_t, DAP_ENC_BASE64_DECODE_SIZE(dap_strlen(l_sign_str)));
-            size_t l_sign_decree_size = dap_enc_base64_decode(l_sign_str, dap_strlen(l_sign_str), l_sign, DAP_ENC_DATA_TYPE_B64);
-
-            json_object *l_jobj_pub_key = json_object_object_get(l_json_item_obj, "pub_key_b64");
-            const char *l_pub_key_str = json_object_get_string(l_jobj_pub_key);
-            
-            size_t l_proc_buf_size = 0;                    
-            void *l_proc_buf = DAP_NEW_SIZE(void,DAP_ENC_BASE64_DECODE_SIZE(l_pkey_size));
-            l_proc_buf_size = dap_enc_base64_decode(l_pub_key_str, l_pkey_size, l_proc_buf, DAP_ENC_DATA_TYPE_B64);              
-            if (dap_enc_key_deserialize_pub_key(l_ret, l_proc_buf, l_pkey_size)) {
-                log_it(L_ERROR, "Error in enc pub key deserialize");
-                DAP_DEL_Z(l_ret);
-            }
-        }
-        else{
+        } else { 
             json_object *l_jobj_err = json_object_new_string("Can't create sign for transactions.");
             json_object_array_add(l_jobj_errors, l_jobj_err);
             log_it(L_ERROR, "Json TX: Item sign has no wallet or cert of they are invalid ");
@@ -8178,8 +8364,8 @@ static int s_get_key_from_file(const char *a_file, const char *a_mime, const cha
             }
         }
         DAP_DEL_ARRAY(l_items_mime, l_items_mime_count);
-    }
-    DAP_DELETE(l_items_mime);
+        }
+        DAP_DELETE(l_items_mime);
     if (l_flags_mime == 0)
         l_flags_mime = SIGNER_ALL_FLAGS;
     dap_chain_hash_fast_t l_hash;
@@ -8504,6 +8690,17 @@ void dap_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void 
         dap_events_socket_write_f_mt(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_net_states));
         json_object_put(l_json_net_states);
     }
+}
+
+static void s_new_wallet_info_notify(const char *a_wallet_name)
+{
+    struct json_object *l_json = json_object_new_object();
+    json_object_object_add(l_json, "class", json_object_new_string("WalletInfo"));
+    struct json_object *l_json_wallet_info = json_object_new_object();
+    json_object_object_add(l_json_wallet_info, a_wallet_name, dap_chain_wallet_info_to_json(a_wallet_name, dap_chain_wallet_get_path(g_config)));
+    json_object_object_add(l_json, "wallet", l_json_wallet_info);
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
 }
 
 static void s_stage_connected_callback(dap_client_t* a_client, void * a_arg) {

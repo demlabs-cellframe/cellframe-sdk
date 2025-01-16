@@ -396,11 +396,7 @@ static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_c
     // Create decree
     size_t l_tsd_total_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
     size_t l_decree_size = sizeof(dap_chain_datum_decree_t) + l_tsd_total_size;
-    dap_chain_datum_decree_t *l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, l_decree_size);
-    if (!l_decree) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return NULL;
-    }
+    dap_chain_datum_decree_t *l_decree = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_datum_decree_t, l_decree_size, NULL);
     // Fill the header
     l_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
     l_decree->header.ts_created = dap_time_now();
@@ -565,6 +561,20 @@ static int block_list_sort_by_date(const void *a, const void *b)
     int64_t time_b = json_object_get_int64(timestamp_b);
 
     return time_a - time_b;
+}
+
+static int block_list_sort_by_date_back(const void *a, const void *b)
+{
+    struct json_object *obj_a = *(struct json_object **)a;
+    struct json_object *obj_b = *(struct json_object **)b;
+
+    struct json_object *timestamp_a = json_object_object_get(obj_a, "timestamp");
+    struct json_object *timestamp_b = json_object_object_get(obj_b, "timestamp");
+
+    int64_t time_a = json_object_get_int64(timestamp_a);
+    int64_t time_b = json_object_get_int64(timestamp_b);
+
+    return time_b - time_a;
 }
 
 /**
@@ -1011,7 +1021,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 char l_buf[DAP_TIME_STR_SIZE];
                 json_object* json_obj_bl_cache = json_object_new_object();
                 dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
-                json_object_object_add(json_obj_bl_cache, "#",json_object_new_uint64(i_tmp));
                 json_object_object_add(json_obj_bl_cache, "block number",json_object_new_uint64(l_block_cache->block_number));
                 json_object_object_add(json_obj_bl_cache, "hash",json_object_new_string(l_block_cache->block_hash_str));
                 json_object_object_add(json_obj_bl_cache, "timestamp", json_object_new_uint64(l_ts));
@@ -1022,7 +1031,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             }
             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
             //sort by time
-            json_object_array_sort(json_arr_bl_cache_out, block_list_sort_by_date);
+            if (!l_head)
+                json_object_array_sort(json_arr_bl_cache_out, block_list_sort_by_date_back);
+            else
+                json_object_array_sort(json_arr_bl_cache_out, block_list_sort_by_date);
             // Remove the timestamp and change block num
             size_t l_length = json_object_array_length(json_arr_bl_cache_out);
             for (size_t i = 0; i < l_length; i++) {
@@ -1550,7 +1562,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
             pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
             dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
-            dap_chain_datum_notify(l_cell, l_datum_hash, (byte_t*)l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
+            dap_chain_datum_notify(l_cell, l_datum_hash, &l_datum_index->block_cache->block_hash, (byte_t*)l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
         }
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,

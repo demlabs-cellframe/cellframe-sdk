@@ -159,6 +159,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
                             "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
                             "wallet deactivate -w <wallet_name>>\n"
+                            "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [-value <uint256_value>]"
                             "wallet convert -w <wallet_name> {-password <password> | -remove_password }\n");
 
 
@@ -281,7 +282,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction history
     dap_cli_server_cmd_add("tx_history", com_tx_history, "Transaction history (for address or by hash)",
-            "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} [-net <net_name>] [-chain <chain_name>] [-limit] [-offset] [-head]\n"
+            "tx_history  {-addr <addr> | {-w <wallet_name> | -tx <tx_hash>} -net <net_name>} [-chain <chain_name>] [-limit] [-offset] [-head]\n"
             "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset] [-head]\n"
             "tx_history -count -net <net_name>\n");
 
