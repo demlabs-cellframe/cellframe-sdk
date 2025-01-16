@@ -308,7 +308,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     dap_chain_addr_t					*l_addr_holder;
     dap_chain_datum_token_t 			*l_delegated_token;
 
-    dap_string_append_printf(output_line, "---> HOLD <---\n");
+    dap_string_append_printf(output_line, "\n---> HOLD <---\n");
 
     const char *l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-H", &l_hash_out_type);
@@ -484,7 +484,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     dap_chain_t							*l_chain;
     dap_chain_datum_token_t				*l_delegated_token;
 
-    dap_string_append_printf(output_line, "---> TAKE <---\n");
+    dap_string_append_printf(output_line, "\n---> TAKE <---\n");
 
     const char *l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-H", &l_hash_out_type);
@@ -843,8 +843,10 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply)
         s_error_handler(errorCode, output_line);
         json_object_object_add(json_obj_out, "status", json_object_new_string(output_line->str));
     } 
-    else
-        json_object_object_add(json_obj_out, "status", json_object_new_string("Contribution successfully made"));
+    else {
+        dap_string_append_printf(output_line, "\nContribution successfully made");
+        json_object_object_add(json_obj_out, "status", json_object_new_string(output_line->str));
+    }
     json_object_array_add(*a_json_arr_reply, json_obj_out);
     dap_string_free(output_line, true);
 
