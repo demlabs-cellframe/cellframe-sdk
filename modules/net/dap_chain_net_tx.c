@@ -567,6 +567,11 @@ static bool s_json_get_int64(struct json_object *a_json, const char *a_key, int6
             // Read number
             *a_out = json_object_get_int64(l_json);
             return true;
+        } else if (json_object_is_type(l_json, json_type_string)){
+            // Read number
+            const char* l_value_text = json_object_get_string(l_json);
+            *a_out = atol(l_value_text);
+            return true;
         }
     }
     return false;
