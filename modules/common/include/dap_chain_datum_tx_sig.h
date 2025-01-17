@@ -28,10 +28,6 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
   * @struct dap_chain_tx_sig
   * @brief Section with set of transaction signatures
@@ -44,7 +40,3 @@ typedef struct dap_chain_tx_sig{
     } DAP_PACKED header; /// Only header's hash is used for verification
     uint8_t sig[]; /// @param sig @brief raw signature data
 } DAP_PACKED dap_chain_tx_sig_t;
-
-#ifdef __cplusplus
-}
-#endif

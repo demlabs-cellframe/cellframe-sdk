@@ -28,10 +28,6 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
   * @struct dap_chain_tx_pkey
   * @brief TX item with one of the transaction's public keys
@@ -45,7 +41,3 @@ typedef struct dap_chain_tx_pkey{
     uint32_t seq_no; /// Sequence number, out of the header so could be changed during reorganization
     uint8_t pkey[]; /// @param sig @brief raw pkey dat
 } DAP_PACKED dap_chain_tx_pkey_t;
-
-#ifdef __cplusplus
-}
-#endif

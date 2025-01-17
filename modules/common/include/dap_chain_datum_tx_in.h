@@ -28,9 +28,6 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /**
   * @struct dap_chain_tx_item
@@ -51,6 +48,3 @@ typedef struct dap_chain_tx_used_out_item {
     uint256_t value;
 } dap_chain_tx_used_out_item_t;
 
-#ifdef __cplusplus
-}
-#endif

@@ -30,10 +30,6 @@
 #include "dap_pkey.h"
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
   * @struct dap_chain_datum_tx
   * @brief Transaction section, consists from lot of tx_items
@@ -60,6 +56,10 @@ typedef struct dap_chain_datum_tx {
     for ( item_size = 0, item_index = 0, item = NULL;                                                                            \
         !!( item = dap_chain_datum_tx_item_get(tx, &item_index, (byte_t*)item + item_size, item_type, &item_size) );\
         item_index = 0 )
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * Create empty transaction

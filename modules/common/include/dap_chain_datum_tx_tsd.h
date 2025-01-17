@@ -5,9 +5,6 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_tsd.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 typedef struct dap_chain_tx_tsd {
     struct {
         dap_chain_tx_item_type_t type;
@@ -16,6 +13,3 @@ typedef struct dap_chain_tx_tsd {
     byte_t tsd[];
 } DAP_PACKED dap_chain_tx_tsd_t;
 
-#ifdef __cplusplus
-}
-#endif

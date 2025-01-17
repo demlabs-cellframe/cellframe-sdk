@@ -36,10 +36,6 @@
 #define DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH 100
 #define DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT 10
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum dap_chain_datum_voting_tsd_type {
     VOTING_TSD_TYPE_QUESTION = 0x01,
     VOTING_TSD_TYPE_ANSWER,
@@ -75,6 +71,10 @@ typedef struct dap_chain_datum_tx_voting_params {
     bool       delegate_key_required;
     bool       vote_changing_allowed;
 } dap_chain_datum_tx_voting_params_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 
 dap_chain_datum_tx_voting_params_t *dap_chain_voting_parse_tsd(dap_chain_datum_tx_t* a_tx);

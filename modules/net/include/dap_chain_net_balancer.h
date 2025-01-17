@@ -30,9 +30,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_BALANCER_PROTOCOL_VERSION 2
 #define DAP_BALANCER_MAX_REPLY_SIZE 2048
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 typedef struct dap_balancer_request_info dap_balancer_request_info_t;
 
@@ -55,6 +52,10 @@ typedef struct dap_balancer_link_request {
     dap_balancer_request_info_t *request_info;
     dap_balancer_type_t type;
 } dap_balancer_link_request_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 DAP_STATIC_INLINE const char *dap_chain_net_balancer_type_to_str(dap_balancer_type_t a_type)
 {

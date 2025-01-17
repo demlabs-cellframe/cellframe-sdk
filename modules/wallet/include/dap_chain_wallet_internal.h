@@ -31,9 +31,6 @@
 
 #define DAP_CHAIN_WALLETS_FILE_SIGNATURE (uint64_t)0x1a167bef15feea18
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 enum    {
     DAP_WALLET$K_TYPE_PLAIN = 0,                                            /* 0x00 - uncompressed and unencrypted */
@@ -99,7 +96,3 @@ typedef struct dap_chain_wallet_internal
 #define DAP_CHAIN_WALLET_INTERNAL(a) (a ? (dap_chain_wallet_internal_t *) a->_internal : NULL)
 #define DAP_CHAIN_WALLET_INTERNAL_LOCAL(a) dap_chain_wallet_internal_t * l_wallet_internal = DAP_CHAIN_WALLET_INTERNAL(a)
 #define DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(a) dap_chain_wallet_internal_t * l_wallet_internal = DAP_NEW_Z(dap_chain_wallet_internal_t); a->_internal = l_wallet_internal
-
-#ifdef __cplusplus
-}
-#endif

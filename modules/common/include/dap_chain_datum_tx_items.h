@@ -41,9 +41,6 @@
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_tx_in_reward.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 typedef struct dap_chain_datum_tx_item_groups {
 
     dap_list_t *items_in_all;
@@ -78,6 +75,9 @@ typedef struct dap_chain_datum_tx_item_groups {
 
 } dap_chain_datum_tx_item_groups_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /**
  * Get item name by item type
  *

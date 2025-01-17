@@ -27,9 +27,6 @@
 #include "dap_chain_common.h"
 #include "dap_chain_ledger.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 typedef enum dap_chain_wallet_getting_type {
     DAP_CHAIN_WALLET_CACHE_GET_FIRST = 0,
@@ -48,6 +45,10 @@ typedef struct dap_chain_wallet_cache_iter {
     void *cur_item;
     void *cur_addr_cache;
 } dap_chain_wallet_cache_iter_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int dap_chain_wallet_cache_init();
 int dap_chain_wallet_cache_deinit();

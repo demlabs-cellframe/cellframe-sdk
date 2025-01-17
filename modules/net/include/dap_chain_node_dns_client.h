@@ -33,14 +33,14 @@
 #define DNS_LISTEN_PORT 53      // UDP
 #define DNS_LISTEN_PORT_STR "53"      // UDP
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 typedef struct _dap_dns_buf_t {
     char *data;
     uint32_t size;
 } dap_dns_buf_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 // node info request callbacks
 typedef void (*dap_dns_client_node_info_request_success_callback_t) (dap_worker_t *a_worker, dap_chain_net_links_t *a_result, void *a_arg);
 typedef void (*dap_dns_client_node_info_request_error_callback_t) (dap_worker_t *a_worker, void *a_arg, int a_errno);

@@ -25,15 +25,16 @@
 #include "dap_list.h"
 #include "dap_chain_net.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 typedef struct dap_chain_net_decree {
     dap_list_t *pkeys;
     uint16_t num_of_owners;
     uint16_t min_num_of_owners;
 }   dap_chain_net_decree_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int dap_chain_net_decree_init(dap_chain_net_t *a_net);
 int dap_chain_net_decree_deinit(dap_chain_net_t *a_net);

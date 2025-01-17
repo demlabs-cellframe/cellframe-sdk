@@ -104,9 +104,6 @@
 
 #define DAP_CHAIN_DATUM_ID_SIZE 2
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 // Datum subchain type id
 typedef union dap_chain_datum_typeid{
@@ -132,6 +129,10 @@ typedef struct dap_chain_datum{
     } DAP_ALIGN_PACKED header;
     byte_t data[]; /// Stored datum body
 } DAP_ALIGN_PACKED dap_chain_datum_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief dap_chain_datum_size

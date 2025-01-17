@@ -29,9 +29,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define DAP_NODE_LIST_URI_HASH "node_list_hash"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 struct node_link_request {
     dap_chain_node_info_t *link_info;
@@ -45,6 +42,10 @@ struct node_link_request {
 #endif
     int response;
 };
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
 * @brief dap_chain_net_node_list_get_gdb_group

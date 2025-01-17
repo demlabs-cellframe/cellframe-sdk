@@ -27,9 +27,6 @@
 #include "dap_common.h"
 #include "dap_chain_common.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /**
   * @struct dap_chain_tx_token
@@ -63,6 +60,3 @@ typedef struct dap_chain_tx_in_ems_ext{
     } header; /// Only header's hash is used for verification
 } DAP_ALIGN_PACKED dap_chain_tx_in_ems_ext_t;
 
-#ifdef __cplusplus
-}
-#endif

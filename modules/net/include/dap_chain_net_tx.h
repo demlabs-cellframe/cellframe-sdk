@@ -27,10 +27,6 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_json_rpc_errors.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum s_com_tx_create_json_err {
     DAP_CHAIN_NET_TX_CREATE_JSON_OK = 0,
     DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_JSON = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -82,6 +78,11 @@ typedef struct dap_chain_datum_tx_cond_list_item {
     dap_hash_fast_t hash;
     dap_chain_datum_tx_t *tx;
 } dap_chain_datum_tx_cond_list_item_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // TX functions
 dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
                                                      dap_chain_net_tx_search_type_t a_search_type);

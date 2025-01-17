@@ -29,9 +29,6 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 typedef struct dap_chain_tx_out_ext{
     struct {
         dap_chain_tx_item_type_t type;     // Transaction item type - should be TX_ITEM_TYPE_OUT_EXT
@@ -40,7 +37,3 @@ typedef struct dap_chain_tx_out_ext{
     dap_chain_addr_t addr;                 // Address to transfer to
     const char token[DAP_CHAIN_TICKER_SIZE_MAX]; // Which token is transferred
 } DAP_PACKED dap_chain_tx_out_ext_t;
-
-#ifdef __cplusplus
-}
-#endif

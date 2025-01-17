@@ -28,9 +28,6 @@
 #include "dap_chain.h"
 #include "dap_client.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 typedef struct dap_chain_net dap_chain_net_t;
 
@@ -72,6 +69,9 @@ typedef dap_stream_node_addr_t dap_chain_node_addr_t;
 #define dap_chain_node_addr_from_str dap_stream_node_addr_from_str
 #define dap_chain_node_addr_is_blank dap_stream_node_addr_is_blank
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /**
  * Calculate size of struct dap_chain_node_info_t
  */

@@ -30,10 +30,6 @@
 #include "dap_chain_node.h"
 #include "dap_stream_ch_pkt.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // connection states
 typedef enum dap_chain_node_client_state {
     NODE_CLIENT_STATE_ERROR = -1,
@@ -109,6 +105,10 @@ typedef struct dap_chain_node_client {
 } dap_chain_node_client_t;
 
 #define DAP_CHAIN_NODE_CLIENT(a) (a ? (dap_chain_node_client_t *) (a)->_inheritor : NULL)
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int dap_chain_node_client_init();
 

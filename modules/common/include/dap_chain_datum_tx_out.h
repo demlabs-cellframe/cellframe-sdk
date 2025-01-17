@@ -28,9 +28,6 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /**
   * @struct dap_chain_tx_out
@@ -53,6 +50,3 @@ typedef struct dap_chain_tx_out {
     dap_chain_addr_t addr; ////
 } DAP_PACKED dap_chain_tx_out_t;
 
-#ifdef __cplusplus
-}
-#endif
