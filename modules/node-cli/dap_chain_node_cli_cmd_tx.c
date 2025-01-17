@@ -2191,112 +2191,6 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
 }
 
 /**
- * @breif Create transaction from json rpc request
- * @param a_param
- * @param a_reply
- */
-void json_rpc_tx_create(json_object *a_param, json_object *a_reply){
-    const char *l_net_name = NULL;
-    const char *l_chain_name = NULL;
-    json_object *l_json_net = json_object_object_get(a_param, "net");
-    if(l_json_net && json_object_is_type(l_json_net, json_type_string)) {
-        l_net_name = json_object_get_string(l_json_net);
-    }
-    if(!l_net_name) {
-        dap_json_rpc_error_add(a_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_REQUIRE_PARAMETER_NET,
-                               "Command requires parameter '-net' or set net in the json-rpc request");
-        return;
-    }
-    json_object *l_json_chain = json_object_object_get(a_param, "chain");
-    if(l_json_chain && json_object_is_type(l_json_chain, json_type_string)) {
-        l_chain_name = json_object_get_string(l_json_chain);
-    }
-    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
-    if (!l_net) {
-        dap_json_rpc_error_add(a_reply,
-                               DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME,
-                               "Not found net by name '%s'", l_net_name);
-        return;
-    }
-    dap_chain_t *l_chain = NULL;
-    if (!l_chain_name) {
-        l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
-    } else {
-        l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
-        if (!l_chain){
-            dap_json_rpc_error_add(a_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME,
-                                   "Chain name '%s' not found, try use parameter '-chain' or set chain in the json-rpc request", l_chain_name);
-            return;
-        }
-    }
-    dap_chain_datum_tx_t *l_tx = NULL;
-    json_object *l_jobj_items = json_object_object_get(a_param, "items");
-    if (!l_jobj_items) {
-        dap_json_rpc_error_add(a_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS,
-                               "Items with description transaction not found in JSON.");
-        return ;
-    }
-    size_t l_items_ready = 0;
-    json_object *l_jobj_errors = NULL;
-    int res = s_json_rpc_tx_parse_json(l_net, l_chain, l_jobj_items, &l_tx, &l_items_ready, &l_jobj_errors);
-    if (res) {
-        json_object *l_jobj_tx_create = json_object_new_boolean(false);
-        json_object *l_jobj_items_ready = json_object_new_uint64(l_items_ready);
-        json_object *l_jobj_total_items = json_object_new_uint64(json_object_array_length(l_jobj_items));
-        json_object_object_add(a_reply, "tx_create", l_jobj_tx_create);
-        json_object_object_add(a_reply, "ready_items", l_jobj_items_ready);
-        json_object_object_add(a_reply, "total_items", l_jobj_total_items);
-        json_object_object_add(a_reply, "errors", l_jobj_errors);
-        return;
-    }
-
-    // Pack transaction into the datum
-    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
-    dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
-    size_t l_datum_tx_size = dap_chain_datum_size(l_datum_tx);
-    DAP_DELETE(l_tx);
-
-    // Add transaction to mempool
-    char *l_tx_hash_str = dap_get_data_hash_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
-    dap_chain_hash_fast_t l_hf_tx = {0};
-    dap_chain_hash_fast_from_str(l_tx_hash_str, &l_hf_tx);
-    int rc = -1;
-    if ((rc = dap_ledger_tx_add_check(l_net->pub.ledger, (dap_chain_datum_tx_t*)l_datum_tx->data, l_tx_size, &l_hf_tx))) {
-        json_object *l_jobj_tx_create = json_object_new_boolean(false);
-        json_object *l_jobj_hash = json_object_new_string(l_tx_hash_str);
-        json_object *l_jobj_total_items = json_object_new_uint64(json_object_array_length(l_jobj_items));
-        json_object *l_jobj_ledger_ret_code = json_object_new_object();
-        json_object_object_add(l_jobj_ledger_ret_code, "code", json_object_new_int(rc));
-        json_object_object_add(l_jobj_ledger_ret_code, "message",
-                               json_object_new_string(dap_chain_net_verify_datum_err_code_to_str(l_datum_tx, rc)));
-        json_object_object_add(a_reply, "tx_create", l_jobj_tx_create);
-        json_object_object_add(a_reply, "hash", l_jobj_hash);
-        json_object_object_add(a_reply, "ledger_code", l_jobj_ledger_ret_code);
-        json_object_object_add(a_reply, "total_items", l_jobj_total_items);
-        DAP_DELETE(l_datum_tx);
-        return ;
-    }
-
-    char *l_gdb_group_mempool_base_tx = dap_chain_mempool_group_new(l_chain);// get group name for mempool
-    bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx, l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
-
-    DAP_DELETE(l_datum_tx);
-    DAP_DELETE(l_gdb_group_mempool_base_tx);
-    if(!l_placed) {
-        dap_json_rpc_error_add(a_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL,
-                               "Can't add transaction to mempool");
-        return ;
-    }
-    // Completed successfully
-    json_object *l_jobj_tx_create = json_object_new_boolean(true);
-    json_object *l_jobj_hash = json_object_new_string(l_tx_hash_str);
-    json_object *l_jobj_total_items = json_object_new_uint64(json_object_array_length(l_jobj_items));
-    json_object_object_add(a_reply, "tx_create", l_jobj_tx_create);
-    json_object_object_add(a_reply, "hash", l_jobj_hash);
-    json_object_object_add(a_reply, "total_items", l_jobj_total_items);
-}
-
-/**
  * @brief Create transaction from json file
  * com_tx_create command
  * @param argc
@@ -2312,22 +2206,34 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply)
     const char *l_net_name = NULL; // optional parameter
     const char *l_chain_name = NULL; // optional parameter
     const char *l_json_file_path = NULL;
+    const char *l_json_str = NULL;
 
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_name); // optional parameter
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &l_chain_name); // optional parameter
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-json", &l_json_file_path);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tx_obj", &l_json_str);
 
-    if(!l_json_file_path) {
+    if(!l_json_file_path  && !l_json_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_REQUIRE_PARAMETER_JSON,
-                               "Command requires one of parameters '-json <json file path>'");
+                               "Command requires one of parameters '-json <json file path>' or -tx_obj <string>'");
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_REQUIRE_PARAMETER_JSON;
     }
     // Open json file
-    struct json_object *l_json = json_object_from_file(l_json_file_path);
-    if(!l_json) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
-                               "Can't open json file: %s", json_util_get_last_err());
-        return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
+    struct json_object *l_json = NULL;
+    if (l_json_file_path){
+        l_json = json_object_from_file(l_json_file_path);
+        if(!l_json) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
+                                "Can't open json file: %s", json_util_get_last_err());
+            return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
+        }
+    } else if (l_json_str) {
+        l_json = json_tokener_parse(l_json_str);
+        if(!l_json) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
+                                "Can't parse input JSON-string", json_util_get_last_err());
+            return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
+        }
     }
     if(!json_object_is_type(l_json, json_type_object)) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_WRONG_JSON_FORMAT, "Wrong json format");
