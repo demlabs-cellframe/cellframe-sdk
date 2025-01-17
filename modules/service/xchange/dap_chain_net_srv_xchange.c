@@ -239,7 +239,7 @@ int dap_chain_net_srv_xchange_init()
 
     "srv_xchange token_pair -net <net_name> list all [-limit <limit>] [-offset <offset>]\n"
         "\tList of all token pairs\n"
-    "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker>\n"
+    "srv_xchange token_pair -net <net_name> rate average [-time_from <From_time>] [-time_to <To_time>]\n"
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
     "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] [-limit <limit>] [-offset <offset>]\n"
         "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
@@ -2562,9 +2562,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             size_t l_arr_start = 0;            
             size_t l_arr_end = 0;
             json_object* json_obj_order = json_object_new_object();
-            dap_chain_set_offset_limit_json(json_obj_order, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list));
-            size_t i_tmp = 0;
             json_object* json_arr_orders_out = json_object_new_array();
+            dap_chain_set_offset_limit_json(json_arr_orders_out, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list));
+            size_t i_tmp = 0;
+            
             // Print all txs
             for (dap_list_t *it = l_list; it; it = it->next) {
                 dap_chain_datum_tx_t *l_tx = NULL;
@@ -2793,10 +2794,16 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             }
         } break;
         case CMD_ENABLE: {
+            json_object* json_obj_orders_enable = json_object_new_object();
             s_srv_xchange->enabled = true;
+            json_object_object_add(json_obj_orders_enable, "status", json_object_new_string("enable"));
+            json_object_array_add(*json_arr_reply, json_obj_orders_enable);
         } break;
         case CMD_DISABLE: {
+            json_object* json_obj_orders_enable = json_object_new_object();
             s_srv_xchange->enabled = false;
+            json_object_object_add(json_obj_orders_enable, "status", json_object_new_string("disable"));
+            json_object_array_add(*json_arr_reply, json_obj_orders_enable);
         } break;
         case CMD_TX_LIST: {
             const char *l_net_str = NULL, *l_time_begin_str = NULL, *l_time_end_str = NULL;
