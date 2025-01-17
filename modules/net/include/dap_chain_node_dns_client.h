@@ -33,6 +33,9 @@
 #define DNS_LISTEN_PORT 53      // UDP
 #define DNS_LISTEN_PORT_STR "53"      // UDP
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 typedef struct _dap_dns_buf_t {
     char *data;
     uint32_t size;
@@ -51,3 +54,7 @@ void dap_dns_buf_put_uint64(dap_dns_buf_t *buf, uint64_t val);
 void dap_dns_buf_put_uint32(dap_dns_buf_t *buf, uint32_t val);
 void dap_dns_buf_put_uint16(dap_dns_buf_t *buf, uint16_t val);
 uint16_t dap_dns_buf_get_uint16(dap_dns_buf_t *buf);
+
+#ifdef __cplusplus
+}
+#endif

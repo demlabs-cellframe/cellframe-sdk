@@ -26,6 +26,9 @@
 #include "dap_common.h"
 #include "dap_chain_common.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /**
   * @struct dap_chain_datum_hashtree_roots_v1
   * @brief Hash tree roots for block, version 1
@@ -45,3 +48,6 @@ typedef struct dap_chain_datum_hashtree_roots_v2{
 
 typedef dap_chain_datum_hashtree_roots_v2_t dap_chain_datum_hashtree_roots_t;
 
+#ifdef __cplusplus
+}
+#endif

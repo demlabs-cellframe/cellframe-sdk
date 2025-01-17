@@ -29,6 +29,10 @@
 #include "dap_time.h"
 #include "dap_chain_common.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED = 0x0,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY = 0x01,
@@ -134,3 +138,7 @@ typedef struct dap_chain_tx_out_cond {
     uint32_t tsd_size; // Condition parameters size
     uint8_t tsd[]; // condition parameters, pkey, hash or smth like this
 } DAP_ALIGN_PACKED dap_chain_tx_out_cond_t;
+
+#ifdef __cplusplus
+}
+#endif

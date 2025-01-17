@@ -40,6 +40,10 @@
 #define DAP_CHAIN_NET_SRV_TRANSFER_ID 0x09
 #define DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID 0x08
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct dap_ledger {
     dap_chain_net_t *net;
     void *_internal;
@@ -465,3 +469,7 @@ bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger);
 void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_cache_tx_check_callback_t a_callback);
 dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond);
 void dap_ledger_load_end(dap_ledger_t *a_ledger);
+
+#ifdef __cplusplus
+}
+#endif

@@ -27,6 +27,10 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_json_rpc_errors.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum s_com_tx_create_json_err {
     DAP_CHAIN_NET_TX_CREATE_JSON_OK = 0,
     DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_JSON = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -129,3 +133,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
  * @return s_com_tx_create_json_err_t status code
  */
 int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json);
+
+#ifdef __cplusplus
+}
+#endif

@@ -30,6 +30,10 @@
 #include "dap_chain_node.h"
 #include "dap_stream_ch_pkt.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // connection states
 typedef enum dap_chain_node_client_state {
     NODE_CLIENT_STATE_ERROR = -1,
@@ -171,3 +175,7 @@ static inline const char * dap_chain_node_client_state_to_str( dap_chain_node_cl
     }
 
 }
+
+#ifdef __cplusplus
+}
+#endif

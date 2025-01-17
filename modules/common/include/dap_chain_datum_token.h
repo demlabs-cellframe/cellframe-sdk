@@ -34,6 +34,9 @@
 
 
 #define DAP_CHAIN_DATUM_NONCE_SIZE                                          64
+#ifdef __cplusplus
+extern "C" {
+#endif
 // Token declaration
 typedef struct dap_chain_datum_token_old {
     uint16_t type;
@@ -437,3 +440,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_append_sign(dap_sign_
 dap_sign_t *dap_chain_datum_emission_get_signs(dap_chain_datum_token_emission_t *a_emission, size_t *a_signs_count);
 // 256 TYPE
 bool dap_chain_datum_token_is_old(uint8_t a_type);
+
+#ifdef __cplusplus
+}
+#endif

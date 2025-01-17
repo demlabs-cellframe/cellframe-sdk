@@ -31,6 +31,10 @@
 #include "dap_chain_node_cli.h"
 #include "json.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object* a_json_arr_reply, int *a_arg_index, int a_argc,
                                                            char **a_argv,
                                                            dap_chain_t **a_chain, dap_chain_net_t **a_net,
@@ -375,3 +379,7 @@ int cmd_find(int a_argc, char **a_argv, void **a_str_reply);
 void dap_notify_new_client_send_info(dap_events_socket_t *a_es, void *a_arg);
 
 int com_exec_cmd(int argc, char **argv, void **reply);
+
+#ifdef __cplusplus
+}
+#endif

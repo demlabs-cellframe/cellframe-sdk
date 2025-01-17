@@ -29,6 +29,11 @@
 #include "dap_time.h"
 #include "dap_pkey.h"
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
   * @struct dap_chain_datum_tx
   * @brief Transaction section, consists from lot of tx_items
@@ -182,3 +187,7 @@ DAP_STATIC_INLINE dap_hash_fast_t dap_chain_node_datum_tx_calc_hash(dap_chain_da
     dap_hash_fast_t l_res;
     return dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_res), l_res;
 }
+
+#ifdef __cplusplus
+}
+#endif

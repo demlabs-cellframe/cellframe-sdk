@@ -104,6 +104,10 @@
 
 #define DAP_CHAIN_DATUM_ID_SIZE 2
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Datum subchain type id
 typedef union dap_chain_datum_typeid{
     uint8_t data[DAP_CHAIN_DATUM_ID_SIZE];
@@ -168,3 +172,7 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
                              dap_chain_net_id_t a_net_id);
 json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum);
 void dap_chain_datum_dump_json(json_object* a_json_arr_reply,json_object  *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id, bool a_verbose);
+
+#ifdef __cplusplus
+}
+#endif

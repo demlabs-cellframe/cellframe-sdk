@@ -41,6 +41,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_NET_MEMPOOL_TTL 4 * 3600  // 4 hours
 #define DAP_CHAIN_NET_NODES_TTL 14 * 24 * 3600   // 2 weeks
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct dap_chain_node_client dap_chain_node_client_t;
 typedef struct dap_ledger dap_ledger_t;
@@ -239,3 +242,7 @@ dap_chain_net_decree_t *dap_chain_net_get_net_decree(dap_chain_net_t *a_net);
 void dap_chain_net_set_net_decree(dap_chain_net_t *a_net, dap_chain_net_decree_t *a_decree);
 decree_table_t **dap_chain_net_get_decrees(dap_chain_net_t *a_net);
 anchor_table_t **dap_chain_net_get_anchors(dap_chain_net_t *a_net);
+
+#ifdef __cplusplus
+}
+#endif

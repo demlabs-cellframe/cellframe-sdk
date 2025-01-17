@@ -38,6 +38,10 @@
 #define DNS_MAX_HOSTNAME_LEN 255
 #define DNS_MAX_DOMAIN_NAME_LEN 63
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum _dap_dns_query_type_t {
     DNS_QUERY_TYPE_STANDARD,
     DNS_QUERY_TYPE_INVERSE,
@@ -122,3 +126,6 @@ void dap_dns_server_stop();
 int dap_dns_zone_register(char *zone, dap_dns_zone_callback_t callback);
 int dap_dns_zone_unregister(char *zone);
 
+#ifdef __cplusplus
+}
+#endif

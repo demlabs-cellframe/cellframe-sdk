@@ -27,6 +27,10 @@
 #include "dap_common.h"
 #include "dap_chain_common.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
   * @struct dap_chain_tx_token
   * @brief Token item
@@ -58,3 +62,7 @@ typedef struct dap_chain_tx_in_ems_ext{
         uint16_t ext_tx_out_idx; // Output index
     } header; /// Only header's hash is used for verification
 } DAP_ALIGN_PACKED dap_chain_tx_in_ems_ext_t;
+
+#ifdef __cplusplus
+}
+#endif

@@ -28,6 +28,10 @@
 #include "dap_chain.h"
 #include "dap_client.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct dap_chain_net dap_chain_net_t;
 
 typedef struct dap_chain_node_info_old {
@@ -91,3 +95,7 @@ bool dap_chain_node_mempool_autoproc_init();
 inline static void dap_chain_node_mempool_autoproc_deinit() {}
 dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_ignored, size_t a_ignored_count);
 dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr);
+
+#ifdef __cplusplus
+}
+#endif

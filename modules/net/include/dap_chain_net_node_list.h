@@ -29,6 +29,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define DAP_NODE_LIST_URI_HASH "node_list_hash"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct node_link_request {
     dap_chain_node_info_t *link_info;
     dap_chain_net_t *net;
@@ -55,3 +59,7 @@ DAP_STATIC_INLINE char* dap_chain_net_node_list_get_gdb_group(dap_chain_net_t * 
 void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
 int dap_chain_net_node_list_request(dap_chain_net_t *a_net, uint16_t a_port, bool a_sync, char a_cmd);
 int dap_chain_net_node_list_init();
+
+#ifdef __cplusplus
+}
+#endif

@@ -27,6 +27,11 @@
 #include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @struct dap_chain_tx_item
  * @brief Sections belongs to heading tx section, with inputs, outputs and others tx relatated items
@@ -40,3 +45,7 @@ typedef struct dap_chain_tx_in_cond {
         uint32_t receipt_idx DAP_ALIGNED(4);
     } DAP_PACKED header; /// Only header's hash is used for verification
 } DAP_PACKED dap_chain_tx_in_cond_t;
+
+#ifdef __cplusplus
+}
+#endif

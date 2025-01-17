@@ -36,6 +36,9 @@
 #define DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH 100
 #define DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT 10
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef enum dap_chain_datum_voting_tsd_type {
     VOTING_TSD_TYPE_QUESTION = 0x01,
@@ -90,3 +93,7 @@ json_object *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_
 
 dap_chain_tx_vote_t *dap_chain_datum_tx_item_vote_create(dap_chain_hash_fast_t *a_voting_hash, uint64_t *a_answer_idx);
 json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote, dap_ledger_t *a_ledger);
+
+#ifdef __cplusplus
+}
+#endif

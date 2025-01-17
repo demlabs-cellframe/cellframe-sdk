@@ -29,6 +29,10 @@
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct dap_chain_tx_hash_processed_ht{
     dap_chain_hash_fast_t hash;
     UT_hash_handle hh;
@@ -115,3 +119,6 @@ typedef enum s_com_token_err{
  */
 int cmd_decree(int a_argc, char **a_argv, void **a_str_reply);
 
+#ifdef __cplusplus
+}
+#endif
