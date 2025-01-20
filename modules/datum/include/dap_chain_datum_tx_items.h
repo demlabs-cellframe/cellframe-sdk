@@ -184,20 +184,21 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_emit_delegate(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                    uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,
                                                                                    size_t a_pkey_hashes_count);
+/**
+ * Create item dap_chain_tx_sig_t
+ *
+ * return item, NULL Error
+ */
+dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, const dap_chain_datum_tx_t *a_tx);
 
 /**
  * Create item dap_chain_tx_sig_t
  *
  * return item, NULL Error
  */
-dap_chain_tx_sig_t *dap_chain_tx_sig_create(dap_sign_t *a_sign);
+dap_chain_tx_sig_t *dap_chain_tx_sig_create(const dap_sign_t *a_sign);
 
-/**
- * Create item dap_chain_tx_sig_t
- *
- * return item, NULL Error
- */
-dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, dap_chain_datum_tx_t *a_tx);
+dap_sign_t *dap_chain_datum_tx_sign_create(dap_enc_key_t *a_key, const dap_chain_datum_tx_t *a_tx);
 
 /**
  * Get sign from sign item
@@ -207,3 +208,5 @@ dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, da
 dap_sign_t *dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig);
 
 byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_type, size_t *a_size);
+
+dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t *a_tx, int a_type);
