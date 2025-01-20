@@ -1731,6 +1731,13 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             break;
         }
         case CMD_WALLET_OUTPUTS: {
+            if(!l_net) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                        "Subcommand info requires parameter '-net'");
+                json_object_put(json_arr_out);
+                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
+            }
+
             if ((l_wallet_name && l_addr_str) || (!l_wallet_name && !l_addr_str)) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
                 "You should use either the -w or -addr option for the wallet info command.");
@@ -1738,12 +1745,6 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR;
             }
             if(l_wallet_name) {
-                if(!l_net) {
-                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
-                                           "Subcommand info requires parameter '-net'");
-                    json_object_put(json_arr_out);
-                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
-                }
                 l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
                 if (!l_wallet){
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
