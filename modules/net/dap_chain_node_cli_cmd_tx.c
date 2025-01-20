@@ -1793,8 +1793,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                         l_chain?l_chain->name:"<undefined>");
                 return -5;
             }
-            DAP_DELETE(l_datum_hash_hex_str);
-            DAP_DELETE(l_datum_hash_base58_str);
+            DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str);
         } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "decree sign need -datum <datum hash> argument");
             return -2;

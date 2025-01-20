@@ -352,3 +352,12 @@ void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a
  */
 dap_chain_datum_decree_t* dap_chain_datum_decree_sign_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_decree_t *a_datum_decree,
                                                   size_t a_certs_count, size_t *a_total_sign_count);
+
+/**
+ * @brief dap_chain_datum_decree_find_sign
+ * @details find pkey in decree
+ * @param a_decree - decree to search sign
+ * @param a_pkey - pkey to search
+ * @return true if finded
+ */
+bool dap_chain_datum_decree_find_pkey(dap_chain_datum_decree_t *a_decree, dap_pkey_t *a_pkey);
