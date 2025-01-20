@@ -1414,13 +1414,19 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
  */
 int com_version(int argc, char ** argv, void **a_str_reply)
 {
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
     (void) argc;
     (void) argv;
 #ifndef DAP_VERSION
 #pragma message "[!WRN!] DAP_VERSION IS NOT DEFINED. Manual override engaged."
 #define DAP_VERSION "0.9-15"
 #endif
-    return dap_cli_server_cmd_set_reply_text(a_str_reply, "%s version "DAP_VERSION"\n", dap_get_appname()), 0;
+    json_object* json_obj_out = json_object_new_object();
+    char *l_vers = dap_strdup_printf("%s version "DAP_VERSION"\n", dap_get_appname());
+    json_object_object_add(json_obj_out, "status", json_object_new_string(l_vers));
+    DAP_DELETE(l_vers);
+    json_object_array_add(*a_json_arr_reply, json_obj_out);
+    return 0;
 }
 
 
@@ -3812,6 +3818,7 @@ int com_chain_ca_copy( int a_argc,  char ** a_argv, void **a_str_reply)
  */
 int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply)
 {
+    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     int arg_index = 1;
     // Read params
     const char * l_ca_name = NULL;
@@ -3819,20 +3826,20 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply)
     dap_chain_t * l_chain = NULL;
 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc, a_argv, a_str_reply, &l_chain, &l_net, CHAIN_TYPE_CA);
+    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &arg_index,a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_CA);
 
     dap_cert_t * l_cert = dap_cert_find_by_name( l_ca_name );
     if( l_cert == NULL ){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't find \"%s\" certificate", l_ca_name );
-        return -4;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_FIND_CERT_ERR,
+                                       "Can't find \"%s\" certificate", l_ca_name );
+        return -DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_FIND_CERT_ERR;
     }
 
 
     if( l_cert->enc_key == NULL ){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Corrupted certificate \"%s\" without keys certificate", l_ca_name );
-        return -5;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CORRUPTED_CERT_ERR,
+                                       "Corrupted certificate \"%s\" without keys certificate", l_ca_name );
+        return -DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CORRUPTED_CERT_ERR;
     }
 
     // Create empty new cert
@@ -3861,31 +3868,31 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply)
     uint32_t l_cert_serialized_size = 0;
     byte_t * l_cert_serialized = dap_cert_mem_save( l_cert_new, &l_cert_serialized_size );
     if(!l_cert_serialized){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't serialize in memory certificate" );
-        return -7;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_SERIALIZE_MEMORY_CERT_ERR,
+                                       "Can't serialize in memory certificate" );
+        return -DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_SERIALIZE_MEMORY_CERT_ERR;
     }
     // Now all the chechs passed, forming datum for mempool
     dap_chain_datum_t * l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_CA, l_cert_serialized , l_cert_serialized_size);
     DAP_DELETE(l_cert_serialized);
     if(!l_datum){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't produce datum from certificate");
-        return -7;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_PRODUCE_CERT_ERR,
+                                       "Can't serialize in memory certificate" );
+        return -DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_PRODUCE_CERT_ERR;
     }
 
     // Finaly add datum to mempool
     char *l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
     DAP_DELETE(l_datum);
     if (l_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Datum %s was successfully placed to mempool", l_hash_str);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_OK,
+                                       "Datum %s was successfully placed to mempool", l_hash_str);
         DAP_DELETE(l_hash_str);
         return 0;
     } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't place certificate \"%s\" to mempool", l_ca_name);
-        return -8;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_PLACE_CERT_ERR,
+                                       "Can't place certificate \"%s\" to mempool", l_ca_name);
+        return -DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_PLACE_CERT_ERR;
     }
 }
 
@@ -4475,6 +4482,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
  */
 int com_stats(int argc, char **a_argv, void **a_str_reply)
 {
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {
         CMD_NONE, CMD_STATS_CPU
     };
@@ -4487,39 +4495,42 @@ int com_stats(int argc, char **a_argv, void **a_str_reply)
     switch (cmd_num) {
     case CMD_NONE:
     default:
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "format of command: stats cpu");
-        return -1;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
+                        "format of command: stats cpu");
+        return -DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR;
     case CMD_STATS_CPU:
 #if (defined DAP_OS_UNIX) || (defined __WIN32)
     {
         dap_cpu_monitor_init();
         dap_usleep(500000);
-        char *l_str_reply_prev = DAP_NEW_Z_SIZE(char, 1);
+        json_object* json_arr_cpu_out = json_object_new_array();
         char *l_str_delimiter;
+        char *l_str_cpu_num;
         dap_cpu_stats_t s_cpu_stats = dap_cpu_get_stats();
         for (uint32_t n_cpu_num = 0; n_cpu_num < s_cpu_stats.cpu_cores_count; n_cpu_num++) {
-            if ((n_cpu_num % 4 == 0) && (n_cpu_num != 0)) {
-                l_str_delimiter = dap_strdup_printf("\n");
-            } else if (n_cpu_num == s_cpu_stats.cpu_cores_count - 1) {
-                l_str_delimiter = DAP_NEW_Z_SIZE(char, 1);
-            } else {
-                l_str_delimiter = dap_strdup_printf(" ");
-            }
-            *a_str_reply = dap_strdup_printf("%sCPU-%d: %f%%%s", l_str_reply_prev, n_cpu_num, s_cpu_stats.cpus[n_cpu_num].load, l_str_delimiter);
-            DAP_DELETE(l_str_reply_prev);
+            json_object* json_obj_cpu = json_object_new_object();
+            l_str_cpu_num = dap_strdup_printf("CPU-%d", n_cpu_num);
+            l_str_delimiter = dap_strdup_printf("%f%%", s_cpu_stats.cpus[n_cpu_num].load);
+            json_object_object_add(json_obj_cpu, l_str_cpu_num, json_object_new_string(l_str_delimiter));
+            json_object_array_add(json_arr_cpu_out, json_obj_cpu);
+            DAP_DELETE(l_str_cpu_num);
             DAP_DELETE(l_str_delimiter);
-            l_str_reply_prev = *a_str_reply;
         }
-        *a_str_reply = dap_strdup_printf("%s\nTotal: %f%%", l_str_reply_prev, s_cpu_stats.cpu_summary.load);
-        DAP_DELETE(l_str_reply_prev);
+        json_object* json_obj_total = json_object_new_object();
+        l_str_delimiter = dap_strdup_printf("%f%%", s_cpu_stats.cpu_summary.load);
+        json_object_object_add(json_obj_total, "Total", json_object_new_string(l_str_delimiter));
+        json_object_array_add(json_arr_cpu_out, json_obj_total);
+        DAP_DELETE(l_str_delimiter);
+        json_object_array_add(*a_json_arr_reply, json_arr_cpu_out);
         break;
     }
 #else
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "only Linux or Windows environment supported");
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_BAD_SYS_ERR,
+                        "only Linux or Windows environment supported");
         return -1;
 #endif // DAP_OS_UNIX
     }
-    return 0;
+    return DAP_CHAIN_NODE_CLI_COM_STATS_OK;
 }
 
 /**
@@ -4665,18 +4676,21 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply)
  */
 int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
 {
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
     int arg_index = 1;
     const char *l_filename = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "filename", &l_filename);
     if (!l_filename) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "gdb_import requires parameter 'filename'");
-        return -1;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GDB_IMPORT_REQUIRES_PARAMETER_FILENAME, 
+                                                        "gdb_import requires parameter 'filename'");
+        return -DAP_CHAIN_NODE_CLI_COM_GDB_IMPORT_REQUIRES_PARAMETER_FILENAME;
     }
     const char *l_gdb_path = dap_config_get_item_str(g_config, "global_db", "path");
     if (!l_gdb_path) {
         log_it(L_ERROR, "Can't find gdb path in config file");
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find gdb path in the config file");
-        return -1;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GDB_IMPORT_CANT_FIND_GDB_PATH_ERR, 
+                                                        "Can't find gdb path in the config file");
+        return -DAP_CHAIN_NODE_CLI_COM_GDB_IMPORT_CANT_FIND_GDB_PATH_ERR;
     }
     char l_path[MAX_PATH + 1];
     snprintf(l_path, sizeof(l_path), "%s/%s.json", l_gdb_path, l_filename);
@@ -4684,10 +4698,11 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
     if (!l_json) {
 #if JSON_C_MINOR_VERSION<15
         log_it(L_CRITICAL, "Import error occured: code %d", errno);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Import error occured: code %d",errno);
+        dap_json_rpc_error_add(*a_json_arr_reply, "Import error occured: code %d",errno);
 #else
         log_it(L_CRITICAL, "Import error occured: %s", json_util_get_last_err());
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", json_util_get_last_err());
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GENERAL_ERR, 
+                                                        "%s", json_util_get_last_err());
 #endif
         return -1;
     }
@@ -4791,6 +4806,7 @@ typedef struct _pvt_net_nodes_list {
 
 int cmd_remove(int a_argc, char **a_argv, void **a_str_reply)
 {
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
     //default init
     const char		*return_message	=	NULL;
     const char		*l_gdb_path		=	NULL;
@@ -4911,14 +4927,21 @@ int cmd_remove(int a_argc, char **a_argv, void **a_str_reply)
                          "'net list'";
     }
 
+    json_object* json_obj_out;
+    char *l_out_mes;
     if (error) {
-       dap_cli_server_cmd_set_reply_text(a_str_reply, "Error when deleting, because:\n%s", return_message);
+       dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_REMOVE_GENERAL_ERR, "Error when deleting, because:\n%s", return_message);
     }
     else if (successful) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Successful removal: %s", successful & REMOVED_GDB && successful & REMOVED_CHAINS ? "gdb, chains" : successful & REMOVED_GDB ? "gdb" : successful & REMOVED_CHAINS ? "chains" : "");
+        json_obj_out = json_object_new_object();
+        l_out_mes = dap_strdup_printf("Successful removal: %s", successful & REMOVED_GDB && successful & REMOVED_CHAINS ? "gdb, chains" : successful & REMOVED_GDB ? "gdb" : successful & REMOVED_CHAINS ? "chains" : "");
+        json_object_object_add(json_obj_out, "status", json_object_new_string(l_out_mes));
+        DAP_DELETE(l_out_mes);
+        json_object_array_add(*a_json_arr_reply,json_obj_out);
     } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Nothing to delete. Check if the command is correct.\nUse flags: -gdb or/and -chains [-net <net_name> | -all]\n"
-                                                       "Be careful, the '-all' option will delete ALL CHAINS and won't ask you for permission!");
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_REMOVE_NOTHING_TO_DEL_ERR, 
+                                                    "Nothing to delete. Check if the command is correct.\nUse flags: -gdb or/and -chains [-net <net_name> | -all]\n"
+                                                    "Be careful, the '-all' option will delete ALL CHAINS and won't ask you for permission!");
     }
 
     for (dap_list_t *it = l_net_returns; it; it = it->next)
