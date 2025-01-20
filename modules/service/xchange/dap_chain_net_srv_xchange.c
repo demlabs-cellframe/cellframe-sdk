@@ -1497,6 +1497,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                             } else {
                                 if (s_string_append_tx_cond_info_json(l_json_order, l_net, NULL, NULL, l_datum_tx, TX_STATUS_ALL, true, true, false))
                                     l_total++;
+                            }
                             json_object_array_add(l_json_order_arr, l_json_order);
                         }
                     }
@@ -1668,6 +1669,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
             dap_chain_hash_fast_from_str(l_order_hash_str, &l_tx_hash);
             char *l_tx_hash_ret = NULL;
             int l_ret_code = dap_chain_net_srv_xchange_remove(l_net, &l_tx_hash, l_fee, l_wallet, &l_tx_hash_ret);
+            json_object* json_obj_order = NULL;
             dap_chain_wallet_close(l_wallet);
             switch (l_ret_code) {
                 case XCHANGE_REMOVE_ERROR_OK:
@@ -2286,7 +2288,7 @@ static bool s_string_append_tx_cond_info_json( json_object * a_json_out,
                 log_it(L_ERROR, "Can't find conditional output");
                 return false;
             }
-            char *l_rate_str = dap_chain_balance_to_coins(l_out_cond_item->subtype.srv_xchange.rate);
+            char *l_rate_str = dap_chain_balance_coins_print(l_out_cond_item->subtype.srv_xchange.rate);
             const char *l_amount_str, *l_amount_datoshi_str = dap_uint256_to_char(l_out_cond_item->header.value, &l_amount_str);
 
             json_object_object_add(a_json_out, "hash", json_object_new_string(l_tx_hash_str));
@@ -2373,7 +2375,7 @@ static bool s_string_append_tx_cond_info_json( json_object * a_json_out,
             if (a_print_prev_hash)
                 json_object_object_add(a_json_out, "Prev cond", json_object_new_string(l_tx_prev_cond_hash_str));
             dap_chain_tx_out_cond_subtype_t l_cond_type = l_out_cond_item ? l_out_cond_item->header.subtype : l_out_prev_cond_item->header.subtype;
-            dap_hash_fast_t l_order_hash = dap_ledger_get_first_chain_tx_hash(a_net->pub.ledger, l_cond_type, l_tx_hash);
+            dap_hash_fast_t l_order_hash = dap_ledger_get_first_chain_tx_hash(a_net->pub.ledger, l_cond_type, &l_tx_hash);
             if ( dap_hash_fast_is_blank(&l_order_hash) )
                 l_order_hash = l_in_cond->header.tx_prev_hash;
             char l_order_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -2423,8 +2425,8 @@ static bool s_string_append_tx_cond_info_json( json_object * a_json_out,
             if ( dap_hash_fast_is_blank(&l_order_hash) )
                 l_order_hash = l_in_cond->header.tx_prev_hash;
 
-            char *l_value_from_str = dap_chain_balance_to_coins(l_out_prev_cond_item->header.value);
-            char *l_value_from_datoshi_str = dap_chain_balance_print(l_out_prev_cond_item->header.value);
+            char *l_value_from_str = dap_chain_balance_coins_print(l_out_prev_cond_item->header.value);
+            char *l_value_from_datoshi_str = dap_chain_balance_datoshi_print(l_out_prev_cond_item->header.value);
 
             json_object_object_add(a_json_out, "hash", json_object_new_string(l_tx_hash_str));
             if(a_print_ts){
@@ -3355,7 +3357,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
                     json_object_object_add(json_obj_order, "trading to coins", json_object_new_string(l_token_to_value_coins_str));
                     json_object_object_add(json_obj_order, "trading to datoshi", json_object_new_string(l_token_to_value_datoshi_str));
-                    json_object_object_add(json_obj_order, "trading to token", json_object_new_string(l_token_to_str))
+                    json_object_object_add(json_obj_order, "trading to token", json_object_new_string(l_token_to_str));
 
                     DAP_DEL_Z(l_token_from_value_datoshi_str);
                     DAP_DEL_Z(l_token_from_value_coins_str);
