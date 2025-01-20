@@ -2126,15 +2126,17 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
 
             json_object *l_jobj_sign = json_object_object_get(l_json_item_obj, "sig_b64");
             const char *l_sign_str = json_object_get_string(l_jobj_sign);
-            dap_sign_t *l_sign = DAP_NEW_Z_SIZE(dap_sign_t, DAP_ENC_BASE64_DECODE_SIZE(dap_strlen(l_sign_str)));
+            dap_sign_t *l_sign = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_sign_t, DAP_ENC_BASE64_DECODE_SIZE(dap_strlen(l_sign_str)),
+                                                                DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_ALLOC_MEMORY, NULL);
             size_t l_sign_decree_size = dap_enc_base64_decode(l_sign_str, dap_strlen(l_sign_str), l_sign, DAP_ENC_DATA_TYPE_B64);
 
             json_object *l_jobj_pub_key = json_object_object_get(l_json_item_obj, "pub_key_b64");
             const char *l_pub_key_str = json_object_get_string(l_jobj_pub_key);
-            
-            size_t l_proc_buf_size = 0;                    
-            char *l_proc_buf = DAP_NEW_SIZE(char, DAP_ENC_BASE64_DECODE_SIZE(l_pkey_size));
-            l_proc_buf_size = dap_enc_base64_decode(l_pub_key_str, l_pkey_size, l_proc_buf, DAP_ENC_DATA_TYPE_B64);              
+                              
+            byte_t *l_proc_buf = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(byte_t, DAP_ENC_BASE64_DECODE_SIZE(l_pkey_size),
+                                                                DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_ALLOC_MEMORY, NULL);
+            size_t l_proc_buf_size = dap_enc_base64_decode(l_pub_key_str, l_pkey_size, l_proc_buf, DAP_ENC_DATA_TYPE_B64);
+            UNUSED(l_proc_buf_size);
             if (dap_enc_key_deserialize_pub_key(l_ret, l_proc_buf, l_pkey_size)) {
                 log_it(L_ERROR, "Error in enc pub key deserialize");
                 DAP_DEL_Z(l_ret);
@@ -2157,8 +2159,10 @@ int s_json_rpc_tx_parse_json(dap_chain_net_t *a_net, dap_chain_t *a_chain, json_
         if (l_sign) {
             size_t l_chain_sign_size = dap_sign_get_size(l_sign); // sign data
             
-            dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t,
-                    sizeof(dap_chain_tx_sig_t) + l_chain_sign_size);
+            dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_sig_t,
+                                                                          sizeof(dap_chain_tx_sig_t) + l_chain_sign_size,
+                                                                          DAP_CHAIN_NODE_CLI_COM_TX_CREATE_JSON_CAN_NOT_ALLOC_MEMORY,
+                                                                          NULL);
             l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
             l_tx_sig->header.sig_size =(uint32_t) l_chain_sign_size;
             memcpy(l_tx_sig->sig, l_sign, l_chain_sign_size);
