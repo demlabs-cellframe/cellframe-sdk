@@ -115,6 +115,9 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_
                                           dap_chain_addr_t *a_owner_addr, dap_chain_addr_t *a_buyer_addr, dap_chain_datum_tx_t * a_tx, 
                                           dap_hash_fast_t *a_tx_hash, tx_opt_status_t a_filter_by_status, bool a_append_prev_hash, 
                                           bool a_print_status,bool a_print_ts);
+static bool s_string_append_tx_cond_info_json( json_object * a_json_out, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx,
+                                               tx_opt_status_t a_filter_by_status, bool a_print_prev_hash, bool a_print_status, bool a_print_ts);
+
 dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_order, 
                                                     dap_hash_fast_t *a_order_hash, uint256_t *a_fee, bool a_ret_is_invalid);
 static void s_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  
@@ -235,7 +238,7 @@ int dap_chain_net_srv_xchange_init()
 
     "srv_xchange token_pair -net <net_name> list all [-limit <limit>] [-offset <offset>]\n"
         "\tList of all token pairs\n"
-    "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker>\n"
+    "srv_xchange token_pair -net <net_name> rate average [-time_from <From_time>] [-time_to <To_time>]\n"
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
     "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] [-limit <limit>] [-offset <offset>]\n"
         "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
@@ -1238,7 +1241,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
  * @param a_str_reply
  * @return
  */
-static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, void **a_str_reply)
+static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply)
 {
     enum {
         CMD_NONE, CMD_CREATE, CMD_REMOVE, CMD_UPDATE, CMD_HISTORY, CMD_STATUS
@@ -1265,63 +1268,72 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
         case CMD_CREATE: {
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -net");
-                return -2;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_REQ_PARAM_NET_ERR, "Command 'order create' requires parameter -net");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_REQ_PARAM_NET_ERR;
             }
             l_net = dap_chain_net_by_name(l_net_str);
             if (!l_net) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-                return -3;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_NET_NOT_FOUND_ERR, "Command 'order create' requires parameter -net");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_NET_NOT_FOUND_ERR;
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_sell", &l_token_sell_str);
             if (!l_token_sell_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -token_sell");
-                return -5;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_PARAM_TOKEN_SELL_ERR,
+                                                "Command 'order create' requires parameter -token_sell");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_PARAM_TOKEN_SELL_ERR;
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_buy", &l_token_buy_str);
             if (!l_token_buy_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -token_buy");
-                return -5;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_PARAM_TOKEN_BUY_ERR,
+                                                "Command 'order create' requires parameter -token_buy");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_PARAM_TOKEN_BUY_ERR;
             }
             if (!dap_ledger_token_ticker_check(l_net->pub.ledger, l_token_buy_str)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_buy_str);
-                return -6;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_PARAM_TICKR_NOTF_ERR,
+                                                "Token ticker %s not found", l_token_buy_str);
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_PARAM_TICKR_NOTF_ERR;
             }
 
             if (!strcmp(l_token_sell_str, l_token_buy_str)){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "token_buy and token_sell must be different!");
-                return -7;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_TOKEN_EQUAL_ERR,
+                                                "token_buy and token_sell must be different!");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_TOKEN_EQUAL_ERR;
             }
 
             const char *l_val_sell_str = NULL, *l_val_rate_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_val_sell_str);
             if (!l_val_sell_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -value");
-                return -8;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_CRTE_REQ_PARAM_VALUE_ERR,
+                                                "Command 'order create' requires parameter -value");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_CRTE_REQ_PARAM_VALUE_ERR;
             }
             uint256_t l_datoshi_sell = dap_chain_balance_scan(l_val_sell_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-rate", &l_val_rate_str);
             if (!l_val_rate_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -rate");
-                return -8;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_CRTE_REQ_PARAM_RATE_ERR,
+                                                "Command 'order create' requires parameter -rate");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_CRTE_REQ_PARAM_RATE_ERR;
             }
             uint256_t l_rate = dap_chain_balance_coins_scan(l_val_rate_str);
             const char *l_fee_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_fee_str);
             if (!l_fee_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -fee");
-                return -20;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_CRTE_REQ_PARAM_FEE_ERR,
+                                                "Command 'order create' requires parameter -fee");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_CRTE_REQ_PARAM_FEE_ERR;
             }
             uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_wallet_str);
             if (!l_wallet_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -w");
-                return -10;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_CRTE_REQ_PARAM_W_ERR,
+                                                "Command 'order create' requires parameter -w");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_CRTE_REQ_PARAM_W_ERR;
             }
             dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
             if (!l_wallet) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
-                return -11;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_CRTE_WALLET_NOT_FOUND_ERR,
+                                                "Specified wallet not found");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_CRTE_WALLET_NOT_FOUND_ERR;
             }
             const char* l_sign_str = dap_chain_wallet_check_sign(l_wallet);
             char *l_hash_ret = NULL;
@@ -1329,72 +1341,91 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
             dap_chain_wallet_close(l_wallet);
             switch (ret_code) {
                 case XCHANGE_CREATE_ERROR_OK: {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nSuccessfully created order %s", l_sign_str, l_hash_ret);
+                    json_object* json_obj_order = json_object_new_object();
+                    json_object_object_add(json_obj_order, "status", json_object_new_string("Successfully created"));
+                    json_object_object_add(json_obj_order, "sign", json_object_new_string(l_sign_str));
+                    json_object_object_add(json_obj_order, "hash", json_object_new_string(l_hash_ret));
+                    json_object_array_add(*a_json_arr_reply, json_obj_order);
                     DAP_DELETE(l_hash_ret);
-                    return 0;
+                    return DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_OK;
                 }
                 case XCHANGE_CREATE_ERROR_INVALID_ARGUMENT: {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Some parameters could not be set during a function call");
-                    return -24;
+                    dap_json_rpc_error_add(*a_json_arr_reply, XCHANGE_CREATE_ERROR_INVALID_ARGUMENT,
+                                                "Some parameters could not be set during a function call");
+                    return -XCHANGE_CREATE_ERROR_INVALID_ARGUMENT;
                 }
                 case XCHANGE_CREATE_ERROR_TOKEN_TICKER_SELL_IS_NOT_FOUND_LEDGER: {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_sell_str);
-                    return -6;
+                    dap_json_rpc_error_add(*a_json_arr_reply, XCHANGE_CREATE_ERROR_TOKEN_TICKER_SELL_IS_NOT_FOUND_LEDGER,
+                                                "Token ticker %s not found", l_token_sell_str);
+                    return -XCHANGE_CREATE_ERROR_TOKEN_TICKER_SELL_IS_NOT_FOUND_LEDGER;
                 }
                 case XCHANGE_CREATE_ERROR_TOKEN_TICKER_BUY_IS_NOT_FOUND_LEDGER: {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_buy_str);
-                    return -6;
+                    dap_json_rpc_error_add(*a_json_arr_reply, XCHANGE_CREATE_ERROR_TOKEN_TICKER_BUY_IS_NOT_FOUND_LEDGER,
+                                            "Token ticker %s not found", l_token_buy_str);
+                    return -XCHANGE_CREATE_ERROR_TOKEN_TICKER_BUY_IS_NOT_FOUND_LEDGER;
                 }
                 case XCHANGE_CREATE_ERROR_RATE_IS_ZERO: {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -rate n.n = buy / sell (eg: 1.0, 1.135)");
-                    return -9;
+                    dap_json_rpc_error_add(*a_json_arr_reply, XCHANGE_CREATE_ERROR_RATE_IS_ZERO,
+                                            "Format -rate n.n = buy / sell (eg: 1.0, 1.135)");
+                    return -XCHANGE_CREATE_ERROR_RATE_IS_ZERO;
                 }
                 case XCHANGE_CREATE_ERROR_FEE_IS_ZERO: {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <unsigned integer 256>");
-                    return -21;
+                    dap_json_rpc_error_add(*a_json_arr_reply, XCHANGE_CREATE_ERROR_FEE_IS_ZERO,
+                                            "Format -value <unsigned integer 256>");
+                    return -XCHANGE_CREATE_ERROR_FEE_IS_ZERO;
                 }
                 case XCHANGE_CREATE_ERROR_VALUE_SELL_IS_ZERO: {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <unsigned integer 256>");
-                    return -9;
+                    dap_json_rpc_error_add(*a_json_arr_reply, XCHANGE_CREATE_ERROR_VALUE_SELL_IS_ZERO,
+                                            "Format -value <unsigned integer 256>");
+                    return -XCHANGE_CREATE_ERROR_VALUE_SELL_IS_ZERO;
                 }
                 case XCHANGE_CREATE_ERROR_INTEGER_OVERFLOW_WITH_SUM_OF_VALUE_AND_FEE: {
                     log_it(L_ERROR, "Integer overflow with sum of value and fee");
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Integer overflow with sum of value and fee");
-                    return -22;
+                    dap_json_rpc_error_add(*a_json_arr_reply, XCHANGE_CREATE_ERROR_INTEGER_OVERFLOW_WITH_SUM_OF_VALUE_AND_FEE,
+                                                "Integer overflow with sum of value and fee");
+                    return -XCHANGE_CREATE_ERROR_INTEGER_OVERFLOW_WITH_SUM_OF_VALUE_AND_FEE;
                 }
                 case XCHANGE_CREATE_ERROR_NOT_ENOUGH_CASH_FOR_FEE_IN_SPECIFIED_WALLET: {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nNot enough cash for fee in specified wallet", l_sign_str);
-                    return -23;
+                    dap_json_rpc_error_add(*a_json_arr_reply, XCHANGE_CREATE_ERROR_NOT_ENOUGH_CASH_FOR_FEE_IN_SPECIFIED_WALLET,
+                                                "%s\nNot enough cash for fee in specified wallet", l_sign_str);
+                    return -XCHANGE_CREATE_ERROR_NOT_ENOUGH_CASH_FOR_FEE_IN_SPECIFIED_WALLET;
                 }
                 case XCHANGE_CREATE_ERROR_NOT_ENOUGH_CASH_IN_SPECIFIED_WALLET: {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nNot enough cash in specified wallet", l_sign_str);
-                    return -12;
+                    dap_json_rpc_error_add(*a_json_arr_reply, XCHANGE_CREATE_ERROR_NOT_ENOUGH_CASH_IN_SPECIFIED_WALLET,
+                                                "%s\nNot enough cash in specified wallet", l_sign_str);
+                    return -XCHANGE_CREATE_ERROR_NOT_ENOUGH_CASH_IN_SPECIFIED_WALLET;
                 }
                 case XCHANGE_CREATE_ERROR_MEMORY_ALLOCATED: {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory");
-                    return -1;
+                    dap_json_rpc_error_add(*a_json_arr_reply, XCHANGE_CREATE_ERROR_MEMORY_ALLOCATED,
+                                                "Out of memory");
+                    return -XCHANGE_CREATE_ERROR_MEMORY_ALLOCATED;
                 }
                 case XCHANGE_CREATE_ERROR_CAN_NOT_COMPOSE_THE_CONDITIONAL_TRANSACTION: {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't compose the conditional transaction", l_sign_str);
-                    return -14;
+                    dap_json_rpc_error_add(*a_json_arr_reply, XCHANGE_CREATE_ERROR_CAN_NOT_COMPOSE_THE_CONDITIONAL_TRANSACTION,
+                                                "%s\nCan't compose the conditional transaction", l_sign_str);
+                    return -XCHANGE_CREATE_ERROR_CAN_NOT_COMPOSE_THE_CONDITIONAL_TRANSACTION;
                 }
                 case XCHANGE_CREATE_ERROR_CAN_NOT_PUT_TRANSACTION_TO_MEMPOOL: {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't compose the conditional transaction", l_sign_str);
-                    return -15;
+                    dap_json_rpc_error_add(*a_json_arr_reply, XCHANGE_CREATE_ERROR_CAN_NOT_PUT_TRANSACTION_TO_MEMPOOL,
+                                                "%s\nCan't compose the conditional transaction", l_sign_str);
+                    return -XCHANGE_CREATE_ERROR_CAN_NOT_PUT_TRANSACTION_TO_MEMPOOL;
                 }
             }
         } break;
 
         case CMD_HISTORY:{
+            json_object* l_json_obj_order = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order history' requires parameter -net");
-                return -2;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_REQ_PARAM_NET_ERR,
+                                                "Command 'order history' requires parameter -net");
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_REQ_PARAM_NET_ERR;
             }
             l_net = dap_chain_net_by_name(l_net_str);
             if (!l_net) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-                return -3;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_NET_NOT_FOUND_ERR,
+                                                "Network %s not found", l_net_str);
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_NET_NOT_FOUND_ERR;
             }
 
             const char * l_order_hash_str = NULL;
@@ -1404,25 +1435,26 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_hash_str);
 
             if (!l_order_hash_str && ! l_addr_hash_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order history' requires parameter -order or -addr" );
-                return -12;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_REQ_PARAM_ORDER_ADDR_ERR,
+                                                "Command 'order history' requires parameter -order or -addr" );
+                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_REQ_PARAM_ORDER_ADDR_ERR;
             }
 
             if(l_addr_hash_str){
                 dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_hash_str);
                 if (!l_addr) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Cannot convert "
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_CAN_NOT_CONVERT_ERR, "Cannot convert "
                                                                    "string '%s' to binary address.", l_addr_hash_str);
-                    return -14;
+                    return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_CAN_NOT_CONVERT_ERR;
                 }
                 if (dap_chain_addr_check_sum(l_addr) != 0 ) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Incorrect address wallet");
-                    return -15;
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_INCORRECT_ADDR_ERR, "Incorrect address wallet");
+                    return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_INCORRECT_ADDR_ERR;
                 }
                 if (l_addr->net_id.uint64 != l_net->pub.id.uint64) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Address %s does not belong to the %s network.",
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_DOES_NOT_BELONG_ERR, "Address %s does not belong to the %s network.",
                                                       l_addr_hash_str, l_net->pub.name);
-                    return -16;
+                    return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_DOES_NOT_BELONG_ERR;
                 }
 
                 dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_all_for_addr(l_net,l_addr, c_dap_chain_net_srv_xchange_uid );
@@ -1432,17 +1464,17 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                 bool l_from_wallet_cache = dap_chain_wallet_cache_tx_find(l_addr, NULL, NULL, &l_hash_curr, NULL) == 0 ? true : false;
                 l_hash_curr = (dap_hash_fast_t){0};
                 size_t l_total = 0;
-                if(l_from_wallet_cache){  
-                    dap_string_t * l_str_reply = dap_string_new("");
+                if(l_from_wallet_cache){
 
                     xchange_orders_cache_net_t* l_cache = NULL;
                     if(s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
                         l_cache = s_get_xchange_cache_by_net_id(l_net->pub.id);
                         if(!l_cache){
-                            dap_cli_server_cmd_set_reply_text(a_str_reply, "No history");
+                            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_DOES_NO_HISTORY_ERR, "No history");
                             break;
                         }
                     }
+                    l_json_obj_order = json_object_new_object();
                     dap_chain_wallet_cache_iter_t *l_iter = dap_chain_wallet_cache_iter_create(*l_addr);
                     for(dap_chain_datum_tx_t *l_datum_tx = dap_chain_wallet_cache_iter_get(l_iter, DAP_CHAIN_WALLET_CACHE_GET_FIRST);
                             l_datum_tx; l_datum_tx = dap_chain_wallet_cache_iter_get(l_iter, DAP_CHAIN_WALLET_CACHE_GET_NEXT))
