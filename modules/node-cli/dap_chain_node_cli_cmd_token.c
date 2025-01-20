@@ -137,7 +137,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
         dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &arg_index, a_argc, a_argv,&l_chain, &l_net,
                                                       CHAIN_TYPE_TOKEN);
         if(!l_net)
-            return -1;        
+            return -1;
 
         // Certificates thats will be used to sign currend datum token
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
@@ -648,7 +648,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
     return 0;
 }
 
-static int s_token_decl_check_params(int a_argc, char **a_argv, void **a_str_reply, dap_sdk_cli_params *a_params, bool a_update_token)
+static int s_token_decl_check_params(int a_argc, char **a_argv, json_object *a_str_reply, dap_sdk_cli_params *a_params, bool a_update_token)
 {
     int l_parse_params = s_parse_common_token_decl_arg(a_argc,a_argv,a_str_reply,a_params, a_update_token);
     if (l_parse_params)
@@ -1030,7 +1030,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
                                       l_key_str_out, l_ticker, l_placed ? "" : " not");
     DAP_DELETE(l_key_str);
     DAP_DELETE(l_datum);
-    
+
     return l_placed ? 0 : -2;
 }
 
@@ -1385,7 +1385,7 @@ int com_token_emit(int a_argc, char **a_argv, void **a_str_reply)
                 DAP_DEL_Z(l_addr);
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_CHAIN_EMISSION,
                     "token_create requires parameter '-chain_emission' to be valid chain name in chain net %s or set default datum type in chain configuration file",
-						 l_net->pub.name);
+                         l_net->pub.name);
                 return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_CHAIN_EMISSION;
             }
         }
