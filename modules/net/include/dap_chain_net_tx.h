@@ -29,7 +29,7 @@
 
 #include "dap_json_rpc_errors.h"
 
-typedef enum s_com_tx_create_json_err {
+typedef enum s_net_tx_create_json_err {
     DAP_CHAIN_NET_TX_CREATE_JSON_OK = 0,
     DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_JSON = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
     DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
@@ -41,7 +41,7 @@ typedef enum s_com_tx_create_json_err {
     DAP_CHAIN_NET_TX_CREATE_JSON_INVALID_ITEMS,
     DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL,
     DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS,
-}s_com_tx_create_json_err_t;
+}s_net_tx_create_json_err_t;
 typedef enum dap_chain_net_tx_search_type {
     /// Search local, in memory, possible load data from drive to memory
     TX_SEARCH_TYPE_LOCAL,

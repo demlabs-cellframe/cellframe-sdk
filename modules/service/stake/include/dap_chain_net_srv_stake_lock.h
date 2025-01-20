@@ -28,3 +28,8 @@
 
 int dap_chain_net_srv_stake_lock_init(void);
 void dap_chain_net_srv_stake_lock_deinit(void);
+
+typedef enum s_com_stake_lock_err{
+    DAP_CHAIN_NODE_CLI_COM_STAKE_LOCK_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_STAKE_LOCK_NOT_RECOGNIZED_ERR
+}s_com_stake_lock_err_t;
