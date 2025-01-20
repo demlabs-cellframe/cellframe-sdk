@@ -3887,13 +3887,12 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
                     ? l_tx_prev
                     : dap_ledger_tx_find_by_hash(a_ledger, &l_owner_tx_hash);
-                dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-                dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
-                dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-                dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
+                dap_chain_tx_sig_t       *l_tx_sig = (dap_chain_tx_sig_t*)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL),
+                                   *l_owner_tx_sig = (dap_chain_tx_sig_t*)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+                dap_sign_t       *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig),
+                           *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig(l_owner_tx_sig);
 
-                bool l_owner = false;
-                l_owner = dap_sign_compare_pkeys(l_owner_sign, l_sign);
+                bool l_owner = dap_sign_compare_pkeys(l_owner_sign, l_sign);
 
                 // 5b. Call verificator for conditional output
                 dap_ledger_verificator_t *l_verificator = NULL;

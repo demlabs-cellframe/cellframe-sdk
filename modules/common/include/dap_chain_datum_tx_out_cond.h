@@ -61,7 +61,8 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_
 #define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX    0x00000010
 // Emit with single lock TX
 #define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT              0x00000020
-
+// Lock with transferring
+#define DAP_CHAIN_NET_SRV_STAKE_LOCK_BENEFICIARY            0x00000040
 /// Conditional ouptput TSD types
 // 256-bit value
 #define DAP_CHAIN_TX_OUT_COND_TSD_VALUE                     0xf000

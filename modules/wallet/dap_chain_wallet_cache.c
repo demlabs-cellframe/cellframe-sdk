@@ -490,11 +490,10 @@ int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const c
             *a_value_transfer = l_value_transfer;
     } else {
         *a_outs_list = NULL;
-        dap_list_free(l_list_used_out);
+        dap_list_free_full(l_list_used_out, NULL);
         if (a_value_transfer)
             *a_value_transfer = uint256_0;
     }
-   
     return 0;
 }
 
