@@ -183,11 +183,6 @@ int dap_chain_datum_decree_get_atom_num(dap_chain_datum_decree_t *a_decree, uint
     return l_tsd && l_tsd->size == sizeof(uint64_t) ? ( _dap_tsd_get_scalar(l_tsd, a_atom_num), 0 ) : 1;
 }
 
-/**
- * @brief get pkey from decree tsd
- * @param a_decree
- * @return pointer to dap_pkey_t if find, if not or error - NULL
- */
 dap_pkey_t *dap_chain_datum_decree_get_pkey(dap_chain_datum_decree_t *a_decree)
 {
     dap_return_val_if_fail(a_decree, NULL);

@@ -318,6 +318,11 @@ int dap_chain_datum_decree_get_stake_min_signers_count(dap_chain_datum_decree_t 
 int dap_chain_datum_decree_get_action(dap_chain_datum_decree_t *a_decree, uint8_t *a_action);
 int dap_chain_datum_decree_get_signature_type(dap_chain_datum_decree_t *a_decree, uint32_t *a_signature_type);
 int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, const char **a_addr);
+/**
+ * @brief get pkey from decree tsd
+ * @param a_decree
+ * @return pointer to dap_pkey_t if find, if not or error - NULL
+ */
 dap_pkey_t *dap_chain_datum_decree_get_pkey(dap_chain_datum_decree_t *a_decree);
 int dap_chain_datum_decree_get_atom_num(dap_chain_datum_decree_t *a_decree, uint64_t *a_atom_num);
 
