@@ -660,10 +660,6 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
             }
             json_obj_net_srv = json_object_new_object();
 
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Provider %s. Client %s remain service values:\n"
-                                                   "SEC: %"DAP_UINT64_FORMAT_U"\n"
-                                                   "BYTES: %"DAP_UINT64_FORMAT_U"\n", l_provider_pkey_hash_str, l_client_pkey_hash_str,
-                                              (uint64_t)l_remain_service->limits_ts, (uint64_t)l_remain_service->limits_bytes);
             json_object_object_add(json_obj_net_srv, "Provider", json_object_new_string(l_provider_pkey_hash_str));
             json_object_object_add(json_obj_net_srv, "Client", json_object_new_string(l_client_pkey_hash_str));
             char *l_SEC = dap_strdup_printf("%"DAP_UINT64_FORMAT_U"", (uint64_t)l_remain_service->limits_ts);
