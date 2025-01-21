@@ -492,6 +492,8 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
                 l_stake->sovereign_tax = dap_tsd_get_scalar(l_tsd, uint256_t);
                 if (compare256(l_stake->sovereign_tax, dap_chain_coins_to_balance("1.0")) == 1)
                     l_stake->sovereign_tax = dap_chain_coins_to_balance("1.0");
+            } else if (l_cond) {
+                log_it(L_ERROR, "Error in tsd_size calc in tx_out_cond with %s tx stake", dap_chain_hash_fast_to_str_static(a_stake_tx_hash));
             }
         }
     }

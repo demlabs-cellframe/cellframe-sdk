@@ -455,6 +455,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, &l_hash, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(a_decree));
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE:
+            if (!a_anchored)
+                break;
             if (!a_apply)
                 break;
             dap_pkey_t *l_pkey = NULL;
