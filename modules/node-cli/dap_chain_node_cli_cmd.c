@@ -4111,8 +4111,12 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 return -1;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-            l_tsd = dap_chain_net_srv_stake_get_hardfork_data(l_net->pub.id);
-            l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+            if (dap_chain_net_srv_stake_get_hardfork_data(l_net, &l_tsd_list)){
+                log_it(L_ERROR, "Can't add stake delegate data to hardfork decree");
+                dap_list_free_full(l_tsd_list, NULL);
+                return -1;
+            }
+
 
             if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-trusted_addrs", &l_param_addr_str)) {
                 char **l_addrs = dap_strsplit(l_param_addr_str, ",", 256);
