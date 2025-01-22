@@ -819,6 +819,7 @@ static dap_tsd_t* s_chain_node_cli_com_node_create_tsd_addr(char **a_argv, int a
  */
 int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 {
+    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     enum {
         CMD_NONE, CMD_ADD, CMD_DEL, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_LIST, CMD_DUMP, CMD_CONNECTIONS, CMD_BALANCER,
         CMD_BAN, CMD_UNBAN, CMD_BANLIST
@@ -859,8 +860,9 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     }
     arg_index++;
     if(cmd_num == CMD_NONE) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
-        return -1;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_COMMAND_NOT_RECOGNIZED_ERR,
+                                       "command %s not recognized", a_argv[1]);
+        return -DAP_CHAIN_NODE_CLI_COM_NODE_COMMAND_NOT_RECOGNIZED_ERR;
     }
     const char *l_addr_str = NULL, *l_port_str = NULL, *alias_str = NULL;
     const char *l_cell_str = NULL, *l_link_str = NULL, *l_hostname = NULL;
@@ -893,15 +895,17 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
     if (l_addr_str) {
         if (dap_chain_node_addr_from_str(&l_node_info->address, l_addr_str)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't parse node address %s", l_addr_str);
-            return -5;
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CANT_PARSE_NODE_ADDR_ERR,
+                                       "Can't parse node address %s", l_addr_str);
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_CANT_PARSE_NODE_ADDR_ERR;
         }
     }
     if (l_port_str) {
         dap_digit_from_string(l_port_str, &l_node_info->ext_port, sizeof(uint16_t));
         if (!l_node_info->ext_port) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't parse host port %s", l_port_str);
-            return -4;
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CANT_PARSE_HOST_PORT_ERR,
+                                       "Can't parse host port %s", l_port_str);
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_CANT_PARSE_HOST_PORT_ERR;
         }
     }
     if (l_cell_str) {
@@ -919,21 +923,34 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         uint16_t l_port = 0;
         if (l_addr_str || l_hostname) {
             if (!dap_chain_net_is_my_node_authorized(l_net)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_HAVE_NO_ACCESS_RIGHTS_ERR,
+                                       "You have no access rights");
                 return l_res;
             }
             // We're in authorized list, add directly
             struct sockaddr_storage l_verifier = { };
             if ( 0 > dap_net_parse_config_address(l_hostname, l_node_info->ext_host, &l_port, &l_verifier, NULL) ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't parse host string %s", l_hostname);
-                return -6;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CANT_PARSE_HOST_STRING_ERR,
+                                       "Can't parse host string %s", l_hostname);
+                return -DAP_CHAIN_NODE_CLI_COM_NODE_CANT_PARSE_HOST_STRING_ERR;
             }
-            if ( !l_node_info->ext_port && !(l_node_info->ext_port = l_port) )
-                return dap_cli_server_cmd_set_reply_text(a_str_reply, "Unspecified port"), -7;
+            if ( !l_node_info->ext_port && !(l_node_info->ext_port = l_port) ) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CANT_UNSPECIFIED_PORT_ERR,
+                                       "Unspecified port");
+                return -DAP_CHAIN_NODE_CLI_COM_NODE_CANT_UNSPECIFIED_PORT_ERR;
+            }                
 
             l_node_info->ext_host_len = dap_strlen(l_node_info->ext_host);
             l_res = dap_chain_node_info_save(l_net, l_node_info);
-            return dap_cli_server_cmd_set_reply_text(a_str_reply, l_res ? "Can't add node %s, error %d" : "Successfully added node %s", l_addr_str, l_res), l_res;
+
+            if (l_res) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CANT_ADDED_NOT_ERR,
+                                       "Can't add node %s, error %d", l_addr_str, l_res);
+            } else {
+                json_object* json_obj_out = json_object_new_object();
+                json_object_object_add(json_obj_out, "Successfully added node", json_object_new_string(l_addr_str));
+            }
+            return l_res;
         }
         // Synchronous request, wait for reply
         if ( !(l_port = l_node_info->ext_port) 
