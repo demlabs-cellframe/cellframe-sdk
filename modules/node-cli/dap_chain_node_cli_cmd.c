@@ -4075,49 +4075,44 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Use -to_addr parameter to set net fee");
                     return -111;
                 }
-            }else{
-                l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t);
-                l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+            } else {
+                dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_param_addr_str);
+                l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET, l_addr, sizeof(dap_chain_addr_t));
                 if (!l_tsd) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     dap_list_free_full(l_tsd_list, NULL);
                     return -1;
                 }
-                l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET;
-                l_tsd->size = sizeof(dap_chain_addr_t);
-                dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_param_addr_str);
-                memcpy(l_tsd->data, l_addr, sizeof(dap_chain_addr_t));
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+                DAP_DELETE(l_addr);
             }
 
-            l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint256_t);
-            l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+            uint256_t l_param_value = dap_uint256_scan_uninteger(l_param_value_str);
+            l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE, &l_param_value, sizeof(l_param_value));
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_list_free_full(l_tsd_list, NULL);
                 return -1;
             }
-            l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE;
-            l_tsd->size = sizeof(uint256_t);
-            *(uint256_t*)(l_tsd->data) = dap_uint256_scan_uninteger(l_param_value_str);
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-        } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-harfork_from", &l_param_value_str)) {
+        } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_from", &l_param_value_str)) {
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK;
-            l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint64_t);
-            l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+
+            uint64_t l_param_value = strtoll(l_param_value_str, NULL, 10);
+            if (!l_param_value && dap_strcmp(l_param_value_str, "0")) {
+                log_it(L_ERROR, "Can't converts %s to atom number", l_param_value_str);
+                return -1;
+            }
+            l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM, &l_param_value, sizeof(l_param_value));
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                return -1;
-            }
-            l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM;
-            l_tsd->size = sizeof(uint64_t);
-            *(uint64_t*)(l_tsd->data) = strtoll(l_param_value_str, NULL, 10);
-            if (!*(uint64_t*)l_tsd->data && dap_strcmp(l_param_value_str, "0")) {
-                log_it(L_ERROR, "Can't converts %s to atom number", l_param_value_str);
-                DAP_DELETE(l_tsd);
+                dap_list_free_full(l_tsd_list, NULL);
                 return -1;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+
+            dap_list_append(l_tsd_list, dap_chain_net_srv_stake_get_hardfork_data(l_net->pub.id));
+
             if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-trusted_addrs", &l_param_addr_str)) {
                 char **l_addrs = dap_strsplit(l_param_addr_str, ",", 256);
                 for (uint16_t i = 0; l_addrs[i]; i++) {
@@ -4128,18 +4123,14 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                         dap_strfreev(l_addrs);
                         return -5;
                     }
-                    l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, sizeof(dap_tsd_t) + sizeof(dap_stream_node_addr_t));
+                    l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, &l_addr_cur, sizeof(l_addr_cur));
                     if (!l_tsd) {
                         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         dap_list_free_full(l_tsd_list, NULL);
                         dap_strfreev(l_addrs);
                         return -1;
                     }
-                    l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR;
-                    l_tsd->size = sizeof(dap_stream_node_addr_t);
-
                     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-                    l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_stream_node_addr_t);
                 }
                 dap_strfreev(l_addrs);
             }
@@ -4155,10 +4146,9 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             }
 
             size_t l_failed_certs = 0;
-            for (size_t i=0;i<l_new_certs_count;i++){
+            for (size_t i = 0; i < l_new_certs_count; i++){
                 dap_pkey_t *l_pkey = dap_cert_to_pkey(l_new_certs[i]);
-                if(!l_pkey)
-                {
+                if(!l_pkey) {
                     log_it(L_WARNING,"New cert [%zu] have no public key.", i);
                     l_failed_certs++;
                     continue;
@@ -4166,7 +4156,6 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER, l_pkey, sizeof(dap_pkey_t) + (size_t)l_pkey->header.size);
                 DAP_DELETE(l_pkey);
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-                l_total_tsd_size += sizeof(dap_tsd_t) + (size_t)l_tsd->size;
             }
             if(l_failed_certs)
             {
@@ -4189,18 +4178,14 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 return -110;
             }
 
-            l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
-            l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+            l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER, &l_new_num_of_owners, sizeof(l_new_num_of_owners));
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_list_free_full(l_tsd_list, NULL);
                 return -1;
             }
-            l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER;
-            l_tsd->size = sizeof(uint256_t);
-            *(uint256_t *) (l_tsd->data) = l_new_num_of_owners;
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-        } else{
+        } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype fail.");
             return -111;
         }
@@ -4218,7 +4203,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                                               dap_chain_datum_decree_subtype_to_str(l_subtype), l_decree_chain_str);
             return -107;
         }
-
+        l_total_tsd_size = dap_tsd_calc_list_size(l_tsd_list);
         l_datum_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
         l_datum_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
         l_datum_decree->header.ts_created = dap_time_now();
@@ -4230,13 +4215,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
         l_datum_decree->header.data_size = l_total_tsd_size;
         l_datum_decree->header.signs_size = 0;
 
-        size_t l_data_tsd_offset = 0;
-        for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
-            dap_tsd_t * l_b_tsd = (dap_tsd_t *) l_iter->data;
-            size_t l_tsd_size = dap_tsd_size(l_b_tsd);
-            memcpy((byte_t*)l_datum_decree->data_n_signs + l_data_tsd_offset, l_b_tsd, l_tsd_size);
-            l_data_tsd_offset += l_tsd_size;
-        }
+        dap_tsd_fill_from_list(l_datum_decree->data_n_signs, l_tsd_list);
         dap_list_free_full(l_tsd_list, NULL);
 
         // Sign decree

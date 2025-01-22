@@ -307,9 +307,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         log_it(L_MSG, "add validator addr "NODE_ADDR_FP_STR", signing addr %s", NODE_ADDR_FP_ARGS_S(l_signer_node_addr), dap_chain_addr_to_str_static(&l_signing_addr));
 
         if (!l_esbocs_pvt->poa_mode) { // auth certs in PoA mode will be first PoS validators keys
-            dap_hash_fast_t l_stake_tx_hash = {};
             uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
-            dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, &l_stake_tx_hash,
+            dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, NULL,
                                                  l_weight, &l_signer_node_addr, dap_pkey_from_enc_key(l_cert_cur->enc_key));
         }
     }
@@ -754,12 +753,11 @@ static int s_callback_purge(dap_chain_t *a_chain)
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    dap_hash_fast_t l_stake_tx_hash = {};
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
     for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
         dap_chain_esbocs_validator_t *l_validator = it->data;
-        dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
+        dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, NULL,
                                              l_weight, &l_validator->node_addr, NULL);
     }
     l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;

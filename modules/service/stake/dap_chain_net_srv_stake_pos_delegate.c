@@ -110,6 +110,13 @@ struct srv_stake {
     struct cache_item *cache;
 };
 
+struct hardfork_delegate_data {
+    uint32_t version;
+    uint64_t data_size;
+    uint64_t decree_count;
+    dap_chain_hash_fast_t hashes[];
+};
+
 static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply);
 
 static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
@@ -481,10 +488,10 @@ static void s_stake_recalculate_weights(dap_chain_net_id_t a_net_id)
     while (s_weights_truncate(l_srv_stake, l_limit_min));
 }
 
-void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_hash_fast_t *a_stake_tx_hash,
+void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_chain_datum_decree_t *a_decree,
                                           uint256_t a_value, dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey)
 {
-    dap_return_if_fail(a_net && a_signing_addr && a_node_addr && a_stake_tx_hash);
+    dap_return_if_fail(a_net && a_signing_addr && a_node_addr);
     struct srv_stake *l_srv_stake = s_srv_stake_by_net_id(a_net->pub.id);
     if (!l_srv_stake)
         return log_it(L_ERROR, "Can't delegate key: no stake service found by net id %"DAP_UINT64_FORMAT_U" from address %s",
@@ -503,14 +510,17 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     l_stake->node_addr = *a_node_addr;
     l_stake->signing_addr = *a_signing_addr;
     l_stake->value = l_stake->locked_value = a_value;
-    l_stake->tx_hash = *a_stake_tx_hash;
+    if (a_decree) {
+        dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_stake->decree_hash);
+        dap_chain_datum_decree_get_hash(a_decree, &l_stake->tx_hash);
+    }
     l_stake->is_active = true;
     l_stake->pkey = DAP_DUP_SIZE(a_pkey, dap_pkey_get_size(a_pkey));
     if (!l_found)
         HASH_ADD(hh, l_srv_stake->itemlist, signing_addr.data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
-    if (!dap_hash_fast_is_blank(a_stake_tx_hash)) {
+    if (!dap_hash_fast_is_blank(&l_stake->tx_hash)) {
         HASH_ADD(ht, l_srv_stake->tx_itemlist, tx_hash, sizeof(dap_hash_fast_t), l_stake);
-        dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, a_stake_tx_hash);
+        dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_stake->tx_hash);
         if (l_tx) {
             dap_pkey_t *l_pkey = NULL;
             dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL);
@@ -4241,4 +4251,42 @@ size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_
         *a_in_active_count = l_inactive_count;
     }
     return l_total_count;
+}
+
+/**
+ * @brief get and serialize data about key delegation
+ * @param a_net_id net id to get delegated keys
+ * @return if OK - ponter to tsd, if error - NULL
+ */
+dap_tsd_t *dap_chain_net_srv_stake_get_hardfork_data(dap_chain_net_id_t a_net_id)
+{
+    dap_tsd_t *l_ret = NULL;
+    size_t l_count = dap_chain_net_srv_stake_get_total_keys(a_net_id, NULL);
+    if (!l_count) {
+        log_it(L_INFO, "Can't find any keys in net with ID %"DAP_UINT64_FORMAT_U, a_net_id.uint64);
+        goto clean_and_ret;
+    }
+    size_t l_size = sizeof(struct hardfork_delegate_data) + l_count * sizeof(dap_hash_fast_t);
+    l_ret = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY, NULL, l_size);
+
+    struct srv_stake *l_stake_rec = s_srv_stake_by_net_id(a_net_id);
+    dap_chain_net_srv_stake_item_t *l_item = NULL;
+    struct hardfork_delegate_data *l_delegate_data = (struct hardfork_delegate_data *)(l_ret->data);
+    for (l_item = l_stake_rec->itemlist, l_delegate_data->decree_count = 0; l_item && l_delegate_data->decree_count < l_count; l_item = l_item->hh.next, ++l_delegate_data->decree_count) {
+        if (l_item->net->pub.id.uint64 != a_net_id.uint64)
+            continue;
+        if(dap_hash_fast_is_blank(&l_item->tx_hash)) {  // no need pack validators with shared keys
+            continue;
+        }
+        if(dap_hash_fast_is_blank(&l_item->decree_hash)) {
+            log_it(L_ERROR, "Error in hardfork data forming - decree hash to tx %s is blank", dap_chain_hash_fast_to_str_static(&l_item->tx_hash));
+            DAP_DELETE(l_ret);
+            return NULL;
+        }
+        memcpy(l_delegate_data->hashes + l_delegate_data->decree_count, &l_item->decree_hash, sizeof(dap_hash_fast_t));
+    }
+    l_delegate_data->version = 0;
+    l_delegate_data->data_size = l_size;
+clean_and_ret:
+    return l_ret;
 }
