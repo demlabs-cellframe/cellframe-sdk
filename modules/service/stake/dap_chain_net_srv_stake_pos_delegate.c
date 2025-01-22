@@ -4261,21 +4261,31 @@ size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_
 dap_tsd_t *dap_chain_net_srv_stake_get_hardfork_data(dap_chain_net_id_t a_net_id)
 {
     dap_tsd_t *l_ret = NULL;
-    size_t l_count = dap_chain_net_srv_stake_get_total_keys(a_net_id, NULL);
+    size_t l_count = 0;
+
+    struct srv_stake *l_stake_rec = s_srv_stake_by_net_id(a_net_id);
+
+    dap_chain_net_srv_stake_item_t *l_item = NULL;
+    for (l_item = l_stake_rec->itemlist; l_item; l_item = l_item->hh.next) {
+        if (l_item->net->pub.id.uint64 != a_net_id.uint64)
+            continue;
+        if(dap_hash_fast_is_blank(&l_item->tx_hash)) {  // no need pack validators with shared keys
+            continue;
+        }
+        ++l_count;
+    }
     if (!l_count) {
         log_it(L_INFO, "Can't find any keys in net with ID %"DAP_UINT64_FORMAT_U, a_net_id.uint64);
-        goto clean_and_ret;
+        return NULL;
     }
     size_t l_size = sizeof(struct hardfork_delegate_data) + l_count * sizeof(dap_hash_fast_t);
     l_ret = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY, NULL, l_size);
 
-    struct srv_stake *l_stake_rec = s_srv_stake_by_net_id(a_net_id);
-    dap_chain_net_srv_stake_item_t *l_item = NULL;
     struct hardfork_delegate_data *l_delegate_data = (struct hardfork_delegate_data *)(l_ret->data);
-    for (l_item = l_stake_rec->itemlist, l_delegate_data->decree_count = 0; l_item && l_delegate_data->decree_count < l_count; l_item = l_item->hh.next, ++l_delegate_data->decree_count) {
+    for (l_item = l_stake_rec->itemlist, l_delegate_data->decree_count = 0; l_item && l_delegate_data->decree_count < l_count; l_item = l_item->hh.next) {
         if (l_item->net->pub.id.uint64 != a_net_id.uint64)
             continue;
-        if(dap_hash_fast_is_blank(&l_item->tx_hash)) {  // no need pack validators with shared keys
+        if(dap_hash_fast_is_blank(&l_item->tx_hash)) {
             continue;
         }
         if(dap_hash_fast_is_blank(&l_item->decree_hash)) {
@@ -4284,9 +4294,9 @@ dap_tsd_t *dap_chain_net_srv_stake_get_hardfork_data(dap_chain_net_id_t a_net_id
             return NULL;
         }
         memcpy(l_delegate_data->hashes + l_delegate_data->decree_count, &l_item->decree_hash, sizeof(dap_hash_fast_t));
+        ++l_delegate_data->decree_count;
     }
     l_delegate_data->version = 0;
     l_delegate_data->data_size = l_size;
-clean_and_ret:
     return l_ret;
 }

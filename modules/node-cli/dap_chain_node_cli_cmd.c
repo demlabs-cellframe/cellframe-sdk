@@ -85,6 +85,7 @@
 #include "dap_client_pvt.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_wallet_cache.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
 
@@ -4110,8 +4111,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 return -1;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-
-            dap_list_append(l_tsd_list, dap_chain_net_srv_stake_get_hardfork_data(l_net->pub.id));
+            l_tsd = dap_chain_net_srv_stake_get_hardfork_data(l_net->pub.id);
+            l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
 
             if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-trusted_addrs", &l_param_addr_str)) {
                 char **l_addrs = dap_strsplit(l_param_addr_str, ",", 256);
