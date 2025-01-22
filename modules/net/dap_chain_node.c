@@ -682,7 +682,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             }
             DAP_DELETE(l_datum_anchor);
         }
-        break;
+        l_states->state_current = STATE_BALANCES;
     case STATE_BALANCES:
         for (dap_ledger_hardfork_balances_t *it = l_states->balances; it; it = it->next) {
             dap_chain_datum_t *l_tx = s_datum_tx_create(&it->addr, it->ticker, it->value, it->trackers);
@@ -695,7 +695,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             }
             DAP_DELETE(l_tx);
         }
-        break;
+        l_states->state_current = STATE_CONDOUTS;
     case STATE_CONDOUTS:
         for (dap_ledger_hardfork_condouts_t *it = l_states->condouts; it; it = it->next) {
             dap_chain_datum_t *l_cond_tx = s_cond_tx_create(it->cond, it->sign, &it->hash, it->ticker, it->trackers);
@@ -708,7 +708,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             }
             DAP_DELETE(l_cond_tx);
         }
-        break;
+        l_states->state_current = STATE_FEES;
     case STATE_FEES:
         for (dap_chain_cs_blocks_hardfork_fees_t *it = l_states->fees; it; it = it->next) {
             dap_chain_datum_t *l_fee_tx = s_fee_tx_create(it->fees_n_rewards_sum, it->owner_sign);
@@ -722,7 +722,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             }
             DAP_DELETE(l_fee_tx);
         }
-        break;
+        l_states->state_current = STATE_SERVICES;
     case STATE_SERVICES:
         for (dap_chain_srv_hardfork_state_t *it = l_states->service_states; it; it = it->next) {
             if (it->uid.uint64 >= (uint64_t)INT64_MIN)       // MSB is set
@@ -747,15 +747,11 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             if (l_break)
                 break;
         }
-        break;
+        l_states->state_current = STATE_MEMPOOL;
     case STATE_MEMPOOL: {
         char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
         size_t l_objs_count = 0;
         dap_store_obj_t *l_objs = dap_global_db_get_all_raw_sync(l_gdb_group_mempool, &l_objs_count);
-        if (!l_objs_count) {
-            l_states->state_current = STATE_OVER;
-            break;
-        }
         bool l_nothing_processed = true;
         for (size_t i = 0; i < l_objs_count; i++) {
             if (l_objs[i].value_len < sizeof(dap_chain_datum_t))
@@ -789,11 +785,95 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         if (l_nothing_processed)
             l_states->state_current = STATE_OVER;
     }
-
     case STATE_OVER:
         break;
     // No default here
     }
+    return 0;
+}
+
+int dap_chain_node_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size)
+{
+    if (a_datum_size <= sizeof(dap_chain_datum_t) || dap_chain_datum_size(a_datum) != a_datum_size) {
+        log_it(L_WARNING, "Incorrect harfork datum size %zu", a_datum_size <= sizeof(dap_chain_datum_t) ? a_datum_size : dap_chain_datum_size(a_datum));
+        return -1;
+    }
+    switch (a_datum->header.type_id) {
+    case DAP_CHAIN_DATUM_TX: {
+        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
+        if (!l_tx->header.ts_created /* TODO add || l_tx->header.ts_created other criteria */) {
+            char l_time[DAP_TIME_STR_SIZE]; dap_time_to_str_rfc822(l_time, DAP_TIME_STR_SIZE, l_tx->header.ts_created);
+            log_it(L_WARNING, "Incorrect harfork datum timestamp %s", l_time);
+            return -3;
+        }
+        dap_ledger_hardfork_balances_t l_regular = {};
+        dap_ledger_hardfork_condouts_t l_conitional = {};
+        bool l_out = false;
+        byte_t *l_item; size_t l_size;
+        TX_ITEM_ITER_TX(l_item, l_size, l_tx) {
+            switch (*l_item) {
+            case TX_ITEM_TYPE_OUT_EXT:
+                if (l_out || l_conitional.cond) {
+                    log_it(L_WARNING, "Additional OUT_EXT item for harfork datum tx is forbidden");
+                    return -4;
+                }
+                l_out = true;
+                dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)l_item;
+                l_regular.addr = l_out_ext->addr;
+                dap_stpcpy(l_regular.ticker, l_out_ext->token);
+                l_regular.value = l_out_ext->header.value;
+                break;
+            case TX_ITEM_TYPE_OUT_COND:
+                if (l_out || l_conitional.cond) {
+                    log_it(L_WARNING, "Additional OUT_COND item for harfork datum tx is forbidden");
+                    return -5;
+                }
+                l_conitional.cond = (dap_chain_tx_out_cond_t *)l_item;
+                break;
+            case TX_ITEM_TYPE_SIG:
+                if (l_conitional.sign) {
+                    log_it(L_WARNING, "Additional SIG item for harfork datum tx is forbidden");
+                    return -6;
+                }
+                l_conitional.sign = (dap_chain_tx_sig_t *)l_item;
+                break;
+            case TX_ITEM_TYPE_TSD: {
+                dap_chain_tx_tsd_t *l_tx_tsd = (dap_chain_tx_tsd_t *)l_item;
+                dap_tsd_t *l_tsd = (dap_tsd_t *)l_tx_tsd->tsd;
+                switch (l_tsd->type) {
+                case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TX_HASH:
+                    l_conitional.hash = *(dap_hash_fast_t *)l_tsd->data;
+                    break;
+                case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TICKER:
+                    dap_stpcpy((char *)l_conitional.ticker, (char *)l_tsd->data);
+                    break;
+                case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER:
+                    if (l_out)
+                        l_regular.trackers = dap_list_append(l_regular.trackers, l_tsd->data);
+                    else
+                        l_conitional.trackers = dap_list_append(l_conitional.trackers, l_tsd->data);
+                default:
+                    log_it(L_WARNING, "Illegal harfork datum tx TSD item type %d", l_tsd->type);
+                    return -7;
+                }
+            } break;
+            default:
+                log_it(L_WARNING, "Illegal harfork datum tx item type %d", *l_item);
+                return -4;
+            }
+            // Call comparators
+            // Clean memory
+        }
+    } break;
+    case DAP_CHAIN_DATUM_ANCHOR:
+        break;
+    case DAP_CHAIN_DATUM_SERVICE_STATE:
+        break;
+    default:
+        log_it(L_WARNING, "Incorrect harfork datum type %u", a_datum->header.type_id);
+        return -2;
+    }
+
     return 0;
 }
 

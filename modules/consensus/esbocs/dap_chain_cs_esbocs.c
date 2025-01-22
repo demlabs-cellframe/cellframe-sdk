@@ -2866,7 +2866,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         }
         if (a_blocks->is_hardfork_state) {
             // Addtionally verify datums vs internal states
-
+            dap_chain_node_hardfork_check();
         }
     }
 
