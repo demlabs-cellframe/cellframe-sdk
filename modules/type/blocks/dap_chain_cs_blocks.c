@@ -243,6 +243,11 @@ int dap_chain_cs_blocks_init()
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
                 "\t\t Take delegated part of reward\n\n"
 
+        "Reward and commission collect after hardfork:\n"
+            "block -net <net_name> [-chain <chain_name>] fee_stack collect"
+            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
+                "\t\t Take delegated part of commission\n\n"
+
         "Rewards and fees autocollect status:\n"
             "block -net <net_name> [-chain <chain_name>] autocollect status\n"
                 "\t\t Show rewards and fees automatic collecting status (enabled or not)."
@@ -598,6 +603,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         SUBCMD_DUMP,
         SUBCMD_LIST,
         SUBCMD_FEE,
+        SUBCMD_FEE_STACK,
         SUBCMD_DROP,
         SUBCMD_REWARD,
         SUBCMD_AUTOCOLLECT,
@@ -615,6 +621,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         [SUBCMD_DUMP]="dump",
         [SUBCMD_LIST]="list",
         [SUBCMD_FEE]="fee",
+        [SUBCMD_FEE_STACK]="fee_stack",
         [SUBCMD_DROP]="drop",
         [SUBCMD_REWARD] = "reward",
         [SUBCMD_AUTOCOLLECT] = "autocollect",
@@ -1104,6 +1111,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         } break;
 
         case SUBCMD_FEE:
+        case SUBCMD_FEE_STACK:
         case SUBCMD_REWARD: {
             const char * l_fee_value_str = NULL;
             const char * l_cert_name = NULL;
@@ -1116,7 +1124,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_list_t              *l_block_list = NULL;
             dap_chain_addr_t        *l_addr = NULL;
 
-            if (l_subcmd == SUBCMD_FEE) {
+            if (l_subcmd == SUBCMD_FEE || l_subcmd == SUBCMD_FEE_STACK) {
                 if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "collect") == -1) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block fee' requires subcommand 'collect'");
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
@@ -1230,9 +1238,21 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
             }
 
-            char *l_hash_tx = l_subcmd == SUBCMD_FEE
-                ? dap_chain_mempool_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type)
-                : dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
+            char *l_hash_tx = NULL;
+            switch(l_subcmd) {
+                case SUBCMD_FEE: {
+                    l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE);
+                    break;
+                }
+                case SUBCMD_FEE_STACK: {
+                    l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK);
+                    break;
+                }
+                case SUBCMD_REWARD: {
+                    l_hash_tx = dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
+                    break;
+                }
+            }
             if (l_hash_tx) {
                 json_object* json_obj_out = json_object_new_object();
                 char *l_val = dap_strdup_printf("TX for %s collection created successfully, hash = %s\n", l_subcmd_str, l_hash_tx);
@@ -2688,8 +2708,10 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
  * @return
  */
 static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t UNUSED_ARG *a_tx_in_hash,
-                                      dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool UNUSED_ARG a_owner)
+                                      dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool a_owner)
 {
+    if (a_owner)
+        return 0;
     dap_chain_net_t *l_net = a_ledger->net;
     assert(l_net);
     dap_chain_t *l_chain;
@@ -2713,7 +2735,7 @@ static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx
         // TX sign is already verified, just compare pkeys
         dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
         dap_sign_t *l_sign_tx = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
-        return dap_sign_compare_pkeys(l_sign_block, l_sign_tx) ? 0 : -5;
+        return !dap_sign_compare_pkeys(l_sign_block, l_sign_tx) ? 0 : -5;
     }
     return -4;
 }

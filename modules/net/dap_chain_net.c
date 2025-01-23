@@ -1930,7 +1930,8 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
         }
         DAP_DELETE(l_service_cfg_path);
     }
-    closedir(l_service_cfg_dir);
+    if (l_service_cfg_dir)
+        closedir(l_service_cfg_dir);
 
     /* *** Chains init by configs *** */
     DIR *l_chains_dir = opendir(a_path);

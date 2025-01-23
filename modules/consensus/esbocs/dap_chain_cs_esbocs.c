@@ -380,7 +380,7 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
         dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_block_collect_params->chain);
         char *l_tx_hash_str = l_fee_collect ?
                     dap_chain_mempool_tx_coll_fee_create(l_blocks, l_block_collect_params->blocks_sign_key,
-                                     l_block_collect_params->collecting_addr, l_block_list, l_block_collect_params->minimum_fee, "hex")
+                                     l_block_collect_params->collecting_addr, l_block_list, l_block_collect_params->minimum_fee, "hex", DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                   :
                     dap_chain_mempool_tx_reward_create(l_blocks, l_block_collect_params->blocks_sign_key,
                                      l_block_collect_params->collecting_addr, l_block_list, l_block_collect_params->minimum_fee, "hex");
@@ -411,7 +411,7 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
             assert(l_net);
             uint256_t l_value_fee = uint256_0;
             dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(
-                                            l_net->pub.ledger, a_block_cache, &l_value_fee);
+                                            l_net->pub.ledger, a_block_cache, &l_value_fee, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE);
             if (!IS_ZERO_256(l_value_fee)) {
                 char *l_fee_group = dap_chain_cs_blocks_get_fee_group(l_chain->net_name);
                 dap_global_db_set(l_fee_group, a_block_cache->block_hash_str, &l_value_fee, sizeof(l_value_fee),

@@ -154,7 +154,7 @@ void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache)
  * @return list of dap_chain_tx_used_out_item_t
  */
 dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, dap_chain_block_cache_t *a_block_cache,
-                                                            uint256_t *a_value_out)
+                                                            uint256_t *a_value_out, enum dap_chain_tx_out_cond_subtype a_cond_subtype)
 {
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
     dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
@@ -164,7 +164,7 @@ dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
             continue;
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_block_cache->datum[i]->data;
         int l_out_idx_tmp = 0;
-        if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE,
+        if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, a_cond_subtype,
                                                                      &l_out_idx_tmp)))
             continue;
 

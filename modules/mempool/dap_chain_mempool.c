@@ -305,7 +305,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
  */
 char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
                                            const dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
-                                           uint256_t a_value_fee, const char *a_hash_out_type)
+                                           uint256_t a_value_fee, const char *a_hash_out_type, enum dap_chain_tx_out_cond_subtype a_cond_subtype)
 {
     uint256_t                   l_value_out = {};
     uint256_t                   l_net_fee = {};
@@ -343,7 +343,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
             continue;
         }
 
-        dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_ledger, l_block_cache, &l_value_out_block);
+        dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_ledger, l_block_cache, &l_value_out_block, a_cond_subtype);
         if (!l_list_used_out)
             continue;
 
