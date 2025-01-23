@@ -674,7 +674,10 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             if (!a_apply)
                 break;
+            uint256_t l_supply_delta = {};
+            SUBTRACT_256_256(l_new_supply, a_item_apply_to->total_supply, &l_supply_delta);
             a_item_apply_to->total_supply = l_new_supply;
+            SUM_256_256(a_item_apply_to->current_supply, l_supply_delta, &a_item_apply_to->current_supply);
         } break;
 
         // Allowed tx receiver addres list add, remove or clear
