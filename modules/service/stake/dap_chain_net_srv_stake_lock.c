@@ -426,7 +426,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
     // Make transfer transaction
     dap_chain_datum_t *l_datum = s_stake_lock_datum_create(l_net, l_key_from, l_ticker_str, l_value, l_value_fee,
-                                                           l_addr_holder, l_reinvest_percent,
+                                                           l_addr_holder, l_time_staking, l_reinvest_percent,
                                                            l_delegated_ticker_str, l_value_delegated);
     dap_enc_key_delete(l_key_from);
 
@@ -1018,9 +1018,9 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
                 uint256_t l_delta = { };
                 SUBTRACT_256_256(a_cond->header.value, l_out->header.value, &l_delta);
                 l_out_idx = --l_idx; 
-                dap_chain_tx_out_ext_t l_out_back = (dap_chain_tx_out_ext_t*)dap_chain_datum_tx_item_get(a_tx_in, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
+                dap_chain_tx_out_ext_t *l_out_back = (dap_chain_tx_out_ext_t*)dap_chain_datum_tx_item_get(a_tx_in, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
                 /* Check cashback */
-                if ( l_idx != l_out_idx || compare256(l_out_back->header.value, l_delta) || !dap_chain_addr_compare(&l_cur_addr, l_out_back->addr) )
+                if ( l_idx != l_out_idx || compare256(l_out_back->header.value, l_delta) || !dap_chain_addr_compare(&l_cur_addr, &l_out_back->addr) )
                     return -7;
             }
             default:
@@ -1143,7 +1143,7 @@ static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datu
         dap_ledger_emission_for_stake_lock_item_add(a_ledger, a_tx_in_hash);
 }
 
-static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
+dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
                                                     const char *a_main_ticker, uint256_t a_value, uint256_t a_value_fee,
                                                     dap_chain_addr_t *a_recv_addr,
                                                     dap_time_t a_time_staking, uint256_t a_reinvest_percent,
@@ -1297,9 +1297,7 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
      if (a_recv_addr) {
         if (*a_delegated_ticker_str)
             return  log_it(L_ERROR, "Can't have both beneficiary address and delegated ticker provided"), NULL;    
-        dap_chain_addr_t *l_tmp = dap_chain_addr_from_str(a_recv_addr);
-        l_beneficiary = *l_tmp;
-        DAP_DELETE(l_tmp);
+        l_beneficiary = *a_recv_addr;
     } else
         l_beneficiary = l_addr;
 
