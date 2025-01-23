@@ -133,11 +133,12 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
  * @return dap_chain_node_info_t*
  */
 static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_address,
-        void **a_str_reply)
+        json_object* a_json_arr_reply)
 {
     dap_chain_node_info_t* l_res = dap_chain_node_info_read(a_net, a_address);
-    if (!l_res)
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Node record is corrupted or doesn't exist");
+    if (!l_res && a_json_arr_reply)
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NODE_RECORD_CORRUPTED_ERR,
+                                                        "Node record is corrupted or doesn't exist");
     return l_res;
 }
 
@@ -209,14 +210,13 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
  * @param a_addr
  * @param a_is_full
  * @param a_alias
- * @param a_str_reply
+ * @param a_json_arr_reply
  * @return int 0 Ok, -1 error
  */
 static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_addr_t * a_addr, bool a_is_full,
-        const char *a_alias, void **a_str_reply)
+        const char *a_alias, json_object* a_json_arr_reply)
 {
     int l_ret = 0;
-    dap_string_t *l_string_reply = dap_string_new("Node list:\n");
 
     if ((a_addr && a_addr->uint64) || a_alias) {
         dap_chain_node_addr_t *l_addr = a_alias
@@ -229,10 +229,9 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
         }
 
         // read node
-        dap_chain_node_info_t *node_info_read = node_info_read_and_reply(a_net, l_addr, a_str_reply);
+        dap_chain_node_info_t *node_info_read = node_info_read_and_reply(a_net, l_addr, a_json_arr_reply);
         if(!node_info_read) {
             DAP_DEL_Z(l_addr);
-            dap_string_free(l_string_reply, true);
             return -2;
         }
 
@@ -305,29 +304,32 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
         dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
 
         if(!l_nodes_count || !l_objs) {
-            dap_string_append_printf(l_string_reply, "No records\n");
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
-            dap_string_free(l_string_reply, true);
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR,
+                                                        "No records\n");
             dap_global_db_objs_delete(l_objs, l_nodes_count);
-            return -1;
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR;
         } else {
-            dap_string_append_printf(l_string_reply, "Got %zu nodes:\n", l_nodes_count);
-            dap_string_append_printf(l_string_reply, "%-26s%-20s%-8s%s", "Address", "IPv4", "Port", "Timestamp\n");
+            json_object* json_node_list_obj = json_object_new_object();
+            json_object* json_node_list_arr = json_object_new_array();
+            json_object_object_add(json_node_list_obj, "Got nodes", json_object_new_uint64(l_nodes_count));
 
             for (size_t i = 0; i < l_nodes_count; i++) {
+                
                 dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
                 if (dap_chain_node_addr_is_blank(&l_node_info->address)){
                     log_it(L_ERROR, "Node address is empty");
                     continue;
                 }
-
+                json_object* json_node_obj = json_object_new_object();
                 char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
                 dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
-
-                dap_string_append_printf(l_string_reply, NODE_ADDR_FP_STR"    %-20s%-8d%-32s\n",
-                                         NODE_ADDR_FP_ARGS_S(l_node_info->address),
-                                         l_node_info->ext_host, l_node_info->ext_port,
-                                         l_ts);
+                char *l_addr = dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_info->address));
+                json_object_object_add(json_node_obj, "Address", json_object_new_string(l_addr));
+                json_object_object_add(json_node_obj, "IPv4", json_object_new_string(l_node_info->ext_host));
+                json_object_object_add(json_node_obj, "Port", json_object_new_uint64(l_node_info->ext_port));
+                json_object_object_add(json_node_obj, "Timestamp", json_object_new_string(l_ts));
+                json_object_array_add(json_node_list_arr, json_node_obj);
+                DAP_DELETE(l_addr);
 
                 // TODO make correct work with aliases
                 /*dap_string_t *aliases_string = dap_string_new(NULL);
@@ -379,11 +381,11 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
                 dap_string_free(aliases_string, true);
                 dap_string_free(links_string, true);*/
             }
+            json_object_object_add(json_node_list_obj, "NODES", json_node_list_arr);
+            json_object_array_add(*a_json_arr_reply, json_node_list_obj);
         }
         dap_global_db_objs_delete(l_objs, l_nodes_count);
-    }
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
-    dap_string_free(l_string_reply, true);
+    }    
     return l_ret;
 }
 
@@ -432,7 +434,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         switch (res_flush) {
         case 0:
             json_obj_flush = json_object_new_object();
-            json_object_object_add(json_obj_flush, "command status", json_object_new_string("Commit data base and filesystem caches to disk completed.\n\n"));
+            json_object_object_add(json_obj_flush, "command status", json_object_new_string("Commit data base and filesystem caches to disk completed."));
             json_object_array_add(*a_json_arr_reply, json_obj_flush);
             break;
         case -1:
@@ -923,32 +925,33 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         uint16_t l_port = 0;
         if (l_addr_str || l_hostname) {
             if (!dap_chain_net_is_my_node_authorized(l_net)) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_HAVE_NO_ACCESS_RIGHTS_ERR,
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_HAVE_NO_ACCESS_RIGHTS_ERR,
                                        "You have no access rights");
                 return l_res;
             }
             // We're in authorized list, add directly
             struct sockaddr_storage l_verifier = { };
             if ( 0 > dap_net_parse_config_address(l_hostname, l_node_info->ext_host, &l_port, &l_verifier, NULL) ) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CANT_PARSE_HOST_STRING_ERR,
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_PARSE_HOST_STRING_ERR,
                                        "Can't parse host string %s", l_hostname);
-                return -DAP_CHAIN_NODE_CLI_COM_NODE_CANT_PARSE_HOST_STRING_ERR;
+                return -DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_PARSE_HOST_STRING_ERR;
             }
             if ( !l_node_info->ext_port && !(l_node_info->ext_port = l_port) ) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CANT_UNSPECIFIED_PORT_ERR,
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_UNSPECIFIED_PORT_ERR,
                                        "Unspecified port");
-                return -DAP_CHAIN_NODE_CLI_COM_NODE_CANT_UNSPECIFIED_PORT_ERR;
+                return -DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_UNSPECIFIED_PORT_ERR;
             }                
 
             l_node_info->ext_host_len = dap_strlen(l_node_info->ext_host);
             l_res = dap_chain_node_info_save(l_net, l_node_info);
 
             if (l_res) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CANT_ADDED_NOT_ERR,
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_ADDED_NOT_ERR,
                                        "Can't add node %s, error %d", l_addr_str, l_res);
             } else {
                 json_object* json_obj_out = json_object_new_object();
                 json_object_object_add(json_obj_out, "Successfully added node", json_object_new_string(l_addr_str));
+                json_object_array_add(*a_json_arr_reply, json_obj_out);
             }
             return l_res;
         }
@@ -959,22 +962,40 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         {
             if ( dap_config_get_item_bool_default(g_config, "server", "enabled", false) ) {
                 const char **l_listening = dap_config_get_array_str(g_config, "server", DAP_CFG_PARAM_LISTEN_ADDRS, NULL);
-                if ( l_listening && dap_net_parse_config_address(*l_listening, NULL, &l_port, NULL, NULL) < 0 )
-                    return dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid server IP address, check [server] section in cellframe-node.cfg"), -8;
+                if ( l_listening && dap_net_parse_config_address(*l_listening, NULL, &l_port, NULL, NULL) < 0 ) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_INVALID_SERVER_ERR,
+                                       "Invalid server IP address, check [server] section in cellframe-node.cfg");
+                    return -DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_INVALID_SERVER_ERR;
+                }                    
             }
-            if (!l_port)
-                return dap_cli_server_cmd_set_reply_text(a_str_reply, "Unspecified port"), -9; 
+            if (!l_port) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_UNSPECIFIED_PORT_ERR,
+                                       "Unspecified port");
+                return -DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_UNSPECIFIED_PORT_ERR;
+            } 
         }
         switch ( l_res = dap_chain_net_node_list_request(l_net, l_port, true, 'a') )
         {
-            case 1: return dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully added"), 0;
-            case 2: return dap_cli_server_cmd_set_reply_text(a_str_reply, "No server"), l_res;
-            case 3: return dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your address node to node list"), l_res;
-            case 4: return dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr"), l_res;
-            case 5: return dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node"), l_res;
-            case 6: return dap_cli_server_cmd_set_reply_text(a_str_reply, "The node already exists"), l_res;
-            case 7: return dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request"), l_res;
-            default:return dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res), l_res;
+            case 1:
+                json_object* json_obj_out = json_object_new_object();
+                json_object_object_add(json_obj_out, "status", json_object_new_string("Successfully added"));
+                json_object_array_add(*a_json_arr_reply, json_obj_out);
+                 return DAP_CHAIN_NODE_CLI_COM_NODE_OK;
+            case 2: dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_NO_SERVER_ERR,
+                                                                                                "No server");break;
+            case 3: dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_DIDNT_ADD_ADDRESS_ERR,
+                                                                "Didn't add your address node to node list");break;
+            case 4: dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_CALCULATE_HASH_ERR,
+                                                                       "Can't calculate hash for your addr");break;
+            case 5: dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_DO_HANDSHAKE_ERR,
+                                                                         "Can't do handshake for your node");break;
+            case 6: dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_ALREADY_EXISTS_ERR,
+                                                                                  "The node already exists");break;
+            case 7: dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_PROCESS_NODE_LIST_ERR,
+                                                                     "Can't process node list HTTP request");break;
+            default:dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_PROCESS_REQUEST_ERR,
+                                                                   "Can't process request, error %d", l_res);break;
+            return l_res;
         }
     }
 
@@ -982,32 +1003,45 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         // handler of command 'node del'
         if (l_addr_str) {
             if (!dap_chain_net_is_my_node_authorized(l_net)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
-                return -10;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_DELL_NO_ACCESS_RIGHTS_ERR,
+                                       "You have no access rights");
+                return -DAP_CHAIN_NODE_CLI_COM_NODE_DELL_NO_ACCESS_RIGHTS_ERR;
             }
             int l_res = dap_chain_node_info_del(l_net, l_node_info);
             if (l_res)
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't delete node %s, error %d", l_addr_str, l_res);
-            else
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully deleted node %s", l_addr_str);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_DELL_CANT_DEL_NODE_ERR,
+                                       "Can't delete node %s, error %d", l_addr_str, l_res);
+            else {
+                json_object* json_obj_out = json_object_new_object();
+                json_object_object_add(json_obj_out, "Successfully deleted node", json_object_new_string(l_addr_str));
+                json_object_array_add(*a_json_arr_reply, json_obj_out);
+            }
             return l_res;
         }
         // Synchronous request, wait for reply
         int l_res = dap_chain_net_node_list_request(l_net, 0, true, 'r');
         switch (l_res) {
-            case 8:  dap_cli_server_cmd_set_reply_text(a_str_reply, "Sucessfully deleted"); return 0;
-            default: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res); return l_res;
+            case 8: 
+                json_object* json_obj_out = json_object_new_object();
+                json_object_object_add(json_obj_out, "status", json_object_new_string("Successfully deleted"));
+                json_object_array_add(*a_json_arr_reply, json_obj_out); 
+            return DAP_CHAIN_NODE_CLI_COM_NODE_OK;
+            default: dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_DELL_CANT_PROCESS_REQUEST_ERR,
+                                       "Can't process request, error %d", l_res);
+            return l_res; 
         }
     }
 
     case CMD_LIST:{
         // handler of command 'node dump'
         bool l_is_full = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-full", NULL);
-        return s_node_info_list_with_reply(l_net, &l_node_addr, l_is_full, alias_str, a_str_reply);
+        return s_node_info_list_with_reply(l_net, &l_node_addr, l_is_full, alias_str, a_json_arr_reply);
     }
     case CMD_DUMP: {
+        json_object* json_obj_out = json_object_new_object();
         dap_string_t *l_string_reply = dap_chain_node_states_info_read(l_net, l_node_info->address);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
+        json_object_object_add(json_obj_out, "status dump", json_object_new_string(l_string_reply->str));
+        json_object_array_add(*a_json_arr_reply, json_obj_out);
         dap_string_free(l_string_reply, true);
         return 0;
     }
@@ -1019,23 +1053,28 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                 if(!dap_chain_node_alias_register(l_net, alias_str, &l_node_addr))
                     log_it(L_WARNING, "can't save alias %s", alias_str);
                 else {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "alias mapped successfully");
+                    json_object* json_obj_out = json_object_new_object();
+                    json_object_object_add(json_obj_out, "status alias", json_object_new_string("alias mapped successfully"));
+                    json_object_array_add(*a_json_arr_reply, json_obj_out);
                 }
             }
             else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "alias can't be mapped because -addr is not found");
-                return -1;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ALIAS_ADDR_NOT_FOUND_ERR,
+                                            "alias can't be mapped because -addr is not found");
+                return -DAP_CHAIN_NODE_CLI_COM_NODE_ALIAS_ADDR_NOT_FOUND_ERR;
             }
         }
         else {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "alias can't be mapped because -alias is not found");
-            return -1;
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ALIAS_ALIAS_NOT_FOUND_ERR,
+                                            "alias can't be mapped because -alias is not found");
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_ALIAS_ALIAS_NOT_FOUND_ERR;
         }
 
         break;
         // make connect
     case CMD_CONNECT:
-         dap_cli_server_cmd_set_reply_text(a_str_reply, "Not implemented yet");
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CONNECT_NOT_IMPLEMENTED_ERR,
+                                            "Not implemented yet");
          break;
 #if 0
         // get address from alias if addr not defined
@@ -1228,39 +1267,45 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                 DAP_DELETE(address_tmp);
             }
             else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "No address found by alias");
-                return -4;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_FOUND_ADDR_ERR,
+                                            "No address found by alias");
+                return -DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_FOUND_ADDR_ERR;
             }
         }
         l_node_addr = l_node_info->address;
         if(!l_node_addr.uint64) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Addr not found");
-            return -5;
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_FOUND_ADDR_ERR,
+                                            "Addr not found");
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_FOUND_ADDR_ERR;
         }
 
-        dap_chain_node_info_t *node_info = node_info_read_and_reply(l_net, &l_node_addr, a_str_reply);
+        dap_chain_node_info_t *node_info = node_info_read_and_reply(l_net, &l_node_addr, a_json_arr_reply);
         if(!node_info)
             return -6;
         int timeout_ms = 5000; //5 sec = 5000 ms
         // start handshake
         dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net,node_info);
         if(!l_client) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't connect");
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_CANT_CONNECT_ERR,
+                                            "Can't connect");
             DAP_DELETE(node_info);
-            return -7;
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_CANT_CONNECT_ERR;
         }
         // wait handshake
         int res = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
         if (res) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "No response from node");
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_RESPONSE_ERR,
+                                            "No response from node");
             // clean client struct
             dap_chain_node_client_close_unsafe(l_client);
             DAP_DELETE(node_info);
-            return -8;
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_RESPONSE_ERR;
         }
         DAP_DELETE(node_info);
         dap_chain_node_client_close_unsafe(l_client);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Connection established");
+        json_object* json_obj_out = json_object_new_object();
+        json_object_object_add(json_obj_out, "status handshake", json_object_new_string("Connection established"));
+        json_object_array_add(*a_json_arr_reply, json_obj_out);
     } break;
 
     case CMD_CONNECTIONS: {
