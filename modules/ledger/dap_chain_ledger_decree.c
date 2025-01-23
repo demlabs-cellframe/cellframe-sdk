@@ -618,6 +618,7 @@ const char *l_ban_addr;
                 break;
             dap_list_t *l_addrs = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size,
                                                    DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, sizeof(dap_stream_node_addr_t));
+            dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
             return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_block_num, l_addrs);
         default:
             return -1;

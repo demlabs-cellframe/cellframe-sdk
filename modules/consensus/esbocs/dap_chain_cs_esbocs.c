@@ -1682,6 +1682,10 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
             if (l_candidate_size)
                  l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
                                                             a_session->cur_round.excluded_list, (*a_session->cur_round.excluded_list + 1) * sizeof(uint16_t));
+            if (a_session->is_hardfork && l_candidate_size) {
+                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_HARDFORK_DECREE_HASH,
+                                                            &l_chain->hardfork_decree_hash, sizeof(l_chain->hardfork_decree_hash));
+            }
         }
         if (l_candidate_size) {
             dap_hash_fast(l_candidate, l_candidate_size, &l_candidate_hash);
@@ -1728,6 +1732,19 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
     // Process candidate
     a_session->processing_candidate = a_candidate;
     dap_chain_atom_verify_res_t l_verify_status = a_session->chain->callback_atom_verify(a_session->chain, a_candidate, a_candidate_size, a_candidate_hash);
+    // compare hardfork decree hashes
+    if (a_session->is_hardfork && (l_verify_status == ATOM_ACCEPT || l_verify_status == ATOM_FORK)) {
+        dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(a_candidate, a_candidate_size, DAP_CHAIN_BLOCK_META_HARDFORK_DECREE_HASH);
+        if (!l_hardfork_decree_hash) {
+            log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
+            l_verify_status = ATOM_REJECT;
+        } else if (memcmp(l_hardfork_decree_hash, &a_session->chain->hardfork_decree_hash, sizeof(a_session->chain->hardfork_decree_hash))) {
+            char *l_candidate_hash_str =  dap_hash_fast_to_str_new(l_hardfork_decree_hash);
+            log_it(L_ERROR, "Can't verify hardfork decree hash in atom candidate, expected %s, got %s", dap_hash_fast_to_str_static(&a_session->chain->hardfork_decree_hash), l_candidate_hash_str);
+            DAP_DELETE(l_candidate_hash_str);
+            l_verify_status = ATOM_REJECT;
+        }
+    }
     if (l_verify_status == ATOM_ACCEPT || l_verify_status == ATOM_FORK) {
         // validation - OK, gen event Approve
         s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_APPROVE, a_candidate_hash,
