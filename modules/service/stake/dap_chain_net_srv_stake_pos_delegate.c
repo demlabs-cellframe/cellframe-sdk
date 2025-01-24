@@ -3718,7 +3718,6 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
     uint256_t l_min_tmp = uint256_0;
     uint16_t l_min_tmp_count = 0;
     for (size_t k = 0; k < l_order_fee_count; k++) {
-        if (IS_ZERO_256(l_min)) {
             switch (compare256(l_min_tmp, l_all_fees[k])) {
                 case 0: l_min_tmp_count++; break;
                 case 1: l_min_tmp = l_all_fees[k]; l_min_tmp_count = 1; break;
@@ -3727,7 +3726,6 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
             if (l_min_tmp_count == l_min_count) {
                 l_min = l_min_tmp;
             }
-        }
         if (compare256(l_max, l_all_fees[k]) == -1) {
             l_max = l_all_fees[k];
         }
