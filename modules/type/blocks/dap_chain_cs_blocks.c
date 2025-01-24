@@ -1976,10 +1976,12 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         else if(dap_hash_fast_compare(&l_block_hash, &PVT(l_blocks)->static_genesis_block_hash)
                 && !dap_hash_fast_is_blank(&l_block_hash))
             log_it(L_NOTICE, "Accepting static genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
-        else {
+        else if (l_blocks->is_hardfork_state && !dap_hash_fast_is_blank(&a_chain->hardfork_decree_hash)) {
+            log_it(L_NOTICE, "Accepting hardfork genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
+        } else {
             char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&PVT(l_blocks)->static_genesis_block_hash, l_hash_str, sizeof(l_hash_str));
-            log_it(L_WARNING, "Can't accept genesis block %s: seed mode not enabled or hash mismatch with static genesis block %s in configuration",
+            log_it(L_WARNING, "Can't accept genesis block %s: seed mode not enabled or hash mismatch with static genesis block %s in configuration or hardfork decree is blank",
                                 dap_hash_fast_to_str_static(a_atom_hash), l_hash_str);
             return ATOM_REJECT;
         }

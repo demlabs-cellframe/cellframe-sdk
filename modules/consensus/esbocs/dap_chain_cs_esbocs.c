@@ -1683,8 +1683,10 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                  l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
                                                             a_session->cur_round.excluded_list, (*a_session->cur_round.excluded_list + 1) * sizeof(uint16_t));
             if (a_session->is_hardfork && l_candidate_size) {
-                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_HARDFORK_DECREE_HASH,
+                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_LINK,
                                                             &l_chain->hardfork_decree_hash, sizeof(l_chain->hardfork_decree_hash));
+                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_GENESIS,
+                                                            NULL, 0);
             }
         }
         if (l_candidate_size) {
@@ -1733,8 +1735,8 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
     a_session->processing_candidate = a_candidate;
     dap_chain_atom_verify_res_t l_verify_status = a_session->chain->callback_atom_verify(a_session->chain, a_candidate, a_candidate_size, a_candidate_hash);
     // compare hardfork decree hashes
-    if (a_session->is_hardfork && (l_verify_status == ATOM_ACCEPT || l_verify_status == ATOM_FORK)) {
-        dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(a_candidate, a_candidate_size, DAP_CHAIN_BLOCK_META_HARDFORK_DECREE_HASH);
+    if (a_session->is_hardfork && l_verify_status == ATOM_ACCEPT) {
+        dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(a_candidate, a_candidate_size, DAP_CHAIN_BLOCK_META_LINK);
         if (!l_hardfork_decree_hash) {
             log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
             l_verify_status = ATOM_REJECT;
@@ -2872,6 +2874,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 {
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    dap_hash_fast_t *l_hardfork_decree_hash = NULL;
 
     if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block) {
         // It's a block candidate, don't check signs
@@ -2881,7 +2884,11 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         }
         if (a_blocks->is_hardfork_state) {
             // Addtionally verify datums vs internal states
-
+            l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_LINK);
+            if (!l_hardfork_decree_hash) {
+                log_it(L_ERROR, "Can't find hardfork decree hash in meta of block", a_block->hdr.version);
+                return -4;
+            }
         }
     }
 
@@ -2914,6 +2921,9 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         ? DAP_DUP_SIZE(a_block, l_block_size)
         : a_block;
     l_block->hdr.meta_n_datum_n_signs_size = l_block_excl_sign_size - sizeof(l_block->hdr);
+    if (l_hardfork_decree_hash) {
+        
+    }
     for (size_t i = 0; i < l_signs_count; i++) {
         dap_sign_t *l_sign = l_signs[i];
         dap_chain_addr_t l_signing_addr = { .net_id = a_blocks->chain->net_id };
