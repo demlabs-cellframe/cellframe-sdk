@@ -272,7 +272,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_
 
     dap_time_t a_time_staking = 1;
     dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
-                                                l_uid, a_value, a_time_staking, uint256_0);
+                                                l_uid, a_value, a_time_staking, NULL, uint256_0);
 
     // add all items to tx
     uint256_t value_change = {};
