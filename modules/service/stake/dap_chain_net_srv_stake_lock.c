@@ -354,20 +354,6 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     if ( !dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_staking_str) || !l_time_staking_str )
         return TIME_ERROR;
 
-/*
-    if (dap_strlen(l_time_staking_str) != 6)
-        return TIME_ERROR;
-
-    char l_time_staking_month_str[3] = {l_time_staking_str[2], l_time_staking_str[3], 0};
-    int l_time_staking_month = atoi(l_time_staking_month_str);
-    if (l_time_staking_month < 1 || l_time_staking_month > 12)
-        return TIME_ERROR;
-
-    char l_time_staking_day_str[3] = {l_time_staking_str[4], l_time_staking_str[5], 0};
-    int l_time_staking_day = atoi(l_time_staking_day_str);
-    if (l_time_staking_day < 1 || l_time_staking_day > 31)
-        return TIME_ERROR;
-*/ // TODO: check how strings are converted
     dap_time_t l_time_staking = dap_time_from_str_simplified(l_time_staking_str), l_time_now = dap_time_now();
     if (l_time_staking < l_time_now)
         return TIME_ERROR;
