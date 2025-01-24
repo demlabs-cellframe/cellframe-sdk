@@ -345,7 +345,8 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     if (IS_ZERO_256(a_value))
         return NULL;
     bool l_tsd_sovereign_addr = a_sovereign_addr && !dap_chain_addr_is_blank(a_sovereign_addr);
-    size_t l_pkey_size = dap_pkey_get_size(a_pkey);
+    // size_t l_pkey_size = dap_pkey_get_size(a_pkey);
+    size_t l_pkey_size = 0;
     size_t l_tsd_total_size =  dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(l_tsd_sovereign_addr, l_pkey_size);
     
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + l_tsd_total_size);

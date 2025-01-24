@@ -149,10 +149,6 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_chain_ne
         if (dap_chain_net_link_add(a_net, &l_link_info->node_addr, l_link_info->uplink_addr, l_link_info->uplink_port))
             continue;
         l_json = s_balancer_states_json_collect(a_net, a_host_addr, a_host_port);
-        snprintf(l_err_str, sizeof(l_err_str)
-                     , "Link " NODE_ADDR_FP_STR " prepared"
-                     , NODE_ADDR_FP_ARGS_S(l_link_info->node_addr));
-        json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
         dap_notify_server_send_mt(json_object_get_string(l_json));
         json_object_put(l_json);
     }

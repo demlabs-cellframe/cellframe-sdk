@@ -674,7 +674,10 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             if (!a_apply)
                 break;
+            uint256_t l_supply_delta = {};
+            SUBTRACT_256_256(l_new_supply, a_item_apply_to->total_supply, &l_supply_delta);
             a_item_apply_to->total_supply = l_new_supply;
+            SUM_256_256(a_item_apply_to->current_supply, l_supply_delta, &a_item_apply_to->current_supply);
         } break;
 
         // Allowed tx receiver addres list add, remove or clear
@@ -5920,12 +5923,10 @@ dap_chain_token_ticker_str_t dap_ledger_tx_calculate_main_ticker_(dap_ledger_t *
 }
 
 /**
- * Get the transaction in the cache by the public key that signed the transaction,
- * starting from the next hash after a_tx_first_hash
- *
- * a_public_key[in] public key that signed the transaction
- * a_public_key_size[in] public key size
- * a_tx_first_hash [in/out] hash of the initial transaction/ found transaction, if 0 start from the beginning
+ * @brief dap_ledger_find_pkey_by_hash
+ * @param a_ledger to search
+ * @param a_pkey_hash - pkey hash
+ * @return pointer to dap_pkey_t if finded, other - NULL
  */
 dap_pkey_t *dap_ledger_find_pkey_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_pkey_hash)
 {
