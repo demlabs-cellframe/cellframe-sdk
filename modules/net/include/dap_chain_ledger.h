@@ -403,7 +403,7 @@ dap_chain_datum_tx_t *dap_ledger_tx_find_datum_by_hash( dap_ledger_t *a_ledger, 
 #define dap_ledger_tx_unspent_find_by_hash(a_ledger, a_tx_hash) \
     dap_ledger_tx_find_datum_by_hash(a_ledger, a_tx_hash, NULL, true)
     
-dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash);
+dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash, bool a_unspent_only);
 dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_subtype_t a_cond_type);
 
  // Get the transaction in the cache by the addr in out item
