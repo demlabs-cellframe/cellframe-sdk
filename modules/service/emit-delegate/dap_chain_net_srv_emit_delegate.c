@@ -32,6 +32,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_emit_delegate.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "dap_list.h"
 
 
 enum emit_delegation_error {
@@ -289,7 +290,7 @@ static bool s_is_key_present(dap_chain_tx_out_cond_t *a_cond, dap_enc_key_t *a_e
 }
 
 dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
-                                                dap_chain_addr_t *a_addr_to, uint256_t a_value, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash)
+                                                dap_chain_addr_t *a_addr_to, uint256_t a_value, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
 {
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
@@ -367,6 +368,12 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
         m_tx_fail(ERROR_COMPOSE, "Can't add TSD section item with withdraw value");
     DAP_DELETE(l_takeoff_tsd);
 
+    //add other tsd if available
+    for ( dap_list_t *l_tsd = tsd_items; l_tsd; l_tsd = l_tsd->next ) {
+        if ( dap_chain_datum_tx_add_item(&l_tx, l_tsd->data) != 1 )
+            m_tx_fail(ERROR_COMPOSE, "Can't add custom TSD section item ");
+    }
+
     // add fee items
     if (l_net_fee_used) {
         int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_net_fee_addr, l_net_fee)
@@ -380,8 +387,12 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     uint256_t l_fee_back = {};
     // fee coin back
     SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
-    if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, a_net->pub.native_ticker) != 1)
-        m_tx_fail(ERROR_COMPOSE, "Cant add fee back output");
+    if (!IS_ZERO_256(l_fee_back)) {
+            int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_owner_addr, l_fee_back)
+                                     : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, a_net->pub.native_ticker);
+            if (rc != 1)
+                m_tx_fail(ERROR_COMPOSE, "Cant add fee back output");
+    }
 
     // add 'sign' item
     if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1)
@@ -616,7 +627,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
         return ERROR_VALUE;
     }
      // Create emission from conditional transaction
-    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_addr, l_value, l_fee, &l_tx_in_hash);
+    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_addr, l_value, l_fee, &l_tx_in_hash, NULL);
     DAP_DEL_MULTY(l_enc_key, l_addr);
     if (!l_tx) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for delegated emission");
