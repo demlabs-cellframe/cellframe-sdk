@@ -3164,7 +3164,7 @@ dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
     return l_hash;
 }
 
-dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash)
+dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash, bool a_unspent_only)
 {
     dap_chain_hash_fast_t l_hash = { };
     dap_return_val_if_fail(a_ledger && a_tx_hash && !dap_hash_fast_is_blank(a_tx_hash), l_hash);
@@ -3174,7 +3174,7 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
     while (( l_tx = dap_ledger_tx_find_datum_by_hash(a_ledger, &l_hash, &l_item, false) )) {
         int l_out_num = 0;
         if (!dap_chain_datum_tx_out_cond_get(l_tx, a_cond_type, &l_out_num))
-            return (dap_hash_fast_t) { };
+            return a_unspent_only ? (dap_hash_fast_t){} : l_hash;
         else if ( dap_hash_fast_is_blank(&(l_item->cache_data.tx_hash_spent_fast[l_out_num])) )
             break;
         l_hash = l_item->cache_data.tx_hash_spent_fast[l_out_num];
@@ -4043,10 +4043,6 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         } break;
         case TX_ITEM_TYPE_OUT_EXT: { // 256
             dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)it;
-            if (!l_multichannel) { // token ticker is forbiden for single-channel transactions
-                l_err_num = DAP_LEDGER_TX_CHECK_UNEXPECTED_TOKENIZED_OUT;
-                break;
-            }
             l_value = l_tx_out->header.value;
             l_token = l_tx_out->token;
             l_tx_out_to = l_tx_out->addr;

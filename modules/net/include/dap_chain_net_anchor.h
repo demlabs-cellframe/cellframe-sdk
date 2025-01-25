@@ -24,8 +24,16 @@
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_net.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_chain_net_anchor_init();
 
 int dap_chain_net_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t * a_anchor, size_t a_data_size);
 int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash);
 int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash);
+
+#ifdef __cplusplus
+}
+#endif

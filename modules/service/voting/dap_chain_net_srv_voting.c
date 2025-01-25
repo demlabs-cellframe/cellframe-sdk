@@ -919,7 +919,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
                 continue;
             json_object* json_obj_vote = json_object_new_object();
             json_object_object_add( json_obj_vote, "voting_tx", 
-                                    json_object_new_string_len(dap_chain_hash_fast_to_str_static(&l_voting->voting_hash), sizeof(dap_hash_str_t)) );            
+                                    json_object_new_string(dap_chain_hash_fast_to_str_static(&l_voting->voting_hash)));            
             char* l_voting_question = (char*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset;
             json_object_object_add( json_obj_vote, "question", 
                                     json_object_new_string_len(l_voting_question, l_voting->voting_params.voting_question_length) );
