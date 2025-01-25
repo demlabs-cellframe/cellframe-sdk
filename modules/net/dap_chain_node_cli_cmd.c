@@ -4412,11 +4412,11 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
 
 static int s_token_decl_check_params(int a_argc, char **a_argv, void **a_str_reply, dap_sdk_cli_params *a_params, bool a_update_token)
 {
-    int l_parse_params = s_parse_common_token_decl_arg(a_argc,a_argv,a_str_reply,a_params, a_update_token);
+    int l_parse_params = s_parse_common_token_decl_arg(a_argc,a_argv, *(json_object**)a_str_reply,a_params, a_update_token);
     if (l_parse_params)
         return l_parse_params;
 
-    l_parse_params = s_parse_additional_token_decl_arg(a_argc,a_argv,a_str_reply,a_params, a_update_token);
+    l_parse_params = s_parse_additional_token_decl_arg(a_argc,a_argv, *(json_object**)a_str_reply, a_params, a_update_token);
     if (l_parse_params)
         return l_parse_params;
 
