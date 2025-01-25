@@ -105,6 +105,85 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET,
 } dap_ledger_check_error_t;
 
+typedef enum dap_chan_ledger_notify_opcodes{
+    DAP_LEDGER_NOTIFY_OPCODE_ADDED = 'a', // 0x61
+    DAP_LEDGER_NOTIFY_OPCODE_DELETED = 'd', // 0x64 
+} dap_chan_ledger_notify_opcodes_t;
+typedef enum dap_chain_tx_tag_action_type {    
+
+    //subtags, till 32
+    DAP_CHAIN_TX_TAG_ACTION_UNKNOWN  =              1 << 1,
+    
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR =      1 << 2,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION =    1 << 3,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN =   1 << 4,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD =       1 << 5,
+
+    DAP_CHAIN_TX_TAG_ACTION_OPEN =                  1 << 6,
+    DAP_CHAIN_TX_TAG_ACTION_USE =                   1 << 7,
+    DAP_CHAIN_TX_TAG_ACTION_EXTEND =                1 << 8,
+    DAP_CHAIN_TX_TAG_ACTION_CHANGE =                1 << 9,
+    DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 10,
+
+    DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
+    DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
+   
+    DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
+} dap_chain_tx_tag_action_type_t;
+
+typedef struct dap_ledger_datum_iter {
+    dap_chain_net_t *net;
+    dap_chain_datum_tx_t *cur;
+    dap_chain_hash_fast_t cur_hash;
+    bool is_unspent;
+    int ret_code;
+    void *cur_ledger_tx_item;
+} dap_ledger_datum_iter_t;
+
+typedef struct dap_ledger_datum_iter_data {
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint32_t action;
+    dap_chain_net_srv_uid_t uid;
+} dap_ledger_datum_iter_data_t;
+
+//Change this UUID to automatically reload ledger cache on next node startup
+#define DAP_LEDGER_CACHE_RELOAD_ONCE_UUID "0c92b759-a565-448f-b8bd-99103dacf7fc"
+
+// Checks the emission of the token, usualy on zero chain
+#define DAP_LEDGER_CHECK_TOKEN_EMISSION     0x0001
+
+// Check double spending in local cell
+#define DAP_LEDGER_CHECK_LOCAL_DS           0x0002
+
+// Check the double spending in all cells
+#define DAP_LEDGER_CHECK_CELLS_DS           0x0100
+
+#define DAP_LEDGER_CACHE_ENABLED            0x0200
+
+#define DAP_LEDGER_MAPPED                   0x0400
+
+#define DAP_LEDGER_THRESHOLD_ENABLED        0x0800
+
+// Error code for no previous transaction (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS     DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND
+// Error code for no emission for a transaction (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION     DAP_LEDGER_TX_CHECK_EMISSION_NOT_FOUND
+// Error code for not enough valid emission signs (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS   DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS
+// Error code for no decree for anchor (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE          -1113
+
+#define DAP_LEDGER_TOKENS_STR              "tokens"
+#define DAP_LEDGER_EMISSIONS_STR           "emissions"
+#define DAP_LEDGER_STAKE_LOCK_STR          "stake_lock"
+#define DAP_LEDGER_TXS_STR                 "txs"
+#define DAP_LEDGER_SPENT_TXS_STR           "spent_txs"
+#define DAP_LEDGER_BALANCES_STR            "balances"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_t a_error)
 {
     switch (a_error) {
@@ -165,46 +244,6 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     }
 }
 
-typedef enum dap_chan_ledger_notify_opcodes{
-    DAP_LEDGER_NOTIFY_OPCODE_ADDED = 'a', // 0x61
-    DAP_LEDGER_NOTIFY_OPCODE_DELETED = 'd', // 0x64 
-} dap_chan_ledger_notify_opcodes_t;
-typedef enum dap_chain_tx_tag_action_type {    
-
-    //subtags, till 32
-    DAP_CHAIN_TX_TAG_ACTION_UNKNOWN  =              1 << 1,
-    
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR =      1 << 2,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION =    1 << 3,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN =   1 << 4,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD =       1 << 5,
-
-    DAP_CHAIN_TX_TAG_ACTION_OPEN =                  1 << 6,
-    DAP_CHAIN_TX_TAG_ACTION_USE =                   1 << 7,
-    DAP_CHAIN_TX_TAG_ACTION_EXTEND =                1 << 8,
-    DAP_CHAIN_TX_TAG_ACTION_CHANGE =                1 << 9,
-    DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 10,
-
-    DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
-    DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
-   
-    DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
-} dap_chain_tx_tag_action_type_t;
-
-typedef struct dap_ledger_datum_iter {
-    dap_chain_net_t *net;
-    dap_chain_datum_tx_t *cur;
-    dap_chain_hash_fast_t cur_hash;
-    bool is_unspent;
-    int ret_code;
-    void *cur_ledger_tx_item;
-} dap_ledger_datum_iter_t;
-
-typedef struct dap_ledger_datum_iter_data {
-    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint32_t action;
-    dap_chain_net_srv_uid_t uid;
-} dap_ledger_datum_iter_data_t;
 
 typedef int (*dap_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_cond);
@@ -218,39 +257,6 @@ typedef bool (*dap_chain_ledger_voting_delete_callback_t)(dap_ledger_t *a_ledger
 typedef bool (*dap_ledger_tag_check_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action);
 
 
-//Change this UUID to automatically reload ledger cache on next node startup
-#define DAP_LEDGER_CACHE_RELOAD_ONCE_UUID "0c92b759-a565-448f-b8bd-99103dacf7fc"
-
-// Checks the emission of the token, usualy on zero chain
-#define DAP_LEDGER_CHECK_TOKEN_EMISSION     0x0001
-
-// Check double spending in local cell
-#define DAP_LEDGER_CHECK_LOCAL_DS           0x0002
-
-// Check the double spending in all cells
-#define DAP_LEDGER_CHECK_CELLS_DS           0x0100
-
-#define DAP_LEDGER_CACHE_ENABLED            0x0200
-
-#define DAP_LEDGER_MAPPED                   0x0400
-
-#define DAP_LEDGER_THRESHOLD_ENABLED        0x0800
-
-// Error code for no previous transaction (for stay in mempool)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS     DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND
-// Error code for no emission for a transaction (for stay in mempool)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION     DAP_LEDGER_TX_CHECK_EMISSION_NOT_FOUND
-// Error code for not enough valid emission signs (for stay in mempool)
-#define DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS   DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS
-// Error code for no decree for anchor (for stay in mempool)
-#define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE          -1113
-
-#define DAP_LEDGER_TOKENS_STR              "tokens"
-#define DAP_LEDGER_EMISSIONS_STR           "emissions"
-#define DAP_LEDGER_STAKE_LOCK_STR          "stake_lock"
-#define DAP_LEDGER_TXS_STR                 "txs"
-#define DAP_LEDGER_SPENT_TXS_STR           "spent_txs"
-#define DAP_LEDGER_BALANCES_STR            "balances"
 
 int dap_ledger_init();
 void dap_ledger_deinit();
@@ -465,3 +471,7 @@ bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger);
 void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_cache_tx_check_callback_t a_callback);
 dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond);
 void dap_ledger_load_end(dap_ledger_t *a_ledger);
+
+#ifdef __cplusplus
+}
+#endif

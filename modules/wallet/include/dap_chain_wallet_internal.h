@@ -96,4 +96,3 @@ typedef struct dap_chain_wallet_internal
 #define DAP_CHAIN_WALLET_INTERNAL(a) (a ? (dap_chain_wallet_internal_t *) a->_internal : NULL)
 #define DAP_CHAIN_WALLET_INTERNAL_LOCAL(a) dap_chain_wallet_internal_t * l_wallet_internal = DAP_CHAIN_WALLET_INTERNAL(a)
 #define DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(a) dap_chain_wallet_internal_t * l_wallet_internal = DAP_NEW_Z(dap_chain_wallet_internal_t); a->_internal = l_wallet_internal
-

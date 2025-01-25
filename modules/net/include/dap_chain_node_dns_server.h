@@ -115,10 +115,15 @@ typedef struct _dap_dns_server_t {
     dap_dns_zone_hash_t *hash_table;
 } dap_dns_server_t;
 
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void dap_dns_server_start(const char* a_cfg_section);
 void dap_dns_server_stop();
 int dap_dns_zone_register(char *zone, dap_dns_zone_callback_t callback);
 int dap_dns_zone_unregister(char *zone);
 
+#ifdef __cplusplus
+}
+#endif
