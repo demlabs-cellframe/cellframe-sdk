@@ -28,6 +28,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 
+
 /**
   * @struct dap_chain_tx_out
   * @brief Transaction item outout
@@ -48,3 +49,4 @@ typedef struct dap_chain_tx_out {
     } DAP_PACKED header; /// Only header's hash is used for verification
     dap_chain_addr_t addr; ////
 } DAP_PACKED dap_chain_tx_out_t;
+

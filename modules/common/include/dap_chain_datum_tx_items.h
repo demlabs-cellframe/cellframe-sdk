@@ -75,6 +75,9 @@ typedef struct dap_chain_datum_tx_item_groups {
 
 } dap_chain_datum_tx_item_groups_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /**
  * Get item name by item type
  *
@@ -253,3 +256,6 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
 #define dap_chain_datum_tx_out_get_by_out_idx(a_tx, a_out_num) \
     dap_chain_datum_tx_item_get_nth(a_tx, TX_ITEM_TYPE_OUT_ALL, a_out_num);
 
+#ifdef __cplusplus
+}
+#endif

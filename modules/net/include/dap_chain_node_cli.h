@@ -32,6 +32,10 @@
 
 #include "dap_cli_server.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Initialization of the server side of the interaction
  * with the console kelvin-node-cli
@@ -42,3 +46,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config);
  * Deinitialization of the server side
  */
 void dap_chain_node_cli_delete(void);
+
+#ifdef __cplusplus
+}
+#endif
