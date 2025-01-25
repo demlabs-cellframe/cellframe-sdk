@@ -1625,7 +1625,7 @@ static int s_delete_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block
             HASH_DEL(PVT(a_blocks)->datum_index, l_datum_index);
             // notify datum removed
             dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
-            dap_chain_datum_removed_notify(l_cell, l_datum_hash);
+            dap_chain_datum_removed_notify(l_cell, l_datum_hash, l_datum);
         }
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
