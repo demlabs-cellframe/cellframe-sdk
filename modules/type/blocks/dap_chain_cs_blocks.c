@@ -972,7 +972,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             json_object* json_arr_bl_cache_out = json_object_new_array();
             size_t l_start_arr = 0;
             size_t l_arr_end = 0;
-            s_set_offset_limit_json(json_arr_bl_cache_out, &l_start_arr, &l_arr_end, l_limit, l_offset, PVT(l_blocks)->blocks_count);
+            dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_start_arr, &l_arr_end, l_limit, l_offset, PVT(l_blocks)->blocks_count);
             
             size_t i_tmp = 0;
             dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks;
