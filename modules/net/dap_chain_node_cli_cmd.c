@@ -1313,18 +1313,22 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         if (l_net) {
             dap_cluster_t *l_links_cluster = dap_cluster_by_mnemonim(l_net->pub.name);
             if (!l_links_cluster) {
-                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found links cluster for net %s", l_net->pub.name);
-                 break;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CONNECTION_NOT_FOUND_LINKS_ERR,
+                                                "Not found links cluster for net %s", l_net->pub.name);
+                break;
             }
-            *a_str_reply = dap_cluster_get_links_info(l_links_cluster);
+            json_object *l_jobj_links = dap_cluster_get_links_info_json(l_links_cluster);
+            json_object_array_add(*a_json_arr_reply, l_jobj_links);
         } else {
             const char *l_guuid_str = NULL;
             dap_cluster_t *l_cluster = NULL;
+            json_object* json_obj_out = json_object_new_object();
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cluster", &l_guuid_str);
             if (l_guuid_str) {
                 bool l_success = false;
                 dap_guuid_t l_guuid = dap_guuid_from_hex_str(l_guuid_str, &l_success);
                 if (!l_success) {
+                    json_object_object_add(json_obj_out, "status handshake", json_object_new_string("Connection established"));
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't parse cluster guid %s", l_guuid_str);
                     break;
                 }
