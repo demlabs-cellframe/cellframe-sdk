@@ -1192,13 +1192,13 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 l_sign_list = dap_list_append(l_sign_list, l_json_item_obj);
                 break;
             }
-            const char *l_sign_b64_str = json_object_get_string(l_json_item_obj);
+            const char *l_sign_b64_str = json_object_get_string(l_jobj_sign);
             if ( !l_sign_b64_str ) {
                 json_object_array_add(l_jobj_errors, json_object_new_string("Can't get base64-encoded sign"));
                 log_it(L_ERROR, "Json TX: Can't get base64-encoded sign!");
                 break;
             }
-            int64_t l_sign_size = 0, l_sign_b64_strlen = json_object_get_string_len(l_json_item_obj),
+            int64_t l_sign_size = 0, l_sign_b64_strlen = json_object_get_string_len(l_jobj_sign),
                     l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
             if ( !s_json_get_int64(l_json_item_obj, "sig_size", &l_sign_size) )
                 log_it(L_NOTICE, "Json TX: \"sig_size\" unspecified, will be calculated automatically");
@@ -1212,7 +1212,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             };
             
             debug_if(l_sign_size && l_tx_sig->header.sig_size != l_sign_size, L_ERROR,
-                     "Json TX: sign size mismatch, %zu != %zu!", l_sign_size, l_tx_sig->header.sig_size);
+                     "Json TX: sign size mismatch, %zu != %u!", l_sign_size, l_tx_sig->header.sig_size);
             /* But who cares?... */
             size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx), l_tx_items_size = l_tx->header.tx_items_size;
             l_tx->header.tx_items_size = 0;
