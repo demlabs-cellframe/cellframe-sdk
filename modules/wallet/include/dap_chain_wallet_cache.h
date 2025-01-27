@@ -45,6 +45,10 @@ typedef struct dap_chain_wallet_cache_iter {
     void *cur_addr_cache;
 } dap_chain_wallet_cache_iter_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_chain_wallet_cache_init();
 int dap_chain_wallet_cache_deinit();
 
@@ -102,3 +106,8 @@ int dap_chain_wallet_cache_tx_find_outs(dap_chain_net_t *a_net, const char *a_to
 dap_chain_wallet_cache_iter_t *dap_chain_wallet_cache_iter_create(dap_chain_addr_t a_addr);
 void dap_chain_wallet_cache_iter_delete(dap_chain_wallet_cache_iter_t *a_iter);
 dap_chain_datum_tx_t *dap_chain_wallet_cache_iter_get(dap_chain_wallet_cache_iter_t *a_iter, dap_chain_wallet_getting_type_t a_type);
+
+
+#ifdef __cplusplus
+}
+#endif

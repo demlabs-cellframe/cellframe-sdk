@@ -9,9 +9,8 @@ linux: !android {
 
 win32 {
     
-    CONFIG(release, debug | release): sdk_build.commands = "$$shell_path($$PWD/../cellframe-sdk/prod_build/build.sh)" --target windows release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/ -DCELLFRAME_NO_OPTIMIZATION=1
-    CONFIG(debug, debug | release): sdk_build.commands = "$$shell_path($$PWD/../cellframe-sdk/prod_build/build.sh)" --target windows rwd -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/ -DCELLFRAME_NO_OPTIMIZATION=1
-    
+    CONFIG(release, debug | release): sdk_build.commands = "$$PWD/../cellframe-sdk/prod_build/build.sh" --target windows release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/ -DCELLFRAME_NO_OPTIMIZATION=1
+    CONFIG(debug, debug | release): sdk_build.commands = "$$PWD/../cellframe-sdk/prod_build/build.sh" --target windows rwd -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/ -DCELLFRAME_NO_OPTIMIZATION=1
 }
 
 android {

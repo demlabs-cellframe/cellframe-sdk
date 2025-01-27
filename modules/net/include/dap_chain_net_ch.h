@@ -64,7 +64,16 @@ typedef struct dap_chain_ch_validator_test{
 #define DAP_CHAIN_NET_CH_ID 'N'
 #define DAP_STREAM_CH_CHAIN_NET(a) ((dap_chain_net_ch_t *) ((a)->internal) )
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 dap_chain_node_addr_t dap_chain_net_ch_from_session_data_extract_node_addr(uint32_t a_session_id);
 
 int dap_chain_net_ch_init();
 void dap_chain_net_ch_deinit();
+
+#ifdef __cplusplus
+}
+#endif
