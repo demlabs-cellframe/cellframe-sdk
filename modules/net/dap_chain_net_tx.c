@@ -1212,7 +1212,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             };
             
             debug_if(l_sign_size && l_tx_sig->header.sig_size != l_sign_size, L_ERROR,
-                     "Json TX: sign size mismatch, %zu != %zu!", l_sign_size, l_tx_sig->header.sig_size);
+                     "Json TX: sign size mismatch, %zu != %u!", l_sign_size, l_tx_sig->header.sig_size);
             /* But who cares?... */
             size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx), l_tx_items_size = l_tx->header.tx_items_size;
             l_tx->header.tx_items_size = 0;
