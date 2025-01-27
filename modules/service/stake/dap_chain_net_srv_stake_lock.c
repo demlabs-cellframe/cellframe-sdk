@@ -329,9 +329,9 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
         return TOKEN_ERROR;
     }
 
-    if ( !dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-coins", &l_coins_str) 
-      && !dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-value", &l_coins_str)
-      || !l_coins_str )
+    if ( ( !dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-coins", &l_coins_str) 
+          && !dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-value", &l_coins_str) )
+        || !l_coins_str )
         return COINS_ARG_ERROR;
 
     if (!( l_chain = dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-chain", &l_chain_str) && l_chain_str
@@ -1014,7 +1014,7 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
         }
         if (s_debug_more) {
             char *l_unlocked_str = dap_chain_balance_to_coins(l_out->header.value), *l_locked_str = dap_chain_balance_to_coins(a_cond->header.value);
-            log_it(L_INFO, "Unlock %s / %s %s to address %s", l_unlocked_str, l_locked_str, l_out->token);
+            log_it(L_INFO, "Unlock %s / %s %s to address %s", l_unlocked_str, l_locked_str, l_out->token, dap_chain_addr_to_str_static(l_beneficiary_addr));
             DAP_DEL_MULTY(l_unlocked_str, l_locked_str);
         }
         return 0;
