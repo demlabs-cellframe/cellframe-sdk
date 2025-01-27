@@ -45,7 +45,16 @@ typedef struct dap_chain_net_srv_ch {
 #define DAP_CHAIN_NET_SRV_CH(a) ((dap_chain_net_srv_ch_t *) ((a)->internal) )
 #define DAP_CHAIN_NET_SRV_CH_ID 'R'
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_chain_net_srv_ch_init();
 
 int dap_chain_net_srv_ch_grace_control(dap_chain_net_srv_t *a_net_srv, dap_hash_fast_t *a_tx_hash);
 char *dap_chain_net_srv_ch_create_statistic_report();
+
+
+#ifdef __cplusplus
+}
+#endif

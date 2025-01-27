@@ -94,14 +94,6 @@ typedef struct dap_chain_net_srv_client_remote {
     struct dap_chain_net_srv_client_remote *next;
 } dap_chain_net_srv_client_remote_t;
 
-// Common service callback
-typedef int  (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_custom_data, size_t a_custom_data_size);
-// Custom service callback
-typedef void * (*dap_chain_net_srv_callback_custom_data_t)(dap_chain_net_srv_t *a_srv, dap_chain_net_srv_usage_t *a_usage, const void *a_custom_data, size_t a_sustom_data_size, size_t *a_out_data_size);\
-// Store limits sevice callbacks
-typedef dap_chain_net_srv_ch_remain_service_store_t * (*dap_chain_net_srv_callback_get_remain_service_t)(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client);
-typedef int (*dap_chain_net_srv_callback_save_remain_service_t)(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client);
-
 typedef struct dap_chain_net_srv_banlist_item {
     dap_chain_hash_fast_t client_pkey_hash;
     pthread_mutex_t *ht_mutex;
@@ -154,6 +146,19 @@ typedef struct dap_chain_net_srv {
     void *_inheritor;
 } dap_chain_net_srv_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+// Common service callback
+typedef int  (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_custom_data, size_t a_custom_data_size);
+// Custom service callback
+typedef void * (*dap_chain_net_srv_callback_custom_data_t)(dap_chain_net_srv_t *a_srv, dap_chain_net_srv_usage_t *a_usage, const void *a_custom_data, size_t a_sustom_data_size, size_t *a_out_data_size);\
+// Store limits sevice callbacks
+typedef dap_chain_net_srv_ch_remain_service_store_t * (*dap_chain_net_srv_callback_get_remain_service_t)(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client);
+typedef int (*dap_chain_net_srv_callback_save_remain_service_t)(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client);
+
 int dap_chain_net_srv_init();
 void dap_chain_net_srv_deinit(void);
 
@@ -200,3 +205,7 @@ DAP_STATIC_INLINE bool dap_chain_net_srv_uid_compare_scalar(const dap_chain_srv_
 {
     return a_uid1.uint64 == a_id;
 }
+
+#ifdef __cplusplus
+}
+#endif

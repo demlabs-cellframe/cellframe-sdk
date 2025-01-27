@@ -144,6 +144,9 @@ typedef struct dap_chain_net_srv_ch_pkt_test {
     uint8_t                 data[];
 } DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_test_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 size_t dap_chain_net_srv_ch_pkt_data_write(dap_stream_ch_t *a_ch,
                                                   dap_chain_srv_uid_t a_srv_uid, uint32_t a_usage_id  ,
                                                   const void * a_data, size_t a_data_size);
@@ -153,3 +156,6 @@ DAP_PRINTF_ATTR(4, 5) size_t dap_chain_net_srv_ch_pkt_data_write_f(dap_stream_ch
                                                                           uint32_t a_usage_id,
                                                                           const char *a_str,
                                                                           ...);
+#ifdef __cplusplus
+}
+#endif

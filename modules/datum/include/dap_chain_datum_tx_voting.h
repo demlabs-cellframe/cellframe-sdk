@@ -66,6 +66,10 @@ typedef struct dap_chain_datum_tx_voting_params {
     bool       vote_changing_allowed;
 } dap_chain_datum_tx_voting_params_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 dap_chain_datum_tx_voting_params_t *dap_chain_datum_tx_voting_parse_tsd(dap_chain_datum_tx_t* a_tx);
 void dap_chain_datum_tx_voting_params_delete(dap_chain_datum_tx_voting_params_t *a_params);
 
@@ -84,3 +88,7 @@ json_object *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_
 dap_chain_tx_vote_t *dap_chain_datum_tx_item_vote_create(dap_chain_hash_fast_t *a_voting_hash, uint64_t *a_answer_idx);
 json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote);
 char *dap_chain_datum_tx_voting_get_answer_text_by_idx(dap_chain_datum_tx_t *a_tx, uint64_t a_idx);
+
+#ifdef __cplusplus
+}
+#endif
