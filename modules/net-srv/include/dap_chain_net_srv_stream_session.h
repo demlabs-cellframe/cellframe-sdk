@@ -98,6 +98,11 @@ typedef struct dap_chain_net_srv_stream_session {
 
 #define DAP_CHAIN_NET_SRV_STREAM_SESSION(a) ((dap_chain_net_srv_stream_session_t *) (a)->_inheritor )
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 dap_chain_net_srv_stream_session_t * dap_chain_net_srv_stream_session_create( dap_stream_session_t * a_session);
 void dap_chain_net_srv_stream_session_delete( dap_stream_session_t * a_session);
 dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream_session_t * a_srv_session,
@@ -105,3 +110,7 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
 void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_session);
 dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_find_unsafe (dap_chain_net_srv_stream_session_t * a_srv_session,
                                                                              uint32_t a_usage_id);
+
+#ifdef __cplusplus
+}
+#endif

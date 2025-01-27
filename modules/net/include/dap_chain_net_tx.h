@@ -81,6 +81,9 @@ typedef struct dap_chain_datum_tx_spends_items{
 } dap_chain_datum_tx_spends_items_t;
 typedef void (dap_chain_net_tx_hash_callback_t)(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // TX functions
 dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
@@ -134,3 +137,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
  * @return s_com_tx_create_json_err_t status code
  */
 int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json);
+
+#ifdef __cplusplus
+}
+#endif

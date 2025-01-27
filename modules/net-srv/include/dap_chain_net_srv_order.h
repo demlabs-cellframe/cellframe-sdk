@@ -48,6 +48,10 @@ typedef struct dap_chain_net_srv_order {
     uint8_t ext_n_sign[];
 } DAP_ALIGN_PACKED dap_chain_net_srv_order_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Init/deinit should be call only if private
 int dap_chain_net_srv_order_init();
 void dap_chain_net_srv_order_deinit(void);
@@ -157,3 +161,7 @@ DAP_STATIC_INLINE char *dap_chain_net_srv_order_get_common_group(dap_chain_net_t
 {
     return a_net ? dap_strdup_printf("%s.orders", a_net->pub.gdb_groups_prefix) : NULL;
 }
+
+#ifdef __cplusplus
+}
+#endif
