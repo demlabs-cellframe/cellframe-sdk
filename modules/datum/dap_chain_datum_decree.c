@@ -59,7 +59,7 @@ bool dap_chain_datum_decree_find_pkey(dap_chain_datum_decree_t *a_decree, dap_pk
         if (l_offset + l_sign_size <= l_offset || l_offset + l_sign_size > a_decree->header.signs_size)
             break;
         size_t l_pkey_ser_size = 0;
-        const uint8_t *l_pkey_ser = dap_sign_get_pkey(l_sign, &l_pkey_ser_size),
+        const uint8_t *l_pkey_ser = dap_sign_get_pkey(l_sign, &l_pkey_ser_size);
         l_ret = (l_pkey_ser_size == a_pkey->header.size) && !memcmp(l_pkey_ser, a_pkey->pkey, l_pkey_ser_size);
     }
     return l_ret;
