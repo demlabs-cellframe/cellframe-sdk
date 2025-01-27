@@ -89,7 +89,7 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_datum_t
         }
         // Verify signs
         case TX_ITEM_TYPE_SIG: {
-            dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_item);
+            dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_item);
             bool l_dup = false;
             for (uint32_t i = 0; i < l_signs_counter; i++)
                 if (dap_sign_compare_pkeys(l_sign, l_signs[i])) {
@@ -423,7 +423,7 @@ static dap_chain_datum_tx_t *s_taking_tx_sign(json_object *a_json_arr_reply, dap
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx_in) {
         if (*l_item != TX_ITEM_TYPE_SIG)
             continue;
-        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_item);
+        dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_item);
         size_t l_sign_pkey_size = 0;
         byte_t *l_sign_pkey = dap_sign_get_pkey(l_sign, &l_sign_pkey_size);
         if (l_sign_pkey_size == l_my_pkey_size && !memcmp(l_sign_pkey, l_my_pkey, l_my_pkey_size))

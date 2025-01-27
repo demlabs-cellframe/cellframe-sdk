@@ -299,7 +299,7 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
         } break;
 
         case TX_ITEM_TYPE_SIG: {
-            dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*)item);
+            dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t*)item);
             json_object_object_add(json_obj_item,"item type", json_object_new_string("SIG"));
             dap_sign_get_information_json(a_json_arr_reply, l_sign, json_obj_item, a_hash_out_type);
             dap_chain_addr_t l_sender_addr;
