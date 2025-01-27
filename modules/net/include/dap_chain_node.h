@@ -85,6 +85,11 @@ typedef enum dap_chain_node_cli_cmd_values_parse_net_chain_err_to_json {
     DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_PARAMS_MUST_BE_UNSIGNED
 } dap_chain_node_cli_cmd_values_parse_net_chain_err_to_json;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 /**
  * Calculate size of struct dap_chain_node_info_t
  */
@@ -117,3 +122,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object* a_json_a
                                                            char **a_argv,
                                                            dap_chain_t **a_chain, dap_chain_net_t **a_net,
                                                            dap_chain_type_t a_default_chain_type);
+
+#ifdef __cplusplus
+}
+#endif
