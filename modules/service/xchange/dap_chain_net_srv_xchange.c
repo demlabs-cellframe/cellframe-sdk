@@ -241,7 +241,7 @@ int dap_chain_net_srv_xchange_init()
 
     "srv_xchange token_pair -net <net_name> list all [-limit <limit>] [-offset <offset>]\n"
         "\tList of all token pairs\n"
-    "srv_xchange token_pair -net <net_name> rate average [-time_from <From_time>] [-time_to <To_time>]\n"
+    "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>]\n"
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
     "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] [-limit <limit>] [-offset <offset>]\n"
         "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
