@@ -754,9 +754,14 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         dap_store_obj_t *l_objs = dap_global_db_get_all_raw_sync(l_gdb_group_mempool, &l_objs_count);
         bool l_nothing_processed = true;
         for (size_t i = 0; i < l_objs_count; i++) {
+            if (dap_store_obj_get_type(l_objs +i) == DAP_GLOBAL_DB_OPTYPE_DEL)
+                continue;
             if (l_objs[i].value_len < sizeof(dap_chain_datum_t))
                 continue;
             if (!l_objs[i].sign)
+                continue;
+            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+            if (l_datum->header.type_id != DAP_CHAIN_DATUM_SERVICE_STATE)
                 continue;
             dap_stream_node_addr_t l_addr = dap_stream_node_addr_from_sign(l_objs[i].sign);
             bool l_addr_match = false;
@@ -770,11 +775,16 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
                 log_it(L_WARNING, "Trying to inject hardfork service state datum from addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_addr));
                 continue;
             }
-            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-            if (dap_chain_datum_size(l_datum) != l_objs[i].value_len)
+            dap_hash_str_t l_key = dap_get_data_hash_str(l_datum->data, l_datum->header.data_size);
+            if (dap_chain_datum_size(l_datum) != l_objs[i].value_len) {
+                log_it(L_WARNING, "Trying to process hardfork service state datum with incorrect size %zu (expect %zu)",
+                                                                            dap_chain_datum_size(l_datum), l_objs[i].value_len);
                 continue;
-            if (l_datum->header.type_id != DAP_CHAIN_DATUM_SERVICE_STATE)
+            }
+            if (dap_strcmp(l_objs[i].key, l_key.s)) {
+                log_it(L_WARNING, "Trying to process hardfork service state datum with hash mismatch");
                 continue;
+            }
             if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key, NULL))
                 dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
             else
@@ -792,13 +802,94 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
     return 0;
 }
 
-int dap_chain_node_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size)
+static int s_compare_trackers(dap_list_t *a_list1, dap_list_t *a_list2)
+{
+    int ret = 0;
+    for (dap_list_t *it1 = a_list1, *it2 = a_list2; it1 && it2; it1 = it1->next, it2 = it2->next) {
+        dap_ledger_tracker_t *l_tracker1 = it1->data,
+                             *l_tracker2 = it2->data;
+        ret = memcmp(&l_tracker1->voting_hash, &l_tracker1->voting_hash, sizeof(dap_hash_fast_t));
+        if (ret)
+            break;
+        ret = compare256(l_tracker1->colored_value, l_tracker2->colored_value);
+        if (ret)
+            break;
+    }
+    return ret;
+}
+
+static int s_compare_balances(dap_ledger_hardfork_balances_t *a_list1, dap_ledger_hardfork_balances_t *a_list2)
+{
+    int ret = memcmp(&a_list1->addr, &a_list2->addr, sizeof(dap_chain_addr_t));
+    if (ret)
+        return ret;
+    ret = memcmp(a_list1->ticker, a_list2->ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+    if (ret)
+        return ret;
+    ret = compare256(a_list1->value, a_list2->value);
+    if (ret)
+        return ret;
+    return s_compare_trackers(a_list1->trackers, a_list2->trackers);
+}
+
+static int s_compare_condouts(dap_ledger_hardfork_condouts_t *a_list1, dap_ledger_hardfork_condouts_t *a_list2)
+{
+    int ret = memcmp(&a_list1->hash, &a_list2->hash, sizeof(dap_hash_fast_t));
+    if (ret)
+        return ret;
+    ret = memcmp(a_list1->ticker, a_list2->ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+    if (ret)
+        return ret;
+    ret = a_list1->sign->header.sig_size != a_list2->sign->header.sig_size;
+    if (ret)
+        return ret;
+    ret = memcmp(a_list1->sign->sig, a_list2->sign->sig, a_list1->sign->header.sig_size);
+    if (ret)
+        return ret;
+    size_t l_cond_size = dap_chain_datum_item_tx_get_size((const byte_t *)a_list1->cond, 0);
+    ret = l_cond_size != dap_chain_datum_item_tx_get_size((const byte_t *)a_list2->cond, 0);
+    if (ret)
+        return ret;
+    ret = memcmp(a_list1->cond, a_list2->cond, l_cond_size);
+    if (ret)
+        return ret;
+    return s_compare_trackers(a_list1->trackers, a_list2->trackers);
+}
+
+static int s_compare_fees(dap_chain_cs_blocks_hardfork_fees_t *a_list1, dap_chain_cs_blocks_hardfork_fees_t *a_list2)
+{
+    int ret = compare256(a_list1->fees_n_rewards_sum, a_list2->fees_n_rewards_sum);
+    if (ret)
+        return ret;
+    size_t l_sign_size = dap_sign_get_size(a_list1->owner_sign);
+    ret = l_sign_size != dap_sign_get_size(a_list2->owner_sign);
+    if (ret)
+        return ret;
+    return memcmp(a_list1->owner_sign, a_list2->owner_sign, l_sign_size);
+}
+
+static int s_compare_anchors(dap_ledger_hardfork_anchors_t *a_list1, dap_ledger_hardfork_anchors_t *a_list2)
+{
+    size_t l_anchor_size = dap_chain_datum_anchor_get_size(a_list1->anchor);
+    int ret = l_anchor_size != dap_chain_datum_anchor_get_size(a_list2->anchor);
+    if (ret)
+        return ret;
+    return memcmp(a_list1->anchor, a_list1->anchor, l_anchor_size);
+}
+
+static int s_compare_service_states(dap_chain_srv_hardfork_state_t *a_list1, dap_chain_srv_hardfork_state_t *a_list2)
+{
+    return a_list1->uid.uint64 != a_list2->uid.uint64;
+}
+
+int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, bool a_remove)
 {
     if (a_datum_size <= sizeof(dap_chain_datum_t) || dap_chain_datum_size(a_datum) != a_datum_size) {
         log_it(L_WARNING, "Incorrect harfork datum size %zu", a_datum_size <= sizeof(dap_chain_datum_t) ? a_datum_size : dap_chain_datum_size(a_datum));
         return -1;
     }
     switch (a_datum->header.type_id) {
+
     case DAP_CHAIN_DATUM_TX: {
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
         if (!l_tx->header.ts_created /* TODO add || l_tx->header.ts_created other criteria */) {
@@ -806,6 +897,7 @@ int dap_chain_node_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_dat
             log_it(L_WARNING, "Incorrect harfork datum timestamp %s", l_time);
             return -3;
         }
+        // Parse datum
         dap_ledger_hardfork_balances_t l_regular = {};
         dap_ledger_hardfork_condouts_t l_conitional = {};
         bool l_out = false;
@@ -861,14 +953,127 @@ int dap_chain_node_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_dat
                 log_it(L_WARNING, "Illegal harfork datum tx item type %d", *l_item);
                 return -4;
             }
-            // Call comparators
-            // Clean memory
+        }
+        // Call comparators
+        if (l_out) {
+            dap_ledger_hardfork_balances_t *l_found = NULL;
+            DL_SEARCH(a_chain->hardfork_data->balances, l_found, &l_regular, s_compare_balances);
+            if (l_found) {
+                if (a_remove)
+                    DL_DELETE(a_chain->hardfork_data->balances, l_found);
+                break;
+            }
+        } else if (l_conitional.cond) {
+            if (l_conitional.cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK) {
+                dap_chain_cs_blocks_hardfork_fees_t *l_found = NULL,
+                                                     l_sought = { .fees_n_rewards_sum = l_conitional.cond->header.value,
+                                                                  .owner_sign = dap_chain_datum_tx_item_sig_get_sign(l_conitional.sign) };
+                DL_SEARCH(a_chain->hardfork_data->fees, l_found, &l_sought, s_compare_fees);
+                if (l_found) {
+                    if (a_remove)
+                        DL_DELETE(a_chain->hardfork_data->fees, l_found);
+                    break;
+                }
+            } else {
+                dap_ledger_hardfork_condouts_t *l_found = NULL;
+                DL_SEARCH(a_chain->hardfork_data->condouts, l_found, &l_conitional, s_compare_condouts);
+                if (l_found) {
+                    if (a_remove)
+                        DL_DELETE(a_chain->hardfork_data->condouts, l_found);
+                    break;
+                }
+            }
+        } else {
+            log_it(L_WARNING, "Illegal harfork datum tx item with no OUT");
+            return -8;
+        }
+        // Clean memory
+
+    } break;
+
+    case DAP_CHAIN_DATUM_ANCHOR: {
+        dap_ledger_hardfork_anchors_t *l_found = NULL,
+                                       l_sought = { .anchor = (dap_chain_datum_anchor_t *)a_datum->data };
+
+        DL_SEARCH(a_chain->hardfork_data->anchors, l_found, &l_sought, s_compare_anchors);
+        if (l_found) {
+            if (a_remove)
+                DL_DELETE(a_chain->hardfork_data->anchors, l_found);
+            break;
         }
     } break;
-    case DAP_CHAIN_DATUM_ANCHOR:
-        break;
-    case DAP_CHAIN_DATUM_SERVICE_STATE:
-        break;
+
+    case DAP_CHAIN_DATUM_SERVICE_STATE: {
+        dap_chain_srv_hardfork_state_t *l_found = NULL,
+                                        l_sought = { .uid = ((dap_chain_datum_service_state_t *)a_datum->data)->srv_uid };
+
+        DL_SEARCH(a_chain->hardfork_data->service_states, l_found, &l_sought, s_compare_service_states);
+        if (l_found) {
+            if (a_remove)
+                DL_DELETE(a_chain->hardfork_data->service_states, l_found);
+            break;
+        }
+        dap_hash_str_t l_key = dap_get_data_hash_str(a_datum->data, a_datum->header.data_size);
+        char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
+        size_t l_objs_count = 0;
+        dap_store_obj_t *l_objs = dap_global_db_get_all_raw_sync(l_gdb_group_mempool, &l_objs_count);
+        for (size_t i = 0; i < l_objs_count; i++) {
+            if (dap_strcmp(l_objs[i].key, l_key.s))
+                continue;
+            if (a_remove) {
+                dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
+                break;
+            }
+#define m_ret(rc) { \
+    dap_store_obj_free(l_objs, l_objs_count); \
+    DAP_DELETE(l_gdb_group_mempool); \
+    return rc; \
+}
+            if (dap_store_obj_get_type(l_objs +i) == DAP_GLOBAL_DB_OPTYPE_DEL) {
+                log_it(L_WARNING, "Mempool record %s already deleted, can' process", l_objs[i].key);
+                m_ret(-8);
+            }
+            if (l_objs[i].value_len < sizeof(dap_chain_datum_t)) {
+                log_it(L_WARNING, "Can't process hardfork service state datum %s with too small size %zu", l_objs[i].key, l_objs[i].value_len);
+                m_ret(-9);
+            }
+            if (!l_objs[i].sign) {
+                log_it(L_WARNING, "Can't process unsigned hardfork service state datum %s with too small size %zu", l_objs[i].key, l_objs[i].value_len);
+                m_ret(-10);
+            }
+            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+            if (dap_chain_datum_size(l_datum) != l_objs[i].value_len) {
+                log_it(L_WARNING, "Harfork datum service state with incorrect size %zu", dap_chain_datum_size(l_datum));
+                m_ret(-13);
+            }
+            dap_hash_str_t l_key = dap_get_data_hash_str(a_datum->data, a_datum->header.data_size);
+            if (l_datum->header.type_id != DAP_CHAIN_DATUM_SERVICE_STATE) {
+                log_it(L_WARNING, "Mempool record %s isn't service state hardfork datum, can' process", l_objs[i].key);
+                m_ret(-14);
+            }
+            dap_hash_str_t l_key_hash = dap_get_data_hash_str(l_datum->data, l_datum->header.data_size);
+            if (l_datum->header.data_size != a_datum->header.data_size ||
+                    dap_strcmp(l_key_hash.s, l_key.s)) {
+                log_it(L_WARNING, "Mempool record %s datum is corrupted, can' process", l_objs[i].key);
+                m_ret(-15);
+            }
+            dap_stream_node_addr_t l_addr = dap_stream_node_addr_from_sign(l_objs[i].sign);
+            bool l_addr_match = false;
+            for (dap_list_t *it = a_chain->hardfork_data->trusted_addrs; it; it = it->next) {
+                if (((dap_stream_node_addr_t *)it->data)->uint64 != l_addr.uint64)
+                    continue;
+                l_addr_match = true;
+                break;
+            }
+            if (!l_addr_match) {
+                log_it(L_WARNING, "Trying to inject hardfork service state datum from addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_addr));
+                m_ret(-16);
+            }
+            m_ret(0);
+        }
+
+    } break;
+
     default:
         log_it(L_WARNING, "Incorrect harfork datum type %u", a_datum->header.type_id);
         return -2;
@@ -877,9 +1082,14 @@ int dap_chain_node_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_dat
     return 0;
 }
 
+int dap_chain_node_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum)
+{
+    return s_hardfork_check(a_chain, a_datum, dap_chain_datum_size(a_datum), false);
+}
+
 int dap_chain_node_hardfork_confirm(dap_chain_t *a_chain, dap_chain_datum_t *a_datum)
 {
-    return 0;
+    return s_hardfork_check(a_chain, a_datum, dap_chain_datum_size(a_datum), true);
 }
 
 /**

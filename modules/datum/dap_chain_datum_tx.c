@@ -180,7 +180,7 @@ int dap_chain_datum_tx_get_fee_value(dap_chain_datum_tx_t *a_tx, uint256_t *a_va
 dap_sign_t *dap_chain_datum_tx_get_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
 {
     dap_return_val_if_fail(a_tx, NULL);
-    return dap_chain_datum_tx_item_sign_get_sig( (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get_nth(a_tx, TX_ITEM_TYPE_SIG, a_sign_num) );
+    return dap_chain_datum_tx_item_sig_get_sign( (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get_nth(a_tx, TX_ITEM_TYPE_SIG, a_sign_num) );
 }
 
 /**
@@ -251,7 +251,7 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
         return log_it(L_ERROR, "Sign not found in TX"), l_ret;
     
     dap_chain_tx_sig_t *l_sign_item = (dap_chain_tx_sig_t*)l_item;
-    dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sign_item);
+    dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign(l_sign_item);
     size_t l_tx_items_size = a_tx->header.tx_items_size, l_data_size;
     dap_chain_datum_tx_t *l_tx;
     byte_t *l_tx_data;

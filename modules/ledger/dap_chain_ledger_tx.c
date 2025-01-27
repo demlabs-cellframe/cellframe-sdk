@@ -506,7 +506,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                         TX_ITEM_TYPE_SIG, NULL);
                 assert(l_tx_sig);
                 // Get sign from sign item
-                dap_sign_t *l_tx_first_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+                dap_sign_t *l_tx_first_sign = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
                 assert(l_tx_first_sign);
                 // calculate hash from sign public key
                 dap_sign_get_pkey_hash(l_tx_first_sign, &l_tx_first_sign_pkey_hash);
@@ -648,7 +648,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                         TX_ITEM_TYPE_SIG, NULL);
                 assert(l_tx_sig);
                 // Get sign from sign item
-                dap_sign_t *l_tx_first_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+                dap_sign_t *l_tx_first_sign = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
                 assert(l_tx_first_sign);
                 // calculate hash from sign public key
                 dap_sign_get_pkey_hash(l_tx_first_sign, &l_tx_first_sign_pkey_hash);
@@ -718,9 +718,9 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     ? l_tx_prev
                     : dap_ledger_tx_find_by_hash(a_ledger, &l_owner_tx_hash);
                 dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-                dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+                dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_tx_sig);
                 dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-                dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
+                dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_owner_tx_sig);
 
                 bool l_owner = false;
                 l_owner = dap_sign_compare_pkeys(l_owner_sign, l_sign);

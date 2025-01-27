@@ -2715,7 +2715,7 @@ static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx
 
         // TX sign is already verified, just compare pkeys
         dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_sign_tx = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+        dap_sign_t *l_sign_tx = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
         return dap_sign_compare_pkeys(l_sign_block, l_sign_tx) ? 0 : -5;
     }
     return -4;

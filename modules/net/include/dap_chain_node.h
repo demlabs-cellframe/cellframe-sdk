@@ -110,7 +110,7 @@ inline static void dap_chain_node_mempool_autoproc_deinit() {}
 
 int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs);
 int dap_chain_node_hardfork_process(dap_chain_t *a_chain);
-int dap_chain_node_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size);
+int dap_chain_node_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
 int dap_chain_node_hardfork_confirm(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
 
 dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_ignored, size_t a_ignored_count);
