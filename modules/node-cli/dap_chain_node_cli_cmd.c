@@ -2372,7 +2372,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                             json_object_object_add(l_jobj_datum, "warning", l_jobj_wgn);
                             break;
                         }
-                        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sig);
+                        dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign(l_sig);
                         dap_chain_addr_fill_from_sign(&l_addr_from, l_sign, a_net->pub.id);
                         if (l_wallet_addr && dap_chain_addr_compare(l_wallet_addr, &l_addr_from)) {
                             datum_is_accepted_addr = true;

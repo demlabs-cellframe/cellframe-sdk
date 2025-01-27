@@ -579,7 +579,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     dap_chain_tx_sig_t *l_tx_sign = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(
                                                             l_cond_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
     if (l_tx_sign)
-        l_owner_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sign);
+        l_owner_sign = dap_chain_datum_tx_item_sig_get_sign(l_tx_sign);
     if (!l_owner_sign || l_owner_pkey_size != l_owner_sign->header.sign_pkey_size ||
             memcmp(l_owner_sign->pkey_n_sign, l_owner_pkey, l_owner_pkey_size)) {
         dap_chain_wallet_close(l_wallet);
