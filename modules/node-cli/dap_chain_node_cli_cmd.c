@@ -4111,7 +4111,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 return -1;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-            if (dap_chain_net_srv_stake_get_hardfork_data(l_net, &l_tsd_list)){
+            if (dap_chain_net_srv_stake_hardfork_data_export(l_net, &l_tsd_list)){
                 log_it(L_ERROR, "Can't add stake delegate data to hardfork decree");
                 dap_list_free_full(l_tsd_list, NULL);
                 return -1;

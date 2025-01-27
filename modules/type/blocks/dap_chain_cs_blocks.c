@@ -1977,7 +1977,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                 && !dap_hash_fast_is_blank(&l_block_hash))
             log_it(L_NOTICE, "Accepting static genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
         else if (l_blocks->is_hardfork_state && !dap_hash_fast_is_blank(&a_chain->hardfork_decree_hash)) {
-            log_it(L_NOTICE, "Accepting hardfork genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
+            log_it(L_NOTICE, "Accepting hardfork genesis block %s and restore data", dap_hash_fast_to_str_static(a_atom_hash));
+            dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, &a_chain->hardfork_decree_hash);
         } else {
             char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&PVT(l_blocks)->static_genesis_block_hash, l_hash_str, sizeof(l_hash_str));
