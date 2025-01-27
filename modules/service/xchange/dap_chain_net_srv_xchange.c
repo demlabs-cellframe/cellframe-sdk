@@ -2275,7 +2275,7 @@ static bool s_string_append_tx_cond_info_json(json_object * a_json_out, dap_chai
     switch(l_tx_type){
         case TX_TYPE_ORDER:{
             if (!l_out_cond_item)
-                log_it(L_ERROR, "Can't find conditional output in TX %s", l_tx_hash_str), false;
+                return log_it(L_ERROR, "Can't find conditional output in TX %s", l_tx_hash_str), false;
 
             json_object_object_add(a_json_out, "hash", json_object_new_string(l_tx_hash_str));
             if (a_print_ts){
