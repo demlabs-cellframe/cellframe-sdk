@@ -28,6 +28,7 @@
 #include "dap_chain.h"
 #include "dap_client.h"
 
+
 typedef struct dap_chain_net dap_chain_net_t;
 
 typedef struct dap_chain_node_info_old {
@@ -68,6 +69,9 @@ typedef dap_stream_node_addr_t dap_chain_node_addr_t;
 #define dap_chain_node_addr_from_str dap_stream_node_addr_from_str
 #define dap_chain_node_addr_is_blank dap_stream_node_addr_is_blank
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /**
  * Calculate size of struct dap_chain_node_info_t
  */
@@ -86,9 +90,13 @@ dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *l_net, dap_chai
 int dap_chain_node_init();
 int dap_chain_node_list_clean_init();
 bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
-bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_datum_hash_str);
+bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_datum_hash_str, int * a_ret);
 void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force);
 bool dap_chain_node_mempool_autoproc_init();
 inline static void dap_chain_node_mempool_autoproc_deinit() {}
 dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_ignored, size_t a_ignored_count);
 dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr);
+
+#ifdef __cplusplus
+}
+#endif

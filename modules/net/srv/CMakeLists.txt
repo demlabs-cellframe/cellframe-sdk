@@ -12,3 +12,12 @@ target_link_libraries(${PROJECT_NAME} maxminddb dap_core dap_crypto dap_chain da
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../../dap-sdk/3rdparty/uthash/src)
+
+if (INSTALL_SDK)
+set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_NET_SRV_HEADERS}")
+INSTALL(TARGETS ${PROJECT_NAME} 
+        LIBRARY DESTINATION lib/modules/net/srv/
+        ARCHIVE DESTINATION lib/modules/net/srv/
+        PUBLIC_HEADER DESTINATION include/modules/net/srv/
+)
+endif()

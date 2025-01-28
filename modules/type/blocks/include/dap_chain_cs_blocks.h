@@ -35,6 +35,8 @@ typedef void (*dap_chain_cs_blocks_callback_op_results_t)(dap_chain_cs_blocks_t 
 typedef int (*dap_chain_cs_blocks_callback_block_verify_t)(dap_chain_cs_blocks_t *a_cs_blocks, dap_chain_block_t *a_block, dap_hash_fast_t *a_block_hash, size_t a_block_size);
 typedef size_t (*dap_chain_cs_blocks_callback_block_sign_t)(dap_chain_cs_blocks_t *, dap_chain_block_t **, size_t);
 typedef dap_chain_block_t *(*dap_chain_cs_block_move_t)(dap_chain_cs_blocks_t *, size_t *);
+typedef void (*dap_chain_cs_blocks_callback_fork_resolved_t)(dap_chain_t *a_chain, dap_hash_fast_t a_block_before_fork_hash, dap_list_t *a_reverted_blocks, 
+                                                                uint64_t a_reverted_blocks_cnt, uint64_t a_main_blocks_cnt, void * a_arg);
 typedef dap_chain_block_t * (*dap_chain_cs_blocks_callback_block_create_t)(dap_chain_cs_blocks_t *,
                                                                                dap_chain_datum_t *,
                                                                                dap_chain_hash_fast_t *,
@@ -84,6 +86,8 @@ typedef int (*dap_chain_blocks_block_callback_ptr_t)(dap_chain_cs_blocks_t *, da
 int dap_chain_cs_blocks_init();
 void dap_chain_cs_blocks_deinit();
 dap_chain_block_cache_t *dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_t *a_blocks, dap_chain_hash_fast_t *a_block_hash);
+
+int dap_chain_block_add_fork_notificator(dap_chain_cs_blocks_callback_fork_resolved_t a_callback, void *a_arg);
 
 DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_fee_group(const char *a_net_name)
 {

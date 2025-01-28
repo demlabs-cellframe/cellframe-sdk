@@ -27,6 +27,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_ledger.h"
 
+
 typedef enum dap_chain_wallet_getting_type {
     DAP_CHAIN_WALLET_CACHE_GET_FIRST = 0,
     DAP_CHAIN_WALLET_CACHE_GET_LAST,
@@ -44,6 +45,10 @@ typedef struct dap_chain_wallet_cache_iter {
     void *cur_item;
     void *cur_addr_cache;
 } dap_chain_wallet_cache_iter_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int dap_chain_wallet_cache_init();
 int dap_chain_wallet_cache_deinit();
@@ -94,10 +99,14 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
  */
 int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
                                                     dap_list_t **a_outs_list, uint256_t a_value_needed, uint256_t *a_value_transfer);
-
+                                                    
 int dap_chain_wallet_cache_tx_find_outs(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
                                                     dap_list_t **a_outs_list, uint256_t *a_value_transfer);
-                                                    
+
 dap_chain_wallet_cache_iter_t *dap_chain_wallet_cache_iter_create(dap_chain_addr_t a_addr);
 void dap_chain_wallet_cache_iter_delete(dap_chain_wallet_cache_iter_t *a_iter);
 dap_chain_datum_tx_t *dap_chain_wallet_cache_iter_get(dap_chain_wallet_cache_iter_t *a_iter, dap_chain_wallet_getting_type_t a_type);
+
+#ifdef __cplusplus
+}
+#endif

@@ -27,6 +27,10 @@
 #endif
 #include <pthread.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // start sending ping
 int start_node_ping(pthread_t *a_thread, struct in_addr a_addr, int a_port, int a_count);
 
@@ -38,3 +42,7 @@ int wait_node_ping(pthread_t l_thread, int timeout_ms);
 int dap_chain_node_ping_background_start(dap_chain_net_t *a_net, dap_list_t *a_node_list);
 int dap_chain_node_ping_background_stop(void);
 int dap_chain_node_ping_background_status(void);
+
+#ifdef __cplusplus
+}
+#endif

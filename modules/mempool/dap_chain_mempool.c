@@ -803,7 +803,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
             *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_WRONG_ADDR;
         return NULL;
     }
-    dap_chain_hash_fast_t l_tx_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, a_tx_prev_hash);
+    dap_chain_hash_fast_t l_tx_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, a_tx_prev_hash, true);
     if ( dap_hash_fast_is_blank(&l_tx_final_hash) ) {
         log_it(L_WARNING, "Requested conditional transaction is already used out");
         if (a_ret_status)
@@ -883,12 +883,13 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     //add 'out_cond' item
     uint256_t l_new_val = {};
     uint256_t l_value_cond = l_out_cond->header.value;
-    SUBTRACT_256_256(l_out_cond->header.value, l_value_send, &l_new_val);
-    //if (!!IS_ZERO_256(l_new_val)){
-        l_out_cond->header.value = l_new_val; // Use old conditinal output to form the new one
-        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond);
-        l_out_cond->header.value = l_value_cond;    // Restore original value
-    //}
+    SUBTRACT_256_256(l_value_cond, l_value_send, &l_new_val);
+    if (!IS_ZERO_256(l_new_val)){
+        dap_chain_tx_out_cond_t *l_new_out_cond = DAP_DUP_SIZE(l_out_cond, sizeof(dap_chain_tx_out_cond_t) + l_out_cond->tsd_size);
+        l_new_out_cond->header.value = l_new_val;
+        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_new_out_cond);
+        DAP_DELETE(l_new_out_cond);
+    }
     // add 'sign' item
     if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_tx_sign) != 1) {
         dap_chain_datum_tx_delete(l_tx);

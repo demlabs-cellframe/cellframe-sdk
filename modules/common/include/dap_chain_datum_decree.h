@@ -94,6 +94,11 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION                              0x010A
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE                      0x010B
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_decree_subtype)
 {
     switch(a_decree_subtype) {
@@ -343,3 +348,8 @@ void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a
  */
 dap_chain_datum_decree_t* dap_chain_datum_decree_sign_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_decree_t *a_datum_decree,
                                                   size_t a_certs_count, size_t *a_total_sign_count);
+
+
+#ifdef __cplusplus
+}
+#endif
