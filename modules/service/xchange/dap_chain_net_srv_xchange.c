@@ -3775,9 +3775,15 @@ static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chai
                             HASH_FIND(hh, l_cache->cache, &l_cache_found->tx_info.exchange_info.order_hash, sizeof(dap_hash_fast_t), l_cache_order);
                             l_cache_prev_tx->tx_info.exchange_info.next_hash = (dap_hash_fast_t){0};
                             SUM_256_256(l_cache_order->tx_info.order_info.value_ammount, l_cache_found->tx_info.exchange_info.buy_value, &l_cache_order->tx_info.order_info.value_ammount);
+                            uint256_t l_percent_completed = {};
+                            SUBTRACT_256_256(l_cache_order->tx_info.order_info.value, l_cache_order->tx_info.order_info.value_ammount, &l_percent_completed);
+                            DIV_256_COIN(l_percent_completed, l_cache_order->tx_info.order_info.value, &l_percent_completed);
+                            MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
+                            l_cache_order->tx_info.order_info.percent_completed = dap_chain_balance_to_coins_uint64(l_percent_completed);
                         } else if (l_cache_prev_tx->tx_type == TX_TYPE_ORDER){
                             l_cache_prev_tx->tx_info.order_info.next_hash = (dap_hash_fast_t){0};
                             l_cache_prev_tx->tx_info.order_info.value_ammount = l_cache_prev_tx->tx_info.order_info.value;
+                            l_cache_prev_tx->tx_info.order_info.percent_completed = 0;
                         }
                     }
                 } else if (l_tx_type == TX_TYPE_INVALIDATE){
