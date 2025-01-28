@@ -176,7 +176,7 @@ DAP_STATIC_INLINE char *s_get_approved_group(dap_chain_net_t *a_net)
 
 static dap_pkey_t *s_get_pkey_by_hash_callback(const uint8_t *a_hash)
 {
-    dap_list_t *l_srv_stake_list = dap_chain_srv_get_internal((dap_chain_net_id_t) { .uint64 = 0 }, (dap_chain_srv_uid_t) { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID });
+    dap_list_t *l_srv_stake_list = dap_chain_srv_get_internal_all((dap_chain_srv_uid_t) { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID });
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     for ( ; l_srv_stake_list && !l_stake; l_srv_stake_list = l_srv_stake_list->next) {
         struct srv_stake *l_srv_stake = l_srv_stake_list->data;
@@ -3042,9 +3042,6 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     char l_node_addr[32];
     snprintf(l_node_addr, 32, ""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(a_stake->node_addr));
     json_object_object_add(l_json_obj_stake, "pkey_hash", json_object_new_string(l_pkey_hash_str));
-    if (s_debug_more) {
-        json_object_object_add(l_json_obj_stake, "pkey_full", json_object_new_string(a_stake->pkey ? "true" : "false"));
-    }
     json_object_object_add(l_json_obj_stake, "stake_value", json_object_new_string(l_balance));
     json_object_object_add(l_json_obj_stake, "effective_value", json_object_new_string(l_effective_weight));
     json_object_object_add(l_json_obj_stake, "related_weight", json_object_new_string(l_rel_weight_str));
@@ -3052,6 +3049,11 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     json_object_object_add(l_json_obj_stake, "node_addr", json_object_new_string(l_node_addr));
     json_object_object_add(l_json_obj_stake, "sovereign_addr", json_object_new_string(l_sov_addr_str));
     json_object_object_add(l_json_obj_stake, "sovereign_tax", json_object_new_string(l_sov_tax_str));
+    if (s_debug_more) {
+        json_object_object_add(l_json_obj_stake, "debug_info", NULL);
+        json_object_object_add(l_json_obj_stake, "\tpkey_full", json_object_new_string(a_stake->pkey ? "true" : "false"));
+        json_object_object_add(l_json_obj_stake, "\tdecree_hash", json_object_new_string(dap_hash_fast_to_str_static(&a_stake->decree_hash)));
+    }
     if (dap_chain_esbocs_started(a_stake->signing_addr.net_id))
         json_object_object_add(l_json_obj_stake, "active", json_object_new_string(a_stake->is_active ? "true" : "false"));
     json_object_array_add(a_json_arr, l_json_obj_stake);
