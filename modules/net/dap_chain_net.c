@@ -2196,7 +2196,7 @@ static void *s_net_load(void *a_arg)
                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                          l_net->pub.gdb_nodes, 7200, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
-                                                         DAP_CLUSTER_TYPE_EMBEDDED);
+                                                         DAP_CLUSTER_TYPE_EMBEDDED);   // TODO 7200
     if (!l_net_pvt->nodes_cluster) {
         log_it(L_ERROR, "Can't initialize nodes cluster for network %s", l_net->pub.name);
         l_err_code = -3;

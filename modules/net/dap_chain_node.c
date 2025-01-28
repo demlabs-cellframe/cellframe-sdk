@@ -43,6 +43,7 @@
 #include "dap_chain_net.h"
 #include "dap_global_db.h"
 #include "dap_chain_node.h"
+#include "dap_chain_node_client.h"
 #include "dap_chain_cs_esbocs.h" // TODO set RPC callbacks for exclude consensus specific dependency
 #include "dap_chain_cs_blocks.h" // TODO set RPC callbacks for exclude storage type specific dependency
 #include "dap_chain_ledger.h"
@@ -51,6 +52,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_datum_service_state.h"
 #include "dap_chain_node_client.h"
+#include "dap_chain_net_balancer.h"
 
 #define LOG_TAG "dap_chain_node"
 
@@ -248,20 +250,18 @@ void dap_chain_node_list_cluster_del_callback(dap_store_obj_t *a_obj, void *a_ar
         return;
     }
     int l_ret = -1;
-    for (size_t i = 0; i < 3 || l_ret == 0; i++) {
+    for (size_t i = 0; i < 3 && l_ret != 0; i++) {
         dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net, l_node_info);
         if (l_client)
             l_ret = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 30000);
-        dap_chain_node_client_close_unsafe(l_client);
-        if (!l_ret)
-            break;
+        // dap_chain_node_client_close_unsafe(l_client);  del in s_go_stage_on_client_worker_unsafe
     }
     if (l_ret == 0) {
-        a_obj->timestamp = dap_time_now();
-        dap_global_db_driver_apply(a_obj, 1);
+        a_obj->timestamp = dap_nanotime_now();
+        dap_global_db_set_raw_sync(a_obj, 1);
     } else {
-        dap_global_db_driver_delete(a_obj, 1);
         log_it(L_DEBUG, "Can't do handshake with %s [ %s : %u ] delete from node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
+        dap_global_db_driver_delete(a_obj, 1);
     }
     dap_strfreev(l_group_strings);
 }
@@ -282,7 +282,7 @@ int dap_chain_node_list_clean_init() {
 int dap_chain_node_init()
 {
     if (dap_proc_thread_timer_add(NULL, s_update_node_states_info, NULL, s_timer_update_states_info)) {
-        log_it(L_ERROR, "Can't activate timer on node states update");
+        // log_it(L_ERROR, "Can't activate timer on node states update");
         return -1;
     }
     return 0;
