@@ -209,10 +209,7 @@ size_t dap_chain_net_srv_order_continents_count(void)
  */
 const char* dap_chain_net_srv_order_continent_to_str(int8_t a_num)
 {
-    int8_t l_count = dap_chain_net_srv_order_continents_count();
-    if(a_num >= l_count)
-        return NULL;
-    return s_server_continents[a_num];
+    return a_num < (int8_t)dap_chain_net_srv_order_continents_count() ? s_server_continents[a_num] : NULL;
 }
 
 /**

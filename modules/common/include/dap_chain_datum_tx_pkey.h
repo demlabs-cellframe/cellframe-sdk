@@ -27,6 +27,7 @@
 #include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
+
 /**
   * @struct dap_chain_tx_pkey
   * @brief TX item with one of the transaction's public keys

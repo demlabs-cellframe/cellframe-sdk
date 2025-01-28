@@ -38,6 +38,9 @@ typedef struct _dap_dns_buf_t {
     uint32_t size;
 } dap_dns_buf_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 // node info request callbacks
 typedef void (*dap_dns_client_node_info_request_success_callback_t) (dap_worker_t *a_worker, dap_chain_net_links_t *a_result, void *a_arg);
 typedef void (*dap_dns_client_node_info_request_error_callback_t) (dap_worker_t *a_worker, void *a_arg, int a_errno);
@@ -51,3 +54,7 @@ void dap_dns_buf_put_uint64(dap_dns_buf_t *buf, uint64_t val);
 void dap_dns_buf_put_uint32(dap_dns_buf_t *buf, uint32_t val);
 void dap_dns_buf_put_uint16(dap_dns_buf_t *buf, uint16_t val);
 uint16_t dap_dns_buf_get_uint16(dap_dns_buf_t *buf);
+
+#ifdef __cplusplus
+}
+#endif
