@@ -24,4 +24,12 @@
 
 #include "dap_http_server.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_chain_net_bugreport_init(dap_http_server_t * a_http);
+
+#ifdef __cplusplus
+}
+#endif

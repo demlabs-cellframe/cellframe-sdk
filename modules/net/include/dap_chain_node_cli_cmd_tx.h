@@ -29,10 +29,44 @@
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
 
+typedef enum s_com_ledger_err{
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_INCOMPATIBLE_PARAMS_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_WALLET_ADDR_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_TRESHOLD_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_LACK_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_FIND_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_ID_NET_ADDR_DIF_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR,
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_LEDGER_UNKNOWN /* MAX */
+} s_com_ledger_err_t;
+
+typedef enum s_com_token_err{
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_HASH_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_FOUND_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN /* MAX */
+} s_com_token_err_t;
+
 typedef struct dap_chain_tx_hash_processed_ht{
     dap_chain_hash_fast_t hash;
     UT_hash_handle hh;
 }dap_chain_tx_hash_processed_ht_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **l_hash_processed);
 
@@ -75,43 +109,19 @@ bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
  */
 int com_ledger(int a_argc, char ** a_argv, void **a_str_reply);
 
-typedef enum s_com_ledger_err{
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_OK = 0,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_ERR,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_PARAM_ERR,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_INCOMPATIBLE_PARAMS_ERR,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_WALLET_ADDR_ERR,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_TRESHOLD_ERR,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_LACK_ERR,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_FIND_ERR,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_ID_NET_ADDR_DIF_ERR,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR,
 
-    /* add custom codes here */
-
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_UNKNOWN /* MAX */
-} s_com_ledger_err_t;
 /**
  * token command
  *
  */
 int com_token(int a_argc, char ** a_argv, void **a_str_reply);
 
-typedef enum s_com_token_err{
-    DAP_CHAIN_NODE_CLI_COM_TOKEN_OK = 0,
-    DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR,
-    DAP_CHAIN_NODE_CLI_COM_TOKEN_HASH_ERR,
-    DAP_CHAIN_NODE_CLI_COM_TOKEN_FOUND_ERR,
-
-    /* add custom codes here */
-
-    DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN /* MAX */
-} s_com_token_err_t;
 /**
  * decree command
  *
  */
 int cmd_decree(int a_argc, char **a_argv, void **a_str_reply);
 
+#ifdef __cplusplus
+}
+#endif
