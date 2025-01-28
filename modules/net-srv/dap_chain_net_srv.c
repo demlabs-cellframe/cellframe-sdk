@@ -639,7 +639,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_t
         return false;
     }
 
-    l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_sig);
+    l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_sig);
     if (!l_sign){
         log_it(L_ERROR, "Provider sign from tx sig_item");
         return -5;

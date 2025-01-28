@@ -31,9 +31,6 @@
 #include "dap_chain_node_cli.h"
 #include "json.h"
 
-int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, char **a_argv, void **a_str_reply,
-                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net, dap_chain_type_t a_default_chain_type);
-
 typedef enum s_com_parse_net_chain_err{
     DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NET_STR_ERR = 100,
     DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NET_PARAM_ERR,
@@ -45,11 +42,6 @@ typedef enum s_com_parse_net_chain_err{
     DAP_CHAIN_NODE_CLI_COM_PARSE_NET_UNKNOWN /* MAX */
 } s_com_parse_net_chain_err_t;
 
-
-/**
- * global_db command
- */
-int com_global_db(int a_argc,  char **a_argv, void **a_str_reply);
 typedef enum s_com_global_db_json_err {
     DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK = 0,
 
@@ -82,62 +74,6 @@ typedef enum s_com_global_db_json_err {
     DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL
 }s_com_global_db_json_err_t;
 
-/**
- * Node command
- */
-int com_node(int a_argc,  char **a_argv, void **a_str_reply);
-
-#ifndef DAP_OS_ANDROID
-/**
- * Traceroute command
- *
- * return 0 OK, -1 Err
- */
-int com_traceroute(int a_argc,  char** argv, void **a_str_reply);
-
-/**
- * Tracepath command
- *
- * return 0 OK, -1 Err
- */
-int com_tracepath(int a_argc,  char** argv, void **a_str_reply);
-
-/**
- * Ping command
- *
- * return 0 OK, -1 Err
- */
-int com_ping(int a_argc,  char** argv, void **a_str_reply);
-#endif
-/**
- * Help command
- */
-int com_help(int a_argc,  char **a_argv, void **a_str_reply);
-
-int com_version(int a_argc, char **a_argv, void **a_str_reply);
-
-/**
- * Token declaration
- */
-int com_token_decl(int a_argc,  char **a_argv, void **a_str_reply);
-
-int com_token_update(int a_argc, char **a_argv, void **a_str_reply);
-
-/**
- * Token declaration add sign
- */
-int com_token_decl_sign ( int a_argc,  char **a_argv, void **a_str_reply);
-
-/*
- * Token update sign
- */
-int com_token_update_sign(int argc, char ** argv, void **a_str_reply);
-
-/**
- * Token emission
- */
-int com_token_emit (int a_argc,  char **a_argv, void **a_str_reply);
-
 typedef enum s_com_tx_wallet_err{
     DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR,
     DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
@@ -165,13 +101,6 @@ typedef enum s_com_tx_wallet_err{
 
     DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
 } s_com_tx_wallet_err_t;
-
-/**
- * com_tx_create command
- *
- * Wallet info
- */
-int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply);
 
 /**
  * com_tx_create command
@@ -204,9 +133,6 @@ typedef enum s_com_tx_create_err{
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS
 }s_com_tx_create_err_t;
-int com_tx_create(int a_argc, char **a_argv, void **a_str_reply);
-void json_rpc_tx_create(json_object *a_param, json_object *a_reply);
-int com_tx_create_json(int a_argc, char **a_argv, void **reply);
 typedef enum s_com_tx_cond_create{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_INVALID_PARAMETER_HEX = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -228,7 +154,6 @@ typedef enum s_com_tx_cond_create{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CERT_DOES_NOT_CONATIN_VALID_PUBLIC_KEY,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_CONDITIONAL_TX_CREATE
 }s_com_tx_cond_create_t;
-int com_tx_cond_create(int a_argc, char **a_argv, void **reply);
 typedef enum s_com_tx_cond_remove{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_INVALID_PARAMETER_HEX = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -341,8 +266,6 @@ typedef enum s_com_print_log_err{
     DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_REQUIRES_PARAMETER_LIMIT,
     DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_NO_LOGS
 }s_com_print_log_err_t;
-
-int com_tx_cond_remove(int a_argc, char **a_argv, void **reply);
 typedef enum s_com_tx_cond_unspent_find{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_INVALID_PARAMETER_HEX = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -355,8 +278,6 @@ typedef enum s_com_tx_cond_unspent_find{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_NATIVE_TICKER_IN_NET,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_LEDGER_FOR_NET,
 }s_com_tx_cond_unspent_find_t;
-int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply);
-
 typedef enum s_com_tx_verify{
     DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_REQUIRE_PARAMETER_TX = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -366,14 +287,6 @@ typedef enum s_com_tx_verify{
     DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_HASH_IS_NOT_TX_HASH,
     DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_TX_NOT_VERIFY
 }s_com_tx_verify_t;
-/**
- * tx_verify command
- *
- * Verifing transaction
- */
-
-int com_tx_verify(int a_argc, char ** a_argv, void **a_str_reply);
-
 typedef enum s_com_tx_history_err{
     DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR,
@@ -395,6 +308,131 @@ typedef enum s_com_tx_history_err{
 
     //DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
 } s_com_tx_history_err_t;
+typedef enum cmd_mempool_list_err{
+    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CAN_NOT_READ_EMISSION,
+    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CHAIN_NOT_FOUND,
+    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CAN_NOT_GET_MEMPOOL_GROUP,
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_UNKNOWN /* MAX */
+} cmd_mempool_list_err_t;
+typedef enum cmd_find_list_err {
+    DAP_CHAIN_NODE_CLI_FIND_OK = 0,
+    DAP_CHAIN_NODE_CLI_FIND_ERR_PARSE_HASH = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD,
+    DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED,
+    DAP_CHAIN_NODE_CLI_FIND_ERR_UNKNOWN_SUBTYPE_DECREE,
+    DAP_CHIAN_NODE_CLI_FIND_ERR_SUBTYPE_DECREE_IS_NOT_SPECIFIED,
+    DAP_CHAIN_NODE_CLI_FIND_ERR_UNKNOWN_PARAMETR_WHERE,
+}cmd_find_list_err_t;
+
+typedef enum s_com_file_err{
+    DAP_CHAIN_NODE_CLI_COM_FILE_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_FILE_MEMORY_ERR,
+    DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_FILE_DEST_FILE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR
+
+
+} s_com_file_err_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, char **a_argv, void **a_str_reply,
+                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net, dap_chain_type_t a_default_chain_type);
+
+
+/**
+ * global_db command
+ */
+int com_global_db(int a_argc,  char **a_argv, void **a_str_reply);
+
+/**
+ * Node command
+ */
+int com_node(int a_argc,  char **a_argv, void **a_str_reply);
+
+#ifndef DAP_OS_ANDROID
+/**
+ * Traceroute command
+ *
+ * return 0 OK, -1 Err
+ */
+int com_traceroute(int a_argc,  char** argv, void **a_str_reply);
+
+/**
+ * Tracepath command
+ *
+ * return 0 OK, -1 Err
+ */
+int com_tracepath(int a_argc,  char** argv, void **a_str_reply);
+
+/**
+ * Ping command
+ *
+ * return 0 OK, -1 Err
+ */
+int com_ping(int a_argc,  char** argv, void **a_str_reply);
+#endif
+/**
+ * Help command
+ */
+int com_help(int a_argc,  char **a_argv, void **a_str_reply);
+
+int com_version(int a_argc, char **a_argv, void **a_str_reply);
+
+/**
+ * Token declaration
+ */
+int com_token_decl(int a_argc,  char **a_argv, void **a_str_reply);
+
+int com_token_update(int a_argc, char **a_argv, void **a_str_reply);
+
+/**
+ * Token declaration add sign
+ */
+int com_token_decl_sign ( int a_argc,  char **a_argv, void **a_str_reply);
+
+/*
+ * Token update sign
+ */
+int com_token_update_sign(int argc, char ** argv, void **a_str_reply);
+
+/**
+ * Token emission
+ */
+int com_token_emit (int a_argc,  char **a_argv, void **a_str_reply);
+
+/**
+ * com_tx_create command
+ *
+ * Wallet info
+ */
+int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply);
+
+
+int com_tx_create(int a_argc, char **a_argv, void **a_str_reply);
+void json_rpc_tx_create(json_object *a_param, json_object *a_reply);
+int com_tx_create_json(int a_argc, char **a_argv, void **reply);
+
+int com_tx_cond_create(int a_argc, char **a_argv, void **reply);
+
+int com_tx_cond_remove(int a_argc, char **a_argv, void **reply);
+
+int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply);
+
+
+/**
+ * tx_verify command
+ *
+ * Verifing transaction
+ */
+
+int com_tx_verify(int a_argc, char ** a_argv, void **a_str_reply);
 
 char *dap_chain_node_cli_com_tx_history_err(int a_code);
 
@@ -412,16 +450,6 @@ int com_exit(int a_argc, char **a_argv, void **a_str_reply);
 
 int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply);
 int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply);
-
-typedef enum cmd_mempool_list_err{
-    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_OK = 0,
-    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CAN_NOT_READ_EMISSION,
-    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CHAIN_NOT_FOUND,
-    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CAN_NOT_GET_MEMPOOL_GROUP,
-    /* add custom codes here */
-
-    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_UNKNOWN /* MAX */
-} cmd_mempool_list_err_t;
 int com_mempool(int a_argc, char **a_argv, void **a_str_reply);
 /**
  * Place public CA into the mempool
@@ -432,15 +460,6 @@ int com_signer(int a_argc, char **a_argv, void **a_str_reply);
 //remove func
 int cmd_remove(int a_argc, char **a_argv, void **a_str_reply);
 
-typedef enum cmd_find_list_err {
-    DAP_CHAIN_NODE_CLI_FIND_OK = 0,
-    DAP_CHAIN_NODE_CLI_FIND_ERR_PARSE_HASH = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
-    DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD,
-    DAP_CHAIN_NODE_CLI_FIND_ERR_HASH_IS_NOT_SPECIFIED,
-    DAP_CHAIN_NODE_CLI_FIND_ERR_UNKNOWN_SUBTYPE_DECREE,
-    DAP_CHIAN_NODE_CLI_FIND_ERR_SUBTYPE_DECREE_IS_NOT_SPECIFIED,
-    DAP_CHAIN_NODE_CLI_FIND_ERR_UNKNOWN_PARAMETR_WHERE,
-}cmd_find_list_err_t;
 /**
  * Handler coomand find
  * @param a_argc
@@ -454,15 +473,8 @@ void dap_notify_new_client_send_info(dap_events_socket_t *a_es, void *a_arg);
 
 int com_exec_cmd(int argc, char **argv, void **reply);
 
-
-typedef enum s_com_file_err{
-    DAP_CHAIN_NODE_CLI_COM_FILE_OK = 0,
-    DAP_CHAIN_NODE_CLI_COM_FILE_MEMORY_ERR,
-    DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR,
-    DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR,
-    DAP_CHAIN_NODE_CLI_COM_FILE_DEST_FILE_ERR,
-    DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR
-
-
-} s_com_file_err_t;
 int com_file(int a_argc, char ** a_argv, void **a_str_reply);
+
+#ifdef __cplusplus
+}
+#endif

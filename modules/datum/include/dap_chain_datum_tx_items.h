@@ -44,6 +44,11 @@
 
 typedef struct dap_chain_datum_tx dap_chain_datum_tx_t;
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Get item name by item type
  *
@@ -205,8 +210,13 @@ dap_sign_t *dap_chain_datum_tx_sign_create(dap_enc_key_t *a_key, const dap_chain
  *
  * return sign, NULL Error
  */
-dap_sign_t *dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig);
+dap_sign_t *dap_chain_datum_tx_item_sig_get_sign(dap_chain_tx_sig_t *a_tx_sig);
 
 byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_type, size_t *a_size);
 
 dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t *a_tx, int a_type);
+
+
+#ifdef __cplusplus
+}
+#endif

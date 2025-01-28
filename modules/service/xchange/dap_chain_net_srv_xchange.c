@@ -1983,9 +1983,9 @@ xchange_tx_type_t dap_chain_net_srv_xchange_tx_get_type (dap_ledger_t * a_ledger
                 l_prev_tx_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_in_cond_temp->header.tx_prev_hash);
         }
         dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_prev_tx_temp, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_prev_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_prev_sig);
+        dap_sign_t *l_prev_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_tx_prev_sig);
         dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+        dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_tx_sig);
 
         bool l_owner = false;
         l_owner = dap_sign_compare_pkeys(l_prev_sign,l_sign);
@@ -2171,7 +2171,7 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,  dap_chain
             dap_chain_addr_t l_buyer_addr = {};
             if(!a_buyer_addr){
                 dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-                dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+                dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_tx_sig);
                 dap_enc_key_t *l_key_buyer = dap_sign_to_enc_key(l_sign);
                 dap_chain_addr_fill_from_key(&l_buyer_addr, l_key_buyer, a_net->pub.id);
                 dap_enc_key_delete(l_key_buyer);
@@ -2393,7 +2393,7 @@ static bool s_string_append_tx_cond_info_json( json_object * a_json_out,
             dap_chain_addr_t l_buyer_addr = {};
             if(!a_buyer_addr){
                 dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-                dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+                dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_tx_sig);
                 dap_enc_key_t *l_key_buyer = dap_sign_to_enc_key(l_sign);
                 dap_chain_addr_fill_from_key(&l_buyer_addr, l_key_buyer, a_net->pub.id);
                 dap_enc_key_delete(l_key_buyer);
@@ -3716,7 +3716,7 @@ static void s_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t 
         l_cache->tx_info.exchange_info.order_hash = s_get_order_from_cache(l_cache_net->cache, &l_cache->tx_info.exchange_info.prev_hash);
         dap_hash_fast_is_blank(&l_cache->tx_info.exchange_info.order_hash);
         dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+        dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_tx_sig);
         dap_enc_key_t *l_key_buyer = dap_sign_to_enc_key(l_sign);
         dap_chain_addr_fill_from_key(&l_cache->tx_info.exchange_info.buyer_addr, l_key_buyer, a_ledger->net->pub.id);
         dap_enc_key_delete(l_key_buyer);

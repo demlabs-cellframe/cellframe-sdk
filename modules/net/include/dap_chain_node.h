@@ -85,6 +85,11 @@ typedef enum dap_chain_node_cli_cmd_values_parse_net_chain_err_to_json {
     DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_PARAMS_MUST_BE_UNSIGNED
 } dap_chain_node_cli_cmd_values_parse_net_chain_err_to_json;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 /**
  * Calculate size of struct dap_chain_node_info_t
  */
@@ -110,6 +115,8 @@ inline static void dap_chain_node_mempool_autoproc_deinit() {}
 
 int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs);
 int dap_chain_node_hardfork_process(dap_chain_t *a_chain);
+int dap_chain_node_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
+int dap_chain_node_hardfork_confirm(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
 
 dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_ignored, size_t a_ignored_count);
 dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr);
@@ -117,3 +124,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object* a_json_a
                                                            char **a_argv,
                                                            dap_chain_t **a_chain, dap_chain_net_t **a_net,
                                                            dap_chain_type_t a_default_chain_type);
+
+#ifdef __cplusplus
+}
+#endif
