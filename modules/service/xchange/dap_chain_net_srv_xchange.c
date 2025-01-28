@@ -996,9 +996,21 @@ uint64_t dap_chain_net_srv_xchange_get_order_completion_rate(dap_chain_net_t *a_
         SUBTRACT_256_256(l_out_cond->header.value, l_out_cond_last_tx->header.value, &l_percent_completed);
         DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
         MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
-    } else 
+    } else {
+        dap_chain_tx_out_cond_t *l_out_prev_cond_item = NULL;
+        xchange_tx_type_t tx_type = dap_chain_net_srv_xchange_tx_get_type(a_net->pub.ledger, l_last_tx, NULL, NULL, &l_out_prev_cond_item);
+        if (tx_type == TX_TYPE_EXCHANGE){
+            l_percent_completed = l_out_cond->header.value;
+            DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
+            MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
+        } else if (tx_type == TX_TYPE_INVALIDATE){
+            SUBTRACT_256_256(l_out_cond->header.value, l_out_prev_cond_item->header.value, &l_percent_completed);
+            DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
+            MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
+        }
         l_percent_completed = dap_chain_coins_to_balance("100.0");
-
+    }
+        
     return dap_chain_balance_to_coins_uint64(l_percent_completed);
 }
 
