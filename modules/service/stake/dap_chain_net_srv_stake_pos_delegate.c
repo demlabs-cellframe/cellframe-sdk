@@ -4124,13 +4124,6 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
         uint256_t t = uint256_0;
         SUM_256_256(l_order->price, l_average, &t);
         l_average = t;
-<<<<<<< HEAD
-        if (compare256(l_min, l_order->price) == 1) {
-            l_min = l_order->price;
-        }
-        if (compare256(l_max, l_order->price) == -1) {
-            l_max = l_order->price;
-=======
     }
 
     uint16_t l_min_count = dap_chain_esbocs_get_min_validators_count(a_net->pub.id);
@@ -4147,7 +4140,6 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
             }
         if (compare256(l_max, l_all_fees[k]) == -1) {
             l_max = l_all_fees[k];
->>>>>>> df28a99a6 ([*] fix)
         }
     }
     dap_global_db_objs_delete(l_orders, l_orders_count);
