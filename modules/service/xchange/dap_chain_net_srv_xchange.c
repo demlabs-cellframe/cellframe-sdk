@@ -241,7 +241,7 @@ int dap_chain_net_srv_xchange_init()
 
     "srv_xchange token_pair -net <net_name> list all [-limit <limit>] [-offset <offset>]\n"
         "\tList of all token pairs\n"
-    "srv_xchange token_pair -net <net_name> rate average [-time_from <From_time>] [-time_to <To_time>]\n"
+    "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>]\n"
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
     "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] [-limit <limit>] [-offset <offset>]\n"
         "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
@@ -1578,16 +1578,19 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                             if(l_rc == XCHANGE_ORDER_STATUS_UNKNOWN){
                                 json_object_object_add(l_json_obj_order, "WRONG TX", json_object_new_string(l_tx_hash));
                             }else{
-                                json_object_object_add(l_json_obj_order, "history for order", json_object_new_string(l_order_hash_str));
                                 dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net, &l_order_tx_hash, c_dap_chain_net_srv_xchange_uid );
                                 dap_list_t *l_tx_list_temp = l_tx_list;
+                                json_object* l_json_obj_tx_arr = json_object_new_array();
                                 while(l_tx_list_temp ){
+                                    json_object* l_json_obj_cur_tx = json_object_new_object();
                                     dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
                                     dap_hash_fast_t l_hash = {};
                                     dap_hash_fast(l_tx_cur, dap_chain_datum_tx_get_size(l_tx_cur), &l_hash);
-                                    s_string_append_tx_cond_info_json(l_json_obj_order, l_net, NULL, NULL, l_tx_cur, &l_hash, TX_STATUS_ALL, true, true, false);
+                                    s_string_append_tx_cond_info_json(l_json_obj_cur_tx, l_net, NULL, NULL, l_tx_cur, &l_hash, TX_STATUS_ALL, true, true, false);
+                                    json_object_array_add(l_json_obj_tx_arr, l_json_obj_cur_tx);
                                     l_tx_list_temp = l_tx_list_temp->next;
                                 }
+                                json_object_object_add(l_json_obj_order, "history for order", l_json_obj_tx_arr);
                                 dap_list_free(l_tx_list);
                             }
                         }
@@ -1607,10 +1610,13 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_DOES_NO_HISTORY_ERR, "No history");
                         return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_DOES_NO_HISTORY_ERR;
                     }
+                    json_object* l_json_obj_tx_arr = json_object_new_array();
                     while(l_item){
-                        s_string_append_tx_cond_info_json(l_json_obj_order, l_net, &l_item->seller_addr, 
+                        json_object* l_json_obj_cur_tx = json_object_new_object();
+                        s_string_append_tx_cond_info_json(l_json_obj_cur_tx, l_net, &l_item->seller_addr, 
                                 l_item->tx_type == TX_TYPE_EXCHANGE ?  &l_item->tx_info.exchange_info.buyer_addr : NULL, 
                                 l_item->tx, &l_item->hash, TX_STATUS_ALL, true, true, false);
+                        json_object_array_add(l_json_obj_tx_arr, l_json_obj_cur_tx);
                         switch(l_item->tx_type){
                             case TX_TYPE_ORDER:{
                                 l_cur_hash = l_item->tx_info.order_info.next_hash;
@@ -1627,6 +1633,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                             break;
                         HASH_FIND(hh, l_cache->cache, &l_cur_hash, sizeof(dap_hash_fast_t), l_item);
                     }
+                    json_object_object_add(l_json_obj_order, "history for order", l_json_obj_tx_arr);
                 }
             }
             json_object_array_add(*a_json_arr_reply, l_json_obj_order);
@@ -1888,6 +1895,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
             json_object_object_add(json_obj_order, "rate", json_object_new_string(l_cp_rate));
 
             json_object_object_add(json_obj_order, "net", json_object_new_string(l_net->pub.name));
+            json_object_object_add(json_obj_order, "owner_addr", json_object_new_string(l_owner_addr));
             json_object_array_add(*a_json_arr_reply, json_obj_order);
             DAP_DELETE(l_owner_addr);
             if ( s_xchange_cache_state != XCHANGE_CACHE_ENABLED ) 
@@ -2767,6 +2775,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 json_object_object_add(json_obj_order, "rate", json_object_new_string(l_cp_rate));
 
                 json_object_object_add(json_obj_order, "net", json_object_new_string(l_net->pub.name));
+                json_object_object_add(json_obj_order, "owner_addr", json_object_new_string(l_owner_addr));
                 json_object_array_add(*json_arr_reply, json_obj_order);
                 DAP_DELETE(l_owner_addr);
                 l_printed_orders_count++;
@@ -2965,6 +2974,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         l_show_tx_nr++;
                     }
                 }
+                json_object_array_add(*json_arr_reply, json_arr_bl_out);
             } else {
                 dap_list_t *l_datum_list0 = dap_chain_datum_list(l_net,  NULL, s_filter_tx_list, l_time);
                 size_t l_datum_num = dap_list_length(l_datum_list0);
@@ -2987,6 +2997,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         }
                         l_datum_list = dap_list_next(l_datum_list);
                     } 
+                    json_object_array_add(*json_arr_reply, json_arr_bl_out);
                 }
                 dap_list_free_full(l_datum_list0, NULL);
             }
