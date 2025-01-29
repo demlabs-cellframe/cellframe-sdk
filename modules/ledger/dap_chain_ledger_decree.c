@@ -423,6 +423,8 @@ const char *l_ban_addr;
             dap_chain_net_srv_stake_add_approving_decree_info(a_decree, a_net);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE:
+            if (!a_anchored)
+                break;
             if (!a_apply)
                 break;
             dap_pkey_t *l_pkey = NULL;
