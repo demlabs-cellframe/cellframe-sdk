@@ -522,7 +522,6 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
         HASH_ADD(ht, l_srv_stake->tx_itemlist, tx_hash, sizeof(dap_hash_fast_t), l_stake);
         dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_stake->tx_hash);
         if (l_tx) {
-            dap_pkey_t *l_pkey = NULL;
             dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL);
             if (l_cond && (l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, dap_pkey_get_size(l_stake->pkey)))) {
                 dap_tsd_t *l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_ADDR);
@@ -1215,7 +1214,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     size_t l_total_signs_size = l_decree->header.signs_size;
 
     dap_sign_t * l_sign = dap_cert_sign(a_cert,  l_decree,
-       sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size, 0);
+       sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size);
 
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
@@ -1268,8 +1267,7 @@ static dap_chain_datum_decree_t *s_decree_pkey_update(dap_chain_net_t *a_net, da
     l_decree->header.signs_size = 0;
     dap_tsd_write((byte_t*)l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY, a_pkey, dap_pkey_get_size(a_pkey));
 
-    dap_sign_t *l_sign = dap_cert_sign(a_cert,  l_decree,
-       sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size, DAP_SIGN_HASH_TYPE_DEFAULT);
+    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size);
 
     if (l_sign) {
         l_decree->header.signs_size = dap_sign_get_size(l_sign);
@@ -1500,7 +1498,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
     size_t l_total_signs_size = l_decree->header.signs_size;
 
     dap_sign_t * l_sign = dap_cert_sign(a_cert,  l_decree,
-       sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size, DAP_SIGN_HASH_TYPE_DEFAULT);
+       sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size);
 
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);

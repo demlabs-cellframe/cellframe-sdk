@@ -3934,7 +3934,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
     for(size_t i = 0; i < a_certs_count; i++)
     {
         dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_anchor,
-           sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size, DAP_SIGN_HASH_TYPE_DEFAULT);
+           sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size);
 
         if (l_sign) {
             size_t l_sign_size = dap_sign_get_size(l_sign);
@@ -5365,7 +5365,7 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
         DAP_DELETE(l_buffer);
         return -8;
     }
-    *a_signed = dap_sign_create(l_cert->enc_key, l_data, l_full_size_for_sign, DAP_SIGN_HASH_TYPE_DEFAULT);
+    *a_signed = dap_sign_create(l_cert->enc_key, l_data, l_full_size_for_sign);
     if (*a_signed == NULL) {
         DAP_DELETE(l_buffer);
         return -9;

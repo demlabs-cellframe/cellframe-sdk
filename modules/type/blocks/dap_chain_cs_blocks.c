@@ -422,7 +422,7 @@ static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_c
     l_tsd->size = sizeof(uint256_t);
     *(uint256_t*)(l_tsd->data) = a_value;
     // Sign it
-    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size, DAP_SIGN_HASH_TYPE_DEFAULT);
+    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size);
     if (!l_sign) {
         log_it(L_ERROR, "Decree signing failed");
         DAP_DELETE(l_decree);
