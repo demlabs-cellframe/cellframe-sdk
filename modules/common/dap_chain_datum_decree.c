@@ -426,7 +426,7 @@ dap_chain_datum_decree_t *dap_chain_datum_decree_sign_in_cycle(dap_cert_t **a_ce
         }
         DAP_DELETE(l_cur_pkey);
         dap_sign_t *l_sign = dap_cert_sign(a_certs[i], a_datum_decree,
-                                            sizeof(dap_chain_datum_decree_t) + a_datum_decree->header.data_size, DAP_SIGN_HASH_TYPE_DEFAULT);
+                                            sizeof(dap_chain_datum_decree_t) + a_datum_decree->header.data_size);
         if (!l_sign) {
             log_it(L_ERROR, "Decree signing failed");
             DAP_DELETE(a_datum_decree);
