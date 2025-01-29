@@ -1686,13 +1686,14 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT,
                                                             &a_session->cur_round.attempt_num, sizeof(uint8_t));
             if (l_candidate_size)
-                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
+                l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
                                                             a_session->cur_round.excluded_list, (*a_session->cur_round.excluded_list + 1) * sizeof(uint16_t));
             if (a_session->is_hardfork && l_candidate_size) {
-                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_LINK,
+                l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_GENESIS, NULL, 0);
+                
+                if (l_candidate_size)
+                    l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_LINK,
                                                             &l_chain->hardfork_decree_hash, sizeof(l_chain->hardfork_decree_hash));
-                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_GENESIS,
-                                                            NULL, 0);
             }
         }
         if (l_candidate_size) {
@@ -2880,7 +2881,6 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 {
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    dap_hash_fast_t *l_hardfork_decree_hash = NULL;
 
     if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block) {
         // It's a block candidate, don't check signs
@@ -2890,11 +2890,6 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         }
         if (a_blocks->is_hardfork_state) {
             // Addtionally verify datums vs internal states
-            l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_LINK);
-            if (!l_hardfork_decree_hash) {
-                log_it(L_ERROR, "Can't find hardfork decree hash in meta of block", a_block->hdr.version);
-                return -4;
-            }
             size_t l_datums_count = 0;
             dap_chain_datum_t **l_datums = dap_chain_block_get_datums(a_block, a_block_size, &l_datums_count);
             for (size_t i = 0; i < l_datums_count; i++) {
@@ -2936,9 +2931,6 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         ? DAP_DUP_SIZE(a_block, l_block_size)
         : a_block;
     l_block->hdr.meta_n_datum_n_signs_size = l_block_excl_sign_size - sizeof(l_block->hdr);
-    if (l_hardfork_decree_hash) {
-        
-    }
     for (size_t i = 0; i < l_signs_count; i++) {
         dap_sign_t *l_sign = l_signs[i];
         dap_chain_addr_t l_signing_addr = { .net_id = a_blocks->chain->net_id };

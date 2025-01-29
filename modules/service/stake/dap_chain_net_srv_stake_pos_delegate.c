@@ -23,7 +23,6 @@
 */
 
 #include <math.h>
-#include <pthread.h>
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_config.h"
@@ -133,7 +132,7 @@ static int s_pos_delegate_purge(dap_chain_net_id_t a_net_id);
 static json_object *s_pos_delegate_get_fee_validators_json(dap_chain_net_id_t a_net_id);
 bool s_tax_callback(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_pkey_hash, dap_chain_addr_t *a_addr_out, uint256_t *a_value_out);
 
-DAP_STATIC_INLINE void s_srv_stake_item_destroy (void *a_item)
+DAP_STATIC_INLINE void s_srv_stake_item_free(void *a_item)
 {
     DAP_DEL_MULTY(((dap_chain_net_srv_stake_item_t *)a_item)->pkey, a_item);
 }
@@ -182,10 +181,7 @@ static dap_pkey_t *s_get_pkey_by_hash_callback(const uint8_t *a_hash)
         struct srv_stake *l_srv_stake = l_srv_stake_list->data;
         HASH_FIND(hh, l_srv_stake->itemlist, a_hash, sizeof(dap_hash_fast_t), l_stake);
     }
-    if (l_stake) {
-        return l_stake->pkey;
-    }
-    return NULL; 
+    return l_stake ? l_stake->pkey : NULL; 
 }
 
 /**
@@ -281,7 +277,7 @@ static void s_pos_delegate_delete(void *a_service_internal)
     HASH_ITER(hh, l_srv_stake->itemlist, l_stake, l_tmp) {
         // Clang bug at this, l_stake should change at every loop cycle
         HASH_DEL(l_srv_stake->itemlist, l_stake);
-        DAP_DEL_MULTY(l_stake->pkey, l_stake);
+        s_srv_stake_item_free((void *)l_stake);
     }
     struct cache_item *l_cache_item = NULL, *l_cache_tmp = NULL;
     HASH_ITER(hh, l_srv_stake->cache, l_cache_item, l_cache_tmp) {
@@ -4237,10 +4233,10 @@ size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_
 }
 
 /**
- * @brief get tsd list with decrees hashes
+ * @brief export tsd list with decrees hashes
  * @param a_net_id net id to get delegated keys
  * @param a_out concated out tsd list
- * @return if OK - ponter tsd list, if error - NULL
+ * @return if OK - 0, other if error
  */
 int dap_chain_net_srv_stake_hardfork_data_export(dap_chain_net_t *a_net, dap_list_t **a_out)
 {
@@ -4272,14 +4268,11 @@ int dap_chain_net_srv_stake_hardfork_data_export(dap_chain_net_t *a_net, dap_lis
     return 0;
 }
 
-// TODO restore validators with tx 0x000000
-// check stake value
-
 /**
- * @brief get tsd list with decrees hashes
- * @param a_net_id net id to get delegated keys
- * @param a_hardfork_decree_hash pointer to decree hash
- * @return if OK - ponter tsd list, if error - NULL
+ * @brief import delegated keys from hardfork decree
+ * @param a_net_id net id to import delegated keys
+ * @param a_hardfork_decree_hash pointer to decree hash to restore data
+ * @return if OK - 0, other if error
  */
 int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_hardfork_decree_hash)
 { 
@@ -4289,7 +4282,7 @@ int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, da
         log_it(L_ERROR, "Can't find hardfork decree by hash %s", dap_hash_fast_to_str_static(a_hardfork_decree_hash));
         return -1;
     }
-    // temporary save shared pkeys
+    // temporary save poa pkeys
     dap_list_t *l_current_list = NULL;
 
     struct srv_stake *l_srv_stake = s_srv_stake_by_net_id(a_net_id);
@@ -4304,13 +4297,12 @@ int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, da
     }
     // clean prev table
     s_pos_delegate_purge(a_net_id);
-    // restore shared validators
+    // restore poa keys
     for ( dap_list_t* l_iter = dap_list_first(l_current_list); l_iter; l_iter = l_iter->next) {
         l_stake = (dap_chain_net_srv_stake_item_t *)l_iter->data;
         dap_chain_net_srv_stake_key_delegate(l_net, &l_stake->signing_addr, NULL, l_stake->value, &l_stake->node_addr, l_stake->pkey);
-        DAP_DEL_MULTY(l_stake->pkey, l_stake);
     }
-    dap_list_free(l_current_list);
+    dap_list_free_full(l_current_list, s_srv_stake_item_free);
 
     l_current_list = dap_tsd_find_all(l_decree->data_n_signs, l_decree->header.data_size,  DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, sizeof(dap_hash_fast_t));
     for ( dap_list_t* l_iter = dap_list_first(l_current_list); l_iter; l_iter = l_iter->next) {
@@ -4318,16 +4310,23 @@ int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, da
         if (!l_decree) {
             log_it(L_ERROR, "Can't find delegate decree by hash %s", dap_hash_fast_to_str_static((dap_hash_fast_t *)((dap_tsd_t *)l_iter->data)->data));
             dap_list_free_full(l_current_list, NULL);
-            return -6;
+            return -3;
         }
         uint256_t l_value;
         dap_chain_addr_t l_addr = {};
         dap_hash_fast_t l_hash = {};
         dap_chain_node_addr_t l_node_addr = {};
-        dap_chain_datum_decree_get_stake_value(l_current_decree, &l_value);
-        dap_chain_datum_decree_get_stake_signing_addr(l_current_decree, &l_addr);
-        dap_chain_datum_decree_get_node_addr(l_current_decree, &l_node_addr);
-        dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr);
+        if (
+            dap_chain_datum_decree_get_hash(l_current_decree, &l_hash) ||
+            dap_chain_datum_decree_get_stake_value(l_current_decree, &l_value) ||
+            dap_chain_datum_decree_get_stake_signing_addr(l_current_decree, &l_addr) ||
+            dap_chain_datum_decree_get_node_addr(l_current_decree, &l_node_addr) ||
+            dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr)
+        ) {
+            log_it(L_ERROR, "Error in restoring data decree %s", dap_hash_fast_to_str_static(a_hardfork_decree_hash));
+            dap_list_free_full(l_current_list, NULL);
+            return -4;
+        }
 
         dap_chain_net_srv_stake_key_delegate(l_net, &l_addr, l_current_decree, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(l_current_decree));
         dap_chain_net_srv_stake_add_approving_decree_info(l_current_decree, l_net);

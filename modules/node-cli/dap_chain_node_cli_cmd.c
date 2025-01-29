@@ -4066,7 +4066,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
 
         dap_tsd_t *l_tsd = NULL;
         dap_cert_t **l_new_certs = NULL;
-        size_t l_new_certs_count = 0, l_total_tsd_size = 0;
+        size_t l_new_certs_count = 0;
         dap_list_t *l_tsd_list = NULL;
 
         int l_subtype = 0;
@@ -4211,7 +4211,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                                               dap_chain_datum_decree_subtype_to_str(l_subtype), l_decree_chain_str);
             return -107;
         }
-        l_total_tsd_size = dap_tsd_calc_list_size(l_tsd_list);
+        size_t l_total_tsd_size = dap_tsd_calc_list_size(l_tsd_list);
         l_datum_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
         l_datum_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
         l_datum_decree->header.ts_created = dap_time_now();
