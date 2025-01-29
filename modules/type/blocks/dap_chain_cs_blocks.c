@@ -68,7 +68,7 @@ typedef struct dap_chain_cs_blocks_pvt {
 
     // All the blocks are here
     dap_chain_block_cache_t *blocks;
-     _Atomic uint64_t blocks_count;
+    _Atomic uint64_t blocks_count;
 
     // Brnches and forks
     size_t forked_br_cnt;
@@ -90,6 +90,11 @@ typedef struct dap_chain_cs_blocks_pvt {
     // Number of blocks for one block confirmation
     uint64_t block_confirm_cnt;
 } dap_chain_cs_blocks_pvt_t;
+
+typedef struct dap_chain_block_fork_resolved_notificator{
+    dap_chain_cs_blocks_callback_fork_resolved_t callback;
+    void *arg;
+} dap_chain_block_fork_resolved_notificator_t;
 
 #define PVT(a) ((dap_chain_cs_blocks_pvt_t *)(a)->_pvt )
 
@@ -172,6 +177,7 @@ static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_c
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
 
+static dap_list_t *s_fork_resolved_notificators = NULL;
 
 /**
  * @brief dap_chain_cs_blocks_init
@@ -201,7 +207,7 @@ int dap_chain_cs_blocks_init()
                 "\t\tComplete the current new round, verify it and if everything is ok - publish new blocks in chain\n\n"
 
         "Blockchain explorer:\n"
-            "block -net <net_name> [-chain <chain_name>] dump <block_hash>\n"
+            "block -net <net_name> [-chain <chain_name>] dump -hash <block_hash>\n"
                 "\t\tDump block info\n\n"
 
             "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset] [-head]"
@@ -377,6 +383,25 @@ dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_
     HASH_FIND(hh, PVT(a_blocks)->blocks,a_block_hash, sizeof (*a_block_hash), l_ret );
     pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
     return l_ret;
+}
+
+int dap_chain_block_add_fork_notificator(dap_chain_cs_blocks_callback_fork_resolved_t a_callback, void *a_arg)
+{
+    if (!a_callback)
+        return -100;
+
+    dap_chain_block_fork_resolved_notificator_t *l_notificator = DAP_NEW_Z(dap_chain_block_fork_resolved_notificator_t);
+    if (!l_notificator) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return -1;
+    }
+
+    l_notificator->arg = a_arg;
+    l_notificator->callback = a_callback;
+
+    s_fork_resolved_notificators = dap_list_append(s_fork_resolved_notificators, l_notificator);
+
+    return 0;
 }
 
 static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_chain, uint256_t a_value, dap_cert_t *a_cert)
@@ -588,6 +613,7 @@ static int block_list_sort_by_date_back(const void *a, const void *b)
 static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
+
     //char ** a_str_reply = (char **) reply;    
     enum {
         SUBCMD_UNDEFINED =0,
@@ -708,7 +734,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                                                                                               &l_datum_size, NULL, NULL);
             l_datums[0] = l_datum;
             for (size_t i = 0; i < l_datums_count; i++) {
-                if ( dap_chain_node_mempool_process(l_chain, l_datums[i], l_subcmd_str_arg) ) {
+                if ( dap_chain_node_mempool_process(l_chain, l_datums[i], l_subcmd_str_arg, NULL) ) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_VERIF_ERR, "Error! Datum %s doesn't pass verifications, examine node log files",
                                                       l_subcmd_str_arg);
                     DAP_DEL_MULTY(l_datum, l_datums, l_gdb_group_mempool);
@@ -733,6 +759,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
 
         case SUBCMD_DUMP:{
             const char *l_hash_out_type = NULL;
+            const char *l_hash_str = NULL;
             dap_chain_hash_fast_t l_block_hash={0};
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
             if(!l_hash_out_type)
@@ -740,15 +767,17 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "invalid parameter -H, valid values: -H <hex | base58>");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
-            }
-            if (!l_subcmd_str_arg) {
+            }           
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
+            if (!l_hash_str) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR, "Enter block hash ");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
             }
-            dap_chain_hash_fast_from_str(l_subcmd_str_arg, &l_block_hash); // Convert argument to hash
+
+            dap_chain_hash_fast_from_str(l_hash_str, &l_block_hash);
             dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_block_hash);
             if (!l_block_cache) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_FIND_ERR, "Can't find block %s ", l_subcmd_str_arg);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_FIND_ERR, "Can't find block %s ", l_hash_str);
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_FIND_ERR;
             }
             dap_chain_block_t *l_block = l_block_cache->block;
@@ -946,7 +975,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             json_object* json_arr_bl_cache_out = json_object_new_array();
             size_t l_start_arr = 0;
             size_t l_arr_end = 0;
-            s_set_offset_limit_json(json_arr_bl_cache_out, &l_start_arr, &l_arr_end, l_limit, l_offset, PVT(l_blocks)->blocks_count);
+            dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_start_arr, &l_arr_end, l_limit, l_offset, PVT(l_blocks)->blocks_count);
             
             size_t i_tmp = 0;
             dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks;
@@ -1596,7 +1625,7 @@ static int s_delete_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block
             HASH_DEL(PVT(a_blocks)->datum_index, l_datum_index);
             // notify datum removed
             dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
-            dap_chain_datum_removed_notify(l_cell, l_datum_hash);
+            dap_chain_datum_removed_notify(l_cell, l_datum_hash, l_datum);
         }
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
@@ -1649,6 +1678,10 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
     }
 
     if (a_main_branch_length < l_longest_branch_length){
+        dap_list_t *l_reverted_blocks_list= NULL;
+        uint64_t l_reverted_blocks_cnt = 0;
+        uint64_t l_main_blocks_cnt = 0;
+
         log_it(L_INFO,"Found new longest branch. Start switching.");
         // Switch branches
         dap_chain_block_forked_branch_atoms_table_t *l_new_forked_branch = NULL;
@@ -1661,8 +1694,11 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
                 l_new_item->block_cache = l_atom;
                 l_new_item->block_hash = l_atom->block_hash;
                 HASH_ADD(hh, l_new_forked_branch, block_hash, sizeof(dap_hash_fast_t), l_new_item);
+                l_reverted_blocks_cnt++;
+                dap_hash_fast_t *l_reverted_block_hash = DAP_DUP_SIZE(&l_atom->block_hash, sizeof(l_atom->block_hash));
+                l_reverted_blocks_list = dap_list_prepend(l_reverted_blocks_list, l_reverted_block_hash);
                 l_atom = l_atom->hh.next;
-            }
+        }
         // Next we must to remove all blocks from main branch and delete all datums in this atoms from storages
         dap_chain_block_forked_branch_atoms_table_t *l_last_new_forked_item = HASH_LAST(l_new_forked_branch);
         for (l_curr_index = 0; l_last_new_forked_item && l_curr_index < a_main_branch_length; l_last_new_forked_item = l_last_new_forked_item->hh.prev, ++l_curr_index){
@@ -1684,7 +1720,15 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
             s_add_atom_datums(l_blocks, l_curr_atom);
             dap_chain_atom_notify(a_cell, &l_curr_atom->block_hash, (byte_t*)l_curr_atom->block, l_curr_atom->block_size);
             HASH_DEL(new_main_branch, l_item);
+            l_main_blocks_cnt++;
         }
+        // Notify about branch switching
+        for (dap_list_t *l_temp = s_fork_resolved_notificators; l_temp; l_temp = l_temp->next){
+            dap_chain_block_fork_resolved_notificator_t *l_notificator = (dap_chain_block_fork_resolved_notificator_t*)l_temp->data;
+            l_notificator->callback(l_blocks->chain, a_bcache->block_hash, l_reverted_blocks_list, l_reverted_blocks_cnt, l_main_blocks_cnt, l_notificator->arg);
+        }
+
+        dap_list_free_full(l_reverted_blocks_list, NULL);
         // Next we save pointer to new forked branch (former main branch) instead of it
         l_longest_branch_cache_ptr->forked_branch_atoms = l_new_forked_branch;
         return true;

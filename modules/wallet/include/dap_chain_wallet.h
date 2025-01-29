@@ -38,6 +38,7 @@
 #define DAP_WALLET$M_FL_PROTECTED        (1 << 0)                           /* Wallet is password protected */
 #define DAP_WALLET$M_FL_ACTIVE           (1 << 1)                           /* Has been activated (has been open with password) */
 
+
 typedef struct dap_chain_wallet{
     char        name[ DAP_WALLET$SZ_NAME + 1 ];                             /* Human readable name of BMF Wallet */
     uint64_t    flags;                                                      /* See DAP_WALLET$M_FL_* constants */
@@ -46,6 +47,9 @@ typedef struct dap_chain_wallet{
 } dap_chain_wallet_t;
 
 typedef void (*dap_chain_wallet_opened_callback_t)(dap_chain_wallet_t *a_wallet, void *a_arg);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int dap_chain_wallet_init();
 void dap_chain_wallet_deinit(void);
@@ -84,7 +88,7 @@ uint256_t dap_chain_wallet_get_balance(dap_chain_wallet_t *a_wallet, dap_chain_n
 
 int dap_chain_wallet_save_file( dap_chain_wallet_t * a_wallet);
 
-int dap_chain_wallet_activate   (const char *a_name, ssize_t a_name_len, const char *a_pass, ssize_t a_pass_len, unsigned a_ttl);
+int dap_chain_wallet_activate   (const char *a_name, ssize_t a_name_len, const char *a_path, const char *a_pass, ssize_t a_pass_len, unsigned a_ttl);
 int dap_chain_wallet_deactivate   (const char *a_name, ssize_t a_name_len);
 
 const char* dap_chain_wallet_check_sign(dap_chain_wallet_t *a_wallet);
@@ -99,3 +103,6 @@ dap_list_t* dap_chain_wallet_get_local_addr();
 
 int dap_chain_wallet_get_pkey_hash(dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_out_hash);
 char *dap_chain_wallet_get_pkey_str(dap_chain_wallet_t *a_wallet, const char *a_str_type);
+#ifdef __cplusplus
+}
+#endif

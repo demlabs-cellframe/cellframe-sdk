@@ -140,6 +140,7 @@ dap_list_t* dap_chain_wallet_get_local_addr(){
 int     dap_chain_wallet_activate   (
                     const   char    *a_name,
                         ssize_t      a_name_len,
+                    const   char    *a_path,
                     const   char    *a_pass,
                         ssize_t      a_pass_len,
                         unsigned     a_ttl
@@ -197,7 +198,7 @@ char *c_wallets_path;
     /*
      * Check password by open/close BMF Wallet file
     */
-    if ( !(c_wallets_path = (char *) dap_chain_wallet_get_path(g_config)) ) /* No path to wallets - nothing to do */
+    if ( !(c_wallets_path = a_path ? (char *)a_path : (char *) dap_chain_wallet_get_path(g_config)) ) /* No path to wallets - nothing to do */
     {
         memset(l_prec->pass, 0, l_prec->pass_len), l_prec->pass_len = 0;
         return  log_it(L_ERROR, "Wallet's path has been not configured"), -EINVAL;
