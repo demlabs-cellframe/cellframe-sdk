@@ -802,7 +802,7 @@ static int s_callback_sign_compare(dap_list_t *a_list_elem, dap_list_t *a_sign_e
 bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
 {
     dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-    dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+    dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_tx_sig);
     return dap_list_find(a_ledger->net->pub.keys, l_sign, s_callback_sign_compare);
 }
 
@@ -830,6 +830,8 @@ const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag)
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EXTEND) return "extend";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_CLOSE) return "close";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_CHANGE) return "change";
+    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_VOTING) return "voting";
+    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_VOTE) return "vote";
 
     return "WTFSUBTAG";
 
@@ -850,6 +852,9 @@ dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *
     if (strcmp("extend", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EXTEND;
     if (strcmp("close", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_CLOSE;
     if (strcmp("change", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_CHANGE;
+    if (strcmp("voting", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_VOTING;
+    if (strcmp("vote", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_VOTE;
+
 
     return DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
 }
@@ -930,6 +935,20 @@ bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
     return l_res;
 }
+
+const char *dap_ledger_tx_tag_str_by_uid(dap_chain_srv_uid_t a_service_uid)
+{
+    dap_ledger_service_info_t *l_new_sinfo = NULL;
+    
+    int l_tmp = a_service_uid.raw_ui64;
+
+    pthread_rwlock_rdlock(&s_services_rwlock);
+    HASH_FIND_INT(s_services, &l_tmp, l_new_sinfo);
+    pthread_rwlock_unlock(&s_services_rwlock);
+    
+    return l_new_sinfo ? l_new_sinfo->tag_str : "unknown";
+}
+
 
 /**
  * Delete all transactions from the cache
@@ -1171,7 +1190,7 @@ const dap_chain_datum_tx_t* dap_ledger_tx_find_by_pkey(dap_ledger_t *a_ledger,
         dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(l_tx_tmp, NULL,
                 NULL, TX_ITEM_TYPE_SIG, NULL);
         // Get dap_sign_t from item
-        dap_sign_t *l_sig = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+        dap_sign_t *l_sig = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
         if(l_sig) {
             // compare public key in transaction with a_public_key
             if(a_public_key_size == l_sig->header.sign_pkey_size &&
@@ -1184,6 +1203,41 @@ const dap_chain_datum_tx_t* dap_ledger_tx_find_by_pkey(dap_ledger_t *a_ledger,
     }
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     return l_cur_tx;
+}
+/**
+ * @brief dap_ledger_find_pkey_by_hash
+ * @param a_ledger to search
+ * @param a_pkey_hash - pkey hash
+ * @return pointer to dap_pkey_t if finded, other - NULL
+ */
+dap_pkey_t *dap_ledger_find_pkey_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_pkey_hash)
+{
+    dap_return_val_if_pass(!a_pkey_hash || dap_hash_fast_is_blank(a_pkey_hash), NULL);
+
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    dap_ledger_tx_item_t *l_iter_current, *l_item_tmp;
+    dap_pkey_t *l_ret = NULL;
+    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    HASH_ITER(hh, l_ledger_pvt->ledger_items , l_iter_current, l_item_tmp) {
+        dap_chain_datum_tx_t *l_tx_tmp = l_iter_current->tx;
+        dap_chain_hash_fast_t *l_tx_hash_tmp = &l_iter_current->tx_hash_fast;
+        // Get sign item from transaction
+        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(l_tx_tmp, NULL,
+                NULL, TX_ITEM_TYPE_SIG, NULL);
+        // Get dap_sign_t from item
+        dap_sign_t *l_sig = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
+        if(l_sig) {
+            // compare public key in transaction with a_public_key
+            dap_chain_hash_fast_t l_sign_hash = {};
+            dap_sign_get_pkey_hash(l_sig, &l_sign_hash);
+            if(!memcmp(&l_sign_hash, a_pkey_hash, sizeof(dap_chain_hash_fast_t))) {
+                l_ret = dap_pkey_get_from_sign(l_sig);
+                break;
+            }
+        }
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    return l_ret;
 }
 
 /**

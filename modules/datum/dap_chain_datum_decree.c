@@ -71,7 +71,16 @@ int dap_chain_datum_decree_get_fee_addr(dap_chain_datum_decree_t *a_decree, dap_
 dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree, uint16_t *a_owners_num)
 {
     dap_return_val_if_fail(a_decree && a_owners_num, NULL);
-    dap_list_t *l_ret = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER);
+    dap_list_t *l_ret = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER, 0);
+    dap_list_t *it, *tmp;
+    DL_FOREACH_SAFE(l_ret, it, tmp) {
+        dap_tsd_t *l_tsd = it->data;
+        if (l_tsd->size < sizeof(dap_pkey_t) || l_tsd->size != sizeof(dap_pkey_t) + ((dap_pkey_t *)l_tsd->data)->header.size) {
+            log_it(L_ERROR, "Incorrect size %u of owner pkey", l_tsd->size);
+            DL_DELETE(l_ret, it);
+            DAP_DEL_MULTY(it->data, it);
+        }
+    }
     if (a_owners_num)
         *a_owners_num = (uint16_t)dap_list_length(l_ret);
     return l_ret;
@@ -105,7 +114,7 @@ int dap_chain_datum_decree_get_stake_signing_addr(dap_chain_datum_decree_t *a_de
     return l_tsd && l_tsd->size == sizeof(dap_chain_addr_t) ? ( _dap_tsd_get_scalar(l_tsd, a_signing_addr), 0 ) : 1;
 }
 
-int dap_chain_datum_decree_get_stake_signer_node_addr(dap_chain_datum_decree_t *a_decree, dap_chain_node_addr_t *a_node_addr)
+int dap_chain_datum_decree_get_node_addr(dap_chain_datum_decree_t *a_decree, dap_chain_node_addr_t *a_node_addr)
 {
     dap_return_val_if_fail(a_decree && a_node_addr, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR);
@@ -147,6 +156,27 @@ int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, cons
     if (!l_tsd)
         l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING);
     return l_tsd ? ( *a_addr = dap_tsd_get_string_const(l_tsd), !dap_strcmp(*a_addr, DAP_TSD_CORRUPTED_STRING) ) : 1;
+}
+
+int dap_chain_datum_decree_get_atom_num(dap_chain_datum_decree_t *a_decree, uint64_t *a_atom_num)
+{
+    dap_return_val_if_fail(a_decree && a_atom_num, -1);
+    dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM);
+    return l_tsd && l_tsd->size == sizeof(uint64_t) ? ( _dap_tsd_get_scalar(l_tsd, a_atom_num), 0 ) : 1;
+}
+
+/**
+ * @brief get pkey from decree tsd
+ * @param a_decree
+ * @return pointer to dap_pkey_t if find, if not or error - NULL
+ */
+dap_pkey_t *dap_chain_datum_decree_get_pkey(dap_chain_datum_decree_t *a_decree)
+{
+    dap_return_val_if_fail(a_decree, NULL);
+    dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY);
+    if (!l_tsd)
+        return NULL;
+    return dap_pkey_get_size((dap_pkey_t *)l_tsd->data) == l_tsd->size ? (dap_pkey_t *)l_tsd->data : NULL;
 }
 
 void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type)
@@ -309,6 +339,22 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             dap_sign_type_t l_sign_type = { .type = l_type };
             json_object_object_add(a_json_out, "Signature type", json_object_new_string(dap_sign_type_to_str(l_sign_type)));
             break;
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY:
+            if (l_tsd->size != dap_pkey_get_size((dap_pkey_t *)(l_tsd->data))) {
+                json_object_object_add(a_json_out, "pkey type", json_object_new_string("WRONG SIZE"));
+                break;
+            }
+            json_object_object_add(a_json_out, "pkey type", json_object_new_string( dap_pkey_type_to_str(((dap_pkey_t *)(l_tsd->data))->header.type) ));
+            break;
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM:
+            if (l_tsd->size != sizeof(uint64_t)) {
+                json_object_object_add(a_json_out, "Signature type", json_object_new_string("WRONG SIZE"));
+                break;
+            }
+            uint64_t l_num = 0;
+            _dap_tsd_get_scalar(l_tsd, &l_type);
+            json_object_object_add(a_json_out, "Signature type", json_object_new_uint64(l_num));
+            break;
         default:
             json_object_object_add(a_json_out, "UNKNOWN_TYPE_TSD_SECTION", json_object_new_string(""));
             break;
@@ -379,7 +425,7 @@ dap_chain_datum_decree_t *dap_chain_datum_decree_sign_in_cycle(dap_cert_t **a_ce
 
     for(size_t i = 0; i < a_certs_count; i++) {
         dap_sign_t * l_sign = dap_cert_sign(a_certs[i], a_datum_decree,
-                                            sizeof(dap_chain_datum_decree_t) + a_datum_decree->header.data_size, 0);
+                                            sizeof(dap_chain_datum_decree_t) + a_datum_decree->header.data_size, DAP_SIGN_HASH_TYPE_DEFAULT);
         if (!l_sign) {
             log_it(L_ERROR, "Decree signing failed");
             DAP_DELETE(a_datum_decree);

@@ -131,6 +131,10 @@ typedef struct dap_chain_datum{
     byte_t data[]; /// Stored datum body
 } DAP_ALIGN_PACKED dap_chain_datum_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief dap_chain_datum_size
  * @param a_datum
@@ -170,3 +174,7 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
                              dap_chain_net_id_t a_net_id);
 json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum);
 void dap_chain_datum_dump_json(json_object* a_json_arr_reply,json_object  *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id, bool a_verbose);
+
+#ifdef __cplusplus
+}
+#endif

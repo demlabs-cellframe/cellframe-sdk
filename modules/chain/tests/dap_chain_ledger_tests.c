@@ -42,7 +42,7 @@ dap_chain_datum_token_t *dap_ledger_test_create_datum_update(dap_cert_t *a_cert,
         memcpy(l_token->tsd_n_signs, a_tsd_section, a_size_tsd_section);
     }
     dap_sign_t * l_sign = dap_cert_sign(a_cert,l_token,
-                                        sizeof(*l_token) + a_size_tsd_section, 0);
+                                        sizeof(*l_token) + a_size_tsd_section, DAP_SIGN_HASH_TYPE_DEFAULT);
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
         l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section + l_sign_size);
@@ -77,7 +77,7 @@ dap_chain_datum_token_t  *dap_ledger_test_create_datum_decl(dap_cert_t *a_cert, 
         memcpy(l_token->tsd_n_signs, a_tsd_section, a_size_tsd_section);
     }
     dap_sign_t * l_sign = dap_cert_sign(a_cert,l_token,
-                                        sizeof(*l_token) + a_size_tsd_section, 0);
+                                        sizeof(*l_token) + a_size_tsd_section, DAP_SIGN_HASH_TYPE_DEFAULT);
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
         l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section + l_sign_size);
@@ -365,7 +365,7 @@ int dap_ledger_test_create_reward_decree(dap_chain_t *a_chain, dap_chain_net_id_
     l_tsd->size = sizeof(uint256_t);
     *(uint256_t*)(l_tsd->data) = a_value;
     // Sign it
-    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size, 0);
+    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size, DAP_SIGN_HASH_TYPE_DEFAULT);
     if (!l_sign) {
         DAP_DELETE(l_decree);
         return -2;

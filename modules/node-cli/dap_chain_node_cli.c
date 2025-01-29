@@ -159,7 +159,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
                             "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
                             "wallet deactivate -w <wallet_name>>\n"
-                            "wallet convert -w <wallet_name> -password <password>\n");
+                            "wallet convert -w <wallet_name> -password <password> | -remove_password }\n");
     // Token commands
     dap_cli_server_cmd_add ("token_update", com_token_update, "Token update",
                             "\nPrivate or CF20 token update\n"
@@ -324,7 +324,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction",
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
-    dap_json_rpc_cli_handler_add("j_tx_create", json_rpc_tx_create);
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
                 "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
                 " -cert <pub_cert_name> -value <value> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n\n" 
@@ -345,7 +344,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction history
     dap_cli_server_cmd_add("tx_history", com_tx_history, "Transaction history (for address or by hash)",
-            "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} [-net <net_name>] [-chain <chain_name>] [-limit] [-offset] [-head]\n"
+            "tx_history  {-addr <addr> | {-w <wallet_name> | -tx <tx_hash>} -net <net_name>} [-chain <chain_name>] [-limit] [-offset] [-head]\n"
             "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset] [-head]\n"
             "tx_history -count -net <net_name>\n");
 
@@ -360,10 +359,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add("token", com_token, "Token info",
             "token list -net <net_name>\n"
             "token info -net <net_name> -name <token_ticker>\n");
-
-    // Log
-    dap_cli_server_cmd_add ("print_log", com_print_log, "Print log info",
-                "print_log [ts_after <timestamp>] [limit <line_numbers>]\n" );
 
     // Statisticss
     dap_cli_server_cmd_add("stats", com_stats, "Print statistics",
@@ -384,7 +379,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Decree create command
     dap_cli_server_cmd_add ("decree", cmd_decree, "Work with decree",
-            "decree create [common] -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -certs <certs_list> {-fee <net_fee_value> -to_addr <net_fee_wallet_addr> | -hardfork_from <atom_number> | -new_certs <new_owners_certs_list> | -signs_verify <value>}\n"
+            "decree create [common] -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -certs <certs_list> {-fee <net_fee_value> -to_addr <net_fee_wallet_addr> |"
+                                                                                                                        " -hardfork_from <atom_number> [-trusted_addrs <node_addresses>] |"
+                                                                                                                        " -new_certs <new_owners_certs_list> |"
+                                                                                                                        " -signs_verify <value>}\n"
             "Creates common network decree in net <net_name>. Decree adds to chain -chain and applies to chain -decree_chain. If -chain and -decree_chain is different you must create anchor in -decree_chain that is connected to this decree."
             "\nCommon decree parameters:\n"
             "\t -fee <value>: sets network fee\n"
@@ -417,8 +415,16 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "\tTypes decree: fee, owners, owners_min, stake_approve, stake_invalidate, min_value, "
                            "min_validators_count, ban, unban, reward, validator_max_weight, emergency_validators, check_signs_structure\n");
 
-    dap_cli_server_cmd_add ("exec_cmd", com_exec_cmd, "Execute command on remote node",
-            "exec_cmd -net <net_name> -addr <node_addr> -cmd <command,and,all,args,separated,by,commas>\n" );
+
+    dap_cli_server_cmd_add ("file", com_file, "Work with logs and files",
+                "file print {-num_line <number_of_lines> | -ts_after <Tue, 10 Dec 2024 18:37:47 +0700> } {-log | -path <path_to_file>}\n"
+                "\t print the last <num_line> lines from the log file or all logs after the specified date and time\n"
+                "\t -path <path_to_file> allows printing from a text file, but -ts_after option might not work\n"
+                "file export {-num_line <number_of_lines> | -ts_after <m/d/Y-H:M:S>} {-log | -path <path_to_file>} -dest <destination_path>\n"
+                "\t export last <num_line> lines from the log file or all logs after the specified date and time\n"
+                "\t -path <path_to_file> allows exporting from a text file, but -ts_after option might not work\n"
+                "file clear_log\n"
+                "\t CAUTION !!! This command will clear the entire log file\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",

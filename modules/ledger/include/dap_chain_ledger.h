@@ -43,13 +43,14 @@
 
 typedef struct dap_ledger {
     dap_chain_net_t *net;
+    bool is_hardfork_state;
     void *_internal;
 } dap_ledger_t;
 
 typedef struct dap_ledger_tracker {
     dap_hash_fast_t voting_hash;
     uint256_t colored_value;
-} dap_ledger_tracker_t;
+} DAP_ALIGN_PACKED dap_ledger_tracker_t;
 
 typedef struct dap_ledger_hardfork_balances {
     dap_chain_addr_t addr;
@@ -62,7 +63,8 @@ typedef struct dap_ledger_hardfork_balances {
 typedef struct dap_ledger_hardfork_condouts {
     dap_hash_fast_t hash;
     dap_chain_tx_out_cond_t *cond;
-    dap_sign_t *sign;
+    dap_chain_tx_sig_t *sign;
+    const char *ticker;
     dap_list_t *trackers;
     struct dap_ledger_hardfork_condouts *prev, *next;
 } dap_ledger_hardfork_condouts_t;
@@ -132,6 +134,88 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET
 } dap_ledger_check_error_t;
 
+typedef enum dap_ledger_notify_opcodes {
+    DAP_LEDGER_NOTIFY_OPCODE_ADDED = 'a', // 0x61
+    DAP_LEDGER_NOTIFY_OPCODE_DELETED = 'd', // 0x64 
+} dap_ledger_notify_opcodes_t;
+typedef enum dap_chain_tx_tag_action_type {    
+
+    //subtags, till 32
+    DAP_CHAIN_TX_TAG_ACTION_UNKNOWN  =              1 << 1,
+    
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR =      1 << 2,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION =    1 << 3,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN =   1 << 4,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD =       1 << 5,
+
+    DAP_CHAIN_TX_TAG_ACTION_OPEN =                  1 << 6,
+    DAP_CHAIN_TX_TAG_ACTION_USE =                   1 << 7,
+    DAP_CHAIN_TX_TAG_ACTION_EXTEND =                1 << 8,
+    DAP_CHAIN_TX_TAG_ACTION_CHANGE =                1 << 9,
+    DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 10,
+
+    DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
+    DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
+   
+    DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
+} dap_chain_tx_tag_action_type_t;
+
+typedef struct dap_ledger_datum_iter {
+    dap_chain_net_t *net;
+    dap_chain_datum_tx_t *cur;
+    dap_chain_hash_fast_t cur_hash;
+    bool is_unspent;
+    int ret_code;
+    void *cur_ledger_tx_item;
+} dap_ledger_datum_iter_t;
+
+typedef struct dap_ledger_datum_iter_data {
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint32_t action;
+    dap_chain_srv_uid_t uid;
+} dap_ledger_datum_iter_data_t;
+
+//Change this UUID to automatically reload ledger cache on next node startup
+#define DAP_LEDGER_CACHE_RELOAD_ONCE_UUID "0c92b759-a565-448f-b8bd-99103dacf7fc"
+
+// Checks the emission of the token, usualy on zero chain
+#define DAP_LEDGER_CHECK_TOKEN_EMISSION     0x0001
+
+// Check double spending in local cell
+#define DAP_LEDGER_CHECK_LOCAL_DS           0x0002
+
+// Check the double spending in all cells
+#define DAP_LEDGER_CHECK_CELLS_DS           0x0100
+
+#define DAP_LEDGER_CACHE_ENABLED            0x0200
+
+#define DAP_LEDGER_MAPPED                   0x0400
+
+#define DAP_LEDGER_THRESHOLD_ENABLED        0x0800
+
+// Error code for no previous transaction (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS     DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND
+// Error code for no emission for a transaction (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION     DAP_LEDGER_TX_CHECK_EMISSION_NOT_FOUND
+// Error code for not enough valid emission signs (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS   DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS
+// Error code for no decree for anchor (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE          -1113
+
+#define DAP_LEDGER_TOKENS_STR              "tokens"
+#define DAP_LEDGER_EMISSIONS_STR           "emissions"
+#define DAP_LEDGER_STAKE_LOCK_STR          "stake_lock"
+#define DAP_LEDGER_TXS_STR                 "txs"
+#define DAP_LEDGER_SPENT_TXS_STR           "spent_txs"
+#define DAP_LEDGER_BALANCES_STR            "balances"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int dap_ledger_init();
+void dap_ledger_deinit();
+
 DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_t a_error)
 {
     switch (a_error) {
@@ -193,54 +277,13 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     }
 }
 
-typedef enum dap_ledger_notify_opcodes {
-    DAP_LEDGER_NOTIFY_OPCODE_ADDED = 'a', // 0x61
-    DAP_LEDGER_NOTIFY_OPCODE_DELETED = 'd', // 0x64 
-} dap_ledger_notify_opcodes_t;
-typedef enum dap_chain_tx_tag_action_type {    
-
-    //subtags, till 32
-    DAP_CHAIN_TX_TAG_ACTION_UNKNOWN  =              1 << 1,
-    
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR =      1 << 2,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION =    1 << 3,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN =   1 << 4,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD =       1 << 5,
-
-    DAP_CHAIN_TX_TAG_ACTION_OPEN =                  1 << 6,
-    DAP_CHAIN_TX_TAG_ACTION_USE =                   1 << 7,
-    DAP_CHAIN_TX_TAG_ACTION_EXTEND =                1 << 8,
-    DAP_CHAIN_TX_TAG_ACTION_CHANGE =                1 << 9,
-    DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 10,
-
-    DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
-    DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
-   
-    DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
-} dap_chain_tx_tag_action_type_t;
-
-typedef struct dap_ledger_datum_iter {
-    dap_chain_net_t *net;
-    dap_chain_datum_tx_t *cur;
-    dap_chain_hash_fast_t cur_hash;
-    bool is_unspent;
-    int ret_code;
-    void *cur_ledger_tx_item;
-} dap_ledger_datum_iter_t;
-
-typedef struct dap_ledger_datum_iter_data {
-    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint32_t action;
-    dap_chain_srv_uid_t uid;
-} dap_ledger_datum_iter_data_t;
-
 typedef int   (*dap_ledger_cond_in_verify_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner);
 typedef int  (*dap_ledger_cond_out_verify_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
 typedef void     (*dap_ledger_cond_in_add_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void    (*dap_ledger_cond_out_add_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
 typedef void  (*dap_ledger_cond_in_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (*dap_ledger_cond_out_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
-typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_ledger_notify_opcodes_t a_opcode);
+typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ledger_notify_opcodes_t a_opcode);
 typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg, dap_ledger_notify_opcodes_t a_opcode);
 typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
 typedef int (*dap_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_apply);
@@ -249,42 +292,6 @@ typedef dap_time_t (*dap_ledger_voting_expire_callback_t)(dap_ledger_t *a_ledger
 typedef bool (*dap_ledger_tag_check_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action);
 typedef bool (*dap_ledger_tax_callback_t)(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_signer_pkey_hash, dap_chain_addr_t *a_tax_addr, uint256_t *a_tax_value);
 
-//Change this UUID to automatically reload ledger cache on next node startup
-#define DAP_LEDGER_CACHE_RELOAD_ONCE_UUID "0c92b759-a565-448f-b8bd-99103dacf7fc"
-
-// Checks the emission of the token, usualy on zero chain
-#define DAP_LEDGER_CHECK_TOKEN_EMISSION     0x0001
-
-// Check double spending in local cell
-#define DAP_LEDGER_CHECK_LOCAL_DS           0x0002
-
-// Check the double spending in all cells
-#define DAP_LEDGER_CHECK_CELLS_DS           0x0100
-
-#define DAP_LEDGER_CACHE_ENABLED            0x0200
-
-#define DAP_LEDGER_MAPPED                   0x0400
-
-#define DAP_LEDGER_THRESHOLD_ENABLED        0x0800
-
-// Error code for no previous transaction (for stay in mempool)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS     DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND
-// Error code for no emission for a transaction (for stay in mempool)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION     DAP_LEDGER_TX_CHECK_EMISSION_NOT_FOUND
-// Error code for not enough valid emission signs (for stay in mempool)
-#define DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS   DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS
-// Error code for no decree for anchor (for stay in mempool)
-#define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE          -1113
-
-#define DAP_LEDGER_TOKENS_STR              "tokens"
-#define DAP_LEDGER_EMISSIONS_STR           "emissions"
-#define DAP_LEDGER_STAKE_LOCK_STR          "stake_lock"
-#define DAP_LEDGER_TXS_STR                 "txs"
-#define DAP_LEDGER_SPENT_TXS_STR           "spent_txs"
-#define DAP_LEDGER_BALANCES_STR            "balances"
-
-int dap_ledger_init();
-void dap_ledger_deinit();
 
 dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags);
 
@@ -304,9 +311,9 @@ DAP_STATIC_INLINE char *dap_ledger_get_gdb_group(dap_ledger_t *a_ledger, const c
  * return 1 OK, -1 error
  */
 int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data);
+int dap_ledger_tx_load_hardfork_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data);
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data);
 int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash);
-
 int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 /**
@@ -375,6 +382,7 @@ bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, char **a_service_name, dap_chain_srv_uid_t *uid, dap_chain_tx_tag_action_type_t *action);
 const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag);
 dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *a_str);
+const char *dap_ledger_tx_tag_str_by_uid(dap_chain_srv_uid_t a_service_uid);
 
 bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, 
                                 dap_chain_srv_uid_t *a_uid, char **a_service_name,  dap_chain_tx_tag_action_type_t *a_action);
@@ -423,7 +431,7 @@ uint256_t dap_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_a
 dap_chain_datum_tx_t *dap_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash);
 dap_chain_datum_tx_t *dap_ledger_tx_unspent_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash);
 
-dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash);
+dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash, bool a_unspent_only);
 dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash);
 
  // Get the transaction in the cache by the addr in out item
@@ -501,8 +509,13 @@ int dap_ledger_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_c
 int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash);
 dap_chain_datum_anchor_t *dap_ledger_anchor_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash);
 
-dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creatiom_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list);
+dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list);
 dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledger);
 
 uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_tx_prev_hash, int a_out_idx);
 void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
+dap_pkey_t *dap_ledger_find_pkey_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_pkey_hash);
+
+#ifdef __cplusplus
+}
+#endif

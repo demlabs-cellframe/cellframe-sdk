@@ -506,7 +506,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                         TX_ITEM_TYPE_SIG, NULL);
                 assert(l_tx_sig);
                 // Get sign from sign item
-                dap_sign_t *l_tx_first_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+                dap_sign_t *l_tx_first_sign = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
                 assert(l_tx_first_sign);
                 // calculate hash from sign public key
                 dap_sign_get_pkey_hash(l_tx_first_sign, &l_tx_first_sign_pkey_hash);
@@ -648,7 +648,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                         TX_ITEM_TYPE_SIG, NULL);
                 assert(l_tx_sig);
                 // Get sign from sign item
-                dap_sign_t *l_tx_first_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+                dap_sign_t *l_tx_first_sign = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
                 assert(l_tx_first_sign);
                 // calculate hash from sign public key
                 dap_sign_get_pkey_hash(l_tx_first_sign, &l_tx_first_sign_pkey_hash);
@@ -718,9 +718,9 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     ? l_tx_prev
                     : dap_ledger_tx_find_by_hash(a_ledger, &l_owner_tx_hash);
                 dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-                dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+                dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_tx_sig);
                 dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-                dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
+                dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_owner_tx_sig);
 
                 bool l_owner = false;
                 l_owner = dap_sign_compare_pkeys(l_owner_sign, l_sign);
@@ -1043,8 +1043,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 debug_if(g_debug_ledger, L_WARNING, "Verificator check error for voting item");
                 l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
             }
-            if (a_tag)
-                a_tag->uint64 = DAP_CHAIN_TX_TAG_ACTION_VOTING;
+            if (a_action) 
+               *a_action = DAP_CHAIN_TX_TAG_ACTION_VOTING;
         } else if ( dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL) ) {
            if (s_voting_callbacks.voting_callback) {
                if ((l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash, false))) {
@@ -1055,8 +1055,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                debug_if(g_debug_ledger, L_WARNING, "Verificator check error for vote item");
                l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
            }
-           if (a_tag)
-               a_tag->uint64 = DAP_CHAIN_TX_TAG_ACTION_VOTE;
+           if (a_action) 
+               *a_action = DAP_CHAIN_TX_TAG_ACTION_VOTE;
         }
     }
 
@@ -1175,7 +1175,7 @@ int s_compare_trackers(dap_list_t *a_tracker1, dap_list_t *a_tracker2)
     return memcmp(&l_tracker1->voting_hash, &l_tracker2->voting_hash, sizeof(dap_hash_fast_t));
 }
 
-dap_list_t *s_trackers_concatenate(dap_ledger_t *a_ledger, dap_list_t *a_trackers, dap_list_t *a_added, dap_time_t a_ts_creation_time)
+dap_list_t *s_trackers_aggregate(dap_ledger_t *a_ledger, dap_list_t *a_trackers, dap_list_t *a_added, dap_time_t a_ts_creation_time)
 {
     if (!s_voting_callbacks.voting_expire_callback)
         return a_trackers;
@@ -1363,7 +1363,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         // Gather colour information from previous outputs
         dap_ledger_tx_item_t *l_prev_item_out = l_bound_item->prev_item;
         l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].tx_spent_hash_fast = *a_tx_hash;
-        l_trackers_mover = s_trackers_concatenate(a_ledger, l_trackers_mover,
+        l_trackers_mover = s_trackers_aggregate(a_ledger, l_trackers_mover,
                                                   l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers, a_tx->header.ts_created);
         // add a used output
         l_prev_item_out->cache_data.n_outs_used++;
@@ -1390,7 +1390,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_prev_item_out->cache_data.ts_spent = a_tx->header.ts_created;
     }
 
-    if (l_tag.uint64 == DAP_CHAIN_TX_TAG_ACTION_VOTE) {
+    if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTE) {
         dap_ledger_tracker_t *l_new_tracker = DAP_NEW_Z(dap_ledger_tracker_t);
         if (!l_new_tracker) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -1401,7 +1401,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         assert(l_vote_tx_item);
         l_new_tracker->voting_hash = l_vote_tx_item->voting_hash;
         dap_list_t *l_new_vote = dap_list_append(NULL, l_new_tracker);
-        l_trackers_mover = s_trackers_concatenate(a_ledger, l_trackers_mover, l_new_vote, a_tx->header.ts_created);
+        l_trackers_mover = s_trackers_aggregate(a_ledger, l_trackers_mover, l_new_vote, a_tx->header.ts_created);
     }
 
     //Update balance : raise
@@ -1495,9 +1495,9 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     }
     int l_err_num = 0;
     if (s_voting_callbacks.voting_callback) {
-        if (l_tag.uint64 == DAP_CHAIN_TX_TAG_ACTION_VOTING)
+        if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTING)
             l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, a_tx_hash, true);
-        else if (l_tag.uint64 == DAP_CHAIN_TX_TAG_ACTION_VOTE)
+        else if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTE)
             l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash, true);
     }
     assert(!l_err_num);
@@ -1651,6 +1651,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     dap_list_t *l_list_bound_items = NULL;
     dap_list_t *l_list_tx_out = NULL;
     dap_chain_srv_uid_t l_tag =  { .uint64 = 0 };
+    dap_chain_tx_tag_action_type_t l_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
     char l_main_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX] = { '\0' };
 
     char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -1661,7 +1662,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     int l_ret_check;
     if( (l_ret_check = s_tx_cache_check(a_ledger, a_tx, a_tx_hash, false,
                                                        &l_list_bound_items, &l_list_tx_out,
-                                                       l_main_token_ticker, &l_tag, NULL, true))) {
+                                                       l_main_token_ticker, &l_tag, &l_action, true))) {
         debug_if(g_debug_ledger, L_WARNING, "dap_ledger_tx_remove() tx %s not passed the check: %s ", l_tx_hash_str,
                     dap_ledger_check_error_str(l_ret_check));
         return l_ret_check;
@@ -1872,9 +1873,9 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     }
 
     if (s_voting_callbacks.voting_delete_callback) {
-        if (l_tag.uint64 == DAP_CHAIN_TX_TAG_ACTION_VOTING)
+        if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTING)
             s_voting_callbacks.voting_delete_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, a_tx_hash);
-        else if (l_tag.uint64 == DAP_CHAIN_TX_TAG_ACTION_VOTE)
+        else if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTE)
             s_voting_callbacks.voting_delete_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash);
     }
 
@@ -1950,7 +1951,30 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
     return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, a_datum_index_data);
 }
 
+int dap_ledger_tx_load_hardfork_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
+{
+    dap_return_val_if_fail(a_ledger && a_tx && a_tx_hash, -1);
 
+    byte_t *l_item = NULL;
+    size_t l_tx_item_size = 0;
+    TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
+        if (*l_item != TX_ITEM_TYPE_TSD)
+            continue;
+        dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)l_item)->tsd;
+        if (l_tsd->type != DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER)
+            continue;
+        if (l_tsd->size != sizeof(dap_ledger_tracker_t))
+            return log_it(L_ERROR, "Incorrect size of TSD tracker section %u (need %zu)", l_tsd->size, sizeof(dap_ledger_tracker_t)), -2;
+        dap_ledger_tx_item_t *l_item_tx = NULL;
+        s_tx_find_by_hash(a_ledger, a_tx_hash, &l_item_tx, true);
+        if (!l_item_tx)
+            return log_it(L_ERROR, "Can't find hardfork tx %s in ledger", dap_hash_fast_to_str_static(a_tx_hash)), -3;
+        if (l_item_tx->cache_data.n_outs != 1)
+            return log_it(L_ERROR, "Can't add hardfork data to tx %s cause it's not a single-out tx", dap_hash_fast_to_str_static(a_tx_hash)), -4;
+        l_item_tx->out_metadata[0].trackers = dap_list_append(l_item_tx->out_metadata[0].trackers, l_tsd->data);
+    }
+    return 0;
+}
 
 static void s_ledger_stake_lock_cache_update(dap_ledger_t *a_ledger, dap_ledger_stake_lock_item_t *a_stake_lock_item)
 {
@@ -2166,7 +2190,7 @@ dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
     return l_hash;
 }
 
-dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash)
+dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash, bool a_unspent_only)
 {
     dap_return_val_if_fail(a_ledger && a_tx_hash, (dap_hash_fast_t) {});
     dap_chain_datum_tx_t *l_tx = NULL;
@@ -2175,7 +2199,7 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
     while (( l_tx = s_tx_find_by_hash(a_ledger, &l_hash, &l_item, false) )) {
         int l_out_num = 0;
         if (!dap_chain_datum_tx_out_cond_get(l_tx, a_cond_type, &l_out_num))
-            return (dap_hash_fast_t) {};
+            return a_unspent_only ? (dap_hash_fast_t){} : l_hash;
         else if (dap_hash_fast_is_blank(&l_item->out_metadata[l_out_num].tx_spent_hash_fast))
             break;
         l_hash = l_item->out_metadata[l_out_num].tx_spent_hash_fast;
@@ -2422,27 +2446,27 @@ static int s_aggregate_out(dap_ledger_hardfork_balances_t **a_out_list, dap_ledg
                                     dap_chain_addr_to_str_static(a_addr), a_ticker, dap_uint256_to_char(a_value, NULL));
         return -2;
     }
-    l_exist->trackers = s_trackers_concatenate(a_ledger, l_exist->trackers, a_trackers, a_hardfork_start_time);
+    l_exist->trackers = s_trackers_aggregate(a_ledger, l_exist->trackers, a_trackers, a_hardfork_start_time);
     return 0;
 }
 
 static int s_aggregate_out_cond(dap_ledger_hardfork_condouts_t **a_ret_list, dap_ledger_t *a_ledger,
-                                dap_chain_tx_out_cond_t *a_out_cond, dap_sign_t *a_sign,
-                                dap_hash_fast_t *a_tx_hash, dap_time_t a_hardfork_start_time,
-                                dap_list_t *a_trackers)
+                                dap_chain_tx_out_cond_t *a_out_cond, dap_chain_tx_sig_t *a_sign,
+                                dap_hash_fast_t *a_tx_hash, const char *a_token_ticker,
+                                dap_time_t a_hardfork_start_time, dap_list_t *a_trackers)
 {
     dap_ledger_hardfork_condouts_t *l_new_condout = DAP_NEW_Z(dap_ledger_hardfork_condouts_t);
     if (!l_new_condout) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
-    *l_new_condout = (dap_ledger_hardfork_condouts_t) { .hash = *a_tx_hash, .cond = a_out_cond, .sign = a_sign };
-    l_new_condout->trackers = s_trackers_concatenate(a_ledger, NULL, a_trackers, a_hardfork_start_time);
+    *l_new_condout = (dap_ledger_hardfork_condouts_t) { .hash = *a_tx_hash, .cond = a_out_cond, .sign = a_sign, .ticker = a_token_ticker };
+    l_new_condout->trackers = s_trackers_aggregate(a_ledger, NULL, a_trackers, a_hardfork_start_time);
     DL_APPEND(*a_ret_list, l_new_condout);
     return 0;
 }
 
-dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creatiom_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list)
+dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list)
 {
     dap_ledger_hardfork_balances_t *ret = NULL;
     dap_ledger_hardfork_condouts_t *l_cond_ret = NULL;
@@ -2464,17 +2488,17 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
             switch(l_tx_item_type) {
             case TX_ITEM_TYPE_OUT: {
                 dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_tx_item;
-                s_aggregate_out(&ret, a_ledger, it->cache_data.token_ticker, &l_out->addr, l_out->header.value, a_hardfork_decree_creatiom_time, l_trackers);
+                s_aggregate_out(&ret, a_ledger, it->cache_data.token_ticker, &l_out->addr, l_out->header.value, a_hardfork_decree_creation_time, l_trackers);
                 break;
             }
             case TX_ITEM_TYPE_OUT_OLD: {
                 dap_chain_tx_out_old_t *l_out = (dap_chain_tx_out_old_t *)l_tx_item;
-                s_aggregate_out(&ret, a_ledger, it->cache_data.token_ticker, &l_out->addr, GET_256_FROM_64(l_out->header.value), a_hardfork_decree_creatiom_time, l_trackers);
+                s_aggregate_out(&ret, a_ledger, it->cache_data.token_ticker, &l_out->addr, GET_256_FROM_64(l_out->header.value), a_hardfork_decree_creation_time, l_trackers);
                 break;
             }
             case TX_ITEM_TYPE_OUT_EXT: {
                 dap_chain_tx_out_ext_t *l_out = (dap_chain_tx_out_ext_t *)l_tx_item;
-                s_aggregate_out(&ret, a_ledger, l_out->token, &l_out->addr, l_out->header.value, a_hardfork_decree_creatiom_time, l_trackers);
+                s_aggregate_out(&ret, a_ledger, l_out->token, &l_out->addr, l_out->header.value, a_hardfork_decree_creation_time, l_trackers);
                 break;
             }
             case TX_ITEM_TYPE_OUT_COND: {
@@ -2488,12 +2512,12 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
                     log_it(L_ERROR, "Can't find header TX for conditional TX %s", dap_hash_fast_to_str_static(&it->tx_hash_fast));
                     continue;
                 }
-                dap_sign_t *l_tx_sign = dap_chain_datum_tx_get_sign(l_tx, 0);
+                dap_chain_tx_sig_t *l_tx_sign = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get_nth(l_tx, TX_ITEM_TYPE_SIG, 0);
                 if (!l_tx_sign) {
                     log_it(L_ERROR, "Can't find sign for conditional TX %s", dap_hash_fast_to_str_static(&l_first_tx_hash));
                     continue;
                 }
-                s_aggregate_out_cond(&l_cond_ret, a_ledger, l_out, l_tx_sign, &it->tx_hash_fast, a_hardfork_decree_creatiom_time, l_trackers);
+                s_aggregate_out_cond(&l_cond_ret, a_ledger, l_out, l_tx_sign, &it->tx_hash_fast, it->cache_data.token_ticker, a_hardfork_decree_creation_time, l_trackers);
             }
             default:
                 log_it(L_ERROR, "Unexpected item type %hhu", l_tx_item_type);

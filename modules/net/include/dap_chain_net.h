@@ -79,6 +79,38 @@ typedef struct dap_chain_net {
     uint8_t pvt[];
 } dap_chain_net_t;
 
+enum dap_chain_net_json_rpc_error_list{
+    DAP_CHAIN_NET_JSON_RPC_OK,
+    DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_HASH = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_PARAMETER_NET_REQUIRE,
+    DAP_CHAIN_NET_JSON_RPC_WRONG_NET,
+    DAP_CHAIN_NET_JSON_RPC_MANY_ARGUMENT_FOR_COMMAND_NET_LIST,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_ADDR_COMMAND_INFO,
+    DAP_CHAIN_NET_JSON_RPC_CANT_CALCULATE_HASH_FOR_ADDR,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_GET_CLUSTER,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_LINK,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_KEY_IN_CERT_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_CAN_SERIALIZE_PUBLIC_KEY_CERT_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE,
+    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_LIST,
+    DAP_CHAIN_NET_JSON_RPC_UNKNOWN_HASH_CA_DEL,
+    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_DEL,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_DEL,
+    DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_COMMAND_CA,
+    DAP_CHAIN_NET_JSON_RPC_NO_POA_CERTS_FOUND_POA_CERTS,
+    DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS
+};
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 DAP_STATIC_INLINE int dap_chain_net_id_parse(const char *a_id_str, dap_chain_net_id_t *a_id)
 {
     uint64_t l_id;
@@ -106,16 +138,7 @@ dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
 dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
-inline static int dap_chain_net_stop(dap_chain_net_t *a_net)
-{
-    if (dap_chain_net_get_target_state(a_net) == NET_STATE_ONLINE) {
-        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
-        return true;
-    }
-    if (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE)
-        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
-    return false;
-}
+bool dap_chain_net_stop(dap_chain_net_t *a_net);
 inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }
 inline static int dap_chain_net_sync(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 
@@ -155,19 +178,6 @@ int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_add
 
 void dap_chain_net_purge(dap_chain_net_t *l_net);
 
-/**
- * @brief dap_chain_net_get_gdb_group_mempool
- * @param l_chain
- * @return
- */
-DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_mempool_new(dap_chain_t *a_chain)
-{
-    dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
-    return l_net
-            ? dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix, a_chain->name)
-            : NULL;
-}
-
 DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_nochain_new(dap_chain_t *a_chain)
 {
     dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
@@ -199,6 +209,7 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 dap_list_t *dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_chain_datum_filter_func_t *a_filter_func, void *a_filter_func_param);
 
 int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data);
+int dap_chain_datum_add_hardfork_data(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data);
 int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
@@ -209,30 +220,7 @@ struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t * l_net);
 struct json_object *dap_chain_net_list_json_collect();
 struct json_object *dap_chain_nets_info_json_collect();
 
-enum dap_chain_net_json_rpc_error_list{
-    DAP_CHAIN_NET_JSON_RPC_OK,
-    DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_HASH = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
-    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_PARAMETER_NET_REQUIRE,
-    DAP_CHAIN_NET_JSON_RPC_WRONG_NET,
-    DAP_CHAIN_NET_JSON_RPC_MANY_ARGUMENT_FOR_COMMAND_NET_LIST,
-    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS,
-    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO,
-    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_ADDR_COMMAND_INFO,
-    DAP_CHAIN_NET_JSON_RPC_CANT_CALCULATE_HASH_FOR_ADDR,
-    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_GET_CLUSTER,
-    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_LINK,
-    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC,
-    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_CA_ADD,
-    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_ADD,
-    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_KEY_IN_CERT_CA_ADD,
-    DAP_CHAIN_NET_JSON_RPC_CAN_SERIALIZE_PUBLIC_KEY_CERT_CA_ADD,
-    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_ADD,
-    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE,
-    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_LIST,
-    DAP_CHAIN_NET_JSON_RPC_UNKNOWN_HASH_CA_DEL,
-    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_DEL,
-    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_DEL,
-    DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_COMMAND_CA,
-    DAP_CHAIN_NET_JSON_RPC_NO_POA_CERTS_FOUND_POA_CERTS,
-    DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS
-};
+
+#ifdef __cplusplus
+}
+#endif

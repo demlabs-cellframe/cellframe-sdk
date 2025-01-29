@@ -115,7 +115,8 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
                                         &a_block_cache->links_hash_count,
                                         &a_block_cache->is_genesis,
                                         &a_block_cache->nonce,
-                                        &a_block_cache->nonce2))
+                                        &a_block_cache->nonce2,
+                                        &a_block_cache->generation))
         return -1;
 
     DAP_DEL_Z(a_block_cache->datum);
