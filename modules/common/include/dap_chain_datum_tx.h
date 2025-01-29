@@ -29,6 +29,7 @@
 #include "dap_time.h"
 #include "dap_pkey.h"
 
+
 /**
   * @struct dap_chain_datum_tx
   * @brief Transaction section, consists from lot of tx_items
@@ -55,6 +56,10 @@ typedef struct dap_chain_datum_tx {
     for ( item_size = 0, item_index = 0, item = NULL;                                                                            \
         !!( item = dap_chain_datum_tx_item_get(tx, &item_index, (byte_t*)item + item_size, item_type, &item_size) );\
         item_index = 0 )
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * Create empty transaction
@@ -182,3 +187,7 @@ DAP_STATIC_INLINE dap_hash_fast_t dap_chain_node_datum_tx_calc_hash(dap_chain_da
     dap_hash_fast_t l_res;
     return dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_res), l_res;
 }
+
+#ifdef __cplusplus
+}
+#endif
