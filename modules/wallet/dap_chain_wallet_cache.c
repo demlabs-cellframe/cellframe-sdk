@@ -150,16 +150,9 @@ int dap_chain_wallet_cache_init()
                     dap_atom_notify_arg_t *l_arg = DAP_NEW_Z(dap_atom_notify_arg_t);
                     l_arg->chain = l_chain;
                     l_arg->net = l_net;
-                    /* dap_chain_datum_iter_t *l_iter = l_chain->callback_datum_iter_create(l_chain);
-                    for (dap_chain_datum_t *l_datum = l_chain->callback_datum_iter_get_first(l_iter);
-                            l_datum;
-                            l_datum = l_chain->callback_datum_iter_get_next(l_iter)){
-
-                        s_callback_datum_notify(l_arg, l_iter->cur_hash, l_iter->cur_atom_hash, l_datum,  l_iter->cur_size, l_iter->ret_code, l_iter->action, l_iter->uid);
-                    }
-                    l_chain->callback_datum_iter_delete(l_iter); */
-                    dap_chain_add_callback_datum_index_notify(l_chain, s_callback_datum_notify, NULL, l_arg);
-                    dap_chain_add_callback_datum_removed_from_index_notify(l_chain, s_callback_datum_removed_notify, NULL, l_arg);
+                    dap_proc_thread_t *l_pt = dap_proc_thread_get_auto();
+                    dap_chain_add_callback_datum_index_notify(l_chain, s_callback_datum_notify, l_pt, l_arg);
+                    dap_chain_add_callback_datum_removed_from_index_notify(l_chain, s_callback_datum_removed_notify, l_pt, l_arg);
                 }
             }
             l_chain=l_chain->next;
