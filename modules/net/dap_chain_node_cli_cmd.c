@@ -637,6 +637,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         if (l_ts) {
             char l_ts_str[80] = { '\0' };
             dap_nanotime_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_ts);
+            char *l_value_hexdump = dap_dump_hex(l_value_out, l_out_len);
             if (l_value_hexdump) {
                 char *l_value_hexdump_new = dap_strdup_printf("\n%s", l_value_hexdump);
                 json_object_object_add(json_obj_read, "group", json_object_new_string(l_group_str));
