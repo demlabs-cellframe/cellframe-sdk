@@ -216,6 +216,13 @@ dap_chain_srv_hardfork_state_t *dap_chain_srv_hardfork_all(dap_chain_net_id_t a_
     return ret;
 }
 
+int dap_chain_srv_load_state(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid, byte_t *a_state, uint64_t a_state_size, uint32_t a_state_count)
+{
+    struct service_list *l_service = s_service_find(a_srv_uid);
+    if (s_net_service_find(l_service, a_net_id))
+        return l_service->callbacks.hardfork_load(a_net_id, a_state, a_state_size, a_state_count);
+    return -404;
+}
 /**
  * @brief dap_chain_srv_get_fees
  * @param a_net_id
