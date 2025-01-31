@@ -2878,7 +2878,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
     return 0;
 }
 
-bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net)
+DAP_INLINE bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net)
 {
     return PVT(a_net)->state == NET_STATE_LOADING;
 }
