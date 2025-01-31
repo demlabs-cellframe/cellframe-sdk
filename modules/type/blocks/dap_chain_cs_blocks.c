@@ -603,7 +603,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         SUBCMD_DUMP,
         SUBCMD_LIST,
         SUBCMD_FEE,
-        SUBCMD_FEE_STACK,
         SUBCMD_DROP,
         SUBCMD_REWARD,
         SUBCMD_AUTOCOLLECT,
@@ -621,7 +620,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         [SUBCMD_DUMP]="dump",
         [SUBCMD_LIST]="list",
         [SUBCMD_FEE]="fee",
-        [SUBCMD_FEE_STACK]="fee_stack",
         [SUBCMD_DROP]="drop",
         [SUBCMD_REWARD] = "reward",
         [SUBCMD_AUTOCOLLECT] = "autocollect",
@@ -1111,7 +1109,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
         } break;
 
         case SUBCMD_FEE:
-        case SUBCMD_FEE_STACK:
         case SUBCMD_REWARD: {
             const char * l_fee_value_str = NULL;
             const char * l_cert_name = NULL;
@@ -1124,7 +1121,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_list_t              *l_block_list = NULL;
             dap_chain_addr_t        *l_addr = NULL;
 
-            if (l_subcmd == SUBCMD_FEE || l_subcmd == SUBCMD_FEE_STACK) {
+            if (l_subcmd == SUBCMD_FEE) {
                 if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "collect") == -1) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block fee' requires subcommand 'collect'");
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
@@ -1242,10 +1239,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             switch(l_subcmd) {
                 case SUBCMD_FEE: {
                     l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE);
-                    break;
-                }
-                case SUBCMD_FEE_STACK: {
-                    l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK);
                     break;
                 }
                 case SUBCMD_REWARD: {

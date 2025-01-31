@@ -67,6 +67,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
+#include "dap_chain_ledger.h"
 
 #include "dap_chain_mempool_rpc.h"
 
@@ -296,6 +297,14 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
     char *l_ret = dap_chain_mempool_datum_add(l_datum, a_chain, a_hash_out_type);
     DAP_DELETE(l_datum);
     return l_ret;
+}
+
+char *dap_chain_mempool_tx_coll_fee_stack_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
+                                           const dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
+                                           uint256_t a_value_fee, const char *a_hash_out_type, enum dap_chain_tx_out_cond_subtype a_cond_subtype)
+{
+dap_ledger_tx_cache_find_out_cond();
+
 }
 
 /**
