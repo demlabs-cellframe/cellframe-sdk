@@ -240,6 +240,7 @@ typedef struct dap_chain {
 
     dap_config_t *config;
 
+    dap_hash_fast_t hardfork_decree_hash;
     struct hardfork_states *hardfork_data;
     void * _pvt; // private data
     void * _inheritor; // inheritor object

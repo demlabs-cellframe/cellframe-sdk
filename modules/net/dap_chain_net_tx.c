@@ -1138,10 +1138,21 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 const char *l_signing_addr_str = s_json_get_text(l_json_item_obj, "signing_addr");
                 dap_chain_addr_t *l_signing_addr = dap_chain_addr_from_str(l_signing_addr_str);
                 if(!l_signing_addr) {
-                {
                     log_it(L_ERROR, "Json TX: bad signing_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                     break;
+                }                
+                const char *l_pkey_full_str = s_json_get_text(l_json_item_obj, "pkey_full");
+                dap_pkey_t *l_pkey = dap_pkey_get_from_str(l_pkey_full_str);
+                if(!l_pkey) {
+                    log_it(L_ERROR, "Json TX: bad pkey_full in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
+                    break;
                 }
+                dap_hash_fast_t l_pkey_hash = { };
+                if (!dap_pkey_get_hash(l_pkey, &l_pkey_hash) || memcmp(&l_pkey_hash, &l_signing_addr->data.hash_fast, sizeof(l_pkey_hash))) {
+                    log_it(L_ERROR, "Json TX: signing_addr it's not a derivative pkey_full in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
+                    break;
+                }
+
                 dap_chain_node_addr_t l_signer_node_addr;
                 const char *l_node_addr_str = s_json_get_text(l_json_item_obj, "node_addr");
                 if(!l_node_addr_str || dap_chain_node_addr_from_str(&l_signer_node_addr, l_node_addr_str)) {
@@ -1149,15 +1160,9 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                     break;
                 }
 
-                dap_pkey_t *l_pkey = NULL;
-                const char *l_pkey_full_str = s_json_get_text(l_json_item_obj, "pkey_full");
-                if(l_pkey_full_str) {
-                    l_pkey = dap_pkey_get_from_str(l_pkey_full_str);
-                    debug_if(!l_pkey, L_ERROR, "Json TX: bad pkey in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
-                }
-
                 dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_srv_uid, l_value, l_signing_addr,
                                                                                                              &l_signer_node_addr, NULL, uint256_0, l_pkey);
+                DAP_DEL_MULTY(l_pkey, l_signing_addr);
                 l_item = (const uint8_t*) l_out_cond_item;
                 // Save value for using in In item
                 if(l_item) {
@@ -1167,8 +1172,8 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                                                         "can of type %s described in item %zu.", l_subtype_str, i);
                     json_object *l_jobj_err = json_object_new_string(l_err_str);
                     DAP_DELETE(l_err_str);
-                    if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
-                }
+                    if (l_jobj_errors)
+                        json_object_array_add(l_jobj_errors, l_jobj_err);
                 }
             }
                 break;
