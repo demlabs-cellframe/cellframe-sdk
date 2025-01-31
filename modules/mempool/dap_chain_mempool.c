@@ -893,11 +893,12 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     uint256_t l_new_val = {};
     uint256_t l_value_cond = l_out_cond->header.value;
     SUBTRACT_256_256(l_out_cond->header.value, l_value_send, &l_new_val);
-    //if (!!IS_ZERO_256(l_new_val)){
-        l_out_cond->header.value = l_new_val; // Use old conditinal output to form the new one
-        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond);
-        l_out_cond->header.value = l_value_cond;    // Restore original value
-    //}
+    if (!IS_ZERO_256(l_new_val)){
+        dap_chain_tx_out_cond_t *l_new_out_cond = DAP_DUP_SIZE(l_out_cond, sizeof(dap_chain_tx_out_cond_t) + l_out_cond->tsd_size);
+        l_new_out_cond->header.value = l_new_val;
+        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_new_out_cond);
+        DAP_DELETE(l_new_out_cond);
+    }
     // add 'sign' item
     if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_tx_sign) != 1) {
         dap_chain_datum_tx_delete(l_tx);

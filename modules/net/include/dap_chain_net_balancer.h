@@ -47,6 +47,11 @@ typedef struct dap_balancer_link_request {
     dap_balancer_type_t type;
 } dap_balancer_link_request_t;
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 DAP_STATIC_INLINE const char *dap_chain_net_balancer_type_to_str(dap_balancer_type_t a_type)
 {
     switch (a_type) {
@@ -62,3 +67,7 @@ dap_link_info_t *dap_chain_net_balancer_dns_issue_link(const char *a_net_name);
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t * a_net);
 dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net);
 void dap_chain_net_balancer_request(void *a_arg);
+
+#ifdef __cplusplus
+}
+#endif
