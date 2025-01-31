@@ -308,7 +308,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     dap_chain_addr_t					*l_addr_holder;
     dap_chain_datum_token_t 			*l_delegated_token;
 
-    dap_string_append_printf(output_line, "---> HOLD <---\n");
+    dap_string_append_printf(output_line, "\n---> HOLD <---\n");
 
     const char *l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-H", &l_hash_out_type);
@@ -484,7 +484,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     dap_chain_t							*l_chain;
     dap_chain_datum_token_t				*l_delegated_token;
 
-    dap_string_append_printf(output_line, "---> TAKE <---\n");
+    dap_string_append_printf(output_line, "\n---> TAKE <---\n");
 
     const char *l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-H", &l_hash_out_type);
@@ -579,7 +579,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     dap_chain_tx_sig_t *l_tx_sign = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(
                                                             l_cond_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
     if (l_tx_sign)
-        l_owner_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sign);
+        l_owner_sign = dap_chain_datum_tx_item_sig_get_sign(l_tx_sign);
     if (!l_owner_sign || l_owner_pkey_size != l_owner_sign->header.sign_pkey_size ||
             memcmp(l_owner_sign->pkey_n_sign, l_owner_pkey, l_owner_pkey_size)) {
         dap_chain_wallet_close(l_wallet);
@@ -806,6 +806,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
  */
 static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply)
 {
+    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     enum {
         CMD_NONE, CMD_HOLD, CMD_TAKE
     };
@@ -831,20 +832,25 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply)
             } break;
 
         default: {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STAKE_LOCK_NOT_RECOGNIZED_ERR,
+                                                        "Command %s not recognized", a_argv[l_arg_index]);
             dap_string_free(output_line, false);
             } return 1;
     }
 
-    if (STAKE_NO_ERROR != errorCode)
+    json_object* json_obj_out = json_object_new_object();
+    if (STAKE_NO_ERROR != errorCode) {
         s_error_handler(errorCode, output_line);
-    else
-        dap_string_append_printf(output_line, "Contribution successfully made");
-
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", output_line->str);
+        json_object_object_add(json_obj_out, "status", json_object_new_string(output_line->str));
+    } 
+    else {
+        dap_string_append_printf(output_line, "\nContribution successfully made");
+        json_object_object_add(json_obj_out, "status", json_object_new_string(output_line->str));
+    }
+    json_object_array_add(*a_json_arr_reply, json_obj_out);
     dap_string_free(output_line, true);
 
-    return 0;
+    return DAP_CHAIN_NODE_CLI_COM_STAKE_LOCK_OK;
 }
 
 /**

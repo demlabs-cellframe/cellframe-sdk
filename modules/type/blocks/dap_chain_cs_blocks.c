@@ -209,7 +209,7 @@ int dap_chain_cs_blocks_init()
                 "\t\tComplete the current new round, verify it and if everything is ok - publish new blocks in chain\n\n"
 
         "Blockchain explorer:\n"
-            "block -net <net_name> [-chain <chain_name>] dump <block_hash>\n"
+            "block -net <net_name> [-chain <chain_name>] dump -hash <block_hash>\n"
                 "\t\tDump block info\n\n"
 
             "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset] [-head]"
@@ -707,7 +707,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                                                                                               &l_datum_size, NULL, NULL);
             l_datums[0] = l_datum;
             for (size_t i = 0; i < l_datums_count; i++) {
-                if ( dap_chain_node_mempool_process(l_chain, l_datums[i], l_subcmd_str_arg) ) {
+                if ( dap_chain_node_mempool_process(l_chain, l_datums[i], l_subcmd_str_arg, NULL) ) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_VERIF_ERR, "Error! Datum %s doesn't pass verifications, examine node log files",
                                                       l_subcmd_str_arg);
                     DAP_DEL_MULTY(l_datum, l_datums, l_gdb_group_mempool);
@@ -732,6 +732,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
 
         case SUBCMD_DUMP:{
             const char *l_hash_out_type = NULL;
+            const char *l_hash_str = NULL;
             dap_chain_hash_fast_t l_block_hash={0};
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
             if(!l_hash_out_type)
@@ -739,15 +740,17 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "invalid parameter -H, valid values: -H <hex | base58>");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
-            }
-            if (!l_subcmd_str_arg) {
+            }           
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
+            if (!l_hash_str) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR, "Enter block hash ");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
             }
-            dap_chain_hash_fast_from_str(l_subcmd_str_arg, &l_block_hash); // Convert argument to hash
+
+            dap_chain_hash_fast_from_str(l_hash_str, &l_block_hash);
             dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_block_hash);
             if (!l_block_cache) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_FIND_ERR, "Can't find block %s ", l_subcmd_str_arg);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_FIND_ERR, "Can't find block %s ", l_hash_str);
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_FIND_ERR;
             }
             dap_chain_block_t *l_block = l_block_cache->block;
@@ -2712,7 +2715,7 @@ static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx
 
         // TX sign is already verified, just compare pkeys
         dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_sign_tx = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+        dap_sign_t *l_sign_tx = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
         return dap_sign_compare_pkeys(l_sign_block, l_sign_tx) ? 0 : -5;
     }
     return -4;

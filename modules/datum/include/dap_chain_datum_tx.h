@@ -92,6 +92,10 @@ typedef struct dap_chain_datum_tx_item_groups {
 
 } dap_chain_datum_tx_item_groups_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_res_group);
 void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_group);
 
@@ -230,7 +234,7 @@ DAP_STATIC_INLINE dap_hash_fast_t dap_chain_node_datum_tx_calc_hash(dap_chain_da
  * a_item_out_size size[out] size of returned item
  * return item data, NULL Error index or bad format transaction
  */
-uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
+uint8_t* dap_chain_datum_tx_item_get(const dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
         byte_t *a_iter, dap_chain_tx_item_type_t a_type, size_t *a_item_out_size);
 // Get Nth item of pointed type
 uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int a_item_idx);
@@ -243,3 +247,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
     dap_chain_datum_tx_item_get_nth(a_tx, TX_ITEM_TYPE_OUT_ALL, a_out_num);
 
 dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t *a_tx, int a_type);
+
+#ifdef __cplusplus
+}
+#endif

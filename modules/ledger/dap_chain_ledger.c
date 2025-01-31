@@ -825,7 +825,7 @@ static int s_callback_sign_compare(dap_list_t *a_list_elem, dap_list_t *a_sign_e
 bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
 {
     dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-    dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+    dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_tx_sig);
     return dap_list_find(a_ledger->net->pub.keys, l_sign, s_callback_sign_compare);
 }
 
@@ -1213,7 +1213,7 @@ const dap_chain_datum_tx_t* dap_ledger_tx_find_by_pkey(dap_ledger_t *a_ledger,
         dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(l_tx_tmp, NULL,
                 NULL, TX_ITEM_TYPE_SIG, NULL);
         // Get dap_sign_t from item
-        dap_sign_t *l_sig = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+        dap_sign_t *l_sig = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
         if(l_sig) {
             // compare public key in transaction with a_public_key
             if(a_public_key_size == l_sig->header.sign_pkey_size &&
@@ -1248,7 +1248,7 @@ dap_pkey_t *dap_ledger_find_pkey_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_
         dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(l_tx_tmp, NULL,
                 NULL, TX_ITEM_TYPE_SIG, NULL);
         // Get dap_sign_t from item
-        dap_sign_t *l_sig = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+        dap_sign_t *l_sig = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
         if(l_sig) {
             // compare public key in transaction with a_public_key
             dap_chain_hash_fast_t l_sign_hash = {};

@@ -215,11 +215,6 @@ void dap_chain_cs_esbocs_deinit(void)
 {
 }
 
-void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable)
-{
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
-    PVT(l_esbocs)->debug = a_enable;
 void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable){
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);    
     dap_chain_esbocs_t *l_esbocs = l_blocks->_inheritor;
@@ -457,6 +452,12 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
             !l_session->new_round_enqueued) {
         l_session->new_round_enqueued = true;
         s_session_round_new(l_session);
+        if (DAP_CHAIN_CS_BLOCKS(a_chain)->is_hardfork_state) {
+            size_t l_datums_count = 0;
+            dap_chain_datum_t **l_datums = dap_chain_block_get_datums(a_atom, a_atom_size, &l_datums_count);
+            for (size_t i = 0; i < l_datums_count; i++)
+                dap_chain_node_hardfork_confirm(a_chain, l_datums[i]);
+        }
     }
     if (!PVT(l_session->esbocs)->collecting_addr)
         return;
@@ -2871,7 +2872,15 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         }
         if (a_blocks->is_hardfork_state) {
             // Addtionally verify datums vs internal states
-
+            size_t l_datums_count = 0;
+            dap_chain_datum_t **l_datums = dap_chain_block_get_datums(a_block, a_block_size, &l_datums_count);
+            for (size_t i = 0; i < l_datums_count; i++) {
+                int ret = dap_chain_node_hardfork_check(a_blocks->chain, l_datums[i]);
+                if (ret) {
+                    log_it(L_WARNING, "Can't process hardfork block %s", dap_hash_fast_to_str_static(a_block_hash));
+                    return ret;
+                }
+            }
         }
     }
 
