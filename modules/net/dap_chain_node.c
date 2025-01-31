@@ -524,6 +524,7 @@ dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t
         }
         dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SERVICE_STATE, l_ptr, sizeof(dap_chain_datum_service_state_t) + l_cur_step_size);
         ((dap_chain_datum_service_state_t *)l_datum->data)->srv_uid = a_state->uid;
+        ((dap_chain_datum_service_state_t *)l_datum->data)->state_size = a_state->size;
         ((dap_chain_datum_service_state_t *)l_datum->data)->states_count = i;
         ret = DAP_REALLOC_RET_VAL_IF_FAIL(ret, sizeof(dap_chain_datum_t *) * (++l_datums_count), NULL, NULL);
         ret[l_datums_count - 1] = l_datum;
@@ -937,6 +938,10 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
                     l_conitional.hash = *(dap_hash_fast_t *)l_tsd->data;
                     break;
                 case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TICKER:
+                    if (!l_tsd->size || l_tsd->size > DAP_CHAIN_TICKER_SIZE_MAX) {
+                        log_it(L_WARNING, "Illegal harfork datum tx TSD TICKER size %u", l_tsd->size);
+                        return -8;
+                    }
                     dap_stpcpy((char *)l_conitional.ticker, (char *)l_tsd->data);
                     break;
                 case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER:
