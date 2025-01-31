@@ -26,5 +26,6 @@
 typedef struct dap_chain_datum_service_state {
     dap_chain_srv_uid_t srv_uid;
     uint32_t states_count;
+    uint64_t state_size;
     byte_t states[];
 } DAP_ALIGN_PACKED dap_chain_datum_service_state_t;

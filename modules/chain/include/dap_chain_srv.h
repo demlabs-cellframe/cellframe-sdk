@@ -120,4 +120,5 @@ dap_list_t *dap_chain_srv_list(dap_chain_net_id_t a_net_id);
 int dap_chain_srv_purge(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid);
 int dap_chain_srv_purge_all(dap_chain_net_id_t a_net_id);
 dap_chain_srv_hardfork_state_t *dap_chain_srv_hardfork_all(dap_chain_net_id_t a_net_id);
+int dap_chain_srv_load_state(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid, byte_t *a_state, uint64_t a_state_size, uint32_t a_state_count);
 json_object *dap_chain_srv_get_fees(dap_chain_net_id_t a_net_id);
