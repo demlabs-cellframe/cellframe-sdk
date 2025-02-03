@@ -380,7 +380,7 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
         dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_block_collect_params->chain);
         char *l_tx_hash_str = l_fee_collect ?
                     dap_chain_mempool_tx_coll_fee_create(l_blocks, l_block_collect_params->blocks_sign_key,
-                                     l_block_collect_params->collecting_addr, l_block_list, l_block_collect_params->minimum_fee, "hex", DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
+                                     l_block_collect_params->collecting_addr, l_block_list, l_block_collect_params->minimum_fee, "hex")
                   :
                     dap_chain_mempool_tx_reward_create(l_blocks, l_block_collect_params->blocks_sign_key,
                                      l_block_collect_params->collecting_addr, l_block_list, l_block_collect_params->minimum_fee, "hex");

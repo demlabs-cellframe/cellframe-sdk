@@ -228,8 +228,9 @@ int dap_chain_cs_blocks_init()
 
         "Commission collect:\n"
             "block -net <net_name> [-chain <chain_name>] fee collect"
-            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
+            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value> {-before_hardfork}\n"
                 "\t\t Take delegated part of commission\n\n"
+                "\t\t {-before_hardfork} collect fees from blocks before hardfork\n\n"
 
         "Reward for block signs:\n"
             "block -net <net_name> [-chain <chain_name>] reward set"
@@ -240,13 +241,9 @@ int dap_chain_cs_blocks_init()
                 "\t\t Show base reward for sign for one block at one minute\n\n"
 
             "block -net <net_name> [-chain <chain_name>] reward collect"
-            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
+            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value> {-before_hardfork}\n"
                 "\t\t Take delegated part of reward\n\n"
-
-        "Reward and commission collect after hardfork:\n"
-            "block -net <net_name> [-chain <chain_name>] fee_stack collect"
-            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
-                "\t\t Take delegated part of commission\n\n"
+                "\t\t {-before_hardfork} collect rewards from blocks before hardfork\n\n"
 
         "Rewards and fees autocollect status:\n"
             "block -net <net_name> [-chain <chain_name>] autocollect status\n"
@@ -1196,6 +1193,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hashes", &l_hash_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_value_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-before_hardfork", &l_fee_value_str);
+            int l_before_hardfork = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-before_hardfork", NULL);
 
             if (!l_addr_str) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block %s collect' requires parameter '-addr'", l_subcmd_str);
@@ -1230,25 +1229,23 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block fee collect' requires parameter '-hashes'");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
-            // NOTE: This call will modify source string
-            l_block_list = s_block_parse_str_list((char *)l_hash_str, &l_hashes_count, l_chain);            
-            if (!l_block_list || !l_hashes_count) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR,
-                                            "Block fee collection requires at least one hash to create a transaction");
-                return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
-            }
 
             char *l_hash_tx = NULL;
-            switch(l_subcmd) {
-                case SUBCMD_FEE: {
-                    l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE);
-                    break;
+            if (l_before_hardfork == 0) {
+                // NOTE: This call will modify source string
+                l_block_list = s_block_parse_str_list((char *)l_hash_str, &l_hashes_count, l_chain);            
+                if (!l_block_list || !l_hashes_count) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR,
+                                                "Block fee collection requires at least one hash to create a transaction");
+                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
                 }
-                case SUBCMD_REWARD: {
-                    l_hash_tx = dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
-                    break;
-                }
+                char *l_hash_tx = l_subcmd == SUBCMD_FEE
+                    ? dap_chain_mempool_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type)
+                    : dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
+            } else {
+                char *l_hash_tx = dap_chain_mempool_tx_coll_fee_stack_create(l_blocks, l_cert->enc_key, l_addr, l_fee_value, l_hash_out_type);
             }
+            
             if (l_hash_tx) {
                 json_object* json_obj_out = json_object_new_object();
                 char *l_val = dap_strdup_printf("TX for %s collection created successfully, hash = %s\n", l_subcmd_str, l_hash_tx);
