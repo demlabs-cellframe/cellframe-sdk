@@ -143,10 +143,7 @@ static dap_pkey_t *s_get_pkey_by_hash_callback(const uint8_t *a_hash)
         dap_chain_net_srv_stake_t *l_srv_stake = l_srv_stake_list->data;
         HASH_FIND(hh, l_srv_stake->itemlist, a_hash, sizeof(dap_hash_fast_t), l_stake);
     }
-    if (l_stake) {
-        return l_stake->pkey;
-    }
-    return NULL; 
+    return l_stake ? l_stake->pkey : NULL; 
 }
 
 /**
@@ -2232,7 +2229,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
                 l_pkey = dap_ledger_find_pkey_by_hash(l_net->pub.ledger, &l_pkey_hash);
         }
         if (!l_pkey) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "Invalid pkey string format");
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "Invalid pkey string format, can't get pkey_full");
             dap_enc_key_delete(l_enc_key);
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR;
         }

@@ -39,15 +39,8 @@
 
 #define LOG_TAG "dap_chain_datum_decree"
 
-dap_sign_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *a_decree, size_t* a_signs_size)
-{
-    dap_return_val_if_fail(a_decree && a_signs_size, NULL);
-    dap_sign_t *l_signs_section = (dap_sign_t*)(a_decree->data_n_signs + a_decree->header.data_size);
-    *a_signs_size = a_decree->header.signs_size;
-    return l_signs_section;
-}
 
-bool dap_chain_datum_decree_find_pkey(dap_chain_datum_decree_t *a_decree, dap_pkey_t *a_pkey)
+static bool s_find_pkey(dap_chain_datum_decree_t *a_decree, dap_pkey_t *a_pkey)
 {
     dap_return_val_if_pass(!a_decree || !a_pkey || !a_pkey->header.size, false);
     dap_sign_t *l_signs_section = (dap_sign_t*)(a_decree->data_n_signs + a_decree->header.data_size);
@@ -63,6 +56,14 @@ bool dap_chain_datum_decree_find_pkey(dap_chain_datum_decree_t *a_decree, dap_pk
         l_ret = (l_pkey_ser_size == a_pkey->header.size) && !memcmp(l_pkey_ser, a_pkey->pkey, l_pkey_ser_size);
     }
     return l_ret;
+}
+
+dap_sign_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *a_decree, size_t* a_signs_size)
+{
+    dap_return_val_if_fail(a_decree && a_signs_size, NULL);
+    dap_sign_t *l_signs_section = (dap_sign_t*)(a_decree->data_n_signs + a_decree->header.data_size);
+    *a_signs_size = a_decree->header.signs_size;
+    return l_signs_section;
 }
 
 int dap_chain_datum_decree_get_fee(dap_chain_datum_decree_t *a_decree, uint256_t *a_fee_value)
@@ -417,7 +418,7 @@ dap_chain_datum_decree_t *dap_chain_datum_decree_sign_in_cycle(dap_cert_t **a_ce
     size_t l_total_signs_size = a_datum_decree->header.signs_size, l_total_sign_count = 0;
     for(size_t i = 0; i < a_certs_count; i++) {
         dap_pkey_t *l_cur_pkey = dap_cert_to_pkey(a_certs[i]);
-        if (dap_chain_datum_decree_find_pkey(a_datum_decree, l_cur_pkey)) {
+        if (s_find_pkey(a_datum_decree, l_cur_pkey)) {
             dap_chain_hash_fast_t l_pkey_hash = { };
             dap_pkey_get_hash(l_cur_pkey, &l_pkey_hash);
             log_it(L_ERROR, "Sign with %s pkey already exist in decree", dap_hash_fast_to_str_static(&l_pkey_hash));
