@@ -705,6 +705,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     dap_list_t *l_sign_list = NULL;// list 'sign' items
     uint256_t l_value_need = { };// how many tokens are needed in the 'out' item
     uint256_t l_value_need_fee = {};
+    dap_sign_t *l_owner_sign = NULL;
 
     if(a_net){ // if composition is not offline
         // First iteration in input file. Check the tx will be multichannel or not
@@ -779,7 +780,39 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                         }
                     }
                 }break;
-                case TX_ITEM_TYPE_IN_COND:
+                case TX_ITEM_TYPE_IN_COND: {
+                    const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
+                    int64_t l_out_prev_idx;
+                    bool l_is_out_prev_idx = s_json_get_int64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
+                    if(l_prev_hash_str && l_is_out_prev_idx){
+                        dap_chain_hash_fast_t l_tx_prev_hash = {};
+                        if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
+                            //check out token
+                            dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_prev_hash);
+                            byte_t *l_prev_item = l_prev_tx ? dap_chain_datum_tx_item_get_nth(l_prev_tx, TX_ITEM_TYPE_OUT_ALL, l_out_prev_idx) : NULL;
+                            if (l_prev_item){
+                                if (*l_prev_item == TX_ITEM_TYPE_OUT_COND){
+                                    dap_chain_tx_out_cond_t *l_tx_prev_out_cond = NULL;
+                                    l_tx_prev_out_cond = (dap_chain_tx_out_cond_t *)l_prev_item;
+                                    dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(a_net->pub.ledger, l_prev_tx, l_tx_prev_out_cond->header.subtype);
+                                    dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
+                                        ? l_prev_tx
+                                        : dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_owner_tx_hash);
+                                    dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+                                    l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
+                                    
+                                } else {
+                                    log_it(L_WARNING, "Invalid 'in_cond' item, wrong type of item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
+                                    char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in_cond' item, "
+                                                                        "wrong type of item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
+                                    json_object *l_jobj_err = json_object_new_string(l_str_err);
+                                    if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
+                                    break;
+                                }                                                         
+                            }                        
+                        }
+                    }
+                }break;                    
                 case TX_ITEM_TYPE_IN_EMS:
                 case TX_ITEM_TYPE_IN_REWARD:
                 default: continue;
