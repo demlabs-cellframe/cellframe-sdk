@@ -79,6 +79,7 @@ typedef struct xchange_tx_cache {
             uint256_t value;
             uint256_t value_ammount;
             dap_hash_fast_t next_hash;
+            uint64_t percent_completed;
         } order_info;
         struct {
             dap_hash_fast_t order_hash;
@@ -996,9 +997,18 @@ uint64_t dap_chain_net_srv_xchange_get_order_completion_rate(dap_chain_net_t *a_
         SUBTRACT_256_256(l_out_cond->header.value, l_out_cond_last_tx->header.value, &l_percent_completed);
         DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
         MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
-    } else 
-        l_percent_completed = dap_chain_coins_to_balance("100.0");
-
+    } else {
+        dap_chain_tx_out_cond_t *l_out_prev_cond_item = NULL;
+        xchange_tx_type_t tx_type = dap_chain_net_srv_xchange_tx_get_type(a_net->pub.ledger, l_last_tx, NULL, NULL, &l_out_prev_cond_item);
+        if (tx_type == TX_TYPE_EXCHANGE){
+            l_percent_completed = dap_chain_coins_to_balance("100.0");
+        } else if (tx_type == TX_TYPE_INVALIDATE){
+            SUBTRACT_256_256(l_out_cond->header.value, l_out_prev_cond_item->header.value, &l_percent_completed);
+            DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
+            MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
+        }
+    }
+        
     return dap_chain_balance_to_coins_uint64(l_percent_completed);
 }
 
@@ -1578,16 +1588,19 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                             if(l_rc == XCHANGE_ORDER_STATUS_UNKNOWN){
                                 json_object_object_add(l_json_obj_order, "WRONG TX", json_object_new_string(l_tx_hash));
                             }else{
-                                json_object_object_add(l_json_obj_order, "history for order", json_object_new_string(l_order_hash_str));
                                 dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net, &l_order_tx_hash, c_dap_chain_net_srv_xchange_uid );
                                 dap_list_t *l_tx_list_temp = l_tx_list;
+                                json_object* l_json_obj_tx_arr = json_object_new_array();
                                 while(l_tx_list_temp ){
+                                    json_object* l_json_obj_cur_tx = json_object_new_object();
                                     dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
                                     dap_hash_fast_t l_hash = {};
                                     dap_hash_fast(l_tx_cur, dap_chain_datum_tx_get_size(l_tx_cur), &l_hash);
-                                    s_string_append_tx_cond_info_json(l_json_obj_order, l_net, NULL, NULL, l_tx_cur, &l_hash, TX_STATUS_ALL, true, true, false);
+                                    s_string_append_tx_cond_info_json(l_json_obj_cur_tx, l_net, NULL, NULL, l_tx_cur, &l_hash, TX_STATUS_ALL, true, true, false);
+                                    json_object_array_add(l_json_obj_tx_arr, l_json_obj_cur_tx);
                                     l_tx_list_temp = l_tx_list_temp->next;
                                 }
+                                json_object_object_add(l_json_obj_order, "history for order", l_json_obj_tx_arr);
                                 dap_list_free(l_tx_list);
                             }
                         }
@@ -1607,10 +1620,13 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_DOES_NO_HISTORY_ERR, "No history");
                         return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_DOES_NO_HISTORY_ERR;
                     }
+                    json_object* l_json_obj_tx_arr = json_object_new_array();
                     while(l_item){
-                        s_string_append_tx_cond_info_json(l_json_obj_order, l_net, &l_item->seller_addr, 
+                        json_object* l_json_obj_cur_tx = json_object_new_object();
+                        s_string_append_tx_cond_info_json(l_json_obj_cur_tx, l_net, &l_item->seller_addr, 
                                 l_item->tx_type == TX_TYPE_EXCHANGE ?  &l_item->tx_info.exchange_info.buyer_addr : NULL, 
                                 l_item->tx, &l_item->hash, TX_STATUS_ALL, true, true, false);
+                        json_object_array_add(l_json_obj_tx_arr, l_json_obj_cur_tx);
                         switch(l_item->tx_type){
                             case TX_TYPE_ORDER:{
                                 l_cur_hash = l_item->tx_info.order_info.next_hash;
@@ -1627,6 +1643,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                             break;
                         HASH_FIND(hh, l_cache->cache, &l_cur_hash, sizeof(dap_hash_fast_t), l_item);
                     }
+                    json_object_object_add(l_json_obj_order, "history for order", l_json_obj_tx_arr);
                 }
             }
             json_object_array_add(*a_json_arr_reply, l_json_obj_order);
@@ -1783,12 +1800,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                 l_token_buy = l_item->buy_token;
                 l_proposed = l_item->tx_info.order_info.value;
                 
-                uint256_t l_completed = {};
-                SUBTRACT_256_256(l_item->tx_info.order_info.value, l_item->tx_info.order_info.value_ammount, &l_completed);
-                DIV_256_COIN(l_completed, l_item->tx_info.order_info.value, &l_completed);
-                MULT_256_COIN(l_completed, dap_chain_coins_to_balance("100.0"), &l_completed);
-
-                l_percent_completed = dap_chain_balance_to_coins_uint64(l_completed);
+                l_percent_completed = l_item->tx_info.order_info.percent_completed;
                 l_owner_addr = dap_strdup(dap_chain_addr_to_str(&l_item->seller_addr));
             } else {
                 l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_order_tx_hash);
@@ -1888,6 +1900,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
             json_object_object_add(json_obj_order, "rate", json_object_new_string(l_cp_rate));
 
             json_object_object_add(json_obj_order, "net", json_object_new_string(l_net->pub.name));
+            json_object_object_add(json_obj_order, "owner_addr", json_object_new_string(l_owner_addr));
             json_object_array_add(*a_json_arr_reply, json_obj_order);
             DAP_DELETE(l_owner_addr);
             if ( s_xchange_cache_state != XCHANGE_CACHE_ENABLED ) 
@@ -2659,12 +2672,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     l_rate = l_item->rate;
                     l_amount = l_item->tx_info.order_info.value_ammount;
                     l_proposed = l_item->tx_info.order_info.value;
-                    uint256_t l_completed = {};
-                    SUBTRACT_256_256(l_item->tx_info.order_info.value, l_item->tx_info.order_info.value_ammount, &l_completed);
-                    DIV_256_COIN(l_completed, l_item->tx_info.order_info.value, &l_completed);
-                    MULT_256_COIN(l_completed, dap_chain_coins_to_balance("100.0"), &l_completed);
-
-                    l_percent_completed = dap_chain_balance_to_coins_uint64(l_completed);
+                    l_percent_completed = l_item->tx_info.order_info.percent_completed;
                 } else {
                     xchange_tx_list_t *l_tx_item = (xchange_tx_list_t*)it->data;
                     l_tx = l_tx_item->tx;
@@ -2767,6 +2775,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 json_object_object_add(json_obj_order, "rate", json_object_new_string(l_cp_rate));
 
                 json_object_object_add(json_obj_order, "net", json_object_new_string(l_net->pub.name));
+                json_object_object_add(json_obj_order, "owner_addr", json_object_new_string(l_owner_addr));
                 json_object_array_add(*json_arr_reply, json_obj_order);
                 DAP_DELETE(l_owner_addr);
                 l_printed_orders_count++;
@@ -2965,6 +2974,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         l_show_tx_nr++;
                     }
                 }
+                json_object_array_add(*json_arr_reply, json_arr_bl_out);
             } else {
                 dap_list_t *l_datum_list0 = dap_chain_datum_list(l_net,  NULL, s_filter_tx_list, l_time);
                 size_t l_datum_num = dap_list_length(l_datum_list0);
@@ -2987,6 +2997,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         }
                         l_datum_list = dap_list_next(l_datum_list);
                     } 
+                    json_object_array_add(*json_arr_reply, json_arr_bl_out);
                 }
                 dap_list_free_full(l_datum_list0, NULL);
             }
@@ -3665,6 +3676,7 @@ static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chai
             l_cache->tx_info.order_info.order_status = XCHANGE_ORDER_STATUS_OPENED;
             l_cache->tx_info.order_info.value = l_out_cond_item->header.value;
             l_cache->tx_info.order_info.value_ammount = l_cache->tx_info.order_info.value;
+            l_cache->tx_info.order_info.percent_completed = 0;
         } else if (l_tx_type == TX_TYPE_EXCHANGE){
             l_cache->rate = l_out_prev_cond_item->subtype.srv_xchange.rate;
             dap_strncpy(l_cache->buy_token, l_out_prev_cond_item->subtype.srv_xchange.buy_token, sizeof(l_cache->buy_token));
@@ -3690,6 +3702,15 @@ static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chai
             if(l_cache_order){
                 if (l_cache_order->tx_type == TX_TYPE_ORDER){
                     l_cache_order->tx_info.order_info.value_ammount = l_out_cond_item && !IS_ZERO_256(l_out_cond_item->header.value) ? l_out_cond_item->header.value : uint256_0;
+                    if (l_out_cond_item && !IS_ZERO_256(l_out_cond_item->header.value)){
+                        uint256_t l_percent_completed = {};
+                        SUBTRACT_256_256(l_cache_order->tx_info.order_info.value, l_cache_order->tx_info.order_info.value_ammount, &l_percent_completed);
+                        DIV_256_COIN(l_percent_completed, l_cache_order->tx_info.order_info.value, &l_percent_completed);
+                        MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
+                        l_cache_order->tx_info.order_info.percent_completed = dap_chain_balance_to_coins_uint64(l_percent_completed);
+                    } else {
+                        l_cache_order->tx_info.order_info.percent_completed = dap_chain_balance_to_coins_uint64(dap_chain_coins_to_balance("100.0"));
+                    }
                     l_cache_order->tx_info.order_info.order_status = IS_ZERO_256(l_cache_order->tx_info.order_info.value_ammount) ? XCHANGE_ORDER_STATUS_CLOSED : XCHANGE_ORDER_STATUS_OPENED;
                     if (dap_hash_fast_is_blank(&l_cache_order->tx_info.order_info.next_hash))
                         l_cache_order->tx_info.order_info.next_hash = *a_tx_hash;
@@ -3754,9 +3775,15 @@ static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chai
                             HASH_FIND(hh, l_cache->cache, &l_cache_found->tx_info.exchange_info.order_hash, sizeof(dap_hash_fast_t), l_cache_order);
                             l_cache_prev_tx->tx_info.exchange_info.next_hash = (dap_hash_fast_t){0};
                             SUM_256_256(l_cache_order->tx_info.order_info.value_ammount, l_cache_found->tx_info.exchange_info.buy_value, &l_cache_order->tx_info.order_info.value_ammount);
+                            uint256_t l_percent_completed = {};
+                            SUBTRACT_256_256(l_cache_order->tx_info.order_info.value, l_cache_order->tx_info.order_info.value_ammount, &l_percent_completed);
+                            DIV_256_COIN(l_percent_completed, l_cache_order->tx_info.order_info.value, &l_percent_completed);
+                            MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
+                            l_cache_order->tx_info.order_info.percent_completed = dap_chain_balance_to_coins_uint64(l_percent_completed);
                         } else if (l_cache_prev_tx->tx_type == TX_TYPE_ORDER){
                             l_cache_prev_tx->tx_info.order_info.next_hash = (dap_hash_fast_t){0};
                             l_cache_prev_tx->tx_info.order_info.value_ammount = l_cache_prev_tx->tx_info.order_info.value;
+                            l_cache_prev_tx->tx_info.order_info.percent_completed = 0;
                         }
                     }
                 } else if (l_tx_type == TX_TYPE_INVALIDATE){

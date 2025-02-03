@@ -1749,13 +1749,6 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             break;
         }
         case CMD_WALLET_OUTPUTS: {
-            if(!l_net) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
-                                        "Subcommand info requires parameter '-net'");
-                json_object_put(json_arr_out);
-                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
-            }
-
             if ((l_wallet_name && l_addr_str) || (!l_wallet_name && !l_addr_str)) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
                 "You should use either the -w or -addr option for the wallet info command.");
@@ -1763,6 +1756,12 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR;
             }
             if(l_wallet_name) {
+                if(!l_net) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                            "Subcommand info requires parameter '-net'");
+                    json_object_put(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
+                }
                 l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
                 if (!l_wallet){
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
@@ -1779,6 +1778,15 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 }
             } else {
                 l_addr = dap_chain_addr_from_str(l_addr_str);
+                if (!l_net)
+                    l_net = dap_chain_net_by_id(l_addr->net_id);
+                
+                if(!l_net) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                            "Can't get net from wallet addr");
+                    json_object_put(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
+                }
             }
 
             const char* l_token_tiker = NULL;
@@ -1861,7 +1869,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     l_rc = l_ttl_str ? strtoul(l_ttl_str, NULL, 10) : 60;
 
                     l_rc = cmd_num == CMD_WALLET_ACTIVATE
-                            ? dap_chain_wallet_activate(l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str), l_rc)
+                            ? dap_chain_wallet_activate(l_wallet_name, strlen(l_wallet_name), NULL, l_pass_str, strlen(l_pass_str), l_rc)
                             : dap_chain_wallet_deactivate (l_wallet_name, strlen(l_wallet_name));
 
                     switch (l_rc) {
@@ -6260,7 +6268,8 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
 //    int cmd_num = 1;
 //    const char *value_str = NULL;
     const char *addr_base58_to = NULL;
-    const char *str_tmp = NULL;
+    const char * l_fee_str = NULL;
+    const char * l_value_str = NULL;
     const char * l_from_wallet_name = NULL;
     const char * l_wallet_fee_name = NULL;
     const char * l_token_ticker = NULL;
@@ -6309,14 +6318,14 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
         l_tx_num = strtoul(l_tx_num_str, NULL, 10);
 
     // Validator's fee
-    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &str_tmp)) {
-        if (!str_tmp) {
+    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_str)) {
+        if (!l_fee_str) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE, "tx_create requires parameter '-fee'");
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE;
         }
-        l_value_fee = dap_chain_balance_scan(str_tmp);
+        l_value_fee = dap_chain_balance_scan(l_fee_str);
     }
-    if (IS_ZERO_256(l_value_fee) && (!l_emission_hash_str || (str_tmp && strcmp(str_tmp, "0")))) {
+    if (IS_ZERO_256(l_value_fee) && (!l_emission_hash_str || (l_fee_str && strcmp(l_fee_str, "0")))) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256, "tx_create requires parameter '-fee' to be valid uint256");
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256;
     }
@@ -6394,17 +6403,17 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_TOKEN_NOT_DECLARATED_IN_NET;
         }
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_addr", &addr_base58_to);
-        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &str_tmp);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &l_value_str);
         if (!addr_base58_to) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_TO_ADDR, "tx_create requires parameter '-to_addr'");
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_TO_ADDR;
         }
-        if (!str_tmp) {
+        if (!l_value_str) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE, "tx_create requires parameter '-value' to be valid uint256 value");
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE;
         }
         l_addr_el_count = dap_str_symbol_count(addr_base58_to, ',') + 1;
-        l_value_el_count = dap_str_symbol_count(str_tmp, ',') + 1;
+        l_value_el_count = dap_str_symbol_count(l_value_str, ',') + 1;
 
         if (l_addr_el_count != l_value_el_count) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE, "num of '-to_addr' and '-value' should be equal");
@@ -6416,7 +6425,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR, c_error_memory_alloc);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
         }
-        char **l_value_array = dap_strsplit(str_tmp, ",", l_value_el_count);
+        char **l_value_array = dap_strsplit(l_value_str, ",", l_value_el_count);
         if (!l_value_array) {
             DAP_DELETE(l_value);
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "Can't read '-to_addr' arg");
