@@ -1798,6 +1798,7 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
             dap_chain_delete(l_cur);
         }
     }
+    dap_chain_policy_net_remove(a_net->pub.id.uint64);
     HASH_DEL(s_nets_by_name, a_net);
     HASH_DELETE(hh2, s_nets_by_id, a_net);
     DAP_DELETE(a_net);
@@ -2026,7 +2027,12 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
 
     // init LEDGER model
     l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
-
+    if (dap_chain_policy_net_add(l_net->pub.id.uint64)) {
+        log_it(L_ERROR, "Can't add net %s to policy module", l_net->pub.name);
+        dap_chain_net_delete(l_net);
+        dap_config_close(l_cfg);
+        return -6;
+    }
     return 0;
 }
 

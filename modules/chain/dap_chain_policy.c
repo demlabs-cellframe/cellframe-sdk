@@ -24,24 +24,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include "dap_chain_policy.h"
 #include "dap_chain.h"
+#include "dap_list.h"
 #include "uthash.h"
 
 static const char LOG_TAG[] = "dap_chain_policy";
-
-typedef struct dap_chain_policy {
-    uint16_t version;
-    uint32_t num;
-    uint64_t flags;
-    int64_t ts_start;
-    int64_t ts_stop;
-    uint64_t block_start;
-    uint64_t block_stop;
-    dap_chain_t *chain;
-    uint64_t description_size;
-    uint32_t policies_deactivate_count;
-    char data[];
-} dap_chain_policy_t;
-
 
 struct policy_net_list_item {
     uint64_t net_id;
@@ -67,12 +53,18 @@ DAP_STATIC_INLINE struct policy_net_list_item *s_net_find(uint64_t a_net_id)
     return NULL;
 }
 
+DAP_STATIC_INLINE int s_policy_num_compare(dap_list_t  *a_list1, dap_list_t  *a_list2)
+{
+    return ((dap_chain_policy_t *)(a_list1->data))->num == ((dap_chain_policy_t *)(a_list2->data))->num ? 0 :
+        ((dap_chain_policy_t *)(a_list1->data))->num > ((dap_chain_policy_t *)(a_list2->data))->num ? 1 : -1;
+}
+
 /**
  * @brief add new net to policies list
  * @param a_net_id
  * @return 0 if pass, other if error
  */
-static int s_net_add(uint64_t a_net_id)
+int dap_chain_policy_net_add(uint64_t a_net_id)
 {
     dap_return_val_if_pass(!a_net_id, -1);
     if(s_net_find(a_net_id)) {
@@ -84,10 +76,24 @@ static int s_net_add(uint64_t a_net_id)
     return 0;
 }
 
-DAP_STATIC_INLINE int s_policy_num_compare(dap_list_t  *a_list1, dap_list_t  *a_list2)
+/**
+ * @brief remove net from policies list
+ * @param a_net_id
+ * @return 0 if pass, other if error
+ */
+int dap_chain_policy_net_remove(uint64_t a_net_id)
 {
-    return ((dap_chain_policy_t *)(a_list1->data))->num == ((dap_chain_policy_t *)(a_list2->data))->num ? 0 :
-        ((dap_chain_policy_t *)(a_list1->data))->num > ((dap_chain_policy_t *)(a_list2->data))->num ? 1 : -1;
+    dap_return_val_if_pass(!a_net_id, -1);
+    struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
+    for (dap_list_t *l_iter = dap_list_first(s_net_list); l_iter; l_iter = l_iter->next) {
+        if ( ((struct policy_net_list_item *)(l_iter->data))->net_id == a_net_id)
+            s_net_list = dap_list_remove_link(s_net_list, l_iter);
+    }
+    if(!l_iter) {
+        log_it(L_ERROR, "Can't find net with id %"DAP_UINT64_FORMAT_X" to delete", a_net_id);
+        return -2;
+    }
+    return 0;
 }
 
 /**
@@ -96,12 +102,29 @@ DAP_STATIC_INLINE int s_policy_num_compare(dap_list_t  *a_list1, dap_list_t  *a_
  */
 int dap_chain_policy_init()
 {
-    int l_ret = -1;
-    // for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
-    //     if( (l_ret = s_net_add(l_net->pub.id)) )
-    //         break;
-    // }
-    return l_ret;
+    return 0;
+}
+
+/**
+ * @brief add new policy
+ * @param a_policy_num
+ * @param a_net pointer to net
+ * @return true if yes, false if no
+ */
+int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id)
+{
+    dap_return_val_if_pass(!a_policy, -1);
+    struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
+    if (!l_net_item) {
+        log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id);
+        return -2;
+    }
+    if (dap_list_find(l_net_item->policies, a_policy, s_policy_num_compare)) {
+        log_it(L_ERROR, "CN-%d already added to net %"DAP_UINT64_FORMAT_X, a_net_id);
+        return -3;
+    }
+    
+    return 0;
 }
 
 /**

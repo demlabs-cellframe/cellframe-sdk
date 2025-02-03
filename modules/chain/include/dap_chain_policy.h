@@ -30,4 +30,20 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM     (1 << 1)
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_CONFIG        (1 << 2)
 
-int dap_chain_policy_init();
+typedef struct dap_chain_policy {
+    uint16_t version;
+    uint32_t num;
+    uint64_t flags;
+    int64_t ts_start;
+    int64_t ts_stop;
+    uint64_t block_start;
+    uint64_t block_stop;
+    dap_chain_t *chain;
+    uint64_t description_size;
+    uint32_t policies_deactivate_count;
+    char data[];
+} dap_chain_policy_t;
+
+int dap_chain_policy_net_add(uint64_t a_net_id);
+int dap_chain_policy_net_remove(uint64_t a_net_id);
+int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id);
