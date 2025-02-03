@@ -416,7 +416,7 @@ dap_sign_t *dap_chain_datum_tx_sign_create(dap_enc_key_t *a_key, const dap_chain
                                                     : a_tx->header.tx_items_size);
     dap_chain_datum_tx_t *l_tx = DAP_DUP_SIZE_RET_VAL_IF_FAIL((dap_chain_datum_tx_t *)a_tx, l_tx_size, NULL);
     l_tx->header.tx_items_size = 0;
-    dap_sign_t *ret = dap_sign_create(a_key, l_tx, l_tx_size, 0);
+    dap_sign_t *ret = dap_sign_create(a_key, l_tx, l_tx_size);
     DAP_DELETE(l_tx);
     return ret;
 }
@@ -433,7 +433,7 @@ dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
     dap_chain_datum_tx_t *l_tx = DAP_DUP_SIZE_RET_VAL_IF_FAIL((dap_chain_datum_tx_t *)a_tx, l_tx_size, NULL);
 
     l_tx->header.tx_items_size = 0;
-    dap_sign_t *l_chain_sign = dap_sign_create(a_key, l_tx, l_tx_size, DAP_SIGN_HASH_TYPE_DEFAULT);
+    dap_sign_t *l_chain_sign = dap_sign_create(a_key, l_tx, l_tx_size);
     DAP_DELETE(l_tx);
     if (!l_chain_sign)
         return NULL;
