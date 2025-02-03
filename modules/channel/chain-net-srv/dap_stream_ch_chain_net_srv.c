@@ -1306,7 +1306,6 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             l_request->data_hash = l_data_hash;
 
         }
-        log_it(L_WARNING, "Send test responce for servise id %"DAP_UINT64_FORMAT_X, l_request->srv_uid.uint64);
         l_request->err_code = 0;
 
         dap_strncpy(l_request->host_send, a_ch->stream->esocket->remote_addr_str, DAP_HOSTADDR_STRLEN);
