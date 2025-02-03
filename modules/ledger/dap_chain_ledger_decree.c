@@ -419,7 +419,7 @@ const char *l_ban_addr;
             if (!a_apply)
                 break;
             
-            dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, &l_hash, l_value, &l_node_addr, NULL);
+            dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, a_decree, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(a_decree));
             dap_chain_net_srv_stake_add_approving_decree_info(a_decree, a_net);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE:
@@ -620,6 +620,7 @@ const char *l_ban_addr;
                 break;
             dap_list_t *l_addrs = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size,
                                                    DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, sizeof(dap_stream_node_addr_t));
+            dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
             return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_block_num, l_addrs);
         default:
             return -1;
@@ -756,4 +757,27 @@ dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledg
         }
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
     return ret;
+}
+
+/**
+ * @brief get tsd list with decrees hashes in concretyc type
+ * @param a_ledger ledger to search
+ * @param a_type - searching type, if 0 - all hashes
+ * @return if OK - ponter tsd list, if error - NULL
+ */
+dap_list_t *dap_ledger_decrees_get_by_type(dap_ledger_t *a_ledger, int a_type)
+{
+    dap_return_val_if_pass(!a_ledger, NULL);
+    dap_list_t *l_ret = NULL;
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    dap_ledger_decree_item_t *l_cur_decree, *l_tmp;
+    pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
+    HASH_ITER(hh, l_ledger_pvt->decrees, l_cur_decree, l_tmp) {
+        if (!a_type || l_cur_decree->decree->header.type == a_type) {
+            dap_tsd_t *l_tsd_cur = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, &l_cur_decree->decree_hash, sizeof(l_cur_decree->decree_hash));
+            l_ret = dap_list_append(l_ret, l_tsd_cur);
+        }
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
+    return l_ret;
 }

@@ -422,7 +422,7 @@ static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_c
     l_tsd->size = sizeof(uint256_t);
     *(uint256_t*)(l_tsd->data) = a_value;
     // Sign it
-    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size, DAP_SIGN_HASH_TYPE_DEFAULT);
+    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size);
     if (!l_sign) {
         log_it(L_ERROR, "Decree signing failed");
         DAP_DELETE(l_decree);
@@ -1539,10 +1539,8 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         }
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
         dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "0", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
-
-        int l_res = (a_block_cache->generation && a_block_cache->generation == a_blocks->generation)
-                ? dap_chain_datum_add_hardfork_data(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data)
-                : dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
+        bool is_hardfork_related_block = a_block_cache->generation && a_block_cache->generation == a_blocks->generation;
+        int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data, is_hardfork_related_block);
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED) { // If this is any datum other than a already cached transaction
             l_ret++;
             if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
@@ -1966,20 +1964,22 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     bool l_is_genesis = dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_GENESIS);
     // genesis or seed mode
     if (l_is_genesis) {
-        if (PVT(l_blocks)->blocks) {
-            log_it(L_WARNING, "Can't accept genesis block %s: already present data in blockchain", dap_hash_fast_to_str_static(a_atom_hash));
-            return ATOM_REJECT;
-        }
 #ifndef DAP_CHAIN_BLOCKS_TEST
         if (s_seed_mode)
             log_it(L_NOTICE, "Accepting new genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
         else if(dap_hash_fast_compare(&l_block_hash, &PVT(l_blocks)->static_genesis_block_hash)
                 && !dap_hash_fast_is_blank(&l_block_hash))
             log_it(L_NOTICE, "Accepting static genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
-        else {
+        else if (l_blocks->is_hardfork_state) {
+            log_it(L_NOTICE, "Accepting hardfork genesis block %s and restore data", dap_hash_fast_to_str_static(a_atom_hash));
+            if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, &a_chain->hardfork_decree_hash)) {
+                log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
+                return ATOM_REJECT;
+            }
+        } else {
             char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&PVT(l_blocks)->static_genesis_block_hash, l_hash_str, sizeof(l_hash_str));
-            log_it(L_WARNING, "Can't accept genesis block %s: seed mode not enabled or hash mismatch with static genesis block %s in configuration",
+            log_it(L_WARNING, "Can't accept genesis block %s: seed mode not enabled or hash mismatch with static genesis block %s in configuration or hardfork decree is blank",
                                 dap_hash_fast_to_str_static(a_atom_hash), l_hash_str);
             return ATOM_REJECT;
         }
@@ -2536,8 +2536,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
             break;
         }
         if (!l_blocks->block_new) {
-            dap_chain_block_cache_t *l_bcache_last = l_blocks_pvt->blocks ? l_blocks_pvt->blocks->hh.tbl->tail->prev : NULL;
-            l_bcache_last = l_bcache_last ? l_bcache_last->hh.next : l_blocks_pvt->blocks;
+            dap_chain_block_cache_t *l_bcache_last = HASH_LAST(l_blocks_pvt->blocks);
             l_blocks->block_new = dap_chain_block_new(&l_bcache_last->block_hash, &l_blocks->block_new_size);
             l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
             l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
