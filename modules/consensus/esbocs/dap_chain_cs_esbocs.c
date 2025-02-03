@@ -410,7 +410,7 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
             assert(l_net);
             uint256_t l_value_fee = uint256_0;
             dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(
-                                            l_net->pub.ledger, a_block_cache, &l_value_fee, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE);
+                                            l_net->pub.ledger, a_block_cache, &l_value_fee);
             if (!IS_ZERO_256(l_value_fee)) {
                 char *l_fee_group = dap_chain_cs_blocks_get_fee_group(l_chain->net_name);
                 dap_global_db_set(l_fee_group, a_block_cache->block_hash_str, &l_value_fee, sizeof(l_value_fee),

@@ -90,6 +90,6 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
 void dap_chain_block_cache_delete(dap_chain_block_cache_t *a_block_cache);
 
 // Get the list of 'out_cond' items from previous transactions with summary out value. Put this summary value to a_value_out
-dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, dap_chain_block_cache_t * a_block_cache, uint256_t *a_value_out, enum dap_chain_tx_out_cond_subtype a_cond_subtype);
+dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, dap_chain_block_cache_t * a_block_cache, uint256_t *a_value_out);
 
 

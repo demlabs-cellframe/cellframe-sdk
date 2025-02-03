@@ -344,7 +344,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
             continue;
         }
 
-        dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_ledger, l_block_cache, &l_value_out_block, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE);
+        dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_ledger, l_block_cache, &l_value_out_block);
         if (!l_list_used_out)
             continue;
 
