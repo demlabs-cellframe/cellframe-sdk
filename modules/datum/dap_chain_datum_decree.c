@@ -187,9 +187,14 @@ dap_pkey_t *dap_chain_datum_decree_get_pkey(dap_chain_datum_decree_t *a_decree)
 {
     dap_return_val_if_fail(a_decree, NULL);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY);
-    if (!l_tsd)
-        return NULL;
-    return dap_pkey_get_size((dap_pkey_t *)l_tsd->data) == l_tsd->size ? (dap_pkey_t *)l_tsd->data : NULL;
+    return (l_tsd && dap_pkey_get_size((dap_pkey_t *)l_tsd->data) == l_tsd->size) ? (dap_pkey_t *)l_tsd->data : NULL;
+}
+
+dap_chain_policy_t *dap_chain_datum_decree_get_policy(dap_chain_datum_decree_t *a_decree)
+{
+    dap_return_val_if_fail(a_decree, NULL);
+    dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY);
+    return (l_tsd  && dap_chain_policy_get_size((dap_chain_policy_t *)l_tsd->data) == l_tsd->size) ? (dap_chain_policy_t *)l_tsd->data : NULL;
 }
 
 void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type)

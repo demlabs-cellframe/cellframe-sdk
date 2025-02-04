@@ -27,6 +27,7 @@
 #include "dap_time.h"
 #include "dap_list.h"
 #include "dap_cert.h"
+#include "dap_chain_policy.h"
 #include <stdint.h>
 
 #define DAP_CHAIN_DATUM_DECREE_VERSION  0
@@ -76,7 +77,8 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS          0x000D
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE         0x000E
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK                      0x000F
-#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE             0x0010 
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE             0x0010
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY                        0x0011 
 
 // DECREE TSD types
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE                               0x0100
@@ -96,7 +98,8 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION                              0x010A
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE                      0x010B
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM                           0x010C
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY                          0x010D 
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY                          0x010D
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY                              0x010E 
 
 
 #ifdef __cplusplus
@@ -330,6 +333,12 @@ int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, cons
  * @return pointer to dap_pkey_t if find, if not or error - NULL
  */
 dap_pkey_t *dap_chain_datum_decree_get_pkey(dap_chain_datum_decree_t *a_decree);
+/**
+ * @brief get policy from decree tsd
+ * @param a_decree
+ * @return pointer to dap_chain_policy_t if find, if not or error - NULL
+ */
+dap_chain_policy_t *dap_chain_datum_decree_get_policy(dap_chain_datum_decree_t *a_decree);
 int dap_chain_datum_decree_get_atom_num(dap_chain_datum_decree_t *a_decree, uint64_t *a_atom_num);
 
 /**

@@ -110,7 +110,7 @@ int dap_chain_policy_init()
  * @brief add new policy
  * @param a_policy_num
  * @param a_net_id net id
- * @return true if yes, false if no
+ * @return 0 if pass, other if error
  */
 int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id)
 {
@@ -136,7 +136,12 @@ int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id)
     return 0;
 }
 
-
+/**
+ * @brief add policy num to exception list
+ * @param a_policy_num
+ * @param a_net_id net id
+ * @return 0 if pass, other if error
+ */
 int dap_chain_policy_add_to_exception_list(uint32_t a_policy_num, uint64_t a_net_id)
 {
     struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
