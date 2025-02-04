@@ -800,7 +800,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                                         : dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_owner_tx_hash);
                                     dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
                                     l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
-                                    
+
                                 } else {
                                     log_it(L_WARNING, "Invalid 'in_cond' item, wrong type of item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
                                     char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in_cond' item, "
@@ -809,11 +809,35 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                                     if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
                                     break;
                                 }                                                         
-                            }                        
+                            } else {
+                                log_it(L_WARNING, "Invalid 'in_cond' item, can't find item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
+                                char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in_cond' item, "
+                                                                    "can't find item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
+                                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                                if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
+                            }                       
+                        } else {
+                            log_it(L_WARNING, "Invalid 'in_cond' item, bad prev_hash %s", l_prev_hash_str);
+                            char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in_cond' item, "
+                                                                "bad prev_hash %s", l_prev_hash_str);
+                            json_object *l_jobj_err = json_object_new_string(l_str_err);
+                            if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
                         }
                     }
                 }break;                    
-                case TX_ITEM_TYPE_IN_EMS:
+                case TX_ITEM_TYPE_IN_EMS: {
+                    dap_chain_id_t l_chain_id;
+                    bool l_is_chain_id = s_json_get_int64(l_json_item_obj, "chain_id", l_chain_id.uint64);
+
+                    const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
+                    if (l_json_item_token && dap_strcmp(l_json_item_token, l_native_token)){
+                        l_multichanel = true;
+                        l_main_token = l_json_item_token;
+                        break;
+                    }
+                    dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(l_chain_id, &l_blank_hash, a_delegated_ticker_str);
+
+                }break;
                 case TX_ITEM_TYPE_IN_REWARD:
                 default: continue;
             }
