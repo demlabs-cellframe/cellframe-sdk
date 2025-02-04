@@ -2706,8 +2706,6 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
 static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t UNUSED_ARG *a_tx_in_hash,
                                       dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool a_owner)
 {
-    if (a_owner)
-        return 0;
     dap_chain_net_t *l_net = a_ledger->net;
     assert(l_net);
     dap_chain_t *l_chain;
@@ -2740,9 +2738,7 @@ static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx
 static int s_fee_stack_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t UNUSED_ARG *a_tx_in_hash,
                                       dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool a_owner)
 {
-    if (a_owner)
-        return 0;
-    return -1;
+    return a_owner ? 0 : -1
 }
 
 
