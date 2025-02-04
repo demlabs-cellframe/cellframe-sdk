@@ -140,6 +140,7 @@ static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_ato
 static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_block_t *)a_atom)->hdr.ts_created; }
 static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
 static int s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
+static int s_fee_stack_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
 //    Get blocks
 static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size);
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter_t * a_atom_iter , size_t *a_links_size,
@@ -268,7 +269,7 @@ int dap_chain_cs_blocks_init()
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL, NULL, NULL, NULL);
     log_it(L_NOTICE ,"Initialized blocks(m) chain type");
 
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK, s_fee_verificator_callback, NULL, NULL, NULL, NULL, NULL);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK, s_fee_stack_verificator_callback, NULL, NULL, NULL, NULL, NULL);
     log_it(L_NOTICE ,"Initialized blocks(m) chain type verificator for fee stack subtype");
 
     return 0;
@@ -2734,6 +2735,17 @@ static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx
     }
     return -4;
 }
+
+
+static int s_fee_stack_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t UNUSED_ARG *a_tx_in_hash,
+                                      dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool a_owner)
+{
+    if (a_owner)
+        return 0;
+    return -1;
+}
+
+
 
 static uint64_t s_callback_count_txs(dap_chain_t *a_chain)
 {
