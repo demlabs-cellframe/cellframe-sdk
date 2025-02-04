@@ -71,6 +71,7 @@ int dap_chain_policy_net_add(uint64_t a_net_id)
         return -2;
     }
     struct policy_net_list_item *l_new_item = DAP_NEW_Z_RET_VAL_IF_FAIL(struct policy_net_list_item, -3);
+    l_new_item->net_id = a_net_id;
     s_net_list = dap_list_append(s_net_list, l_new_item);
     return 0;
 }

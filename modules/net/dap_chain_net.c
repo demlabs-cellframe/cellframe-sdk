@@ -106,6 +106,7 @@
 #include "dap_net.h"
 #include "dap_context.h"
 #include "dap_chain_cs_esbocs.h"
+#include "dap_chain_policy.h"
 
 #include <stdio.h>
 #include <sys/types.h>
