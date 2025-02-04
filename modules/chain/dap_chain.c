@@ -385,10 +385,11 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
         if (!dap_dir_test(DAP_CHAIN_PVT(l_chain)->file_storage_dir))
             dap_mkdir_with_parents(DAP_CHAIN_PVT(l_chain)->file_storage_dir);
     } else
-        log_it (L_INFO, "Not set file storage path, will not stored in files");
+        log_it (L_INFO, "Not set file storage path, will not be stored in files"); // TODO
 
-    if (!l_chain->cells)
-        dap_chain_cell_create_fill( l_chain, (dap_chain_cell_id_t){ .uint64 = 0 } );
+    /*if (!l_chain->cells)
+        dap_chain_cell_create_fill( l_chain, (dap_chain_cell_id_t){ .uint64 = 0 } );*/
+    
     l_chain->config = a_cfg;
     l_chain->load_priority = dap_config_get_item_uint16_default(a_cfg, "chain", "load_priority", 100);
 
@@ -495,7 +496,7 @@ const char *dap_chain_get_cs_type(dap_chain_t *l_chain)
  * @param l_chain
  * @return
  */
-int dap_chain_save_all(dap_chain_t *l_chain)
+int dap_chain_save_all(dap_chain_t *l_chain) // TODO - move to cell.c
 {
     int l_ret = 0;
     pthread_rwlock_rdlock(&l_chain->cell_rwlock);
@@ -509,7 +510,7 @@ int dap_chain_save_all(dap_chain_t *l_chain)
 }
 
 //send chain load_progress data to notify socket
-bool download_notify_callback(dap_chain_t* a_chain) {
+static bool s_load_notify_callback(dap_chain_t* a_chain) {
     json_object* l_chain_info = json_object_new_object();
     json_object_object_add(l_chain_info, "class", json_object_new_string("chain_init"));
     json_object_object_add(l_chain_info, "net", json_object_new_string(a_chain->net_name));
@@ -529,55 +530,67 @@ bool download_notify_callback(dap_chain_t* a_chain) {
  */
 int dap_chain_load_all(dap_chain_t *a_chain)
 {
-    int l_ret = 0;
-    if (!a_chain)
-        return -2;
+    dap_return_val_if_fail(a_chain, -2);
     if (a_chain->callback_load_from_gdb) {
         a_chain->is_mapped = false;
         a_chain->callback_load_from_gdb(a_chain);
         return 0;
     }
     char *l_storage_dir = DAP_CHAIN_PVT(a_chain)->file_storage_dir;
-    if (!l_storage_dir)
-        return 0;
+    dap_return_val_if_fail_err(l_storage_dir, 0, "No path set for chains files in net %s", a_chain->net_name); // TODO: light mode?
+
     DIR *l_dir = opendir(l_storage_dir);
-    if (!l_dir) {
-        log_it(L_ERROR, "Cannot open directory %s", DAP_CHAIN_PVT(a_chain)->file_storage_dir);
-        return -3;
-    }
-    for (struct dirent *l_dir_entry = readdir(l_dir); l_dir_entry != NULL; l_dir_entry = readdir(l_dir)) {
-        const char *l_filename = l_dir_entry->d_name, l_suffix[] = ".dchaincell";
-        size_t l_suffix_len = strlen(l_suffix);
-        if (!strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len)) {
-            uint64_t l_cell_id_uint64 = 0;
-            sscanf(l_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
-            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(a_chain, (dap_chain_cell_id_t){ .uint64 = l_cell_id_uint64 });
-            dap_timerfd_t* l_download_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)download_notify_callback, a_chain);
-            l_ret += dap_chain_cell_load(a_chain, l_cell);
+    dap_return_val_if_fail_err(l_dir, -3, "Cannot open directory %s, error %d: \"%s\"",
+                                          DAP_CHAIN_PVT(a_chain)->file_storage_dir, errno, dap_strerror(errno));
+    int l_err = -1;
+    const char l_suffix[] = ".dchaincell", *l_filename;
+    struct dirent *l_dir_entry = NULL;
+    dap_time_t l_ts_start = dap_time_now();
+    while (( l_dir_entry = readdir(l_dir) )) {
+        l_filename = l_dir_entry->d_name;
+        size_t l_namelen = strlen(l_filename);
+        if ( l_namelen >= sizeof(l_suffix) && !strncmp(l_filename + l_namelen - sizeof(l_suffix) - 1, l_suffix, sizeof(l_suffix) - 1) ) {
+            dap_timerfd_t* l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_load_notify_callback, a_chain);
+            l_err = dap_chain_cell_open(a_chain, l_filename, 'a');
+            dap_timerfd_delete(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
+            s_load_notify_callback(a_chain);
+            if (l_err)
+                break;
             if ( DAP_CHAIN_PVT(a_chain)->need_reorder ) {
 #ifdef DAP_OS_WINDOWS
-                strcat(l_cell->file_storage_path, ".new");
-                if (remove(l_cell->file_storage_path) == -1) {
-                    log_it(L_ERROR, "File %s doesn't exist", l_cell->file_storage_path);
-                }
-                *(l_cell->file_storage_path + strlen(l_cell->file_storage_path) - 4) = '\0';
+                char *l_new_path = dap_strdup_printf("%s/%s.new", DAP_CHAIN_PVT(a_chain)->file_storage_dir, l_filename);
+                if ( remove(l_new_path) == -1 )
+                    log_it(L_ERROR, "File \"%s\" doesn't exist", l_new_path);
+                DAP_DELETE(l_new_path);
 #else
-                const char *l_filename_backup = dap_strdup_printf("%s.unsorted", l_cell->file_storage_path);
-                if (remove(l_filename_backup) == -1) {
+                char *l_old_name = dap_strdup_printf("%s/%s", DAP_CHAIN_PVT(a_chain)->file_storage_dir, l_filename),
+                     *l_filename_backup = dap_strdup_printf("%s.unsorted", l_old_name);
+                     
+                if (remove(l_filename_backup) == -1)
                     log_it(L_ERROR, "File %s doesn't exist", l_filename_backup);
+                if (rename(l_old_name, l_filename_backup)) {
+                    log_it(L_ERROR, "Couldn't rename %s to %s", l_old_name, l_filename_backup);
                 }
-                if (rename(l_cell->file_storage_path, l_filename_backup)) {
-                    log_it(L_ERROR, "Couldn't rename %s to %s", l_cell->file_storage_path, l_filename_backup);
-                }
-                DAP_DELETE(l_filename_backup);
+                DAP_DEL_MULTY(l_old_name, l_filename_backup);
 #endif
             }
-            dap_timerfd_delete(l_download_notify_timer->worker, l_download_notify_timer->esocket_uuid);
-            download_notify_callback(a_chain);
         }
     }
     closedir(l_dir);
-    return l_ret;
+    
+    switch (l_err) {
+    case 0:
+        log_it(L_INFO, "Loaded all chain \"%s : %s\" cells in %lf s",
+                        a_chain->net_name, a_chain->name, difftime((time_t)dap_time_now(), l_ts_start));
+        break;
+    case -1:
+        if (!( l_err = dap_chain_cell_open_file(a_chain, "0.dchaincell", 'w') ))
+            log_it(L_INFO, "Initialized chain \"%s : %s\" cell 0", a_chain->net_name, a_chain->name);
+        break;
+    default:
+        log_it(L_ERROR, "Chain \"%s : %s\" cell was not loaded, error %d", a_chain->net_name, a_chain->name, l_err)
+    }
+    return l_err;
 }
 
 /**
@@ -904,11 +917,7 @@ void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_
     dap_list_t *l_iter;
     DL_FOREACH(a_chain_cell->chain->datum_notifiers, l_iter) {
         dap_chain_datum_notifier_t *l_notifier = (dap_chain_datum_notifier_t*)l_iter->data;
-        struct chain_thread_datum_notifier *l_arg = DAP_NEW_Z(struct chain_thread_datum_notifier);
-        if (!l_arg) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            continue;
-        }
+        struct chain_thread_datum_notifier *l_arg = DAP_NEW_Z_RET_IF_FAIL(struct chain_thread_datum_notifier);
         *l_arg = (struct chain_thread_datum_notifier) {
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
             .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,

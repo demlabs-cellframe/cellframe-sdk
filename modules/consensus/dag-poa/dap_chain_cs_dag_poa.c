@@ -687,35 +687,33 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA( l_dag );
 
-    const char * l_events_sign_cert = NULL;
-    if ( ( l_events_sign_cert = dap_config_get_item_str(a_chain_net_cfg,"dag-poa","events-sign-cert") ) != NULL ) {
-        if ( ( PVT(l_poa)->events_sign_cert = dap_cert_find_by_name(l_events_sign_cert)) == NULL ){
-            log_it(L_ERROR,"Can't load events sign certificate, name \"%s\" is wrong",l_events_sign_cert);
-        }else
-            log_it(L_NOTICE,"Loaded \"%s\" certificate to sign poa event", l_events_sign_cert);
-
+    const char *l_events_sign_cert = = dap_config_get_item_str(a_chain_net_cfg,"dag-poa","events-sign-cert");
+    if ( l_events_sign_cert ) {
+        if (!( PVT(l_poa)->events_sign_cert = dap_cert_find_by_name(l_events_sign_cert) ))
+            log_it(L_ERROR,"Can't load events sign certificate, name \"%s\" is wrong", l_events_sign_cert);
+        else
+            log_it(L_NOTICE, "Loaded \"%s\" certificate to sign poa events", l_events_sign_cert);
     }
+
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_chain->net_name);
     assert(l_net);
     dap_global_db_cluster_t *l_dag_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
                                                                        dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_DAG),
                                                                        l_dag->gdb_group_events_round_new, DAG_ROUND_NEW_TTL, true,
                                                                        DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
-    if (!l_dag_cluster) {
-        log_it(L_ERROR, "Can't create cluster for consensus communication. Can't start the DAG consensus");
-        return -1;
-    }
+    dap_return_val_if_fail_err(l_dag_cluster, -1, "Can't create cluster for consensus communication. Can't start the DAG consensus");
+
     dap_global_db_cluster_add_notify_callback(l_dag_cluster, s_round_changes_notify, l_dag);
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_dag_cluster);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_dag_cluster->links_cluster);
     PVT(l_poa)->mempool_timer = dap_interval_timer_create(15000, s_timer_process_callback, a_chain);
 
     switch ( dap_chain_net_get_role(l_net).enums ) {
-        case NODE_ROLE_ROOT_MASTER:
-        case NODE_ROLE_ROOT:
-            dap_global_db_get_all(l_dag->gdb_group_events_round_new, 0, s_callback_sync_all_on_start, l_dag);
-        default:
-            break;
+    case NODE_ROLE_ROOT_MASTER:
+    case NODE_ROLE_ROOT:
+        dap_global_db_get_all(l_dag->gdb_group_events_round_new, 0, s_callback_sync_all_on_start, l_dag);
+    default:
+        break;
     }
     return 0;
 }

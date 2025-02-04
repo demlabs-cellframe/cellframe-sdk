@@ -279,11 +279,7 @@ void dap_chain_cs_blocks_deinit()
 
 static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_config)
 {
-    dap_chain_cs_blocks_t * l_cs_blocks = DAP_NEW_Z(dap_chain_cs_blocks_t);
-    if (!l_cs_blocks) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return -1;
-    }
+    dap_chain_cs_blocks_t * l_cs_blocks = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_cs_blocks_t, -1);
     a_chain->_inheritor = l_cs_blocks;
     l_cs_blocks->chain = a_chain;
 
@@ -1506,7 +1502,7 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
         l_datum_index = NULL;
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
-    dap_chain_cell_delete_all(a_chain);
+    dap_chain_cell_close_all(a_chain);
     return 0;
 }
 
@@ -1564,8 +1560,9 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
             HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
             pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
-            dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
+            dap_chain_cell_t *l_cell = dap_chain_cell_capture_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
             dap_chain_datum_notify(l_cell, l_datum_hash, &l_datum_index->block_cache->block_hash, (byte_t *)l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
+            dap_chain_cell_remit(l_cell);
         }
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
@@ -1598,8 +1595,9 @@ static int s_delete_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block
             l_ret++;
             HASH_DEL(PVT(a_blocks)->datum_index, l_datum_index);
             // notify datum removed
-            dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
+            dap_chain_cell_t *l_cell = dap_chain_cell_capture_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
             dap_chain_datum_removed_notify(l_cell, l_datum_hash);
+            dap_chain_cell_remit(l_cell);
         }
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
@@ -1720,7 +1718,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     case ATOM_ACCEPT:{
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
         assert(l_net);
-        dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
+        dap_chain_cell_t *l_cell = dap_chain_cell_capture_by_id(a_chain, l_block->hdr.cell_id);
 #ifndef DAP_CHAIN_BLOCKS_TEST
         if ( !dap_chain_net_get_load_mode(l_net) ) {
             if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL)) < 0 ) {
@@ -1843,9 +1841,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p with hash %s: REJECTED", a_atom, dap_chain_hash_fast_to_str_static(&l_block_hash));
         break;
     case ATOM_FORK:{
-        dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
 #ifndef DAP_CHAIN_BLOCKS_TEST
         if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
+            dap_chain_cell_t *l_cell = dap_chain_cell_capture_by_id(a_chain, l_block->hdr.cell_id);
             if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL)) < 0 ) {
                 log_it(L_ERROR, "Can't save atom to file, code %d", ret);
                 return ATOM_REJECT;
@@ -1853,6 +1851,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 l_block = (dap_chain_block_t*)( l_cell->map_pos += sizeof(uint64_t) );  // Switching to mapped area
                 l_cell->map_pos += a_atom_size;
             }
+            dap_chain_cell_remit(l_cell);
             ret = ATOM_FORK;
         }
 #endif

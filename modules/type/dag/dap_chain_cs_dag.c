@@ -372,7 +372,7 @@ static int s_chain_cs_dag_purge(dap_chain_t *a_chain)
         DAP_DELETE(l_event_current);
     }
     pthread_mutex_unlock(&l_dag_pvt->events_mutex);
-    dap_chain_cell_delete_all(a_chain);
+    dap_chain_cell_close_all(a_chain);
     return 0;
 }
 

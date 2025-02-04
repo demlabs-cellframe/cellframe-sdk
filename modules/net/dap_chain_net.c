@@ -1839,7 +1839,8 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, int *a_
     dap_config_t *l_chain_config, *l_all_chain_configs = NULL, *l_tmp_cfg;
     char l_chain_cfg_path[MAX_PATH + 1] = { '\0' };
     int l_pos = snprintf(l_chain_cfg_path, MAX_PATH, "network/%s/", a_net->pub.name);
-    for ( struct dirent *l_dir_entry; ( l_dir_entry = readdir(l_chains_dir) ); ) {
+    struct dirent *l_dir_entry = NULL;
+    while (( l_dir_entry = readdir(l_chains_dir) )) {
         unsigned short l_len = strlen(l_dir_entry->d_name);
         if ( l_len > 4 && !dap_strncmp(l_dir_entry->d_name + l_len - 4, ".cfg", 4) ) {
             *(l_dir_entry->d_name + l_len - 4) = '\0';
@@ -1978,11 +1979,10 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
             char *l_service_cfg_path = dap_strdup_printf("network/%s/services/%s", l_net->pub.name, l_entry_name);
             dap_config_t *l_cfg_new = dap_config_open(l_service_cfg_path);
             if (l_cfg_new) {
-                char *l_service_name = DAP_DUP_SIZE((char *)l_entry_name, l_entry_len - 3);
-                l_service_name[l_entry_len - 4] = 0;
+                char l_service_name[l_entry_len - 3];
+                dap_strncpy(l_service_name, l_entry_name, l_entry_len - 4);
                 dap_chain_srv_start(l_net->pub.id, l_service_name, l_cfg_new);
                 dap_config_close(l_cfg_new);
-                DAP_DELETE(l_service_name);
             }
             DAP_DELETE(l_service_cfg_path);
         }
@@ -2015,24 +2015,16 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
 static void *s_net_load(void *a_arg)
 {
     dap_chain_net_t *l_net = a_arg;
-    int l_err_code = 0;
-
-    if (!l_net->pub.config) {
-        log_it(L_ERROR,"Can't open default network config");
-        l_err_code = -1;
-        goto ret;
-    }
+    dap_return_val_if_fail_err(l_net->pub.config, NULL, "Can't open network %s config", l_net->pub.name);
 
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
-    //else dap_chain_net_srv_stake_load_cache(l_net); // TODO rework ledger and staking caches
-    // load chains
-    dap_chain_t *l_chain = l_net->pub.chains;
-    clock_t l_chain_load_start_time = clock(); 
-    while (l_chain) {
+    l_net_pvt->balancer_type = dap_config_get_item_bool_default(l_net->pub.config, "general", "use_dns_links", false);
+    char l_gdb_groups_mask[DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX];
+    dap_chain_t *l_chain;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
-        if (!dap_chain_load_all(l_chain)) {
-            log_it (L_NOTICE, "Loaded chain files");
+        if ( !dap_chain_load_all(l_chain) ) {
             if ( DAP_CHAIN_PVT(l_chain)->need_reorder ) // # unsafe crutch, need to escape reorder usage
             {
                 log_it(L_DAP, "Reordering chain files for chain %s", l_chain->name);
@@ -2053,117 +2045,76 @@ static void *s_net_load(void *a_arg)
                 while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
                     log_it(L_DEBUG, "Added atom from treshold");
             }
-        } else {
-            //dap_chain_save_all( l_chain );
-            log_it (L_NOTICE, "Initialized chain files");
         }
         l_chain->atom_num_last = 0;
-        time_t l_chain_load_time_taken = clock() - l_chain_load_start_time; 
-        double time_taken = ((double)l_chain_load_time_taken)/CLOCKS_PER_SEC; // in seconds 
-        log_it(L_NOTICE, "[%s] Chain [%s] processing took %f seconds", l_chain->net_name, l_chain->name, time_taken);
-        l_chain = l_chain->next;
-    }
-    dap_ledger_load_end(l_net->pub.ledger);
-
-    // Do specific role actions post-chain created
-    l_net_pvt->state_target = NET_STATE_OFFLINE;
-    switch ( l_net_pvt->node_role.enums ) {
-        case NODE_ROLE_ROOT_MASTER:{
-            // Set to process everything in datum pool
-            dap_chain_t * l_chain = NULL;
-            DL_FOREACH(l_net->pub.chains, l_chain)
-                l_chain->is_datum_pool_proc = true;
-            log_it(L_INFO,"Root master node role established");
-        } // Master root includes root
-        case NODE_ROLE_ROOT:{
-            // Set to process only zerochain
-            dap_chain_id_t l_chain_id = {{0}};
-            dap_chain_t *l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id);
-            if (l_chain)
-                l_chain->is_datum_pool_proc = true;
-            log_it(L_INFO,"Root node role established");
-        } break;
+        switch ( l_net_pvt->node_role.enums ) {
+        case NODE_ROLE_ROOT_MASTER:
+        /* Processes everything in mempool*/
+            l_chain->is_datum_pool_proc = true;
+            break;
+        case NODE_ROLE_ROOT:
+        /* Processes zerochain only */
+            l_chain->is_datum_pool_proc = !l_chain->id.uint64;
+            break;
         case NODE_ROLE_CELL_MASTER:
-        case NODE_ROLE_MASTER:{
-            uint16_t l_proc_chains_count=0;
-            const char **l_proc_chains = dap_config_get_array_str(l_net->pub.config, "role-master", "proc_chains", &l_proc_chains_count);
-            for (size_t i = 0; i< l_proc_chains_count ; i++) {
-                dap_chain_id_t l_chain_id = {};
-                if (dap_chain_id_parse(l_proc_chains[i], &l_chain_id) == 0) {
-                    dap_chain_t *l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id );
-                    if (l_chain)
-                        l_chain->is_datum_pool_proc = true;
-                    else
-                        log_it(L_WARNING, "Can't find chain id 0x%016" DAP_UINT64_FORMAT_X, l_chain_id.uint64);
-                }
-            }
-            log_it(L_INFO,"Master node role established");
+        case NODE_ROLE_MASTER: {
+        /* Processes specified chains only */
+            uint16_t k = 0;
+            dap_chain_id_t l_chain_id;
+            const char **l_proc_chains = dap_config_get_array_str(l_net->pub.config, "role-master", "proc_chains", &k);
+            while (k--)
+                l_chain->is_datum_pool_proc = ( !dap_chain_id_parse(l_proc_chains[k], &l_chain_id) && (l_chain->id.uint64 == l_chain_id.uint64) );
         } break;
-        case NODE_ROLE_FULL:{
-            log_it(L_INFO,"Full node role established");
-        } break;
-        case NODE_ROLE_LIGHT:
-        default:
-            log_it(L_INFO,"Light node role established");
+        default: break;
 
-    }
-
-    l_net_pvt->balancer_type = dap_config_get_item_bool_default(l_net->pub.config, "general", "use_dns_links", false);
-
-    // Init GlobalDB clusters for mempool, service and nodes (with aliases)
-    char *l_gdb_groups_mask = NULL;
-    DL_FOREACH(l_net->pub.chains, l_chain) {
         // Personal chain mempool cluster for each chain
-        l_gdb_groups_mask = dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix, l_chain->name);
+        snprintf(l_gdb_groups_mask, sizeof(l_gdb_groups_mask), "%s.chain-%s.mempool",
+                                                               l_net->pub.gdb_groups_prefix, l_chain->name);
         dap_global_db_cluster_t *l_cluster = dap_global_db_cluster_add(
                                                 dap_global_db_instance_get_default(), l_net->pub.name,
                                                 dap_guuid_compose(l_net->pub.id.uint64, 0), l_gdb_groups_mask,
                                                 dap_config_get_item_int32_default(l_net->pub.config, "global_db", "mempool_ttl", DAP_CHAIN_NET_MEMPOOL_TTL),
                                                 true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_TYPE_EMBEDDED);
-        if (!l_cluster) {
-            log_it(L_ERROR, "Can't initialize mempool cluster for network %s", l_net->pub.name);
-            l_err_code = -2;
-            goto ret;
-        }
+        dap_return_val_if_fail_err(l_cluster, NULL, "Net \"%s\" loading error %d: can't initialize mempool cluster",
+                                                    l_net->pub.name, -2);
         dap_chain_net_add_auth_nodes_to_cluster(l_net, l_cluster);
-        DAP_DELETE(l_gdb_groups_mask);
         if (l_net->pub.chains == l_chain)   // Pointer for first mempool cluster in global double-linked list of clusters
             l_net_pvt->mempool_clusters = l_cluster;
     }
+    dap_ledger_load_end(l_net->pub.ledger);
+    log_it(L_INFO, "Node role \"%s\" established in net %s", dap_chain_node_role_to_str(l_net_pvt->node_role.enums), l_net->pub.name);
+    l_net_pvt->state_target = NET_STATE_OFFLINE;
+
+    // Init GlobalDB clusters for service and nodes (with aliases)
     // Service orders cluster
-    l_gdb_groups_mask = dap_strdup_printf("%s.service.orders", l_net->pub.gdb_groups_prefix);
+    snprintf(l_gdb_groups_mask, sizeof(l_gdb_groups_mask), "%s.service.orders", l_net->pub.gdb_groups_prefix);
     l_net_pvt->orders_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                           l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                           l_gdb_groups_mask, 0, true,
                                                           DAP_GDB_MEMBER_ROLE_GUEST,
                                                           DAP_CLUSTER_TYPE_EMBEDDED);
-    if (!l_net_pvt->orders_cluster) {
-        log_it(L_ERROR, "Can't initialize orders cluster for network %s", l_net->pub.name);
-        goto ret;
-    }
+    dap_return_val_if_fail_err(l_net_pvt->orders_cluster, NULL, "Net \"%s\" loading error %d: can't initialize orders cluster",
+                                                                l_net->pub.name, -3);
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->orders_cluster);
-    DAP_DELETE(l_gdb_groups_mask);
     // Common orders cluster
-    l_gdb_groups_mask = dap_strdup_printf("%s.orders", l_net->pub.gdb_groups_prefix);
+    snprintf(l_gdb_groups_mask, sizeof(l_gdb_groups_mask), "%s.orders", l_net->pub.gdb_groups_prefix);
     l_net_pvt->common_orders = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                           l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                           l_gdb_groups_mask, 0, true,
                                                           DAP_GDB_MEMBER_ROLE_USER,
                                                           DAP_CLUSTER_TYPE_EMBEDDED);
-    if (!l_net_pvt->common_orders) {
-        log_it(L_ERROR, "Can't initialize orders cluster for network %s", l_net->pub.name);
-        goto ret;
-    }
+    dap_return_val_if_fail_err(l_net_pvt->common_orders, NULL, "Net \"%s\" loading error %d: can't initialize common orders cluster"
+                                                               l_net->pub.name, -4);
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->common_orders);
-    DAP_DELETE(l_gdb_groups_mask);
     // Node states cluster
-    l_gdb_groups_mask = dap_strdup_printf("%s.nodes.states", l_net->pub.gdb_groups_prefix);
+    snprintf(l_gdb_groups_mask, sizeof(l_gdb_groups_mask), "%s.nodes.states", l_net->pub.gdb_groups_prefix);
     l_net_pvt->nodes_states = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                         l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                         l_gdb_groups_mask, DAP_CHAIN_NET_NODES_TTL, true,
                                                         DAP_GDB_MEMBER_ROLE_USER,
                                                         DAP_CLUSTER_TYPE_EMBEDDED);
-    DAP_DELETE(l_gdb_groups_mask);
+    dap_return_val_if_fail_err(l_net_pvt->nodes_states, NULL, "Net \"%s\" loading error %d: can't initialize node states cluster"
+                                                               l_net->pub.name, -5);
     // Nodes and its aliases cluster
     snprintf(l_net->pub.gdb_nodes, sizeof(l_net->pub.gdb_nodes), "%s.%s", l_net->pub.gdb_groups_prefix, s_gdb_nodes_postfix);
     l_net_pvt->nodes_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
@@ -2171,19 +2122,14 @@ static void *s_net_load(void *a_arg)
                                                          l_net->pub.gdb_nodes, 7200, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
                                                          DAP_CLUSTER_TYPE_EMBEDDED);
-    if (!l_net_pvt->nodes_cluster) {
-        log_it(L_ERROR, "Can't initialize nodes cluster for network %s", l_net->pub.name);
-        l_err_code = -3;
-        goto ret;
-    }
+    dap_return_val_if_fail_err(l_net_pvt->nodes_cluster, NULL, "Net \"%s\" loading error %d: can't initialize nodes cluster"
+                                                               l_net->pub.name, -6);
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->nodes_cluster);
     dap_chain_net_add_nodelist_notify_callback(l_net, s_nodelist_change_notify, l_net);
 
-    if (dap_link_manager_add_net(l_net->pub.id.uint64, l_net_pvt->nodes_cluster->links_cluster,
-                                dap_config_get_item_uint16_default(l_net->pub.config,
-                                                                   "general", "links_required", 3))) {
+    if ( dap_link_manager_add_net(l_net->pub.id.uint64, l_net_pvt->nodes_cluster->links_cluster,
+                                  dap_config_get_item_uint16_default(l_net->pub.config, "general", "links_required", 3)) )
         log_it(L_WARNING, "Can't add net %s to link manager", l_net->pub.name);
-    }
 
     DL_FOREACH(l_net->pub.chains, l_chain)
         dap_chain_cs_load(l_chain, l_net->pub.config);
@@ -2215,12 +2161,9 @@ static void *s_net_load(void *a_arg)
     l_net_pvt->sync_context.sync_idle_time = dap_config_get_item_uint32_default(g_config, "chain", "sync_idle_time", 60);
     dap_proc_thread_timer_add(NULL, s_sync_timer_callback, l_net, c_sync_timer_period);
 
-    log_it(L_INFO, "Chain network \"%s\" initialized", l_net->pub.name);
+    log_it(L_INFO, "Network \"%s\" initialized", l_net->pub.name);
     l_net_pvt->state = NET_STATE_OFFLINE;
-ret:
-    if (l_err_code)
-        log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net->pub.name, l_err_code);
-    return NULL;
+    return l_net;
 }
 
 dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain)

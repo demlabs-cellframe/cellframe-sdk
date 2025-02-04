@@ -71,15 +71,16 @@ typedef struct dap_chain_datum_iter {
 } dap_chain_datum_iter_t;
 
 typedef enum dap_chain_atom_verify_res{
-    ATOM_ACCEPT = 0, ATOM_PASS, ATOM_REJECT, ATOM_MOVE_TO_THRESHOLD, ATOM_FORK
+    ATOM_ACCEPT = 0, ATOM_PASS, ATOM_REJECT, ATOM_MOVE_TO_THRESHOLD, ATOM_FORK, ATOM_CORRUPTED
 } dap_chain_atom_verify_res_t;
 
 static const char* const dap_chain_atom_verify_res_str[] = {
-    [ATOM_ACCEPT]   = "accepted",
-    [ATOM_PASS]     = "skipped",
-    [ATOM_REJECT]   = "rejected",
-    [ATOM_MOVE_TO_THRESHOLD] = "thresholded",
-    [ATOM_FORK] = "forked"
+    [ATOM_ACCEPT]           = "accepted",
+    [ATOM_PASS]             = "skipped",
+    [ATOM_REJECT]           = "rejected",
+    [ATOM_MOVE_TO_THRESHOLD]= "thresholded",
+    [ATOM_FORK]             = "forked",
+    [ATOM_CORRUPTED]        = "corrupted"
 };
 
 typedef enum dap_chain_iter_op {
