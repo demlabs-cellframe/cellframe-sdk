@@ -75,13 +75,14 @@ typedef struct dap_chain_node_net_states_info {
 #define node_info_v1_shift ( sizeof(uint16_t) + 16 + sizeof(dap_chain_node_role_t) )
 
 enum hardfork_state {
-    STATE_ANCHORS = 0,
+    STATE_START = 0,
+    STATE_ANCHORS,
     STATE_BALANCES,
     STATE_CONDOUTS,
     STATE_FEES,
     STATE_SERVICES,
     STATE_MEMPOOL,
-    STATE_OVER
+    STATE_FINISH
 };
 
 struct hardfork_states {
@@ -524,6 +525,7 @@ dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t
         }
         dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SERVICE_STATE, l_ptr, sizeof(dap_chain_datum_service_state_t) + l_cur_step_size);
         ((dap_chain_datum_service_state_t *)l_datum->data)->srv_uid = a_state->uid;
+        ((dap_chain_datum_service_state_t *)l_datum->data)->state_size = a_state->size;
         ((dap_chain_datum_service_state_t *)l_datum->data)->states_count = i;
         ret = DAP_REALLOC_RET_VAL_IF_FAIL(ret, sizeof(dap_chain_datum_t *) * (++l_datums_count), NULL, NULL);
         ret[l_datums_count - 1] = l_datum;
@@ -668,6 +670,8 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         return log_it(L_ERROR, "Can't process chain with no harfork data. Use dap_chain_node_hardfork_prepare() for collect it first"), -2;
     struct hardfork_states *l_states = a_chain->hardfork_data;
     switch (l_states->state_current) {
+    case STATE_START:
+        l_states->state_current = STATE_ANCHORS;
     case STATE_ANCHORS:
         for (dap_ledger_hardfork_anchors_t *it = l_states->anchors; it; it = it->next) {
             dap_chain_datum_t *l_datum_anchor = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, it->anchor, dap_chain_datum_anchor_get_size(it->anchor));
@@ -793,9 +797,9 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         dap_store_obj_free(l_objs, l_objs_count);
         DAP_DELETE(l_gdb_group_mempool);
         if (l_nothing_processed)
-            l_states->state_current = STATE_OVER;
+            l_states->state_current = STATE_FINISH;
     }
-    case STATE_OVER:
+    case STATE_FINISH:
         break;
     // No default here
     }
@@ -937,6 +941,10 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
                     l_conitional.hash = *(dap_hash_fast_t *)l_tsd->data;
                     break;
                 case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TICKER:
+                    if (!l_tsd->size || l_tsd->size > DAP_CHAIN_TICKER_SIZE_MAX) {
+                        log_it(L_WARNING, "Illegal harfork datum tx TSD TICKER size %u", l_tsd->size);
+                        return -8;
+                    }
                     dap_stpcpy((char *)l_conitional.ticker, (char *)l_tsd->data);
                     break;
                 case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER:

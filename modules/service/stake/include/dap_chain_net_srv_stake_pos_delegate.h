@@ -39,6 +39,7 @@ typedef struct dap_chain_net_srv_stake_item { // TODO move it to private section
     uint256_t value;
     dap_chain_addr_t signing_addr;
     dap_chain_hash_fast_t tx_hash;
+    dap_chain_hash_fast_t decree_hash;
     dap_chain_node_addr_t node_addr;
     dap_chain_addr_t sovereign_addr;
     uint256_t sovereign_tax;
@@ -49,7 +50,7 @@ typedef struct dap_chain_net_srv_stake_item { // TODO move it to private section
 int dap_chain_net_srv_stake_pos_delegate_init();
 void dap_chain_net_srv_stake_pos_delegate_deinit();
 
-void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_hash_fast_t *a_stake_tx_hash,
+void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_chain_datum_decree_t *a_decree,
                                           uint256_t a_value, dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey);
 void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr);
 void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint256_t a_new_value, dap_hash_fast_t *a_new_tx_hash);
@@ -79,3 +80,5 @@ uint256_t dap_chain_net_srv_stake_get_total_weight(dap_chain_net_id_t a_net_id, 
 size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_t *a_in_active_count);
 void dap_chain_net_srv_stake_add_approving_decree_info(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net);
 void dap_chain_net_srv_stake_remove_approving_decree_info(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr);
+int dap_chain_net_srv_stake_hardfork_data_export(dap_chain_net_t *a_net, dap_list_t **a_out);
+int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_hardfork_decree_hash);

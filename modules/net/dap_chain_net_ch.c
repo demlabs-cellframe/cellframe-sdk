@@ -231,7 +231,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
 
             if (l_enc_key_pvt) {
                 flags = flags | F_CERT;//faund sert
-                l_sign = dap_sign_create(l_enc_key_pvt, (uint8_t*)l_ch_chain_net_pkt->data, l_ch_chain_net_pkt->hdr.data_size, DAP_SIGN_HASH_TYPE_DEFAULT);
+                l_sign = dap_sign_create(l_enc_key_pvt, (uint8_t*)l_ch_chain_net_pkt->data, l_ch_chain_net_pkt->hdr.data_size);
                 if (l_sign) {
                     sign_s = dap_sign_get_size(l_sign);
                     flags = flags | D_SIGN;//data signed
