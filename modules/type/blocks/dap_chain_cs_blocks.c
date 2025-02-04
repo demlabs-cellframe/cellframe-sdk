@@ -268,6 +268,9 @@ int dap_chain_cs_blocks_init()
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL, NULL, NULL, NULL);
     log_it(L_NOTICE ,"Initialized blocks(m) chain type");
 
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK, s_fee_verificator_callback, NULL, NULL, NULL, NULL, NULL);
+    log_it(L_NOTICE ,"Initialized blocks(m) chain type verificator for fee stack subtype");
+
     return 0;
 }
 
