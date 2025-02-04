@@ -25,6 +25,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #pragma once
 
 #include "dap_common.h"
+#include "dap_chain.h"
 
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS            1
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM     (1 << 1)
@@ -47,3 +48,4 @@ typedef struct dap_chain_policy {
 int dap_chain_policy_net_add(uint64_t a_net_id);
 int dap_chain_policy_net_remove(uint64_t a_net_id);
 int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id);
+int dap_chain_policy_add_to_exception_list(uint32_t a_policy_num, uint64_t a_net_id);

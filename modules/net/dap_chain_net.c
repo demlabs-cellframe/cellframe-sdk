@@ -767,6 +767,30 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
                                 l_net_name_str),
                 NULL;
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, l_net_name_str);
+    
+    if (dap_chain_policy_net_add(l_ret->pub.id.uint64)) {
+        log_it(L_ERROR, "Can't add net %s to policy module", l_ret->pub.name);
+        DAP_DEL_MULTY(l_ret->pub.name, l_ret);
+        return NULL;
+    }
+    uint16_t l_policy_count = 0;
+    char **l_policy_str = dap_config_get_array_str(a_cfg, "policy", "activate", &l_policy_count);
+
+    for (uint16_t i = 0; i < l_policy_count; ++i) {
+        dap_chain_policy_t *l_new_policy = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_policy_t, NULL, l_ret->pub.name, l_ret); 
+        l_new_policy->num = strtoll(l_policy_str[i], NULL, 10);
+        dap_chain_policy_add(l_new_policy, l_ret->pub.id.uint64);
+    }
+
+    l_policy_str = dap_config_get_array_str(a_cfg, "policy", "deactivate", &l_policy_count);
+
+    for (uint16_t i = 0; i < l_policy_count; ++i) {
+        dap_chain_policy_add_to_exception_list(strtoll(l_policy_str[i], NULL, 10), l_ret->pub.id.uint64);
+    }
+
+    l_policy_count = 0;
+    dap_config_get_array_str(a_cfg, "policy", "deactivate", &l_policy_count);
+    
     l_ret->pub.config = a_cfg;
     l_ret->pub.gdb_groups_prefix
         = dap_config_get_item_str_default( a_cfg, "general", "gdb_groups_prefix", dap_config_get_item_str(a_cfg, "general", "name") );
@@ -2027,12 +2051,6 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
 
     // init LEDGER model
     l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
-    if (dap_chain_policy_net_add(l_net->pub.id.uint64)) {
-        log_it(L_ERROR, "Can't add net %s to policy module", l_net->pub.name);
-        dap_chain_net_delete(l_net);
-        dap_config_close(l_cfg);
-        return -6;
-    }
     return 0;
 }
 
