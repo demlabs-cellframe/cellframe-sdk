@@ -2251,6 +2251,7 @@ static void *s_net_load(void *a_arg)
 ret:
     if (l_err_code)
         log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net->pub.name, l_err_code);
+    s_check_pinned_db_objs_callback();
     return NULL;
 }
 
