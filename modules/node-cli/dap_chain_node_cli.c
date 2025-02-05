@@ -426,6 +426,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "file clear_log\n"
                 "\t CAUTION !!! This command will clear the entire log file\n");
 
+    dap_cli_server_cmd_add ("policy", com_policy, "Policy commands", "QQQ");
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
                 "exit\n" );

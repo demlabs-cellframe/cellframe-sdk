@@ -39,7 +39,10 @@ typedef struct dap_chain_policy {
     int64_t ts_stop;
     uint64_t block_start;
     uint64_t block_stop;
-    dap_chain_t *chain;
+    union {
+        dap_chain_id_t chain_id;
+        dap_chain_t *chain;
+    } chain_union;
     uint64_t description_size;
     uint32_t policies_deactivate_count;
     char data[];
@@ -49,6 +52,7 @@ int dap_chain_policy_net_add(uint64_t a_net_id);
 int dap_chain_policy_net_remove(uint64_t a_net_id);
 int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id);
 int dap_chain_policy_add_to_exception_list(uint32_t a_policy_num, uint64_t a_net_id);
+uint32_t dap_chain_policy_get_last_num(uint64_t a_net_id);
 
 DAP_STATIC_INLINE size_t dap_chain_policy_get_size(dap_chain_policy_t *a_policy)
 {

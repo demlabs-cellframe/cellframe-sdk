@@ -781,6 +781,7 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     for (uint16_t i = 0; i < l_policy_count; ++i) {
         dap_chain_policy_t *l_new_policy = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_policy_t, NULL, l_ret->pub.name, l_ret); 
         l_new_policy->num = strtoll(l_policy_str[i], NULL, 10);
+        l_new_policy->flags = DAP_FLAG_ADD(l_new_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_CONFIG);
         dap_chain_policy_add(l_new_policy, l_ret->pub.id.uint64);
     }
 

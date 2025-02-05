@@ -26,7 +26,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_list.h"
 #include "uthash.h"
 
-static const char LOG_TAG[] = "dap_chain_policy";
+#define LOG_TAG "dap_chain_policy"
 
 struct policy_net_list_item {
     uint64_t net_id;
@@ -36,7 +36,6 @@ struct policy_net_list_item {
 };
 
 static dap_list_t *s_net_list = NULL;
-
 
 /**
  * @brief search net element in list by id
@@ -56,6 +55,15 @@ DAP_STATIC_INLINE int s_policy_num_compare(dap_list_t  *a_list1, dap_list_t  *a_
 {
     return ((dap_chain_policy_t *)(a_list1->data))->num == ((dap_chain_policy_t *)(a_list2->data))->num ? 0 :
         ((dap_chain_policy_t *)(a_list1->data))->num > ((dap_chain_policy_t *)(a_list2->data))->num ? 1 : -1;
+}
+
+/**
+ * @brief init policy commands
+ * @return 0 if pass, other if error
+ */
+int dap_chain_policy_init()
+{
+    return 0;
 }
 
 /**
@@ -98,15 +106,6 @@ int dap_chain_policy_net_remove(uint64_t a_net_id)
 }
 
 /**
- * @brief init policies to all inited nets, should launch before nets loading
- * @return 0 if pass, other if error
- */
-int dap_chain_policy_init()
-{
-    return 0;
-}
-
-/**
  * @brief add new policy
  * @param a_policy_num
  * @param a_net_id net id
@@ -123,6 +122,10 @@ int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id)
     if (dap_list_find(l_net_item->policies, a_policy, s_policy_num_compare)) {
         log_it(L_ERROR, "CN-%u already added to net %"DAP_UINT64_FORMAT_X, a_policy->num, a_net_id);
         return -3;
+    }
+    if (a_policy->num < l_net_item->last_num_policy) {
+        log_it(L_ERROR, "Can't add policy CN-%u, it's less than already added last num %u in net %"DAP_UINT64_FORMAT_X, a_policy->num, l_net_item->last_num_policy, a_net_id);
+        return -4;
     }
     l_net_item->policies = dap_list_insert_sorted(l_net_item->policies, a_policy, s_policy_num_compare);
     for (size_t i = 0; i < a_policy->policies_deactivate_count; ++i) {
@@ -160,7 +163,7 @@ int dap_chain_policy_add_to_exception_list(uint32_t a_policy_num, uint64_t a_net
 /**
  * @brief check policy activation
  * @param a_policy_num
- * @param a_net pointer to net
+ * @param a_net_id net id
  * @return true if yes, false if no
  */
 bool dap_chain_policy_activated(uint32_t a_policy_num, uint64_t a_net_id)
@@ -180,17 +183,30 @@ bool dap_chain_policy_activated(uint32_t a_policy_num, uint64_t a_net_id)
         log_it(L_ERROR, "Can't find CN-%u in net %"DAP_UINT64_FORMAT_X, a_policy_num, a_net_id);
         return l_ret;
     }
-    if (DAP_CHECK_FLAG(l_policy_item->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS)) {
+    if (DAP_FLAG_CHECK(l_policy_item->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS)) {
         time_t l_current_time = dap_time_now();
         if (l_current_time < l_policy_item->ts_start || (l_policy_item->ts_stop && l_current_time > l_policy_item->ts_stop))
             return l_ret;
     }
-    if (DAP_CHECK_FLAG(l_policy_item->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM)) {
-        if (!l_policy_item->chain) {
+    if (DAP_FLAG_CHECK(l_policy_item->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM)) {
+        if (!l_policy_item->chain_union.chain) {
             log_it(L_ERROR, "Chain is null in policy item with upped DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM flag");
             return l_ret;
         }
-        if ( l_policy_item->chain->atom_num_last < l_policy_item->block_start || (l_policy_item->block_stop && l_policy_item->chain->atom_num_last > l_policy_item->block_stop))
+        if ( l_policy_item->chain_union.chain->atom_num_last < l_policy_item->block_start || (l_policy_item->block_stop && l_policy_item->chain_union.chain->atom_num_last > l_policy_item->block_stop))
             return l_ret;
     }
+    return true;
+}
+
+/**
+ * @brief return last policy num in enet
+ * @param a_net_id net id to search
+ * @return last num
+ */
+DAP_INLINE uint32_t dap_chain_policy_get_last_num(uint64_t a_net_id)
+{
+    struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
+    dap_return_val_if_pass(!l_net_item, 0);
+    return l_net_item->last_num_policy;
 }
