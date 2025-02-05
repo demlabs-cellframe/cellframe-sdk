@@ -704,7 +704,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             for (i = 0; i < l_objs_count; ++i) {
                 if (!l_obj[i].key)
                     continue;
-                if (!dap_global_db_del_sync(l_group_str, l_obj[i].key)) {
+                if (!dap_global_db_del_sync_ex(l_group_str, l_obj[i].key, DAP_GLOBAL_DB_MANUAL_DEL, strlen(DAP_GLOBAL_DB_MANUAL_DEL)+1)) {
                     ++j;
                 }
             }
