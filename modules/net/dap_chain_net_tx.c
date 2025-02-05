@@ -825,19 +825,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                         }
                     }
                 }break;                    
-                case TX_ITEM_TYPE_IN_EMS: {
-                    dap_chain_id_t l_chain_id;
-                    bool l_is_chain_id = s_json_get_int64(l_json_item_obj, "chain_id", l_chain_id.uint64);
-
-                    const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
-                    if (l_json_item_token && dap_strcmp(l_json_item_token, l_native_token)){
-                        l_multichanel = true;
-                        l_main_token = l_json_item_token;
-                        break;
-                    }
-                    dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(l_chain_id, &l_blank_hash, a_delegated_ticker_str);
-
-                }break;
+                case TX_ITEM_TYPE_IN_EMS:
                 case TX_ITEM_TYPE_IN_REWARD:
                 default: continue;
             }
@@ -899,6 +887,44 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             }
         }
             break;
+
+        case TX_ITEM_TYPE_IN_EMS:{
+            dap_chain_id_t l_chain_id;
+            bool l_is_chain_id = s_json_get_int64(l_json_item_obj, "chain_id", l_chain_id.uint64);
+
+            const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
+            if (l_json_item_token && l_is_chain_id){
+                dap_hash_fast_t l_blank_hash = {};
+                dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(l_chain_id, &l_blank_hash, l_json_item_token);
+                l_item = (const uint8_t*) l_in_ems;
+            } else {
+                char *l_str_err = NULL;
+                if (!l_is_chain_id) {
+                    log_it(L_WARNING, "Invalid 'in_ems' item, can't read chain_id");
+                    l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in_ems' item, can't read chain_id");
+                }
+                if (!l_json_item_token){
+                    log_it(L_WARNING, "Invalid 'in_ems' item, bad token");
+                    l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in_ems' item, bad token");
+                }
+                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
+            }
+        } break;
+
+        case TX_ITEM_TYPE_IN_REWARD:{
+            const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
+            int64_t l_out_prev_idx;
+            bool l_is_out_prev_idx = s_json_get_int64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
+            // If prev_hash and out_prev_idx were read
+            if(l_prev_hash_str && l_is_out_prev_idx) {
+                dap_chain_hash_fast_t l_tx_prev_hash;
+                if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
+                    // Create IN item
+                }
+            }
+
+        } break;
 
         case TX_ITEM_TYPE_OUT:
         case TX_ITEM_TYPE_OUT_EXT: {
