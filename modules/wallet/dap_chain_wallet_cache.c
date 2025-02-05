@@ -389,7 +389,7 @@ int dap_chain_wallet_cache_tx_find_outs(dap_chain_net_t *a_net, const char *a_to
     dap_wallet_cache_t *l_wallet_item = NULL;
     pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
     HASH_FIND(hh, s_wallets_cache, a_addr, sizeof(dap_chain_addr_t), l_wallet_item);
-    if (!l_wallet_item){
+    if (!l_wallet_item|| l_wallet_item->is_loading){
         log_it(L_ERROR, "Can't find wallet with address %s", dap_chain_addr_to_str_static(a_addr));
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
         return -101;
