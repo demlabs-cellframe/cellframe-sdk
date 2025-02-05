@@ -905,16 +905,16 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             uint8_t* l_prev_item = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_prev_idx);
             if (!l_prev_item)
                 continue;
-            uint8_t l_out_type = *(uint8_t *)l_tx_item;
+            uint8_t l_out_type = *(uint8_t *)l_prev_item;
             switch(l_out_type){
                 case TX_ITEM_TYPE_OUT_OLD: {
-                    l_value = GET_256_FROM_64(((dap_chain_tx_out_old_t*)l_tx_item)->header.value);
-                    l_addr_from = ((dap_chain_tx_out_old_t*)l_tx_item)->addr;
+                    l_value = GET_256_FROM_64(((dap_chain_tx_out_old_t*)l_prev_item)->header.value);
+                    l_addr_from = ((dap_chain_tx_out_old_t*)l_prev_item)->addr;
                 } break;
                 case TX_ITEM_TYPE_OUT:
                 case TX_ITEM_TYPE_OUT_EXT: {
-                    l_value = ((dap_chain_tx_out_ext_t*)l_tx_item)->header.value;
-                    l_addr_from = ((dap_chain_tx_out_ext_t*)l_tx_item)->addr;
+                    l_value = ((dap_chain_tx_out_ext_t*)l_prev_item)->header.value;
+                    l_addr_from = ((dap_chain_tx_out_ext_t*)l_prev_item)->addr;
                 } break;
                 default:
                     continue;
