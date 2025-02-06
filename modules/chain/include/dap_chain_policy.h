@@ -59,10 +59,9 @@ int dap_chain_policy_net_remove(uint64_t a_net_id);
 int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id);
 int dap_chain_policy_add_to_exception_list(uint32_t a_policy_num, uint64_t a_net_id);
 uint32_t dap_chain_policy_get_last_num(uint64_t a_net_id);
+int dap_chain_policy_cli(int argc, char **argv, void **reply);
 
 DAP_STATIC_INLINE size_t dap_chain_policy_get_size(dap_chain_policy_t *a_policy_exec)
 {
     return a_policy_exec ? a_policy_exec->deactivate.count * sizeof(uint32_t) + sizeof(dap_chain_policy_t) : 0;
 }
-
-json_object *s_json_collect_policy(dap_chain_policy_t *a_policy);
