@@ -632,8 +632,8 @@ const char *l_ban_addr;
                 return -105;
             }
             l_policy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_policy, dap_chain_policy_get_size(l_policy), -106);
-            if (DAP_FLAG_CHECK(l_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM))
-                l_policy->chain_union.chain = dap_chain_find_by_id(a_net->pub.id, l_policy->chain_union.chain_id);
+            if (DAP_FLAG_CHECK(l_policy->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM))
+                l_policy->activate.chain_union.chain = dap_chain_find_by_id(a_net->pub.id, l_policy->activate.chain_union.chain_id);
             return dap_chain_policy_add(l_policy, a_net->pub.id.uint64);
         default:
             return -1;

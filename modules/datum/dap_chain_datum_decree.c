@@ -28,6 +28,7 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_common.h"
+#include "dap_chain_policy.h"
 #ifdef DAP_OS_UNIX
 #include <arpa/inet.h>
 #endif
@@ -193,7 +194,7 @@ dap_pkey_t *dap_chain_datum_decree_get_pkey(dap_chain_datum_decree_t *a_decree)
 dap_chain_policy_t *dap_chain_datum_decree_get_policy(dap_chain_datum_decree_t *a_decree)
 {
     dap_return_val_if_fail(a_decree, NULL);
-    dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY);
+    dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE);
     return (l_tsd  && dap_chain_policy_get_size((dap_chain_policy_t *)l_tsd->data) == l_tsd->size) ? (dap_chain_policy_t *)l_tsd->data : NULL;
 }
 
@@ -372,6 +373,13 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             uint64_t l_num = 0;
             _dap_tsd_get_scalar(l_tsd, &l_type);
             json_object_object_add(a_json_out, "Signature type", json_object_new_uint64(l_num));
+            break;
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE:
+            if (l_tsd->size != dap_chain_policy_get_size((dap_chain_policy_t *)(l_tsd->data))) {
+                json_object_object_add(a_json_out, "Policy num", json_object_new_string("WRONG SIZE"));
+                break;
+            }
+            json_object_object_add(a_json_out, "Policy num", json_object_new_uint64(((dap_chain_policy_t *)(l_tsd->data))->activate.num));
             break;
         default:
             json_object_object_add(a_json_out, "UNKNOWN_TYPE_TSD_SECTION", json_object_new_string(""));

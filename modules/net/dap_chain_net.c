@@ -775,24 +775,21 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
         DAP_DEL_MULTY(l_ret->pub.name, l_ret);
         return NULL;
     }
-    uint16_t l_policy_count = 0;
-    char **l_policy_str = dap_config_get_array_str(a_cfg, "policy", "activate", &l_policy_count);
-
-    for (uint16_t i = 0; i < l_policy_count; ++i) {
+    // activate policy
+    uint32_t l_policy_num = dap_config_get_item_uint32(a_cfg, "policy", "activate");
+    if (l_policy_num) {
         dap_chain_policy_t *l_new_policy = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_policy_t, NULL, l_ret->pub.name, l_ret); 
-        l_new_policy->num = strtoll(l_policy_str[i], NULL, 10);
-        l_new_policy->flags = DAP_FLAG_ADD(l_new_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_CONFIG);
+        l_new_policy->version = DAP_CHAIN_POLICY_VERSION;
+        l_new_policy->activate.num = l_policy_num;
+        l_new_policy->activate.flags = DAP_FLAG_ADD(l_new_policy->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_CONFIG);
         dap_chain_policy_add(l_new_policy, l_ret->pub.id.uint64);
     }
-
-    l_policy_str = dap_config_get_array_str(a_cfg, "policy", "deactivate", &l_policy_count);
-
+    // deactivate policy
+    uint16_t l_policy_count = 0;
+    char **l_policy_str = dap_config_get_array_str(a_cfg, "policy", "deactivate", &l_policy_count);
     for (uint16_t i = 0; i < l_policy_count; ++i) {
         dap_chain_policy_add_to_exception_list(strtoll(l_policy_str[i], NULL, 10), l_ret->pub.id.uint64);
     }
-
-    l_policy_count = 0;
-    dap_config_get_array_str(a_cfg, "policy", "deactivate", &l_policy_count);
     
     l_ret->pub.config = a_cfg;
     l_ret->pub.gdb_groups_prefix
