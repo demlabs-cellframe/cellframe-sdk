@@ -659,6 +659,9 @@ static dap_pkey_t* s_json_get_pkey(struct json_object *a_json)
     return l_pub_key;
 }
 
+#define dap_chain_datum_tx_add_new_generic(a_tx, type, a_item) \
+    ({ type* item = a_item; item ? ( dap_chain_datum_tx_add_item(a_tx, item), DAP_DELETE(item), 1 ) : -1; })
+
 int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
                                         dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready)
 {
@@ -687,7 +690,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     }
 
-    log_it(L_ERROR, "Json TX: found %lu items", l_items_count);
+    log_it(L_NOTICE, "Json TX: found %lu items", l_items_count);
     // Create transaction
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     if(!l_tx) {
@@ -782,7 +785,16 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                     }
                 }break;
                 case TX_ITEM_TYPE_IN_COND:                    
-                case TX_ITEM_TYPE_IN_EMS:
+                case TX_ITEM_TYPE_IN_EMS: {
+                    const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
+                    if (l_json_item_token){
+                        if (dap_strcmp(l_json_item_token, l_native_token)){
+                            l_multichanel = true;
+                            l_main_token = l_json_item_token;
+                            break;
+                        }
+                    }
+                }break;
                 case TX_ITEM_TYPE_IN_REWARD:
                 default: continue;
             }
@@ -884,7 +896,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         }break;
         case TX_ITEM_TYPE_IN_EMS:{
             dap_chain_id_t l_chain_id;
-            bool l_is_chain_id = s_json_get_int64(l_json_item_obj, "chain_id", l_chain_id.uint64);
+            bool l_is_chain_id = s_json_get_int64(l_json_item_obj, "chain_id", &l_chain_id.uint64);
 
             const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
             if (l_json_item_token && l_is_chain_id){
@@ -951,8 +963,8 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                             if (l_out_item){
                                 if (l_multichanel && !dap_strcmp(((dap_chain_tx_out_ext_t*)l_out_item)->token, l_native_token))
                                     SUM_256_256(l_value_need_fee, l_value, &l_value_need_fee);
-                                else
-                                    SUM_256_256(l_value_need, l_value, &l_value_need);
+                                //else
+                                    //SUM_256_256(l_value_need, l_value, &l_value_need);
                             }
                         } else {
                             l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_create(l_addr, l_value);
@@ -983,8 +995,8 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                                 if (l_out_item){
                                     if (l_multichanel && !dap_strcmp(l_token, l_native_token))
                                         SUM_256_256(l_value_need_fee, l_value, &l_value_need_fee);
-                                    else 
-                                        SUM_256_256(l_value_need, l_value, &l_value_need);
+                                    //else 
+                                        //SUM_256_256(l_value_need, l_value, &l_value_need);
                                 }
                             } else {
                                 l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
