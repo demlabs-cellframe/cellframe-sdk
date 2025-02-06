@@ -2759,7 +2759,7 @@ static int s_load_state_from_datum(dap_chain_net_id_t a_net_id, dap_chain_datum_
  * @param a_datum_size
  * @return
  */
-int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data, bool a_hardfork_related)
+int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data)
 {
     size_t l_datum_data_size = a_datum->header.data_size;
     if (a_datum_size != l_datum_data_size + sizeof(a_datum->header)) {
@@ -2802,12 +2802,12 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 log_it(L_WARNING, "Corrupted transaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
                 return -102;
             }
-            return dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data, a_hardfork_related);
+            return dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
         }
         case DAP_CHAIN_DATUM_CA:
             return dap_cert_chain_file_save(a_datum, a_chain->net_name);
         case DAP_CHAIN_DATUM_SERVICE_STATE:
-            return a_hardfork_related ? s_load_state_from_datum(a_chain->net_id, a_datum, a_datum_hash) : -601;
+            return l_ledger->is_hardfork_state ? s_load_state_from_datum(a_chain->net_id, a_datum, a_datum_hash) : -601;
         case DAP_CHAIN_DATUM_SIGNER:
         case DAP_CHAIN_DATUM_CUSTOM:
             break;

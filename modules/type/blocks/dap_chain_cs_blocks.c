@@ -1554,7 +1554,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
         dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "0", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
         bool is_hardfork_related_block = a_block_cache->generation && a_block_cache->generation == a_blocks->generation;
-        int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data, is_hardfork_related_block);
+        int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED) { // If this is any datum other than a already cached transaction
             l_ret++;
             if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
@@ -1730,10 +1730,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
     switch (ret) {
     case ATOM_ACCEPT:{
-        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        assert(l_net);
         dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
 #ifndef DAP_CHAIN_BLOCKS_TEST
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        assert(l_net);
         if ( !dap_chain_net_get_load_mode(l_net) ) {
             if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL)) < 0 ) {
                 log_it(L_ERROR, "Can't save atom to file, code %d", ret);
@@ -1777,8 +1777,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                         for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
                         if (l_checked_atoms_cnt == 0 && l_tmp) {
                             l_notifier->callback(l_notifier->arg, a_chain, a_chain->active_cell_id, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size);
+#ifndef DAP_CHAIN_BLOCKS_TEST
                             for (size_t i = 0; i < l_tmp->datum_count; i++)
                                 dap_ledger_tx_clear_colour(l_net->pub.ledger, l_tmp->datum_hash + i);
+#endif
                         }
                     }    
 #ifndef DAP_CHAIN_BLOCKS_TEST
@@ -1828,9 +1830,22 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             }
 
         } else {
+            uint8_t *l_generation_meta = dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_GENERATION);
+            l_blocks->generation = l_generation_meta ? *(uint16_t *)l_generation_meta : 0;
+            if (l_blocks->generation) {
+                dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
+                if (!l_hardfork_decree_hash) {
+                    log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
+                    return ATOM_REJECT;
+                }
+                if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // True import
+                    log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
+                    return ATOM_REJECT;
+                }
+            }
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
             ++PVT(l_blocks)->blocks_count;
-            debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
+            debug_if(s_debug_more, L_DEBUG, "Verified genesis atom %p: ACCEPTED", a_atom);
             s_add_atom_datums(l_blocks, l_block_cache);
             dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size);
             dap_chain_atom_add_from_threshold(a_chain);
@@ -1976,6 +1991,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     int ret = ATOM_MOVE_TO_THRESHOLD;
 // Parse metadata
     bool l_is_genesis = dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_GENESIS);
+    uint8_t *l_generation_meta = dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_GENERATION);
+    uint16_t l_generation = l_generation_meta ? *(uint16_t *)l_generation_meta : 0;
     // genesis or seed mode
     if (l_is_genesis) {
 #ifndef DAP_CHAIN_BLOCKS_TEST
@@ -1984,9 +2001,14 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         else if(dap_hash_fast_compare(&l_block_hash, &PVT(l_blocks)->static_genesis_block_hash)
                 && !dap_hash_fast_is_blank(&l_block_hash))
             log_it(L_NOTICE, "Accepting static genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
-        else if (l_blocks->is_hardfork_state) {
+        else if (l_generation) {
             log_it(L_NOTICE, "Accepting hardfork genesis block %s and restore data", dap_hash_fast_to_str_static(a_atom_hash));
-            if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, &a_chain->hardfork_decree_hash)) {
+            dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
+            if (!l_hardfork_decree_hash) {
+                log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
+                return ATOM_REJECT;
+            }
+            if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // Sandbox
                 log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
                 return ATOM_REJECT;
             }
@@ -2069,7 +2091,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         }
     }
 
-    if (ret == ATOM_ACCEPT || (!l_blocks->is_hardfork_state && ret == ATOM_FORK)) {
+    if (ret == ATOM_ACCEPT || (!l_generation && ret == ATOM_FORK)) {
         // 2nd level consensus
         if (l_blocks->callback_block_verify && l_blocks->callback_block_verify(l_blocks, l_block, a_atom_hash, /* Old bug, crutch for it */ a_atom_size)) {
             // Hard accept list
