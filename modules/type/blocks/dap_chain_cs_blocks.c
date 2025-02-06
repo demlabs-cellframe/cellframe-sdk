@@ -2738,7 +2738,7 @@ static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx
 static int s_fee_stack_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t UNUSED_ARG *a_tx_in_hash,
                                       dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool a_owner)
 {
-    return a_owner ? 0 : -1
+    return a_owner ? 0 : -1;
 }
 
 
