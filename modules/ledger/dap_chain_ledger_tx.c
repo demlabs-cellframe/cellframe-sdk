@@ -1213,7 +1213,7 @@ dap_list_t *s_trackers_aggregate(dap_ledger_t *a_ledger, dap_list_t *a_trackers,
  * @param a_from_threshold
  * @return return 1 OK, -1 error
  */
-int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data, bool a_hardfork_related)
+int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
     if(!a_tx) {
         debug_if(g_debug_ledger, L_ERROR, "NULL tx detected");
@@ -1230,7 +1230,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     byte_t *l_item = NULL;
     size_t l_tx_item_size = 0;
 
-    if (a_hardfork_related) {
+    if (a_ledger->is_hardfork_state) {
         TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
             if (*l_item != TX_ITEM_TYPE_TSD)
                 continue;
@@ -1610,7 +1610,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         }
     }
 
-    if (a_hardfork_related) {
+    if (a_ledger->is_hardfork_state) {
         TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
             if (*l_item != TX_ITEM_TYPE_TSD)
                 continue;
@@ -1982,7 +1982,7 @@ FIN:
     return l_ret;
 }
 
-int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data, bool a_hardfork_related)
+int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
 #ifndef DAP_LEDGER_TEST
     if (dap_chain_net_get_load_mode(a_ledger->net)) {
@@ -1998,7 +1998,7 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
             return DAP_LEDGER_CHECK_ALREADY_CACHED;
     }
 #endif
-    return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, a_datum_index_data, a_hardfork_related);
+    return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, a_datum_index_data);
 }
 
 static void s_ledger_stake_lock_cache_update(dap_ledger_t *a_ledger, dap_ledger_stake_lock_item_t *a_stake_lock_item)
