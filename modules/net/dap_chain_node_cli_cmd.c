@@ -717,7 +717,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         }
 
-        if (!dap_global_db_del_sync(l_group_str, l_key_str)) {
+        if (!dap_global_db_del_sync_ex(l_group_str, l_key_str, DAP_GLOBAL_DB_MANUAL_DEL, strlen(DAP_GLOBAL_DB_MANUAL_DEL)+1)) {
             json_object* json_obj_del = json_object_new_object();
             json_object_object_add(json_obj_del, "Record key", json_object_new_string(l_key_str));
             json_object_object_add(json_obj_del, "Group name", json_object_new_string(l_group_str));
