@@ -140,6 +140,7 @@ static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_ato
 static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_block_t *)a_atom)->hdr.ts_created; }
 static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
 static int s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
+static int s_fee_stack_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
 //    Get blocks
 static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size);
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter_t * a_atom_iter , size_t *a_links_size,
@@ -228,8 +229,9 @@ int dap_chain_cs_blocks_init()
 
         "Commission collect:\n"
             "block -net <net_name> [-chain <chain_name>] fee collect"
-            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
+            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value> {-before_hardfork}\n"
                 "\t\t Take delegated part of commission\n\n"
+                "\t\t {-before_hardfork} collect fees from blocks before hardfork\n\n"
 
         "Reward for block signs:\n"
             "block -net <net_name> [-chain <chain_name>] reward set"
@@ -240,8 +242,9 @@ int dap_chain_cs_blocks_init()
                 "\t\t Show base reward for sign for one block at one minute\n\n"
 
             "block -net <net_name> [-chain <chain_name>] reward collect"
-            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
+            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value> {-before_hardfork}\n"
                 "\t\t Take delegated part of reward\n\n"
+                "\t\t {-before_hardfork} collect rewards from blocks before hardfork\n\n"
 
         "Rewards and fees autocollect status:\n"
             "block -net <net_name> [-chain <chain_name>] autocollect status\n"
@@ -265,6 +268,9 @@ int dap_chain_cs_blocks_init()
     }
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL, NULL, NULL, NULL);
     log_it(L_NOTICE ,"Initialized blocks(m) chain type");
+
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK, s_fee_stack_verificator_callback, NULL, NULL, NULL, NULL, NULL);
+    log_it(L_NOTICE ,"Initialized blocks(m) chain type verificator for fee stack subtype");
 
     return 0;
 }
@@ -1191,6 +1197,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hashes", &l_hash_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_value_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-before_hardfork", &l_fee_value_str);
+            int l_before_hardfork = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-before_hardfork", NULL);
 
             if (!l_addr_str) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block %s collect' requires parameter '-addr'", l_subcmd_str);
@@ -1225,17 +1233,23 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block fee collect' requires parameter '-hashes'");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
-            // NOTE: This call will modify source string
-            l_block_list = s_block_parse_str_list((char *)l_hash_str, &l_hashes_count, l_chain);            
-            if (!l_block_list || !l_hashes_count) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR,
-                                            "Block fee collection requires at least one hash to create a transaction");
-                return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
-            }
 
-            char *l_hash_tx = l_subcmd == SUBCMD_FEE
-                ? dap_chain_mempool_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type)
-                : dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
+            char *l_hash_tx = NULL;
+            if (l_before_hardfork == 0) {
+                // NOTE: This call will modify source string
+                l_block_list = s_block_parse_str_list((char *)l_hash_str, &l_hashes_count, l_chain);            
+                if (!l_block_list || !l_hashes_count) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR,
+                                                "Block fee collection requires at least one hash to create a transaction");
+                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
+                }
+                char *l_hash_tx = l_subcmd == SUBCMD_FEE
+                    ? dap_chain_mempool_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type)
+                    : dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
+            } else {
+                char *l_hash_tx = dap_chain_mempool_tx_coll_fee_stack_create(l_blocks, l_cert->enc_key, l_addr, l_fee_value, l_hash_out_type);
+            }
+            
             if (l_hash_tx) {
                 json_object* json_obj_out = json_object_new_object();
                 char *l_val = dap_strdup_printf("TX for %s collection created successfully, hash = %s\n", l_subcmd_str, l_hash_tx);
@@ -2690,7 +2704,7 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
  * @return
  */
 static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t UNUSED_ARG *a_tx_in_hash,
-                                      dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool UNUSED_ARG a_owner)
+                                      dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool a_owner)
 {
     dap_chain_net_t *l_net = a_ledger->net;
     assert(l_net);
@@ -2719,6 +2733,15 @@ static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx
     }
     return -4;
 }
+
+
+static int s_fee_stack_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t UNUSED_ARG *a_tx_in_hash,
+                                      dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool a_owner)
+{
+    return a_owner ? 0 : -1;
+}
+
+
 
 static uint64_t s_callback_count_txs(dap_chain_t *a_chain)
 {
