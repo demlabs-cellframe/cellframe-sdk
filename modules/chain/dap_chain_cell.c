@@ -611,10 +611,8 @@ int dap_chain_cell_open(dap_chain_t *a_chain, const char *a_filename, const char
 #undef m_ret_err
 }
 
-static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_atom, uint64_t a_atom_size)
+static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_atom, uint64_t a_atom_size, char **a_atom_map)
 {
-    dap_return_val_if_fail(a_atom && a_atom_size, -1);
-
     if (a_cell->chain->is_mapped) {
         off_t l_pos = !fseeko(a_cell->file_storage, 0, SEEK_END) ? ftello(a_cell->file_storage) : -1;
         dap_return_val_if_pass_err(l_pos < 0, -1, "Can't get \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X" size, error %d",
@@ -635,24 +633,40 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
     dap_return_val_if_fail_err(
         fwrite(&a_atom_size, sizeof(a_atom_size), 1, a_cell->file_storage) == 1 &&
         fwrite(a_atom,       a_atom_size,         1, a_cell->file_storage) == 1,
-        -3, "Can't write atom (%zu b) to \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X", error %d: \"%s\"",
+        -3, "Can't write atom [%zu b] to \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X", error %d: \"%s\"",
             a_atom_size, a_cell->chain->net_name, a_cell->chain->name, a_cell->id, errno, dap_strerror(errno)
     );
 
     debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG, "After writing an atom of size %lu, stream pos of %s is %lu and map shift is %lu", 
                                             a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
                                             (size_t)(a_cell->map_pos - a_cell->map));
-#ifdef DAP_OS_DARWIN
     fflush(a_cell->file_storage);
+
     if (a_cell->chain->is_mapped) {
+#ifdef DAP_OS_DARWIN 
         if ( MAP_FAILED == (a_cell->map = mmap(a_cell->map, dap_page_roundup(DAP_MAPPED_VOLUME_LIMIT), PROT_READ,
                                             MAP_PRIVATE|MAP_FIXED, fileno(a_cell->file_storage), a_cell->cur_vol_start)) ) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be remapped, errno %d",
                             a_cell->file_storage_path, a_cell->id.uint64, errno);
             return -2;
         }
-    }
+#elif defined DAP_OS_WINDOWS
+        off_t l_off = ftello(a_cell->file_storage);
+        LARGE_INTEGER SectionSize = (LARGE_INTEGER) { .QuadPart = l_off };
+        HANDLE hSection = (HANDLE)a_cell->map_range_bounds->data;
+        NTSTATUS err = pfnNtExtendSection(hSection, &SectionSize);
+        if ( !NT_SUCCESS(err) ) {
+            log_it(L_ERROR, "NtExtendSection() failed, status %lx: \"%s\"",
+                            err, dap_str_ntstatus(err) );
+            return -2;
+        }
 #endif
+        /* Pass ptr to mapped area */
+        if (a_atom_map) {
+            *a_atom_map = a_cell->map_pos += sizeof(uint64_t);
+            a_cell->map_pos += a_atom_size;
+        }
+    }
     return 0;
 }
 
@@ -668,93 +682,21 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
  * @param a_atom_size
  * @return
  */
-ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom, size_t a_atom_size)
+int dap_chain_cell_file_append(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, const void *a_atom, size_t a_atom_size, char **a_atom_map)
 {
-    dap_return_val_if_fail(a_cell, -1);
-    dap_return_val_if_pass_err(!a_atom && !a_cell->chain, -2, "Chain not found for cell 0x%016"DAP_UINT64_FORMAT_X" %s ",
-                                                              a_cell->id.uint64, a_cell->file_storage_path);
-    size_t l_size = 0, l_count = 0;
-    int l_err = -1;
-    pthread_rwlock_wrlock(&a_cell->storage_rwlock);
-    if ( a_atom && a_atom_size ) {
-        //pthread_rwlock_wrlock(a_cell->chain->cell_rwlock);
-        debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG, "Before appending an atom of size %lu, stream pos of %s is %lu, map pos is %lu",
-                      a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
-                      (size_t)(a_cell->map_pos - a_cell->map));
-        
-        if ( !s_cell_file_atom_add(a_cell, a_atom, a_atom_size) ) {
-            ++l_count;
-            l_size = a_atom_size + sizeof(uint64_t);
-            debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG,"After appending an atom of size %lu, stream pos of %s is %lu, map pos is %lu",
-                                                a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
-                                                (size_t)(a_cell->map_end - a_cell->map_pos));
-#ifdef DAP_OS_WINDOWS
-            if (a_cell->chain->is_mapped) {
-                off_t l_off = ftello(a_cell->file_storage);
-                LARGE_INTEGER SectionSize = (LARGE_INTEGER) { .QuadPart = l_off };
-                HANDLE hSection = (HANDLE)a_cell->map_range_bounds->data;
-                NTSTATUS err = pfnNtExtendSection(hSection, &SectionSize);
-                if ( !NT_SUCCESS(err) ) {
-                    log_it(L_ERROR, "NtExtendSection() failed, status %lx: \"%s\"",
-                                    err, dap_str_ntstatus(err) );
-                    l_err = -2;
-                }
-            }
-#endif
-        }
-        //pthread_rwlock_unlock(a_cell->chain->cell_rwlock);
-    } else {
-        if (a_cell->chain->is_mapped) {
-            log_it(L_ERROR, "Unable to rewrite memory-mapped chain");
-            // TODO: do we actually need it besides zerochain reordering issue?
-            pthread_rwlock_unlock(&a_cell->storage_rwlock);
-            return -3;
-        }
-        const char *l_fname = dap_strdup_printf("%"DAP_UINT64_FORMAT_x "." CELL_FILE_EXT
-#ifdef DAP_OS_WINDOWS
-            ".new"
-#endif
-            , a_cell->id.uint64);
-        bool was_mapped = a_cell->chain->is_mapped;
-        a_cell->chain->is_mapped = false;
-        l_err = dap_chain_cell_open(a_cell->chain, l_fname, 'w');
-        DAP_DELETE(l_fname);
-        if (l_err) {
-            log_it(L_ERROR, "Can't open chain \"%s : %s\" cell, code %d", a_cell->chain->net_name, a_cell->chain->name, l_err);
-            pthread_rwlock_unlock(&a_cell->storage_rwlock);
-            return -3;
-        }
-        l_size += sizeof(dap_chain_cell_file_header_t);
-        dap_chain_atom_iter_t *l_atom_iter = a_cell->chain->callback_atom_iter_create(a_cell->chain, a_cell->id, NULL);
-        dap_chain_atom_ptr_t l_atom;
-        uint64_t l_atom_size = 0;
-        //pthread_rwlock_wrlock(a_cell->chain->cell_rwlock);
-        for (l_atom = a_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
-             l_atom && l_atom_size && !( l_err = s_cell_file_atom_add(a_cell, l_atom, l_atom_size) );
-             l_atom = a_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size))
-        {
-            l_size += sizeof(uint64_t) + l_atom_size;
-            ++l_count;
-        }
-        a_cell->chain->callback_atom_iter_delete(l_atom_iter);
-        a_cell->chain->is_mapped = was_mapped;
-        debug_if (s_debug_more && a_cell->chain->is_mapped,L_DEBUG, "After rewriting file %s, stream pos is %lu and map pos is %lu",
-                      a_cell->file_storage_path, ftello(a_cell->file_storage),
-                      (size_t)(a_cell->map_pos - a_cell->map));
-        //pthread_rwlock_unlock(a_cell->chain->cell_rwlock);
-    }
-
-    if (l_size) {
-#ifndef DAP_OS_DARWIN
-        fflush(a_cell->file_storage);
-#endif
-        log_it(L_DEBUG, "Saved %zu atom%s (%zu bytes) to chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
-               l_count, l_count > 1 ? "s" : "", l_size, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
-        debug_if(l_err, L_WARNING, "Not all data was saved due to writing error %d!", l_err);
-    } else {
-        log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": nothing saved!",
-               a_cell->file_storage_path, a_cell->id.uint64);
-    }
-    pthread_rwlock_unlock(&a_cell->storage_rwlock);
-    return l_size;
+    dap_return_val_if_fail(a_atom && a_atom_size && a_chain, -1);
+    dap_chain_cell_t *l_cell = dap_chain_cell_capture_by_id(a_chain, a_cell_id);
+    dap_return_val_if_fail_err(l_cell, -2, "Cell #%"DAP_UINT64_FORMAT_x" not found in chain \"%s : %s\"",
+                                            a_cell_id, a_chain->net_name, a_chain->name);
+    pthread_rwlock_wrlock(&l_cell->storage_rwlock);
+    int l_err = s_cell_file_atom_add(l_cell, a_atom, a_atom_size, a_atom_map);
+    if (l_err)
+        log_it(L_DEBUG, "Saved atom of size %zu bytes to chain \"%s : %s\", cell 0x%016"DAP_UINT64_FORMAT_X"",
+                        a_atom_size, a_chain->net_name, a_chain->name, a_cell_id.uint64);
+    else
+        log_it(L_ERROR, "Noting saved to chain \"%s : %s\", cell 0x%016"DAP_UINT64_FORMAT_X", error %d",
+                        a_chain->net_name, a_chain->name, a_cell_id.uint64, l_err);
+    pthread_rwlock_unlock(&l_cell->storage_rwlock);
+    dap_chain_cell_remit(l_cell);
+    return 0;
 }

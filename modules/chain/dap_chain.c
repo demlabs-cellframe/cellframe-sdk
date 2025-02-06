@@ -821,17 +821,16 @@ static bool s_notify_datum_removed_on_thread(void *a_arg)
     return false;
 }
 
-ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size, dap_hash_fast_t *a_new_atom_hash)
+ssize_t dap_chain_atom_save(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
+                            const uint8_t *a_atom, size_t a_atom_size,
+                            dap_hash_fast_t *a_new_atom_hash, char **a_atom_map)
 {
-    dap_return_val_if_fail(a_chain_cell && a_chain_cell->chain, -1);
-    dap_chain_t *l_chain = a_chain_cell->chain;
-
     if (a_new_atom_hash) { // Atom is new and need to be distributed for the net
-        dap_cluster_t *l_net_cluster = dap_cluster_find(dap_guuid_compose(l_chain->net_id.uint64, 0));
+        dap_cluster_t *l_net_cluster = dap_cluster_find(dap_guuid_compose(a_chain->net_id.uint64, 0));
         if (l_net_cluster) {
             size_t l_pkt_size = a_atom_size + sizeof(dap_chain_ch_pkt_t);
-            dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain->net_id, l_chain->id,
-                                                             a_chain_cell->id, a_atom, a_atom_size,
+            dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(a_chain->net_id, a_chain->id,
+                                                             a_cell_id, a_atom, a_atom_size,
                                                              DAP_CHAIN_CH_PKT_VERSION_CURRENT);
             if (l_pkt) {
                 dap_gossip_msg_issue(l_net_cluster, DAP_CHAIN_CH_ID, l_pkt, l_pkt_size, a_new_atom_hash);
@@ -839,7 +838,7 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
             }
         }
     }
-    return dap_chain_cell_file_append(a_chain_cell, a_atom, a_atom_size);
+    return dap_chain_cell_file_append(a_chain, a_cell_id, a_atom, a_atom_size, a_atom_map);
 }
 
 /**
@@ -882,47 +881,43 @@ const char* dap_chain_get_path(dap_chain_t *a_chain)
     return DAP_CHAIN_PVT(a_chain)->file_storage_dir;
 }
 
-void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size) {
+void dap_chain_atom_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size) {
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
 
-    if ( !a_chain_cell->chain->atom_notifiers )
+    if ( !a_chain->atom_notifiers )
         return;
     dap_list_t *l_iter;
-    DL_FOREACH(a_chain_cell->chain->atom_notifiers, l_iter) {
+    DL_FOREACH(a_chain->atom_notifiers, l_iter) {
         dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
-        struct chain_thread_notifier *l_arg = DAP_NEW_Z(struct chain_thread_notifier);
-        if (!l_arg) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            continue;
-        }
+        struct chain_thread_notifier *l_arg = DAP_NEW_Z_RET_IF_FAIL(struct chain_thread_notifier);
         *l_arg = (struct chain_thread_notifier) {
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
-            .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
+            .chain = a_chain,     .cell_id = a_cell_id,
             .hash = *a_hash,
-            .atom = a_chain_cell->chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE((byte_t*)a_atom, a_atom_size),
+            .atom = a_chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE((byte_t*)a_atom, a_atom_size),
             .atom_size = a_atom_size };
         dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }
 }
 
-void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, dap_hash_fast_t *a_atom_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_srv_uid_t a_uid) {
+void dap_chain_datum_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash, dap_hash_fast_t *a_atom_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_srv_uid_t a_uid) {
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
 
-    if ( !a_chain_cell->chain->datum_notifiers )
+    if ( !a_chain->datum_notifiers )
         return;
     dap_list_t *l_iter;
-    DL_FOREACH(a_chain_cell->chain->datum_notifiers, l_iter) {
+    DL_FOREACH(a_chain->datum_notifiers, l_iter) {
         dap_chain_datum_notifier_t *l_notifier = (dap_chain_datum_notifier_t*)l_iter->data;
         struct chain_thread_datum_notifier *l_arg = DAP_NEW_Z_RET_IF_FAIL(struct chain_thread_datum_notifier);
         *l_arg = (struct chain_thread_datum_notifier) {
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
-            .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
+            .chain = a_chain,     .cell_id = a_cell_id,
             .hash = *a_hash,
-            .datum = a_chain_cell->chain->is_mapped ? (byte_t*)a_datum : DAP_DUP_SIZE((byte_t*)a_datum, a_datum_size),
+            .datum = a_chain->is_mapped ? (byte_t*)a_datum : DAP_DUP_SIZE((byte_t*)a_datum, a_datum_size),
             .datum_size = a_datum_size,
             .ret_code = a_ret_code,
             .action = a_action,
@@ -931,15 +926,15 @@ void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_
     }
 }
 
-void dap_chain_datum_removed_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash) {
+void dap_chain_datum_removed_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash) {
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
 
-    if ( !a_chain_cell->chain->datum_removed_notifiers )
+    if ( !a_chain->datum_removed_notifiers )
         return;
     dap_list_t *l_iter;
-    DL_FOREACH(a_chain_cell->chain->datum_removed_notifiers, l_iter) {
+    DL_FOREACH(a_chain->datum_removed_notifiers, l_iter) {
         dap_chain_datum_removed_notifier_t *l_notifier = (dap_chain_datum_removed_notifier_t*)l_iter->data;
         struct chain_thread_datum_removed_notifier *l_arg = DAP_NEW_Z(struct chain_thread_datum_removed_notifier);
         if (!l_arg) {
@@ -948,7 +943,7 @@ void dap_chain_datum_removed_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fa
         }
         *l_arg = (struct chain_thread_datum_removed_notifier) {
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
-            .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
+            .chain = a_chain,     .cell_id = a_cell_id,
             .hash = *a_hash};
         dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_datum_removed_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }

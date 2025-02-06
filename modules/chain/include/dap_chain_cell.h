@@ -98,6 +98,7 @@ DAP_INLINE void dap_chain_cell_remit(const dap_chain_cell_t *a_cell) {
 
 void dap_chain_cell_close(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id);
 void dap_chain_cell_close_all(dap_chain_t *a_chain);
-ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom, size_t a_atom_size);
+int dap_chain_cell_file_append(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
+                                   const void *a_atom, size_t a_atom_size, char **a_atom_map);
 #define dap_chain_cell_file_update(a_cell) dap_chain_cell_file_append(a_cell, NULL, 0);
 

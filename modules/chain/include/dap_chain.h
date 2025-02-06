@@ -313,9 +313,9 @@ void dap_chain_add_callback_notify(dap_chain_t *a_chain, dap_chain_callback_noti
 void dap_chain_add_callback_datum_index_notify(dap_chain_t *a_chain, dap_chain_callback_datum_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_callback_arg);
 void dap_chain_add_callback_datum_removed_from_index_notify(dap_chain_t *a_chain, dap_chain_callback_datum_removed_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_callback_arg);
 void dap_chain_atom_confirmed_notify_add(dap_chain_t *a_chain, dap_chain_callback_notify_t a_callback, void *a_arg, uint64_t a_conf_cnt);
-void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size);
-void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, dap_chain_hash_fast_t *a_atom_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_srv_uid_t a_uid);
-void dap_chain_datum_removed_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash);
+void dap_chain_atom_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size);
+void dap_chain_datum_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,  dap_hash_fast_t *a_hash, dap_chain_hash_fast_t *a_atom_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_srv_uid_t a_uid);
+void dap_chain_datum_removed_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash);
 void dap_chain_atom_add_from_threshold(dap_chain_t *a_chain);
 dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 bool dap_chain_get_atom_last_hash_num_ts(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash, uint64_t *a_atom_num, dap_time_t *a_atom_timestamp);
@@ -323,7 +323,7 @@ DAP_STATIC_INLINE bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_ch
 {
     return dap_chain_get_atom_last_hash_num_ts(a_chain, a_cell_id, a_atom_hash, NULL, NULL);
 }
-ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size, dap_hash_fast_t *a_new_atom_hash);
+ssize_t dap_chain_atom_save(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, const uint8_t *a_atom, size_t a_atom_size, dap_hash_fast_t *a_new_atom_hash);
 int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name);
 
 const char *dap_chain_type_to_str(dap_chain_type_t a_chain_type);
