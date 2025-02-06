@@ -707,9 +707,6 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             default:
                 continue;
             }
-
-            if ( !m_check_addr(l_addr) )
-                continue;
             l_item_type = TX_ITEM_TYPE_IN;
         } break;
         case TX_ITEM_TYPE_OUT_OLD:
