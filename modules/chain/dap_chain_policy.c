@@ -180,13 +180,13 @@ bool dap_chain_policy_activated(uint32_t a_policy_num, uint64_t a_net_id)
     dap_chain_policy_t l_to_search = {
         .activate.num = a_policy_num
     };
-    dap_chain_policy_t *l_policy_item = (dap_chain_policy_t *)(dap_list_find(l_net_item->policies, &l_to_search, s_policy_num_compare)->data);
-    
-    if (!l_policy_item) {
+    dap_list_t *l_list_item = dap_list_find(l_net_item->policies, &l_to_search, s_policy_num_compare);
+    if (!l_list_item) {
         if (l_net_item->last_num_policy > a_policy_num)  // use cumulative principle without check conditions
             return true;
         return l_ret;
     }
+    dap_chain_policy_t *l_policy_item = (dap_chain_policy_t *)l_list_item->data;
     // condition check
     if (DAP_FLAG_CHECK(l_policy_item->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS)) {
         time_t l_current_time = dap_time_now();

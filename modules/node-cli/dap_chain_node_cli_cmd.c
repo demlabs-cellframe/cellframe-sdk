@@ -5915,17 +5915,21 @@ int com_policy(int argc, char **argv, void **reply) {
     }
 
     if (l_cmd == CMD_FIND) {
-        dap_chain_policy_t *l_policy = dap_chain_policy_find(strtoull(l_num_str, NULL, 10), l_net->pub.id.uint64);
+        uint32_t l_policy_num = strtoull(l_num_str, NULL, 10);
+        dap_chain_policy_t *l_policy = dap_chain_policy_find(l_policy_num, l_net->pub.id.uint64);
         if (!l_policy) {
-            l_policy = dap_chain_policy_find(dap_chain_policy_get_last_num(l_net->pub.id.uint64), l_net->pub.id.uint64);
-            if (!l_policy) {
-                dap_json_rpc_error_add(*a_json_arr_reply, -15, "Can't any policies in net %s", l_net_str);
+            if (dap_chain_policy_get_last_num(l_net->pub.id.uint64) < l_policy_num) {
+                dap_json_rpc_error_add(*a_json_arr_reply, -15, "Can't find policy CN-%u in net %s", l_policy_num, l_net_str);
                 return -15;
             }
-            log_it(L_NOTICE, "Info about %s not finded, show last activated policy %u", l_num_str, l_policy->activate.num);
+            dap_chain_policy_t l_to_print = {
+                .activate.num = l_policy_num
+            };
+            l_policy = &l_to_print;
         }        
         json_object *l_answer = dap_chain_policy_json_collect(l_policy);
         if (l_answer) {
+            json_object_object_add(l_answer, "active", json_object_new_string(dap_chain_policy_activated(l_policy->activate.num, l_net->pub.id.uint64) ? "true" : "false"));
             json_object_array_add(*a_json_arr_reply, l_answer);
         } else {
             json_object_array_add(*a_json_arr_reply, json_object_new_string("Empty reply"));
@@ -5935,7 +5939,7 @@ int com_policy(int argc, char **argv, void **reply) {
 
     if (l_cmd == CMD_EXECUTE) {
         if (!l_certs_str) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -4, "Command 'execute' requires parameter -poa_cert");
+            dap_json_rpc_error_add(*a_json_arr_reply, -4, "Command 'execute' requires parameter -certs");
             return -4;
         }
         dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
