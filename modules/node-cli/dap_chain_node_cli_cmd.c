@@ -6013,7 +6013,7 @@ int com_policy(int argc, char **argv, void **reply) {
     // if cmd none - only print preaparing result
     if (l_cmd == CMD_NONE) {
         json_object *l_answer = dap_chain_policy_json_collect(l_policy);
-        json_object_object_add(l_answer, "Notification", "Please check prepared policy execute decree and if all pass use 'execute' command");
+        json_object_object_add(l_answer, "Notification", json_object_new_string("It's policy draft, check and use 'execute' command to apply"));
         if (l_answer) {
             json_object_array_add(*a_json_arr_reply, l_answer);
         } else {
