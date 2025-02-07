@@ -602,7 +602,7 @@ const char *l_ban_addr;
                 break;
             return dap_chain_esbocs_set_emergency_validator(l_chain, l_action, l_sign_type, &l_hash);
         }
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK:
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK: {
             if (dap_chain_datum_decree_get_atom_num(a_decree, &l_block_num)) {
                 log_it(L_WARNING, "Can't get atom number from hardfork prepare decree");
                 return -103;
@@ -622,6 +622,21 @@ const char *l_ban_addr;
                                                    DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, sizeof(dap_stream_node_addr_t));
             dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
             return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_block_num, l_addrs);
+        }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE: {
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            if (!l_chain) {
+                log_it(L_WARNING, "Specified chain not found");
+                return -106;
+            }
+            if (dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
+                log_it(L_WARNING, "Can't apply this decree to specified chain");
+                return -115;
+            }
+            if (!a_apply)
+                break;
+            return dap_chain_esbocs_set_hardfork_complete(l_chain);
+        }
         default:
             return -1;
     }
