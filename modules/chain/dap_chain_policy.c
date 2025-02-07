@@ -133,7 +133,7 @@ int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id)
             log_it(L_ERROR, "CN-%u already added to exception list net %"DAP_UINT64_FORMAT_X, l_policy_num, a_net_id);
             continue;
         }
-        l_net_item->exception_list = dap_list_insert_sorted(l_net_item->exception_list, (const void *)l_policy_num, NULL);
+        l_net_item->exception_list = dap_list_append(l_net_item->exception_list, (const void *)l_policy_num);
     }
     l_net_item->last_num_policy = dap_max(a_policy->activate.num, l_net_item->last_num_policy);
     return 0;
@@ -156,7 +156,7 @@ int dap_chain_policy_add_to_exception_list(uint32_t a_policy_num, uint64_t a_net
         log_it(L_ERROR, "CN-%u already added to exception list net %"DAP_UINT64_FORMAT_X, a_policy_num, a_net_id);
         return -3;
     }
-    l_net_item->exception_list = dap_list_insert_sorted(l_net_item->exception_list, (const void *)a_policy_num, NULL);
+    l_net_item->exception_list = dap_list_append(l_net_item->exception_list, (const void *)a_policy_num);
     return 0;
 }
 
@@ -220,10 +220,12 @@ dap_chain_policy_t *dap_chain_policy_find(uint32_t a_policy_num, uint64_t a_net_
     dap_chain_policy_t l_to_search = {
         .activate.num = a_policy_num
     };
-    l_ret = (dap_chain_policy_t *)(dap_list_find(l_net_item->policies, &l_to_search, s_policy_num_compare)->data);
-    if (!l_ret) {
-        log_it(L_ERROR, "Can't find CN-%u in net %"DAP_UINT64_FORMAT_X, a_policy_num, a_net_id);
+    dap_list_t *l_find = dap_list_find(l_net_item->policies, &l_to_search, s_policy_num_compare);
+    if (!l_find) {
+        log_it(L_DEBUG, "Can't find CN-%u in net %"DAP_UINT64_FORMAT_X, a_policy_num, a_net_id);
+        return NULL;
     }
+    l_ret = (dap_chain_policy_t *)l_find->data;
     return l_ret;
 }
 

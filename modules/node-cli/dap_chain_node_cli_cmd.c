@@ -5881,14 +5881,14 @@ int com_policy(int argc, char **argv, void **reply) {
         l_certs_count = 0;
     dap_cert_t **l_certs = NULL;
 
-    enum { CMD_NONE=0, CMD_EXECUTE, CMD_SHOW };  
+    enum { CMD_NONE=0, CMD_EXECUTE, CMD_FIND };  
     int l_arg_index = 1;
 
     int l_cmd = CMD_NONE;
     if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "execute", NULL))
         l_cmd = CMD_EXECUTE;
-    else if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "show", NULL))
-        l_cmd = CMD_SHOW;
+    else if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "find", NULL))
+        l_cmd = CMD_FIND;
 
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-num", &l_num_str);
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-net", &l_net_str);
@@ -5900,19 +5900,37 @@ int com_policy(int argc, char **argv, void **reply) {
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-deactivate", &l_deactivate_str);
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-certs", &l_certs_str);
 
-    if (l_cmd == CMD_NONE) {
-        dap_json_rpc_error_add(*a_json_arr_reply, -2, "Command policy require subcommand execute or show");
-        return -2;
-    }
-
     if (!l_net_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, -3, "Command policy require args -net");
         return -4;
+    }
+    if (!l_num_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -7, "Command policy require args -num");
+        return -7;
     }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
     if (!l_net){
         dap_json_rpc_error_add(*a_json_arr_reply, -3, "Can't find net %s", l_net_str);
         return -4;
+    }
+
+    if (l_cmd == CMD_FIND) {
+        dap_chain_policy_t *l_policy = dap_chain_policy_find(strtoull(l_num_str, NULL, 10), l_net->pub.id.uint64);
+        if (!l_policy) {
+            l_policy = dap_chain_policy_find(dap_chain_policy_get_last_num(l_net->pub.id.uint64), l_net->pub.id.uint64);
+            if (!l_policy) {
+                dap_json_rpc_error_add(*a_json_arr_reply, -15, "Can't any policies in net %s", l_net_str);
+                return -15;
+            }
+            log_it(L_NOTICE, "Info about %s not finded, show last activated policy %u", l_num_str, l_policy->activate.num);
+        }        
+        json_object *l_answer = dap_chain_policy_json_collect(l_policy);
+        if (l_answer) {
+            json_object_array_add(*a_json_arr_reply, l_answer);
+        } else {
+            json_object_array_add(*a_json_arr_reply, json_object_new_string("Empty reply"));
+        }
+        return 0;
     }
 
     if (l_cmd == CMD_EXECUTE) {
@@ -5925,10 +5943,6 @@ int com_policy(int argc, char **argv, void **reply) {
             dap_json_rpc_error_add(*a_json_arr_reply, -5, "Specified certificates not found");
             return -5;
         }
-    }
-    if (!l_num_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, -7, "Command policy require args -num");
-        return -7;
     }
 
     if (l_deactivate_str) {
@@ -5959,6 +5973,11 @@ int com_policy(int argc, char **argv, void **reply) {
         strptime(l_ts_stop_str, "%d/%m/%Y-%H:%M:%S", &l_tm);
         l_tm.tm_year += 2000;
         l_policy->activate.ts_stop = mktime(&l_tm);
+        if (l_policy->activate.ts_stop <= l_policy->activate.ts_start) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -12, "ts_start should less than ts_stop");
+            DAP_DELETE(l_policy);
+            return -12;
+        }
     }
 
     if (l_policy->activate.ts_start || l_policy->activate.ts_stop) {
@@ -5967,27 +5986,34 @@ int com_policy(int argc, char **argv, void **reply) {
 
     if (l_block_start_str)
         l_policy->activate.block_start = strtoull(l_block_start_str, NULL, 10);
-    if (l_block_stop_str)
+    if (l_block_stop_str) {
         l_policy->activate.block_stop = strtoull(l_block_stop_str, NULL, 10);
+        if (l_policy->activate.block_stop <= l_policy->activate.block_start) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -13, "block_start should less than block_stop");
+            DAP_DELETE(l_policy);
+            return -13;
+        }
+    }
     
     if (l_policy->activate.block_start || l_policy->activate.block_stop) {
         if (!l_chain_str) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -5, "Command policy create with -block_start or -block_stop require args -chain");
+            dap_json_rpc_error_add(*a_json_arr_reply, -8, "Command policy create with -block_start or -block_stop require args -chain");
             DAP_DELETE(l_policy);
             return -8;
         }
         dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
         if (!l_chain) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -6, "%s Chain not found", l_chain_str);
+            dap_json_rpc_error_add(*a_json_arr_reply, -9, "%s Chain not found", l_chain_str);
             DAP_DELETE(l_policy);
             return -9;
         }
         l_policy->activate.chain_union.chain_id = l_chain->id;
         l_policy->activate.flags = DAP_FLAG_ADD(l_policy->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM);
     }
-    // if cmd show - only print preaparing result
-    if (l_cmd == CMD_SHOW) {
+    // if cmd none - only print preaparing result
+    if (l_cmd == CMD_NONE) {
         json_object *l_answer = dap_chain_policy_json_collect(l_policy);
+        json_object_object_add(l_answer, "Notification", "Please check prepared policy execute decree and if all pass use 'execute' command");
         if (l_answer) {
             json_object_array_add(*a_json_arr_reply, l_answer);
         } else {
@@ -6008,12 +6034,12 @@ int com_policy(int argc, char **argv, void **reply) {
     }
 
     char *l_decree_hash_str = NULL;;
-
     if (!(l_decree_hash_str = s_decree_policy_put(l_decree, l_net))) {
         dap_json_rpc_error_add(*a_json_arr_reply, -12, "Policy decree error");
         return -12;
     }
     DAP_DELETE(l_decree);
+
     char l_approve_str[128];
     snprintf(l_approve_str, sizeof(l_approve_str), "Policy decree %s successfully created", l_decree_hash_str);
     json_object_array_add(*a_json_arr_reply, json_object_new_string(l_approve_str));
