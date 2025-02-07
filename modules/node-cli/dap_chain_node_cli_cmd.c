@@ -5821,3 +5821,203 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
     }
     return 0;
 }
+
+static dap_chain_datum_decree_t *s_decree_policy_execute(dap_chain_net_t *a_net, dap_chain_policy_t *a_policy)
+{
+    dap_return_val_if_pass(!a_net || !a_policy, NULL);
+    // create updating decree
+    size_t l_total_tsd_size = sizeof(dap_tsd_t) + dap_chain_policy_get_size(a_policy);
+
+    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if (!l_chain) {
+        log_it(L_ERROR, "No chain supported decree datum type");
+        return NULL;
+    }
+
+    dap_chain_datum_decree_t *l_decree = dap_chain_datum_decree_new(a_net->pub.id, l_chain->id, *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
+    if (!l_decree) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return NULL;
+    }
+    l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY;
+    dap_tsd_write((byte_t*)l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE, a_policy, dap_chain_policy_get_size(a_policy));
+
+    return l_decree;
+}
+
+// Put the decree to mempool
+static char *s_decree_policy_put(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net)
+{
+    size_t l_decree_size = dap_chain_datum_decree_get_size(a_decree);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE, a_decree, l_decree_size);
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if (!l_chain)
+        l_chain =  dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if (!l_chain) {
+        log_it(L_ERROR, "No chain supported decree datum type");
+        return NULL;
+    }
+    // Processing will be made according to autoprocess policy
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
+    DAP_DELETE(l_datum);
+    return l_ret;
+}
+
+int com_policy(int argc, char **argv, void **reply) {
+    json_object ** a_json_arr_reply = (json_object **) reply;
+    char **l_deactivate_array = NULL;
+    const char
+        *l_num_str = NULL,
+        *l_net_str = NULL,
+        *l_deactivate_str = NULL,
+        *l_chain_str = NULL,
+        *l_ts_start_str = NULL,
+        *l_ts_stop_str = NULL,
+        *l_block_start_str = NULL,
+        *l_block_stop_str = NULL,
+        *l_certs_str = NULL;
+    size_t
+        l_deactivate_count = 0,
+        l_certs_count = 0;
+    dap_cert_t **l_certs = NULL;
+
+    enum { CMD_NONE=0, CMD_EXECUTE, CMD_SHOW };  
+    int l_arg_index = 1;
+
+    int l_cmd = CMD_NONE;
+    if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "execute", NULL))
+        l_cmd = CMD_EXECUTE;
+    else if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "show", NULL))
+        l_cmd = CMD_SHOW;
+
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-num", &l_num_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-net", &l_net_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-chain", &l_chain_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-ts_start", &l_ts_start_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-ts_stop", &l_ts_stop_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-block_start", &l_block_start_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-block_stop", &l_block_stop_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-deactivate", &l_deactivate_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-certs", &l_certs_str);
+
+    if (l_cmd == CMD_NONE) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -2, "Command policy require subcommand execute or show");
+        return -2;
+    }
+
+    if (!l_net_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -3, "Command policy require args -net");
+        return -4;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+    if (!l_net){
+        dap_json_rpc_error_add(*a_json_arr_reply, -3, "Can't find net %s", l_net_str);
+        return -4;
+    }
+
+    if (l_cmd == CMD_EXECUTE) {
+        if (!l_certs_str) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -4, "Command 'execute' requires parameter -poa_cert");
+            return -4;
+        }
+        dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+        if (!l_certs || !l_certs_count) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -5, "Specified certificates not found");
+            return -5;
+        }
+    }
+    if (!l_num_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -7, "Command policy require args -num");
+        return -7;
+    }
+
+    if (l_deactivate_str) {
+        l_deactivate_count = dap_str_symbol_count(l_deactivate_str, ',') + 1;
+        l_deactivate_array = dap_strsplit(l_deactivate_str, ",", l_deactivate_count);
+    }
+    dap_chain_policy_t *l_policy = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, sizeof(dap_chain_policy_t) + l_deactivate_count * sizeof(uint32_t), -5);
+    
+    l_policy->version = DAP_CHAIN_POLICY_VERSION;
+    l_policy->activate.num = strtoull(l_num_str, NULL, 10);
+
+    l_policy->deactivate.count = l_deactivate_count;
+    for (size_t i = 0; i < l_deactivate_count; ++i) {
+        l_policy->deactivate.nums[i] = strtoul(l_deactivate_array[i], NULL, 10);
+    }
+    dap_strfreev(l_deactivate_array);
+
+
+    if (l_ts_start_str) {
+        struct tm l_tm = { };
+        strptime(l_ts_start_str, "%d/%m/%Y-%H:%M:%S", &l_tm);
+        l_tm.tm_year += 2000;
+        l_policy->activate.ts_start = mktime(&l_tm);
+    }
+
+    if (l_ts_stop_str) {
+        struct tm l_tm = { };
+        strptime(l_ts_stop_str, "%d/%m/%Y-%H:%M:%S", &l_tm);
+        l_tm.tm_year += 2000;
+        l_policy->activate.ts_stop = mktime(&l_tm);
+    }
+
+    if (l_policy->activate.ts_start || l_policy->activate.ts_stop) {
+        l_policy->activate.flags = DAP_FLAG_ADD(l_policy->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS);
+    }
+
+    if (l_block_start_str)
+        l_policy->activate.block_start = strtoull(l_block_start_str, NULL, 10);
+    if (l_block_stop_str)
+        l_policy->activate.block_stop = strtoull(l_block_stop_str, NULL, 10);
+    
+    if (l_policy->activate.block_start || l_policy->activate.block_stop) {
+        if (!l_chain_str) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -5, "Command policy create with -block_start or -block_stop require args -chain");
+            DAP_DELETE(l_policy);
+            return -8;
+        }
+        dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+        if (!l_chain) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -6, "%s Chain not found", l_chain_str);
+            DAP_DELETE(l_policy);
+            return -9;
+        }
+        l_policy->activate.chain_union.chain_id = l_chain->id;
+        l_policy->activate.flags = DAP_FLAG_ADD(l_policy->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM);
+    }
+    // if cmd show - only print preaparing result
+    if (l_cmd == CMD_SHOW) {
+        json_object *l_answer = dap_chain_policy_json_collect(l_policy);
+        if (l_answer) {
+            json_object_array_add(*a_json_arr_reply, l_answer);
+        } else {
+            json_object_array_add(*a_json_arr_reply, json_object_new_string("Empty reply"));
+        }
+        DAP_DELETE(l_policy);
+        return 0;
+    }
+
+    dap_chain_datum_decree_t *l_decree = s_decree_policy_execute(l_net, l_policy);
+    DAP_DELETE(l_policy);
+    size_t l_total_signs_success = 0;
+    l_decree = dap_chain_datum_decree_sign_in_cycle(l_certs, l_decree, l_certs_count, &l_total_signs_success);
+
+    if (!l_decree || l_total_signs_success == 0){
+        dap_json_rpc_error_add(*a_json_arr_reply, -11, "Decree creation failed. Successful count of certificate signing is 0");
+            return -11;
+    }
+
+    char *l_decree_hash_str = NULL;;
+
+    if (!(l_decree_hash_str = s_decree_policy_put(l_decree, l_net))) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -12, "Policy decree error");
+        return -12;
+    }
+    DAP_DELETE(l_decree);
+    char l_approve_str[128];
+    snprintf(l_approve_str, sizeof(l_approve_str), "Policy decree %s successfully created", l_decree_hash_str);
+    json_object_array_add(*a_json_arr_reply, json_object_new_string(l_approve_str));
+    DAP_DELETE(l_decree_hash_str);
+
+    return 0;
+}

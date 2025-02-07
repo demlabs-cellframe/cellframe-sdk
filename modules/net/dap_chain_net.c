@@ -197,7 +197,7 @@ static const char *c_net_states[] = {
 };
 
 static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_state) {
-    return a_state < NET_STATE_LOADING || a_state > NET_STATE_ONLINE ? "NET_STATE_INVALID" : c_net_states[a_state];
+        return a_state < NET_STATE_LOADING || a_state > NET_STATE_ONLINE ? "NET_STATE_INVALID" : c_net_states[a_state];
 }
 
 // Node link callbacks
@@ -2535,7 +2535,7 @@ DAP_INLINE dap_chain_net_state_t dap_chain_net_get_state (dap_chain_net_t *a_net
     return PVT(a_net)->state;
 }
 
-dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t *a_net)
+dap_chain_cell_id_t *dap_chain_net_get_cur_cell( dap_chain_net_t *a_net)
 {
     return  PVT(a_net)->node_info ? &PVT(a_net)->node_info->cell_id: 0;
 }
