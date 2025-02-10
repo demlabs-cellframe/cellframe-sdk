@@ -4813,9 +4813,9 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
     }
     bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, false) == 0;
     DAP_DELETE(l_gdb_group_mempool);
-    char * reply = dap_strdup_printf("Datum %s with token %s is%s placed in datum pool", l_key_str_out, l_ticker, l_placed ? "" : " not");
-    json_object_array_add(*a_json_arr_reply, json_object_new_string(reply));
-    DAP_DELETE(reply);
+    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_OK,
+                     "Datum %s with token %s is%s placed in datum pool",
+                                      l_key_str_out, l_ticker, l_placed ? "" : " not");
     DAP_DELETE(l_key_str);
     DAP_DELETE(l_datum);
     DAP_DELETE(l_params);
