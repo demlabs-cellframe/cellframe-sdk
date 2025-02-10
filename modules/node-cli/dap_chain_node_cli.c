@@ -438,7 +438,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\t[-certs <certs_name>] - list signing certs, example: foobar.root.pvt.0,foobar.root.pvt.1\n"
                 "policy find - find info about policy in net\n"
                 "\t-net <net_name> - net name to policy search\n"
-                "\t-num <policy_num> - policy num\n");
+                "\t-num <policy_num> - policy num\n"
+                "policy list - show all policies from table in net\n"
+                "\t-net <net_name> - net name to policy search\n");
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
                 "exit\n" );

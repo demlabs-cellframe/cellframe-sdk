@@ -252,12 +252,11 @@ json_object *dap_chain_policy_list(uint64_t a_net_id)
     json_object_object_add(l_ret, "active", json_object_new_string(l_add_str->str));
     
     dap_string_erase(l_add_str, 0, -1);
-
     for (dap_list_t *l_iter = dap_list_first(l_net_item->exception_list); l_iter; l_iter = l_iter->next) {
         dap_string_append_printf(l_add_str, "CN-%u ", (uint32_t)l_iter->data);
     }
     json_object_object_add(l_ret, "inactive", json_object_new_string(l_add_str->str));
-
+    dap_string_free(l_add_str, true);
     return l_ret;
 }
 
