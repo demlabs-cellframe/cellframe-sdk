@@ -32,7 +32,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS            1
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM     (1 << 1)
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_CONFIG        (1 << 2)
-#define DAP_CHAIN_POLICY_FLAG_FORCE_CUMULATIVE          (1 << 3)
 
 typedef struct dap_chain_policy {
     uint16_t version;
@@ -61,8 +60,10 @@ int dap_chain_policy_add_to_exception_list(uint32_t a_policy_num, uint64_t a_net
 uint32_t dap_chain_policy_get_last_num(uint64_t a_net_id);
 dap_chain_policy_t *dap_chain_policy_find(uint32_t a_policy_num, uint64_t a_net_id);
 json_object *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy);
+json_object *dap_chain_policy_list(uint64_t a_net_id);
+bool dap_chain_policy_activated(uint32_t a_policy_num, uint64_t a_net_id);
 
-DAP_STATIC_INLINE size_t dap_chain_policy_get_size(dap_chain_policy_t *a_policy_exec)
+DAP_STATIC_INLINE size_t dap_chain_policy_get_size(dap_chain_policy_t *a_policy)
 {
-    return a_policy_exec ? a_policy_exec->deactivate.count * sizeof(uint32_t) + sizeof(dap_chain_policy_t) : 0;
+    return a_policy ? a_policy->deactivate.count * sizeof(uint32_t) + sizeof(dap_chain_policy_t) : 0;
 }

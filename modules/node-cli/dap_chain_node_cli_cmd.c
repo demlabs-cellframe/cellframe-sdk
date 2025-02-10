@@ -5881,7 +5881,7 @@ int com_policy(int argc, char **argv, void **reply) {
         l_certs_count = 0;
     dap_cert_t **l_certs = NULL;
 
-    enum { CMD_NONE=0, CMD_EXECUTE, CMD_FIND };  
+    enum { CMD_NONE=0, CMD_EXECUTE, CMD_FIND, CMD_LIST };  
     int l_arg_index = 1;
 
     int l_cmd = CMD_NONE;
@@ -5889,24 +5889,15 @@ int com_policy(int argc, char **argv, void **reply) {
         l_cmd = CMD_EXECUTE;
     else if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "find", NULL))
         l_cmd = CMD_FIND;
+    else if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "list", NULL))
+        l_cmd = CMD_LIST;
 
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-num", &l_num_str);
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-net", &l_net_str);
-    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-chain", &l_chain_str);
-    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-ts_start", &l_ts_start_str);
-    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-ts_stop", &l_ts_stop_str);
-    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-block_start", &l_block_start_str);
-    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-block_stop", &l_block_stop_str);
-    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-deactivate", &l_deactivate_str);
-    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-certs", &l_certs_str);
 
     if (!l_net_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, -3, "Command policy require args -net");
         return -4;
-    }
-    if (!l_num_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, -7, "Command policy require args -num");
-        return -7;
     }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
     if (!l_net){
@@ -5914,11 +5905,24 @@ int com_policy(int argc, char **argv, void **reply) {
         return -4;
     }
 
+    if (l_cmd == CMD_LIST) {
+        json_object *l_answer = dap_chain_policy_list(l_net->pub.id.uint64);
+        json_object_array_add(*a_json_arr_reply, l_answer);
+        return 0;
+    }
+
+    if (!l_num_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -7, "Command policy require args -num");
+        return -7;
+    }
+
+    uint32_t l_last_num = dap_chain_policy_get_last_num(l_net->pub.id.uint64);
+
     if (l_cmd == CMD_FIND) {
         uint32_t l_policy_num = strtoull(l_num_str, NULL, 10);
         dap_chain_policy_t *l_policy = dap_chain_policy_find(l_policy_num, l_net->pub.id.uint64);
         if (!l_policy) {
-            if (dap_chain_policy_get_last_num(l_net->pub.id.uint64) < l_policy_num) {
+            if (l_last_num < l_policy_num) {
                 dap_json_rpc_error_add(*a_json_arr_reply, -15, "Can't find policy CN-%u in net %s", l_policy_num, l_net_str);
                 return -15;
             }
@@ -5937,6 +5941,14 @@ int com_policy(int argc, char **argv, void **reply) {
         return 0;
     }
 
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-chain", &l_chain_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-ts_start", &l_ts_start_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-ts_stop", &l_ts_stop_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-block_start", &l_block_start_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-block_stop", &l_block_stop_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-deactivate", &l_deactivate_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-certs", &l_certs_str);
+
     if (l_cmd == CMD_EXECUTE) {
         if (!l_certs_str) {
             dap_json_rpc_error_add(*a_json_arr_reply, -4, "Command 'execute' requires parameter -certs");
@@ -5948,6 +5960,12 @@ int com_policy(int argc, char **argv, void **reply) {
             return -5;
         }
     }
+
+    if (strtoull(l_num_str, NULL, 10) == l_last_num) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -15, "Specified policy num already existed");
+        return -15;
+    }
+
 
     if (l_deactivate_str) {
         l_deactivate_count = dap_str_symbol_count(l_deactivate_str, ',') + 1;
@@ -6011,8 +6029,13 @@ int com_policy(int argc, char **argv, void **reply) {
             DAP_DELETE(l_policy);
             return -9;
         }
-        l_policy->activate.chain_union.chain_id = l_chain->id;
+        l_policy->activate.chain_union.chain = l_chain;
         l_policy->activate.flags = DAP_FLAG_ADD(l_policy->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM);
+    }
+    if (!l_policy->activate.flags && l_policy->activate.num < l_last_num) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -16, "Specified policy already activated by CN-%u", l_last_num);
+        DAP_DELETE(l_policy);
+        return -16;
     }
     // if cmd none - only print preaparing result
     if (l_cmd == CMD_NONE) {
@@ -6025,6 +6048,10 @@ int com_policy(int argc, char **argv, void **reply) {
         }
         DAP_DELETE(l_policy);
         return 0;
+    }
+    // change pointer to id to decree
+    if (l_policy->activate.chain_union.chain) {
+        l_policy->activate.chain_union.chain_id = l_policy->activate.chain_union.chain->id;
     }
 
     dap_chain_datum_decree_t *l_decree = s_decree_policy_execute(l_net, l_policy);

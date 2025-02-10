@@ -25,7 +25,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_policy.h"
 #include "dap_chain_datum_decree.h"
 #include "dap_list.h"
-#include "uthash.h"
 
 #define LOG_TAG "dap_chain_policy"
 
@@ -212,11 +211,10 @@ bool dap_chain_policy_activated(uint32_t a_policy_num, uint64_t a_net_id)
  */
 dap_chain_policy_t *dap_chain_policy_find(uint32_t a_policy_num, uint64_t a_net_id)
 {
-    dap_chain_policy_t *l_ret = NULL;
     struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
-    dap_return_val_if_pass(!l_net_item, l_ret);
+    dap_return_val_if_pass(!l_net_item, NULL);
     if (l_net_item->last_num_policy < a_policy_num)
-        return l_ret;
+        return NULL;
     dap_chain_policy_t l_to_search = {
         .activate.num = a_policy_num
     };
@@ -225,8 +223,7 @@ dap_chain_policy_t *dap_chain_policy_find(uint32_t a_policy_num, uint64_t a_net_
         log_it(L_DEBUG, "Can't find CN-%u in net %"DAP_UINT64_FORMAT_X, a_policy_num, a_net_id);
         return NULL;
     }
-    l_ret = (dap_chain_policy_t *)l_find->data;
-    return l_ret;
+    return (dap_chain_policy_t *)l_find->data;
 }
 
 /**
@@ -241,6 +238,28 @@ DAP_INLINE uint32_t dap_chain_policy_get_last_num(uint64_t a_net_id)
     return l_net_item->last_num_policy;
 }
 
+
+json_object *dap_chain_policy_list(uint64_t a_net_id)
+{
+    struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
+    dap_return_val_if_pass(!l_net_item, NULL);
+    json_object *l_ret = json_object_new_object();
+
+    dap_string_t *l_add_str = dap_string_new("");
+    for (dap_list_t *l_iter = dap_list_first(l_net_item->policies); l_iter; l_iter = l_iter->next) {
+        dap_string_append_printf(l_add_str, "CN-%u ", ((dap_chain_policy_t *)l_iter->data)->activate.num);
+    }
+    json_object_object_add(l_ret, "active", json_object_new_string(l_add_str->str));
+    
+    dap_string_erase(l_add_str, 0, -1);
+
+    for (dap_list_t *l_iter = dap_list_first(l_net_item->exception_list); l_iter; l_iter = l_iter->next) {
+        dap_string_append_printf(l_add_str, "CN-%u ", (uint32_t)l_iter->data);
+    }
+    json_object_object_add(l_ret, "inactive", json_object_new_string(l_add_str->str));
+
+    return l_ret;
+}
 
 json_object *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy)
 {
@@ -266,16 +285,20 @@ json_object *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy)
     json_object_object_add(l_ret, "block_start", json_object_new_uint64(a_policy->activate.block_start));
     json_object_object_add(l_ret, "block_stop", json_object_new_uint64(a_policy->activate.block_stop));
     if (a_policy->activate.block_start || a_policy->activate.block_stop) {
-        char l_chain_id[32] = { };
-        snprintf(l_chain_id, sizeof(l_chain_id) - 1, "0x%016"DAP_UINT64_FORMAT_x, a_policy->activate.chain_union.chain_id.uint64);
-        json_object_object_add(l_ret, "chain", json_object_new_string(l_chain_id));
+        if (!a_policy->activate.chain_union.chain) {
+            json_object_object_add(l_ret, "chain", json_object_new_string("ERROR pointer chain is NULL"));
+        } else {
+            char l_chain_id[32] = { };
+            snprintf(l_chain_id, sizeof(l_chain_id) - 1, "0x%016"DAP_UINT64_FORMAT_x, a_policy->activate.chain_union.chain->id.uint64);
+            json_object_object_add(l_ret, "chain", json_object_new_string(l_chain_id));
+        }
     } else {
         json_object_object_add(l_ret, "chain", json_object_new_string(""));
     }
     if (a_policy->deactivate.count) {
-        dap_string_t *l_nums_list = dap_string_sized_new(a_policy->deactivate.count * (sizeof(uint32_t) + 1));
+        dap_string_t *l_nums_list = dap_string_sized_new(a_policy->deactivate.count * (sizeof(uint32_t) + 4));
         for (size_t i = 0; i < a_policy->deactivate.count; ++i) {
-            dap_string_append_printf(l_nums_list, "%u ", a_policy->deactivate.nums[i]);
+            dap_string_append_printf(l_nums_list, "CN-%u ", a_policy->deactivate.nums[i]);
         }
         json_object_object_add(l_ret, "deactivate", json_object_new_string(l_nums_list->str));
         dap_string_free(l_nums_list, true);
