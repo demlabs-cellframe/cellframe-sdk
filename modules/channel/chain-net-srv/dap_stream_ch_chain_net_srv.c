@@ -323,7 +323,7 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
     dap_hash_fast_t l_tx_cond_hash = {0};
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
     if (!l_out_cond) {
-        log_it(L_ERROR, "Can't find dap_chain_tx_out_cond_t in dap_chain_datum_tx_t");
+        // log_it(L_ERROR, "Can't find dap_chain_tx_out_cond_t in dap_chain_datum_tx_t");
         return;
     }
     dap_chain_net_srv_t *l_net_srv = dap_chain_net_srv_get(l_out_cond->header.srv_uid);
@@ -367,7 +367,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
 
     if (dap_hash_fast_is_blank(&a_request->hdr.order_hash)){
         log_it( L_ERROR, "No order hash in request.");
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND;
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NO_ORDER_HASH;
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
         if (l_srv && l_srv->callbacks.response_error)
@@ -377,7 +377,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
 
     if (dap_hash_fast_is_blank(&a_request->hdr.tx_cond)){
         log_it( L_ERROR, "No transaction hash in request.");
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND;
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NO_TX_HASH;
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
         if (l_srv && l_srv->callbacks.response_error)
@@ -402,7 +402,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
 
     bool l_check_role = dap_chain_net_get_role(l_net).enums > NODE_ROLE_MASTER;  // check role
     if ( ! l_srv || l_check_role) // Service not found
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NODE_ROLE_ERROR;
 
     if ( l_err.code || !l_srv_session){
         debug_if(
@@ -458,7 +458,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
     l_price = dap_chain_net_srv_get_price_from_order(l_srv, "srv_vpn", &a_request->hdr.order_hash);
     if (!l_price){
         log_it(L_ERROR, "Can't get price from order!");
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND;
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_ERROR;
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
         if (l_srv && l_srv->callbacks.response_error)
@@ -548,6 +548,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
             l_usage->service->callbacks.response_success(l_usage->service, l_usage->id,  l_usage->client, NULL, 0);
         DAP_DELETE(l_success);
     }else {
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_FREE_IS_NOT_ALLOWED;
         log_it( L_INFO, "Free service sharing is not allowed. Service stop. If you want to share service for free switch on this function in configuration file.");
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
         if (l_srv && l_srv->callbacks.response_error)
@@ -613,7 +614,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
             if (!l_price) {
                 log_it(L_ERROR, "Price with proper unit type not found, check available orders and/or pricelists");
-                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_CANT_ADD_USAGE;
+                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_ERROR;
                 s_grace_error(a_grace, l_err);
                 return false;
             }
@@ -715,7 +716,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
             dap_hash_fast_to_str(&a_grace->usage->tx_cond_hash, l_hash_str, sizeof(l_hash_str));
             log_it( L_ERROR, "Token ticker not found for tx cond hash %s", l_hash_str);
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_TICKER_ERROR;
             s_grace_error(a_grace, l_err);
             return false;
         }
@@ -741,7 +742,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
             if (l_price->units_uid.enm != l_tx_out_cond->subtype.srv_pay.unit.enm){
                 log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
-                l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+                l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_UNIT_TYPE_ERROR;
                 s_grace_error(a_grace, l_err);
                 return false;
             }
@@ -751,7 +752,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 DIV_256(l_price->value_datoshi, GET_256_FROM_64(l_price->units), &l_unit_price);
             } else {
                 log_it( L_WARNING, "Units in pricelist is zero. ");
-                l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_UNITS_ERROR;
                 s_grace_error(a_grace, l_err);
                 return false;
             }
@@ -760,7 +761,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
             } else {
                 log_it( L_WARNING, "Unit price in pricelist is greater than max allowable.");
-                l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_UNITS_ERROR;
                 s_grace_error(a_grace, l_err);
                 return false;
             }
@@ -770,14 +771,14 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         if ( !l_price ) {
             log_it( L_WARNING, "Request can't be processed because no acceptable price in pricelist for token %s in network %s",
                     l_ticker, l_net->pub.name );
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_ERROR;
             s_grace_error(a_grace, l_err);
             return false;
         }
         int ret;
         if ((ret = a_grace->usage->service->callbacks.requested(a_grace->usage->service, a_grace->usage->id, a_grace->usage->client, a_grace->request, a_grace->request_size)) != 0) {
             log_it( L_WARNING, "Request canceled by service callback, return code %d", ret);
-            l_err.code = (uint32_t) ret ;
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_REQUEST_INTERNAL_ERROR;
             s_grace_error(a_grace, l_err);
             return false;
         }
@@ -1039,7 +1040,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
 
             if (l_price->units_uid.enm != l_tx_out_cond->subtype.srv_pay.unit.enm) {
                 log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
-                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN);
+                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_UNIT_TYPE_ERROR);
             }
 
             uint256_t l_unit_price = {};
@@ -1047,14 +1048,14 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                 DIV_256(l_price->value_datoshi, GET_256_FROM_64(l_price->units), &l_unit_price);
             } else {
                 log_it( L_WARNING, "Units in pricelist is zero. ");
-                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN);
+                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_UNITS_ERROR);
             }
 
             if(IS_ZERO_256(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
                 compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
             } else {
                 log_it( L_WARNING, "Unit price in pricelist is greater than max allowable.");
-                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN);
+                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_UNITS_ERROR);
             }
         }
 
@@ -1062,13 +1063,13 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
         if ( !l_price ) {
             log_it( L_WARNING, "Request can't be processed because no acceptable price in pricelist for token %s in network %s",
                    l_ticker, l_net->pub.name );
-            RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN);
+            RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_ERROR);
         }
 
         int ret;
         if ((ret = l_grace->usage->service->callbacks.requested(l_grace->usage->service, l_grace->usage->id, l_grace->usage->client, l_grace->request, l_grace->request_size)) != 0) {
             log_it( L_WARNING, "Request canceled by service callback, return code %d", ret);
-            RET_WITH_DEL_A_GRACE((uint32_t) ret);
+            RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_REQUEST_INTERNAL_ERROR);
         }
 
         if (!l_grace->usage->receipt){
@@ -1141,7 +1142,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                                        l_grace->usage->receipt, l_grace->usage->receipt->size);
             else{
                 log_it(L_WARNING, "Can't sign the receipt.");
-                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_UNDEFINED);
+                RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CREATING_ERROR);
             }
 
             RET_WITH_DEL_A_GRACE(0);
@@ -1182,14 +1183,14 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                 dap_chain_net_srv_grace_t* l_grace_new = DAP_NEW_Z(dap_chain_net_srv_grace_t);
                 if (!l_grace_new) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                    RET_WITH_DEL_A_GRACE(0);
+                    RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR);
                 }
                 // Parse the request
                 l_grace_new->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
                 if (!l_grace_new->request) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     DAP_DEL_Z(l_grace_new);
-                    RET_WITH_DEL_A_GRACE(0);
+                    RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR);
                 }
                 l_grace_new->request->hdr.net_id = a_grace_item->grace->usage->net->pub.id;
                 dap_stpcpy(l_grace_new->request->hdr.token, a_grace_item->grace->usage->token_ticker);
@@ -1217,7 +1218,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                 } else if (l_grace->usage->receipt){
                     DAP_DEL_Z(l_grace->usage->receipt);
                 }
-                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
+                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_CREATION_ERROR;
                 dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
                 if (l_grace->usage->service->callbacks.response_error)
                     l_grace->usage->service->callbacks.response_error(l_grace->usage->service,l_grace->usage->id, l_grace->usage->client,&l_err,sizeof (l_err));
@@ -1386,7 +1387,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
 
         dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
         if (! l_usage->tx_cond ){
-            log_it(L_WARNING, "No tx out in usage");
+            log_it(L_WARNING, "No tx cond in usage");
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND ;
             dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
             if (l_usage->service->callbacks.response_error)
@@ -1547,7 +1548,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                     log_it(L_ERROR, "Can't create input tx cond transaction!");
                     memset(&l_usage->tx_cond_hash, 0, sizeof(l_usage->tx_cond_hash));
                     DAP_DEL_Z(l_usage->receipt_next);
-                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
+                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_CREATION_ERROR;
                     dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
                     if (l_usage->service->callbacks.response_error)
                             l_usage->service->callbacks.response_error(l_usage->service,l_usage->id, l_usage->client,&l_err,sizeof (l_err));
