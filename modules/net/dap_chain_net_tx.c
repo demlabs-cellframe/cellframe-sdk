@@ -809,7 +809,8 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                                 dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_ticker_str);
                                 if (NULL != (l_delegated_token = dap_ledger_token_ticker_check(a_net->pub.ledger, l_delegated_ticker_str))){
                                     uint256_t l_emission_rate = dap_ledger_token_get_emission_rate(a_net->pub.ledger, l_delegated_ticker_str);
-                                    MULT_256_COIN(l_tx_out_cond->header.value, l_emission_rate, &l_value_delegated);
+                                    //MULT_256_COIN(l_tx_out_cond->header.value, l_emission_rate, &l_value_delegated);
+                                    SUM_256_256(l_value_delegated, l_tx_out_cond->header.value, &l_value_delegated);
                                 }
                                 l_main_token = l_ticker_str;
                                 l_unstake = true;
@@ -1000,10 +1001,9 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             bool l_is_value = s_json_get_uint256(l_json_item_obj, "value", &l_value);
             const char *l_token = s_json_get_text(l_json_item_obj, "token");
 
-            if (l_is_value && l_json_item_addr_str) {
+            if (l_is_value && (l_json_item_addr_str || l_json_item_addr_to_str)) {
                 dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
-                dap_chain_addr_t *l_addr_to = dap_chain_addr_from_str(l_json_item_addr_to_str);
-                if((l_addr_to || l_addr) && !IS_ZERO_256(l_value)) {
+                if((l_json_item_addr_to_str || l_addr) && !IS_ZERO_256(l_value)) {
                     if(l_item_type == TX_ITEM_TYPE_OUT) {
                         // Create OUT item
                         const uint8_t *l_out_item = NULL;
@@ -1048,7 +1048,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                         l_item = (const uint8_t*) l_out_item;
                     } else if(l_item_type == TX_ITEM_TYPE_OUT_EXT) {
                         // Read address and value
-                        if (l_unstake && l_is_value && !dap_strcmp(l_json_item_addr_str, "NULL")){
+                        if (l_unstake && l_is_value && !dap_strcmp(l_json_item_addr_to_str, "NULL")){
                             const uint8_t *l_out_item = NULL;
                             l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(&c_dap_chain_addr_blank_1, l_value, l_token);
                             if (l_out_item){
@@ -1472,7 +1472,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         }
     }
     if (l_unstake){
-        dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_back, l_value_delegated, l_native_token);
+        dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_back, l_value_delegated, l_native_token);
     }
     
     dap_list_t *l_list;
@@ -1567,7 +1567,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                     //CHECK value fee
                     l_list_used_out_fee = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_token,
                                                                                         l_addr_from, l_value_need_fee, &l_value_transfer_fee);
-                    if(!l_list_used_out_fee) {
+                    if(!l_list_used_out_fee && !l_unstake) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
                         json_object *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds "
                                                                             "in previous tx to transfer");
