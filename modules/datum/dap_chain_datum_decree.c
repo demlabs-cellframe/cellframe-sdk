@@ -104,7 +104,7 @@ dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree
     return l_ret;
 }
 
-int *dap_chain_datum_decree_get_hardfork_changed_addrs(dap_chain_datum_decree_t *a_decree, json_object **a_json_obj)
+int dap_chain_datum_decree_get_hardfork_changed_addrs(dap_chain_datum_decree_t *a_decree, json_object **a_json_obj)
 {
     dap_return_val_if_fail(a_decree && a_json_obj, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS);
