@@ -97,8 +97,12 @@ int dap_chain_policy_net_remove(uint64_t a_net_id)
     struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
     dap_list_t *l_iter = NULL;
     for (l_iter = dap_list_first(s_net_list); l_iter; l_iter = l_iter->next) {
-        if ( ((struct policy_net_list_item *)(l_iter->data))->net_id == a_net_id)
+        struct policy_net_list_item *l_item = (struct policy_net_list_item *)(l_iter->data);
+        if ( l_item->net_id == a_net_id)
             s_net_list = dap_list_remove_link(s_net_list, l_iter);
+        dap_list_free_full(l_item->policies, NULL);
+        dap_list_free(l_item->exception_list);
+        DAP_DELETE(l_item);
     }
     if(!l_iter) {
         log_it(L_ERROR, "Can't find net with id %"DAP_UINT64_FORMAT_X" to delete", a_net_id);
