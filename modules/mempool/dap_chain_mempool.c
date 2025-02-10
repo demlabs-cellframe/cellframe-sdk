@@ -67,6 +67,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
+#include "dap_chain_ledger.h"
 
 #include "dap_chain_mempool_rpc.h"
 
@@ -566,6 +567,109 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
     char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
     DAP_DELETE(l_datum);
     return l_ret;
+}
+
+// get reward and fees from blocks before hardfork
+char *dap_chain_mempool_tx_coll_fee_stack_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
+                                           const dap_chain_addr_t *a_addr_to, uint256_t a_value_fee, const char *a_hash_out_type)
+{
+    uint256_t                   l_value_out = {};
+    uint256_t                   l_net_fee = {};
+    dap_chain_datum_tx_t        *l_tx;
+    dap_chain_addr_t            l_addr_fee = {};
+
+    dap_return_val_if_fail(a_blocks && a_key_from && a_addr_to, NULL);
+    dap_chain_t *l_chain = a_blocks->chain;
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, &l_net_fee, &l_addr_fee);
+    dap_ledger_t *l_ledger = dap_chain_net_by_id(l_chain->net_id)->pub.ledger;
+    dap_pkey_t *l_sign_pkey = dap_pkey_from_enc_key(a_key_from);
+    dap_chain_tx_used_out_item_t * l_out_fee_stack = dap_ledger_get_tx_cond_out(l_ledger, a_addr_to, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK);
+    if (!l_out_fee_stack) {
+        log_it(L_WARNING, "Can't find fee_stack tx out item");
+        return NULL;
+    }
+
+    if (NULL == (l_tx = dap_chain_datum_tx_create())) {
+        log_it(L_WARNING, "Can't create datum tx");
+        return NULL;
+    }
+    l_value_out = l_out_fee_stack->value;
+
+    dap_hash_fast_t l_sign_pkey_hash;
+    dap_hash_fast(l_sign_pkey->pkey, l_sign_pkey->header.size, &l_sign_pkey_hash);
+    DAP_DELETE(l_sign_pkey);
+
+    //add 'fee' items
+    {
+        uint256_t l_value_pack = {};
+        // Network fee
+        if (l_net_fee_used) {
+            if (dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) == 1)
+                SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
+            else {
+                log_it(L_WARNING, "Can't create net_fee out item in transaction fee");
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+        }
+        // Validator's fee
+        if (!IS_ZERO_256(a_value_fee)) {
+            if (dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee) == 1)
+                SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
+            else {
+                log_it(L_WARNING, "Can't create valid_fee item in transaction fee");
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+        }
+        if (compare256(l_value_out, l_value_pack) == 1)
+            SUBTRACT_256_256(l_value_out, l_value_pack, &l_value_out);
+        else {
+            log_it(L_WARNING, "The transaction fee is greater than the sum of the block fees");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // Check and apply sovereign tax for this key
+    uint256_t l_value_tax = {};
+    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(l_chain->net_id, &l_sign_pkey_hash);
+    if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
+                !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
+        MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
+        if (compare256(l_value_tax, l_value_out) < 1)
+            SUBTRACT_256_256(l_value_out, l_value_tax, &l_value_out);
+    }
+        //add 'out' items
+    if (!IS_ZERO_256(l_value_out)) {
+        if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_value_out) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_WARNING, "Can't create out item in transaction fee");
+            return NULL;
+        }
+    }
+    if (!IS_ZERO_256(l_value_tax)) {
+        if (dap_chain_datum_tx_add_out_item(&l_tx, &l_key_item->sovereign_addr, l_value_tax) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_WARNING, "Can't create out item in transaction fee");
+            return NULL;
+        }
+    }
+
+    // add 'sign' items
+    if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_WARNING, "Can't sign item in transaction fee");
+        return NULL;
+    }
+
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    DAP_DELETE(l_tx);
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
+    DAP_DELETE(l_datum);
+    return l_ret;
+
 }
 
 /**
