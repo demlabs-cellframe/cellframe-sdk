@@ -33,6 +33,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_http_ban_list_client.h"
+#include "dap_chain_policy.h"
 
 #define LOG_TAG "dap_ledger_decree"
 
@@ -622,6 +623,18 @@ const char *l_ban_addr;
                                                    DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, sizeof(dap_stream_node_addr_t));
             dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
             return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_block_num, l_addrs);
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY:
+            if (!a_apply)
+                break;
+            dap_chain_policy_t *l_policy = NULL;
+            if ( !(l_policy = dap_chain_datum_decree_get_policy(a_decree)) ){
+                log_it(L_WARNING,"Can't get policy from decree.");
+                return -105;
+            }
+            l_policy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_policy, dap_chain_policy_get_size(l_policy), -106);
+            if (DAP_FLAG_CHECK(l_policy->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM))
+                l_policy->activate.chain_union.chain = dap_chain_find_by_id(a_net->pub.id, l_policy->activate.chain_union.chain_id);
+            return dap_chain_policy_add(l_policy, a_net->pub.id.uint64);
         }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE: {
             dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
