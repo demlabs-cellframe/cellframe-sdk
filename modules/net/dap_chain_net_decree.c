@@ -33,6 +33,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_http_ban_list_client.h"
+#include "dap_chain_policy.h"
 
 
 
@@ -632,6 +633,19 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 break;
             dap_chain_esbocs_set_emergency_validator(l_chain, l_action, l_sign_type, &l_hash);
         } break;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY: {
+            if (!a_apply)
+                break;
+            dap_chain_policy_t *l_policy = NULL;
+            if ( !(l_policy = dap_chain_datum_decree_get_policy(a_decree)) ){
+                log_it(L_WARNING,"Can't get policy from decree.");
+                return -105;
+            }
+            l_policy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_policy, dap_chain_policy_get_size(l_policy), -106);
+            if (DAP_FLAG_CHECK(l_policy->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM))
+                l_policy->activate.chain_union.chain = dap_chain_find_by_id(a_net->pub.id, l_policy->activate.chain_union.chain_id);
+            return dap_chain_policy_add(l_policy, a_net->pub.id.uint64);
+        }
         default:
             return -1;
     }
