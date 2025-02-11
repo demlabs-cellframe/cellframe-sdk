@@ -537,14 +537,14 @@ dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t
     return ret;
 }
 
-int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs)
+int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, json_object * a_changed_addrs)
 {
     if (dap_strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR))
         return log_it(L_ERROR, "Can't prepare harfork for chain type %s is not supported", dap_chain_get_cs_type(a_chain)), -2;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     assert(l_net);
     struct hardfork_states *l_states = DAP_NEW_Z_RET_VAL_IF_FAIL(struct hardfork_states, -1, NULL);
-    l_states->balances = dap_ledger_states_aggregate(l_net->pub.ledger, a_last_block_timestamp, &l_states->condouts);
+    l_states->balances = dap_ledger_states_aggregate(l_net->pub.ledger, a_last_block_timestamp, &l_states->condouts, a_changed_addrs);
     l_states->anchors = dap_ledger_anchors_aggregate(l_net->pub.ledger);
     l_states->fees = dap_chain_cs_blocks_fees_aggregate(a_chain);
     size_t l_state_size = 0;
