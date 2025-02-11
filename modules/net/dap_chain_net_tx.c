@@ -1192,6 +1192,11 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 //const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
                 //size_t l_params_size = dap_strlen(l_params_str);
                 dap_chain_tx_out_cond_t *l_out_cond_item = NULL; //dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_srv_uid, l_net->pub.id, l_token, l_value, l_params_str, l_params_size);
+                dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_srv_uid, l_net->pub.id,
+                                                                             uint256_t a_value_sell, dap_chain_net_id_t a_buy_net_id,
+                                                                             const char *a_token, uint256_t a_value_rate,
+                                                                             const dap_chain_addr_t *a_seller_addr,
+                                                                             NULL, 0);
                 l_item = (const uint8_t*) l_out_cond_item;
                 // Save value for using in In item
                 if(l_item) {
