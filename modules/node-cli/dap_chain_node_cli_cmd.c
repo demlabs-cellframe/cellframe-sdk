@@ -4121,6 +4121,30 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 return -1;
             }
 
+            const char *l_addr_pairs = NULL;
+            if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr_pairs", &l_addr_pairs)) {
+                char **l_addrs = dap_strsplit(l_addr_pairs, ",", 256);
+                if (!l_addrs) {
+                    dap_list_free_full(l_tsd_list, NULL);
+                    log_it(L_ERROR, "Argument -addr_pairs require string <\"old_addr:new_addr\",\"old_addr1:new_addr1\"...>");
+                    return -200;
+                }
+                json_object* l_json_arr_addrs = json_object_new_object();
+                for (uint16_t i = 0; l_addrs[i]; i++) {
+                    char ** l_addr_pair = dap_strsplit(l_addrs[i], ":", 256);
+                    if (!l_addr_pair || !l_addr_pair[0] || !l_addr_pair[1])
+                        continue;
+                    json_object_object_add(l_json_arr_addrs, l_addr_pair[0], l_addr_pair[1]);
+                }
+                const char * l_addr_array_str = json_object_to_json_string(l_json_arr_addrs);
+                l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS, l_addr_array_str, strlen(l_addr_array_str) + 1);
+                if (!l_tsd) {
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                    dap_list_free_full(l_tsd_list, NULL);
+                    return -1;
+                }
+                l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+            }
 
             if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-trusted_addrs", &l_param_addr_str)) {
                 char **l_addrs = dap_strsplit(l_param_addr_str, ",", 256);
