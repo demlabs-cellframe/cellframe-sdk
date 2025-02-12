@@ -4407,7 +4407,7 @@ int dap_chain_net_srv_stake_switch_table(dap_chain_net_id_t a_net_id, bool a_to_
     if (!l_srv_stake)
         return -1;
     if (l_srv_stake->hardfork.in_process == a_to_sandbox) {
-        log_it(L_ERROR, "Key delegate table already switched to %s table", a_to_sandbox ? "snadbox" : "main");
+        log_it(L_DEBUG, "Key delegate table already switched to %s table", a_to_sandbox ? "snadbox" : "main");
         return -2;
     }
     if (!a_to_sandbox) { // free temp table if switch to main
