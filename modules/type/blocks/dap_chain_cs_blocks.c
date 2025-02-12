@@ -1735,9 +1735,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
         assert(l_net);
         if ( !dap_chain_net_get_load_mode(l_net) ) {
-            ssize_t l_res = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL);
-            if ( l_res < 0 ) {
-                log_it(L_ERROR, "Can't save atom to file, code %zd", l_res);
+            if ( dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL) < 0 ) {
+                log_it(L_ERROR, "Can't save atom to file");
                 dap_chain_net_srv_stake_switch_table(l_net->pub.id, false);
                 return ATOM_REJECT;
             } else if (a_chain->is_mapped) {
