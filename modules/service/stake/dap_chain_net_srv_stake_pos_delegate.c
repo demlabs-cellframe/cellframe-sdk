@@ -109,6 +109,10 @@ struct srv_stake {
     dap_chain_net_srv_stake_item_t *itemlist;
     dap_chain_net_srv_stake_item_t *tx_itemlist;
     struct cache_item *cache;
+    struct {
+        bool in_process;
+        dap_chain_net_srv_stake_item_t *sandbox;
+    } hardfork;
 };
 
 static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply);
@@ -179,7 +183,10 @@ static dap_pkey_t *s_get_pkey_by_hash_callback(const uint8_t *a_hash)
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     for ( ; l_srv_stake_list && !l_stake; l_srv_stake_list = l_srv_stake_list->next) {
         struct srv_stake *l_srv_stake = l_srv_stake_list->data;
-        HASH_FIND(hh, l_srv_stake->itemlist, a_hash, sizeof(dap_hash_fast_t), l_stake);
+        if (l_srv_stake->hardfork.in_process)
+            HASH_FIND(hh, l_srv_stake->hardfork.sandbox, a_hash, sizeof(dap_hash_fast_t), l_stake);
+        else
+            HASH_FIND(hh, l_srv_stake->itemlist, a_hash, sizeof(dap_hash_fast_t), l_stake);
     }
     return l_stake ? l_stake->pkey : NULL; 
 }
@@ -275,6 +282,11 @@ static void s_pos_delegate_delete(void *a_service_internal)
         HASH_DELETE(ht, l_srv_stake->tx_itemlist, l_stake);
     }
     HASH_ITER(hh, l_srv_stake->itemlist, l_stake, l_tmp) {
+        // Clang bug at this, l_stake should change at every loop cycle
+        HASH_DEL(l_srv_stake->itemlist, l_stake);
+        s_srv_stake_item_free((void *)l_stake);
+    }
+    HASH_ITER(hh, l_srv_stake->hardfork.sandbox, l_stake, l_tmp) {
         // Clang bug at this, l_stake should change at every loop cycle
         HASH_DEL(l_srv_stake->itemlist, l_stake);
         s_srv_stake_item_free((void *)l_stake);
@@ -482,6 +494,27 @@ static void s_stake_recalculate_weights(dap_chain_net_id_t a_net_id)
     for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next)
         it->value = it->locked_value;       // restore original locked values
     while (s_weights_truncate(l_srv_stake, l_limit_min));
+}
+
+static void s_stake_key_delegate_switched(struct srv_stake *a_srv_stake, dap_chain_addr_t *a_signing_addr, dap_pkey_t *a_pkey)
+{
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+    bool l_found = false;
+    log_it(L_NOTICE, "Add key %s delegation in hardfork process", dap_hash_fast_to_str_static(&a_signing_addr->data.hash_fast));
+    HASH_FIND(hh, a_srv_stake->hardfork.sandbox, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
+    if (!l_stake)
+        l_stake = DAP_NEW_Z_RET_IF_FAIL(dap_chain_net_srv_stake_item_t);
+    else
+        l_found = true;
+    if (dap_pkey_get_size(a_pkey)) {
+        DAP_DELETE(l_stake->pkey);
+        l_stake->pkey = DAP_DUP_SIZE(a_pkey, dap_pkey_get_size(a_pkey));
+    }
+    if (!l_found) {
+        l_stake->signing_addr = *a_signing_addr;
+        HASH_ADD(hh, a_srv_stake->hardfork.sandbox, signing_addr.data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
+    }
+    return;
 }
 
 void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_chain_datum_decree_t *a_decree,
@@ -4302,6 +4335,10 @@ int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, da
     struct srv_stake *l_srv_stake = s_srv_stake_by_net_id(a_net_id);
     if (!l_srv_stake)
         return -2;
+    if (l_srv_stake->hardfork.in_process && l_srv_stake->hardfork.sandbox) {
+        log_it(L_ERROR, "Temp hardfork table already existed in net %"DAP_UINT64_FORMAT_U, a_net_id.uint64);
+        return -3;
+    }
     dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
     HASH_ITER(hh, l_srv_stake->itemlist, l_stake, l_tmp) {
         if (dap_hash_fast_is_blank(&l_stake->tx_hash)) {
@@ -4310,11 +4347,17 @@ int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, da
         }
     }
     // clean prev table
-    s_pos_delegate_purge(a_net_id);
+    if (!l_srv_stake->hardfork.in_process)
+        s_pos_delegate_purge(a_net_id);
+    
     // restore poa keys
     for ( dap_list_t* l_iter = dap_list_first(l_current_list); l_iter; l_iter = l_iter->next) {
         l_stake = (dap_chain_net_srv_stake_item_t *)l_iter->data;
-        dap_chain_net_srv_stake_key_delegate(l_net, &l_stake->signing_addr, NULL, l_stake->value, &l_stake->node_addr, l_stake->pkey);
+        if (l_srv_stake->hardfork.in_process) {
+            s_stake_key_delegate_switched(l_srv_stake, &l_stake->signing_addr, l_stake->pkey);
+        } else {
+            dap_chain_net_srv_stake_key_delegate(l_net, &l_stake->signing_addr, NULL, l_stake->value, &l_stake->node_addr, l_stake->pkey);
+        }
     }
     dap_list_free_full(l_current_list, s_srv_stake_item_free);
 
@@ -4341,9 +4384,39 @@ int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, da
             dap_list_free_full(l_current_list, NULL);
             return -4;
         }
-        dap_chain_net_srv_stake_key_delegate(l_net, &l_addr, l_current_decree, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(l_current_decree));
-        dap_chain_net_srv_stake_add_approving_decree_info(l_current_decree, l_net);
+        if (l_srv_stake->hardfork.in_process) {
+            s_stake_key_delegate_switched(l_srv_stake, &l_addr, dap_chain_datum_decree_get_pkey(l_current_decree));
+        } else {
+            dap_chain_net_srv_stake_key_delegate(l_net, &l_addr, l_current_decree, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(l_current_decree));
+            dap_chain_net_srv_stake_add_approving_decree_info(l_current_decree, l_net);
+        }
     }
     dap_list_free_full(l_current_list, NULL);
+    return 0;
+}
+
+/**
+ * @brief switch key delegate table
+ * @param a_net_id net id to switch
+ * @param a_to_temp true - switch to sandbox, false - switch to main
+ * @return if OK - 0, other if error
+ */
+int dap_chain_net_srv_stake_switch_table(dap_chain_net_id_t a_net_id, bool a_to_sandbox)
+{
+    struct srv_stake *l_srv_stake = s_srv_stake_by_net_id(a_net_id);
+    if (!l_srv_stake)
+        return -1;
+    if (l_srv_stake->hardfork.in_process == a_to_sandbox) {
+        log_it(L_ERROR, "Key delegate table already switched to %s table", a_to_sandbox ? "snadbox" : "main");
+        return -2;
+    }
+    if (!a_to_sandbox) { // free temp table if switch to main
+        dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp = NULL;
+        HASH_ITER(hh, l_srv_stake->hardfork.sandbox, l_stake, l_tmp) {
+            HASH_DEL(l_srv_stake->itemlist, l_stake);
+            s_srv_stake_item_free((void *)l_stake);
+        }
+    }
+    l_srv_stake->hardfork.in_process = a_to_sandbox;
     return 0;
 }

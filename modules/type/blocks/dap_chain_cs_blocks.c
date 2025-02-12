@@ -1838,6 +1838,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
                     return ATOM_REJECT;
                 }
+                if (dap_chain_net_srv_stake_switch_table(a_chain->net_id, false)) { // to main
+                    log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
+                    return ATOM_REJECT;
+                }
                 if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // True import
                     log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
                     return ATOM_REJECT;
@@ -2008,7 +2012,14 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                 log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
                 return ATOM_REJECT;
             }
+            if (dap_chain_net_srv_stake_switch_table(a_chain->net_id, true)) { // to Sandbox
+                log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in switching to sandbox table", dap_hash_fast_to_str_static(a_atom_hash));
+                return ATOM_REJECT;
+            }
             if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // Sandbox
+                if (dap_chain_net_srv_stake_switch_table(a_chain->net_id, false)) {  // return to main
+                    log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
+                }
                 log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
                 return ATOM_REJECT;
             }
