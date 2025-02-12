@@ -714,7 +714,8 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     uint256_t l_value_need = { };// how many tokens are needed in the 'out' item
     uint256_t l_value_need_fee = {};
     uint256_t l_value_delegated	= {};
-     dap_chain_addr_t *l_addr_back = NULL;
+    dap_chain_addr_t *l_addr_back = NULL;
+    dap_chain_addr_t l_seller_addr = {};
     dap_sign_t *l_owner_sign = NULL;
 
     if(a_net){ // if composition is not offline
@@ -836,6 +837,15 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                             }                                 
                         }
                     }
+                }break;
+                case TX_ITEM_TYPE_SIG: {
+                    dap_chain_wallet_t *l_wallet = s_json_get_wallet(l_json_item_obj, "wallet");
+                    dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_wallet, a_net->pub.id);
+                    l_seller_addr = *l_wallet_addr;
+                     DAP_DELETE(l_wallet_addr);
+                    if (l_wallet)
+                        dap_chain_wallet_close(l_wallet);
+
                 }break;
                 case TX_ITEM_TYPE_IN_REWARD:
                 default: continue;
@@ -1168,7 +1178,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             }
                 break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
-
+                
                 dap_chain_net_srv_uid_t l_srv_uid;
                 if(!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
                     // Default service DAP_CHAIN_NET_SRV_XCHANGE_ID
@@ -1178,10 +1188,11 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 if(!l_net) {
                     log_it(L_ERROR, "Json TX: bad net in OUT_COND_SUBTYPE_SRV_XCHANGE");
                     break;
-                }
-                const char *l_token = s_json_get_text(l_json_item_obj, "token");
-                if(!l_token) {
-                    log_it(L_ERROR, "Json TX: bad token in OUT_COND_SUBTYPE_SRV_XCHANGE");
+                }              
+                                
+                const char *l_token_buy = s_json_get_text(l_json_item_obj, "token_buy");
+                if(!l_token_buy) {
+                    log_it(L_ERROR, "Json TX: bad token_buy in OUT_COND_SUBTYPE_SRV_XCHANGE");
                     break;
                 }
                 uint256_t l_value = { };
@@ -1189,18 +1200,22 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                     log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_XCHANGE");
                     break;
                 }
+                uint256_t l_value_rate = { };
+                if(!s_json_get_uint256(l_json_item_obj, "rate", &l_value_rate) || IS_ZERO_256(l_value_rate)) {
+                    log_it(L_ERROR, "Json TX: bad value rate in OUT_COND_SUBTYPE_SRV_XCHANGE");
+                    break;
+                }
                 //const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
                 //size_t l_params_size = dap_strlen(l_params_str);
-                dap_chain_tx_out_cond_t *l_out_cond_item = NULL; //dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_srv_uid, l_net->pub.id, l_token, l_value, l_params_str, l_params_size);
-                dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_srv_uid, l_net->pub.id,
-                                                                             uint256_t a_value_sell, dap_chain_net_id_t a_buy_net_id,
-                                                                             const char *a_token, uint256_t a_value_rate,
-                                                                             const dap_chain_addr_t *a_seller_addr,
-                                                                             NULL, 0);
+                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_srv_uid, l_net->pub.id,
+                                                                                                                l_value, l_net->pub.id,
+                                                                                                                l_token_buy, l_value_rate,
+                                                                                                                &l_seller_addr,
+                                                                                                                NULL, 0);
                 l_item = (const uint8_t*) l_out_cond_item;
                 // Save value for using in In item
                 if(l_item) {
-                    SUM_256_256(l_value_need, l_value, &l_value_need);
+                    SUM_256_256(l_value_need, l_value, &l_value_need);                        
                 } else {
                     char *l_str_err = dap_strdup_printf("Unable to create conditional out for transaction "
                                                          "can of type %s described in item %zu.", l_subtype_str, i);
