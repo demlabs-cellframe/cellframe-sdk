@@ -6212,7 +6212,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
 
     json_object *l_jobj_ret = json_object_new_object();
 
-    if(l_items_ready < l_items_count) {
+    if(l_items_ready < l_items_count || json_object_array_length(l_jobj_errors)) {
         json_object *l_tx_create = json_object_new_boolean(false);
         json_object *l_jobj_valid_items = json_object_new_uint64(l_items_ready);
         json_object *l_jobj_total_items = json_object_new_uint64(l_items_count);
