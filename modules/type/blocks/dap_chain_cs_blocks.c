@@ -1737,7 +1737,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         if ( !dap_chain_net_get_load_mode(l_net) ) {
             if ( dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL) < 0 ) {
                 log_it(L_ERROR, "Can't save atom to file");
-                dap_chain_net_srv_stake_switch_table(l_net->pub.id, false);
+                dap_chain_net_srv_stake_switch_table(a_chain->net_id, false);
                 return ATOM_REJECT;
             } else if (a_chain->is_mapped) {
                 l_block = (dap_chain_block_t*)( l_cell->map_pos += sizeof(uint64_t) );  // Switching to mapped area
@@ -1749,7 +1749,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped);
         if (!l_block_cache) {
             log_it(L_DEBUG, "%s", "... corrupted block");
-            dap_chain_net_srv_stake_switch_table(l_net->pub.id, false);
+            dap_chain_net_srv_stake_switch_table(a_chain->net_id, false);
             return ATOM_REJECT;
         }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
