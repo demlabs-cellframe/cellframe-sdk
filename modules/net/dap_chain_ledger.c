@@ -3977,34 +3977,42 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         return l_err_num;
     }
 
-    // 6. Compare sum of values in 'out' items in the current transaction and in the previous transa    // Calculate the sum of values in 'out' items from the current transaction
-    bool l_multichannel = false;
-    if (HASH_COUNT(l_values_from_prev_tx) > 1) {
-        l_multichannel = true;
-        if (HASH_COUNT(l_values_from_prev_tx) == 2 && !l_main_ticker) {
-            HASH_FIND_STR(l_values_from_prev_tx, a_ledger->net->pub.native_ticker, l_value_cur);
-            if (l_value_cur) {
-                l_value_cur = l_value_cur->hh.next ? l_value_cur->hh.next : l_value_cur->hh.prev;
-                l_main_ticker = l_value_cur->token_ticker;
-            }
-        }
-    } else {
+    // 6. Compare sum of values in 'out' items
+
+    switch ( HASH_COUNT(l_values_from_prev_tx) ) {
+    case 1:
         l_value_cur = DAP_NEW_Z(dap_ledger_tokenizer_t);
         if ( !l_value_cur ) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            l_err_num = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
             if ( l_list_bound_items )
                 dap_list_free_full(l_list_bound_items, NULL);
             HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
                 HASH_DEL(l_values_from_prev_tx, l_value_cur);
                 DAP_DELETE(l_value_cur);
             }
-            return l_err_num;
+            return DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
         }
         dap_stpcpy(l_value_cur->token_ticker, l_token);
+        HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
         if (!l_main_ticker)
             l_main_ticker = l_value_cur->token_ticker;
-        HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
+        break;
+    case 2:
+        if (l_main_ticker)
+            break;
+        HASH_FIND_STR(l_values_from_prev_tx, a_ledger->net->pub.native_ticker, l_value_cur);
+        if (l_value_cur) {
+            l_value_cur = l_value_cur->hh.next ? l_value_cur->hh.next : l_value_cur->hh.prev;
+            l_main_ticker = l_value_cur->token_ticker;
+        }
+        break;
+    default:
+        dap_list_free_full(l_list_bound_items, NULL);
+        HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
+            HASH_DEL(l_values_from_prev_tx, l_value_cur);
+            DAP_DELETE(l_value_cur);
+        }
+        return DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
     }
 
     dap_chain_net_srv_stake_item_t *l_key_item = NULL;
@@ -4025,7 +4033,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         switch ( *it ) {
         case TX_ITEM_TYPE_OUT_OLD: {
             dap_chain_tx_out_old_t *l_tx_out = (dap_chain_tx_out_old_t*)it;
-            if (l_multichannel) { // token ticker is mandatory for multichannel transactions
+            l_token = l_main_ticker;
+            if (!l_token) {
                 l_err_num = DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
                 break;
             }
@@ -4035,13 +4044,10 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         } break;
         case TX_ITEM_TYPE_OUT: { // 256
             dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)it;
-            if (l_multichannel) { // token ticker is mandatory for multichannel transactions
-                if (l_main_ticker)
-                    l_token = l_main_ticker;
-                else {
-                    l_err_num = DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
-                    break;
-                }
+            l_token = l_main_ticker;
+            if (!l_token) {
+                l_err_num = DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
+                break;
             }
             l_value = l_tx_out->header.value;
             l_tx_out_to = l_tx_out->addr;
@@ -4056,16 +4062,10 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         } break;
         case TX_ITEM_TYPE_OUT_COND: {
             dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t *)it;
-            if (l_multichannel) {
-                if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
-                    l_token = (char *)a_ledger->net->pub.native_ticker;
-                else if (l_main_ticker)
-                    l_token = l_main_ticker;
-                else {
-                    log_it(L_WARNING, "No conditional output support for multichannel transaction");
-                    l_err_num = DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
-                    break;
-                }
+            l_token = l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE ? a_ledger->net->pub.native_ticker : l_main_ticker;
+            if (!l_token) {
+                l_err_num = DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
+                break;
             }
             l_value = l_tx_out->header.value;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
@@ -4093,18 +4093,16 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
 
         if (l_err_num)
             break;
-        if (l_multichannel) {
-            HASH_FIND_STR(l_values_from_cur_tx, l_token, l_value_cur);
-            if (!l_value_cur) {
-                l_value_cur = DAP_NEW_Z(dap_ledger_tokenizer_t);
-                if ( !l_value_cur ) {
-                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                    l_err_num = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
-                    break;
-                }
-                strcpy(l_value_cur->token_ticker, l_token);
-                HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
+        HASH_FIND_STR(l_values_from_cur_tx, l_token, l_value_cur);
+        if (!l_value_cur) {
+            l_value_cur = DAP_NEW_Z(dap_ledger_tokenizer_t);
+            if ( !l_value_cur ) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                l_err_num = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+                break;
             }
+            strcpy(l_value_cur->token_ticker, l_token);
+            HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
         }
         if (SUM_256_256(l_value_cur->sum, l_value, &l_value_cur->sum)) {
             debug_if(s_debug_more, L_WARNING, "Sum result overflow for tx_add_check with ticker %s",
