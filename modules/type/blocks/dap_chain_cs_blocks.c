@@ -1735,8 +1735,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
         assert(l_net);
         if ( !dap_chain_net_get_load_mode(l_net) ) {
-            if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL)) < 0 ) {
-                log_it(L_ERROR, "Can't save atom to file, code %d", ret);
+            if ( dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL) < 0 ) {
+                log_it(L_ERROR, "Can't save atom to file");
+                dap_chain_net_srv_stake_switch_table(a_chain->net_id, false);
                 return ATOM_REJECT;
             } else if (a_chain->is_mapped) {
                 l_block = (dap_chain_block_t*)( l_cell->map_pos += sizeof(uint64_t) );  // Switching to mapped area
@@ -1748,6 +1749,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped);
         if (!l_block_cache) {
             log_it(L_DEBUG, "%s", "... corrupted block");
+            dap_chain_net_srv_stake_switch_table(a_chain->net_id, false);
             return ATOM_REJECT;
         }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
@@ -1836,6 +1838,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
                 if (!l_hardfork_decree_hash) {
                     log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
+                    return ATOM_REJECT;
+                }
+                if (dap_chain_net_srv_stake_switch_table(a_chain->net_id, false)) { // to main
+                    log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
                     return ATOM_REJECT;
                 }
                 if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // True import
@@ -2008,7 +2014,14 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                 log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
                 return ATOM_REJECT;
             }
+            if (dap_chain_net_srv_stake_switch_table(a_chain->net_id, true)) { // to Sandbox
+                log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in switching to sandbox table", dap_hash_fast_to_str_static(a_atom_hash));
+                return ATOM_REJECT;
+            }
             if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // Sandbox
+                if (dap_chain_net_srv_stake_switch_table(a_chain->net_id, false)) {  // return to main
+                    log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
+                }
                 log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
                 return ATOM_REJECT;
             }
