@@ -946,6 +946,14 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                 return dap_cli_server_cmd_set_reply_text(a_str_reply, "Unspecified port"), -7;
 
             l_node_info->ext_host_len = dap_strlen(l_node_info->ext_host);
+
+            dap_chain_node_info_t* l_check_node_info = dap_chain_node_list_ip_check(l_node_info, l_net);
+            if (l_check_node_info) {
+                log_it(L_INFO, "Replace existed node with same ip %s address %s -> %s", l_check_node_info->ext_host,
+                                         dap_stream_node_addr_to_str_static(l_check_node_info->address), dap_stream_node_addr_to_str_static(l_node_info->address));
+                dap_chain_node_info_del(l_net, l_check_node_info);
+            }
+
             l_res = dap_chain_node_info_save(l_net, l_node_info);
             return dap_cli_server_cmd_set_reply_text(a_str_reply, l_res ? "Can't add node %s, error %d" : "Successfully added node %s", l_addr_str, l_res), l_res;
         }

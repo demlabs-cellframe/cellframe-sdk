@@ -246,6 +246,7 @@ int dap_chain_node_list_clean_init() {
             log_it(L_DEBUG, "Node list clean inited for net %s", l_net->pub.name);
         }
     }
+    dap_proc_thread_timer_add_pri(NULL, (dap_thread_timer_callback_t)dap_chain_net_announce_addr_all, NULL, 300000, true, DAP_QUEUE_MSG_PRIORITY_NORMAL);
     return 0;
 }
 
