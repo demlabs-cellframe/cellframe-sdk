@@ -3998,6 +3998,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             l_main_ticker = l_value_cur->token_ticker;
         break;
     case 2:
+    case 3:
         if (l_main_ticker)
             break;
         HASH_FIND_STR(l_values_from_prev_tx, a_ledger->net->pub.native_ticker, l_value_cur);
@@ -4134,7 +4135,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     }
 
     // Check for transaction consistency (sum(ins) == sum(outs))
-    if (!l_err_num) {
+    if ( !l_err_num && !s_check_hal(a_ledger, a_tx_hash) ) {
         HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
             HASH_FIND_STR(l_values_from_cur_tx, l_value_cur->token_ticker, l_res);
             if (!l_res || !EQUAL_256(l_res->sum, l_value_cur->sum) ) {
