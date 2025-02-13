@@ -6176,9 +6176,9 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
     }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
     if(!l_net) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME, "Not found net by name '%s'", l_net_name);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUND_NET_BY_NAME, "Not found net by name '%s'", l_net_name);
         json_object_put(l_json);
-        return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME;
+        return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUND_NET_BY_NAME;
     }
     
     // Read chain from json file
@@ -6193,10 +6193,10 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
         l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
     }
     if(!l_chain) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME,
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUND_CHAIN_BY_NAME,
                                "Chain name '%s' not found, try use parameter '-chain' or set chain in the json file", l_chain_name);
         json_object_put(l_json);
-        return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME;
+        return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUND_CHAIN_BY_NAME;
     }
     
     json_object *l_jobj_errors = json_object_new_array();
