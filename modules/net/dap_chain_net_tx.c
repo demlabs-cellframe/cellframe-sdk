@@ -1284,7 +1284,17 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 l_list = dap_list_next(l_list);
                 continue;
             }
-
+            if((!dap_strcmp(l_native_token, l_main_token) && !IS_ZERO_256(l_value_need))) {
+                log_it(L_WARNING, "Invalid 'in' item. It seems the token ticker is wrong, because there is outs with not native token.");
+                l_err_num++;
+                if (l_jobj_errors) {
+                    json_object *l_jobj_err = json_object_new_string("Invalid 'in' item. It seems the token ticker is wrong, because there is outs with not native token.");
+                    json_object_array_add(l_jobj_errors, l_jobj_err);
+                }
+                // Go to the next item
+                l_list = dap_list_next(l_list);
+                continue;
+            }
             if(l_addr_from){
                 // find the transactions from which to take away coins
                 dap_list_t *l_list_used_out = NULL;
