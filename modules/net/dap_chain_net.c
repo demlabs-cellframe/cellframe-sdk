@@ -786,7 +786,7 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     }
     // deactivate policy
     uint16_t l_policy_count = 0;
-    char **l_policy_str = dap_config_get_array_str(a_cfg, "policy", "deactivate", &l_policy_count);
+    const char **l_policy_str = dap_config_get_array_str(a_cfg, "policy", "deactivate", &l_policy_count);
     for (uint16_t i = 0; i < l_policy_count; ++i) {
         dap_chain_policy_add_to_exception_list(strtoll(l_policy_str[i], NULL, 10), l_ret->pub.id.uint64);
     }
@@ -3073,7 +3073,7 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
             l_net_pvt->sync_context.cur_chain->atom_num_last = l_miss_info->last_num;
             return;
         }
-        dap_chain_ch_sync_request_t l_request = {};
+        dap_chain_ch_sync_request_old_t l_request = {};
         l_request.num_from = l_net_pvt->sync_context.requested_atom_num > s_fork_sync_step
                             ? l_net_pvt->sync_context.requested_atom_num - s_fork_sync_step
                             : 0;
@@ -3240,7 +3240,7 @@ static void s_sync_timer_callback(void *a_arg)
 
     l_net_pvt->sync_context.cur_cell = l_net_pvt->sync_context.cur_chain->cells;
     l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_WAITING;
-    dap_chain_ch_sync_request_t l_request = {};
+    dap_chain_ch_sync_request_old_t l_request = {};
     uint64_t l_last_num = 0;
     if (!dap_chain_get_atom_last_hash_num_ts(l_net_pvt->sync_context.cur_chain,
                                             l_net_pvt->sync_context.cur_cell

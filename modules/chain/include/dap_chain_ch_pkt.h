@@ -36,29 +36,8 @@
 
 #include "dap_stream_ch.h"
 
-#define DAP_CHAIN_CH_PKT_VERSION_LEGACY                 0x01
-#define DAP_CHAIN_CH_PKT_VERSION_CURRENT                0x02
-
-//Legacy
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_REQ      0x06
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_START    0x26
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB          0x36
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_END      0x46
-#define DAP_CHAIN_CH_PKT_TYPE_FIRST_GLOBAL_DB           0x21
-#define DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB                 0x11
-#define DAP_CHAIN_CH_PKT_TYPE_SYNCED_GLOBAL_DB          0x13
-
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_REQ         0x05
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_START       0x25
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS             0x35
-#define DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_END         0x45
-#define DAP_CHAIN_CH_PKT_TYPE_FIRST_CHAIN               0x20
-#define DAP_CHAIN_CH_PKT_TYPE_CHAIN_OLD                 0x01
-#define DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS             0x03
-
-// Freeze detectors
-#define DAP_CHAIN_CH_PKT_TYPE_CHAINS_NO_FREEZE          0x15
-#define DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB_NO_FREEZE       0x16
+#define DAP_CHAIN_CH_PKT_VERSION_LEGACY                 0x02
+#define DAP_CHAIN_CH_PKT_VERSION_CURRENT                0x03
 
 // Stable
 #define DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ                 0x80
@@ -69,38 +48,9 @@
 #define DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN              0x88
 #define DAP_CHAIN_CH_PKT_TYPE_ERROR                     0xff
 
-// *** Legacy *** //
-
-typedef struct dap_chain_ch_update_element {
-    dap_hash_fast_t hash;
-    uint32_t size;
-} DAP_ALIGN_PACKED dap_chain_ch_update_element_t;
-
-typedef struct dap_chain_ch_sync_request_old {
-    dap_chain_node_addr_t node_addr; // Requesting node's address
-    dap_chain_hash_fast_t hash_from;
-    byte_t unused[48];
-} DAP_ALIGN_PACKED dap_chain_ch_sync_request_old_t;
-
 DAP_STATIC_INLINE const char *dap_chain_ch_pkt_type_to_str(uint8_t a_pkt_type)
 {
     switch (a_pkt_type) {
-    case DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_REQ: return "DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_REQ";
-    case DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_START: return "DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_START";
-    case DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB: return "DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB";
-    case DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_END: return "DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_END";
-    case DAP_CHAIN_CH_PKT_TYPE_FIRST_GLOBAL_DB: return "DAP_CHAIN_CH_PKT_TYPE_UPDATE_GLOBAL_DB_END";
-    case DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB: return "DAP_CHAIN_CH_PKT_TYPE_GLOBAL_DB";
-    case DAP_CHAIN_CH_PKT_TYPE_SYNCED_GLOBAL_DB: return "DAP_CHAIN_CH_PKT_TYPE_SYNCED_GLOBAL_DB";
-
-    case DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_REQ: return "DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_REQ";
-    case DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_START: return "DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_START";
-    case DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS: return "DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS";
-    case DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_END: return "DAP_CHAIN_CH_PKT_TYPE_UPDATE_CHAINS_END";
-    case DAP_CHAIN_CH_PKT_TYPE_FIRST_CHAIN: return "DAP_CHAIN_CH_PKT_TYPE_FIRST_CHAIN";
-    case DAP_CHAIN_CH_PKT_TYPE_CHAIN_OLD: return "DAP_CHAIN_CH_PKT_TYPE_CHAIN_OLD";
-    case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS: return "DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS";
-
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ: return "DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ";
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS: return "DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS";
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN: return "DAP_CHAIN_CH_PKT_TYPE_CHAIN";
@@ -113,11 +63,19 @@ DAP_STATIC_INLINE const char *dap_chain_ch_pkt_type_to_str(uint8_t a_pkt_type)
     }
 }
 
+// *** Legacy *** //
+
+typedef struct dap_chain_ch_sync_request_old {
+    dap_chain_hash_fast_t hash_from;
+    uint64_t num_from;
+} DAP_ALIGN_PACKED dap_chain_ch_sync_request_old_t;
+
 // *** Active *** //
 
 typedef struct dap_chain_ch_sync_request {
     dap_chain_hash_fast_t hash_from;
     uint64_t num_from;
+    uint32_t generation;
 } DAP_ALIGN_PACKED dap_chain_ch_sync_request_t;
 
 typedef struct dap_chain_ch_summary {
