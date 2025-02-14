@@ -684,7 +684,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     bool l_multichanel = false;
     bool l_stake = false;
     bool l_unstake = false;
-
+    bool l_reward = false;
 
     // Read items from json file
     struct json_object *l_json_items = json_object_object_get(l_json, "items");
@@ -714,6 +714,8 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     uint256_t l_value_need = { };// how many tokens are needed in the 'out' item
     uint256_t l_value_need_fee = {};
     uint256_t l_value_delegated	= {};
+    uint256_t l_value_order_back = {};
+    uint256_t l_value_reward = {};
     dap_chain_addr_t *l_addr_back = NULL;
     dap_chain_addr_t l_seller_addr = {};
     dap_sign_t *l_owner_sign = NULL;
@@ -805,7 +807,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                             dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_prev_hash);
                             l_ticker_str = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_tx_prev_hash);
                             l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK,&l_out_prev_idx);
-                            if (l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+                            if (l_tx_out_cond && l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
                                 //byte_t *l_prev_item = l_prev_tx ? dap_chain_datum_tx_item_get_nth(l_prev_tx, TX_ITEM_TYPE_OUT_ALL, l_out_prev_idx) : NULL;
                                 dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_ticker_str);
                                 if (NULL != (l_delegated_token = dap_ledger_token_ticker_check(a_net->pub.ledger, l_delegated_ticker_str))){
@@ -817,6 +819,10 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                                 l_unstake = true;
                                 l_multichanel = true;
                             }
+                            /*
+                            if (l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
+                                SUM_256_256(l_value_order_back, l_tx_out_cond->header.value, &l_value_order_back);
+                            }*/
                         }
                     }
 
@@ -847,7 +853,10 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                         dap_chain_wallet_close(l_wallet);
 
                 }break;
-                case TX_ITEM_TYPE_IN_REWARD:
+                case TX_ITEM_TYPE_IN_REWARD:{
+                    l_reward = true;
+                    break;
+                }
                 default: continue;
             }
             //if(l_multichanel)
@@ -915,20 +924,20 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             break;
         case TX_ITEM_TYPE_IN_COND: {
             const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
-            int64_t l_out_prev_idx;            
+            int64_t l_out_prev_idx, l_prev_idx_tmp;            
             bool l_is_out_prev_idx = s_json_get_int64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
+            l_prev_idx_tmp = l_out_prev_idx;
             if(l_prev_hash_str && l_is_out_prev_idx){
                 dap_chain_hash_fast_t l_tx_prev_hash = {};
                 dap_chain_tx_out_cond_t	*l_tx_out_cond = NULL;
                 if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
                     //check out token
                     dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_prev_hash);
-                    l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK,&l_out_prev_idx);
+                    l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK,&l_prev_idx_tmp);
                     byte_t *l_prev_item = l_prev_tx ? dap_chain_datum_tx_item_get_nth(l_prev_tx, TX_ITEM_TYPE_OUT_ALL, l_out_prev_idx) : NULL;
-                    if (l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+                    if (l_tx_out_cond && l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
                         dap_chain_tx_in_cond_t * l_in_cond = dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, 0);
                         l_item = (const uint8_t*) l_in_cond;
-
 
                         if (l_prev_item){
                             if (*l_prev_item == TX_ITEM_TYPE_OUT_COND){
@@ -949,7 +958,13 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                             json_object *l_jobj_err = json_object_new_string(l_str_err);
                             if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
                         }  
-                    }                     
+                    }
+                    l_prev_idx_tmp = l_out_prev_idx; 
+                    l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,&l_prev_idx_tmp);
+                    if (l_tx_out_cond && l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
+                        dap_chain_tx_in_cond_t * l_in_cond = dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, 0);
+                        l_item = (const uint8_t*) l_in_cond;
+                    }                   
                 } else {
                     log_it(L_WARNING, "Invalid 'in_cond' item, bad prev_hash %s", l_prev_hash_str);
                     char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in_cond' item, "
@@ -984,11 +999,13 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         } break;
 
         case TX_ITEM_TYPE_IN_REWARD:{
+            uint256_t l_value = { };
             const char *l_block_hash_str = s_json_get_text(l_json_item_obj, "block_hash");
-
+            bool l_is_value = s_json_get_uint256(l_json_item_obj, "value", &l_value);
             if(l_block_hash_str ) {
                 dap_hash_fast_t l_block_hash;
-                if(!dap_chain_hash_fast_from_str(l_block_hash_str, &l_block_hash)) {
+                if(l_is_value && !dap_chain_hash_fast_from_str(l_block_hash_str, &l_block_hash)) {
+                    SUM_256_256(l_value_reward, l_value, &l_value_reward);                    
                     dap_chain_tx_in_reward_t *l_in_reward = dap_chain_datum_tx_item_in_reward_create(&l_block_hash);
                     l_item = (const uint8_t*) l_in_reward;
                 } else {
