@@ -29,9 +29,7 @@ static void s_chain_pkt_fill(dap_chain_ch_pkt_t *a_pkt, dap_chain_net_id_t a_net
 {
     *a_pkt = (dap_chain_ch_pkt_t) {
             .hdr = { .version = a_version,
-                     .data_size = a_version == DAP_CHAIN_CH_PKT_VERSION_LEGACY
-                                        ? 0
-                                        : a_data_size,
+                     .data_size = a_data_size,
                      .net_id = a_net_id,
                      .cell_id = a_cell_id,
                      .chain_id = a_chain_id }

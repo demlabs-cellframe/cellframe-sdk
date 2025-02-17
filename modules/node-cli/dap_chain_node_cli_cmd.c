@@ -4134,7 +4134,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                     char ** l_addr_pair = dap_strsplit(l_addrs[i], ":", 256);
                     if (!l_addr_pair || !l_addr_pair[0] || !l_addr_pair[1])
                         continue;
-                    json_object_object_add(l_json_arr_addrs, l_addr_pair[0], l_addr_pair[1]);
+                    json_object_object_add(l_json_arr_addrs, l_addr_pair[0], json_object_new_string(l_addr_pair[1]));
                 }
                 const char * l_addr_array_str = json_object_to_json_string(l_json_arr_addrs);
                 l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS, l_addr_array_str, strlen(l_addr_array_str) + 1);

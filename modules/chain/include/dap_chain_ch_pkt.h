@@ -32,8 +32,8 @@
 #include "dap_chain_common.h"
 #include "dap_stream_ch.h"
 
-#define DAP_CHAIN_CH_PKT_VERSION_LEGACY                 0x02
-#define DAP_CHAIN_CH_PKT_VERSION_CURRENT                0x03
+//#define DAP_CHAIN_CH_PKT_VERSION_LEGACY                 0x02
+#define DAP_CHAIN_CH_PKT_VERSION_CURRENT                0x02
 
 // Stable
 #define DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ                 0x80

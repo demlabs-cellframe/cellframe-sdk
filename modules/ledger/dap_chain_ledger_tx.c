@@ -2498,7 +2498,7 @@ static dap_chain_addr_t* s_change_addr(struct json_object *a_json, dap_chain_add
     const char * l_out_addr = dap_chain_addr_to_str_static(a_addr);
     struct json_object *l_json = json_object_object_get(a_json, l_out_addr);
     if(l_json && json_object_is_type(l_json, json_type_string)) {
-        char * l_change_str =  json_object_get_string(l_json);
+        const char *l_change_str =  json_object_get_string(l_json);
         dap_chain_addr_t* l_ret_addr =  dap_chain_addr_from_str(l_change_str);
         DAP_DELETE(l_change_str);
         return l_ret_addr;

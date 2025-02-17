@@ -105,9 +105,6 @@ static uint32_t s_sync_timeout = 30;
 static uint32_t s_sync_packets_per_thread_call = 10;
 static uint32_t s_sync_ack_window_size = 16; // atoms
 
-// Legacy
-static const uint_fast16_t s_update_pack_size = 100; // Number of hashes packed into the one packet
-
 #ifdef  DAP_SYS_DEBUG
 
 enum    {MEMSTAT$K_STM_CH_CHAIN, MEMSTAT$K_NR};
@@ -122,12 +119,10 @@ const char* const s_error_type_to_string[] = {
     [DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE]        = "INCORRECT_SYNC_SEQUENCE",
     [DAP_CHAIN_CH_ERROR_SYNC_TIMEOUT]                   = "SYNCHRONIZATION_TIMEOUT",
     [DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE]            = "INVALID_PACKET_SIZE",
-    [DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE]           = "INVALID_LEGACY_PACKET_SIZE",
     [DAP_CHAIN_CH_ERROR_NET_INVALID_ID]                 = "INVALID_NET_ID",
     [DAP_CHAIN_CH_ERROR_CHAIN_NOT_FOUND]                = "CHAIN_NOT_FOUND",
     [DAP_CHAIN_CH_ERROR_ATOM_NOT_FOUND]                 = "ATOM_NOT_FOUND",
     [DAP_CHAIN_CH_ERROR_UNKNOWN_CHAIN_PKT_TYPE]         = "UNKNOWN_CHAIN_PACKET_TYPE",
-    [DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED]   = "GLOBAL_DB_INTERNAL_SAVING_ERROR",
     [DAP_CHAIN_CH_ERROR_NET_IS_OFFLINE]                 = "NET_IS_OFFLINE",
     [DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY]                  = "OUT_OF_MEMORY",
     [DAP_CHAIN_CH_ERROR_INTERNAL]                       = "INTERNAL_ERROR"
@@ -298,7 +293,7 @@ void dap_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, dap_chain_net_id_t 
     dap_chain_ch_t *l_ch_chain = DAP_CHAIN_CH(a_ch);
     dap_return_if_fail(l_ch_chain);
     const char *l_err_str = a_error < DAP_CHAIN_CH_ERROR_LAST ? s_error_type_to_string[a_error] : "UNDEFINED ERROR";
-    dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_err_str, strlen(l_err_str) + 1, DAP_CHAIN_CH_PKT_VERSION_LEGACY);
+    dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_err_str, strlen(l_err_str) + 1, DAP_CHAIN_CH_PKT_VERSION_CURRENT);
     s_ch_chain_go_idle(l_ch_chain);
 }
 
@@ -329,8 +324,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                  l_chain_pkt->hdr.version, DAP_CHAIN_CH_PKT_VERSION_CURRENT);
         return false;
     }
-    if (l_chain_pkt->hdr.version > DAP_CHAIN_CH_PKT_VERSION_LEGACY &&
-                l_chain_pkt_data_size != l_chain_pkt->hdr.data_size) {
+    if (l_chain_pkt_data_size != l_chain_pkt->hdr.data_size) {
         log_it(L_WARNING, "Incorrect chain packet size %zu, expected %u",
                             l_chain_pkt_data_size, l_chain_pkt->hdr.data_size);
         return false;
