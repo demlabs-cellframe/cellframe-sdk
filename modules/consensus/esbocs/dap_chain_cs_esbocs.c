@@ -1706,7 +1706,7 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                                                         &l_chain->hardfork_decree_hash, sizeof(l_chain->hardfork_decree_hash));
             if (l_candidate_size)
                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_GENERATION,
-                                                            &l_blocks->generation, sizeof(uint16_t));
+                                                            &l_chain->generation, sizeof(uint16_t));
         }
         if (l_candidate_size) {
             dap_hash_fast(l_candidate, l_candidate_size, &l_candidate_hash);
@@ -2889,7 +2889,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         }
         if (l_esbocs->session->is_hardfork) {
             uint8_t *l_generation = dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_GENERATION);
-            if (!l_generation || *(uint16_t *)l_generation != a_blocks->generation) {
+            if (!l_generation || *(uint16_t *)l_generation != a_blocks->chain->generation) {
                 log_it(L_WARNING, "Can't process hardfork block %s with incorrect generation meta", dap_hash_fast_to_str_static(a_block_hash));
                 return -302;
             }

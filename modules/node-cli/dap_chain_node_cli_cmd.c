@@ -1124,7 +1124,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         }
         log_it(L_NOTICE, "Stream connection established");
 
-        dap_chain_ch_sync_request_old_t l_sync_request = {};
+        dap_chain_ch_sync_request_old_old_t l_sync_request = {};
         dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_CHAIN_CH_ID);
         // fill begin id
         l_sync_request.id_start = 1;
@@ -1167,7 +1167,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             // reset state NODE_CLIENT_STATE_SYNCED
             dap_chain_node_client_reset(l_node_client);
             // send request
-            dap_chain_ch_sync_request_old_t l_sync_request = {};
+            dap_chain_ch_sync_request_old_old_t l_sync_request = {};
             if(0 == dap_chain_ch_pkt_write_unsafe(l_ch_chain, DAP_CHAIN_CH_PKT_TYPE_SYNC_CHAINS,
                     l_net->pub.id.uint64, l_chain->id.uint64, l_remote_node_info->hdr.cell_id.uint64, &l_sync_request,
                     sizeof(l_sync_request))) {
@@ -4134,7 +4134,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                     char ** l_addr_pair = dap_strsplit(l_addrs[i], ":", 256);
                     if (!l_addr_pair || !l_addr_pair[0] || !l_addr_pair[1])
                         continue;
-                    json_object_object_add(l_json_arr_addrs, l_addr_pair[0], l_addr_pair[1]);
+                    json_object_object_add(l_json_arr_addrs, l_addr_pair[0], json_object_new_string(l_addr_pair[1]));
                 }
                 const char * l_addr_array_str = json_object_to_json_string(l_json_arr_addrs);
                 l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS, l_addr_array_str, strlen(l_addr_array_str) + 1);

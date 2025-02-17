@@ -61,10 +61,6 @@ typedef enum dap_chain_ch_error_type {
     DAP_CHAIN_CH_ERROR_NET_IS_OFFLINE,
     DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY,
     DAP_CHAIN_CH_ERROR_INTERNAL,
-// Legacy
-    DAP_CHAIN_CH_ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED,
-    DAP_CHAIN_CH_ERROR_LEGACY_PKT_DATA_SIZE,
-    //
     DAP_CHAIN_CH_ERROR_LAST
 } dap_chain_ch_error_type_t;
 
