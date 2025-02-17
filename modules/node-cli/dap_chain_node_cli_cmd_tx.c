@@ -160,6 +160,14 @@ json_object * dap_db_tx_history_to_json(json_object* a_json_arr_reply,
                             ? dap_enc_base58_encode_hash_to_str_static(l_atom_hash)
                             : dap_chain_hash_fast_to_str_static(l_atom_hash);
         json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
+        dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, a_chain->active_cell_id, l_atom_hash);
+        size_t l_size = 0;
+        if(a_chain->callback_atom_find_by_hash(l_iter, l_atom_hash, &l_size) != NULL){
+            uint64_t l_block_count = a_chain->callback_count_atom(a_chain);
+            uint64_t l_confirmations = l_block_count - l_iter->cur_num;
+            json_object_object_add(json_obj_datum, "confirmations", json_object_new_uint64(l_confirmations));
+        }
+        a_chain->callback_atom_iter_delete(l_iter);
     }
 
     const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
@@ -3483,7 +3491,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply)
         if (!l_owner_tx)
             continue;
         dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_owner_tx_sig);
+        dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
 
         if (!l_owner_sign) {
             log_it(L_WARNING, "Can't get sign.");
@@ -3751,7 +3759,7 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_arr_reply)
         if (!l_owner_tx)
             continue;
         dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_owner_tx_sig);
+        dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
 
 
         if (!dap_pkey_compare_with_sign(l_wallet_pkey, l_owner_sign)) {
