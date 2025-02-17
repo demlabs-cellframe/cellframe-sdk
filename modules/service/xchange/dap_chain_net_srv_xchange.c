@@ -76,6 +76,7 @@ typedef struct xchange_tx_cache {
             uint256_t value;
             uint256_t value_ammount;
             dap_hash_fast_t next_hash;
+            uint64_t percent_completed;
         } order_info;
         struct {
             dap_hash_fast_t order_hash;
@@ -971,7 +972,15 @@ uint64_t dap_chain_net_srv_xchange_get_order_completion_rate(dap_chain_net_t *a_
         DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
         MULT_256_COIN(l_percent_completed, dap_chain_balance_coins_scan("100.0"), &l_percent_completed);
     } else {
+        dap_chain_tx_out_cond_t *l_out_prev_cond_item = NULL;
+        xchange_tx_type_t tx_type = dap_chain_net_srv_xchange_tx_get_type(a_net->pub.ledger, l_last_tx, NULL, NULL, &l_out_prev_cond_item);
+        if (tx_type == TX_TYPE_EXCHANGE){
+            l_percent_completed = dap_chain_balance_coins_scan("100.0");
+        } else if (tx_type == TX_TYPE_INVALIDATE){
+            SUBTRACT_256_256(l_out_cond->header.value, l_out_prev_cond_item->header.value, &l_percent_completed);
+            DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
             MULT_256_COIN(l_percent_completed, dap_chain_balance_coins_scan("100.0"), &l_percent_completed);
+        }
     }
 
     return dap_chain_balance_to_coins_uint64(l_percent_completed);
@@ -1768,12 +1777,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                 l_token_buy = l_item->buy_token;
                 l_proposed = l_item->tx_info.order_info.value;
 
-                uint256_t l_completed = {};
-                SUBTRACT_256_256(l_item->tx_info.order_info.value, l_item->tx_info.order_info.value_ammount, &l_completed);
-                DIV_256_COIN(l_completed, l_item->tx_info.order_info.value, &l_completed);
-                MULT_256_COIN(l_completed, dap_uint256_scan_decimal("100.0"), &l_completed);
-
-                l_percent_completed = dap_chain_balance_to_coins_uint64(l_completed);
+                l_percent_completed = l_item->tx_info.order_info.percent_completed;
 
                 l_amount_datoshi_str = dap_uint256_to_char(l_item->tx_info.order_info.value_ammount, &l_amount_coins_str);
                 l_owner_addr = dap_chain_addr_to_str_static(&l_item->seller_addr);
@@ -2699,12 +2703,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     l_amount = l_item->tx_info.order_info.value_ammount;
                     l_proposed = l_item->tx_info.order_info.value;
 
-                    uint256_t l_completed = {};
-                    SUBTRACT_256_256(l_item->tx_info.order_info.value, l_item->tx_info.order_info.value_ammount, &l_completed);
-                    DIV_256_COIN(l_completed, l_item->tx_info.order_info.value, &l_completed);
-                    MULT_256_COIN(l_completed, dap_chain_balance_coins_scan("100.0"), &l_completed);
-
-                    l_percent_completed = dap_chain_balance_to_coins_uint64(l_completed);
+                    l_percent_completed = l_item->tx_info.order_info.percent_completed;
                 } else {
                     xchange_tx_list_t *l_tx_item = (xchange_tx_list_t*)it->data;
                     l_tx = l_tx_item->tx;
@@ -3664,165 +3663,172 @@ static dap_hash_fast_t s_get_order_from_cache(xchange_tx_cache_t *a_cache_head, 
 }
 
 
-static void s_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_hash_fast_t *a_tx_hash,  dap_chain_tx_out_cond_t *a_prev_cond)
+static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_ledger_notify_opcodes_t a_opcode)
 {
-    // check and add tx into cache
-    dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
-    int l_item_idx = 0;
-    dap_chain_tx_out_cond_t *l_out_prev_cond_item = NULL;
-    dap_hash_fast_t l_prev_tx_hash = {};
+    if (a_opcode == 'a'){
+        // check and add tx into cache
+        dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
+        int l_item_idx = 0;
+        dap_chain_tx_out_cond_t *l_out_prev_cond_item = NULL;
+        dap_hash_fast_t l_prev_tx_hash = {};
+        xchange_tx_type_t l_tx_type = dap_chain_net_srv_xchange_tx_get_type(a_ledger, a_tx, &l_out_cond_item, &l_item_idx, &l_out_prev_cond_item);
+        if (l_tx_type == TX_TYPE_UNDEFINED)
+            return;
 
-    xchange_orders_cache_net_t* l_cache_net = s_get_xchange_cache_by_net_id(a_ledger->net->pub.id);
-    if(!l_cache_net)
-        return;
-    
-    xchange_tx_cache_t* l_tx_cache = NULL;
-    HASH_FIND(hh, l_cache_net->cache, a_tx_hash, sizeof(dap_hash_fast_t), l_tx_cache);
-    if(l_tx_cache)
-        return;
+        xchange_orders_cache_net_t* l_cache_net = s_get_xchange_cache_by_net_id(a_ledger->net->pub.id);
+        if(!l_cache_net)
+            return;
 
-    xchange_tx_type_t l_tx_type = dap_chain_net_srv_xchange_tx_get_type(a_ledger, a_tx, &l_out_cond_item, &l_item_idx, &l_out_prev_cond_item);
-    if (l_tx_type == TX_TYPE_UNDEFINED)
-        return;
-    
-    xchange_tx_cache_t* l_cache = DAP_NEW_Z_RET_IF_FAIL(xchange_tx_cache_t);
+        xchange_tx_cache_t* l_cache = DAP_NEW_Z_RET_IF_FAIL(xchange_tx_cache_t);
+        l_cache->hash = *a_tx_hash;
+        l_cache->tx = a_tx;
+        l_cache->tx_type = l_tx_type;
 
-    l_cache->hash = *a_tx_hash;
-    l_cache->tx = a_tx;
-    l_cache->tx_type = l_tx_type;
+        const char *l_sell_token = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
+        if (l_sell_token)
+            dap_strncpy(l_cache->sell_token, l_sell_token, sizeof(l_cache->sell_token));
 
-    const char *l_sell_token = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
-    if (l_sell_token)
-        dap_strncpy(l_cache->sell_token, l_sell_token, sizeof(l_cache->sell_token));
+        dap_strncpy(l_cache->buy_token, 
+                    l_out_cond_item  ?  l_out_cond_item->subtype.srv_xchange.buy_token : 
+                                        l_out_prev_cond_item->subtype.srv_xchange.buy_token,
+                                        sizeof(l_cache->buy_token));
 
-    dap_strncpy(l_cache->buy_token, 
-                l_out_cond_item  ?  l_out_cond_item->subtype.srv_xchange.buy_token : 
-                                    l_out_prev_cond_item->subtype.srv_xchange.buy_token,
-                                    sizeof(l_cache->buy_token));
-
-    l_cache->seller_addr = l_out_cond_item ? l_out_cond_item->subtype.srv_xchange.seller_addr : (l_out_prev_cond_item ? l_out_prev_cond_item->subtype.srv_xchange.seller_addr : (dap_chain_addr_t){0});
-    
-    if (l_tx_type == TX_TYPE_ORDER){
-        l_cache->rate = l_out_cond_item->subtype.srv_xchange.rate;
-        l_cache->tx_info.order_info.order_status = XCHANGE_ORDER_STATUS_OPENED;
-        l_cache->tx_info.order_info.value = l_out_cond_item->header.value;
-        l_cache->tx_info.order_info.value_ammount = l_cache->tx_info.order_info.value;
-    } else if (l_tx_type == TX_TYPE_EXCHANGE){
-        l_cache->rate = l_out_prev_cond_item->subtype.srv_xchange.rate;
-        dap_strncpy(l_cache->buy_token, l_out_prev_cond_item->subtype.srv_xchange.buy_token, sizeof(l_cache->buy_token));
-        SUBTRACT_256_256(l_out_prev_cond_item->header.value, l_out_cond_item ? l_out_cond_item->header.value : uint256_0, &l_cache->tx_info.exchange_info.buy_value);
+        l_cache->seller_addr = l_out_cond_item ? l_out_cond_item->subtype.srv_xchange.seller_addr : (l_out_prev_cond_item ? l_out_prev_cond_item->subtype.srv_xchange.seller_addr : (dap_chain_addr_t){0});
         
-        byte_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND , NULL);
-        dap_chain_tx_in_cond_t * l_in_cond = l_tx_item ? (dap_chain_tx_in_cond_t *) l_tx_item : NULL;
+        if (l_tx_type == TX_TYPE_ORDER){
+            l_cache->rate = l_out_cond_item->subtype.srv_xchange.rate;
+            l_cache->tx_info.order_info.order_status = XCHANGE_ORDER_STATUS_OPENED;
+            l_cache->tx_info.order_info.value = l_out_cond_item->header.value;
+            l_cache->tx_info.order_info.value_ammount = l_cache->tx_info.order_info.value;
+            l_cache->tx_info.order_info.percent_completed = 0;
+        } else if (l_tx_type == TX_TYPE_EXCHANGE){
+            l_cache->rate = l_out_prev_cond_item->subtype.srv_xchange.rate;
+            dap_strncpy(l_cache->buy_token, l_out_prev_cond_item->subtype.srv_xchange.buy_token, sizeof(l_cache->buy_token));
+            SUBTRACT_256_256(l_out_prev_cond_item->header.value, l_out_cond_item ? l_out_cond_item->header.value : uint256_0, &l_cache->tx_info.exchange_info.buy_value);
+            
+            byte_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND , NULL);
+            dap_chain_tx_in_cond_t * l_in_cond = l_tx_item ? (dap_chain_tx_in_cond_t *) l_tx_item : NULL;
 
-        if (l_in_cond)
-            l_cache->tx_info.exchange_info.prev_hash = l_in_cond->header.tx_prev_hash;
-        
-        l_cache->tx_info.exchange_info.order_hash = s_get_order_from_cache(l_cache_net->cache, &l_cache->tx_info.exchange_info.prev_hash);
-        dap_hash_fast_is_blank(&l_cache->tx_info.exchange_info.order_hash);
-        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_tx_sig);
-        dap_enc_key_t *l_key_buyer = dap_sign_to_enc_key(l_sign);
-        dap_chain_addr_fill_from_key(&l_cache->tx_info.exchange_info.buyer_addr, l_key_buyer, a_ledger->net->pub.id);
-        dap_enc_key_delete(l_key_buyer);
-        // find order in cache and change it state
-        xchange_tx_cache_t* l_cache_order = NULL;
-        HASH_FIND(hh, l_cache_net->cache, &l_cache->tx_info.exchange_info.order_hash, sizeof(dap_hash_fast_t), l_cache_order);
-        if(l_cache_order){
-            if (l_cache_order->tx_type == TX_TYPE_ORDER){
-                l_cache_order->tx_info.order_info.value_ammount = l_out_cond_item && !IS_ZERO_256(l_out_cond_item->header.value) ? l_out_cond_item->header.value : uint256_0;
-                l_cache_order->tx_info.order_info.order_status = IS_ZERO_256(l_cache_order->tx_info.order_info.value_ammount) ? XCHANGE_ORDER_STATUS_CLOSED : XCHANGE_ORDER_STATUS_OPENED;
-                if (dap_hash_fast_is_blank(&l_cache_order->tx_info.order_info.next_hash))
-                    l_cache_order->tx_info.order_info.next_hash = *a_tx_hash;
-            }
-        }
+            if (l_in_cond)
+                l_cache->tx_info.exchange_info.prev_hash = l_in_cond->header.tx_prev_hash;
+            
+            l_cache->tx_info.exchange_info.order_hash = s_get_order_from_cache(l_cache_net->cache, &l_cache->tx_info.exchange_info.prev_hash);
+            dap_hash_fast_is_blank(&l_cache->tx_info.exchange_info.order_hash);
 
-        xchange_tx_cache_t* l_cache_prev_tx = NULL;
-        HASH_FIND(hh, l_cache_net->cache, &l_cache->tx_info.exchange_info.prev_hash, sizeof(dap_hash_fast_t), l_cache_prev_tx);
-        if(l_cache_prev_tx){
-            if (l_cache_prev_tx->tx_type == TX_TYPE_EXCHANGE){
-                    l_cache_prev_tx->tx_info.exchange_info.next_hash = *a_tx_hash;
-            }
-        }
-
-    } else if (l_tx_type == TX_TYPE_INVALIDATE){
-        l_cache->rate = l_out_prev_cond_item->subtype.srv_xchange.rate;
-        dap_strncpy(l_cache->buy_token, l_out_prev_cond_item->subtype.srv_xchange.buy_token, sizeof(l_cache->buy_token));
-        l_cache->tx_info.invalidate_info.returned_value = l_out_prev_cond_item->header.value;
-
-        // find order in cache and change it state
-        byte_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND , NULL);
-        dap_chain_tx_in_cond_t * l_in_cond = l_tx_item ? (dap_chain_tx_in_cond_t *) l_tx_item : NULL;
-
-        if (l_in_cond)
-            l_cache->tx_info.invalidate_info.prev_hash = l_in_cond->header.tx_prev_hash;
-
-        l_cache->tx_info.invalidate_info.order_hash = s_get_order_from_cache(l_cache_net->cache, &l_cache->tx_info.invalidate_info.prev_hash);
-        xchange_tx_cache_t* l_cache_order = NULL;
-        HASH_FIND(hh, l_cache_net->cache, &l_cache->tx_info.exchange_info.order_hash, sizeof(dap_hash_fast_t), l_cache_order);
-        if(l_cache_order){
-            if (l_cache_order->tx_type == TX_TYPE_ORDER){
-                l_cache_order->tx_info.order_info.value_ammount = uint256_0;
-                l_cache_order->tx_info.order_info.order_status = XCHANGE_ORDER_STATUS_CLOSED;
-                if (dap_hash_fast_is_blank(&l_cache_order->tx_info.order_info.next_hash))
-                    l_cache_order->tx_info.order_info.next_hash = *a_tx_hash;
-            }
-        }
-
-        xchange_tx_cache_t* l_cache_prev_tx = NULL;
-        HASH_FIND(hh, l_cache_net->cache, &l_cache->tx_info.invalidate_info.prev_hash, sizeof(dap_hash_fast_t), l_cache_prev_tx);
-        if(l_cache_prev_tx){
-            if (l_cache_prev_tx->tx_type == TX_TYPE_EXCHANGE){
-                    l_cache_prev_tx->tx_info.exchange_info.next_hash = *a_tx_hash;
-            }
-        }
-    }
-    HASH_ADD(hh, l_cache_net->cache, hash, sizeof(dap_hash_fast_t), l_cache);
-}
-
-
-static void s_ledger_tx_remove_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  
-                                        dap_hash_fast_t *a_tx_hash,  dap_chain_tx_out_cond_t *a_prev_cond)
-{
-    // delete tx from cache if present
-    xchange_orders_cache_net_t* l_cache = s_get_xchange_cache_by_net_id(a_ledger->net->pub.id);
-    xchange_tx_cache_t* l_cache_found = NULL;
-    if (l_cache){
-        HASH_FIND(hh, l_cache->cache, a_tx_hash, sizeof(dap_hash_fast_t), l_cache_found);
-        if (l_cache_found){
-            xchange_tx_type_t l_tx_type = l_cache_found->tx_type;
-            if (l_tx_type == TX_TYPE_EXCHANGE){
-                xchange_tx_cache_t* l_cache_prev_tx = NULL;
-                HASH_FIND(hh, l_cache->cache, &l_cache_found->tx_info.exchange_info.prev_hash, sizeof(dap_hash_fast_t), l_cache_prev_tx);
-                if(l_cache_prev_tx){
-                    if (l_cache_prev_tx->tx_type == TX_TYPE_EXCHANGE){
-                        xchange_tx_cache_t* l_cache_order = NULL;
-                        HASH_FIND(hh, l_cache->cache, &l_cache_found->tx_info.exchange_info.order_hash, sizeof(dap_hash_fast_t), l_cache_order);
-                        l_cache_prev_tx->tx_info.exchange_info.next_hash = (dap_hash_fast_t){0};
-                        SUM_256_256(l_cache_order->tx_info.order_info.value_ammount, l_cache_found->tx_info.exchange_info.buy_value, &l_cache_order->tx_info.order_info.value_ammount);
-                    } else if (l_cache_prev_tx->tx_type == TX_TYPE_ORDER){
-                        l_cache_prev_tx->tx_info.order_info.next_hash = (dap_hash_fast_t){0};
-                        l_cache_prev_tx->tx_info.order_info.value_ammount = l_cache_prev_tx->tx_info.order_info.value;
+            dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+            dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+            dap_enc_key_t *l_key_buyer = dap_sign_to_enc_key(l_sign);
+            dap_chain_addr_fill_from_key(&l_cache->tx_info.exchange_info.buyer_addr, l_key_buyer, a_ledger->net->pub.id);
+            dap_enc_key_delete(l_key_buyer);
+            // find order in cache and change it state
+            xchange_tx_cache_t* l_cache_order = NULL;
+            HASH_FIND(hh, l_cache_net->cache, &l_cache->tx_info.exchange_info.order_hash, sizeof(dap_hash_fast_t), l_cache_order);
+            if(l_cache_order){
+                if (l_cache_order->tx_type == TX_TYPE_ORDER){
+                    l_cache_order->tx_info.order_info.value_ammount = l_out_cond_item && !IS_ZERO_256(l_out_cond_item->header.value) ? l_out_cond_item->header.value : uint256_0;
+                    if (l_out_cond_item && !IS_ZERO_256(l_out_cond_item->header.value)){
+                        uint256_t l_percent_completed = {};
+                        SUBTRACT_256_256(l_cache_order->tx_info.order_info.value, l_cache_order->tx_info.order_info.value_ammount, &l_percent_completed);
+                        DIV_256_COIN(l_percent_completed, l_cache_order->tx_info.order_info.value, &l_percent_completed);
+                        MULT_256_COIN(l_percent_completed, dap_chain_balance_coins_scan("100.0"), &l_percent_completed);
+                        l_cache_order->tx_info.order_info.percent_completed = dap_chain_balance_to_coins_uint64(l_percent_completed);
+                    } else {
+                        l_cache_order->tx_info.order_info.percent_completed = dap_chain_balance_to_coins_uint64(dap_chain_balance_coins_scan("100.0"));
                     }
-                }
-            } else if (l_tx_type == TX_TYPE_INVALIDATE){
-                xchange_tx_cache_t* l_cache_prev_tx = NULL;
-                HASH_FIND(hh, l_cache->cache, &l_cache_found->tx_info.exchange_info.prev_hash, sizeof(dap_hash_fast_t), l_cache_prev_tx);
-                if(l_cache_prev_tx){
-                    if (l_cache_prev_tx->tx_type == TX_TYPE_EXCHANGE){
-                        xchange_tx_cache_t* l_cache_order = NULL;
-                        HASH_FIND(hh, l_cache->cache, &l_cache_found->tx_info.exchange_info.order_hash, sizeof(dap_hash_fast_t), l_cache_order);
-                        l_cache_prev_tx->tx_info.exchange_info.next_hash = (dap_hash_fast_t){0};
-                        l_cache_order->tx_info.order_info.value_ammount = l_cache_found->tx_info.invalidate_info.returned_value;
-                    } else if (l_cache_prev_tx->tx_type == TX_TYPE_ORDER){
-                        l_cache_prev_tx->tx_info.order_info.next_hash = (dap_hash_fast_t){0};
-                        l_cache_prev_tx->tx_info.order_info.value_ammount = l_cache_prev_tx->tx_info.order_info.value;
-                    }
+                    l_cache_order->tx_info.order_info.order_status = IS_ZERO_256(l_cache_order->tx_info.order_info.value_ammount) ? XCHANGE_ORDER_STATUS_CLOSED : XCHANGE_ORDER_STATUS_OPENED;
+                    if (dap_hash_fast_is_blank(&l_cache_order->tx_info.order_info.next_hash))
+                        l_cache_order->tx_info.order_info.next_hash = *a_tx_hash;
                 }
             }
 
-            HASH_DEL(l_cache->cache, l_cache_found);
-            DAP_DELETE(l_cache_found);
+            xchange_tx_cache_t* l_cache_prev_tx = NULL;
+            HASH_FIND(hh, l_cache_net->cache, &l_cache->tx_info.exchange_info.prev_hash, sizeof(dap_hash_fast_t), l_cache_prev_tx);
+            if(l_cache_prev_tx){
+                if (l_cache_prev_tx->tx_type == TX_TYPE_EXCHANGE){
+                        l_cache_prev_tx->tx_info.exchange_info.next_hash = *a_tx_hash;
+                }
+            }
+
+        } else if (l_tx_type == TX_TYPE_INVALIDATE){
+            l_cache->rate = l_out_prev_cond_item->subtype.srv_xchange.rate;
+            dap_strncpy(l_cache->buy_token, l_out_prev_cond_item->subtype.srv_xchange.buy_token, sizeof(l_cache->buy_token));
+            l_cache->tx_info.invalidate_info.returned_value = l_out_prev_cond_item->header.value;
+
+            // find order in cache and change it state
+            byte_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND , NULL);
+            dap_chain_tx_in_cond_t * l_in_cond = l_tx_item ? (dap_chain_tx_in_cond_t *) l_tx_item : NULL;
+
+            if (l_in_cond)
+                l_cache->tx_info.invalidate_info.prev_hash = l_in_cond->header.tx_prev_hash;
+
+            l_cache->tx_info.invalidate_info.order_hash = s_get_order_from_cache(l_cache_net->cache, &l_cache->tx_info.invalidate_info.prev_hash);
+            xchange_tx_cache_t* l_cache_order = NULL;
+            HASH_FIND(hh, l_cache_net->cache, &l_cache->tx_info.exchange_info.order_hash, sizeof(dap_hash_fast_t), l_cache_order);
+            if(l_cache_order){
+                if (l_cache_order->tx_type == TX_TYPE_ORDER){
+                    l_cache_order->tx_info.order_info.value_ammount = uint256_0;
+                    l_cache_order->tx_info.order_info.order_status = XCHANGE_ORDER_STATUS_CLOSED;
+                    if (dap_hash_fast_is_blank(&l_cache_order->tx_info.order_info.next_hash))
+                        l_cache_order->tx_info.order_info.next_hash = *a_tx_hash;
+                }
+            }
+
+            xchange_tx_cache_t* l_cache_prev_tx = NULL;
+            HASH_FIND(hh, l_cache_net->cache, &l_cache->tx_info.invalidate_info.prev_hash, sizeof(dap_hash_fast_t), l_cache_prev_tx);
+            if(l_cache_prev_tx){
+                if (l_cache_prev_tx->tx_type == TX_TYPE_EXCHANGE){
+                        l_cache_prev_tx->tx_info.exchange_info.next_hash = *a_tx_hash;
+                }
+            }
         }
-    }
+        HASH_ADD(hh, l_cache_net->cache, hash, sizeof(dap_hash_fast_t), l_cache);
+    } else if (a_opcode == 'd') {
+        // delete tx from cache if present
+        xchange_orders_cache_net_t* l_cache = s_get_xchange_cache_by_net_id(a_ledger->net->pub.id);
+        xchange_tx_cache_t* l_cache_found = NULL;
+        if (l_cache){
+            HASH_FIND(hh, l_cache->cache, a_tx_hash, sizeof(dap_hash_fast_t), l_cache_found);
+            if (l_cache_found){
+                xchange_tx_type_t l_tx_type = l_cache_found->tx_type;
+                if (l_tx_type == TX_TYPE_EXCHANGE){
+                    xchange_tx_cache_t* l_cache_prev_tx = NULL;
+                    HASH_FIND(hh, l_cache->cache, &l_cache_found->tx_info.exchange_info.prev_hash, sizeof(dap_hash_fast_t), l_cache_prev_tx);
+                    if(l_cache_prev_tx){
+                        if (l_cache_prev_tx->tx_type == TX_TYPE_EXCHANGE){
+                            xchange_tx_cache_t* l_cache_order = NULL;
+                            HASH_FIND(hh, l_cache->cache, &l_cache_found->tx_info.exchange_info.order_hash, sizeof(dap_hash_fast_t), l_cache_order);
+                            l_cache_prev_tx->tx_info.exchange_info.next_hash = (dap_hash_fast_t){0};
+                            SUM_256_256(l_cache_order->tx_info.order_info.value_ammount, l_cache_found->tx_info.exchange_info.buy_value, &l_cache_order->tx_info.order_info.value_ammount);
+                            uint256_t l_percent_completed = {};
+                            SUBTRACT_256_256(l_cache_order->tx_info.order_info.value, l_cache_order->tx_info.order_info.value_ammount, &l_percent_completed);
+                            DIV_256_COIN(l_percent_completed, l_cache_order->tx_info.order_info.value, &l_percent_completed);
+                            MULT_256_COIN(l_percent_completed, dap_chain_balance_coins_scan("100.0"), &l_percent_completed);
+                            l_cache_order->tx_info.order_info.percent_completed = dap_chain_balance_to_coins_uint64(l_percent_completed);
+                        } else if (l_cache_prev_tx->tx_type == TX_TYPE_ORDER){
+                            l_cache_prev_tx->tx_info.order_info.next_hash = (dap_hash_fast_t){0};
+                            l_cache_prev_tx->tx_info.order_info.value_ammount = l_cache_prev_tx->tx_info.order_info.value;
+                            l_cache_prev_tx->tx_info.order_info.percent_completed = 0;
+                        }
+                    }
+                } else if (l_tx_type == TX_TYPE_INVALIDATE){
+                    xchange_tx_cache_t* l_cache_prev_tx = NULL;
+                    HASH_FIND(hh, l_cache->cache, &l_cache_found->tx_info.exchange_info.prev_hash, sizeof(dap_hash_fast_t), l_cache_prev_tx);
+                    if(l_cache_prev_tx){
+                        if (l_cache_prev_tx->tx_type == TX_TYPE_EXCHANGE){
+                            xchange_tx_cache_t* l_cache_order = NULL;
+                            HASH_FIND(hh, l_cache->cache, &l_cache_found->tx_info.exchange_info.order_hash, sizeof(dap_hash_fast_t), l_cache_order);
+                            l_cache_prev_tx->tx_info.exchange_info.next_hash = (dap_hash_fast_t){0};
+                            l_cache_order->tx_info.order_info.value_ammount = l_cache_found->tx_info.invalidate_info.returned_value;
+                        } else if (l_cache_prev_tx->tx_type == TX_TYPE_ORDER){
+                            l_cache_prev_tx->tx_info.order_info.next_hash = (dap_hash_fast_t){0};
+                            l_cache_prev_tx->tx_info.order_info.value_ammount = l_cache_prev_tx->tx_info.order_info.value;
+                        }
+                    }
+                }
+
+                HASH_DEL(l_cache->cache, l_cache_found);
+                DAP_DELETE(l_cache_found);
+            }
+        }
+    } 
 }
