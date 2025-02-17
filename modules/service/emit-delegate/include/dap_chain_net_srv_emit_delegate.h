@@ -2,6 +2,7 @@
 
 #define DAP_CHAIN_NET_SRV_EMIT_DELEGATE_ID 0x07
 #define DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF 0x14
+#define DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_REFILL 0x15
 
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_mempool.h"

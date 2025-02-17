@@ -60,6 +60,7 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
     uint256_t l_writeoff_value = uint256_0;
     dap_chain_tx_out_cond_t *l_cond_out = NULL;
     dap_chain_addr_t l_net_fee_addr;
+    uint16_t l_change_type = 0;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_ledger->net->pub.id, NULL, &l_net_fee_addr);
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx_in) {
@@ -76,7 +77,7 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
             break;
         case TX_ITEM_TYPE_TSD: {
             dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)l_item)->tsd;
-            if (l_tsd->type != DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF)
+            if (l_tsd->type != DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF && l_tsd->type != DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_REFILL)
                 break; // Skip it
             if (l_tsd->size != sizeof(uint256_t)) {
                 log_it(L_ERROR, "TSD section size control error");
@@ -87,6 +88,7 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
                 return -5;
             }
             l_writeoff_value = dap_tsd_get_scalar(l_tsd, uint256_t);
+            l_change_type = l_tsd->type;
             break;
         }
         // Verify signs
@@ -125,12 +127,21 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
     }
 
     uint256_t l_change_value;
-    if (SUBTRACT_256_256(a_cond->header.value, l_writeoff_value, &l_change_value)) {
+    if (l_change_type == DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF && SUBTRACT_256_256(a_cond->header.value, l_writeoff_value, &l_change_value)) {
         char *l_balance = dap_uint256_decimal_to_char(a_cond->header.value);
-        const char *l_writeoff; dap_uint256_to_char(l_writeoff_value, &l_writeoff);
+        const char *l_writeoff = NULL;
+        dap_uint256_to_char(l_change_value, &l_writeoff);
         log_it(L_ERROR, "Write-off value %s is greater than account balance %s", l_writeoff, l_balance);
         DAP_DELETE(l_balance);
         return -7;
+    }
+    if (l_change_type == DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_REFILL && SUM_256_256(a_cond->header.value, l_writeoff_value, &l_change_value)) {
+        char *l_balance = dap_uint256_decimal_to_char(a_cond->header.value);
+        const char *l_refill = NULL;
+        dap_uint256_to_char(l_change_value, &l_refill);
+        log_it(L_ERROR, "Sum of re-fill value %s and account balance %s is greater than value limit of 256 bit num", l_refill, l_balance);
+        DAP_DELETE(l_balance);
+        return -9;
     }
     if (!IS_ZERO_256(l_change_value)) {
         if (!l_cond_out) {
@@ -351,7 +362,12 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
 
     // coin back
     uint256_t l_value_back = {};
-    SUBTRACT_256_256(l_cond_prev->header.value, l_value, &l_value_back);
+    bool l_refill = false;
+    if (l_refill)
+        SUM_256_256(l_cond_prev->header.value, l_value, &l_value_back);
+    else
+        SUBTRACT_256_256(l_cond_prev->header.value, l_value, &l_value_back);
+
     if (!IS_ZERO_256(l_value_back)) {
         dap_chain_tx_out_cond_t *l_out_cond = DAP_DUP_SIZE(l_cond_prev, sizeof(dap_chain_tx_out_cond_t) + l_cond_prev->tsd_size);
         if (!l_out_cond)
