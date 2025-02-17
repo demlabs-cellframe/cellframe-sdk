@@ -104,7 +104,7 @@
 #include "dap_stream_cluster.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_net.h"
-#include "dap_context.h"
+#include "dap_chain_cs.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_policy.h"
 
@@ -3073,7 +3073,7 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
             l_net_pvt->sync_context.cur_chain->atom_num_last = l_miss_info->last_num;
             return;
         }
-        dap_chain_ch_sync_request_old_t l_request = {};
+        dap_chain_ch_sync_request_t l_request = { .generation = l_net_pvt->sync_context.cur_chain->generation };
         l_request.num_from = l_net_pvt->sync_context.requested_atom_num > s_fork_sync_step
                             ? l_net_pvt->sync_context.requested_atom_num - s_fork_sync_step
                             : 0;
@@ -3240,7 +3240,7 @@ static void s_sync_timer_callback(void *a_arg)
 
     l_net_pvt->sync_context.cur_cell = l_net_pvt->sync_context.cur_chain->cells;
     l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_WAITING;
-    dap_chain_ch_sync_request_old_t l_request = {};
+    dap_chain_ch_sync_request_t l_request = { .generation = l_net_pvt->sync_context.cur_chain->generation};
     uint64_t l_last_num = 0;
     if (!dap_chain_get_atom_last_hash_num_ts(l_net_pvt->sync_context.cur_chain,
                                             l_net_pvt->sync_context.cur_cell

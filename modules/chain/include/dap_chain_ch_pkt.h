@@ -29,11 +29,7 @@
 #include <stdarg.h>
 
 #include "dap_common.h"
-#include "dap_proc_thread.h"
 #include "dap_chain_common.h"
-#include "dap_chain_datum.h"
-#include "dap_chain_cs.h"
-
 #include "dap_stream_ch.h"
 
 #define DAP_CHAIN_CH_PKT_VERSION_LEGACY                 0x02
@@ -75,13 +71,14 @@ typedef struct dap_chain_ch_sync_request_old {
 typedef struct dap_chain_ch_sync_request {
     dap_chain_hash_fast_t hash_from;
     uint64_t num_from;
-    uint32_t generation;
+    uint16_t generation;
 } DAP_ALIGN_PACKED dap_chain_ch_sync_request_t;
 
 typedef struct dap_chain_ch_summary {
     uint64_t num_cur;
     uint64_t num_last;
-    byte_t reserved[128];
+    uint16_t generation;
+    byte_t reserved[126];
 } DAP_ALIGN_PACKED dap_chain_ch_summary_t;
 
 typedef struct dap_chain_ch_miss_info {
