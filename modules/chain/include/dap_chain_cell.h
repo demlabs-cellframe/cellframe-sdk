@@ -29,20 +29,15 @@
 #include "dap_chain.h"
 #include "dap_chain_common.h"
 
-typedef struct dap_chain_cell_mmap_data {
-    off_t vol_size;
-    char *map, *map_pos, **maps;
-} dap_chain_cell_mmap_data_t;
+typedef struct dap_chain_cell_mmap_data dap_chain_cell_mmap_data_t;
 
 typedef struct dap_chain_cell {
     dap_chain_cell_id_t id;
-    dap_chain_t * chain;
-
+    dap_chain_t *chain;
     char file_storage_path[MAX_PATH];
-    char *map, *map_pos, *map_end;
+    dap_chain_cell_mmap_data_t *mapping;
     FILE *file_storage;
     uint8_t file_storage_type;
-    dap_list_t *map_range_bounds;
 #ifdef DAP_OS_DARWIN
     size_t cur_vol_start;
 #endif
@@ -100,5 +95,4 @@ void dap_chain_cell_close(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id);
 void dap_chain_cell_close_all(dap_chain_t *a_chain);
 int dap_chain_cell_file_append(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
                                    const void *a_atom, size_t a_atom_size, char **a_atom_map);
-#define dap_chain_cell_file_update(a_cell) dap_chain_cell_file_append(a_cell, NULL, 0);
 

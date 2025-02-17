@@ -220,7 +220,7 @@ static bool s_net_states_proc(void *a_arg);
 static void s_net_states_notify(dap_chain_net_t * l_net);
 static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg);
 //static void s_net_proc_kill( dap_chain_net_t * a_net );
-static int s_chains_init_all(const char *a_netname, const char *a_path, int *a_ledger_flags);
+static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_t *a_ledger_flags);
 static int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx);
 static void *s_net_load(void *a_arg);
 static int s_net_try_online(dap_chain_net_t *a_net);
@@ -904,21 +904,34 @@ void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
  * @return true
  * @return false
  */
-void dap_chain_net_purge(dap_chain_net_t *l_net)
+void dap_chain_net_purge(dap_chain_net_t *a_net)
 {
-    dap_chain_srv_purge_all(l_net->pub.id);
-    dap_ledger_purge(l_net->pub.ledger, false);
-    dap_chain_t *l_chain = NULL;
-    DL_FOREACH(l_net->pub.chains, l_chain) {
-        dap_chain_purge(l_chain);
-        dap_chain_load_all(l_chain);
-        l_net->pub.fee_value = uint256_0;
-        l_net->pub.fee_addr = c_dap_chain_addr_blank;
+    dap_chain_net_pvt_t *l_pvt = PVT(a_net);
+    dap_global_db_cluster_t *l_mempool = l_pvt->mempool_clusters;
+    while (l_mempool) {
+        dap_global_db_cluster_t *l_next = l_mempool->next;
+        dap_global_db_cluster_delete(l_mempool);
+        l_mempool = l_next;
     }
-    DL_FOREACH(l_net->pub.chains, l_chain) {
-        if (l_chain->callback_atom_add_from_treshold) {
-            while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
-                debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
+    dap_global_db_cluster_delete(l_pvt->orders_cluster);
+    dap_global_db_cluster_delete(l_pvt->nodes_cluster);
+    dap_global_db_cluster_delete(l_pvt->nodes_states);
+    dap_global_db_cluster_delete(l_pvt->common_orders);
+    struct block_reward *l_reward, *l_tmp;
+    DL_FOREACH_SAFE(l_pvt->rewards, l_reward, l_tmp) {
+        DL_DELETE(l_pvt->rewards, l_reward);
+        DAP_DELETE(l_reward);
+    }
+    dap_chain_srv_purge_all(a_net->pub.id);
+    if (a_net->pub.ledger) {
+        dap_ledger_purge(a_net->pub.ledger, false);
+        dap_ledger_handle_free(a_net->pub.ledger);
+    }
+    if (a_net->pub.chains) {
+        dap_chain_t *l_chain = NULL, *l_tmp = NULL;
+        DL_FOREACH_SAFE(a_net->pub.chains, l_chain, l_tmp) {
+            DL_DELETE(a_net->pub.chains, l_chain);
+            dap_chain_delete(l_chain);
         }
     }
 }
@@ -1753,36 +1766,15 @@ void dap_chain_net_deinit()
  */
 void dap_chain_net_delete(dap_chain_net_t *a_net)
 {
-    // Synchronously going to offline state
-    PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
-    s_net_states_proc(a_net);
-    dap_global_db_cluster_t *l_mempool = PVT(a_net)->mempool_clusters;
-    while (l_mempool) {
-        dap_global_db_cluster_t *l_next = l_mempool->next;
-        dap_global_db_cluster_delete(l_mempool);
-        l_mempool = l_next;
-    }
-    dap_global_db_cluster_delete(PVT(a_net)->orders_cluster);
-    dap_global_db_cluster_delete(PVT(a_net)->nodes_cluster);
-    dap_global_db_cluster_delete(PVT(a_net)->nodes_states);
-    dap_global_db_cluster_delete(PVT(a_net)->common_orders);
-
-    DAP_DELETE(PVT(a_net)->node_info);
-    if (a_net->pub.ledger) {
-        dap_ledger_purge(a_net->pub.ledger, true);
-        dap_ledger_handle_free(a_net->pub.ledger);
-    }
-    if (a_net->pub.chains) {
-        dap_chain_t
-            *l_cur = NULL,
-            *l_tmp = NULL;
-        DL_FOREACH_SAFE(a_net->pub.chains, l_cur, l_tmp) {
-            DL_DELETE(a_net->pub.chains, l_cur);
-            dap_chain_delete(l_cur);
-        }
-    }
+    dap_chain_net_pvt_t *l_pvt = PVT(a_net);
+    dap_chain_net_purge(a_net);
+    DAP_DEL_ARRAY(l_pvt->permanent_links_hosts, l_pvt->permanent_links_hosts_count);
+    DAP_DEL_ARRAY(l_pvt->seed_nodes_hosts, l_pvt->seed_nodes_count);
+    DAP_DEL_MULTY(l_pvt->permanent_links_hosts, l_pvt->seed_nodes_hosts, l_pvt->permanent_links_addrs, l_pvt->node_info);
+    // TODO: delete sync_timer and whatever else is initialized AFTER chains load
     HASH_DEL(s_nets_by_name, a_net);
     HASH_DELETE(hh2, s_nets_by_id, a_net);
+    dap_config_close(a_net->pub.config);
     DAP_DELETE(a_net);
 }
 
@@ -1831,7 +1823,7 @@ static int s_nodes_hosts_init(dap_chain_net_t *a_net, dap_config_t *a_cfg, const
     return 0;
 }
 
-static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, int *a_ledger_flags) {
+static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_t *a_ledger_flags) {
     DIR *l_chains_dir = opendir(a_path);
     if (!l_chains_dir)
         return log_it(L_ERROR, "Can't find any chains for network %s", a_net->pub.name), -1;
@@ -1903,6 +1895,56 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, int *a_
     return 0;
 }
 
+int s_chain_net_preload(dap_chain_net_t *a_net) {
+    // Services register & configure
+    dap_chain_srv_start(a_net->pub.id, DAP_CHAIN_NET_SRV_XCHANGE_LITERAL, NULL);        // Harcoded core service starting for exchange capability
+    dap_chain_srv_start(a_net->pub.id, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_LITERAL, NULL);    // Harcoded core service starting for delegated keys storage
+    char *l_services_path = dap_strdup_printf("%s/network/%s/services", dap_config_path(), a_net->pub.name);
+    DIR *l_service_cfg_dir = opendir(l_services_path);
+    DAP_DELETE(l_services_path);
+    if (l_service_cfg_dir) {
+        for ( struct dirent *l_dir_entry; ( l_dir_entry = readdir(l_service_cfg_dir) ); ) {
+            const char *l_entry_name = l_dir_entry->d_name;
+            size_t l_entry_len = strlen(l_entry_name);
+            if (l_entry_len < 4 || // It has non zero name excluding file extension
+                    strncmp(l_entry_name + l_entry_len - 4, ".cfg", 4) != 0) // its not a .cfg file
+                continue;
+            log_it(L_DEBUG, "Opening service config \"%s\"...", l_entry_name);
+            char *l_service_cfg_path = dap_strdup_printf("network/%s/services/%s", a_net->pub.name, l_entry_name);
+            dap_config_t *l_cfg_new = dap_config_open(l_service_cfg_path);
+            if (l_cfg_new) {
+                char l_service_name[l_entry_len - 3];
+                dap_strncpy(l_service_name, l_entry_name, l_entry_len - 4);
+                dap_chain_srv_start(a_net->pub.id, l_service_name, l_cfg_new);
+                dap_config_close(l_cfg_new);
+            }
+            DAP_DELETE(l_service_cfg_path);
+        }
+        closedir(l_service_cfg_dir);
+    }
+    uint16_t l_ledger_flags = 0;
+    switch ( PVT( a_net )->node_role.enums ) {
+    case NODE_ROLE_LIGHT:
+        //break;
+        PVT( a_net )->node_role.enums = NODE_ROLE_FULL; // TODO: implement light mode
+    case NODE_ROLE_FULL:
+        l_ledger_flags |= DAP_LEDGER_CHECK_LOCAL_DS;
+        if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", false))
+            l_ledger_flags |= DAP_LEDGER_CACHE_ENABLED;
+    default:
+        l_ledger_flags |= DAP_LEDGER_CHECK_CELLS_DS | DAP_LEDGER_CHECK_TOKEN_EMISSION;
+    }
+    if (dap_config_get_item_bool_default(g_config, "ledger", "mapped", true))
+        l_ledger_flags |= DAP_LEDGER_MAPPED;
+
+    int l_res = s_chains_init_all(a_net, a_net->pub.config->path, &l_ledger_flags);
+    if (!l_res)
+        a_net->pub.ledger = dap_ledger_create(a_net, l_ledger_flags);
+    
+    return l_res;
+    
+}
+
 /**
  * @brief load network config settings from cellframe-node.cfg file
  *
@@ -1913,8 +1955,7 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, int *a_
 int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
 {
     dap_config_t *l_cfg = dap_config_open(a_path);
-    if (!l_cfg)
-        return log_it(L_ERROR,"Can't open default network config %s", a_path), -1;
+    dap_return_val_if_fail_err(l_cfg, -1, "Can't open default network config %s", a_path);
 
     dap_chain_net_t *l_net = s_net_new(a_net_name, l_cfg);
     if ( !l_net )
@@ -1951,65 +1992,17 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
      || ( !l_net_pvt->seed_nodes_count && s_nodes_hosts_init(l_net, l_cfg, "bootstrap_hosts", &l_net_pvt->seed_nodes_hosts, &l_net_pvt->seed_nodes_count) )
     ) {
         dap_chain_net_delete(l_net);
-        dap_config_close(l_cfg);
         return -4;
     }
-    if (!l_net_pvt->seed_nodes_count)
+    if ( !l_net_pvt->seed_nodes_count )
         log_it(L_WARNING, "Can't read seed nodes addresses, work with local balancer only");
-
-    // Get list chains name for enabled debug mode
 
     if ( dap_server_enabled() && ( l_net_pvt->node_info->ext_port = dap_config_get_item_uint16(g_config, "server", "ext_port") ))
         log_it(L_INFO, "Set external port %u for adding in node list", l_net_pvt->node_info->ext_port);
 
-    // Services register & configure
-    dap_chain_srv_start(l_net->pub.id, DAP_CHAIN_NET_SRV_XCHANGE_LITERAL, NULL);        // Harcoded core service starting for exchange capability
-    dap_chain_srv_start(l_net->pub.id, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_LITERAL, NULL);    // Harcoded core service starting for delegated keys storage
-    char *l_services_path = dap_strdup_printf("%s/network/%s/services", dap_config_path(), l_net->pub.name);
-    DIR *l_service_cfg_dir = opendir(l_services_path);
-    DAP_DELETE(l_services_path);
-    if (l_service_cfg_dir) {
-        for ( struct dirent *l_dir_entry; ( l_dir_entry = readdir(l_service_cfg_dir) ); ) {
-            const char *l_entry_name = l_dir_entry->d_name;
-            size_t l_entry_len = strlen(l_entry_name);
-            if (l_entry_len < 4 || // It has non zero name excluding file extension
-                    strncmp(l_entry_name + l_entry_len - 4, ".cfg", 4) != 0) // its not a .cfg file
-                continue;
-            log_it(L_DEBUG, "Opening service config \"%s\"...", l_entry_name);
-            char *l_service_cfg_path = dap_strdup_printf("network/%s/services/%s", l_net->pub.name, l_entry_name);
-            dap_config_t *l_cfg_new = dap_config_open(l_service_cfg_path);
-            if (l_cfg_new) {
-                char l_service_name[l_entry_len - 3];
-                dap_strncpy(l_service_name, l_entry_name, l_entry_len - 4);
-                dap_chain_srv_start(l_net->pub.id, l_service_name, l_cfg_new);
-                dap_config_close(l_cfg_new);
-            }
-            DAP_DELETE(l_service_cfg_path);
-        }
-        closedir(l_service_cfg_dir);
-    }
-    uint16_t l_ledger_flags = 0;
-    switch ( PVT( l_net )->node_role.enums ) {
-    case NODE_ROLE_LIGHT:
-        //break;
-        PVT( a_net )->node_role.enums = NODE_ROLE_FULL; // TODO: implement light mode
-    case NODE_ROLE_FULL:
-        l_ledger_flags |= DAP_LEDGER_CHECK_LOCAL_DS;
-        if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", false))
-            l_ledger_flags |= DAP_LEDGER_CACHE_ENABLED;
-    default:
-        l_ledger_flags |= DAP_LEDGER_CHECK_CELLS_DS | DAP_LEDGER_CHECK_TOKEN_EMISSION;
-    }
-    if (dap_config_get_item_bool_default(g_config, "ledger", "mapped", true))
-        l_ledger_flags |= DAP_LEDGER_MAPPED;
+    int l_ret = s_chain_net_preload(l_net);
+    return l_ret ? dap_chain_net_delete(l_net), l_ret : 0;
 
-    int l_res = s_chains_init_all(l_net, a_path, &l_ledger_flags);
-    if ( l_res )
-        return dap_chain_net_delete(l_net), l_res;
-
-    // init LEDGER model
-    l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
-    return 0;
 }
 
 static void *s_net_load(void *a_arg)
@@ -2024,28 +2017,7 @@ static void *s_net_load(void *a_arg)
     DL_FOREACH(l_net->pub.chains, l_chain) {
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
-        if ( !dap_chain_load_all(l_chain) ) {
-            if ( DAP_CHAIN_PVT(l_chain)->need_reorder ) // # unsafe crutch, need to escape reorder usage
-            {
-                log_it(L_DAP, "Reordering chain files for chain %s", l_chain->name);
-                if (l_chain->callback_atom_add_from_treshold) {
-                    while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
-                        log_it(L_DEBUG, "Added atom from treshold");
-                }
-                dap_chain_save_all(l_chain);
-                
-                DAP_CHAIN_PVT(l_chain)->need_reorder = false;
-                dap_chain_purge(l_chain);
-                dap_ledger_purge(l_net->pub.ledger, false);
-                l_net->pub.fee_value = uint256_0;
-                l_net->pub.fee_addr = c_dap_chain_addr_blank;
-                dap_chain_load_all(l_chain);
-            }
-            if (l_chain->callback_atom_add_from_treshold) {
-                while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
-                    log_it(L_DEBUG, "Added atom from treshold");
-            }
-        }
+        int l_ret = dap_chain_load_all(l_chain);
         l_chain->atom_num_last = 0;
         switch ( l_net_pvt->node_role.enums ) {
         case NODE_ROLE_ROOT_MASTER:
@@ -2066,7 +2038,7 @@ static void *s_net_load(void *a_arg)
                 l_chain->is_datum_pool_proc = ( !dap_chain_id_parse(l_proc_chains[k], &l_chain_id) && (l_chain->id.uint64 == l_chain_id.uint64) );
         } break;
         default: break;
-
+        }
         // Personal chain mempool cluster for each chain
         snprintf(l_gdb_groups_mask, sizeof(l_gdb_groups_mask), "%s.chain-%s.mempool",
                                                                l_net->pub.gdb_groups_prefix, l_chain->name);
@@ -2082,7 +2054,7 @@ static void *s_net_load(void *a_arg)
             l_net_pvt->mempool_clusters = l_cluster;
     }
     dap_ledger_load_end(l_net->pub.ledger);
-    log_it(L_INFO, "Node role \"%s\" established in net %s", dap_chain_node_role_to_str(l_net_pvt->node_role.enums), l_net->pub.name);
+    log_it(L_INFO, "Node role \"%s\" established in net %s", dap_chain_node_role_to_str(l_net_pvt->node_role), l_net->pub.name);
     l_net_pvt->state_target = NET_STATE_OFFLINE;
 
     // Init GlobalDB clusters for service and nodes (with aliases)
@@ -2103,7 +2075,7 @@ static void *s_net_load(void *a_arg)
                                                           l_gdb_groups_mask, 0, true,
                                                           DAP_GDB_MEMBER_ROLE_USER,
                                                           DAP_CLUSTER_TYPE_EMBEDDED);
-    dap_return_val_if_fail_err(l_net_pvt->common_orders, NULL, "Net \"%s\" loading error %d: can't initialize common orders cluster"
+    dap_return_val_if_fail_err(l_net_pvt->common_orders, NULL, "Net \"%s\" loading error %d: can't initialize common orders cluster",
                                                                l_net->pub.name, -4);
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->common_orders);
     // Node states cluster
@@ -2113,7 +2085,7 @@ static void *s_net_load(void *a_arg)
                                                         l_gdb_groups_mask, DAP_CHAIN_NET_NODES_TTL, true,
                                                         DAP_GDB_MEMBER_ROLE_USER,
                                                         DAP_CLUSTER_TYPE_EMBEDDED);
-    dap_return_val_if_fail_err(l_net_pvt->nodes_states, NULL, "Net \"%s\" loading error %d: can't initialize node states cluster"
+    dap_return_val_if_fail_err(l_net_pvt->nodes_states, NULL, "Net \"%s\" loading error %d: can't initialize node states cluster",
                                                                l_net->pub.name, -5);
     // Nodes and its aliases cluster
     snprintf(l_net->pub.gdb_nodes, sizeof(l_net->pub.gdb_nodes), "%s.%s", l_net->pub.gdb_groups_prefix, s_gdb_nodes_postfix);
@@ -2122,7 +2094,7 @@ static void *s_net_load(void *a_arg)
                                                          l_net->pub.gdb_nodes, 7200, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
                                                          DAP_CLUSTER_TYPE_EMBEDDED);
-    dap_return_val_if_fail_err(l_net_pvt->nodes_cluster, NULL, "Net \"%s\" loading error %d: can't initialize nodes cluster"
+    dap_return_val_if_fail_err(l_net_pvt->nodes_cluster, NULL, "Net \"%s\" loading error %d: can't initialize nodes cluster",
                                                                l_net->pub.name, -6);
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->nodes_cluster);
     dap_chain_net_add_nodelist_notify_callback(l_net, s_nodelist_change_notify, l_net);
@@ -2144,7 +2116,7 @@ static void *s_net_load(void *a_arg)
     // TODO rework alias concept
     const char * l_node_addr_type = dap_config_get_item_str_default(l_net->pub.config ,
                                                                     "general", "node_addr_type", "auto");
-    if (!dap_strcmp(l_node_addr_type, "static")) {
+    if ( !dap_strcmp(l_node_addr_type, "static") ) {
         const char *l_node_alias_str = dap_config_get_item_str_default(l_net->pub.config, "general", "node-addr",
                                                                        dap_config_get_item_str(l_net->pub.config,
                                                                                                "general", "node-alias"));
@@ -2160,7 +2132,7 @@ static void *s_net_load(void *a_arg)
 
     l_net_pvt->sync_context.sync_idle_time = dap_config_get_item_uint32_default(g_config, "chain", "sync_idle_time", 60);
     dap_proc_thread_timer_add(NULL, s_sync_timer_callback, l_net, c_sync_timer_period);
-
+    // TODO! Delete the timer in "purge()"
     log_it(L_INFO, "Network \"%s\" initialized", l_net->pub.name);
     l_net_pvt->state = NET_STATE_OFFLINE;
     return l_net;
@@ -2802,11 +2774,7 @@ int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_
         log_it(L_ERROR, "Can't add retrospective reward for block");
         return -2;
     }
-    struct block_reward *l_new_reward = DAP_NEW_Z(struct block_reward);
-    if (!l_new_reward) {
-        log_it(L_CRITICAL, "Out of memory");
-        return -3;
-    }
+    struct block_reward *l_new_reward = DAP_NEW_Z_RET_VAL_IF_FAIL(struct block_reward, -3);
     l_new_reward->block_number = a_block_num;
     l_new_reward->reward = a_reward;
     // Place new reward at begining
@@ -3279,18 +3247,14 @@ DAP_INLINE dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t 
 bool dap_chain_net_stop(dap_chain_net_t *a_net)
 {
     int l_attempts_count = 0;
-    bool l_ret = false;
-    if (dap_chain_net_get_target_state(a_net) == NET_STATE_ONLINE) {
+    if ( dap_chain_net_get_target_state(a_net) == NET_STATE_ONLINE || dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE )
         dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
-        l_ret = true;
-    } else if (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE) {
-        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+
+    while (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE && l_attempts_count++ < 5) {
+        sched_yield();
+        sleep(1);
     }
-    while (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE && l_attempts_count++ < 5) { sleep(1); }
-    if (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE) {
-        log_it(L_ERROR, "Can't stop net %s", a_net->pub.name);
-    }
-    return l_ret;
+    return dap_chain_net_get_state(a_net) == NET_STATE_OFFLINE;
 }
 
 /*------------------------------------State machine block end---------------------------------*/

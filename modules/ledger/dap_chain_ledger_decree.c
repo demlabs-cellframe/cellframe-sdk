@@ -71,7 +71,7 @@ static int s_decree_clear(dap_ledger_t *a_ledger)
 void dap_ledger_decree_purge(dap_ledger_t *a_ledger)
 {
     s_decree_clear(a_ledger);
-    dap_ledger_decree_create(a_ledger);
+    //dap_ledger_decree_create(a_ledger);
 }
 
 static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash, bool a_anchored)

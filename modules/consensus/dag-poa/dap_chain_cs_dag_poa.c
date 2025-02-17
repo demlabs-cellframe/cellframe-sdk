@@ -351,11 +351,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t * a_chain_cfg)
         return -1;
     }
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
-    dap_chain_cs_dag_poa_t *l_poa = DAP_NEW_Z(dap_chain_cs_dag_poa_t);
-    if (!l_poa) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return -1;
-    }
+    dap_chain_cs_dag_poa_t *l_poa = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_cs_dag_poa_t, -1);
     l_dag->_inheritor = l_poa;
     l_dag->callback_delete = s_callback_delete;
     l_dag->callback_cs_verify = s_callback_event_verify;
@@ -687,7 +683,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA( l_dag );
 
-    const char *l_events_sign_cert = = dap_config_get_item_str(a_chain_net_cfg,"dag-poa","events-sign-cert");
+    const char *l_events_sign_cert = dap_config_get_item_str(a_chain_net_cfg,"dag-poa","events-sign-cert");
     if ( l_events_sign_cert ) {
         if (!( PVT(l_poa)->events_sign_cert = dap_cert_find_by_name(l_events_sign_cert) ))
             log_it(L_ERROR,"Can't load events sign certificate, name \"%s\" is wrong", l_events_sign_cert);

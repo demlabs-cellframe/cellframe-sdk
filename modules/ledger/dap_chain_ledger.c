@@ -971,7 +971,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
         HASH_DEL(l_ledger_pvt->ledger_items, l_item_current);
         if (!is_ledger_mapped(l_ledger_pvt))
             DAP_DELETE(l_item_current->tx);
-        DAP_DEL_Z(l_item_current);
+        DAP_DELETE(l_item_current);
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TXS_STR);
@@ -983,8 +983,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     dap_ledger_wallet_balance_t *l_balance_current, *l_balance_tmp;
     HASH_ITER(hh, l_ledger_pvt->balance_accounts, l_balance_current, l_balance_tmp) {
         HASH_DEL(l_ledger_pvt->balance_accounts, l_balance_current);
-        DAP_DELETE(l_balance_current->key);
-        DAP_DELETE(l_balance_current);
+        DAP_DEL_MULTY(l_balance_current->key, l_balance_current);
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_BALANCES_STR);
@@ -1000,19 +999,12 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
         pthread_rwlock_wrlock(&l_token_current->token_emissions_rwlock);
         HASH_ITER(hh, l_token_current->token_emissions, l_emission_current, l_emission_tmp) {
             HASH_DEL(l_token_current->token_emissions, l_emission_current);
-            DAP_DELETE(l_emission_current->datum_token_emission);
-            DAP_DEL_Z(l_emission_current);
+            DAP_DEL_MULTY(l_emission_current->datum_token_emission, l_emission_current);
         }
         pthread_rwlock_unlock(&l_token_current->token_emissions_rwlock);
-        DAP_DELETE(l_token_current->datum_token);
-        DAP_DELETE(l_token_current->auth_pkeys);
-        DAP_DELETE(l_token_current->auth_pkey_hashes);
-        DAP_DEL_Z(l_token_current->tx_recv_allow);
-        DAP_DEL_Z(l_token_current->tx_recv_block);
-        DAP_DEL_Z(l_token_current->tx_send_allow);
-        DAP_DEL_Z(l_token_current->tx_send_block);
         pthread_rwlock_destroy(&l_token_current->token_emissions_rwlock);
-        DAP_DELETE(l_token_current);
+        DAP_DEL_MULTY(l_token_current->datum_token, l_token_current->datum_token, l_token_current->auth_pkeys, l_token_current->auth_pkey_hashes,
+            l_token_current->tx_recv_allow, l_token_current->tx_recv_block, l_token_current->tx_send_allow, l_token_current->tx_send_block, l_token_current);
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TOKENS_STR);
@@ -1040,7 +1032,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
         HASH_DEL(l_ledger_pvt->threshold_txs, l_item_current);
         if (!is_ledger_mapped(l_ledger_pvt))
             DAP_DELETE(l_item_current->tx);
-        DAP_DEL_Z(l_item_current);
+        DAP_DELETE(l_item_current);
     }
 
     l_ledger_pvt->ledger_items         = NULL;
