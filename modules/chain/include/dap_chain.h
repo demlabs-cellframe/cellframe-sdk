@@ -164,6 +164,8 @@ typedef struct dap_chain {
     uint16_t load_priority;
     char *name;
     char *net_name;
+    uint16_t generation;
+
     bool is_datum_pool_proc;
     bool is_mapped;
     atomic_int load_progress; 

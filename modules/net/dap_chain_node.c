@@ -562,7 +562,7 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
     }
     l_states->trusted_addrs = a_trusted_addrs;
     a_chain->hardfork_data = l_states;
-    DAP_CHAIN_CS_BLOCKS(a_chain)->generation++;
+    a_chain->generation++;
     l_net->pub.ledger->is_hardfork_state = true;
     return 0;
 }
