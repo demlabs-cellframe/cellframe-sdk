@@ -122,9 +122,8 @@ static bool s_string_append_tx_cond_info_json( json_object * a_json_out, dap_cha
 
 dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_order, 
                                                     dap_hash_fast_t *a_order_hash, uint256_t *a_fee, bool a_ret_is_invalid);
-static void s_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  
-                                        dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond);
-static void s_ledger_tx_remove_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  
+static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_ledger_notify_opcodes_t a_opcode);
+static void s_ledger_tx_remove_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,
                                         dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond);
 
 static bool s_debug_more = false;
@@ -2783,12 +2782,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
                 char l_tmp_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_tx->header.ts_created);
-                char *l_cp_rate;
-                l_cp_rate = dap_uint256_decimal_to_char(l_rate);
-                l_amount_datoshi_str = dap_uint256_uninteger_to_char(l_amount);
-                l_amount_coins_str = dap_uint256_decimal_to_char(l_amount);
-                l_proposed_coins_str = dap_uint256_decimal_to_char(l_proposed); 
-                l_proposed_datoshi_str = dap_uint256_uninteger_to_char(l_proposed);
 
                 json_object* json_obj_order = json_object_new_object();
                 json_object_object_add(json_obj_order, "order_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_tx_hash)));
@@ -2815,11 +2808,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 json_object_array_add(*json_arr_reply, json_obj_order);
                 DAP_DELETE(l_owner_addr);
                 l_printed_orders_count++;
-                DAP_DEL_Z(l_cp_rate);
-                DAP_DEL_Z(l_amount_datoshi_str);
-                DAP_DEL_Z(l_amount_coins_str);
-                DAP_DEL_Z(l_proposed_coins_str);
-                DAP_DEL_Z(l_proposed_datoshi_str);
             }
             json_object_object_add(json_obj_order, "ORDERS", json_arr_orders_out);
             json_object_array_add(*json_arr_reply, json_obj_order);
@@ -3716,7 +3704,7 @@ static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chai
             dap_hash_fast_is_blank(&l_cache->tx_info.exchange_info.order_hash);
 
             dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-            dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+            dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_tx_sig);
             dap_enc_key_t *l_key_buyer = dap_sign_to_enc_key(l_sign);
             dap_chain_addr_fill_from_key(&l_cache->tx_info.exchange_info.buyer_addr, l_key_buyer, a_ledger->net->pub.id);
             dap_enc_key_delete(l_key_buyer);
