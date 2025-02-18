@@ -60,7 +60,6 @@
 #include "dap_global_db_driver.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli_cmd.h"
-#include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_net.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_chain_cell.h"
@@ -87,9 +86,6 @@
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_policy.h"
-
-
-#include "dap_chain_net_tx.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
 
@@ -4106,7 +4102,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             uint64_t l_param_value = strtoll(l_param_value_str, NULL, 10);
             if (!l_param_value && dap_strcmp(l_param_value_str, "0")) {
                 log_it(L_ERROR, "Can't converts %s to atom number", l_param_value_str);
-                return -1;
+                return -100;
             }
             l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM, &l_param_value, sizeof(l_param_value));
             if (!l_tsd) {
@@ -4115,11 +4111,14 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 return -1;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-            if (dap_chain_net_srv_stake_hardfork_data_export(l_net, &l_tsd_list)){
-                log_it(L_ERROR, "Can't add stake delegate data to hardfork decree");
+
+            l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_GENERATION, &l_chain->generation, sizeof(l_chain->generation));
+            if (!l_tsd) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_list_free_full(l_tsd_list, NULL);
                 return -1;
             }
+            l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
 
             const char *l_addr_pairs = NULL;
             if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr_pairs", &l_addr_pairs)) {
@@ -4166,6 +4165,19 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
                 }
                 dap_strfreev(l_addrs);
+
+                if (dap_chain_net_srv_stake_hardfork_data_export(l_net, &l_tsd_list)) {
+                    log_it(L_ERROR, "Can't add stake delegate data to hardfork decree");
+                    dap_list_free_full(l_tsd_list, NULL);
+                    return -300;
+                }
+            }
+        } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_retry", &l_param_value_str)) {
+            l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_VALIDATORS;
+            if (dap_chain_net_srv_stake_hardfork_data_export(l_net, &l_tsd_list)) {
+                log_it(L_ERROR, "Can't add stake delegate data to hardfork decree");
+                dap_list_free_full(l_tsd_list, NULL);
+                return -300;
             }
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_complete", &l_param_value_str)) {
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE;

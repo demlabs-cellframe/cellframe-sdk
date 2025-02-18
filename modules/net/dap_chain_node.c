@@ -19,32 +19,15 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
-
-#ifdef WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#include <pthread.h>
-#else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#endif
-
+#include "dap_common.h"
 #include "dap_hash.h"
+#include "dap_chain_cell.h"
 #include "dap_chain_net.h"
 #include "dap_global_db.h"
 #include "dap_chain_node.h"
 #include "dap_chain_cs_esbocs.h" // TODO set RPC callbacks for exclude consensus specific dependency
 #include "dap_chain_cs_blocks.h" // TODO set RPC callbacks for exclude storage type specific dependency
+#include "dap_chain_net_srv_stake_pos_delegate.h" // TODO set RPC callbacks for exclude service specific dependency
 #include "dap_chain_ledger.h"
 #include "dap_cli_server.h"
 #include "dap_chain_srv.h"
@@ -543,6 +526,10 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
         return log_it(L_ERROR, "Can't prepare harfork for chain type %s is not supported", dap_chain_get_cs_type(a_chain)), -2;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     assert(l_net);
+    if (dap_chain_net_srv_stake_hardfork_data_verify(l_net, &a_chain->hardfork_decree_hash)) {
+        log_it(L_ERROR, "Stake delegate data verifying with hardfork decree failed");
+        return -3;
+    }
     struct hardfork_states *l_states = DAP_NEW_Z_RET_VAL_IF_FAIL(struct hardfork_states, -1, NULL);
     l_states->balances = dap_ledger_states_aggregate(l_net->pub.ledger, a_last_block_timestamp, &l_states->condouts, a_changed_addrs);
     l_states->anchors = dap_ledger_anchors_aggregate(l_net->pub.ledger);
@@ -563,6 +550,11 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
     l_states->trusted_addrs = a_trusted_addrs;
     a_chain->hardfork_data = l_states;
     a_chain->generation++;
+    dap_chain_purge(a_chain);
+    dap_ledger_tx_purge(l_net->pub.ledger, false);
+    dap_chain_srv_purge_all(a_chain->net_id);
+    dap_chain_cell_close(a_chain->cells);
+    dap_chain_cell_create_fill(a_chain, c_dap_chain_cell_id_hardfork);
     l_net->pub.ledger->is_hardfork_state = true;
     return 0;
 }

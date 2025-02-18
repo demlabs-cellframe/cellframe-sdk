@@ -978,11 +978,18 @@ const char *dap_ledger_tx_tag_str_by_uid(dap_chain_srv_uid_t a_service_uid)
  */
 void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
 {
+    dap_ledger_tx_purge(a_ledger, a_preserve_db);
+    dap_ledger_token_purge(a_ledger, a_preserve_db);
+    dap_ledger_decree_purge(a_ledger);
+    PVT(a_ledger)->load_end = false;
+}
+
+void dap_ledger_tx_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
+{
     dap_return_if_fail(a_ledger);
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
 
     pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
-    pthread_rwlock_wrlock(&l_ledger_pvt->tokens_rwlock);
     pthread_rwlock_wrlock(&l_ledger_pvt->threshold_txs_rwlock);
     pthread_rwlock_wrlock(&l_ledger_pvt->balance_accounts_rwlock);
     pthread_rwlock_wrlock(&l_ledger_pvt->stake_lock_rwlock);
@@ -1015,6 +1022,43 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
         DAP_DELETE(l_gdb_group);
     }
 
+    /* Delete stake-lock items */
+    dap_ledger_stake_lock_item_t *l_stake_item_current, *l_stake_item_tmp;
+    HASH_ITER(hh, l_ledger_pvt->emissions_for_stake_lock, l_stake_item_current, l_stake_item_tmp) {
+        HASH_DEL(l_ledger_pvt->emissions_for_stake_lock, l_stake_item_current);
+        DAP_DELETE(l_stake_item_current);
+    }
+    if (!a_preserve_db) {
+        l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_STAKE_LOCK_STR);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
+        DAP_DELETE(l_gdb_group);
+    }
+
+    /* Delete threshold transactions */
+    HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_item_current, l_item_tmp) {
+        HASH_DEL(l_ledger_pvt->threshold_txs, l_item_current);
+        if (!l_ledger_pvt->mapped)
+            DAP_DELETE(l_item_current->tx);
+        DAP_DEL_Z(l_item_current);
+    }
+
+    l_ledger_pvt->ledger_items         = NULL;
+    l_ledger_pvt->balance_accounts     = NULL;
+    l_ledger_pvt->threshold_txs        = NULL;
+
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
+    pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
+    pthread_rwlock_unlock(&l_ledger_pvt->stake_lock_rwlock);
+}
+
+void dap_ledger_token_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
+{
+    dap_return_if_fail(a_ledger);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+
+    pthread_rwlock_wrlock(&l_ledger_pvt->tokens_rwlock);
+
     /* Delete tokens and their emissions */
     dap_ledger_token_item_t *l_token_current, *l_token_tmp;
     dap_ledger_token_emission_item_t *l_emission_current, *l_emission_tmp;
@@ -1038,7 +1082,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
         DAP_DELETE(l_token_current);
     }
     if (!a_preserve_db) {
-        l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TOKENS_STR);
+        char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TOKENS_STR);
         dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_EMISSIONS_STR);
@@ -1046,40 +1090,8 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
         DAP_DELETE(l_gdb_group);
     }
 
-    /* Delete stake-lock items */
-    dap_ledger_stake_lock_item_t *l_stake_item_current, *l_stake_item_tmp;
-    HASH_ITER(hh, l_ledger_pvt->emissions_for_stake_lock, l_stake_item_current, l_stake_item_tmp) {
-        HASH_DEL(l_ledger_pvt->emissions_for_stake_lock, l_stake_item_current);
-        DAP_DELETE(l_stake_item_current);
-    }
-    if (!a_preserve_db) {
-        l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_STAKE_LOCK_STR);
-        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
-        DAP_DELETE(l_gdb_group);
-    }
-
-    /* Delete threshold transactions */
-    HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_item_current, l_item_tmp) {
-        HASH_DEL(l_ledger_pvt->threshold_txs, l_item_current);
-        if (!l_ledger_pvt->mapped)
-            DAP_DELETE(l_item_current->tx);
-        DAP_DEL_Z(l_item_current);
-    }
-
-    l_ledger_pvt->ledger_items         = NULL;
-    l_ledger_pvt->balance_accounts     = NULL;
     l_ledger_pvt->tokens               = NULL;
-    l_ledger_pvt->threshold_txs        = NULL;
-
-    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     pthread_rwlock_unlock(&l_ledger_pvt->tokens_rwlock);
-    pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
-    pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
-    pthread_rwlock_unlock(&l_ledger_pvt->stake_lock_rwlock);
-
-    l_ledger_pvt->load_end = false;
-
-    dap_ledger_decree_purge(a_ledger);
 }
 
 /**

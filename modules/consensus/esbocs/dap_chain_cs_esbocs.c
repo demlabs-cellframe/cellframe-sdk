@@ -37,11 +37,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
 #include "dap_cli_server.h"
-#include "dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "dap_chain_cs_esbocs"
-
-static const dap_chain_cell_id_t c_cell_id_hardfork = { .uint64 = INT64_MIN }; // 0x800...
 
 enum s_esbocs_session_state {
     DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START,
@@ -743,14 +740,16 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
     return 0;
 }
 
-int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint64_t a_block_num, dap_list_t *a_trusted_addrs, json_object* a_changed_addrs)
+int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint64_t a_block_num, dap_list_t *a_trusted_addrs, json_object *a_changed_addrs)
 {
     uint64_t l_last_num = a_chain->callback_count_atom(a_chain);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     l_esbocs->hardfork_from = dap_max(l_last_num, a_block_num);
-    l_esbocs->hardfork_trusted_addrs = a_trusted_addrs;
-    l_esbocs->hardfork_changed_addrs = a_changed_addrs;
+    if (a_trusted_addrs)
+        l_esbocs->hardfork_trusted_addrs = a_trusted_addrs;
+    if (a_changed_addrs)
+        l_esbocs->hardfork_changed_addrs = a_changed_addrs;
     return a_block_num && a_block_num < l_last_num ? 1 : 0;
 }
 
@@ -759,6 +758,11 @@ int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain)
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_list_free_full(l_esbocs->hardfork_trusted_addrs, NULL);
+    l_esbocs->hardfork_trusted_addrs = NULL;
+    json_object_put(l_esbocs->hardfork_changed_addrs);
+    l_esbocs->hardfork_changed_addrs = NULL;
+    l_esbocs->hardfork_from = 0;
     l_esbocs->session->is_hardfork = false;
     l_net->pub.ledger->is_hardfork_state = false;
     return 0;
@@ -1148,7 +1152,7 @@ static bool s_session_round_new(void *a_arg)
     a_session->ts_stage_entry = 0;
 
     dap_hash_fast_t l_last_block_hash;
-    dap_chain_get_atom_last_hash(a_session->chain, a_session->is_hardfork ? c_dap_chain_cell_id_null : c_cell_id_hardfork, &l_last_block_hash);
+    dap_chain_get_atom_last_hash(a_session->chain, a_session->is_hardfork ? c_dap_chain_cell_id_null : c_dap_chain_cell_id_hardfork, &l_last_block_hash);
     if (!dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash) ||
             (!dap_hash_fast_is_blank(&l_last_block_hash) &&
                 dap_hash_fast_is_blank(&a_session->cur_round.last_block_hash))) {
@@ -1220,11 +1224,19 @@ static bool s_session_round_new(void *a_arg)
     a_session->sync_failed = false;
     a_session->listen_ensure = 0;
     uint64_t l_cur_atom_count = a_session->chain->callback_count_atom(a_session->chain);
-    a_session->is_hardfork = a_session->esbocs->hardfork_from && l_cur_atom_count >= a_session->esbocs->hardfork_from;
-    if (l_cur_atom_count && l_cur_atom_count == a_session->esbocs->hardfork_from) {
-        dap_time_t l_last_block_timestamp = 0;
-        dap_chain_get_atom_last_hash_num_ts(a_session->chain, c_cell_id_hardfork, NULL, NULL, &l_last_block_timestamp);
-        dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp, a_session->esbocs->hardfork_trusted_addrs, a_session->esbocs->hardfork_changed_addrs);
+    if (!a_session->is_hardfork) {
+        a_session->is_hardfork = a_session->esbocs->hardfork_from && l_cur_atom_count == a_session->esbocs->hardfork_from;
+        if (a_session->is_hardfork) {
+            dap_time_t l_last_block_timestamp = 0;
+            dap_chain_get_atom_last_hash_num_ts(a_session->chain, c_dap_chain_cell_id_null, NULL, NULL, &l_last_block_timestamp);
+            int rc = dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp,
+                                                     a_session->esbocs->hardfork_trusted_addrs,
+                                                     a_session->esbocs->hardfork_changed_addrs);
+            if (rc) {
+                log_it(L_ERROR, "Can't start hardfork process with code %d, see log for more details", rc);
+                a_session->is_hardfork = false;
+            }
+        }
     }
     return false;
 }

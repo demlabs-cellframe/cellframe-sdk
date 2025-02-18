@@ -4394,6 +4394,47 @@ int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, da
     return 0;
 }
 
+int dap_chain_net_srv_stake_hardfork_data_verify(dap_chain_net_t *a_net, dap_hash_fast_t *a_hardfork_decree_hash)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net->pub.id);
+    dap_chain_datum_decree_t *l_decree = dap_ledger_decree_get_by_hash(l_net, a_hardfork_decree_hash, NULL);
+    if (!l_decree) {
+        log_it(L_ERROR, "Can't find hardfork decree by hash %s", dap_hash_fast_to_str_static(a_hardfork_decree_hash));
+        return -1;
+    }
+    // get key lis from net
+    dap_list_t *l_current_list = NULL;
+    if (dap_chain_net_srv_stake_hardfork_data_export(a_net, &l_current_list)) {
+        log_it(L_ERROR, "Can't export hardfork data from net %s", a_net->pub.name);
+        return -2;
+    }
+    dap_list_t *l_verify_list = dap_tsd_find_all(l_decree->data_n_signs, l_decree->header.data_size,
+                                                 DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, sizeof(dap_hash_fast_t));
+    if (dap_list_length(l_current_list) != dap_list_length(l_verify_list)) {
+        log_it(L_ERROR, "Exported hardfork data size differs from decrees one");
+        dap_list_free_full(l_current_list, NULL);
+        dap_list_free(l_verify_list);
+        return -3;
+    }
+    for (dap_list_t *it = l_current_list, *vf = l_verify_list; it; it = it->next, vf = vf->next) {
+        dap_tsd_t *l_current = it->data, *l_verify = vf->data;
+        size_t l_verify_size = dap_tsd_size(l_current);
+        if (l_verify_size != dap_tsd_size(l_verify)) {
+            log_it(L_ERROR, "Exported hardfork TSD data size differs from decrees one");
+            dap_list_free_full(l_current_list, NULL);
+            dap_list_free(l_verify_list);
+            return -4;
+        }
+        if (memcmp(l_current, l_verify, l_verify_size)) {
+            log_it(L_ERROR, "Exported hardfork TSD data differs from decrees one by content");
+            dap_list_free_full(l_current_list, NULL);
+            dap_list_free(l_verify_list);
+            return -5;
+        }
+    }
+    return 0;
+}
+
 /**
  * @brief switch key delegate table
  * @param a_net_id net id to switch

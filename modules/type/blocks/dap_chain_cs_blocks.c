@@ -2018,10 +2018,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                 log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
                 return ATOM_REJECT;
             }
-            if (dap_chain_net_srv_stake_switch_table(a_chain->net_id, false)) {  // return to main
-                log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
-                return ATOM_REJECT;
-            }
         } else {
             char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&PVT(l_blocks)->static_genesis_block_hash, l_hash_str, sizeof(l_hash_str));
@@ -2109,12 +2105,17 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
             HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
             if (!l_hash_found) {
                 log_it(L_WARNING, "Block %s rejected by block verificator", dap_hash_fast_to_str_static(a_atom_hash));
-                return ATOM_REJECT;
+                ret = ATOM_REJECT;
             }
         }
     } else if (ret == ATOM_MOVE_TO_THRESHOLD) {
         debug_if(s_debug_more,L_DEBUG,"%s","Can't find valid previous block in chain or forked branches.");
-        return ATOM_REJECT;
+        ret = ATOM_REJECT;
+    }
+    if (l_is_genesis && l_generation && a_chain->generation < l_generation &&
+            dap_chain_net_srv_stake_switch_table(a_chain->net_id, false)) {  // return to main
+        log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
+        ret = ATOM_REJECT;
     }
     return ret;
 }
@@ -2584,7 +2585,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
         if (!l_blocks->block_new) {
             dap_chain_block_cache_t *l_bcache_last = HASH_LAST(l_blocks_pvt->blocks);
             l_blocks->block_new = dap_chain_block_new(&l_bcache_last->block_hash, &l_blocks->block_new_size);
-            l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
+            l_blocks->block_new->hdr.cell_id = a_chain->hardfork_data ? c_dap_chain_cell_id_null : c_dap_chain_cell_id_hardfork;
             l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
         }
         l_blocks->block_new_size = dap_chain_block_datum_add(&l_blocks->block_new, l_blocks->block_new_size, l_datum, l_datum_size);
