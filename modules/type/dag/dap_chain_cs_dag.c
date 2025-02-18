@@ -959,10 +959,11 @@ dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
             if ( !l_event_item->mapped_region ) {
                 int l_err = dap_chain_atom_save(a_dag->chain, l_event_item->event->header.cell_id, (const byte_t*)l_event_item->event,
                                                 l_event_item->event_size, NULL, (char**)&l_event_item->event);
-                if (l_err)
+                if (l_err) {
                     log_it(L_CRITICAL, "Can't move atom from threshold to file, code %d", l_err);
                     res = false;
                     break;
+                }
             }
             int l_add_res = s_dap_chain_add_atom_to_events_table(a_dag, l_event_item);
             HASH_DEL(PVT(a_dag)->events_treshold, l_event_item);

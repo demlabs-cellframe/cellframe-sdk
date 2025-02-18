@@ -815,7 +815,7 @@ void dap_chain_net_load_all()
         l_nets_count = i;
     }
     for ( i = 0; i < l_nets_count; l_err = pthread_join(l_tids[i++], NULL) ) {
-        debug_if(l_err, L_ERROR, "Thread %d join error %d: \"%s\"", l_err, dap_strerror(l_err));
+        debug_if(l_err, L_ERROR, "Thread %d join error %d: \"%s\"", i, l_err, dap_strerror(l_err));
     }
     dap_timerfd_delete(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
 }

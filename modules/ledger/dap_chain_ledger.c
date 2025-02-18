@@ -246,10 +246,12 @@ static dap_ledger_t *dap_ledger_handle_new(void)
 {
     dap_ledger_t *l_ledger = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_t, NULL);
     dap_ledger_private_t *l_ledger_pvt = l_ledger->_internal = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_private_t, NULL, l_ledger);
-
-    l_ledger_pvt->ledger_rwlock = l_ledger_pvt->tokens_rwlock = l_ledger_pvt->threshold_txs_rwlock
-        = l_ledger_pvt->balance_accounts_rwlock = l_ledger_pvt->stake_lock_rwlock = l_ledger_pvt->rewards_rwlock
-        = PTHREAD_RWLOCK_INITIALIZER;
+    pthread_rwlock_init(&l_ledger_pvt->ledger_rwlock, NULL);
+    pthread_rwlock_init(&l_ledger_pvt->tokens_rwlock, NULL);
+    pthread_rwlock_init(&l_ledger_pvt->threshold_txs_rwlock, NULL);
+    pthread_rwlock_init(&l_ledger_pvt->balance_accounts_rwlock, NULL);
+    pthread_rwlock_init(&l_ledger_pvt->stake_lock_rwlock, NULL);
+    pthread_rwlock_init(&l_ledger_pvt->rewards_rwlock, NULL);
     return l_ledger;
 }
 
