@@ -2769,9 +2769,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
             dap_enc_key_delete(l_priv_key);
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS, "The transaction cannot be directed to the same address as the source.");
             json_object_put(l_jobj_result);
-            for (size_t j = 0; j < l_addr_el_count; ++j) {
-                    DAP_DELETE(l_addr_to[j]);
-            }
+            DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
             DAP_DEL_MULTY(l_addr_to, l_value);
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS;
         }

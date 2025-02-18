@@ -425,31 +425,24 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, json_object
  */
 dap_list_t* s_parse_wallet_addresses(const char *a_tx_address, dap_list_t *l_tsd_list, size_t *l_tsd_total_size, uint32_t flag)
 {
-    if (!a_tx_address){
-       log_it(L_DEBUG,"a_tx_address is null");
-       return l_tsd_list;
-    }
+    dap_return_val_if_fail(a_tx_address, l_tsd_list);
 
-    char ** l_str_wallet_addr = NULL;
-    l_str_wallet_addr = dap_strsplit(a_tx_address,",",0xffff);
+    char **l_str_wallet_addr = dap_strsplit(a_tx_address,",",0xffff);
+    if (!l_str_wallet_addr)
+       return log_it(L_ERROR, "Can't split \"%s\" by commas!", a_tx_address), l_tsd_list;
 
-    if (!l_str_wallet_addr){
-       log_it(L_DEBUG,"Error in wallet addresses array parsing in tx_receiver_allowed parameter");
-       return l_tsd_list;
-    }
-
-    while (l_str_wallet_addr && *l_str_wallet_addr){
-        log_it(L_DEBUG,"Processing wallet address: %s", *l_str_wallet_addr);
-        dap_chain_addr_t *addr_to = dap_chain_addr_from_str(*l_str_wallet_addr);
+    for (char **l_cur = l_str_wallet_addr; l_cur && *l_cur; ++l_cur) {
+        log_it(L_DEBUG, "Processing wallet address: %s", *l_cur);
+        dap_chain_addr_t *addr_to = dap_chain_addr_from_str(*l_cur);
         if (addr_to){
-            dap_tsd_t * l_tsd = dap_tsd_create(flag, addr_to, sizeof(dap_chain_addr_t));
+            dap_tsd_t *l_tsd = dap_tsd_create(flag, addr_to, sizeof(dap_chain_addr_t));
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
             *l_tsd_total_size += dap_tsd_size(l_tsd);
-        }else{
-            log_it(L_DEBUG,"Error in wallet address parsing");
-        }
-        l_str_wallet_addr++;
+            DAP_DELETE(addr_to);
+        } else
+            log_it(L_ERROR, "Can't convert it to address!");
     }
+    dap_strfreev(l_str_wallet_addr);
     return l_tsd_list;
 }
 
@@ -478,16 +471,16 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
     if (!a_update_token) {
         if (a_params->ext.flags){   // Flags
             l_str_flags = dap_strsplit(a_params->ext.flags,",",0xffff );
-            while (l_str_flags && *l_str_flags){
-                uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
+            for (char **l_cur = l_str_flags; l_cur && *l_cur; ++l_cur) {
+                uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_cur);
                 if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
                                "Flag can't be \"%s\"",*l_str_flags);
                     return -20;
                 }
                 l_flags |= l_flag; // if we have multiple flags
-                l_str_flags++;
             }
+            dap_strfreev(l_str_flags);
         }
     } else {
         const char *l_set_flags = NULL;

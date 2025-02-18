@@ -415,7 +415,7 @@ static dap_chain_datum_tx_t *s_taking_tx_sign(json_object *a_json_arr_reply, dap
         m_sign_fail(ERROR_TX_MISMATCH, "Requested conditional transaction restrict provided sign key");
     size_t l_my_pkey_size = 0;
     byte_t *l_my_pkey = dap_enc_key_serialize_pub_key(a_enc_key, &l_my_pkey_size);
-    if (l_my_pkey)
+    if (!l_my_pkey)
         m_sign_fail(ERROR_COMPOSE, "Can't serialize sign public key");
     size_t l_tsd_hashes_count = l_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
     size_t l_signs_limit = l_tsd_hashes_count * 2;
