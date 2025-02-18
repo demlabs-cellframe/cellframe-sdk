@@ -1553,7 +1553,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         }
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
         dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "0", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
-        bool is_hardfork_related_block = a_block_cache->generation && a_block_cache->generation == a_blocks->generation;
+        bool is_hardfork_related_block = a_block_cache->generation && a_block_cache->generation == a_blocks->chain->generation;
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED) { // If this is any datum other than a already cached transaction
             l_ret++;
@@ -1833,15 +1833,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
         } else {
             uint8_t *l_generation_meta = dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_GENERATION);
-            l_blocks->generation = l_generation_meta ? *(uint16_t *)l_generation_meta : 0;
-            if (l_blocks->generation) {
+            uint16_t l_generation = l_generation_meta ? *(uint16_t *)l_generation_meta : 0;
+            if (l_generation && a_chain->generation < l_generation) {
                 dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
                 if (!l_hardfork_decree_hash) {
                     log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
-                    return ATOM_REJECT;
-                }
-                if (dap_chain_net_srv_stake_switch_table(a_chain->net_id, false)) { // to main
-                    log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
                     return ATOM_REJECT;
                 }
                 if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // True import
@@ -2007,7 +2003,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         else if(dap_hash_fast_compare(&l_block_hash, &PVT(l_blocks)->static_genesis_block_hash)
                 && !dap_hash_fast_is_blank(&l_block_hash))
             log_it(L_NOTICE, "Accepting static genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
-        else if (l_generation) {
+        else if (l_generation && a_chain->generation < l_generation) {
             log_it(L_NOTICE, "Accepting hardfork genesis block %s and restore data", dap_hash_fast_to_str_static(a_atom_hash));
             dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
             if (!l_hardfork_decree_hash) {
@@ -2019,10 +2015,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                 return ATOM_REJECT;
             }
             if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // Sandbox
-                if (dap_chain_net_srv_stake_switch_table(a_chain->net_id, false)) {  // return to main
-                    log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
-                }
                 log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
+                return ATOM_REJECT;
+            }
+            if (dap_chain_net_srv_stake_switch_table(a_chain->net_id, false)) {  // return to main
+                log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
                 return ATOM_REJECT;
             }
         } else {
