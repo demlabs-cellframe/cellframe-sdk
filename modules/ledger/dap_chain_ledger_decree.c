@@ -33,6 +33,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_http_ban_list_client.h"
+#include "dap_chain_policy.h"
 
 #define LOG_TAG "dap_ledger_decree"
 
@@ -419,7 +420,7 @@ const char *l_ban_addr;
             if (!a_apply)
                 break;
             
-            dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, &l_hash, l_value, &l_node_addr, NULL);
+            dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, a_decree, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(a_decree));
             dap_chain_net_srv_stake_add_approving_decree_info(a_decree, a_net);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE:
@@ -602,7 +603,7 @@ const char *l_ban_addr;
                 break;
             return dap_chain_esbocs_set_emergency_validator(l_chain, l_action, l_sign_type, &l_hash);
         }
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK:
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK: {
             if (dap_chain_datum_decree_get_atom_num(a_decree, &l_block_num)) {
                 log_it(L_WARNING, "Can't get atom number from hardfork prepare decree");
                 return -103;
@@ -620,7 +621,37 @@ const char *l_ban_addr;
                 break;
             dap_list_t *l_addrs = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size,
                                                    DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, sizeof(dap_stream_node_addr_t));
-            return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_block_num, l_addrs);
+            dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
+            dap_tsd_t* l_changed_addrs = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size,DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS);
+            return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_block_num, l_addrs, json_tokener_parse((char *)l_changed_addrs->data));
+        }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY: {
+            if (!a_apply)
+                break;
+            dap_chain_policy_t *l_policy = NULL;
+            if ( !(l_policy = dap_chain_datum_decree_get_policy(a_decree)) ){
+                log_it(L_WARNING,"Can't get policy from decree.");
+                return -105;
+            }
+            l_policy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_policy, dap_chain_policy_get_size(l_policy), -106);
+            if (DAP_FLAG_CHECK(l_policy->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM))
+                l_policy->activate.chain_union.chain = dap_chain_find_by_id(a_net->pub.id, l_policy->activate.chain_union.chain_id);
+            return dap_chain_policy_add(l_policy, a_net->pub.id.uint64);
+        }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE: {
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            if (!l_chain) {
+                log_it(L_WARNING, "Specified chain not found");
+                return -106;
+            }
+            if (dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
+                log_it(L_WARNING, "Can't apply this decree to specified chain");
+                return -115;
+            }
+            if (!a_apply)
+                break;
+            return dap_chain_esbocs_set_hardfork_complete(l_chain);
+        }
         default:
             return -1;
     }
@@ -756,4 +787,27 @@ dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledg
         }
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
     return ret;
+}
+
+/**
+ * @brief get tsd list with decrees hashes in concretyc type
+ * @param a_ledger ledger to search
+ * @param a_type - searching type, if 0 - all hashes
+ * @return if OK - ponter tsd list, if error - NULL
+ */
+dap_list_t *dap_ledger_decrees_get_by_type(dap_ledger_t *a_ledger, int a_type)
+{
+    dap_return_val_if_pass(!a_ledger, NULL);
+    dap_list_t *l_ret = NULL;
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    dap_ledger_decree_item_t *l_cur_decree, *l_tmp;
+    pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
+    HASH_ITER(hh, l_ledger_pvt->decrees, l_cur_decree, l_tmp) {
+        if (!a_type || l_cur_decree->decree->header.type == a_type) {
+            dap_tsd_t *l_tsd_cur = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, &l_cur_decree->decree_hash, sizeof(l_cur_decree->decree_hash));
+            l_ret = dap_list_append(l_ret, l_tsd_cur);
+        }
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
+    return l_ret;
 }

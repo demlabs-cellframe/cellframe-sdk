@@ -140,6 +140,7 @@ static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_ato
 static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_block_t *)a_atom)->hdr.ts_created; }
 static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
 static int s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
+static int s_fee_stack_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
 //    Get blocks
 static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size);
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter_t * a_atom_iter , size_t *a_links_size,
@@ -228,8 +229,9 @@ int dap_chain_cs_blocks_init()
 
         "Commission collect:\n"
             "block -net <net_name> [-chain <chain_name>] fee collect"
-            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
+            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value> {-before_hardfork}\n"
                 "\t\t Take delegated part of commission\n\n"
+                "\t\t {-before_hardfork} collect fees from blocks before hardfork\n\n"
 
         "Reward for block signs:\n"
             "block -net <net_name> [-chain <chain_name>] reward set"
@@ -240,8 +242,9 @@ int dap_chain_cs_blocks_init()
                 "\t\t Show base reward for sign for one block at one minute\n\n"
 
             "block -net <net_name> [-chain <chain_name>] reward collect"
-            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
+            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value> {-before_hardfork}\n"
                 "\t\t Take delegated part of reward\n\n"
+                "\t\t {-before_hardfork} collect rewards from blocks before hardfork\n\n"
 
         "Rewards and fees autocollect status:\n"
             "block -net <net_name> [-chain <chain_name>] autocollect status\n"
@@ -265,6 +268,9 @@ int dap_chain_cs_blocks_init()
     }
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL, NULL, NULL, NULL);
     log_it(L_NOTICE ,"Initialized blocks(m) chain type");
+
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK, s_fee_stack_verificator_callback, NULL, NULL, NULL, NULL, NULL);
+    log_it(L_NOTICE ,"Initialized blocks(m) chain type verificator for fee stack subtype");
 
     return 0;
 }
@@ -422,7 +428,7 @@ static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_c
     l_tsd->size = sizeof(uint256_t);
     *(uint256_t*)(l_tsd->data) = a_value;
     // Sign it
-    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size, DAP_SIGN_HASH_TYPE_DEFAULT);
+    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size);
     if (!l_sign) {
         log_it(L_ERROR, "Decree signing failed");
         DAP_DELETE(l_decree);
@@ -1191,6 +1197,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hashes", &l_hash_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_value_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-before_hardfork", &l_fee_value_str);
+            int l_before_hardfork = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-before_hardfork", NULL);
 
             if (!l_addr_str) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block %s collect' requires parameter '-addr'", l_subcmd_str);
@@ -1225,17 +1233,23 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block fee collect' requires parameter '-hashes'");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
-            // NOTE: This call will modify source string
-            l_block_list = s_block_parse_str_list((char *)l_hash_str, &l_hashes_count, l_chain);            
-            if (!l_block_list || !l_hashes_count) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR,
-                                            "Block fee collection requires at least one hash to create a transaction");
-                return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
-            }
 
-            char *l_hash_tx = l_subcmd == SUBCMD_FEE
-                ? dap_chain_mempool_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type)
-                : dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
+            char *l_hash_tx = NULL;
+            if (l_before_hardfork == 0) {
+                // NOTE: This call will modify source string
+                l_block_list = s_block_parse_str_list((char *)l_hash_str, &l_hashes_count, l_chain);            
+                if (!l_block_list || !l_hashes_count) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR,
+                                                "Block fee collection requires at least one hash to create a transaction");
+                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
+                }
+                char *l_hash_tx = l_subcmd == SUBCMD_FEE
+                    ? dap_chain_mempool_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type)
+                    : dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
+            } else {
+                char *l_hash_tx = dap_chain_mempool_tx_coll_fee_stack_create(l_blocks, l_cert->enc_key, l_addr, l_fee_value, l_hash_out_type);
+            }
+            
             if (l_hash_tx) {
                 json_object* json_obj_out = json_object_new_object();
                 char *l_val = dap_strdup_printf("TX for %s collection created successfully, hash = %s\n", l_subcmd_str, l_hash_tx);
@@ -1539,10 +1553,8 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         }
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
         dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "0", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
-
-        int l_res = (a_block_cache->generation && a_block_cache->generation == a_blocks->generation)
-                ? dap_chain_datum_add_hardfork_data(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data)
-                : dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
+        bool is_hardfork_related_block = a_block_cache->generation && a_block_cache->generation == a_blocks->chain->generation;
+        int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED) { // If this is any datum other than a already cached transaction
             l_ret++;
             if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
@@ -1718,13 +1730,14 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
     switch (ret) {
     case ATOM_ACCEPT:{
-        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        assert(l_net);
         dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
 #ifndef DAP_CHAIN_BLOCKS_TEST
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        assert(l_net);
         if ( !dap_chain_net_get_load_mode(l_net) ) {
-            if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL)) < 0 ) {
-                log_it(L_ERROR, "Can't save atom to file, code %d", ret);
+            if ( dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL) < 0 ) {
+                log_it(L_ERROR, "Can't save atom to file");
+                dap_chain_net_srv_stake_switch_table(a_chain->net_id, false);
                 return ATOM_REJECT;
             } else if (a_chain->is_mapped) {
                 l_block = (dap_chain_block_t*)( l_cell->map_pos += sizeof(uint64_t) );  // Switching to mapped area
@@ -1736,6 +1749,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped);
         if (!l_block_cache) {
             log_it(L_DEBUG, "%s", "... corrupted block");
+            dap_chain_net_srv_stake_switch_table(a_chain->net_id, false);
             return ATOM_REJECT;
         }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
@@ -1765,8 +1779,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                         for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
                         if (l_checked_atoms_cnt == 0 && l_tmp) {
                             l_notifier->callback(l_notifier->arg, a_chain, a_chain->active_cell_id, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size);
+#ifndef DAP_CHAIN_BLOCKS_TEST
                             for (size_t i = 0; i < l_tmp->datum_count; i++)
                                 dap_ledger_tx_clear_colour(l_net->pub.ledger, l_tmp->datum_hash + i);
+#endif
                         }
                     }    
 #ifndef DAP_CHAIN_BLOCKS_TEST
@@ -1816,9 +1832,22 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             }
 
         } else {
+            uint8_t *l_generation_meta = dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_GENERATION);
+            uint16_t l_generation = l_generation_meta ? *(uint16_t *)l_generation_meta : 0;
+            if (l_generation && a_chain->generation < l_generation) {
+                dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
+                if (!l_hardfork_decree_hash) {
+                    log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
+                    return ATOM_REJECT;
+                }
+                if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // True import
+                    log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
+                    return ATOM_REJECT;
+                }
+            }
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
             ++PVT(l_blocks)->blocks_count;
-            debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
+            debug_if(s_debug_more, L_DEBUG, "Verified genesis atom %p: ACCEPTED", a_atom);
             s_add_atom_datums(l_blocks, l_block_cache);
             dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size);
             dap_chain_atom_add_from_threshold(a_chain);
@@ -1964,22 +1993,39 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     int ret = ATOM_MOVE_TO_THRESHOLD;
 // Parse metadata
     bool l_is_genesis = dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_GENESIS);
+    uint8_t *l_generation_meta = dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_GENERATION);
+    uint16_t l_generation = l_generation_meta ? *(uint16_t *)l_generation_meta : 0;
     // genesis or seed mode
     if (l_is_genesis) {
-        if (PVT(l_blocks)->blocks) {
-            log_it(L_WARNING, "Can't accept genesis block %s: already present data in blockchain", dap_hash_fast_to_str_static(a_atom_hash));
-            return ATOM_REJECT;
-        }
 #ifndef DAP_CHAIN_BLOCKS_TEST
         if (s_seed_mode)
             log_it(L_NOTICE, "Accepting new genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
         else if(dap_hash_fast_compare(&l_block_hash, &PVT(l_blocks)->static_genesis_block_hash)
                 && !dap_hash_fast_is_blank(&l_block_hash))
             log_it(L_NOTICE, "Accepting static genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
-        else {
+        else if (l_generation && a_chain->generation < l_generation) {
+            log_it(L_NOTICE, "Accepting hardfork genesis block %s and restore data", dap_hash_fast_to_str_static(a_atom_hash));
+            dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
+            if (!l_hardfork_decree_hash) {
+                log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
+                return ATOM_REJECT;
+            }
+            if (dap_chain_net_srv_stake_switch_table(a_chain->net_id, true)) { // to Sandbox
+                log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in switching to sandbox table", dap_hash_fast_to_str_static(a_atom_hash));
+                return ATOM_REJECT;
+            }
+            if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // Sandbox
+                log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
+                return ATOM_REJECT;
+            }
+            if (dap_chain_net_srv_stake_switch_table(a_chain->net_id, false)) {  // return to main
+                log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
+                return ATOM_REJECT;
+            }
+        } else {
             char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&PVT(l_blocks)->static_genesis_block_hash, l_hash_str, sizeof(l_hash_str));
-            log_it(L_WARNING, "Can't accept genesis block %s: seed mode not enabled or hash mismatch with static genesis block %s in configuration",
+            log_it(L_WARNING, "Can't accept genesis block %s: seed mode not enabled or hash mismatch with static genesis block %s in configuration or hardfork decree is blank",
                                 dap_hash_fast_to_str_static(a_atom_hash), l_hash_str);
             return ATOM_REJECT;
         }
@@ -2055,7 +2101,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         }
     }
 
-    if (ret == ATOM_ACCEPT || (!l_blocks->is_hardfork_state && ret == ATOM_FORK)) {
+    if (ret == ATOM_ACCEPT || (!l_generation && ret == ATOM_FORK)) {
         // 2nd level consensus
         if (l_blocks->callback_block_verify && l_blocks->callback_block_verify(l_blocks, l_block, a_atom_hash, /* Old bug, crutch for it */ a_atom_size)) {
             // Hard accept list
@@ -2536,8 +2582,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
             break;
         }
         if (!l_blocks->block_new) {
-            dap_chain_block_cache_t *l_bcache_last = l_blocks_pvt->blocks ? l_blocks_pvt->blocks->hh.tbl->tail->prev : NULL;
-            l_bcache_last = l_bcache_last ? l_bcache_last->hh.next : l_blocks_pvt->blocks;
+            dap_chain_block_cache_t *l_bcache_last = HASH_LAST(l_blocks_pvt->blocks);
             l_blocks->block_new = dap_chain_block_new(&l_bcache_last->block_hash, &l_blocks->block_new_size);
             l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
             l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
@@ -2691,7 +2736,7 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
  * @return
  */
 static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t UNUSED_ARG *a_tx_in_hash,
-                                      dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool UNUSED_ARG a_owner)
+                                      dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool a_owner)
 {
     dap_chain_net_t *l_net = a_ledger->net;
     assert(l_net);
@@ -2720,6 +2765,15 @@ static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx
     }
     return -4;
 }
+
+
+static int s_fee_stack_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t UNUSED_ARG *a_tx_in_hash,
+                                      dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool a_owner)
+{
+    return a_owner ? 0 : -1;
+}
+
+
 
 static uint64_t s_callback_count_txs(dap_chain_t *a_chain)
 {

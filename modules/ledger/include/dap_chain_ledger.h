@@ -311,7 +311,6 @@ DAP_STATIC_INLINE char *dap_ledger_get_gdb_group(dap_ledger_t *a_ledger, const c
  * return 1 OK, -1 error
  */
 int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data);
-int dap_ledger_tx_load_hardfork_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data);
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data);
 int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash);
 int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
@@ -455,6 +454,8 @@ dap_list_t* dap_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger, dap_ch
 // Get the value from all transactions in the cache with out_cond item
 uint256_t dap_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_addr_t *a_addr,
                                                        dap_chain_tx_out_cond_t **tx_out_cond);
+// Get first tx with type a_subtype
+dap_chain_tx_used_out_item_t *dap_ledger_get_tx_cond_out(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr_from, dap_chain_tx_out_cond_subtype_t a_subtype);
 
 dap_list_t *dap_ledger_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
                                         uint256_t *a_value_transfer);
@@ -489,6 +490,7 @@ bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger);
 void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_cache_tx_check_callback_t a_callback);
 dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond);
 void dap_ledger_load_end(dap_ledger_t *a_ledger);
+dap_pkey_t *dap_ledger_find_pkey_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_pkey_hash);
 
 int dap_ledger_decree_create(dap_ledger_t *a_ledger);
 void dap_ledger_decree_purge(dap_ledger_t *a_ledger);
@@ -508,12 +510,13 @@ int dap_ledger_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_c
 int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash);
 dap_chain_datum_anchor_t *dap_ledger_anchor_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash);
 
-dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list);
+dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list, json_object* a_changed_addrs);
 dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledger);
 
 uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_tx_prev_hash, int a_out_idx);
 void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
 dap_pkey_t *dap_ledger_find_pkey_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_pkey_hash);
+dap_list_t *dap_ledger_decrees_get_by_type(dap_ledger_t *a_ledger, int a_type);
 
 #ifdef __cplusplus
 }
