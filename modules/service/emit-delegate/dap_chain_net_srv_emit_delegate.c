@@ -159,9 +159,6 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
             log_it(L_ERROR, "Condtional output in current TX have different TSD sections vs previous TX's one");
             return -11;
         }
-    } else if (l_cond_out) {
-        log_it(L_ERROR, "Changeback on conditional output is not need but found");
-        return -10;
     }
 
     if (l_signs_verified < a_cond->subtype.srv_emit_delegate.signers_minimum) {
@@ -358,7 +355,7 @@ dap_chain_datum_tx_t *s_refilling_tx_create(json_object *a_json_arr_reply, dap_c
 
     // add track for takeoff from conditional value
     dap_chain_tx_tsd_t *l_refill_tsd = NULL;
-    l_refill_tsd = dap_chain_datum_tx_item_tsd_create(&l_value, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_REFILL, sizeof(uint256_t));
+    l_refill_tsd = dap_chain_datum_tx_item_tsd_create(&a_value, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_REFILL, sizeof(uint256_t));
 
     if (!l_refill_tsd || dap_chain_datum_tx_add_item(&l_tx, l_refill_tsd) != 1)
         m_tx_fail(ERROR_COMPOSE, "Can't add TSD section item with withdraw value");
@@ -483,16 +480,14 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
         SUM_256_256(l_cond_prev->header.value, l_value, &l_value_back);
     else
         SUBTRACT_256_256(l_cond_prev->header.value, l_value, &l_value_back);
-
-    if (!IS_ZERO_256(l_value_back)) {
-        dap_chain_tx_out_cond_t *l_out_cond = DAP_DUP_SIZE(l_cond_prev, sizeof(dap_chain_tx_out_cond_t) + l_cond_prev->tsd_size);
-        if (!l_out_cond)
-            m_tx_fail(ERROR_COMPOSE, c_error_memory_alloc);
-        l_out_cond->header.value = l_value_back;
-        if (-1 == dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond))
-            m_tx_fail(ERROR_COMPOSE, "Cant add emission cond output");
-        DAP_DELETE(l_out_cond);
-    }
+    // create to refilling
+    dap_chain_tx_out_cond_t *l_out_cond = DAP_DUP_SIZE(l_cond_prev, sizeof(dap_chain_tx_out_cond_t) + l_cond_prev->tsd_size);
+    if (!l_out_cond)
+        m_tx_fail(ERROR_COMPOSE, c_error_memory_alloc);
+    l_out_cond->header.value = l_value_back;
+    if (-1 == dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond))
+        m_tx_fail(ERROR_COMPOSE, "Cant add emission cond output");
+    DAP_DELETE(l_out_cond);
 
     // add track for takeoff from conditional value
     dap_chain_tx_tsd_t *l_takeoff_tsd = NULL;
@@ -737,6 +732,7 @@ static int s_cli_refill(int a_argc, char **a_argv, int a_arg_index, json_object 
         return ERROR_PARAM;
     }
 
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_in_hash_str);
     if (!l_tx_in_hash_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -tx");
         return ERROR_PARAM;
