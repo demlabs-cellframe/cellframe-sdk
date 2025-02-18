@@ -166,6 +166,8 @@ typedef struct dap_chain {
     uint16_t load_priority;
     char *name;
     char *net_name;
+    uint16_t generation;
+
     bool is_datum_pool_proc;
     bool is_mapped;
     atomic_int load_progress; 
@@ -244,6 +246,7 @@ typedef struct dap_chain {
 
     dap_config_t *config;
 
+    dap_hash_fast_t hardfork_decree_hash;
     struct hardfork_states *hardfork_data;
     void * _pvt; // private data
     void * _inheritor; // inheritor object

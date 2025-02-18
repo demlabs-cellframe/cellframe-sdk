@@ -475,6 +475,11 @@ int com_exec_cmd(int argc, char **argv, void **reply);
 
 int com_file(int a_argc, char ** a_argv, void **a_str_reply);
 
+/**
+ * Policy management
+ */
+int com_policy(int a_argc, char **a_argv, void **a_str_reply);
+
 #ifdef __cplusplus
 }
 #endif

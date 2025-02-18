@@ -41,8 +41,7 @@ dap_chain_datum_token_t *dap_ledger_test_create_datum_update(dap_cert_t *a_cert,
         l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section);
         memcpy(l_token->tsd_n_signs, a_tsd_section, a_size_tsd_section);
     }
-    dap_sign_t * l_sign = dap_cert_sign(a_cert,l_token,
-                                        sizeof(*l_token) + a_size_tsd_section, DAP_SIGN_HASH_TYPE_DEFAULT);
+    dap_sign_t * l_sign = dap_cert_sign(a_cert, l_token, sizeof(*l_token) + a_size_tsd_section);
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
         l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section + l_sign_size);
@@ -76,8 +75,7 @@ dap_chain_datum_token_t  *dap_ledger_test_create_datum_decl(dap_cert_t *a_cert, 
         l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section);
         memcpy(l_token->tsd_n_signs, a_tsd_section, a_size_tsd_section);
     }
-    dap_sign_t * l_sign = dap_cert_sign(a_cert,l_token,
-                                        sizeof(*l_token) + a_size_tsd_section, DAP_SIGN_HASH_TYPE_DEFAULT);
+    dap_sign_t * l_sign = dap_cert_sign(a_cert, l_token, sizeof(*l_token) + a_size_tsd_section);
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
         l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section + l_sign_size);
@@ -365,7 +363,7 @@ int dap_ledger_test_create_reward_decree(dap_chain_t *a_chain, dap_chain_net_id_
     l_tsd->size = sizeof(uint256_t);
     *(uint256_t*)(l_tsd->data) = a_value;
     // Sign it
-    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size, DAP_SIGN_HASH_TYPE_DEFAULT);
+    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size);
     if (!l_sign) {
         DAP_DELETE(l_decree);
         return -2;
@@ -914,7 +912,7 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
 //        memcpy(l_datum_token_update->tsd_n_signs + l_offset, l_tsd_dis_flags, dap_tsd_size(l_tsd_dis_flags));
 //        l_offset += dap_tsd_size(l_tsd_dis_flags);
 //        dap_sign_t * l_sign = dap_cert_sign(a_cert, l_datum_token_update,
-//                                           sizeof(*l_datum_token_update) - sizeof(uint16_t), 0);
+//                                           sizeof(*l_datum_token_update) - sizeof(uint16_t));
 //        if (l_sign) {
 //            size_t l_sign_size = dap_sign_get_size(l_sign);
 //            l_datum_token_update = DAP_REALLOC(l_datum_token_update, sizeof(dap_chain_datum_token_t) + l_offset + l_sign_size);
@@ -1093,7 +1091,7 @@ void dap_ledger_test_run(void){
     if (dap_ledger_tx_add_check(l_ledger, l_base_tx_second, l_base_tx_size2, &l_hash_btx_second)) {
         dap_pass_msg("Checking can added second base tx in ledger");
     }
-    if (dap_ledger_tx_add(l_ledger, l_base_tx_second, &l_hash_btx_second, false, NULL)){
+    if (dap_ledger_tx_add(l_ledger, l_base_tx_second, &l_hash_btx_second, false, NULL)) {
         dap_pass_msg("Checking for a failure to add a second base transaction for the same issue to the ledger.");
     } else {
         dap_fail("Checking for a failure to add a second base transaction for the same issue to the ledger.");

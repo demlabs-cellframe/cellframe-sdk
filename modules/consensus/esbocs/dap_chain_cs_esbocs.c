@@ -307,9 +307,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         log_it(L_MSG, "add validator addr "NODE_ADDR_FP_STR", signing addr %s", NODE_ADDR_FP_ARGS_S(l_signer_node_addr), dap_chain_addr_to_str_static(&l_signing_addr));
 
         if (!l_esbocs_pvt->poa_mode) { // auth certs in PoA mode will be first PoS validators keys
-            dap_hash_fast_t l_stake_tx_hash = {};
             uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
-            dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, &l_stake_tx_hash,
+            dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, NULL,
                                                  l_weight, &l_signer_node_addr, dap_pkey_from_enc_key(l_cert_cur->enc_key));
         }
     }
@@ -452,7 +451,7 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
             !l_session->new_round_enqueued) {
         l_session->new_round_enqueued = true;
         s_session_round_new(l_session);
-        if (DAP_CHAIN_CS_BLOCKS(a_chain)->is_hardfork_state) {
+        if (l_session->is_hardfork) {
             size_t l_datums_count = 0;
             dap_chain_datum_t **l_datums = dap_chain_block_get_datums(a_atom, a_atom_size, &l_datums_count);
             for (size_t i = 0; i < l_datums_count; i++)
@@ -744,14 +743,25 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
     return 0;
 }
 
-int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint64_t a_block_num, dap_list_t *a_trusted_addrs)
+int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint64_t a_block_num, dap_list_t *a_trusted_addrs, json_object* a_changed_addrs)
 {
     uint64_t l_last_num = a_chain->callback_count_atom(a_chain);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     l_esbocs->hardfork_from = dap_max(l_last_num, a_block_num);
     l_esbocs->hardfork_trusted_addrs = a_trusted_addrs;
+    l_esbocs->hardfork_changed_addrs = a_changed_addrs;
     return a_block_num && a_block_num < l_last_num ? 1 : 0;
+}
+
+int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain)
+{
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    l_esbocs->session->is_hardfork = false;
+    l_net->pub.ledger->is_hardfork_state = false;
+    return 0;
 }
 
 static int s_callback_purge(dap_chain_t *a_chain)
@@ -760,12 +770,11 @@ static int s_callback_purge(dap_chain_t *a_chain)
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    dap_hash_fast_t l_stake_tx_hash = {};
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
     for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
         dap_chain_esbocs_validator_t *l_validator = it->data;
-        dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
+        dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, NULL,
                                              l_weight, &l_validator->node_addr, NULL);
     }
     l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
@@ -1215,7 +1224,7 @@ static bool s_session_round_new(void *a_arg)
     if (l_cur_atom_count && l_cur_atom_count == a_session->esbocs->hardfork_from) {
         dap_time_t l_last_block_timestamp = 0;
         dap_chain_get_atom_last_hash_num_ts(a_session->chain, c_cell_id_hardfork, NULL, NULL, &l_last_block_timestamp);
-        dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp, a_session->esbocs->hardfork_trusted_addrs);
+        dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp, a_session->esbocs->hardfork_trusted_addrs, a_session->esbocs->hardfork_changed_addrs);
     }
     return false;
 }
@@ -1688,8 +1697,16 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT,
                                                             &a_session->cur_round.attempt_num, sizeof(uint8_t));
             if (l_candidate_size)
-                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
+                l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
                                                             a_session->cur_round.excluded_list, (*a_session->cur_round.excluded_list + 1) * sizeof(uint16_t));
+        }
+        if (a_session->is_hardfork) {
+            if (dap_chain_block_meta_get(l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_GENESIS) && l_candidate_size)
+                l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_LINK,
+                                                        &l_chain->hardfork_decree_hash, sizeof(l_chain->hardfork_decree_hash));
+            if (l_candidate_size)
+                l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_GENERATION,
+                                                            &l_chain->generation, sizeof(uint16_t));
         }
         if (l_candidate_size) {
             dap_hash_fast(l_candidate, l_candidate_size, &l_candidate_hash);
@@ -2565,7 +2582,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                             l_message->hdr.attempt_num, l_candidate_hash_str);
             size_t l_offset = dap_chain_block_get_sign_offset(l_store->candidate, l_store->candidate_size);
-            dap_sign_t *l_candidate_sign = dap_sign_create(PVT(l_session->esbocs)->blocks_sign_key,
+            dap_sign_t *l_candidate_sign = dap_sign_create_with_hash_type(PVT(l_session->esbocs)->blocks_sign_key,
                                             l_store->candidate, l_offset + sizeof(l_store->candidate->hdr), DAP_SIGN_ADD_PKEY_HASHING_FLAG(DAP_SIGN_HASH_TYPE_DEFAULT));
             size_t l_candidate_sign_size = dap_sign_get_size(l_candidate_sign);
             s_message_send(l_session, DAP_CHAIN_ESBOCS_MSG_TYPE_COMMIT_SIGN, l_candidate_hash,
@@ -2771,7 +2788,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
                                                            NODE_ADDR_FP_ARGS_S(l_validator->node_addr));
             l_message->hdr.recv_addr = l_validator->node_addr;
             l_message->hdr.sign_size = 0;
-            dap_sign_t *l_sign = dap_sign_create( PVT(a_session->esbocs)->blocks_sign_key, l_message, l_message_size, DAP_SIGN_ADD_PKEY_HASHING_FLAG(DAP_SIGN_HASH_TYPE_DEFAULT) );
+            dap_sign_t *l_sign = dap_sign_create_with_hash_type( PVT(a_session->esbocs)->blocks_sign_key, l_message, l_message_size, DAP_SIGN_ADD_PKEY_HASHING_FLAG(DAP_SIGN_HASH_TYPE_DEFAULT) );
             size_t l_sign_size = dap_sign_get_size(l_sign);
             l_message->hdr.sign_size = l_sign_size;
             dap_chain_esbocs_message_t *l_message_signed = DAP_REALLOC_RET_IF_FAIL(l_message, l_message_size + l_sign_size, l_sign, l_message);
@@ -2870,17 +2887,39 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             log_it(L_WARNING, "Illegal block version %d", a_block->hdr.version);
             return -3;
         }
-        if (a_blocks->is_hardfork_state) {
+        if (l_esbocs->session->is_hardfork) {
+            uint8_t *l_generation = dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_GENERATION);
+            if (!l_generation || *(uint16_t *)l_generation != a_blocks->chain->generation) {
+                log_it(L_WARNING, "Can't process hardfork block %s with incorrect generation meta", dap_hash_fast_to_str_static(a_block_hash));
+                return -302;
+            }
             // Addtionally verify datums vs internal states
             size_t l_datums_count = 0;
             dap_chain_datum_t **l_datums = dap_chain_block_get_datums(a_block, a_block_size, &l_datums_count);
             for (size_t i = 0; i < l_datums_count; i++) {
                 int ret = dap_chain_node_hardfork_check(a_blocks->chain, l_datums[i]);
                 if (ret) {
-                    log_it(L_WARNING, "Can't process hardfork block %s", dap_hash_fast_to_str_static(a_block_hash));
+                    log_it(L_WARNING, "Can't process hardfork block %s with datums verification error", dap_hash_fast_to_str_static(a_block_hash));
                     return ret;
                 }
             }
+            // compare hardfork decree hashes
+            if (dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_GENESIS)) {
+                dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_LINK);
+                if (!l_hardfork_decree_hash) {
+                    log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
+                    return -300;
+                } else if (memcmp(l_hardfork_decree_hash, &a_blocks->chain->hardfork_decree_hash, sizeof(a_blocks->chain->hardfork_decree_hash))) {
+                    char *l_candidate_hash_str = dap_hash_fast_to_str_new(l_hardfork_decree_hash);
+                    log_it(L_ERROR, "Can't verify hardfork decree hash in atom candidate, expected %s, got %s",
+                                dap_hash_fast_to_str_static(&a_blocks->chain->hardfork_decree_hash), l_candidate_hash_str);
+                    DAP_DELETE(l_candidate_hash_str);
+                    return -301;
+                }
+            }
+        } else if (dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_GENERATION)) {
+            log_it(L_WARNING, "Can't process non-hardfork block %s with generation meta", dap_hash_fast_to_str_static(a_block_hash));
+            return -303;
         }
     }
 

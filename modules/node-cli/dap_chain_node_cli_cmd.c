@@ -85,6 +85,8 @@
 #include "dap_client_pvt.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_wallet_cache.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_policy.h"
 
 
 #include "dap_chain_net_tx.h"
@@ -1122,7 +1124,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         }
         log_it(L_NOTICE, "Stream connection established");
 
-        dap_chain_ch_sync_request_old_t l_sync_request = {};
+        dap_chain_ch_sync_request_old_old_t l_sync_request = {};
         dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_CHAIN_CH_ID);
         // fill begin id
         l_sync_request.id_start = 1;
@@ -1165,7 +1167,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             // reset state NODE_CLIENT_STATE_SYNCED
             dap_chain_node_client_reset(l_node_client);
             // send request
-            dap_chain_ch_sync_request_old_t l_sync_request = {};
+            dap_chain_ch_sync_request_old_old_t l_sync_request = {};
             if(0 == dap_chain_ch_pkt_write_unsafe(l_ch_chain, DAP_CHAIN_CH_PKT_TYPE_SYNC_CHAINS,
                     l_net->pub.id.uint64, l_chain->id.uint64, l_remote_node_info->hdr.cell_id.uint64, &l_sync_request,
                     sizeof(l_sync_request))) {
@@ -3933,7 +3935,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
     for(size_t i = 0; i < a_certs_count; i++)
     {
         dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_anchor,
-           sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size, DAP_SIGN_HASH_TYPE_DEFAULT);
+           sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size);
 
         if (l_sign) {
             size_t l_sign_size = dap_sign_get_size(l_sign);
@@ -4065,7 +4067,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
 
         dap_tsd_t *l_tsd = NULL;
         dap_cert_t **l_new_certs = NULL;
-        size_t l_new_certs_count = 0, l_total_tsd_size = 0;
+        size_t l_new_certs_count = 0;
         dap_list_t *l_tsd_list = NULL;
 
         int l_subtype = 0;
@@ -4078,49 +4080,72 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Use -to_addr parameter to set net fee");
                     return -111;
                 }
-            }else{
-                l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t);
-                l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+            } else {
+                dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_param_addr_str);
+                l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET, l_addr, sizeof(dap_chain_addr_t));
                 if (!l_tsd) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     dap_list_free_full(l_tsd_list, NULL);
                     return -1;
                 }
-                l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET;
-                l_tsd->size = sizeof(dap_chain_addr_t);
-                dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_param_addr_str);
-                memcpy(l_tsd->data, l_addr, sizeof(dap_chain_addr_t));
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+                DAP_DELETE(l_addr);
             }
 
-            l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint256_t);
-            l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+            uint256_t l_param_value = dap_uint256_scan_uninteger(l_param_value_str);
+            l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE, &l_param_value, sizeof(l_param_value));
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_list_free_full(l_tsd_list, NULL);
                 return -1;
             }
-            l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE;
-            l_tsd->size = sizeof(uint256_t);
-            *(uint256_t*)(l_tsd->data) = dap_uint256_scan_uninteger(l_param_value_str);
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-        } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-harfork_from", &l_param_value_str)) {
+        } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_from", &l_param_value_str)) {
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK;
-            l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint64_t);
-            l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+
+            uint64_t l_param_value = strtoll(l_param_value_str, NULL, 10);
+            if (!l_param_value && dap_strcmp(l_param_value_str, "0")) {
+                log_it(L_ERROR, "Can't converts %s to atom number", l_param_value_str);
+                return -1;
+            }
+            l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM, &l_param_value, sizeof(l_param_value));
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                return -1;
-            }
-            l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM;
-            l_tsd->size = sizeof(uint64_t);
-            *(uint64_t*)(l_tsd->data) = strtoll(l_param_value_str, NULL, 10);
-            if (!*(uint64_t*)l_tsd->data && dap_strcmp(l_param_value_str, "0")) {
-                log_it(L_ERROR, "Can't converts %s to atom number", l_param_value_str);
-                DAP_DELETE(l_tsd);
+                dap_list_free_full(l_tsd_list, NULL);
                 return -1;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+            if (dap_chain_net_srv_stake_hardfork_data_export(l_net, &l_tsd_list)){
+                log_it(L_ERROR, "Can't add stake delegate data to hardfork decree");
+                dap_list_free_full(l_tsd_list, NULL);
+                return -1;
+            }
+
+            const char *l_addr_pairs = NULL;
+            if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr_pairs", &l_addr_pairs)) {
+                char **l_addrs = dap_strsplit(l_addr_pairs, ",", 256);
+                if (!l_addrs) {
+                    dap_list_free_full(l_tsd_list, NULL);
+                    log_it(L_ERROR, "Argument -addr_pairs require string <\"old_addr:new_addr\",\"old_addr1:new_addr1\"...>");
+                    return -200;
+                }
+                json_object* l_json_arr_addrs = json_object_new_object();
+                for (uint16_t i = 0; l_addrs[i]; i++) {
+                    char ** l_addr_pair = dap_strsplit(l_addrs[i], ":", 256);
+                    if (!l_addr_pair || !l_addr_pair[0] || !l_addr_pair[1])
+                        continue;
+                    json_object_object_add(l_json_arr_addrs, l_addr_pair[0], json_object_new_string(l_addr_pair[1]));
+                }
+                const char * l_addr_array_str = json_object_to_json_string(l_json_arr_addrs);
+                l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS, l_addr_array_str, strlen(l_addr_array_str) + 1);
+                if (!l_tsd) {
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                    dap_list_free_full(l_tsd_list, NULL);
+                    return -1;
+                }
+                l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+            }
+
             if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-trusted_addrs", &l_param_addr_str)) {
                 char **l_addrs = dap_strsplit(l_param_addr_str, ",", 256);
                 for (uint16_t i = 0; l_addrs[i]; i++) {
@@ -4131,21 +4156,19 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                         dap_strfreev(l_addrs);
                         return -5;
                     }
-                    l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, sizeof(dap_tsd_t) + sizeof(dap_stream_node_addr_t));
+                    l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, &l_addr_cur, sizeof(l_addr_cur));
                     if (!l_tsd) {
                         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         dap_list_free_full(l_tsd_list, NULL);
                         dap_strfreev(l_addrs);
                         return -1;
                     }
-                    l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR;
-                    l_tsd->size = sizeof(dap_stream_node_addr_t);
-
                     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-                    l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_stream_node_addr_t);
                 }
                 dap_strfreev(l_addrs);
             }
+        } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_complete", &l_param_value_str)) {
+            l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE;
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-new_certs", &l_param_value_str)){
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS;
             dap_cert_parse_str_list(l_param_value_str, &l_new_certs, &l_new_certs_count);
@@ -4158,10 +4181,9 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             }
 
             size_t l_failed_certs = 0;
-            for (size_t i=0;i<l_new_certs_count;i++){
+            for (size_t i = 0; i < l_new_certs_count; i++){
                 dap_pkey_t *l_pkey = dap_cert_to_pkey(l_new_certs[i]);
-                if(!l_pkey)
-                {
+                if(!l_pkey) {
                     log_it(L_WARNING,"New cert [%zu] have no public key.", i);
                     l_failed_certs++;
                     continue;
@@ -4169,7 +4191,6 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER, l_pkey, sizeof(dap_pkey_t) + (size_t)l_pkey->header.size);
                 DAP_DELETE(l_pkey);
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-                l_total_tsd_size += sizeof(dap_tsd_t) + (size_t)l_tsd->size;
             }
             if(l_failed_certs)
             {
@@ -4192,18 +4213,14 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 return -110;
             }
 
-            l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
-            l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+            l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER, &l_new_num_of_owners, sizeof(l_new_num_of_owners));
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_list_free_full(l_tsd_list, NULL);
                 return -1;
             }
-            l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER;
-            l_tsd->size = sizeof(uint256_t);
-            *(uint256_t *) (l_tsd->data) = l_new_num_of_owners;
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-        } else{
+        } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype fail.");
             return -111;
         }
@@ -4221,7 +4238,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                                               dap_chain_datum_decree_subtype_to_str(l_subtype), l_decree_chain_str);
             return -107;
         }
-
+        size_t l_total_tsd_size = dap_tsd_calc_list_size(l_tsd_list);
         l_datum_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
         l_datum_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
         l_datum_decree->header.ts_created = dap_time_now();
@@ -4233,13 +4250,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
         l_datum_decree->header.data_size = l_total_tsd_size;
         l_datum_decree->header.signs_size = 0;
 
-        size_t l_data_tsd_offset = 0;
-        for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
-            dap_tsd_t * l_b_tsd = (dap_tsd_t *) l_iter->data;
-            size_t l_tsd_size = dap_tsd_size(l_b_tsd);
-            memcpy((byte_t*)l_datum_decree->data_n_signs + l_data_tsd_offset, l_b_tsd, l_tsd_size);
-            l_data_tsd_offset += l_tsd_size;
-        }
+        dap_tsd_fill_from_list(l_datum_decree->data_n_signs, l_tsd_list);
         dap_list_free_full(l_tsd_list, NULL);
 
         // Sign decree
@@ -5381,7 +5392,7 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
         DAP_DELETE(l_buffer);
         return -8;
     }
-    *a_signed = dap_sign_create(l_cert->enc_key, l_data, l_full_size_for_sign, DAP_SIGN_HASH_TYPE_DEFAULT);
+    *a_signed = dap_sign_create(l_cert->enc_key, l_data, l_full_size_for_sign);
     if (*a_signed == NULL) {
         DAP_DELETE(l_buffer);
         return -9;
@@ -5834,5 +5845,262 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply)
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "require 'print', 'export' or 'clear_log' args" );
         }
     }
+    return 0;
+}
+
+static dap_chain_datum_decree_t *s_decree_policy_execute(dap_chain_net_t *a_net, dap_chain_policy_t *a_policy)
+{
+    dap_return_val_if_pass(!a_net || !a_policy, NULL);
+    // create updating decree
+    size_t l_total_tsd_size = sizeof(dap_tsd_t) + dap_chain_policy_get_size(a_policy);
+
+    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if (!l_chain) {
+        log_it(L_ERROR, "No chain supported decree datum type");
+        return NULL;
+    }
+
+    dap_chain_datum_decree_t *l_decree = dap_chain_datum_decree_new(a_net->pub.id, l_chain->id, *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
+    if (!l_decree) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return NULL;
+    }
+    l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY;
+    dap_tsd_write((byte_t*)l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE, a_policy, dap_chain_policy_get_size(a_policy));
+
+    return l_decree;
+}
+
+// Put the decree to mempool
+static char *s_decree_policy_put(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net)
+{
+    size_t l_decree_size = dap_chain_datum_decree_get_size(a_decree);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE, a_decree, l_decree_size);
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if (!l_chain)
+        l_chain =  dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if (!l_chain) {
+        log_it(L_ERROR, "No chain supported decree datum type");
+        return NULL;
+    }
+    // Processing will be made according to autoprocess policy
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
+    DAP_DELETE(l_datum);
+    return l_ret;
+}
+
+int com_policy(int argc, char **argv, void **reply) {
+    json_object ** a_json_arr_reply = (json_object **) reply;
+    char **l_deactivate_array = NULL;
+    const char
+        *l_num_str = NULL,
+        *l_net_str = NULL,
+        *l_deactivate_str = NULL,
+        *l_chain_str = NULL,
+        *l_ts_start_str = NULL,
+        *l_ts_stop_str = NULL,
+        *l_block_start_str = NULL,
+        *l_block_stop_str = NULL,
+        *l_certs_str = NULL;
+    size_t
+        l_deactivate_count = 0,
+        l_certs_count = 0;
+    dap_cert_t **l_certs = NULL;
+
+    enum { CMD_NONE=0, CMD_EXECUTE, CMD_FIND, CMD_LIST };  
+    int l_arg_index = 1;
+
+    int l_cmd = CMD_NONE;
+    if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "execute", NULL))
+        l_cmd = CMD_EXECUTE;
+    else if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "find", NULL))
+        l_cmd = CMD_FIND;
+    else if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "list", NULL))
+        l_cmd = CMD_LIST;
+
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-num", &l_num_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-net", &l_net_str);
+
+    if (!l_net_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -3, "Command policy require args -net");
+        return -4;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+    if (!l_net){
+        dap_json_rpc_error_add(*a_json_arr_reply, -3, "Can't find net %s", l_net_str);
+        return -4;
+    }
+
+    if (l_cmd == CMD_LIST) {
+        json_object *l_answer = dap_chain_policy_list(l_net->pub.id.uint64);
+        json_object_array_add(*a_json_arr_reply, l_answer);
+        return 0;
+    }
+
+    if (!l_num_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -7, "Command policy require args -num");
+        return -7;
+    }
+
+    uint32_t l_last_num = dap_chain_policy_get_last_num(l_net->pub.id.uint64);
+
+    if (l_cmd == CMD_FIND) {
+        uint32_t l_policy_num = strtoull(l_num_str, NULL, 10);
+        dap_chain_policy_t *l_policy = dap_chain_policy_find(l_policy_num, l_net->pub.id.uint64);
+        if (!l_policy) {
+            if (l_last_num < l_policy_num) {
+                dap_json_rpc_error_add(*a_json_arr_reply, -15, "Can't find policy CN-%u in net %s", l_policy_num, l_net_str);
+                return -15;
+            }
+            dap_chain_policy_t l_to_print = {
+                .activate.num = l_policy_num
+            };
+            l_policy = &l_to_print;
+        }        
+        json_object *l_answer = dap_chain_policy_json_collect(l_policy);
+        if (l_answer) {
+            json_object_object_add(l_answer, "active", json_object_new_string(dap_chain_policy_activated(l_policy->activate.num, l_net->pub.id.uint64) ? "true" : "false"));
+            json_object_array_add(*a_json_arr_reply, l_answer);
+        } else {
+            json_object_array_add(*a_json_arr_reply, json_object_new_string("Empty reply"));
+        }
+        return 0;
+    }
+
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-chain", &l_chain_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-ts_start", &l_ts_start_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-ts_stop", &l_ts_stop_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-block_start", &l_block_start_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-block_stop", &l_block_stop_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-deactivate", &l_deactivate_str);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-certs", &l_certs_str);
+
+    if (l_cmd == CMD_EXECUTE) {
+        if (!l_certs_str) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -4, "Command 'execute' requires parameter -certs");
+            return -4;
+        }
+        dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+        if (!l_certs || !l_certs_count) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -5, "Specified certificates not found");
+            return -5;
+        }
+    }
+
+    if (strtoull(l_num_str, NULL, 10) == l_last_num) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -15, "Specified policy num already existed");
+        return -15;
+    }
+
+
+    if (l_deactivate_str) {
+        l_deactivate_count = dap_str_symbol_count(l_deactivate_str, ',') + 1;
+        l_deactivate_array = dap_strsplit(l_deactivate_str, ",", l_deactivate_count);
+    }
+    dap_chain_policy_t *l_policy = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, sizeof(dap_chain_policy_t) + l_deactivate_count * sizeof(uint32_t), -5);
+    
+    l_policy->version = DAP_CHAIN_POLICY_VERSION;
+    l_policy->activate.num = strtoull(l_num_str, NULL, 10);
+
+    l_policy->deactivate.count = l_deactivate_count;
+    for (size_t i = 0; i < l_deactivate_count; ++i) {
+        l_policy->deactivate.nums[i] = strtoul(l_deactivate_array[i], NULL, 10);
+    }
+    dap_strfreev(l_deactivate_array);
+
+
+    if (l_ts_start_str) {
+        struct tm l_tm = { };
+        strptime(l_ts_start_str, "%d/%m/%Y-%H:%M:%S", &l_tm);
+        l_tm.tm_year += 2000;
+        l_policy->activate.ts_start = mktime(&l_tm);
+    }
+
+    if (l_ts_stop_str) {
+        struct tm l_tm = { };
+        strptime(l_ts_stop_str, "%d/%m/%Y-%H:%M:%S", &l_tm);
+        l_tm.tm_year += 2000;
+        l_policy->activate.ts_stop = mktime(&l_tm);
+        if (l_policy->activate.ts_stop <= l_policy->activate.ts_start) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -12, "ts_start should less than ts_stop");
+            DAP_DELETE(l_policy);
+            return -12;
+        }
+    }
+
+    if (l_policy->activate.ts_start || l_policy->activate.ts_stop) {
+        l_policy->activate.flags = DAP_FLAG_ADD(l_policy->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS);
+    }
+
+    if (l_block_start_str)
+        l_policy->activate.block_start = strtoull(l_block_start_str, NULL, 10);
+    if (l_block_stop_str) {
+        l_policy->activate.block_stop = strtoull(l_block_stop_str, NULL, 10);
+        if (l_policy->activate.block_stop <= l_policy->activate.block_start) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -13, "block_start should less than block_stop");
+            DAP_DELETE(l_policy);
+            return -13;
+        }
+    }
+    
+    if (l_policy->activate.block_start || l_policy->activate.block_stop) {
+        if (!l_chain_str) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -8, "Command policy create with -block_start or -block_stop require args -chain");
+            DAP_DELETE(l_policy);
+            return -8;
+        }
+        dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+        if (!l_chain) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -9, "%s Chain not found", l_chain_str);
+            DAP_DELETE(l_policy);
+            return -9;
+        }
+        l_policy->activate.chain_union.chain = l_chain;
+        l_policy->activate.flags = DAP_FLAG_ADD(l_policy->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM);
+    }
+    if (!l_policy->activate.flags && l_policy->activate.num < l_last_num) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -16, "Specified policy already activated by CN-%u", l_last_num);
+        DAP_DELETE(l_policy);
+        return -16;
+    }
+    // if cmd none - only print preaparing result
+    if (l_cmd == CMD_NONE) {
+        json_object *l_answer = dap_chain_policy_json_collect(l_policy);
+        json_object_object_add(l_answer, "Notification", json_object_new_string("It's policy draft, check and use 'execute' command to apply"));
+        if (l_answer) {
+            json_object_array_add(*a_json_arr_reply, l_answer);
+        } else {
+            json_object_array_add(*a_json_arr_reply, json_object_new_string("Empty reply"));
+        }
+        DAP_DELETE(l_policy);
+        return 0;
+    }
+    // change pointer to id to decree
+    if (l_policy->activate.chain_union.chain) {
+        l_policy->activate.chain_union.chain_id = l_policy->activate.chain_union.chain->id;
+    }
+
+    dap_chain_datum_decree_t *l_decree = s_decree_policy_execute(l_net, l_policy);
+    DAP_DELETE(l_policy);
+    size_t l_total_signs_success = 0;
+    l_decree = dap_chain_datum_decree_sign_in_cycle(l_certs, l_decree, l_certs_count, &l_total_signs_success);
+
+    if (!l_decree || l_total_signs_success == 0){
+        dap_json_rpc_error_add(*a_json_arr_reply, -11, "Decree creation failed. Successful count of certificate signing is 0");
+            return -11;
+    }
+
+    char *l_decree_hash_str = NULL;;
+    if (!(l_decree_hash_str = s_decree_policy_put(l_decree, l_net))) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -12, "Policy decree error");
+        return -12;
+    }
+    DAP_DELETE(l_decree);
+
+    char l_approve_str[128];
+    snprintf(l_approve_str, sizeof(l_approve_str), "Policy decree %s successfully created", l_decree_hash_str);
+    json_object_array_add(*a_json_arr_reply, json_object_new_string(l_approve_str));
+    DAP_DELETE(l_decree_hash_str);
+
     return 0;
 }

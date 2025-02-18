@@ -381,12 +381,16 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add ("decree", cmd_decree, "Work with decree",
             "decree create [common] -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -certs <certs_list> {-fee <net_fee_value> -to_addr <net_fee_wallet_addr> |"
                                                                                                                         " -hardfork_from <atom_number> [-trusted_addrs <node_addresses>] |"
+                                                                                                                        " -hardfork_complete |"
                                                                                                                         " -new_certs <new_owners_certs_list> |"
                                                                                                                         " -signs_verify <value>}\n"
             "Creates common network decree in net <net_name>. Decree adds to chain -chain and applies to chain -decree_chain. If -chain and -decree_chain is different you must create anchor in -decree_chain that is connected to this decree."
             "\nCommon decree parameters:\n"
             "\t -fee <value>: sets network fee\n"
             "\t -to_addr <wallet_addr>: sets wallet addr for network fee\n"
+            "\t -hardfork_from <atom_number>: start hardfork routine from specified block number\n"
+            "\t -trusted_addrs <node_addresses>: addresses of nodes who can provide service state datums for hardfork routine\n"
+            "\t -hardfork_complete: finilize hardfork routine immediately\n"
             "\t -new_certs <certs_list>: sets new owners set for net\n"
             "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n\n"
             "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
@@ -426,6 +430,21 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "file clear_log\n"
                 "\t CAUTION !!! This command will clear the entire log file\n");
 
+    dap_cli_server_cmd_add ("policy", com_policy, "Policy commands", "policy [execute] - prepare or create policy execute decree\n"
+                "\t-net <net_name> - net name to policy apply\n"
+                "\t-num <policy_num> - policy num\n"
+                "\t[-ts_start <dd/mm/YY-H:M:S>] - date to start policy\n"
+                "\t[-ts_stop <dd/mm/YY-H:M:S>] - date to stop policy\n"
+                "\t{\n\t\t[-block_start <block_num>] - block num to start policy\n"
+                "\t\t[-block_stop <block_num>] - block num to stop policy\n"
+                "\t\t-chain <chain_name> - chain name to check blocks num\n\t}\n"
+                "\t[-deactivate <deactivate_nums>] - list deactivated policy, example: 1,4,6\n"
+                "\t[-certs <certs_name>] - list signing certs, example: foobar.root.pvt.0,foobar.root.pvt.1\n"
+                "policy find - find info about policy in net\n"
+                "\t-net <net_name> - net name to policy search\n"
+                "\t-num <policy_num> - policy num\n"
+                "policy list - show all policies from table in net\n"
+                "\t-net <net_name> - net name to policy search\n");
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
                 "exit\n" );
