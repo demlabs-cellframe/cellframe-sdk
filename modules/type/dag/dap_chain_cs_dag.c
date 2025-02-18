@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <pthread.h>
+#include <stdalign.h>
 #include "errno.h"
 #include "uthash.h"
 #include "utlist.h"
@@ -547,7 +548,12 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     bool l_load_mode = dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id));
     dap_chain_cs_dag_event_item_t *l_event_item;
     if (l_load_mode) {
-        l_event_item = (dap_chain_cs_dag_event_item_t*)(a_atom_hash); // Guaranteed by C1x §6.7.2.1.13
+        assert( (intptr_t)a_atom_hash % alignof(dap_chain_cs_dag_event_item_t) == 0 );
+        union {
+            dap_hash_fast_t *hash;
+            dap_chain_cs_dag_event_item_t *item;
+        } l_punner = { .hash = a_atom_hash };
+        l_event_item = l_punner.item; //(dap_chain_cs_dag_event_item_t*)(a_atom_hash); // Guaranteed by C1x §6.7.2.1.13
         l_event_item->ts_added = dap_time_now();
     } else {
         l_event_item = DAP_NEW(dap_chain_cs_dag_event_item_t);
