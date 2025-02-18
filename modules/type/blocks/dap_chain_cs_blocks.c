@@ -1726,8 +1726,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     switch (ret) {
     case ATOM_ACCEPT:{
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        assert(l_net);
 #ifndef DAP_CHAIN_BLOCKS_TEST
+        assert(l_net);
         if ( !dap_chain_net_get_load_mode(l_net) ) {
             int l_err = dap_chain_atom_save(a_chain, l_block->hdr.cell_id, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL, (char**)&l_block);
             if (l_err) {
@@ -1924,7 +1924,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_chain_hash_fast_t *a_atom_hash)
 {
     dap_return_val_if_fail(a_chain && a_atom && a_atom_size && a_atom_hash, ATOM_REJECT);
-    bool l_load_mode = dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id));
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    bool l_load_mode = l_net ? dap_chain_net_get_load_mode(l_net) : false;
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     assert(l_blocks);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
