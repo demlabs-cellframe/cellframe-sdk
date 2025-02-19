@@ -413,7 +413,7 @@ static bool s_is_key_present(dap_chain_tx_out_cond_t *a_cond, dap_enc_key_t *a_e
 dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
     dap_chain_addr_t **a_addr_to, uint256_t *a_value, size_t a_addr_count, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
 {
-    dap_return_val_if_fail(!a_addr_to || !a_value || !a_addr_count || !a_enc_key || !a_tx_in_hash, NULL );
+    dap_return_val_if_pass(!a_addr_to || !a_value || !a_addr_count || !a_enc_key || !a_tx_in_hash, NULL );
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
@@ -783,8 +783,10 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     
     uint256_t *l_value = NULL;
     dap_chain_addr_t **l_addr_to = NULL;
-    size_t l_addr_el_count = 0;
-    size_t l_value_el_count = 0;
+    uint32_t
+        l_addr_el_count = 0,  // not change type! use in TSD section
+        l_value_el_count = 0;
+    dap_list_t *l_tsd_list = NULL;
     
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_in_hash_str);
     if (!l_tx_in_hash_str) {
@@ -893,10 +895,20 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
     dap_strfreev(l_addr_to_str_array);
 
-     // Create emission from conditional transaction
-    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_addr_to, l_value, l_addr_el_count, l_fee, &l_tx_in_hash, NULL);
+
+    if (l_addr_el_count > 1) {
+        l_tsd_list = dap_list_append(l_tsd_list, dap_chain_datum_tx_item_tsd_create(&l_addr_el_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t)));
+        if (!l_tsd_list) {
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_COMPOSE, "Internal error in tsd list creation");
+            return ERROR_COMPOSE;
+        }
+    }
+
+    // Create emission from conditional transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_addr_to, l_value, l_addr_el_count, l_fee, &l_tx_in_hash, l_tsd_list);
     DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
     DAP_DEL_MULTY(l_addr_to, l_enc_key);
+    dap_list_free_full(l_tsd_list, NULL);
     if (!l_tx) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for delegated emission");
         return ERROR_CREATE;
