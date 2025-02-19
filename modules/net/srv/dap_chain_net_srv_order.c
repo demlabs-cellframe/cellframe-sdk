@@ -521,7 +521,7 @@ void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_o
         const char *l_balance_coins, *l_balance = dap_uint256_to_char(a_order->price, &l_balance_coins);
         dap_string_append_printf(a_str_out, "  price:            %s (%s)\n", l_balance_coins, l_balance);
         dap_string_append_printf(a_str_out, "  price_token:      %s\n",  (*a_order->price_ticker) ? a_order->price_ticker: a_native_ticker);
-        dap_string_append_printf(a_str_out, "  units:            %zu\n", a_order->units);
+        dap_string_append_printf(a_str_out, "  units:            %"DAP_UINT64_FORMAT_U"\n", a_order->units);
         if( a_order->price_unit.uint32 )
             dap_string_append_printf(a_str_out, "  price_unit:       %s\n", dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit) );
         if ( a_order->node_addr.uint64)
@@ -595,7 +595,8 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         json_object_object_add(a_json_obj_out, "price token", (*a_order->price_ticker) ?
                                                               json_object_new_string(a_order->price_ticker) :
                                                               json_object_new_string(a_native_ticker));
-        json_object_object_add(a_json_obj_out, "units", json_object_new_uint64(a_order->units));
+
+        json_object_object_add(a_json_obj_out, "units", json_object_new_string(dap_utoa(a_order->units)));
 
         if ( a_order->price_unit.uint32 )
             json_object_object_add(a_json_obj_out, "price unit", json_object_new_string(dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit)));
@@ -624,13 +625,6 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
             json_object_object_add(a_json_obj_out, "tx_cond_hash", json_object_new_string(l_hash_str));
         }
         json_object_object_add(a_json_obj_out, "ext_size", json_object_new_uint64(a_order->ext_size));
-        // if (a_order->ext_size) {
-        //     char *l_ext_out = DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 3);
-        //     dap_strncpy(l_ext_out, "0x", 2);
-        //     dap_bin2hex(l_ext_out + 2, a_order->ext_n_sign, a_order->ext_size);
-        //     
-        //     DAP_DELETE(l_ext_out);
-        // }
         dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
         dap_hash_fast_t l_sign_pkey = {0};
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
