@@ -530,8 +530,8 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
                         dap_chain_hash_fast_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
                     l_price = dap_chain_balance_scan(l_price_str);
 
-                    uint64_t l_units = atoi(l_units_str);
-
+                    uint64_t l_units = strtoull(l_units_str, NULL, 10);
+                    
                     if (!dap_strcmp(l_price_unit_str, "B")){
                         l_price_unit.enm = SERV_UNIT_B;
                     } else if (!dap_strcmp(l_price_unit_str, "KB")){
