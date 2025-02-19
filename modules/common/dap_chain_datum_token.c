@@ -264,7 +264,6 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_tsd_n
  */
 void dap_chain_datum_token_certs_dump_to_json(json_object *a_json_obj_out, byte_t * a_tsd_n_signs, size_t a_certs_size, const char *a_hash_out_type)
 {
-    json_object_object_add(a_json_obj_out, "Signatures", json_object_new_string(""));
     if (!a_certs_size) {
         json_object_object_add(a_json_obj_out, "status", json_object_new_string("<NONE>"));
         return;
