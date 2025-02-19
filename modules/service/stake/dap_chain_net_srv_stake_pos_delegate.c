@@ -3967,7 +3967,7 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
     dap_global_db_obj_t *l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
     DAP_DELETE(l_gdb_group_str);
     uint256_t l_min = uint256_0, l_max = uint256_0, l_average = uint256_0, l_median = uint256_0;
-    uint64_t l_order_fee_count = 0;
+    size_t l_order_fee_count = 0;
     uint256_t* l_all_fees = DAP_NEW_Z_COUNT(uint256_t, l_orders_count);
     for (size_t i = 0; i < l_orders_count; i++) {
         const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_orders[i].key, l_orders[i].value, l_orders[i].value_len);
@@ -3990,11 +3990,27 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
         uint256_t t = uint256_0;
         SUM_256_256(l_order->price, l_average, &t);
         l_average = t;
-        if (compare256(l_min, l_order->price) == 1) {
-            l_min = l_order->price;
+    }
+
+    uint16_t l_min_count = dap_chain_esbocs_get_min_validators_count(a_net->pub.id);
+    uint256_t l_min_tmp = uint256_0;
+    uint16_t l_min_tmp_count = 0;
+    bool l_found = false;
+    for (size_t k = 0; k < l_order_fee_count; k++) {
+        if (!l_found) {
+            switch (compare256(l_min_tmp, l_all_fees[k])) {
+                case  0: l_min_tmp_count++; break;
+                case  1: 
+                case -1: l_min_tmp = l_all_fees[k]; l_min_tmp_count = 1; break;
+                default: break;
+            }
+            if (l_min_tmp_count == l_min_count) {
+                l_min = l_min_tmp;
+                l_found = true;
+            }
         }
-        if (compare256(l_max, l_order->price) == -1) {
-            l_max = l_order->price;
+        if (compare256(l_max, l_all_fees[k]) == -1) {
+            l_max = l_all_fees[k];
         }
     }
     dap_global_db_objs_delete(l_orders, l_orders_count);
