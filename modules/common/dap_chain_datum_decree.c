@@ -39,6 +39,25 @@
 
 #define LOG_TAG "dap_chain_datum_decree"
 
+
+static bool s_find_pkey(dap_chain_datum_decree_t *a_decree, dap_pkey_t *a_pkey)
+{
+    dap_return_val_if_pass(!a_decree || !a_pkey || !a_pkey->header.size, false);
+    dap_sign_t *l_signs_section = (dap_sign_t*)(a_decree->data_n_signs + a_decree->header.data_size);
+    size_t l_sign_size = 0;
+    bool l_ret = false;
+    for (uint64_t l_offset = 0; !l_ret && l_offset + sizeof(dap_sign_t) < a_decree->header.signs_size; l_offset += l_sign_size) {
+        dap_sign_t *l_sign = (dap_sign_t *)(a_decree->data_n_signs + a_decree->header.data_size + l_offset);
+        l_sign_size = dap_sign_get_size(l_sign);
+        if (l_offset + l_sign_size <= l_offset || l_offset + l_sign_size > a_decree->header.signs_size)
+            break;
+        size_t l_pkey_ser_size = 0;
+        const uint8_t *l_pkey_ser = dap_sign_get_pkey(l_sign, &l_pkey_ser_size);
+        l_ret = (l_pkey_ser_size == a_pkey->header.size) && !memcmp(l_pkey_ser, a_pkey->pkey, l_pkey_ser_size);
+    }
+    return l_ret;
+}
+
 dap_sign_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *a_decree, size_t* a_signs_size)
 {
     dap_return_val_if_fail(a_decree && a_signs_size, NULL);
@@ -147,6 +166,20 @@ int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, cons
     if (!l_tsd)
         l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING);
     return l_tsd ? ( *a_addr = dap_tsd_get_string_const(l_tsd), !dap_strcmp(*a_addr, DAP_TSD_CORRUPTED_STRING) ) : 1;
+}
+
+/**
+ * @brief get pkey from decree tsd
+ * @param a_decree
+ * @return pointer to dap_pkey_t if find, if not or error - NULL
+ */
+dap_pkey_t *dap_chain_datum_decree_get_pkey(dap_chain_datum_decree_t *a_decree)
+{
+    dap_return_val_if_fail(a_decree, NULL);
+    dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY);
+    if (!l_tsd)
+        return NULL;
+    return dap_pkey_get_size((dap_pkey_t *)l_tsd->data) == l_tsd->size ? (dap_pkey_t *)l_tsd->data : NULL;
 }
 
 void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type)
@@ -309,6 +342,13 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             dap_sign_type_t l_sign_type = { .type = l_type };
             json_object_object_add(a_json_out, "Signature type", json_object_new_string(dap_sign_type_to_str(l_sign_type)));
             break;
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY:
+            if (l_tsd->size != dap_pkey_get_size((dap_pkey_t *)(l_tsd->data))) {
+                json_object_object_add(a_json_out, "pkey type", json_object_new_string("WRONG SIZE"));
+                break;
+            }
+            json_object_object_add(a_json_out, "pkey type", json_object_new_string( dap_pkey_type_to_str(((dap_pkey_t *)(l_tsd->data))->header.type) ));
+            break; 
         default:
             json_object_object_add(a_json_out, "UNKNOWN_TYPE_TSD_SECTION", json_object_new_string(""));
             break;
@@ -376,10 +416,18 @@ dap_chain_datum_decree_t *dap_chain_datum_decree_sign_in_cycle(dap_cert_t **a_ce
 {
     size_t l_cur_sign_offset = a_datum_decree->header.data_size + a_datum_decree->header.signs_size;
     size_t l_total_signs_size = a_datum_decree->header.signs_size, l_total_sign_count = 0;
-
     for(size_t i = 0; i < a_certs_count; i++) {
-        dap_sign_t * l_sign = dap_cert_sign(a_certs[i], a_datum_decree,
-                                            sizeof(dap_chain_datum_decree_t) + a_datum_decree->header.data_size, 0);
+        dap_pkey_t *l_cur_pkey = dap_cert_to_pkey(a_certs[i]);
+        if (s_find_pkey(a_datum_decree, l_cur_pkey)) {
+            dap_chain_hash_fast_t l_pkey_hash = { };
+            dap_pkey_get_hash(l_cur_pkey, &l_pkey_hash);
+            log_it(L_ERROR, "Sign with %s pkey already exist in decree", dap_hash_fast_to_str_static(&l_pkey_hash));
+            DAP_DELETE(l_cur_pkey);
+            continue;;
+        }
+        DAP_DELETE(l_cur_pkey);
+        dap_sign_t *l_sign = dap_cert_sign(a_certs[i], a_datum_decree,
+                                            sizeof(dap_chain_datum_decree_t) + a_datum_decree->header.data_size);
         if (!l_sign) {
             log_it(L_ERROR, "Decree signing failed");
             DAP_DELETE(a_datum_decree);

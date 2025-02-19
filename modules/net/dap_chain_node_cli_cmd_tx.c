@@ -1396,8 +1396,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
 
     for(size_t i = 0; i < a_certs_count; i++)
     {
-        dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_anchor,
-           sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size, 0);
+        dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_anchor, sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size);
 
         if (l_sign) {
             size_t l_sign_size = dap_sign_get_size(l_sign);
@@ -1801,8 +1800,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                         l_chain?l_chain->name:"<undefined>");
                 return -5;
             }
-            DAP_DELETE(l_datum_hash_hex_str);
-            DAP_DELETE(l_datum_hash_base58_str);
+            DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str);
         } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "decree sign need -datum <datum hash> argument");
             return -2;
