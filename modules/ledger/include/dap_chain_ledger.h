@@ -494,7 +494,8 @@ dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(d
 void dap_ledger_load_end(dap_ledger_t *a_ledger);
 dap_pkey_t *dap_ledger_find_pkey_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_pkey_hash);
 
-int dap_ledger_decree_create(dap_ledger_t *a_ledger);
+//int dap_ledger_decree_create(dap_ledger_t *a_ledger);
+void dap_ledger_decree_init(dap_ledger_t *a_ledger);
 void dap_ledger_decree_purge(dap_ledger_t *a_ledger);
 
 uint16_t dap_ledger_decree_get_min_num_of_signers(dap_ledger_t *a_ledger);
