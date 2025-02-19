@@ -171,7 +171,17 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
 
 static bool s_tag_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {   
-    return a_items_grp->items_out_cond_srv_emit_delegate;
+    if (!a_items_grp->items_out_cond_srv_emit_delegate)
+        return false;
+    if (a_action) {
+        if (dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF))
+            *a_action = DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE;
+        else if (dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_REFILL))
+            *a_action = DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL;
+        else
+            *a_action = DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD;
+    }
+    return true;
 }
 
 // Put a transaction to the mempool
@@ -1054,8 +1064,8 @@ int dap_chain_net_srv_emit_delegate_init()
                 "\t-net <net_name>\n"
                 "\t-w <wallet_name>\n"
                 "\t-tx <transaction_hash>\n"
-                "\t-addr_to <addr>\n"
-                "\t-value <value>\n"
+                "\t-addr_to <addr1[,addr2,...,addrN]>\n"
+                "\t-value <value1[,value2,...,valueN]>\n"
                 "\t-fee <value>\n"
                 "\t[-chain <chain_name>]\n"
                 "\t[-H {hex(default) | base58}] - datum hash return format\n"
