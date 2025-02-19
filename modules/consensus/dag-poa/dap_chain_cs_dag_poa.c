@@ -97,8 +97,6 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply);
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
 
-#define DAG_ROUND_NEW_TTL 3600 // 1 hour
-
 /**
  * @brief
  * init consensus dag_poa

@@ -529,13 +529,15 @@ int dap_chain_load_all(dap_chain_t *a_chain)
     const char l_suffix[] = ".dchaincell", *l_filename;
     struct dirent *l_dir_entry = NULL;
     dap_time_t l_ts_start = dap_time_now();
-    while (( l_dir_entry = readdir(l_dir) ) && !l_err ) {
+    while (( l_dir_entry = readdir(l_dir) ) ) {
         l_filename = l_dir_entry->d_name;
         size_t l_namelen = strlen(l_filename);
-        if ( l_namelen >= sizeof(l_suffix) && !strncmp(l_filename + l_namelen - sizeof(l_suffix) - 1, l_suffix, sizeof(l_suffix) - 1) ) {
+        if ( l_namelen >= sizeof(l_suffix) && !strncmp(l_filename + l_namelen - (sizeof(l_suffix) - 1), l_suffix, sizeof(l_suffix) - 1) ) {
             dap_timerfd_t* l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_load_notify_callback, a_chain);
             l_err = dap_chain_cell_open(a_chain, l_filename, 'a');
             dap_timerfd_delete(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
+            if (l_err)
+                break;
             s_load_notify_callback(a_chain);
         }
     }
