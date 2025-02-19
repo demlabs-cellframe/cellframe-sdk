@@ -2118,7 +2118,7 @@ static void *s_net_load(void *a_arg)
                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                          l_net->pub.gdb_nodes, 7200, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
-                                                         DAP_CLUSTER_TYPE_EMBEDDED);
+                                                         DAP_CLUSTER_TYPE_EMBEDDED);   // TODO 7200
     dap_return_val_if_fail_err(l_net_pvt->nodes_cluster, NULL, "Net \"%s\" loading error %d: can't initialize nodes cluster",
                                                                l_net->pub.name, -6);
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->nodes_cluster);
