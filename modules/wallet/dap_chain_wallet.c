@@ -82,6 +82,8 @@ static const mode_t s_fileprot =  ( S_IREAD | S_IWRITE) | (S_IREAD >> 3) | (S_IR
 #endif
 static char const s_wallet_ext [] = ".dwallet", *s_wallets_path = NULL;
 
+static bool s_debug_more = false;
+
 static  pthread_rwlock_t s_wallet_n_pass_lock = PTHREAD_RWLOCK_INITIALIZER; /* Coordinate access to the hash-table */
 static  dap_chain_wallet_n_pass_t   *s_wallet_n_pass;                       /* A hash table to keep passwords for wallets */
 static  dap_list_t *s_wallet_open_notificators = NULL;
@@ -356,6 +358,8 @@ int dap_chain_wallet_init()
     struct dirent * l_dir_entry = NULL;
     dap_chain_wallet_t *l_wallet = NULL;
     size_t l_len = 0;
+
+    s_debug_more = dap_config_get_item_bool_default(g_config,"wallet","debug_more", s_debug_more);
 
     if ( !(c_wallets_path = (char *) dap_chain_wallet_get_path(g_config)) ) /* No path to wallets - nothing to do */
         return -1;
@@ -820,7 +824,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     }
 
     if ( (l_file_hdr.version == DAP_WALLET$K_VER_2) && (!l_pass) ) {
-        log_it(L_DEBUG, "Wallet (%s) version 2 cannot be processed w/o password", a_file_name);
+        debug_if(s_debug_more, L_DEBUG, "Wallet (%s) version 2 cannot be processed w/o password", a_file_name);
         dap_fileclose(l_fh);
         if ( a_out_stat )
             *a_out_stat = 4;
@@ -851,7 +855,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     l_csum = crc32c(l_csum, &l_file_hdr, sizeof(l_file_hdr) );           /* Compute check sum of the Wallet file header */
     l_csum = crc32c(l_csum, l_wallet_name,  l_file_hdr.wallet_len);
 
-    log_it(L_DEBUG, "Wallet file: %s, Wallet[Version: %d, type: %d, name: '%.*s']",
+    debug_if(s_debug_more, L_DEBUG, "Wallet file: %s, Wallet[Version: %d, type: %d, name: '%.*s']",
            a_file_name, l_file_hdr.version, l_file_hdr.type, l_file_hdr.wallet_len, l_wallet_name);
 
     /* First run - count certs in file */
