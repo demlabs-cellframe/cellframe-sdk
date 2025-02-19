@@ -351,11 +351,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t * a_chain_cfg)
         return -1;
     }
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
-    dap_chain_cs_dag_poa_t *l_poa = DAP_NEW_Z(dap_chain_cs_dag_poa_t);
-    if (!l_poa) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return -1;
-    }
+    dap_chain_cs_dag_poa_t *l_poa = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_cs_dag_poa_t, -1);
     l_dag->_inheritor = l_poa;
     l_dag->callback_delete = s_callback_delete;
     l_dag->callback_cs_verify = s_callback_event_verify;
@@ -379,11 +375,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t * a_chain_cfg)
         l_poa_pvt->auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg,"dag-poa","auth_certs_number",0);
         l_poa_pvt->auth_certs_count_verify = dap_config_get_item_uint16_default(a_chain_cfg,"dag-poa","auth_certs_number_verify",0);
         if (l_poa_pvt->auth_certs_count && l_poa_pvt->auth_certs_count_verify) {
-            l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t *));
-            if (!l_poa_pvt->auth_certs) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                return -1;
-            }
+            l_poa_pvt->auth_certs = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(dap_cert_t*, l_poa_pvt->auth_certs_count, -1);
             char l_cert_name[MAX_PATH + 1];
             int l_pos;
             for (uint16_t i = 0; i < l_poa_pvt->auth_certs_count ; ++i) {
@@ -691,35 +683,33 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA( l_dag );
 
-    const char * l_events_sign_cert = NULL;
-    if ( ( l_events_sign_cert = dap_config_get_item_str(a_chain_net_cfg,"dag-poa","events-sign-cert") ) != NULL ) {
-        if ( ( PVT(l_poa)->events_sign_cert = dap_cert_find_by_name(l_events_sign_cert)) == NULL ){
-            log_it(L_ERROR,"Can't load events sign certificate, name \"%s\" is wrong",l_events_sign_cert);
-        }else
-            log_it(L_NOTICE,"Loaded \"%s\" certificate to sign poa event", l_events_sign_cert);
-
+    const char *l_events_sign_cert = dap_config_get_item_str(a_chain_net_cfg,"dag-poa","events-sign-cert");
+    if ( l_events_sign_cert ) {
+        if (!( PVT(l_poa)->events_sign_cert = dap_cert_find_by_name(l_events_sign_cert) ))
+            log_it(L_ERROR,"Can't load events sign certificate, name \"%s\" is wrong", l_events_sign_cert);
+        else
+            log_it(L_NOTICE, "Loaded \"%s\" certificate to sign poa events", l_events_sign_cert);
     }
+
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_chain->net_name);
     assert(l_net);
     dap_global_db_cluster_t *l_dag_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
                                                                        dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_DAG),
                                                                        l_dag->gdb_group_events_round_new, DAG_ROUND_NEW_TTL, true,
                                                                        DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
-    if (!l_dag_cluster) {
-        log_it(L_ERROR, "Can't create cluster for consensus communication. Can't start the DAG consensus");
-        return -1;
-    }
+    dap_return_val_if_fail_err(l_dag_cluster, -1, "Can't create cluster for consensus communication. Can't start the DAG consensus");
+
     dap_global_db_cluster_add_notify_callback(l_dag_cluster, s_round_changes_notify, l_dag);
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_dag_cluster);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_dag_cluster->links_cluster);
     PVT(l_poa)->mempool_timer = dap_interval_timer_create(15000, s_timer_process_callback, a_chain);
 
     switch ( dap_chain_net_get_role(l_net).enums ) {
-        case NODE_ROLE_ROOT_MASTER:
-        case NODE_ROLE_ROOT:
-            dap_global_db_get_all(l_dag->gdb_group_events_round_new, 0, s_callback_sync_all_on_start, l_dag);
-        default:
-            break;
+    case NODE_ROLE_ROOT_MASTER:
+    case NODE_ROLE_ROOT:
+        dap_global_db_get_all(l_dag->gdb_group_events_round_new, 0, s_callback_sync_all_on_start, l_dag);
+    default:
+        break;
     }
     return 0;
 }
@@ -920,11 +910,9 @@ dap_list_t *dap_chain_cs_dag_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_
         *a_count_verify = l_poa_pvt->auth_certs_count_verify;
 
     dap_list_t *l_keys_list = NULL;
-    for(size_t i = 0; i < l_poa_pvt->auth_certs_count; i++)
+    for (size_t i = 0; i < l_poa_pvt->auth_certs_count; ++i)
     {
-        dap_pkey_t *l_pkey = dap_cert_to_pkey(l_poa_pvt->auth_certs[i]);
-        l_keys_list = dap_list_append(l_keys_list, l_pkey);
+        l_keys_list = dap_list_append(l_keys_list, dap_cert_to_pkey(l_poa_pvt->auth_certs[i]));
     }
-
     return l_keys_list;
 }

@@ -285,11 +285,7 @@ void dap_chain_cs_blocks_deinit()
 
 static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_config)
 {
-    dap_chain_cs_blocks_t * l_cs_blocks = DAP_NEW_Z(dap_chain_cs_blocks_t);
-    if (!l_cs_blocks) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return -1;
-    }
+    dap_chain_cs_blocks_t * l_cs_blocks = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_cs_blocks_t, -1);
     a_chain->_inheritor = l_cs_blocks;
     l_cs_blocks->chain = a_chain;
 
@@ -1520,7 +1516,7 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
         l_datum_index = NULL;
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
-    dap_chain_cell_delete_all(a_chain);
+    dap_chain_cell_close_all(a_chain);
     return 0;
 }
 
@@ -1576,8 +1572,8 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
             HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
             pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
-            dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
-            dap_chain_datum_notify(l_cell, l_datum_hash, &l_datum_index->block_cache->block_hash, (byte_t *)l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
+            dap_chain_datum_notify(a_blocks->chain, a_block_cache->block->hdr.cell_id, l_datum_hash, &l_datum_index->block_cache->block_hash,
+                                   (byte_t*)l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
         }
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
@@ -1610,8 +1606,7 @@ static int s_delete_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block
             l_ret++;
             HASH_DEL(PVT(a_blocks)->datum_index, l_datum_index);
             // notify datum removed
-            dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
-            dap_chain_datum_removed_notify(l_cell, l_datum_hash);
+            dap_chain_datum_removed_notify(a_blocks->chain, a_block_cache->block->hdr.cell_id, l_datum_hash);
         }
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
@@ -1632,7 +1627,7 @@ static void s_add_atom_to_blocks(dap_chain_cs_blocks_t *a_blocks, dap_chain_bloc
 }
 
 
-static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_block_cache_t * a_bcache, uint64_t a_main_branch_length, dap_chain_cell_t *a_cell)
+static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_block_cache_t * a_bcache, uint64_t a_main_branch_length)
 {
     dap_chain_cs_blocks_t * l_blocks = a_blocks;
     if (!a_blocks){
@@ -1697,7 +1692,7 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_curr_atom->block_hash), l_curr_atom);
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", l_curr_atom);
             s_add_atom_datums(l_blocks, l_curr_atom);
-            dap_chain_atom_notify(a_cell, &l_curr_atom->block_hash, (byte_t*)l_curr_atom->block, l_curr_atom->block_size);
+            dap_chain_atom_notify(a_blocks->chain, l_curr_atom->block->hdr.cell_id, &l_curr_atom->block_hash, (byte_t*)l_curr_atom->block, l_curr_atom->block_size);
             HASH_DEL(new_main_branch, l_item);
         }
         // Next we save pointer to new forked branch (former main branch) instead of it
@@ -1730,27 +1725,22 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
     switch (ret) {
     case ATOM_ACCEPT:{
-        dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
-#ifndef DAP_CHAIN_BLOCKS_TEST
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+#ifndef DAP_CHAIN_BLOCKS_TEST
         assert(l_net);
         if ( !dap_chain_net_get_load_mode(l_net) ) {
-            if ( dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL) < 0 ) {
-                log_it(L_ERROR, "Can't save atom to file");
+            int l_err = dap_chain_atom_save(a_chain, l_block->hdr.cell_id, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL, (char**)&l_block);
+            if (l_err) {
                 dap_chain_net_srv_stake_switch_table(a_chain->net_id, false);
+                log_it(L_ERROR, "Can't save atom to file, code %d", l_err);
                 return ATOM_REJECT;
-            } else if (a_chain->is_mapped) {
-                l_block = (dap_chain_block_t*)( l_cell->map_pos += sizeof(uint64_t) );  // Switching to mapped area
-                l_cell->map_pos += a_atom_size;
             }
-            ret = ATOM_ACCEPT;
         }
 #endif
-        l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped);
-        if (!l_block_cache) {
-            log_it(L_DEBUG, "%s", "... corrupted block");
+        if (!( l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped) )) {
             dap_chain_net_srv_stake_switch_table(a_chain->net_id, false);
-            return ATOM_REJECT;
+            log_it(L_ERROR, "Block %s is corrupted!", l_block_cache->block_hash_str);
+            return dap_chain_net_get_load_mode(l_net) ? ATOM_CORRUPTED : ATOM_REJECT;
         }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
 
@@ -1762,7 +1752,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
                 debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
                 s_add_atom_datums(l_blocks, l_block_cache);
-                dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size);
+                dap_chain_atom_notify(a_chain, l_block->hdr.cell_id, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size);
                 dap_chain_atom_add_from_threshold(a_chain);
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
 
@@ -1790,8 +1780,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 #endif
                 return ATOM_ACCEPT;
             }
-
-
             for (size_t i = 0; i < PVT(l_blocks)->forked_br_cnt; i++){
                 dap_chain_block_forked_branch_t *l_cur_branch = PVT(l_blocks)->forked_branches[i];
                 dap_chain_block_forked_branch_atoms_table_t *l_last = HASH_LAST(l_cur_branch->forked_branch_atoms);
@@ -1806,7 +1794,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     l_block_cache->block_number = l_last->block_cache->block_number + 1;
                     HASH_ADD(hh, l_cur_branch->forked_branch_atoms, block_hash, sizeof(dap_hash_fast_t), l_new_item);
                     uint64_t l_main_branch_length = PVT(l_blocks)->blocks_count - l_cur_branch->connected_block->block_number;
-                    if (s_select_longest_branch(l_blocks, l_cur_branch->connected_block, l_main_branch_length, l_cell)){
+                    if ( s_select_longest_branch(l_blocks, l_cur_branch->connected_block, l_main_branch_length) ) {
                         dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
                         // Send it to notificator listeners
 #ifndef DAP_CHAIN_BLOCKS_TEST
@@ -1849,7 +1837,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             ++PVT(l_blocks)->blocks_count;
             debug_if(s_debug_more, L_DEBUG, "Verified genesis atom %p: ACCEPTED", a_atom);
             s_add_atom_datums(l_blocks, l_block_cache);
-            dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size);
+            dap_chain_atom_notify(a_chain, l_block->hdr.cell_id, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size);
             dap_chain_atom_add_from_threshold(a_chain);
             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
             return ret;
@@ -1872,16 +1860,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p with hash %s: REJECTED", a_atom, dap_chain_hash_fast_to_str_static(&l_block_hash));
         break;
     case ATOM_FORK:{
-        dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
 #ifndef DAP_CHAIN_BLOCKS_TEST
         if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
-            if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL)) < 0 ) {
-                log_it(L_ERROR, "Can't save atom to file, code %d", ret);
-                return ATOM_REJECT;
-            } else if (a_chain->is_mapped) {
-                l_block = (dap_chain_block_t*)( l_cell->map_pos += sizeof(uint64_t) );  // Switching to mapped area
-                l_cell->map_pos += a_atom_size;
-            }
+            int l_err = dap_chain_atom_save(a_chain, l_block->hdr.cell_id, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL, (char**)&l_block);
+            dap_return_val_if_pass_err(l_err, ATOM_REJECT, "Can't save atom to file, code %d", l_err);
             ret = ATOM_FORK;
         }
 #endif
@@ -1922,6 +1904,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     case ATOM_PASS:
         debug_if(s_debug_more, L_DEBUG, "... %s is already present", dap_chain_hash_fast_to_str_static(&l_block_hash));
         break;
+    case ATOM_CORRUPTED:
+        debug_if(s_debug_more, L_DEBUG, "... atom is corrupted.%s", dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id))
+            ? " The file will be truncated!" : "");
     default:
         debug_if(s_debug_more, L_DEBUG, "Unknown verification ret code %d", ret);
         break;
@@ -1939,6 +1924,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_chain_hash_fast_t *a_atom_hash)
 {
     dap_return_val_if_fail(a_chain && a_atom && a_atom_size && a_atom_hash, ATOM_REJECT);
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    bool l_load_mode = l_net ? dap_chain_net_get_load_mode(l_net) : false;
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     assert(l_blocks);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
@@ -1947,14 +1934,14 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     dap_chain_hash_fast_t l_block_hash = *a_atom_hash;
 
     if (sizeof(l_block->hdr) >= a_atom_size) {
-        log_it(L_WARNING, "Size of block %s is %zd that is equal or less then block's header size %zd",
+        log_it(L_WARNING, "Block %s size %zd <= block header size %zd",
                                 dap_hash_fast_to_str_static(a_atom_hash), a_atom_size, sizeof(l_block->hdr));
-        return ATOM_REJECT;
+        return l_load_mode ? ATOM_CORRUPTED : ATOM_REJECT;
     }
     size_t l_offset = dap_chain_block_get_sign_offset(l_block, a_atom_size);
     if (!l_offset) {
         log_it(L_WARNING, "Block %s with size %zu parsing error", dap_hash_fast_to_str_static(a_atom_hash), a_atom_size);
-        return ATOM_REJECT;
+        return l_load_mode ? ATOM_CORRUPTED : ATOM_REJECT;
     }
     if ((l_block->hdr.version >= 2 || /* Old bug, crutch for it */ l_block->hdr.meta_n_datum_n_signs_size != l_offset) &&
             l_block->hdr.meta_n_datum_n_signs_size + sizeof(l_block->hdr) != a_atom_size) {
@@ -1964,7 +1951,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         if (!l_hash_found) {
             log_it(L_WARNING, "Incorrect size %zu of block %s, expected %zu", l_block->hdr.meta_n_datum_n_signs_size + sizeof(l_block->hdr),
                                                                     dap_hash_fast_to_str_static(a_atom_hash), a_atom_size);
-            return ATOM_REJECT;
+            return l_load_mode ? ATOM_CORRUPTED : ATOM_REJECT;
         }
     }
     while (sizeof(l_block->hdr) + l_offset + sizeof(dap_sign_t) < a_atom_size) {
@@ -1981,7 +1968,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         if (!l_hash_found) {
             log_it(L_WARNING, "Incorrect size %zu of block %s, expected %zu", l_offset + sizeof(l_block->hdr),
                                                                     dap_hash_fast_to_str_static(a_atom_hash), a_atom_size);
-            return ATOM_REJECT;
+            return l_load_mode ? ATOM_CORRUPTED : ATOM_REJECT;
         }
     }
 

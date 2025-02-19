@@ -95,8 +95,7 @@ int dap_chain_cs_load(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_cs_callbacks_item_t *l_item = NULL;
     HASH_FIND_STR(s_cs_callbacks, DAP_CHAIN_PVT(a_chain)->cs_name, l_item);
-    if (!l_item)
-        return log_it(L_ERROR, "Callbacks for cs %s not found!", DAP_CHAIN_PVT(a_chain)->cs_name), -1;
+    dap_return_val_if_fail_err(l_item, -1, "Callbacks for cs %s not found!", DAP_CHAIN_PVT(a_chain)->cs_name);
     return l_item->callbacks.callback_load
         ? l_item->callbacks.callback_load(a_chain, a_chain_cfg)
         : 0;
@@ -106,8 +105,7 @@ int dap_chain_cs_class_delete(dap_chain_t *a_chain)
 {
     dap_chain_cs_class_callbacks_item_t *l_item = NULL;
     HASH_FIND_STR(s_class_callbacks, DAP_CHAIN_PVT(a_chain)->cs_type, l_item);
-    if (!l_item)
-        return log_it(L_ERROR, "Callbacks for cs %s not found!", DAP_CHAIN_PVT(a_chain)->cs_name), -1;
+    dap_return_val_if_fail_err(l_item, -1, "Callbacks for cs %s not found!", DAP_CHAIN_PVT(a_chain)->cs_name);
     return l_item->callbacks.callback_delete
         ? l_item->callbacks.callback_delete(a_chain)
         : 0;
@@ -117,8 +115,7 @@ int dap_chain_cs_class_purge(dap_chain_t *a_chain)
 {
     dap_chain_cs_class_callbacks_item_t *l_item = NULL;
     HASH_FIND_STR(s_class_callbacks, DAP_CHAIN_PVT(a_chain)->cs_type, l_item);
-    if (!l_item)
-        return log_it(L_ERROR, "Callbacks for cs %s not found!", DAP_CHAIN_PVT(a_chain)->cs_name), -1;
+    dap_return_val_if_fail_err(l_item, -1, "Callbacks for cs %s not found!", DAP_CHAIN_PVT(a_chain)->cs_name);
     return l_item->callbacks.callback_purge
         ? l_item->callbacks.callback_purge(a_chain)
         : 0;

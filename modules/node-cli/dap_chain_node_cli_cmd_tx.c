@@ -160,6 +160,14 @@ json_object * dap_db_tx_history_to_json(json_object* a_json_arr_reply,
                             ? dap_enc_base58_encode_hash_to_str_static(l_atom_hash)
                             : dap_chain_hash_fast_to_str_static(l_atom_hash);
         json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
+        dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, a_chain->active_cell_id, l_atom_hash);
+        size_t l_size = 0;
+        if(a_chain->callback_atom_find_by_hash(l_iter, l_atom_hash, &l_size) != NULL){
+            uint64_t l_block_count = a_chain->callback_count_atom(a_chain);
+            uint64_t l_confirmations = l_block_count - l_iter->cur_num;
+            json_object_object_add(json_obj_datum, "confirmations", json_object_new_uint64(l_confirmations));
+        }
+        a_chain->callback_atom_iter_delete(l_iter);
     }
 
     const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
@@ -2769,9 +2777,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
             dap_enc_key_delete(l_priv_key);
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS, "The transaction cannot be directed to the same address as the source.");
             json_object_put(l_jobj_result);
-            for (size_t j = 0; j < l_addr_el_count; ++j) {
-                    DAP_DELETE(l_addr_to[j]);
-            }
+            DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
             DAP_DEL_MULTY(l_addr_to, l_value);
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS;
         }

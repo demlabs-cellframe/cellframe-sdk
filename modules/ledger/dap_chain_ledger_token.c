@@ -1078,7 +1078,7 @@ dap_chain_datum_token_t *dap_ledger_token_ticker_check(dap_ledger_t *a_ledger, c
  */
 void s_ledger_token_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_item_t *l_token_item)
 {
-    if (!PVT(a_ledger)->cached)
+    if (! is_ledger_cached(PVT(a_ledger)) )
         return;
     char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TOKENS_STR);
     size_t l_cache_size = l_token_item->datum_token_size + sizeof(uint256_t);
@@ -1392,7 +1392,7 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
         return DAP_LEDGER_CHECK_ALREADY_CACHED;
     }
 
-    if (!PVT(a_ledger)->check_token_emission)
+    if (! is_ledger_ems_chk(PVT(a_ledger)) )
         goto ret_success;
 
     // Check emission correctness
@@ -1514,7 +1514,7 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
 
 void dap_ledger_pvt_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_emission_item_t *a_emission_item)
 {
-    if (!PVT(a_ledger)->cached)
+    if (! is_ledger_cached(PVT(a_ledger)) )
         return;
     char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_EMISSIONS_STR);
     size_t l_cache_size = a_emission_item->datum_token_emission_size + sizeof(dap_hash_fast_t);
@@ -1581,7 +1581,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
                        l_balance, l_emission->hdr.ticker,
                        dap_chain_addr_to_str_static(&(l_emission->hdr.address)));
     }
-    if (PVT(a_ledger)->threshold_enabled)
+    if ( is_ledger_threshld(PVT(a_ledger)) )
         dap_ledger_pvt_threshold_txs_proc(a_ledger);
     return DAP_LEDGER_CHECK_OK;
 }

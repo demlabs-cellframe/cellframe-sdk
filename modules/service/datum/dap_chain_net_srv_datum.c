@@ -221,7 +221,7 @@ void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
     dap_chain_net_srv_price_t *l_price = NULL;
 
     if ((l_order->price_unit.uint32 != SERV_UNIT_PCS) || (l_order->direction != SERV_DIR_BUY) ||
-            (strncmp(l_order->price_ticker, l_price->token, DAP_CHAIN_TICKER_SIZE_MAX)) ||
+            (dap_strncmp(l_order->price_ticker, l_price->token, DAP_CHAIN_TICKER_SIZE_MAX)) ||
             (!compare256(l_order->price, l_price->value_datoshi))) {
         char *l_balance_order = dap_chain_balance_coins_print(l_order->price);
         char *l_balance_service = dap_chain_balance_coins_print(l_price->value_datoshi);

@@ -331,7 +331,7 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
     if (a_node_client->reconnect_timer)
         dap_timerfd_delete(a_node_client->reconnect_timer->worker, a_node_client->reconnect_timer->esocket_uuid);
     if (a_node_client->callbacks.delete)
-        a_node_client->callbacks.delete(a_node_client, a_node_client->net);
+        a_node_client->callbacks.delete(a_node_client, a_node_client->callbacks_arg);
 
     if (a_node_client->stream_worker) {
         dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_node_client->stream_worker, a_node_client->ch_chain_net_uuid);

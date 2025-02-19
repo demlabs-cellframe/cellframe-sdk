@@ -1025,7 +1025,7 @@ void dap_ledger_test_run(void){
     dap_assert_PIF(dap_chain_cs_create(l_chain_main, &l_cfg) == 0, "Chain esbocs cs creating: ");
     DL_APPEND(l_net->pub.chains, l_chain_main);
 
-    dap_assert_PIF(!dap_ledger_decree_create(l_net->pub.ledger), "Decree initialization:");
+    dap_ledger_decree_init(l_net->pub.ledger);
 
     char *l_seed_ph = "H58i9GJKbn91238937^#$t6cjdf";
     size_t l_seed_ph_size = strlen(l_seed_ph);
