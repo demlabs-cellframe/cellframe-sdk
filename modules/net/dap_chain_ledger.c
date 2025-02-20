@@ -3984,8 +3984,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             l_main_ticker = l_value_cur->token_ticker;
         break;
     case 2:
-    if (l_main_ticker)
-        break;
+        if (l_main_ticker)
+            break;
         HASH_FIND_STR(l_values_from_prev_tx, a_ledger->net->pub.native_ticker, l_value_cur);
         if (l_value_cur) {
             l_value_cur = l_value_cur->hh.next ? l_value_cur->hh.next : l_value_cur->hh.prev;
@@ -3993,14 +3993,14 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         }
         break;
     default:
-    if (!l_main_ticker) {
-        dap_list_free_full(l_list_bound_items, NULL);
-        HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
-            HASH_DEL(l_values_from_prev_tx, l_value_cur);
-            DAP_DELETE(l_value_cur);
+        if (!l_main_ticker) {
+            dap_list_free_full(l_list_bound_items, NULL);
+            HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
+                HASH_DEL(l_values_from_prev_tx, l_value_cur);
+                DAP_DELETE(l_value_cur);
+            }
+            return DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
         }
-        return DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
-    }
     }
 
     dap_chain_net_srv_stake_item_t *l_key_item = NULL;
