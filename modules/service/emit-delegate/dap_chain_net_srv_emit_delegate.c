@@ -997,6 +997,61 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **
     return DAP_NO_ERROR;
 }
 
+static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
+{
+    const char *l_tx_hash_str = NULL, *l_wallet_str = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_hash_str);
+    if (!l_tx_hash_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -tx");
+        return ERROR_PARAM;
+    }
+    dap_hash_fast_t l_tx_hash;
+    if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash)) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_tx_hash_str);
+        return ERROR_VALUE;
+    }
+    dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, &l_tx_hash, false);
+    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_final_tx_hash);
+    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, NULL);
+    if (!l_cond) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_TX_MISMATCH, "Can't find final tx_out_cond");
+        return ERROR_TX_MISMATCH;
+    }
+    
+
+    const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_final_tx_hash);
+    const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_cond->header.value, &l_balance_coins);
+    
+    json_object *l_jobj_balance = json_object_new_object();
+    json_object *l_jobj_token = json_object_new_object();
+    json_object *l_jobj_pkey_hashes = json_object_new_object();
+    json_object *l_json_jobj_info = json_object_new_object();
+    json_object_object_add(l_json_jobj_info, "tx_hash", json_object_new_string(l_tx_hash_str));
+    json_object_object_add(l_json_jobj_info, "tx_hash_final", json_object_new_string(dap_hash_fast_to_str_static(&l_final_tx_hash)));
+    
+    json_object *l_jobj_ticker = json_object_new_string(l_tx_ticker);
+    const char *l_description =  dap_ledger_get_description_by_ticker(a_net->pub.ledger, l_tx_ticker);
+    json_object *l_jobj_description = l_description ? json_object_new_string(l_description)
+                                                    : json_object_new_null();
+    json_object_object_add(l_jobj_token, "ticker", l_jobj_ticker);
+    json_object_object_add(l_jobj_token, "description", l_jobj_description);
+    json_object_object_add(l_jobj_balance, "coins", json_object_new_string(l_balance_coins));
+    json_object_object_add(l_jobj_balance, "datoshi", json_object_new_string(l_balance_datoshi));
+    json_object_object_add(l_jobj_pkey_hashes, "signs_minimum", json_object_new_uint64(l_cond->subtype.srv_emit_delegate.signers_minimum));
+    dap_tsd_t *l_tsd; size_t l_tsd_size;
+    dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
+            json_object_object_add(l_jobj_pkey_hashes, "owner_pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(l_tsd->data)));
+        }
+    }
+    json_object_object_add(l_json_jobj_info, "balance", l_jobj_balance);
+    json_object_object_add(l_json_jobj_info, "take_verify", l_jobj_pkey_hashes);
+
+    json_object_object_add(l_json_jobj_info, "token", l_jobj_token);
+    json_object_array_add(*a_json_arr_reply, l_json_jobj_info);
+    return DAP_NO_ERROR;
+}
+
 /**
  * @brief s_cli_stake_lock
  * @param a_argc
@@ -1031,6 +1086,8 @@ static int s_cli_emit_delegate(int a_argc, char **a_argv, void **a_str_reply)
         return s_cli_take(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
     else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "sign", NULL))
         return s_cli_sign(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "info", NULL))
+        return s_cli_info(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
     else {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_SUBCOMMAND, "Subcommand %s not recognized", a_argv[l_arg_index]);
         return ERROR_SUBCOMMAND;
