@@ -41,8 +41,7 @@ dap_chain_datum_token_t *dap_ledger_test_create_datum_update(dap_cert_t *a_cert,
         l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section);
         memcpy(l_token->tsd_n_signs, a_tsd_section, a_size_tsd_section);
     }
-    dap_sign_t * l_sign = dap_cert_sign(a_cert,l_token,
-                                        sizeof(*l_token) + a_size_tsd_section, 0);
+    dap_sign_t * l_sign = dap_cert_sign(a_cert, l_token, sizeof(*l_token) + a_size_tsd_section);
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
         l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section + l_sign_size);
@@ -76,8 +75,7 @@ dap_chain_datum_token_t  *dap_ledger_test_create_datum_decl(dap_cert_t *a_cert, 
         l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section);
         memcpy(l_token->tsd_n_signs, a_tsd_section, a_size_tsd_section);
     }
-    dap_sign_t * l_sign = dap_cert_sign(a_cert,l_token,
-                                        sizeof(*l_token) + a_size_tsd_section, 0);
+    dap_sign_t * l_sign = dap_cert_sign(a_cert, l_token, sizeof(*l_token) + a_size_tsd_section);
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
         l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section + l_sign_size);
@@ -102,22 +100,17 @@ dap_chain_datum_tx_t *dap_ledger_test_create_datum_base_tx(
     uint256_t l_value_need = a_emi->hdr.value;
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
-    dap_chain_tx_in_ems_t *l_in_ems = DAP_NEW_Z(dap_chain_tx_in_ems_t);
-    l_in_ems->header.type = TX_ITEM_TYPE_IN_EMS;
-    l_in_ems->header.token_emission_chain_id.uint64 = 0;
-    l_in_ems->header.token_emission_hash = *l_emi_hash;
-    strcpy(l_in_ems->header.ticker, a_emi->hdr.ticker);
-	SUBTRACT_256_256(l_value_need, l_value_fee, &l_value_need);
-    dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(&a_addr_to, l_value_need);
-	dap_chain_tx_out_cond_t *l_tx_out_fee = dap_chain_datum_tx_item_out_cond_create_fee(l_value_fee);
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_ems);
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
-	dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_out_fee);
+    dap_chain_tx_in_ems_t l_in_ems = { .header.type = TX_ITEM_TYPE_IN_EMS, .header.token_emission_chain_id.uint64 = 0, .header.token_emission_hash = *l_emi_hash};
+    strcpy(l_in_ems.header.ticker, a_emi->hdr.ticker);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) &l_in_ems);
+    if ( !strcmp(l_in_ems.header.ticker, s_token_ticker) ) {
+        SUBTRACT_256_256(l_value_need, l_value_fee, &l_value_need);
+        dap_chain_datum_tx_add_out_item(&l_tx, &a_addr_to, l_value_need);
+        dap_chain_datum_tx_add_fee_item(&l_tx, l_value_fee);
+    } else {
+        dap_chain_datum_tx_add_out_ext_item(&l_tx, &a_addr_to, l_value_need, l_in_ems.header.ticker);
+    }
     dap_chain_datum_tx_add_sign_item(&l_tx, a_cert->enc_key);
-    DAP_DEL_Z(l_in_ems);
-    DAP_DEL_Z(l_out);
-	DAP_DEL_Z(l_tx_out_fee);
-
     return l_tx;
 }
 
@@ -363,7 +356,7 @@ int dap_ledger_test_create_reward_decree(dap_chain_t *a_chain, dap_chain_net_id_
     l_tsd->size = sizeof(uint256_t);
     *(uint256_t*)(l_tsd->data) = a_value;
     // Sign it
-    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size, 0);
+    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size);
     if (!l_sign) {
         DAP_DELETE(l_decree);
         return -2;
@@ -871,12 +864,12 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
         DAP_DELETE(l_ledger_tx_add_str);
         dap_hash_fast_t l_tx_addr4_hash = {0};
         dap_chain_datum_tx_t *l_tx_to_addr4 = dap_ledger_test_create_tx(l_addr_1->enc_key, &l_btx_addr1_hash,
-                                                                              l_addr_4->addr, dap_chain_uint256_from(s_total_supply-s_fee));
+                                                                              l_addr_4->addr, dap_chain_uint256_from(s_total_supply/*-s_fee*/));
         dap_hash_fast(l_tx_to_addr4, dap_chain_datum_tx_get_size(l_tx_to_addr4), &l_tx_addr4_hash);
         dap_assert_PIF(!dap_ledger_tx_add(a_ledger, l_tx_to_addr4, &l_tx_addr4_hash, false, NULL),
                        "Can't add transaction to address from white list in ledger");
         dap_chain_datum_tx_t *l_tx_to_addr3 = dap_ledger_test_create_tx(l_addr_4->enc_key, &l_tx_addr4_hash,
-                                                                              l_addr_3->addr, dap_chain_uint256_from(s_total_supply-s_fee));
+                                                                              l_addr_3->addr, dap_chain_uint256_from(s_total_supply/*-s_fee*/));
         dap_hash_fast_t l_tx_addr3_hash = {0};
         dap_hash_fast(l_tx_to_addr3, dap_chain_datum_tx_get_size(l_tx_to_addr3), &l_tx_addr3_hash);
         int res_add_tx = dap_ledger_tx_add(a_ledger, l_tx_to_addr3, &l_tx_addr3_hash, false, NULL);
@@ -912,7 +905,7 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
 //        memcpy(l_datum_token_update->tsd_n_signs + l_offset, l_tsd_dis_flags, dap_tsd_size(l_tsd_dis_flags));
 //        l_offset += dap_tsd_size(l_tsd_dis_flags);
 //        dap_sign_t * l_sign = dap_cert_sign(a_cert, l_datum_token_update,
-//                                           sizeof(*l_datum_token_update) - sizeof(uint16_t), 0);
+//                                           sizeof(*l_datum_token_update) - sizeof(uint16_t));
 //        if (l_sign) {
 //            size_t l_sign_size = dap_sign_get_size(l_sign);
 //            l_datum_token_update = DAP_REALLOC(l_datum_token_update, sizeof(dap_chain_datum_token_t) + l_offset + l_sign_size);

@@ -325,7 +325,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
     if ( a_price_ticker)
         strncpy(l_order->price_ticker, a_price_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
     l_order->units = a_units;
-    dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
+    dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
     if (!l_sign) {
         DAP_DELETE(l_order);
         return NULL;
@@ -617,18 +617,20 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
 
         DAP_DELETE(l_region);
 
-        l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+        if (!dap_hash_fast_is_blank(&a_order->tx_cond_hash)){
+            l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&a_order->tx_cond_hash)
-                : dap_chain_hash_fast_to_str_static(&a_order->tx_cond_hash);
-        json_object_object_add(a_json_obj_out, "tx_cond_hash", json_object_new_string(l_hash_str));
-        if (a_order->ext_size) {
-            char *l_ext_out = DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 3);
-            dap_strncpy(l_ext_out, "0x", 2);
-            dap_bin2hex(l_ext_out + 2, a_order->ext_n_sign, a_order->ext_size);
-            json_object_object_add(a_json_obj_out, "ext", json_object_new_string(l_ext_out));
-            DAP_DELETE(l_ext_out);
-        } else
-            json_object_object_add(a_json_obj_out, "ext", json_object_new_string("0x0"));
+                : dap_chain_hash_fast_to_str_static(&a_order->tx_cond_hash);      
+            json_object_object_add(a_json_obj_out, "tx_cond_hash", json_object_new_string(l_hash_str));
+        }
+        json_object_object_add(a_json_obj_out, "ext_size", json_object_new_uint64(a_order->ext_size));
+        // if (a_order->ext_size) {
+        //     char *l_ext_out = DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 3);
+        //     dap_strncpy(l_ext_out, "0x", 2);
+        //     dap_bin2hex(l_ext_out + 2, a_order->ext_n_sign, a_order->ext_size);
+        //     
+        //     DAP_DELETE(l_ext_out);
+        // }
         dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
         dap_hash_fast_t l_sign_pkey = {0};
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
