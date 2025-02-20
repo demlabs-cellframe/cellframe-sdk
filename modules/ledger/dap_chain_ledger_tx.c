@@ -293,7 +293,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     uint256_t l_taxed_value = {};
 
     if(a_tag) dap_ledger_deduct_tx_tag(a_ledger, a_tx, NULL, a_tag, a_action);
-
+    bool l_tax_check = false;
     // find all previous transactions
     for (dap_list_t *it = l_list_in; it; it = it->next) {
          dap_ledger_tx_bound_t *l_bound_item = DAP_NEW_Z(dap_ledger_tx_bound_t);
@@ -750,6 +750,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 l_bound_item->cond = l_tx_prev_out_cond;
                 l_value = l_tx_prev_out_cond->header.value;
                 if (l_tx_prev_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
+                    l_tax_check = true;
                     l_token = a_ledger->net->pub.native_ticker;
                     // Overflow checked later with overall values sum
                     SUM_256_256(l_taxed_value, l_value, &l_taxed_value);
@@ -836,10 +837,10 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             l_main_ticker = l_value_cur->token_ticker;
         HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
     }
-    dap_chain_addr_t l_sovereign_addr;
-    uint256_t l_sovereign_tax;
-    bool l_tax_check = s_tax_callback ? s_tax_callback(a_ledger->net->pub.id, &l_tx_first_sign_pkey_hash, &l_sovereign_addr, &l_sovereign_tax)
-                                      : false;
+    dap_chain_addr_t l_sovereign_addr; uint256_t l_sovereign_tax;
+    l_tax_check = l_tax_check && s_tax_callback
+        ? s_tax_callback(a_ledger->net->pub.id, &l_tx_first_sign_pkey_hash, &l_sovereign_addr, &l_sovereign_tax)
+        : false;
     // find 'out' items
     bool l_cross_network = false;
     uint256_t l_value = {}, l_fee_sum = {}, l_tax_sum = {};
