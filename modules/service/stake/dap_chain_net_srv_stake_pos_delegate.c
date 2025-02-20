@@ -188,6 +188,7 @@ static dap_pkey_t *s_get_pkey_by_hash_callback(const uint8_t *a_hash)
         else
             HASH_FIND(hh, l_srv_stake->itemlist, a_hash, sizeof(dap_hash_fast_t), l_stake);
     }
+    dap_list_free(l_srv_stake_list);
     return l_stake ? l_stake->pkey : NULL; 
 }
 

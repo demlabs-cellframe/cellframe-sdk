@@ -181,8 +181,9 @@ DAP_STATIC_INLINE uint16_t s_get_round_skip_timeout(dap_chain_esbocs_session_t *
 int dap_chain_cs_esbocs_init()
 {
     dap_chain_cs_callbacks_t l_callbacks = { .callback_init = s_callback_new,
-                                             .callback_stop = s_callback_stop,
+                                             .callback_load = s_callback_created,
                                              .callback_start = s_callback_start,
+                                             .callback_stop = s_callback_stop,
                                              .callback_purge = s_callback_purge };
     dap_chain_cs_add(DAP_CHAIN_ESBOCS_CS_TYPE_STR, l_callbacks);
     dap_stream_ch_proc_add(DAP_STREAM_CH_ESBOCS_ID,
@@ -590,7 +591,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         }
         if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
             continue;
-        dap_sign_t *l_order_sign = (dap_sign_t*)(l_order->ext_n_sign + l_order->ext_size);
+        dap_sign_t *l_order_sign = (dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size);
         if (!dap_pkey_compare_with_sign(l_esbocs_pvt->block_sign_pkey, l_order_sign))
             continue;
         if (!l_order_service)
@@ -885,7 +886,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(a_esbocs);
     dap_list_t *l_ret = NULL;
     dap_list_t *l_validators = NULL;
-    if (!l_esbocs_pvt->poa_mode) {
+    if (l_esbocs_pvt->poa_mode) { // UNDO after debug
         if (a_excluded_list_size) {
             l_validators =  dap_chain_net_srv_stake_get_validators(a_esbocs->chain->net_id, false, NULL);
             uint16_t l_excluded_num = *a_excluded_list;
@@ -1344,14 +1345,6 @@ static int s_signs_sort_callback(dap_list_t *a_sign1, dap_list_t *a_sign2)
 
 static bool s_session_directive_ready(dap_chain_esbocs_session_t *a_session, bool *a_kick, dap_chain_addr_t *a_signing_addr)
 {
-    size_t l_list_length = dap_list_length(a_session->cur_round.all_validators);
-    if (a_session->cur_round.total_validators_synced * 3 < l_list_length * 2) {
-        log_it(L_INFO, "Not enough validators online for directive, %u * 3 < %zu * 2",
-                       a_session->cur_round.total_validators_synced, l_list_length );
-        return false; // Not a valid round, less than 2/3 participants
-    }
-    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Current consensus online %hu from %zu is acceptable, so issue the directive",
-                                                    a_session->cur_round.total_validators_synced, l_list_length);
     dap_chain_esbocs_penalty_item_t *l_item, *l_tmp;
     HASH_ITER(hh, a_session->penalty, l_item, l_tmp) {
         int l_key_state = dap_chain_net_srv_stake_key_delegated(&l_item->signing_addr);
@@ -1372,6 +1365,14 @@ static bool s_session_directive_ready(dap_chain_esbocs_session_t *a_session, boo
         }
     }
     if (l_item) {
+        size_t l_list_length = dap_list_length(a_session->cur_round.all_validators);
+        if (a_session->cur_round.total_validators_synced * 3 < l_list_length * 2) {
+            log_it(L_INFO, "Not enough validators online for directive, %u * 3 < %zu * 2",
+                           a_session->cur_round.total_validators_synced, l_list_length );
+            return false; // Not a valid round, less than 2/3 participants
+        }
+        debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Current consensus online %hu from %zu is acceptable, so issue the directive",
+                                                        a_session->cur_round.total_validators_synced, l_list_length);
         *a_signing_addr = l_item->signing_addr;
         return true;
     } else
@@ -2594,8 +2595,11 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                             l_message->hdr.attempt_num, l_candidate_hash_str);
             size_t l_offset = dap_chain_block_get_sign_offset(l_store->candidate, l_store->candidate_size);
+            uint32_t l_hash_type = DAP_SIGN_HASH_TYPE_DEFAULT;
+            if (dap_chain_policy_activated(DAP_CHAIN_POLICY_PUBLIC_KEY_HASH_SIGN_VALIDATORS, a_session->chain->net_id.uint64))
+                l_hash_type = DAP_SIGN_ADD_PKEY_HASHING_FLAG(l_hash_type);
             dap_sign_t *l_candidate_sign = dap_sign_create_with_hash_type(PVT(l_session->esbocs)->blocks_sign_key,
-                                            l_store->candidate, l_offset + sizeof(l_store->candidate->hdr), DAP_SIGN_ADD_PKEY_HASHING_FLAG(DAP_SIGN_HASH_TYPE_DEFAULT));
+                                            l_store->candidate, l_offset + sizeof(l_store->candidate->hdr), l_hash_type);
             size_t l_candidate_sign_size = dap_sign_get_size(l_candidate_sign);
             s_message_send(l_session, DAP_CHAIN_ESBOCS_MSG_TYPE_COMMIT_SIGN, l_candidate_hash,
                            l_candidate_sign, l_candidate_sign_size, l_session->cur_round.validators_list);
@@ -2800,7 +2804,10 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
                                                            NODE_ADDR_FP_ARGS_S(l_validator->node_addr));
             l_message->hdr.recv_addr = l_validator->node_addr;
             l_message->hdr.sign_size = 0;
-            dap_sign_t *l_sign = dap_sign_create_with_hash_type( PVT(a_session->esbocs)->blocks_sign_key, l_message, l_message_size, DAP_SIGN_ADD_PKEY_HASHING_FLAG(DAP_SIGN_HASH_TYPE_DEFAULT) );
+            uint32_t l_hash_type = DAP_SIGN_HASH_TYPE_DEFAULT;
+            if (dap_chain_policy_activated(DAP_CHAIN_POLICY_PUBLIC_KEY_HASH_SIGN_VALIDATORS, a_session->chain->net_id.uint64))
+                l_hash_type = DAP_SIGN_ADD_PKEY_HASHING_FLAG(l_hash_type);
+            dap_sign_t *l_sign = dap_sign_create_with_hash_type( PVT(a_session->esbocs)->blocks_sign_key, l_message, l_message_size, l_hash_type);
             size_t l_sign_size = dap_sign_get_size(l_sign);
             l_message->hdr.sign_size = l_sign_size;
             dap_chain_esbocs_message_t *l_message_signed = DAP_REALLOC_RET_IF_FAIL(l_message, l_message_size + l_sign_size, l_sign, l_message);
@@ -2848,6 +2855,10 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
 
 static uint64_t s_get_precached_key_hash(dap_list_t **a_precached_keys_list, dap_sign_t *a_source_sign, dap_hash_fast_t *a_result)
 {
+    if (DAP_SIGN_GET_PKEY_HASHING_FLAG(a_source_sign->header.hash_type)) {
+        *a_result = *(dap_hash_fast_t *)a_source_sign->pkey_n_sign;
+        return 0;
+    }
     bool l_found = false;
     struct precached_key *l_key = NULL;
     dap_list_t *l_cur;
@@ -2933,6 +2944,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             log_it(L_WARNING, "Can't process non-hardfork block %s with generation meta", dap_hash_fast_to_str_static(a_block_hash));
             return -303;
         }
+        return 0;
     }
 
     size_t l_block_size = a_block_size; // /* Can't calc it for many old bugged blocks */ dap_chain_block_get_size(a_block);

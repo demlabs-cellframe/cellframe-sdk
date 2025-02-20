@@ -909,8 +909,7 @@ dap_list_t *dap_chain_cs_dag_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_
 
     dap_list_t *l_keys_list = NULL;
     for (size_t i = 0; i < l_poa_pvt->auth_certs_count; ++i)
-    {
         l_keys_list = dap_list_append(l_keys_list, dap_cert_to_pkey(l_poa_pvt->auth_certs[i]));
-    }
+
     return l_keys_list;
 }
