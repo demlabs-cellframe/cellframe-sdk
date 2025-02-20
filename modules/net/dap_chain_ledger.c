@@ -4123,7 +4123,9 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
 
     // Check for transaction consistency (sum(ins) == sum(outs))
     if ( !l_err_num && !s_check_hal(a_ledger, a_tx_hash) ) {
-        if (HASH_COUNT(l_values_from_prev_tx) != HASH_COUNT(l_values_from_cur_tx) ) {
+        if ( HASH_COUNT(l_values_from_prev_tx) != HASH_COUNT(l_values_from_cur_tx) ) {
+            log_it(L_ERROR, "Token tickers IN and OUT mismatch: %u != %u",
+                            HASH_COUNT(l_values_from_prev_tx), HASH_COUNT(l_values_from_cur_tx));
             l_err_num = DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS;
         } else {
             HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
