@@ -875,10 +875,6 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         } break;
         case TX_ITEM_TYPE_OUT_EXT: { // 256
             dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)it;
-            if (!l_multichannel) { // token ticker is forbiden for single-channel transactions
-                l_err_num = DAP_LEDGER_TX_CHECK_UNEXPECTED_TOKENIZED_OUT;
-                break;
-            }
             l_value = l_tx_out->header.value;
             l_token = l_tx_out->token;
             l_tx_out_to = l_tx_out->addr;
