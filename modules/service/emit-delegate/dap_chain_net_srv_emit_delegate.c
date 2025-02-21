@@ -1051,8 +1051,14 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object *l_jobj_token = json_object_new_object();
     json_object *l_jobj_pkey_hashes = json_object_new_object();
     json_object *l_json_jobj_info = json_object_new_object();
-    json_object_object_add(l_json_jobj_info, "tx_hash", json_object_new_string(l_tx_hash_str));
-    json_object_object_add(l_json_jobj_info, "tx_hash_final", json_object_new_string(dap_hash_fast_to_str_static(&l_final_tx_hash)));
+
+    if (dap_strcmp(a_hash_out_type, "hex")) {
+        json_object_object_add(l_json_jobj_info, "tx_hash", json_object_new_string(dap_enc_base58_encode_hash_to_str_static(&l_tx_hash)));
+        json_object_object_add(l_json_jobj_info, "tx_hash_final", json_object_new_string(dap_enc_base58_encode_hash_to_str_static(&l_final_tx_hash)));
+    } else {
+        json_object_object_add(l_json_jobj_info, "tx_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_tx_hash)));
+        json_object_object_add(l_json_jobj_info, "tx_hash_final", json_object_new_string(dap_hash_fast_to_str_static(&l_final_tx_hash)));
+    }
     
     json_object *l_jobj_ticker = json_object_new_string(l_tx_ticker);
     const char *l_description =  dap_ledger_get_description_by_ticker(a_net->pub.ledger, l_tx_ticker);
@@ -1094,7 +1100,7 @@ static int s_cli_emit_delegate(int a_argc, char **a_argv, void **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-H", &l_hash_out_type);
     if (!l_hash_out_type)
         l_hash_out_type = "hex";
-    else if (dap_strcmp(l_hash_out_type," hex") && dap_strcmp(l_hash_out_type, "base58")) {
+    else if (dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type, "base58")) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM,
                                 "Invalid parameter -H, valid values: -H <hex | base58>");
         return ERROR_PARAM;
@@ -1155,6 +1161,7 @@ int dap_chain_net_srv_emit_delegate_init()
                 "emit_delegate info - get info about emit delegate tx by hash\n"
                 "\t-net <net_name>\n"
                 "\t-tx <transaction_hash> - emit delegate tx hash to get info\n"
+                "\t[-H {hex(default) | base58}] - tx hash format\n"
                 "Hint:\n"
                 "\texample value_coins (only natural) 1.0 123.4567\n"
                 "\texample value_datoshi (only integer) 1 20 0.4321e+4\n"
