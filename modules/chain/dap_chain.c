@@ -751,6 +751,7 @@ struct chain_thread_datum_removed_notifier {
     dap_chain_t *chain;
     dap_chain_cell_id_t cell_id;
     dap_hash_fast_t hash;
+    dap_chain_datum_t *datum;
     int ret_code;
 };
 
@@ -781,7 +782,7 @@ static bool s_notify_datum_removed_on_thread(void *a_arg)
 {
     struct chain_thread_datum_removed_notifier *l_arg = a_arg;
     assert(l_arg->callback);
-    l_arg->callback(l_arg->callback_arg, &l_arg->hash);
+    l_arg->callback(l_arg->callback_arg, &l_arg->hash, l_arg->datum);
     DAP_DELETE(l_arg);
     return false;
 }
@@ -891,7 +892,7 @@ void dap_chain_datum_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
     }
 }
 
-void dap_chain_datum_removed_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash) {
+void dap_chain_datum_removed_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash, dap_chain_datum_t *a_datum) {
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
@@ -908,8 +909,8 @@ void dap_chain_datum_removed_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_
         }
         *l_arg = (struct chain_thread_datum_removed_notifier) {
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
-            .chain = a_chain,     .cell_id = a_cell_id,
-            .hash = *a_hash};
+            .chain = a_chain,   .cell_id = a_cell_id,
+            .hash = *a_hash,    .datum = a_datum };
         dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_datum_removed_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }
 }
