@@ -421,9 +421,9 @@ static bool s_is_key_present(dap_chain_tx_out_cond_t *a_cond, dap_enc_key_t *a_e
 }
 
 dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
-    dap_chain_addr_t **a_addr_to, uint256_t *a_value, size_t a_addr_count, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
+    dap_chain_addr_t **a_to_addr, uint256_t *a_value, size_t a_addr_count, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
 {
-    dap_return_val_if_pass(!a_addr_to || !a_value || !a_addr_count || !a_enc_key || !a_tx_in_hash, NULL );
+    dap_return_val_if_pass(!a_to_addr || !a_value || !a_addr_count || !a_enc_key || !a_tx_in_hash, NULL );
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
@@ -482,8 +482,8 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
 
     // add 'out' or 'out_ext' item for emission
     for (size_t i = 0; i < a_addr_count; ++i) {
-        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to[i], a_value[i]) :
-            dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to[i], a_value[i], l_tx_ticker);
+        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, a_to_addr[i], a_value[i]) :
+            dap_chain_datum_tx_add_out_ext_item(&l_tx, a_to_addr[i], a_value[i], l_tx_ticker);
         if (rc != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add tx output");
     }
@@ -799,7 +799,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     const char *l_tx_in_hash_str = NULL, *l_addr_str = NULL, *l_value_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL;
     
     uint256_t *l_value = NULL;
-    dap_chain_addr_t **l_addr_to = NULL;
+    dap_chain_addr_t **l_to_addr = NULL;
     uint32_t
         l_addr_el_count = 0,  // not change type! use in TSD section
         l_value_el_count = 0;
@@ -850,10 +850,10 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -value");
         return ERROR_PARAM;
     }
-    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-addr_to", &l_addr_str);
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-to_addr", &l_addr_str);
     if (!l_addr_str) {
         DAP_DELETE(l_enc_key);
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -addr_to");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -to_addr");
         return ERROR_PARAM;
     }
 
@@ -861,7 +861,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     l_value_el_count = dap_str_symbol_count(l_value_str, ',') + 1;
 
     if (l_addr_el_count != l_value_el_count) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "num of '-addr_to' and '-value' should be equal");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "num of '-to_addr' and '-value' should be equal");
         return ERROR_VALUE;
     }
 
@@ -887,30 +887,30 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
     dap_strfreev(l_value_array);
 
-    l_addr_to = DAP_NEW_Z_COUNT(dap_chain_addr_t *, l_addr_el_count);
-    if (!l_addr_to) {
+    l_to_addr = DAP_NEW_Z_COUNT(dap_chain_addr_t *, l_addr_el_count);
+    if (!l_to_addr) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         DAP_DELETE(l_value);
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR, c_error_memory_alloc);
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
     }
-    char **l_addr_to_str_array = dap_strsplit(l_addr_str, ",", l_addr_el_count);
-    if (!l_addr_to_str_array) {
-        DAP_DEL_MULTY(l_addr_to, l_value);
+    char **l_to_addr_str_array = dap_strsplit(l_addr_str, ",", l_addr_el_count);
+    if (!l_to_addr_str_array) {
+        DAP_DEL_MULTY(l_to_addr, l_value);
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "Can't read '-to_addr' arg");
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
     }
     for (size_t i = 0; i < l_addr_el_count; ++i) {
-        l_addr_to[i] = dap_chain_addr_from_str(l_addr_to_str_array[i]);
-        if(!l_addr_to[i]) {
-            DAP_DEL_ARRAY(l_addr_to, i);
-            DAP_DEL_MULTY(l_addr_to, l_value);
-            dap_strfreev(l_addr_to_str_array);
+        l_to_addr[i] = dap_chain_addr_from_str(l_to_addr_str_array[i]);
+        if(!l_to_addr[i]) {
+            DAP_DEL_ARRAY(l_to_addr, i);
+            DAP_DEL_MULTY(l_to_addr, l_value);
+            dap_strfreev(l_to_addr_str_array);
             dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Incorrect addr format for string %s", l_addr_str);
             return ERROR_VALUE;
         }
     }
-    dap_strfreev(l_addr_to_str_array);
+    dap_strfreev(l_to_addr_str_array);
 
 
     if (l_addr_el_count > 1) {
@@ -922,9 +922,9 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
 
     // Create emission from conditional transaction
-    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_addr_to, l_value, l_addr_el_count, l_fee, &l_tx_in_hash, l_tsd_list);
-    DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
-    DAP_DEL_MULTY(l_addr_to, l_enc_key);
+    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_to_addr, l_value, l_addr_el_count, l_fee, &l_tx_in_hash, l_tsd_list);
+    DAP_DEL_ARRAY(l_to_addr, l_addr_el_count);
+    DAP_DEL_MULTY(l_to_addr, l_enc_key);
     dap_list_free_full(l_tsd_list, NULL);
     if (!l_tx) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for delegated emission");
@@ -948,7 +948,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
 
 static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
-    const char *l_tx_in_hash_str = NULL, *l_wallet_str = NULL;
+    const char *l_tx_in_hash_str = NULL, *l_wallet_str = NULL, *l_cert_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_in_hash_str);
     if (!l_tx_in_hash_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -tx");
@@ -964,19 +964,37 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "TX %s not found in mempool", l_tx_in_hash_str);
         return ERROR_VALUE;
     }
+
+    dap_enc_key_t *l_enc_key = NULL;
+    const char *l_sign_str = NULL;
+
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_str);
-    if (!l_wallet_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -w");
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_str);
+    if (!l_wallet_str && !l_cert_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation sign requires parameter -w or -cert");
         return ERROR_PARAM;
     }
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
-    if (!l_wallet) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Specified wallet %s not found", l_wallet_str);
-        return ERROR_VALUE;
+    if (l_wallet_str) {
+        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
+        if (!l_wallet) {
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Specified wallet %s not found", l_wallet_str);
+            return ERROR_VALUE;
+        }
+        l_sign_str = dap_chain_wallet_check_sign(l_wallet);
+        l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
+        dap_chain_wallet_close(l_wallet);
+    } else if (l_cert_str) {
+        dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
+        if (!l_cert) {
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Specified certificate %s not found", l_cert_str);
+            return ERROR_VALUE;
+        }
+        if (dap_sign_type_is_depricated(dap_sign_type_from_key_type(l_cert->enc_key->type)))
+            l_sign_str = "The Bliss, Picnic and Tesla signatures is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n";
+        else
+            l_sign_str = "";
+        l_enc_key = dap_cert_get_keys_from_certs(&l_cert, 1, 0);
     }
-    const char *l_sign_str = dap_chain_wallet_check_sign(l_wallet);
-    dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
-    dap_chain_wallet_close(l_wallet);
 
      // Create emission from conditional transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_taking_tx_sign(*a_json_arr_reply, a_net, l_enc_key, (dap_chain_datum_tx_t *)l_tx_in->data);
@@ -1107,38 +1125,36 @@ int dap_chain_net_srv_emit_delegate_init()
     dap_cli_server_cmd_add("emit_delegate", s_cli_emit_delegate, "Emitting delegation service commands",
                 "emit_delegate hold - to create new delegation\n"
                 "\t-net <net_name>\n"
-                "\t-w <wallet_name> - wallet name to pay and sign tx\n"
+                "\t-w <wallet_name> - wallet to writeoff value, pay fee and sign tx\n"
                 "\t-token <ticker> - token ticker to hold\n"
                 "\t-value <value> - value to hold\n"
                 "\t-fee <value> - fee value\n"
                 "\t-signs_minimum <value_int> - minimum signs count needed to verify take datum\n"
                 "\t-pkey_hashes <hash1[,hash2,...,hashN]> - owners pkey hashes, who can sign take datum\n"
-                "\t[-chain <chain_name>]\n"
                 "\t[-H {hex(default) | base58}] - datum hash return format\n"
                 "emit_delegate refill - to refill value\n"
                 "\t-net <net_name>\n"
-                "\t-w <wallet_name> - wallet name to pay\n"
-                "\t-token <ticker> - token ticker to refill\n"
+                "\t-w <wallet_name> - wallet to writeoff value and pay fee\n"
                 "\t-value <value> - value to refill\n"
                 "\t-fee <value> - fee value\n"
                 "\t-tx <transaction_hash> - emit delegate tx hash to refill\n"
-                "\t[-chain <chain_name>]\n"
                 "\t[-H {hex(default) | base58}] - datum hash return format\n"
-                "emit_delegate take\n"
+                "emit_delegate take - create take datum to writeoff value from0 emit delegate tx\n"
                 "\t-net <net_name>\n"
-                "\t-w <wallet_name>\n"
-                "\t-tx <transaction_hash>\n"
-                "\t-addr_to <addr1[,addr2,...,addrN]>\n"
-                "\t-value <value1[,value2,...,valueN]>\n"
-                "\t-fee <value>\n"
-                "\t[-chain <chain_name>]\n"
+                "\t-w <wallet_name> - wallet to pay fee\n"
+                "\t-tx <transaction_hash> - emit delegate tx hash to writeoff\n"
+                "\t-to_addr <addr1[,addr2,...,addrN]> - recipient addresses, count should be equal values count\n"
+                "\t-value <value1[,value2,...,valueN]> - the volume sent to each recipient, count should be equal addresses count\n"
+                "\t-fee <value> - fee value\n"
                 "\t[-H {hex(default) | base58}] - datum hash return format\n"
-                "emit_delegate sign\n"
+                "emit_delegate sign - add wallet sign to take datum\n"
                 "\t-net <net_name>\n"
-                "\t-w <wallet_name>\n"
-                "\t-tx <transaction_hash>\n"
-                "\t[-chain <chain_name>]\n"
+                "\t-w <wallet_name> | -cert <cert_name> - wallet or cert to sign\n"
+                "\t-tx <transaction_hash> - emit delegate tx hash to sign\n"
                 "\t[-H {hex(default) | base58}] - datum hash return format\n"
+                "emit_delegate info - get info about emit delegate tx by hash\n"
+                "\t-net <net_name>\n"
+                "\t-tx <transaction_hash> - emit delegate tx hash to get info\n"
                 "Hint:\n"
                 "\texample value_coins (only natural) 1.0 123.4567\n"
                 "\texample value_datoshi (only integer) 1 20 0.4321e+4\n"
