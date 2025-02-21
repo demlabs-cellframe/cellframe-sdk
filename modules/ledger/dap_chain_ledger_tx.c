@@ -812,6 +812,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         switch ( HASH_COUNT(l_values_from_prev_tx) ) {
         case 1:
             l_main_ticker = l_value_cur->token_ticker;
+            break;
         case 2:
             HASH_FIND_STR(l_values_from_prev_tx, a_ledger->net->pub.native_ticker, l_value_cur);
             if (l_value_cur) {
