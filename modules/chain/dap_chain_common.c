@@ -34,6 +34,7 @@
 
 const dap_chain_srv_uid_t c_dap_chain_srv_uid_null = {0};
 const dap_chain_cell_id_t c_dap_chain_cell_id_null = {0};
+const dap_chain_cell_id_t c_dap_chain_cell_id_hardfork = { .uint64 = INT64_MIN }; // 0x800...
 const dap_chain_addr_t c_dap_chain_addr_blank = {0};
 
 /**

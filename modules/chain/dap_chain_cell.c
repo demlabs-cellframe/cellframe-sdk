@@ -263,8 +263,8 @@ void dap_chain_cell_close_all(dap_chain_t *a_chain) {
 DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
 {
     off_t l_pos, l_full_size = !fseeko(a_cell->file_storage, 0, SEEK_END) ? ftello(a_cell->file_storage) : -1;
-    dap_return_val_if_fail_err(l_full_size < 0, 1, "Can't get chain size, error %d: \"%s\"", errno, dap_strerror(errno));
-    dap_return_val_if_fail_err(l_full_size < (off_t)sizeof(dap_chain_cell_file_header_t), 2, "Chain cell \"%s\" is corrupt, create new file", a_cell->file_storage_path);
+    dap_return_val_if_fail_err(l_full_size > 0, 1, "Can't get chain size, error %d: \"%s\"", errno, dap_strerror(errno));
+    dap_return_val_if_fail_err(l_full_size >= (off_t)sizeof(dap_chain_cell_file_header_t), 2, "Chain cell \"%s\" is corrupt, create new file", a_cell->file_storage_path);
 
     /* Load header */
     {
@@ -274,7 +274,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             l_hdr = (dap_chain_cell_file_header_t*)a_cell->mapping->volume->base;
         } else {
             fseeko(a_cell->file_storage, 0, SEEK_SET);
-            dap_return_val_if_fail_err( fread(l_hdr, 1, sizeof(*l_hdr), a_cell->file_storage) != sizeof(*l_hdr), -4,
+            dap_return_val_if_fail_err( fread(l_hdr, 1, sizeof(*l_hdr), a_cell->file_storage) == sizeof(*l_hdr), -4,
                                         "Can't read chain header \"%s\"", a_cell->file_storage_path );
         }
         dap_return_val_if_fail_err( l_hdr->cell_id.uint64 == a_cell->id.uint64, 5,
@@ -536,7 +536,7 @@ int dap_chain_cell_file_append(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_
                                             a_cell_id.uint64, a_chain->net_name, a_chain->name);
     //pthread_rwlock_wrlock(&l_cell->storage_rwlock);
     int l_err = s_cell_file_atom_add(l_cell, a_atom, a_atom_size, a_atom_map);
-    if (l_err)
+    if (!l_err)
         log_it(L_DEBUG, "Saved atom of size %zu bytes to chain \"%s : %s\", cell 0x%016"DAP_UINT64_FORMAT_X"",
                         a_atom_size, a_chain->net_name, a_chain->name, a_cell_id.uint64);
     else

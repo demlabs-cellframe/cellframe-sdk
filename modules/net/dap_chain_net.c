@@ -1907,7 +1907,7 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_
             }
             if ( l_chain->callback_get_poa_certs ) {
                 uint16_t l_min_count = 0;
-                a_net->pub.keys = dap_list_append(a_net->pub.keys, l_chain->callback_get_poa_certs(l_chain, NULL, &l_min_count));
+                a_net->pub.keys = dap_list_concat(a_net->pub.keys, l_chain->callback_get_poa_certs(l_chain, NULL, &l_min_count));
                 a_net->pub.keys_min_count += l_min_count;
             }
         } else {

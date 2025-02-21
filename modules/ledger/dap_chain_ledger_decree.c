@@ -600,26 +600,42 @@ const char *l_ban_addr;
                 log_it(L_WARNING, "Can't apply this decree to specified chain");
                 return -115;
             }
+            dap_tsd_t *l_generation = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_GENERATION);
+            if (!l_generation || l_generation->size != sizeof(uint16_t)) {
+                log_it(L_WARNING, "Can't apply this decree, it has no chain generation set");
+                return -116;
+            }
             if (!a_apply)
                 break;
+            if (*(uint16_t *)l_generation->data < l_chain->generation)
+                return 0;       // Old generation hardfork already completed
             dap_list_t *l_addrs = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size,
                                                    DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, sizeof(dap_stream_node_addr_t));
+            dap_tsd_t *l_changed_addrs = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS);
             dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
-            dap_tsd_t* l_changed_addrs = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size,DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS);
             return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_block_num, l_addrs, json_tokener_parse((char *)l_changed_addrs->data));
         }
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY: {
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_VALIDATORS: {
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            if (!l_chain) {
+                log_it(L_WARNING, "Specified chain not found");
+                return -106;
+            }
+            if (dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
+                log_it(L_WARNING, "Can't apply this decree to specified chain");
+                return -115;
+            }
+            dap_tsd_t *l_generation = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_GENERATION);
+            if (!l_generation || l_generation->size != sizeof(uint16_t)) {
+                log_it(L_WARNING, "Can't apply this decree, it has no chain generation set");
+                return -116;
+            }
             if (!a_apply)
                 break;
-            dap_chain_policy_t *l_policy = NULL;
-            if ( !(l_policy = dap_chain_datum_decree_get_policy(a_decree)) ){
-                log_it(L_WARNING,"Can't get policy from decree.");
-                return -105;
-            }
-            l_policy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_policy, dap_chain_policy_get_size(l_policy), -106);
-            if (DAP_FLAG_CHECK(l_policy->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM))
-                l_policy->activate.chain_union.chain = dap_chain_find_by_id(a_net->pub.id, l_policy->activate.chain_union.chain_id);
-            return dap_chain_policy_add(l_policy, a_net->pub.id.uint64);
+            if (*(uint16_t *)l_generation->data < l_chain->generation)
+                return 0;       // Old generation hardfork already completed
+            dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
+            return dap_chain_esbocs_set_hardfork_prepare(l_chain, 0, NULL, NULL);
         }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE: {
             dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
@@ -634,6 +650,19 @@ const char *l_ban_addr;
             if (!a_apply)
                 break;
             return dap_chain_esbocs_set_hardfork_complete(l_chain);
+        }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY: {
+            if (!a_apply)
+                break;
+            dap_chain_policy_t *l_policy = NULL;
+            if ( !(l_policy = dap_chain_datum_decree_get_policy(a_decree)) ){
+                log_it(L_WARNING,"Can't get policy from decree.");
+                return -105;
+            }
+            l_policy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_policy, dap_chain_policy_get_size(l_policy), -106);
+            if (DAP_FLAG_CHECK(l_policy->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM))
+                l_policy->activate.chain_union.chain = dap_chain_find_by_id(a_net->pub.id, l_policy->activate.chain_union.chain_id);
+            return dap_chain_policy_add(l_policy, a_net->pub.id.uint64);
         }
         default:
             return -1;

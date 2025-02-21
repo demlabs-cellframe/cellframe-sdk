@@ -308,7 +308,7 @@ bool dap_chain_has_file_store(dap_chain_t *a_chain);
 dap_chain_t *dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id);
 dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net_id_t a_chain_net_id, dap_config_t *a_cfg);
 void dap_chain_info_dump_log(dap_chain_t *a_chain);
-
+int dap_chain_purge(dap_chain_t *a_chain);
 void dap_chain_delete(dap_chain_t *a_chain);
 void dap_chain_add_callback_notify(dap_chain_t *a_chain, dap_chain_callback_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_arg);
 void dap_chain_add_callback_datum_index_notify(dap_chain_t *a_chain, dap_chain_callback_datum_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_callback_arg);

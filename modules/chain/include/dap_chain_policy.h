@@ -33,6 +33,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM     (1 << 1)
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_CONFIG        (1 << 2)
 
+#define DAP_CHAIN_POLICY_PUBLIC_KEY_HASH_SIGN_VALIDATORS    0x1
+#define DAP_CHAIN_POLICY_OUT_EXT_USE_ENSURE                 0x2
+
 typedef struct dap_chain_policy {
     uint16_t version;
     struct {
