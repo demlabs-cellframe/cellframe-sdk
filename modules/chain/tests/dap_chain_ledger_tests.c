@@ -866,12 +866,12 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
         DAP_DELETE(l_ledger_tx_add_str);
         dap_hash_fast_t l_tx_addr4_hash = {0};
         dap_chain_datum_tx_t *l_tx_to_addr4 = dap_ledger_test_create_tx(l_addr_1->enc_key, &l_btx_addr1_hash,
-                                                                              l_addr_4->addr, dap_chain_uint256_from(s_total_supply-s_fee));
+                                                                              l_addr_4->addr, dap_chain_uint256_from(s_total_supply/*-s_fee*/));
         dap_hash_fast(l_tx_to_addr4, dap_chain_datum_tx_get_size(l_tx_to_addr4), &l_tx_addr4_hash);
         dap_assert_PIF(!dap_ledger_tx_add(a_ledger, l_tx_to_addr4, &l_tx_addr4_hash, false, NULL),
                        "Can't add transaction to address from white list in ledger");
         dap_chain_datum_tx_t *l_tx_to_addr3 = dap_ledger_test_create_tx(l_addr_4->enc_key, &l_tx_addr4_hash,
-                                                                              l_addr_3->addr, dap_chain_uint256_from(s_total_supply-s_fee));
+                                                                              l_addr_3->addr, dap_chain_uint256_from(s_total_supply/*-s_fee*/));
         dap_hash_fast_t l_tx_addr3_hash = {0};
         dap_hash_fast(l_tx_to_addr3, dap_chain_datum_tx_get_size(l_tx_to_addr3), &l_tx_addr3_hash);
         int res_add_tx = dap_ledger_tx_add(a_ledger, l_tx_to_addr3, &l_tx_addr3_hash, false, NULL);
