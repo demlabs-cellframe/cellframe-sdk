@@ -100,22 +100,17 @@ dap_chain_datum_tx_t *dap_ledger_test_create_datum_base_tx(
     uint256_t l_value_need = a_emi->hdr.value;
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
-    dap_chain_tx_in_ems_t *l_in_ems = DAP_NEW_Z(dap_chain_tx_in_ems_t);
-    l_in_ems->header.type = TX_ITEM_TYPE_IN_EMS;
-    l_in_ems->header.token_emission_chain_id.uint64 = 0;
-    l_in_ems->header.token_emission_hash = *l_emi_hash;
-    strcpy(l_in_ems->header.ticker, a_emi->hdr.ticker);
-	SUBTRACT_256_256(l_value_need, l_value_fee, &l_value_need);
-    dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(&a_addr_to, l_value_need);
-	dap_chain_tx_out_cond_t *l_tx_out_fee = dap_chain_datum_tx_item_out_cond_create_fee(l_value_fee);
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_ems);
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
-	dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_out_fee);
+    dap_chain_tx_in_ems_t l_in_ems = { .header.type = TX_ITEM_TYPE_IN_EMS, .header.token_emission_chain_id.uint64 = 0, .header.token_emission_hash = *l_emi_hash};
+    strcpy(l_in_ems.header.ticker, a_emi->hdr.ticker);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) &l_in_ems);
+    if ( !strcmp(l_in_ems.header.ticker, s_token_ticker) ) {
+        SUBTRACT_256_256(l_value_need, l_value_fee, &l_value_need);
+        dap_chain_datum_tx_add_out_item(&l_tx, &a_addr_to, l_value_need);
+        dap_chain_datum_tx_add_fee_item(&l_tx, l_value_fee);
+    } else {
+        dap_chain_datum_tx_add_out_ext_item(&l_tx, &a_addr_to, l_value_need, l_in_ems.header.ticker);
+    }
     dap_chain_datum_tx_add_sign_item(&l_tx, a_cert->enc_key);
-    DAP_DEL_Z(l_in_ems);
-    DAP_DEL_Z(l_out);
-	DAP_DEL_Z(l_tx_out_fee);
-
     return l_tx;
 }
 

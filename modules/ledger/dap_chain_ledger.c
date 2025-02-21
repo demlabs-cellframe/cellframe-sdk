@@ -276,12 +276,12 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
 
 }
 
-bool dap_ledger_datum_is_blacklisted(dap_ledger_t *a_ledger, dap_hash_fast_t a_hash) {
-    dap_ledger_hal_item_t *ret = NULL;
-    HASH_FIND(hh, PVT(a_ledger)->hrl_items, &a_hash, sizeof(dap_hash_fast_t), ret);
-    return debug_if(g_debug_ledger && ret, L_MSG, "Datum %s is blacklisted", dap_hash_fast_to_str_static(&a_hash)), !!ret;
+bool dap_ledger_datum_is_enforced(dap_ledger_t *a_ledger, dap_hash_fast_t *a_hash, bool a_accept) {
+    dap_ledger_hal_item_t *l_wanted = NULL;
+    HASH_FIND(hh, a_accept ? PVT(a_ledger)->hal_items : PVT(a_ledger)->hrl_items, a_hash, sizeof(dap_hash_fast_t), l_wanted);
+    debug_if(g_debug_ledger && l_wanted, L_DEBUG, "Datum %s is %slisted", dap_hash_fast_to_str_static(&a_hash), a_accept ? "white" : "black");
+    return !!l_wanted;
 }
-
 
 /**
  * @brief s_tx_header_print
