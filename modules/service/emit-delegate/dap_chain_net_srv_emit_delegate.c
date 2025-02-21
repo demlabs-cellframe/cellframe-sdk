@@ -583,11 +583,6 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_sign(json_object
 
 #undef m_sign_fail
 
-enum emit_delegation_error s_cli_param_check (int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
-{
-    return DAP_NO_ERROR;
-}
-
 static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
     const char *l_token_str = NULL, *l_value_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL, *l_signs_min_str = NULL, *l_pkeys_str = NULL;
