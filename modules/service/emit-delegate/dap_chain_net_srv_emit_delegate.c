@@ -1150,7 +1150,7 @@ int dap_chain_net_srv_emit_delegate_init()
                 "\t-w <wallet_name> - wallet to pay fee\n"
                 "\t-tx <transaction_hash> - emit delegate tx hash to writeoff\n"
                 "\t-to_addr <addr1[,addr2,...,addrN]> - recipient addresses, count should be equal values count\n"
-                "\t-value <value1[,value2,...,valueN]> - the volume sent to each recipient, count should be equal addresses count\n"
+                "\t-value <value1[,value2,...,valueN]> - value sent to each recipient, count should be equal addresses count\n"
                 "\t-fee <value> - fee value\n"
                 "\t[-H {hex(default) | base58}] - datum hash return format\n"
                 "emit_delegate sign - add wallet sign to take datum\n"
