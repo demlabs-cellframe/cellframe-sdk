@@ -59,15 +59,17 @@ typedef struct dap_chain_net_srv_usage{
     void (*receipt_timeout_timer_start_callback)(struct dap_chain_net_srv_usage *a_usage);
     int receipt_sign_req_cnt;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    bool is_active;
-    bool is_free;
-    bool is_grace;
-    bool is_waiting_new_tx_cond;
-    bool is_waiting_new_tx_cond_in_ledger;
-    bool is_waiting_first_receipt_sign;
-    bool is_waiting_next_receipt_sign;
-    bool is_limits_changed;
-//    UT_hash_handle hh; //
+
+    uint16_t is_active : 1;
+    uint16_t is_free : 1;
+    uint16_t is_grace : 1;
+    uint16_t is_waiting_new_tx_cond : 1;
+    uint16_t is_waiting_new_tx_cond_in_ledger : 1;
+    uint16_t is_waiting_first_receipt_sign : 1;
+    uint16_t is_waiting_next_receipt_sign : 1;
+    uint16_t is_limits_changed : 1;
+    uint16_t reserved : 8;
+
 } dap_chain_net_srv_usage_t;
 
 typedef struct dap_net_stats{

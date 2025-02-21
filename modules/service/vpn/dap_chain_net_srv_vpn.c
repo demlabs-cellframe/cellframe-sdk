@@ -1897,7 +1897,7 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     }
     if ( (!l_usage->is_free) && (! l_usage->receipt && !l_usage->is_grace) ){
         log_it(L_WARNING, "No active receipt, switching off");
-        l_usage->is_active = false;
+        l_usage->is_active = 0;
         if (l_usage->client)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
