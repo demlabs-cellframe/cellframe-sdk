@@ -451,6 +451,13 @@ int com_exit(int a_argc, char **a_argv, void **a_str_reply);
 int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply);
 int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply);
 int com_mempool(int a_argc, char **a_argv, void **a_str_reply);
+
+/**
+ * decree command
+ *
+ */
+int cmd_decree(int a_argc, char **a_argv, void **a_str_reply);
+
 /**
  * Place public CA into the mempool
  */
