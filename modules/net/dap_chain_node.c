@@ -203,7 +203,10 @@ dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream
 
 void dap_chain_node_list_cluster_del_callback(dap_store_obj_t *a_obj, void *a_arg) {
     UNUSED(a_arg);
-    dap_return_if_fail(a_obj && a_obj->key && a_obj->value);
+    if (!(a_obj && a_obj->key && a_obj->value)){
+        log_it(L_DEBUG, "Deleted node from node.list object remove from global_db");
+        dap_global_db_driver_delete(a_obj, 1);
+    }
     log_it(L_DEBUG, "Start check node list %s group %s key", a_obj->group, a_obj->key);
 
     if (!a_obj->value) {
