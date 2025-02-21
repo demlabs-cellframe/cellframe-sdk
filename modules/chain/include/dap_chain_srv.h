@@ -29,9 +29,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_tsd.h"
 
 // System services literlas
-#define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_LITERAL "PoS-delegate"
-#define DAP_CHAIN_NET_SRV_XCHANGE_LITERAL "eXchange"
-#define DAP_CHAIN_NET_SRV_VOTING_LITERAL "voting"
+#define DAP_CHAIN_SRV_STAKE_POS_DELEGATE_LITERAL "PoS-delegate"
+#define DAP_CHAIN_SRV_XCHANGE_LITERAL "eXchange"
+#define DAP_CHAIN_SRV_VOTING_LITERAL "voting"
 
 // Start service callback
 typedef void * (*dap_chain_srv_callback_start_t)(dap_chain_net_id_t a_net_id, dap_config_t *a_config);

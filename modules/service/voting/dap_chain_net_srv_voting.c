@@ -92,7 +92,7 @@ int dap_chain_net_srv_voting_init()
 {
     dap_ledger_voting_verificator_add(s_voting_ledger_verificator_callback, s_datum_tx_voting_verification_delete_callback, dap_chain_net_srv_voting_get_expiration_time);
     dap_cli_server_cmd_add("voting", s_cli_voting, "Voting commands.",
-                            "voting create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <voting_expire_time_in_RCF822>] [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value> -w <fee_wallet_name>\n"
+                            "voting create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <voting_expire_time_in_RCF822>] [-max_votes_count <Votes_count>] [-delegated_key_required [-vote_changing_allowed]] -fee <value> -w <fee_wallet_name>\n"
                             "voting vote -net <net_name> -hash <voting_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value> -w <fee_wallet_name>\n"
                             "voting list -net <net_name>\n"
                             "voting dump -net <net_name> -hash <voting_hash>\n"
@@ -103,12 +103,12 @@ int dap_chain_net_srv_voting_init()
     
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
     dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start, .delete = s_callback_delete, .hardfork_prepare = s_votings_backup, .hardfork_load = s_votings_restore };
-    int ret = dap_chain_srv_add(l_uid, "voting", &l_srv_callbacks);
+    int ret = dap_chain_srv_add(l_uid, DAP_CHAIN_SRV_VOTING_LITERAL, &l_srv_callbacks);
     if (ret) {
         log_it(L_ERROR, "Can't register voting service");
         return ret;
     }
-    dap_ledger_service_add(l_uid, "voting", s_tag_check_voting);
+    dap_ledger_service_add(l_uid, DAP_CHAIN_SRV_VOTING_LITERAL, s_tag_check_voting);
 
     return 0;
 }
@@ -240,14 +240,14 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
             dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)l_item)->tsd;
             switch(l_tsd->type) {
             case VOTING_TSD_TYPE_QUESTION:
-                if (!l_tsd->size || !memchr(l_tsd->data, '\0', l_tsd->size || *l_tsd->data == '\0')) {
+                if (!l_tsd->size || *l_tsd->data == '\0') {
                     log_it(L_WARNING, "Invalid content for string TSD section QUESTION of voting %s", dap_hash_fast_to_str_static(a_tx_hash));
                     return -DAP_LEDGER_CHECK_PARSE_ERROR;
                 }
                 l_question_present = true;
                 break;
             case VOTING_TSD_TYPE_OPTION:
-                if (!l_tsd->size || !memchr(l_tsd->data, '\0', l_tsd->size || *l_tsd->data == '\0')) {
+                if (!l_tsd->size || *l_tsd->data == '\0') {
                     log_it(L_WARNING, "Invalid content for string TSD section ANSWER of voting %s", dap_hash_fast_to_str_static(a_tx_hash));
                     return -DAP_LEDGER_CHECK_PARSE_ERROR;
                 }
@@ -345,9 +345,8 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             log_it(L_WARNING, "Voting %s required a delegated key", dap_chain_hash_fast_to_str_static(&l_voting->hash));
             return -10;
         }
-
-
     }
+
     dap_list_t *l_vote_overwrited = NULL;
     for (dap_list_t *it = l_voting->votes; it; it = it->next) {
         if (dap_hash_fast_compare(&((struct vote *)it->data)->pkey_hash, &pkey_hash)) {

@@ -886,7 +886,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(a_esbocs);
     dap_list_t *l_ret = NULL;
     dap_list_t *l_validators = NULL;
-    if (!l_esbocs_pvt->poa_mode) {
+    if (l_esbocs_pvt->poa_mode) { // UNDO after debug
         if (a_excluded_list_size) {
             l_validators =  dap_chain_net_srv_stake_get_validators(a_esbocs->chain->net_id, false, NULL);
             uint16_t l_excluded_num = *a_excluded_list;
@@ -1345,6 +1345,7 @@ static int s_signs_sort_callback(dap_list_t *a_sign1, dap_list_t *a_sign2)
 
 static bool s_session_directive_ready(dap_chain_esbocs_session_t *a_session, bool *a_kick, dap_chain_addr_t *a_signing_addr)
 {
+    bool l_ready = false, l_kick = false;
     dap_chain_esbocs_penalty_item_t *l_item, *l_tmp;
     HASH_ITER(hh, a_session->penalty, l_item, l_tmp) {
         int l_key_state = dap_chain_net_srv_stake_key_delegated(&l_item->signing_addr);
@@ -1354,17 +1355,15 @@ static bool s_session_directive_ready(dap_chain_esbocs_session_t *a_session, boo
             continue;
         }
         if (l_item->miss_count >= DAP_CHAIN_ESBOCS_PENALTY_KICK && l_key_state == 1) {
-            *a_kick = true;
-            *a_signing_addr = l_item->signing_addr;
-            return true;
+            l_ready = l_kick = true;
+            break;
         }
         if (l_item->miss_count == 0 && l_key_state == -1) {
-            *a_kick = false;
-            *a_signing_addr = l_item->signing_addr;
-            return true;
+            l_ready = true;
+            break;
         }
     }
-    if (l_item) {
+    if (l_ready) {
         size_t l_list_length = dap_list_length(a_session->cur_round.all_validators);
         if (a_session->cur_round.total_validators_synced * 3 < l_list_length * 2) {
             log_it(L_INFO, "Not enough validators online for directive, %u * 3 < %zu * 2",
@@ -1374,6 +1373,7 @@ static bool s_session_directive_ready(dap_chain_esbocs_session_t *a_session, boo
         debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Current consensus online %hu from %zu is acceptable, so issue the directive",
                                                         a_session->cur_round.total_validators_synced, l_list_length);
         *a_signing_addr = l_item->signing_addr;
+        *a_kick = l_kick;
         return true;
     } else
         return false;

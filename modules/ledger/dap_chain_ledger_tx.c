@@ -1303,9 +1303,18 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         }
         l_ledger_cache_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TXS_STR);
     }
-    const char *l_cur_token_ticker = NULL;
+
+    int l_err_num = 0;
+    if (s_voting_callbacks.voting_callback) {
+        if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTING)
+            l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, &l_tx_hash, true);
+        else if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTE)
+            l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, &l_tx_hash, true);
+    }
+    assert(!l_err_num);
 
     // Update balance: deducts
+    const char *l_cur_token_ticker = NULL;  
     int l_spent_idx = 0;
     for (dap_list_t *it = l_list_bound_items; it; it = it->next) {
         dap_ledger_tx_bound_t *l_bound_item = it->data;
@@ -1502,8 +1511,6 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
         pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
         if (wallet_balance) {
-            //if(g_debug_ledger)
-            //    log_it(L_DEBUG, "Balance item is present in cache");
             SUM_256_256(wallet_balance->balance, l_value, &wallet_balance->balance);
             DAP_DELETE (l_wallet_balance_key);
             // Update the cache
@@ -1528,14 +1535,6 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             s_balance_cache_update(a_ledger, wallet_balance);
         }
     }
-    int l_err_num = 0;
-    if (s_voting_callbacks.voting_callback) {
-        if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTING)
-            l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, &l_tx_hash, true);
-        else if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTE)
-            l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, &l_tx_hash, true);
-    }
-    assert(!l_err_num);
 
     // add transaction to the cache list
     dap_ledger_tx_item_t *l_tx_item = DAP_NEW_Z_SIZE(dap_ledger_tx_item_t, sizeof(dap_ledger_tx_item_t) + l_outs_count * sizeof(dap_ledger_tx_out_metadata_t));
