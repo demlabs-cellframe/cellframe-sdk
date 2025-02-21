@@ -354,7 +354,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
 
     dap_chain_tx_out_cond_t *l_out_cond = DAP_DUP_SIZE(l_cond_prev, sizeof(dap_chain_tx_out_cond_t) + l_cond_prev->tsd_size);
     if (!l_out_cond)
-        m_tx_fail(ERROR_COMPOSE, c_error_memory_alloc);
+        m_tx_fail(ERROR_MEMORY, c_error_memory_alloc);
     l_out_cond->header.value = l_value_back;
     if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond) < 0) {
         m_tx_fail(ERROR_COMPOSE, "Cant add emission cond output");
@@ -493,11 +493,11 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     SUBTRACT_256_256(l_cond_prev->header.value, l_value, &l_value_back);
     dap_chain_tx_out_cond_t *l_out_cond = DAP_DUP_SIZE(l_cond_prev, sizeof(dap_chain_tx_out_cond_t) + l_cond_prev->tsd_size);
     if (!l_out_cond)
-        m_tx_fail(ERROR_COMPOSE, c_error_memory_alloc);
+        m_tx_fail(ERROR_MEMORY, c_error_memory_alloc);
     l_out_cond->header.value = l_value_back;
     if (-1 == dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond)) {
-        m_tx_fail(ERROR_COMPOSE, "Cant add emission cond output");
         DAP_DELETE(l_out_cond);
+        m_tx_fail(ERROR_COMPOSE, "Cant add emission cond output");
     }
     DAP_DELETE(l_out_cond);
 
@@ -538,7 +538,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1)
         m_tx_fail(ERROR_COMPOSE, "Can't add sign output");
 
-return l_tx;
+    return l_tx;
 }
 
 
@@ -574,7 +574,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_sign(json_object
     }
     dap_chain_datum_tx_t *l_tx = DAP_DUP_SIZE(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in));
     if (!l_tx)
-        m_sign_fail(ERROR_FUNDS, c_error_memory_alloc);
+        m_sign_fail(ERROR_MEMORY, c_error_memory_alloc);
     // add 'sign' item
     if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1)
         m_sign_fail(ERROR_COMPOSE, "Can't add sign output");
@@ -862,14 +862,14 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
 
     l_value = DAP_NEW_Z_COUNT(uint256_t, l_value_el_count);
     if (!l_value) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR, c_error_memory_alloc);
-        return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_MEMORY, c_error_memory_alloc);
+        return ERROR_MEMORY;
     }
     char **l_value_array = dap_strsplit(l_value_str, ",", l_value_el_count);
     if (!l_value_array) {
         DAP_DELETE(l_value);
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "Can't read '-to_addr' arg");
-        return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Can't read '-to_addr' arg");
+        return ERROR_PARAM;
     }
     for (size_t i = 0; i < l_value_el_count; ++i) {
         l_value[i] = dap_chain_balance_scan(l_value_array[i]);
@@ -886,14 +886,14 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     if (!l_to_addr) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         DAP_DELETE(l_value);
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR, c_error_memory_alloc);
-        return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_MEMORY, c_error_memory_alloc);
+        return ERROR_MEMORY;
     }
     char **l_to_addr_str_array = dap_strsplit(l_addr_str, ",", l_addr_el_count);
     if (!l_to_addr_str_array) {
         DAP_DEL_MULTY(l_to_addr, l_value);
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "Can't read '-to_addr' arg");
-        return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Can't read '-to_addr' arg");
+        return ERROR_PARAM;
     }
     for (size_t i = 0; i < l_addr_el_count; ++i) {
         l_to_addr[i] = dap_chain_addr_from_str(l_to_addr_str_array[i]);
