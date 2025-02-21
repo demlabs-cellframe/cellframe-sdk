@@ -293,7 +293,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
 }
 
 
-dap_chain_datum_tx_t *s_refilling_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
+dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
     uint256_t a_value, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
 {
     // create empty transaction
@@ -670,6 +670,13 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
             DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
             return ERROR_VALUE;
         }
+        for (size_t j = 0; j < i; ++j) {
+            if (!memcmp(l_pkey_hashes + j, l_pkey_hashes + i, sizeof(dap_chain_hash_fast_t))){
+                dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Find pkey hash %s dublicate", l_hash_str_buf);
+                DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
+                return ERROR_VALUE;
+            }
+        }
         if (*l_cur_ptr == 0) {
             l_hashes_count = i + 1;
             break;
@@ -765,7 +772,7 @@ static int s_cli_refill(int a_argc, char **a_argv, int a_arg_index, json_object 
     dap_chain_wallet_close(l_wallet);
 
     // Create conditional transaction for delegated emissions
-    dap_chain_datum_tx_t *l_tx = s_refilling_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_value, l_fee, &l_tx_in_hash, NULL);
+    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_refilling_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_value, l_fee, &l_tx_in_hash, NULL);
     DAP_DELETE(l_enc_key);
     if (!l_tx) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for delegated emission");
