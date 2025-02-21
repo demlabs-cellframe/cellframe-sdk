@@ -47,7 +47,8 @@ enum emit_delegation_error {
     ERROR_COMPOSE,
     ERROR_CREATE,
     ERROR_PLACE,
-    ERROR_SUBCOMMAND
+    ERROR_SUBCOMMAND,
+    ERROR_NETWORK
 };
 
 #define LOG_TAG "dap_chain_net_srv_emit_delegate"
@@ -1103,6 +1104,11 @@ static int s_cli_emit_delegate(int a_argc, char **a_argv, void **a_str_reply)
     int l_err_net_chain = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &l_arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_TX);
     if (l_err_net_chain)
         return l_err_net_chain;
+
+    if (dap_chain_net_get_load_mode(l_net)) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_NETWORK, "Can't apply command while network in load mode");
+        return ERROR_NETWORK;
+    }
 
     if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "hold", NULL))
         return s_cli_hold(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
