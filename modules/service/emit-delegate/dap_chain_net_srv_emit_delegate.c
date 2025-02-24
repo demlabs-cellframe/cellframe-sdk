@@ -204,7 +204,7 @@ static char *s_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_t *a_chain, const ch
 
 static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
                                                   const char *a_token_ticker, uint256_t a_value, uint256_t a_fee,
-                                                  uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count)
+                                                  uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str)
 {
     const char *l_native_ticker = a_net->pub.native_ticker;
     bool l_delegate_native = !dap_strcmp(l_native_ticker, a_token_ticker);
@@ -284,9 +284,17 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
             m_tx_fail(ERROR_COMPOSE, "Cant add fee back output");
     }
 
+    if (a_tag_str) {
+        dap_chain_tx_tsd_t *tsd_tag_item = dap_chain_datum_tx_item_tsd_create(a_tag_str, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TAG, strlen(a_tag_str));
+        if (!l_tx_out)
+            m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction tag");
+        dap_chain_datum_tx_add_item(&l_tx, tsd_tag_item);
+        DAP_DELETE(tsd_tag_item);
+    }
     // add 'sign' item
     if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1)
         m_tx_fail(ERROR_COMPOSE, "Can't add sign output");
+
 
     return l_tx;
 }
@@ -591,7 +599,14 @@ static dap_chain_datum_tx_t *s_taking_tx_sign(json_object *a_json_arr_reply, dap
 
 static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
-    const char *l_token_str = NULL, *l_value_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL, *l_signs_min_str = NULL, *l_pkeys_str = NULL;
+    const char *l_token_str = NULL, 
+                *l_value_str = NULL, 
+                *l_wallet_str = NULL, 
+                *l_fee_str = NULL, 
+                *l_signs_min_str = NULL, 
+                *l_pkeys_str = NULL,
+                *l_tag_str = NULL;
+
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-token", &l_token_str);
     if (!l_token_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation holding requires parameter -token");
@@ -636,11 +651,15 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation holding requires parameter -w");
         return ERROR_PARAM;
     }
+
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
     if (!l_wallet) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Specified wallet %s not found", l_wallet_str);
         return ERROR_VALUE;
     }
+
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tag", &l_tag_str);
+
     const char *l_sign_str = dap_chain_wallet_check_sign(l_wallet);
     dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
     dap_chain_wallet_close(l_wallet);
@@ -695,7 +714,7 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
         return ERROR_VALUE;
     }
     // Create conditional transaction for delegated emissions
-    dap_chain_datum_tx_t *l_tx = s_emitting_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_token_str, l_value, l_fee, l_signs_min, l_pkey_hashes, l_hashes_count);
+    dap_chain_datum_tx_t *l_tx = s_emitting_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_token_str, l_value, l_fee, l_signs_min, l_pkey_hashes, l_hashes_count, l_tag_str);
     DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
     if (!l_tx) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for delegated emission");
@@ -1138,6 +1157,7 @@ int dap_chain_net_srv_emit_delegate_init()
                 "\t-w <wallet_name> - wallet to writeoff value, pay fee and sign tx\n"
                 "\t-token <ticker> - token ticker to hold\n"
                 "\t-value <value> - value to hold\n"
+                "\t-tag <str> add tsd-section with tag\n"
                 "\t-fee <value> - fee value\n"
                 "\t-signs_minimum <value_int> - minimum signs count needed to verify take datum\n"
                 "\t-pkey_hashes <hash1[,hash2,...,hashN]> - owners pkey hashes, who can sign take datum\n"
