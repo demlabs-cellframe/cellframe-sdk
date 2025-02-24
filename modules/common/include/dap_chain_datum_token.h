@@ -340,6 +340,7 @@ typedef struct dap_chain_datum_token_emission {
 #define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SIGNATURS         0x000E
 #define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_UNIQUE_ID         0x000F
 #define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_BASE_TX_HASH      0x0010
+#define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TAG               0x0011
 
 // TSD sections with transfer additional params
 #define DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT         0x0013
