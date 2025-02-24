@@ -467,7 +467,7 @@ int dap_chain_cell_open(dap_chain_t *a_chain, const char *a_filename, const char
             return log_it(L_ERROR, "Invalid cell file name \"%s\"", a_filename), EINVAL;
         }
     }
-    const char l_full_path[MAX_PATH];
+    char l_full_path[MAX_PATH];
     snprintf(l_full_path, MAX_PATH, "%s/%s", DAP_CHAIN_PVT(a_chain)->file_storage_dir, a_filename);
     pthread_rwlock_wrlock(&a_chain->cell_rwlock);
     int l_ret = s_cell_open(a_chain, l_full_path, l_cell_id, a_mode);
@@ -476,7 +476,7 @@ int dap_chain_cell_open(dap_chain_t *a_chain, const char *a_filename, const char
 }
 
 int dap_chain_cell_open_by_id(dap_chain_t *a_chain, const dap_chain_cell_id_t a_cell_id, const char a_mode) {
-    const char l_full_path[MAX_PATH];
+    char l_full_path[MAX_PATH];
     snprintf(l_full_path, MAX_PATH, "%s/%"DAP_UINT64_FORMAT_x"."CELL_FILE_EXT, DAP_CHAIN_PVT(a_chain)->file_storage_dir, a_cell_id.uint64);
     pthread_rwlock_wrlock(&a_chain->cell_rwlock);
     int l_ret = s_cell_open(a_chain, l_full_path, a_cell_id, a_mode);
