@@ -140,7 +140,7 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
         char *l_balance = dap_uint256_decimal_to_char(a_cond->header.value);
         const char *l_refill = NULL;
         dap_uint256_to_char(l_change_value, &l_refill);
-        log_it(L_ERROR, "Sum of re-fill value %s and account balance %s is greater than value limit of 256 bit num", l_refill, l_balance);
+        log_it(L_ERROR, "Sum of re-fill value %s and account balance %s is owerflow 256 bit num", l_refill, l_balance);
         DAP_DELETE(l_balance);
         return -9;
     }
@@ -297,6 +297,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
 dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
     uint256_t a_value, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
 {
+    dap_return_val_if_pass(!a_net || IS_ZERO_256(a_value) || IS_ZERO_256(a_fee), NULL);
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
@@ -358,18 +359,18 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
         m_tx_fail(ERROR_MEMORY, c_error_memory_alloc);
     l_out_cond->header.value = l_value_back;
     if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond) < 0) {
-        m_tx_fail(ERROR_COMPOSE, "Cant add emission cond output");
+        m_tx_fail(ERROR_COMPOSE, "Cant add refill cond output");
         DAP_DELETE(l_out_cond);
     }
     DAP_DELETE(l_out_cond);
 
 
     // add track for takeoff from conditional value
-    dap_chain_tx_tsd_t *l_refill_tsd = NULL;
-    l_refill_tsd = dap_chain_datum_tx_item_tsd_create(&a_value, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_REFILL, sizeof(uint256_t));
-
-    if (!l_refill_tsd || dap_chain_datum_tx_add_item(&l_tx, l_refill_tsd) != 1)
+    dap_chain_tx_tsd_t *l_refill_tsd = dap_chain_datum_tx_item_tsd_create(&a_value, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_REFILL, sizeof(uint256_t));
+    if (dap_chain_datum_tx_add_item(&l_tx, l_refill_tsd) != 1) {
+        DAP_DELETE(l_refill_tsd);
         m_tx_fail(ERROR_COMPOSE, "Can't add TSD section item with withdraw value");
+    }
     DAP_DELETE(l_refill_tsd);
 
     //add other tsd if available
@@ -437,6 +438,10 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     dap_chain_addr_t l_net_fee_addr;
 
     for (size_t i = 0; i < a_addr_count; ++i) {
+        if(IS_ZERO_256(a_value[i])) {
+            m_tx_fail(ERROR_VALUE, "Format -value <256 bit integer> and not equal zero");
+            return ERROR_VALUE;
+        }
         if (SUM_256_256(l_value, a_value[i], &l_value))
             m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
     }
@@ -603,7 +608,7 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
     uint256_t l_value = dap_chain_balance_scan(l_value_str);
     if (IS_ZERO_256(l_value)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -value <256 bit integer>");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -value <256 bit integer> and not equal zero");
         return ERROR_VALUE;
     }
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-fee", &l_fee_str);
@@ -613,7 +618,7 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
     uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
     if (IS_ZERO_256(l_fee)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -fee <256 bit integer>");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -fee <256 bit integer> and not equal zer");
         return ERROR_VALUE;
     }
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-signs_minimum", &l_signs_min_str);
@@ -717,34 +722,34 @@ static int s_cli_refill(int a_argc, char **a_argv, int a_arg_index, json_object 
     const char *l_token_str = NULL, *l_value_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL, *l_tx_in_hash_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-value", &l_value_str);
     if (!l_value_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation holding requires parameter -value");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Refill command requires parameter -value");
         return ERROR_PARAM;
     }
     uint256_t l_value = dap_chain_balance_scan(l_value_str);
     if (IS_ZERO_256(l_value)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -value <256 bit integer>");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -value <256 bit integer> and not equal zero");
         return ERROR_VALUE;
     }
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-fee", &l_fee_str);
     if (!l_fee_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation holding requires parameter -fee");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Refill command requires parameter -fee");
         return ERROR_PARAM;
     }
     uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
     if (IS_ZERO_256(l_fee)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -fee <256 bit integer>");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -fee <256 bit integer> and not equal zer");
         return ERROR_VALUE;
     }
 
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_str);
     if (!l_wallet_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation holding requires parameter -w");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Refill command requires parameter -w");
         return ERROR_PARAM;
     }
 
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_in_hash_str);
     if (!l_tx_in_hash_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -tx");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Refill command requires parameter -tx");
         return ERROR_PARAM;
     }
     dap_hash_fast_t l_tx_in_hash;
@@ -767,17 +772,17 @@ static int s_cli_refill(int a_argc, char **a_argv, int a_arg_index, json_object 
     dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
     dap_chain_wallet_close(l_wallet);
 
-    // Create conditional transaction for delegated emissions
+    // Create conditional transaction for refill
     dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_refilling_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_value, l_fee, &l_tx_in_hash, NULL);
     DAP_DELETE(l_enc_key);
     if (!l_tx) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for delegated emission");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for refill shared funds tx");
         return ERROR_CREATE;
     }
     char *l_tx_hash_str = s_tx_put(l_tx, a_chain, a_hash_out_type);
     DAP_DELETE(l_tx);
     if (!l_tx_hash_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PLACE, "Can't place transaction for delegated emission in mempool");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PLACE, "Can't place transaction for refill shared funds tx in mempool");
         return ERROR_PLACE;
     }
     json_object * l_json_obj_create_val = json_object_new_object();
@@ -797,7 +802,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     uint256_t *l_value = NULL;
     dap_chain_addr_t **l_to_addr = NULL;
     uint32_t
-        l_addr_el_count = 0,  // not change type! use in TSD section
+        l_addr_el_count = 0,  // not change type! use in batching TSD section
         l_value_el_count = 0;
     dap_list_t *l_tsd_list = NULL;
     
@@ -823,7 +828,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
     uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
     if (IS_ZERO_256(l_fee)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -fee <256 bit integer>");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -fee <256 bit integer> and not equal zer");
         return ERROR_VALUE;
     }
 
@@ -877,7 +882,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
         if(IS_ZERO_256(l_value[i])) {
             DAP_DELETE(l_value);
             dap_strfreev(l_value_array);
-            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -value <256 bit integer>");
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -value <256 bit integer> and not equal zero");
             return ERROR_VALUE;
         }
     }
@@ -920,7 +925,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     // Create emission from conditional transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_to_addr, l_value, l_addr_el_count, l_fee, &l_tx_in_hash, l_tsd_list);
     DAP_DEL_ARRAY(l_to_addr, l_addr_el_count);
-    DAP_DEL_MULTY(l_to_addr, l_enc_key);
+    DAP_DEL_MULTY(l_value, l_to_addr, l_enc_key);
     dap_list_free_full(l_tsd_list, NULL);
     if (!l_tx) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for delegated emission");
@@ -1038,7 +1043,6 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_TX_MISMATCH, "Can't find final tx_out_cond");
         return ERROR_TX_MISMATCH;
     }
-    
 
     const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_final_tx_hash);
     const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_cond->header.value, &l_balance_coins);
@@ -1050,32 +1054,28 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object *l_json_jobj_info = json_object_new_object();
 
     bool l_is_base_hash_type = dap_strcmp(a_hash_out_type, "hex");
-    if (l_is_base_hash_type) {
-        json_object_object_add(l_json_jobj_info, "tx_hash", json_object_new_string(dap_enc_base58_encode_hash_to_str_static(&l_tx_hash)));
-        json_object_object_add(l_json_jobj_info, "tx_hash_final", json_object_new_string(dap_enc_base58_encode_hash_to_str_static(&l_final_tx_hash)));
-    } else {
-        json_object_object_add(l_json_jobj_info, "tx_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_tx_hash)));
-        json_object_object_add(l_json_jobj_info, "tx_hash_final", json_object_new_string(dap_hash_fast_to_str_static(&l_final_tx_hash)));
-    }
-    
-    json_object *l_jobj_ticker = json_object_new_string(l_tx_ticker);
+    // tocken block
     const char *l_description =  dap_ledger_get_description_by_ticker(a_net->pub.ledger, l_tx_ticker);
     json_object *l_jobj_description = l_description ? json_object_new_string(l_description)
                                                     : json_object_new_null();
-    json_object_object_add(l_jobj_token, "ticker", l_jobj_ticker);
+    json_object_object_add(l_jobj_token, "ticker", json_object_new_string(l_tx_ticker));
     json_object_object_add(l_jobj_token, "description", l_jobj_description);
+    // balance block
     json_object_object_add(l_jobj_balance, "coins", json_object_new_string(l_balance_coins));
     json_object_object_add(l_jobj_balance, "datoshi", json_object_new_string(l_balance_datoshi));
+    // verify block
     json_object_object_add(l_jobj_take_verify, "signs_minimum", json_object_new_uint64(l_cond->subtype.srv_emit_delegate.signers_minimum));
-    dap_tsd_t *l_tsd; size_t l_tsd_size;
+    dap_tsd_t *l_tsd = NULL; size_t l_tsd_size = 0;
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
-            json_object_array_add(l_jobj_pkey_hashes, json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(l_tsd->data) : dap_hash_fast_to_str_static(l_tsd->data)));
+            json_object_array_add(l_jobj_pkey_hashes, json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data) : dap_hash_fast_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data)));
         }
     }
-    json_object_object_add(l_json_jobj_info, "balance", l_jobj_balance);
     json_object_object_add(l_jobj_take_verify, "owner_hashes", l_jobj_pkey_hashes);
-
+    // result block
+    json_object_object_add(l_json_jobj_info, "tx_hash", json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_tx_hash) : dap_hash_fast_to_str_static(&l_tx_hash)));
+    json_object_object_add(l_json_jobj_info, "tx_hash_final", json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_final_tx_hash) : dap_hash_fast_to_str_static(&l_final_tx_hash)));
+    json_object_object_add(l_json_jobj_info, "balance", l_jobj_balance);
     json_object_object_add(l_json_jobj_info, "take_verify", l_jobj_take_verify);
     json_object_object_add(l_json_jobj_info, "token", l_jobj_token);
     json_object_array_add(*a_json_arr_reply, l_json_jobj_info);
@@ -1147,12 +1147,12 @@ int dap_chain_net_srv_emit_delegate_init()
                 "\t-w <wallet_name> - wallet to writeoff value and pay fee\n"
                 "\t-value <value> - value to refill\n"
                 "\t-fee <value> - fee value\n"
-                "\t-tx <transaction_hash> - emit delegate tx hash to refill\n"
+                "\t-tx <transaction_hash> - shared funds tx hash to refill\n"
                 "\t[-H {hex(default) | base58}] - datum hash return format\n"
-                "emit_delegate take - create take datum to writeoff value from0 emit delegate tx\n"
+                "emit_delegate take - create take datum to writeoff value from0 shared funds tx\n"
                 "\t-net <net_name>\n"
                 "\t-w <wallet_name> - wallet to pay fee\n"
-                "\t-tx <transaction_hash> - emit delegate tx hash to writeoff\n"
+                "\t-tx <transaction_hash> - shared funds tx hash to writeoff\n"
                 "\t-to_addr <addr1[,addr2,...,addrN]> - recipient addresses, count should be equal values count\n"
                 "\t-value <value1[,value2,...,valueN]> - value sent to each recipient, count should be equal addresses count\n"
                 "\t-fee <value> - fee value\n"
@@ -1160,11 +1160,11 @@ int dap_chain_net_srv_emit_delegate_init()
                 "emit_delegate sign - add wallet sign to take datum\n"
                 "\t-net <net_name>\n"
                 "\t-w <wallet_name> | -cert <cert_name> - wallet or cert to sign\n"
-                "\t-tx <transaction_hash> - emit delegate tx hash to sign\n"
+                "\t-tx <transaction_hash> - shared funds tx hash to sign\n"
                 "\t[-H {hex(default) | base58}] - datum hash return format\n"
-                "emit_delegate info - get info about emit delegate tx by hash\n"
+                "emit_delegate info - get info about shared funds tx by hash\n"
                 "\t-net <net_name>\n"
-                "\t-tx <transaction_hash> - emit delegate tx hash to get info\n"
+                "\t-tx <transaction_hash> - shared funds tx hash to get info\n"
                 "\t[-H {hex(default) | base58}] - tx hash format\n"
                 "Hint:\n"
                 "\texample value_coins (only natural) 1.0 123.4567\n"
