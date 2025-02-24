@@ -440,7 +440,6 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     for (size_t i = 0; i < a_addr_count; ++i) {
         if(IS_ZERO_256(a_value[i])) {
             m_tx_fail(ERROR_VALUE, "Format -value <256 bit integer> and not equal zero");
-            return ERROR_VALUE;
         }
         if (SUM_256_256(l_value, a_value[i], &l_value))
             m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
