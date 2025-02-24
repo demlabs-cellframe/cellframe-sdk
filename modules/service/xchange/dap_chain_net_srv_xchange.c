@@ -1766,7 +1766,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                 uint256_t l_completed = {};
                 SUBTRACT_256_256(l_item->tx_info.order_info.value, l_item->tx_info.order_info.value_ammount, &l_completed);
                 DIV_256_COIN(l_completed, l_item->tx_info.order_info.value, &l_completed);
-                MULT_256_COIN(l_completed, dap_chain_coins_to_balance("100.0"), &l_completed);
+                MULT_256_COIN(l_completed, dap_chain_balance_coins_scan("100.0"), &l_completed);
 
                 l_percent_completed = dap_chain_balance_to_coins_uint64(l_completed);
                 l_owner_addr = dap_strdup(dap_chain_addr_to_str(&l_item->seller_addr));
@@ -2401,8 +2401,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             size_t l_arr_start = 0;            
             size_t l_arr_end = 0;
             json_object* json_obj_order = json_object_new_object();
+            json_object* json_arr_orders_limit = json_object_new_array();
             json_object* json_arr_orders_out = json_object_new_array();
-            dap_chain_set_offset_limit_json(json_arr_orders_out, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list));
+            dap_chain_set_offset_limit_json(json_arr_orders_limit, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list));
+            json_object_object_add(json_obj_order, "PAGINA", json_arr_orders_limit);
             size_t i_tmp = 0;
             // Print all txs
             for (dap_list_t *it = l_list; it; it = it->next) {
@@ -2439,7 +2441,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     uint256_t l_completed = {};
                     SUBTRACT_256_256(l_item->tx_info.order_info.value, l_item->tx_info.order_info.value_ammount, &l_completed);
                     DIV_256_COIN(l_completed, l_item->tx_info.order_info.value, &l_completed);
-                    MULT_256_COIN(l_completed, dap_chain_coins_to_balance("100.0"), &l_completed);
+                    MULT_256_COIN(l_completed, dap_chain_balance_coins_scan("100.0"), &l_completed);
 
                     l_percent_completed = l_item->tx_info.order_info.percent_completed;
                 } else {
