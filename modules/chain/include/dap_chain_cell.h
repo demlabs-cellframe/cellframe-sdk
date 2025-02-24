@@ -77,6 +77,7 @@ typedef struct dap_chain_cell_decl{
 
 int dap_chain_cell_init(void);
 int dap_chain_cell_open(dap_chain_t *a_chain, const char *a_filename, const char a_mode);
+int dap_chain_cell_open_by_id(dap_chain_t *a_chain, const dap_chain_cell_id_t a_cell_id, const char a_mode);
 
 DAP_INLINE dap_chain_cell_t *dap_chain_cell_find_by_id(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id) {
     dap_chain_cell_t *l_cell = NULL;
