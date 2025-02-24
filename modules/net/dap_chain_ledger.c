@@ -3464,7 +3464,6 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     
     if(a_tag) dap_ledger_deduct_tx_tag(a_ledger, a_tx, NULL, a_tag, a_action);
     bool l_tax_check = false;
-
     // find all previous transactions
     for (dap_list_t *it = l_list_in; it; it = it->next) {
          dap_ledger_tx_bound_t *l_bound_item = DAP_NEW_Z(dap_ledger_tx_bound_t);
@@ -3981,24 +3980,10 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
 
     switch ( HASH_COUNT(l_values_from_prev_tx) ) {
     case 1:
-        l_value_cur = DAP_NEW_Z(dap_ledger_tokenizer_t);
-        if ( !l_value_cur ) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            if ( l_list_bound_items )
-                dap_list_free_full(l_list_bound_items, NULL);
-            HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
-                HASH_DEL(l_values_from_prev_tx, l_value_cur);
-                DAP_DELETE(l_value_cur);
-            }
-            return DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
-        }
-        dap_stpcpy(l_value_cur->token_ticker, l_token);
-        HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
         if (!l_main_ticker)
             l_main_ticker = l_value_cur->token_ticker;
         break;
     case 2:
-    case 3:
         if (l_main_ticker)
             break;
         HASH_FIND_STR(l_values_from_prev_tx, a_ledger->net->pub.native_ticker, l_value_cur);
@@ -4008,12 +3993,14 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         }
         break;
     default:
-        dap_list_free_full(l_list_bound_items, NULL);
-        HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
-            HASH_DEL(l_values_from_prev_tx, l_value_cur);
-            DAP_DELETE(l_value_cur);
+        if (!l_main_ticker) {
+            dap_list_free_full(l_list_bound_items, NULL);
+            HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
+                HASH_DEL(l_values_from_prev_tx, l_value_cur);
+                DAP_DELETE(l_value_cur);
+            }
+            return DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
         }
-        return DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
     }
 
     dap_chain_net_srv_stake_item_t *l_key_item = NULL;
@@ -4136,19 +4123,25 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
 
     // Check for transaction consistency (sum(ins) == sum(outs))
     if ( !l_err_num && !s_check_hal(a_ledger, a_tx_hash) ) {
-        HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
-            HASH_FIND_STR(l_values_from_cur_tx, l_value_cur->token_ticker, l_res);
-            if (!l_res || !EQUAL_256(l_res->sum, l_value_cur->sum) ) {
-                if (s_debug_more) {
-                    char *l_balance = dap_chain_balance_to_coins(l_res ? l_res->sum : uint256_0);
-                    char *l_balance_cur = dap_chain_balance_to_coins(l_value_cur->sum);
-                    log_it(L_ERROR, "Sum of values of out items from current tx (%s) is not equal outs from previous txs (%s) for token %s",
-                            l_balance, l_balance_cur, l_value_cur->token_ticker);
-                    DAP_DELETE(l_balance);
-                    DAP_DELETE(l_balance_cur);
+        if ( HASH_COUNT(l_values_from_prev_tx) != HASH_COUNT(l_values_from_cur_tx) ) {
+            log_it(L_ERROR, "Token tickers IN and OUT mismatch: %u != %u",
+                            HASH_COUNT(l_values_from_prev_tx), HASH_COUNT(l_values_from_cur_tx));
+            l_err_num = DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS;
+        } else {
+            HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
+                HASH_FIND_STR(l_values_from_cur_tx, l_value_cur->token_ticker, l_res);
+                if (!l_res || !EQUAL_256(l_res->sum, l_value_cur->sum) ) {
+                    if (s_debug_more) {
+                        char *l_balance = dap_chain_balance_to_coins(l_res ? l_res->sum : uint256_0);
+                        char *l_balance_cur = dap_chain_balance_to_coins(l_value_cur->sum);
+                        log_it(L_ERROR, "Sum of values of out items from current tx (%s) is not equal outs from previous txs (%s) for token %s",
+                                l_balance, l_balance_cur, l_value_cur->token_ticker);
+                        DAP_DELETE(l_balance);
+                        DAP_DELETE(l_balance_cur);
+                    }
+                    l_err_num = DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS;
+                    break;
                 }
-                l_err_num = DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS;
-                break;
             }
         }
     }
