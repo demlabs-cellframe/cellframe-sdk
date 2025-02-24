@@ -366,7 +366,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx_in) {
         dap_hash_fast_t l_tx_hash;
-        int l_out_idx;
+        int l_out_idx = 0;
         switch (*l_item) {
         case TX_ITEM_TYPE_IN:       // check inputs
             l_tx_hash = ((dap_chain_tx_in_t *)l_item)->header.tx_prev_hash;
@@ -418,7 +418,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         char l_vote_hash_str[DAP_HASH_FAST_STR_SIZE];
         dap_hash_fast_to_str(a_tx_hash, l_vote_hash_str, DAP_HASH_FAST_STR_SIZE);
         log_it(L_INFO, "Vote %s of voting %s has been %s", l_vote_hash_str, dap_hash_fast_to_str_static(&l_voting->hash),
-                                     l_vote_overwrited ? "accepted" : "changed");
+                                     l_vote_overwrited ? "changed" : "accepted");
     }
     return DAP_LEDGER_CHECK_OK;
 }

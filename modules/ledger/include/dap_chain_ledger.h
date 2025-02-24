@@ -516,7 +516,8 @@ dap_chain_datum_anchor_t *dap_ledger_anchor_find(dap_ledger_t *a_ledger, dap_has
 dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list, json_object* a_changed_addrs);
 dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledger);
 
-uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_tx_prev_hash, int a_out_idx);
+uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_tx_hash, int a_out_idx);
+dap_list_t *dap_ledger_tx_get_trackers(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, uint32_t a_out_idx);
 void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
 dap_pkey_t *dap_ledger_find_pkey_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_pkey_hash);
 dap_list_t *dap_ledger_decrees_get_by_type(dap_ledger_t *a_ledger, int a_type);
