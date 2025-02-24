@@ -144,6 +144,12 @@ void dap_chain_set_cs_type(dap_chain_t *a_chain, const char *a_cs_type)
     DAP_CHAIN_PVT(a_chain)->cs_type = dap_strdup(a_cs_type);
 }
 
+int dap_chain_purge(dap_chain_t *a_chain)
+{
+    int ret = dap_chain_cs_class_purge(a_chain);
+    return ret + dap_chain_cs_purge(a_chain);
+}
+
 /**
  * @brief
  * delete dap chain object
@@ -523,13 +529,15 @@ int dap_chain_load_all(dap_chain_t *a_chain)
     const char l_suffix[] = ".dchaincell", *l_filename;
     struct dirent *l_dir_entry = NULL;
     dap_time_t l_ts_start = dap_time_now();
-    while (( l_dir_entry = readdir(l_dir) ) && !l_err ) {
+    while (( l_dir_entry = readdir(l_dir) ) ) {
         l_filename = l_dir_entry->d_name;
         size_t l_namelen = strlen(l_filename);
-        if ( l_namelen >= sizeof(l_suffix) && !strncmp(l_filename + l_namelen - sizeof(l_suffix) - 1, l_suffix, sizeof(l_suffix) - 1) ) {
+        if ( l_namelen >= sizeof(l_suffix) && !strncmp(l_filename + l_namelen - (sizeof(l_suffix) - 1), l_suffix, sizeof(l_suffix) - 1) ) {
             dap_timerfd_t* l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_load_notify_callback, a_chain);
             l_err = dap_chain_cell_open(a_chain, l_filename, 'a');
             dap_timerfd_delete(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
+            if (l_err)
+                break;
             s_load_notify_callback(a_chain);
         }
     }
@@ -743,6 +751,7 @@ struct chain_thread_datum_removed_notifier {
     dap_chain_t *chain;
     dap_chain_cell_id_t cell_id;
     dap_hash_fast_t hash;
+    dap_chain_datum_t *datum;
     int ret_code;
 };
 
@@ -773,7 +782,7 @@ static bool s_notify_datum_removed_on_thread(void *a_arg)
 {
     struct chain_thread_datum_removed_notifier *l_arg = a_arg;
     assert(l_arg->callback);
-    l_arg->callback(l_arg->callback_arg, &l_arg->hash);
+    l_arg->callback(l_arg->callback_arg, &l_arg->hash, l_arg->datum);
     DAP_DELETE(l_arg);
     return false;
 }
@@ -883,7 +892,7 @@ void dap_chain_datum_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
     }
 }
 
-void dap_chain_datum_removed_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash) {
+void dap_chain_datum_removed_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash, dap_chain_datum_t *a_datum) {
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
@@ -900,8 +909,8 @@ void dap_chain_datum_removed_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_
         }
         *l_arg = (struct chain_thread_datum_removed_notifier) {
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
-            .chain = a_chain,     .cell_id = a_cell_id,
-            .hash = *a_hash};
+            .chain = a_chain,   .cell_id = a_cell_id,
+            .hash = *a_hash,    .datum = a_datum };
         dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_datum_removed_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }
 }

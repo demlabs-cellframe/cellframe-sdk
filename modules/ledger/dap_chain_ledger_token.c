@@ -37,14 +37,6 @@ dap_ledger_token_item_t *dap_ledger_pvt_find_token(dap_ledger_t *a_ledger, const
     return l_token_item;
 }
 
-inline static dap_ledger_hal_item_t *s_check_hal(dap_ledger_t *a_ledger, dap_hash_fast_t *a_hal_hash)
-{
-    dap_ledger_hal_item_t *ret = NULL;
-    HASH_FIND(hh, PVT(a_ledger)->hal_items, a_hal_hash, sizeof(dap_hash_fast_t), ret);
-    debug_if(g_debug_ledger && ret, L_MSG, "Datum %s is whitelisted", dap_hash_fast_to_str_static(a_hal_hash));
-    return ret;
-}
-
 /**
  * @brief GDB callback for loaded emissions from cache
  * @param a_global_db_context
@@ -1020,17 +1012,15 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
     int ret = s_token_tsd_parse(l_token_item, l_token, a_ledger, l_token->tsd_n_signs, l_size_tsd_section, false);
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
-    dap_ledger_hal_item_t *l_hash_found = NULL;
+    bool l_is_whitelisted = false;
     if (ret != DAP_LEDGER_CHECK_OK) {
-        if (PVT(a_ledger)->hal_items) {
-            dap_hash_fast_t l_token_hash;
-            if (!dap_hash_fast_is_blank(&l_token_update_hash))
-                l_token_hash = l_token_update_hash;
-            else
-                dap_hash_fast(a_token, a_token_size, &l_token_hash);
-            l_hash_found = s_check_hal(a_ledger, &l_token_hash);
-        }
-        if (!l_hash_found) {
+        dap_hash_fast_t l_token_hash;
+        if (!dap_hash_fast_is_blank(&l_token_update_hash))
+            l_token_hash = l_token_update_hash;
+        else
+            dap_hash_fast(a_token, a_token_size, &l_token_hash);
+            
+        if (!( l_is_whitelisted = dap_ledger_datum_is_enforced(a_ledger, &l_token_hash, true) )) {
             DAP_DELETE(l_token);
             return ret;
         }
@@ -1045,7 +1035,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         *a_tsd_total_size = l_size_tsd_section;
     if (a_signs_size)
         *a_signs_size = l_signs_size;
-    return l_hash_found ? DAP_LEDGER_CHECK_WHITELISTED : DAP_LEDGER_CHECK_OK;
+    return l_is_whitelisted ? DAP_LEDGER_CHECK_WHITELISTED : DAP_LEDGER_CHECK_OK;
 }
 
 int dap_ledger_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size)
@@ -1424,7 +1414,7 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
         size_t l_sign_data_check_size = sizeof(dap_chain_datum_token_emission_t) + l_emission->data.type_auth.tsd_total_size >= sizeof(dap_chain_datum_token_emission_t)
                                                 ? sizeof(dap_chain_datum_token_emission_t) + l_emission->data.type_auth.tsd_total_size : 0;
         if (l_sign_data_check_size > l_emission_size) {
-            if (!s_check_hal(a_ledger, a_emission_hash)) {
+            if ( !dap_ledger_datum_is_enforced(a_ledger, a_emission_hash, true) ) {
                 log_it(L_WARNING, "Incorrect size %zu of datum emission, expected at least %zu", l_emission_size, l_sign_data_check_size);
                 DAP_DELETE(l_emission);
                 return DAP_LEDGER_CHECK_INVALID_SIZE;
@@ -1445,7 +1435,7 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
 
             DAP_DELETE(l_signs);
 
-            if (!s_check_hal(a_ledger, a_emission_hash)) {
+            if ( !dap_ledger_datum_is_enforced(a_ledger, a_emission_hash, true) ) {
 
                 log_it(L_WARNING, "The number of unique token signs %zu is less than total token signs set to %zu",
                        l_signs_unique, l_token_item->auth_signs_total);
@@ -1479,8 +1469,7 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
             l_emission->data.type_auth.tsd_n_signs_size = l_sign_auth_size;
         }
         DAP_DELETE(l_signs);
-        if (l_aproves < l_token_item->auth_signs_valid &&
-                !s_check_hal(a_ledger, a_emission_hash)) {
+        if (l_aproves < l_token_item->auth_signs_valid && !dap_ledger_datum_is_enforced(a_ledger, a_emission_hash, true) ) {
             log_it(L_WARNING, "Emission of %s datoshi of %s:%s is wrong: only %zu valid aproves when %zu need",
                         dap_uint256_to_char(l_emission->hdr.value, NULL), a_ledger->net->pub.name, l_emission->hdr.ticker,
                         l_aproves, l_token_item->auth_signs_valid);

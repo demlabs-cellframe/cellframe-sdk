@@ -70,7 +70,7 @@ typedef struct dap_chain_cs_blocks_pvt {
 
     // All the blocks are here
     dap_chain_block_cache_t *blocks;
-     _Atomic uint64_t blocks_count;
+    _Atomic uint64_t blocks_count;
 
     // Brnches and forks
     size_t forked_br_cnt;
@@ -92,6 +92,11 @@ typedef struct dap_chain_cs_blocks_pvt {
     // Number of blocks for one block confirmation
     uint64_t block_confirm_cnt;
 } dap_chain_cs_blocks_pvt_t;
+
+typedef struct dap_chain_block_fork_resolved_notificator{
+    dap_chain_cs_blocks_callback_fork_resolved_t callback;
+    void *arg;
+} dap_chain_block_fork_resolved_notificator_t;
 
 #define PVT(a) ((dap_chain_cs_blocks_pvt_t *)(a)->_pvt )
 
@@ -176,6 +181,7 @@ static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_c
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
 
+static dap_list_t *s_fork_resolved_notificators = NULL;
 
 /**
  * @brief dap_chain_cs_blocks_init
@@ -389,6 +395,25 @@ dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_
     HASH_FIND(hh, PVT(a_blocks)->blocks,a_block_hash, sizeof (*a_block_hash), l_ret );
     pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
     return l_ret;
+}
+
+int dap_chain_block_add_fork_notificator(dap_chain_cs_blocks_callback_fork_resolved_t a_callback, void *a_arg)
+{
+    if (!a_callback)
+        return -100;
+
+    dap_chain_block_fork_resolved_notificator_t *l_notificator = DAP_NEW_Z(dap_chain_block_fork_resolved_notificator_t);
+    if (!l_notificator) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return -1;
+    }
+
+    l_notificator->arg = a_arg;
+    l_notificator->callback = a_callback;
+
+    s_fork_resolved_notificators = dap_list_append(s_fork_resolved_notificators, l_notificator);
+
+    return 0;
 }
 
 static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_chain, uint256_t a_value, dap_cert_t *a_cert)
@@ -760,8 +785,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             char l_time_buf[DAP_TIME_STR_SIZE], l_hexbuf[32] = { '\0' };
             // Header
             json_object* json_obj_inf = json_object_new_object();
+
             json_object_object_add(json_obj_inf, "block_number", json_object_new_uint64(l_block_cache->block_number));
-            json_object_object_add(json_obj_inf, "hash", json_object_new_string(l_subcmd_str_arg));
+            json_object_object_add(json_obj_inf, "hash", json_object_new_string(l_hash_str));
             snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%04X",l_block->hdr.version);
             
             json_object_object_add(json_obj_inf, "version", json_object_new_string(l_hexbuf));
@@ -1606,7 +1632,7 @@ static int s_delete_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block
             l_ret++;
             HASH_DEL(PVT(a_blocks)->datum_index, l_datum_index);
             // notify datum removed
-            dap_chain_datum_removed_notify(a_blocks->chain, a_block_cache->block->hdr.cell_id, l_datum_hash);
+            dap_chain_datum_removed_notify(a_blocks->chain, a_block_cache->block->hdr.cell_id, l_datum_hash, l_datum);
         }
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
@@ -1659,6 +1685,10 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
     }
 
     if (a_main_branch_length < l_longest_branch_length){
+        dap_list_t *l_reverted_blocks_list= NULL;
+        uint64_t l_reverted_blocks_cnt = 0;
+        uint64_t l_main_blocks_cnt = 0;
+
         log_it(L_INFO,"Found new longest branch. Start switching.");
         // Switch branches
         dap_chain_block_forked_branch_atoms_table_t *l_new_forked_branch = NULL;
@@ -1671,8 +1701,11 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
                 l_new_item->block_cache = l_atom;
                 l_new_item->block_hash = l_atom->block_hash;
                 HASH_ADD(hh, l_new_forked_branch, block_hash, sizeof(dap_hash_fast_t), l_new_item);
+                l_reverted_blocks_cnt++;
+                dap_hash_fast_t *l_reverted_block_hash = DAP_DUP_SIZE(&l_atom->block_hash, sizeof(l_atom->block_hash));
+                l_reverted_blocks_list = dap_list_prepend(l_reverted_blocks_list, l_reverted_block_hash);
                 l_atom = l_atom->hh.next;
-            }
+        }
         // Next we must to remove all blocks from main branch and delete all datums in this atoms from storages
         dap_chain_block_forked_branch_atoms_table_t *l_last_new_forked_item = HASH_LAST(l_new_forked_branch);
         for (l_curr_index = 0; l_last_new_forked_item && l_curr_index < a_main_branch_length; l_last_new_forked_item = l_last_new_forked_item->hh.prev, ++l_curr_index){
@@ -1694,7 +1727,15 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
             s_add_atom_datums(l_blocks, l_curr_atom);
             dap_chain_atom_notify(a_blocks->chain, l_curr_atom->block->hdr.cell_id, &l_curr_atom->block_hash, (byte_t*)l_curr_atom->block, l_curr_atom->block_size);
             HASH_DEL(new_main_branch, l_item);
+            l_main_blocks_cnt++;
         }
+        // Notify about branch switching
+        for (dap_list_t *l_temp = s_fork_resolved_notificators; l_temp; l_temp = l_temp->next){
+            dap_chain_block_fork_resolved_notificator_t *l_notificator = (dap_chain_block_fork_resolved_notificator_t*)l_temp->data;
+            l_notificator->callback(l_blocks->chain, a_bcache->block_hash, l_reverted_blocks_list, l_reverted_blocks_cnt, l_main_blocks_cnt, l_notificator->arg);
+        }
+
+        dap_list_free_full(l_reverted_blocks_list, NULL);
         // Next we save pointer to new forked branch (former main branch) instead of it
         l_longest_branch_cache_ptr->forked_branch_atoms = l_new_forked_branch;
         return true;
@@ -2005,10 +2046,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                 log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
                 return ATOM_REJECT;
             }
-            if (dap_chain_net_srv_stake_switch_table(a_chain->net_id, false)) {  // return to main
-                log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
-                return ATOM_REJECT;
-            }
         } else {
             char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&PVT(l_blocks)->static_genesis_block_hash, l_hash_str, sizeof(l_hash_str));
@@ -2096,12 +2133,17 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
             HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
             if (!l_hash_found) {
                 log_it(L_WARNING, "Block %s rejected by block verificator", dap_hash_fast_to_str_static(a_atom_hash));
-                return ATOM_REJECT;
+                ret = ATOM_REJECT;
             }
         }
     } else if (ret == ATOM_MOVE_TO_THRESHOLD) {
         debug_if(s_debug_more,L_DEBUG,"%s","Can't find valid previous block in chain or forked branches.");
-        return ATOM_REJECT;
+        ret = ATOM_REJECT;
+    }
+    if (l_is_genesis && l_generation && a_chain->generation < l_generation &&
+            dap_chain_net_srv_stake_switch_table(a_chain->net_id, false)) {  // return to main
+        log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
+        ret = ATOM_REJECT;
     }
     return ret;
 }
@@ -2571,7 +2613,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
         if (!l_blocks->block_new) {
             dap_chain_block_cache_t *l_bcache_last = HASH_LAST(l_blocks_pvt->blocks);
             l_blocks->block_new = dap_chain_block_new(&l_bcache_last->block_hash, &l_blocks->block_new_size);
-            l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
+            l_blocks->block_new->hdr.cell_id = a_chain->hardfork_data ? c_dap_chain_cell_id_hardfork : c_dap_chain_cell_id_null;
             l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
         }
         l_blocks->block_new_size = dap_chain_block_datum_add(&l_blocks->block_new, l_blocks->block_new_size, l_datum, l_datum_size);

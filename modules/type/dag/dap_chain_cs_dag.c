@@ -504,7 +504,8 @@ static unsigned s_chain_callback_prefetched_atoms_add(dap_chain_t *a_chain) {
     dap_chain_cs_dag_event_item_t *l_event_item, *l_tmp;
     HASH_ITER(hh, PVT(l_dag)->events_prefetched, l_event_item, l_tmp) {
         HASH_DEL(PVT(l_dag)->events_prefetched, l_event_item);
-        s_chain_callback_atom_add(a_chain, l_event_item->event, l_event_item->event_size, &l_event_item->datum_hash, false);
+        s_chain_callback_atom_add(a_chain, l_event_item->event, l_event_item->event_size, &l_event_item->hash, false);
+        DAP_DELETE(l_event_item);
         a_chain->load_progress = (int)((float)++i/q * 100 + 0.5);
     }
     return i;
@@ -547,24 +548,14 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     }
     bool l_load_mode = dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id));
     dap_chain_cs_dag_event_item_t *l_event_item;
-    if (l_load_mode) {
-        assert( (intptr_t)a_atom_hash % alignof(dap_chain_cs_dag_event_item_t) == 0 );
-        union {
-            dap_hash_fast_t *hash;
-            dap_chain_cs_dag_event_item_t *item;
-        } l_punner = { .hash = a_atom_hash };
-        l_event_item = l_punner.item; //(dap_chain_cs_dag_event_item_t*)(a_atom_hash); // Guaranteed by C1x §6.7.2.1.13
-        l_event_item->ts_added = dap_time_now();
-    } else {
-        l_event_item = DAP_NEW(dap_chain_cs_dag_event_item_t);
-        *l_event_item = (dap_chain_cs_dag_event_item_t) {
-            .hash       = *a_atom_hash,
-            .ts_added   = dap_time_now(),
-            .event      = a_chain->is_mapped ? l_event : DAP_DUP_SIZE(l_event, a_atom_size),
-            .event_size = a_atom_size,
-            .ts_created = l_event->header.ts_created
-        };
-    }
+    l_event_item = DAP_NEW(dap_chain_cs_dag_event_item_t);
+    *l_event_item = (dap_chain_cs_dag_event_item_t) {
+        .hash       = *a_atom_hash,
+        .ts_added   = dap_time_now(),
+        .event      = a_chain->is_mapped ? l_event : DAP_DUP_SIZE(l_event, a_atom_size),
+        .event_size = a_atom_size,
+        .ts_created = l_event->header.ts_created
+    };
 
     switch (ret) {
     case ATOM_MOVE_TO_THRESHOLD: {
@@ -605,7 +596,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             debug_if(s_debug_more, L_WARNING, "... added with ledger code %d", l_consensus_check);
             break;
         }
-
+        HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
         dap_chain_atom_notify(l_dag->chain, l_event_item->event->header.cell_id, &l_event_item->hash, (const byte_t*)l_event_item->event, l_event_item->event_size);
         dap_chain_atom_add_from_threshold(a_chain);
@@ -818,7 +809,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_c
     // genesis or seed mode
     if ( !l_event->header.hash_count ) {
         if ( s_seed_mode ) /* TODO: lock with mutex too. Is this yet used?...*/
-            return PVT(l_dag)->events
+            return !PVT(l_dag)->events
                 ? log_it(L_NOTICE,"Treating event %s as genesis. Time to turn seed mode off!", dap_hash_fast_to_str_static(a_atom_hash)), ATOM_ACCEPT
                 : ( log_it(L_ERROR, "Genesis event is already present! Turn off seed mode and try again!"), ATOM_REJECT );
         if ( l_dag->is_static_genesis_event ) {
@@ -882,21 +873,13 @@ void s_dag_events_lasts_delete_linked_with_event(dap_chain_cs_dag_t * a_dag, dap
     }
 }
 
-void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item){
+void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_item_t *a_event_item)
+{
     //delete linked with event
     s_dag_events_lasts_delete_linked_with_event(a_dag, a_event_item->event);
-
     //add self
-    dap_chain_cs_dag_event_item_t * l_event_last= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
-    if (!l_event_last) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return;
-    }
-    l_event_last->ts_added = a_event_item->ts_added;
-    l_event_last->event = a_event_item->event;
-    l_event_last->event_size = a_event_item->event_size;
-    dap_hash_fast(l_event_last->event, a_event_item->event_size,&l_event_last->hash );
-    HASH_ADD(hh,PVT(a_dag)->events_lasts_unlinked,hash, sizeof(l_event_last->hash),l_event_last);
+    dap_chain_cs_dag_event_item_t *l_event_last = DAP_DUP_RET_IF_FAIL(a_event_item);
+    HASH_ADD(hh, PVT(a_dag)->events_lasts_unlinked, hash, sizeof(l_event_last->hash), l_event_last);
 }
 
 

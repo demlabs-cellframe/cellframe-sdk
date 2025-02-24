@@ -1907,7 +1907,7 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_
             }
             if ( l_chain->callback_get_poa_certs ) {
                 uint16_t l_min_count = 0;
-                a_net->pub.keys = dap_list_append(a_net->pub.keys, l_chain->callback_get_poa_certs(l_chain, NULL, &l_min_count));
+                a_net->pub.keys = dap_list_concat(a_net->pub.keys, l_chain->callback_get_poa_certs(l_chain, NULL, &l_min_count));
                 a_net->pub.keys_min_count += l_min_count;
             }
         } else {
@@ -2675,8 +2675,8 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
         return -101;
     }
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
-    if ( dap_ledger_datum_is_blacklisted(l_ledger, *a_datum_hash) )
-        return log_it(L_ERROR, "Datum is blackilsted"), -100;
+    if ( dap_ledger_datum_is_enforced(l_ledger, a_datum_hash, false) )
+        return log_it(L_ERROR, "Datum is blacklisted"), -100;
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
