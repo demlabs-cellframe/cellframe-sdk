@@ -315,7 +315,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
 
     dap_chain_addr_t l_owner_addr;
     dap_chain_addr_fill_from_key(&l_owner_addr, a_enc_key, a_net->pub.id);
-    dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
+    dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
                             &l_owner_addr, l_value, &l_value_transfer);
     if (!l_list_fee_out)
         m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
