@@ -246,18 +246,24 @@ json_object *dap_chain_policy_list(uint64_t a_net_id)
     dap_return_val_if_pass(!l_net_item, NULL);
     json_object *l_ret = json_object_new_object();
 
-    dap_string_t *l_add_str = dap_string_new("");
+    dap_string_t *l_active_str = dap_string_new("");
+    dap_string_t *l_inactive_str = dap_string_new("");
     for (dap_list_t *l_iter = dap_list_first(l_net_item->policies); l_iter; l_iter = l_iter->next) {
-        dap_string_append_printf(l_add_str, "CN-%u ", ((dap_chain_policy_t *)l_iter->data)->activate.num);
+        if (dap_chain_policy_activated(((dap_chain_policy_t *)l_iter->data)->activate.num, a_net_id))
+            dap_string_append_printf(l_active_str, "CN-%u ", ((dap_chain_policy_t *)l_iter->data)->activate.num);
+        else
+            dap_string_append_printf(l_inactive_str, "CN-%u ", ((dap_chain_policy_t *)l_iter->data)->activate.num);
     }
-    json_object_object_add(l_ret, "active", json_object_new_string(l_add_str->str));
+    json_object_object_add(l_ret, "active", json_object_new_string(l_active_str->str));
+    json_object_object_add(l_ret, "inactive", json_object_new_string(l_inactive_str->str));
     
-    dap_string_erase(l_add_str, 0, -1);
+    dap_string_free(l_active_str, true);
+    dap_string_erase(l_inactive_str, 0, -1);
     for (dap_list_t *l_iter = dap_list_first(l_net_item->exception_list); l_iter; l_iter = l_iter->next) {
-        dap_string_append_printf(l_add_str, "CN-%u ", (uint32_t)(uintptr_t)l_iter->data);
+        dap_string_append_printf(l_inactive_str, "CN-%u ", (uint32_t)(uintptr_t)l_iter->data);
     }
-    json_object_object_add(l_ret, "inactive", json_object_new_string(l_add_str->str));
-    dap_string_free(l_add_str, true);
+    json_object_object_add(l_ret, "in exception list", json_object_new_string(l_inactive_str->str));
+    dap_string_free(l_inactive_str, true);
     return l_ret;
 }
 
