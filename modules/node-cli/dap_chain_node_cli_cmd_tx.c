@@ -450,7 +450,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
         uint8_t *l_tx_item = NULL;
         size_t l_size; int i, q = 0;
-        // Проход по входам
+        // Check all INs
         TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_IN_ALL, l_size, i, l_tx) {
             dap_chain_hash_fast_t *l_tx_prev_hash = NULL;
             int l_tx_prev_out_idx;
