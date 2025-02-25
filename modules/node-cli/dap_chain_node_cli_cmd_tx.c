@@ -450,7 +450,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
         uint8_t *l_tx_item = NULL;
         size_t l_size; int i, q = 0;
-        // Проход по входам
+        // Check all INs
         TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_IN_ALL, l_size, i, l_tx) {
             dap_chain_hash_fast_t *l_tx_prev_hash = NULL;
             int l_tx_prev_out_idx;
@@ -573,7 +573,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             case TX_ITEM_TYPE_OUT_COND:
                 l_value = ((dap_chain_tx_out_cond_t *)it->data)->header.value;
                 if (((dap_chain_tx_out_cond_t *)it->data)->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
-                    SUM_256_256(l_fee_sum, ((dap_chain_tx_out_cond_t *)it->data)->header.value, &l_fee_sum);
+                    SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
                     l_dst_token = l_native_ticker;
                 } else
                     l_dst_token = l_src_token;
@@ -725,7 +725,6 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             json_object *l_cond_send_value_obj = json_object_object_get(l_cond_send_object, "send_datoshi");
             const char *l_cond_send_value_str = json_object_get_string(l_cond_send_value_obj);
             uint256_t l_cond_send_value = dap_uint256_scan_uninteger(l_cond_send_value_str);
-            assert(!IS_ZERO_256(l_cond_recv_value) && !IS_ZERO_256(l_cond_send_value));
             int l_direction = compare256(l_cond_recv_value, l_cond_send_value);
             if (l_direction > 0) {
                 SUBTRACT_256_256(l_cond_recv_value, l_cond_send_value, &l_cond_recv_value);
@@ -889,7 +888,7 @@ json_object *dap_db_history_tx_all(json_object* a_json_arr_reply, dap_chain_t *a
                 json_object_put(json_arr_out);
                 return NULL;
             }
-            json_object_object_add(json_tx_history, "tx number", json_object_new_uint64(l_count+1));                     
+            json_object_object_add(json_tx_history, "tx_number", json_object_new_uint64(l_count+1));                     
             json_object_array_add(json_arr_out, json_tx_history);
             ++i_tmp;
             l_count++;            
@@ -951,7 +950,7 @@ static json_object* dap_db_chain_history_token_list(json_object* a_json_arr_repl
             l_jobj_ticker = json_object_new_object();
             dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
             json_object *l_current_state = dap_ledger_token_info_by_name(l_ledger, l_token->ticker);
-            json_object_object_add(l_jobj_ticker, "current state", l_current_state);
+            json_object_object_add(l_jobj_ticker, "current_state", l_current_state);
             l_jobj_decls = json_object_new_array();
             l_jobj_updates = json_object_new_array();
             json_object_object_add(l_jobj_ticker, "declarations", l_jobj_decls);
@@ -965,7 +964,7 @@ static json_object* dap_db_chain_history_token_list(json_object* a_json_arr_repl
         int l_ret_code = l_datum_iter->ret_code;
         json_object* json_history_token = json_object_new_object();
         json_object_object_add(json_history_token, "status", json_object_new_string(l_ret_code ? "DECLINED" : "ACCEPTED"));
-        json_object_object_add(json_history_token, "Ledger return code", json_object_new_int(l_ret_code));
+        json_object_object_add(json_history_token, "ledger_return_code", json_object_new_int(l_ret_code));
         switch (l_token->type) {
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC:
@@ -1582,7 +1581,8 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
 //    int cmd_num = 1;
 //    const char *value_str = NULL;
     const char *addr_base58_to = NULL;
-    const char *str_tmp = NULL;
+    const char * l_fee_str = NULL;
+    const char * l_value_str = NULL;
     const char * l_from_wallet_name = NULL;
     const char * l_wallet_fee_name = NULL;
     const char * l_token_ticker = NULL;
@@ -1631,14 +1631,14 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
         l_tx_num = strtoul(l_tx_num_str, NULL, 10);
 
     // Validator's fee
-    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &str_tmp)) {
-        if (!str_tmp) {
+    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_str)) {
+        if (!l_fee_str) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE, "tx_create requires parameter '-fee'");
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE;
         }
-        l_value_fee = dap_chain_balance_scan(str_tmp);
+        l_value_fee = dap_chain_balance_scan(l_fee_str);
     }
-    if (IS_ZERO_256(l_value_fee) && (!l_emission_hash_str || (str_tmp && strcmp(str_tmp, "0")))) {
+    if (IS_ZERO_256(l_value_fee) && (!l_emission_hash_str || (l_fee_str && strcmp(l_fee_str, "0")))) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256, "tx_create requires parameter '-fee' to be valid uint256");
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256;
     }
@@ -1716,17 +1716,17 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_TOKEN_NOT_DECLARATED_IN_NET;
         }
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_addr", &addr_base58_to);
-        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &str_tmp);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &l_value_str);
         if (!addr_base58_to) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_TO_ADDR, "tx_create requires parameter '-to_addr'");
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_TO_ADDR;
         }
-        if (!str_tmp) {
+        if (!l_value_str) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE, "tx_create requires parameter '-value' to be valid uint256 value");
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE;
         }
         l_addr_el_count = dap_str_symbol_count(addr_base58_to, ',') + 1;
-        l_value_el_count = dap_str_symbol_count(str_tmp, ',') + 1;
+        l_value_el_count = dap_str_symbol_count(l_value_str, ',') + 1;
 
         if (l_addr_el_count != l_value_el_count) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE, "num of '-to_addr' and '-value' should be equal");
@@ -1738,7 +1738,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR, c_error_memory_alloc);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
         }
-        char **l_value_array = dap_strsplit(str_tmp, ",", l_value_el_count);
+        char **l_value_array = dap_strsplit(l_value_str, ",", l_value_el_count);
         if (!l_value_array) {
             DAP_DELETE(l_value);
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "Can't read '-to_addr' arg");
@@ -2202,7 +2202,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     } else if (l_is_tx_count) {
         json_object * json_count_obj= json_object_new_object();
-        json_object_object_add(json_count_obj, "Number of transaction", json_object_new_uint64(l_chain->callback_count_tx(l_chain)));
+        json_object_object_add(json_count_obj, "number_of_transaction", json_object_new_uint64(l_chain->callback_count_tx(l_chain)));
         json_object_array_add(*a_json_arr_reply, json_count_obj);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     }

@@ -1667,16 +1667,16 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             }
             if (l_voting_params->voting_expire) {
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_voting_params->voting_expire);
-                json_object_object_add(json_obj_item,"Voting expire", json_object_new_string(l_tmp_buf));
+                json_object_object_add(json_obj_item,"voting_expire", json_object_new_string(l_tmp_buf));
             }
             if (l_voting_params->votes_max_count) {
-                json_object_object_add(json_obj_item, "Votes max count", json_object_new_uint64(l_voting_params->votes_max_count));
+                json_object_object_add(json_obj_item, "votes_max_count", json_object_new_uint64(l_voting_params->votes_max_count));
             }
-            json_object_object_add(json_obj_item,"Changing vote is", l_voting_params->vote_changing_allowed ? json_object_new_string("available") :
+            json_object_object_add(json_obj_item,"changing_vote_is", l_voting_params->vote_changing_allowed ? json_object_new_string("available") :
                                     json_object_new_string("not available"));
             l_voting_params->delegate_key_required ?
-                json_object_object_add(json_obj_item,"Delegated key for participating in voting", json_object_new_string("required")):
-                json_object_object_add(json_obj_item,"Delegated key for participating in voting", json_object_new_string("not required"));
+                json_object_object_add(json_obj_item,"delegated_key_for_participating_in_voting", json_object_new_string("required")):
+                json_object_object_add(json_obj_item,"delegated_key_for_participating_in_voting", json_object_new_string("not required"));
 
             dap_list_free_full(l_voting_params->options, NULL);
             DAP_DELETE(l_voting_params->question);

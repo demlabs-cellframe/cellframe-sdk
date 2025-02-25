@@ -3078,8 +3078,8 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     json_object_object_add(l_json_obj_stake, "sovereign_tax", json_object_new_string(l_sov_tax_str));
     if (s_debug_more) {
         json_object_object_add(l_json_obj_stake, "debug_info", NULL);
-        json_object_object_add(l_json_obj_stake, "\tpkey_full", json_object_new_string(a_stake->pkey ? "true" : "false"));
-        json_object_object_add(l_json_obj_stake, "\tdecree_hash", json_object_new_string(dap_hash_fast_to_str_static(&a_stake->decree_hash)));
+        json_object_object_add(l_json_obj_stake, "pkey_full", json_object_new_string(a_stake->pkey ? "true" : "false"));
+        json_object_object_add(l_json_obj_stake, "decree_hash", json_object_new_string(dap_hash_fast_to_str_static(&a_stake->decree_hash)));
     }
     if (dap_chain_esbocs_started(a_stake->signing_addr.net_id))
         json_object_object_add(l_json_obj_stake, "active", json_object_new_string(a_stake->is_active ? "true" : "false"));
@@ -4045,7 +4045,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(a_chain), &l_in_reward->block_hash);
                 json_arr_sign_out = json_object_new_array();
                 json_block_hash = json_object_new_object();
-                json_object_object_add(json_block_hash, "block hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_in_reward->block_hash))); 
+                json_object_object_add(json_block_hash, "block_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_in_reward->block_hash))); 
                 dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                 size_t l_sign_size = dap_sign_get_size(l_sign);
                 dap_chain_hash_fast_t l_pkey_hash;
@@ -4059,8 +4059,8 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 DAP_DELETE(l_block_sign_pkey);
                 const char  *l_coins_str,
                         *l_value_str = dap_uint256_to_char(l_value_reward, &l_coins_str);
-                json_object_object_add(json_obj_sign, "reward value", json_object_new_string(l_value_str));
-                json_object_object_add(json_obj_sign, "reward coins", json_object_new_string(l_coins_str));
+                json_object_object_add(json_obj_sign, "reward_value", json_object_new_string(l_value_str));
+                json_object_object_add(json_obj_sign, "reward_coins", json_object_new_string(l_coins_str));
                 if (json_object_object_length(json_obj_sign))
                     json_object_array_add(json_arr_sign_out, json_obj_sign);                   
                 SUM_256_256(l_value_total_calc, l_value_reward, &l_value_total_calc);
@@ -4071,8 +4071,8 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
             const char  *l_coins_t_out_str, *l_value_t_str;
             json_object* json_value_t_out = json_object_new_object();
             l_value_t_str = dap_uint256_to_char(l_value_total_calc, &l_coins_t_out_str);
-            json_object_object_add(json_value_t_out, "Rewards value (calculated)", json_object_new_string(l_value_t_str));
-            json_object_object_add(json_value_t_out, "Rewards coins (calculated)", json_object_new_string(l_coins_t_out_str));
+            json_object_object_add(json_value_t_out, "rewards_value_calculated", json_object_new_string(l_value_t_str));
+            json_object_object_add(json_value_t_out, "rewards_coins_calculated", json_object_new_string(l_coins_t_out_str));
             json_object_array_add(json_obj_reward, json_value_t_out);
         }
 
@@ -4080,8 +4080,8 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
         json_object* json_value_out = json_object_new_object();
         SUM_256_256(l_value_total, l_value_out, &l_value_total);
         l_value_str = dap_uint256_to_char(l_value_out, &l_coins_out_str);
-        json_object_object_add(json_value_out, "Rewards value (tx_out)", json_object_new_string(l_value_str));
-        json_object_object_add(json_value_out, "Rewards coins (tx_out)", json_object_new_string(l_coins_out_str));
+        json_object_object_add(json_value_out, "rewards_value_tx_out", json_object_new_string(l_value_str));
+        json_object_object_add(json_value_out, "rewards_coins_tx_out", json_object_new_string(l_coins_out_str));
         json_object_array_add(json_obj_reward, json_value_out);
         i_tmp++;
         dap_list_free(l_list_in_items);
@@ -4089,8 +4089,8 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
         const char  *l_coins_out_str, *l_value_str;
         json_object* json_value_out = json_object_new_object();
         l_value_str = dap_uint256_to_char(l_value_total, &l_coins_out_str);
-        json_object_object_add(json_value_out, "Rewards value (total)", json_object_new_string(l_value_str));
-        json_object_object_add(json_value_out, "Rewards coins (total)", json_object_new_string(l_coins_out_str));
+        json_object_object_add(json_value_out, "rewards_value_total", json_object_new_string(l_value_str));
+        json_object_object_add(json_value_out, "rewards_coins_total", json_object_new_string(l_coins_out_str));
         json_object_array_add(json_obj_reward, json_value_out);
     a_chain->callback_datum_iter_delete(l_datum_iter);
     return json_obj_reward;
