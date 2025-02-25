@@ -86,6 +86,7 @@
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_policy.h"
+#include "dap_time.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
 
@@ -6030,17 +6031,21 @@ int com_policy(int argc, char **argv, void **reply) {
 
 
     if (l_ts_start_str) {
-        struct tm l_tm = { };
-        strptime(l_ts_start_str, "%d/%m/%Y-%H:%M:%S", &l_tm);
-        l_tm.tm_year += 2000;
-        l_policy->activate.ts_start = mktime(&l_tm);
+        l_policy->activate.ts_start = dap_time_from_str_custom(l_ts_start_str, "%d/%m/%y-%H:%M:%S");
+        if (!l_policy->activate.ts_start) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -13, "Can't read ts_start \"%s\"", l_ts_start_str);
+            DAP_DELETE(l_policy);
+            return -13;
+        }
     }
 
     if (l_ts_stop_str) {
-        struct tm l_tm = { };
-        strptime(l_ts_stop_str, "%d/%m/%Y-%H:%M:%S", &l_tm);
-        l_tm.tm_year += 2000;
-        l_policy->activate.ts_stop = mktime(&l_tm);
+        l_policy->activate.ts_stop = dap_time_from_str_custom(l_ts_stop_str, "%d/%m/%y-%H:%M:%S");
+        if (!l_policy->activate.ts_stop) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -14, "Can't read ts_stop \"%s\"", l_ts_stop_str);
+            DAP_DELETE(l_policy);
+            return -14;
+        }
         if (l_policy->activate.ts_stop <= l_policy->activate.ts_start) {
             dap_json_rpc_error_add(*a_json_arr_reply, -12, "ts_start should less than ts_stop");
             DAP_DELETE(l_policy);
