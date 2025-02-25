@@ -23,7 +23,8 @@
 
 #include "dap_chain_ledger.h"
 
-#define MAX_OUT_ITEMS   10
+#define LEDGER_PVT_TX_META_FLAG_MULTICHANNEL    BIT(1)
+#define LEDGER_PVT_TX_META_FLAG_IMMUTABLE       BIT(2)
 
 enum ledger_permissions {
     LEDGER_PERMISSION_RECEIVER_ALLOWED,
@@ -104,7 +105,7 @@ typedef struct dap_ledger_tx_item {
         uint32_t n_outs;
         uint32_t n_outs_used;
         char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-        byte_t multichannel;
+        byte_t flags;
         dap_time_t ts_spent;
         dap_chain_srv_uid_t tag; //tag (or service this tx is belong to)
         dap_chain_tx_tag_action_type_t action;
