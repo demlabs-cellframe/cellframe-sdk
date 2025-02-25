@@ -549,11 +549,10 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
     l_states->trusted_addrs = a_trusted_addrs;
     a_chain->hardfork_data = l_states;
     a_chain->generation++;
-    dap_chain_purge(a_chain);
     dap_ledger_tx_purge(l_net->pub.ledger, false);
     dap_chain_srv_purge_all(a_chain->net_id);
-    dap_chain_cell_close(a_chain, a_chain->cells->id);
-    dap_chain_cell_open(a_chain, "8000000000000000.dchaincell", 'w'); //dap_chain_cell_create(a_chain, c_dap_chain_cell_id_hardfork);
+    dap_chain_purge(a_chain);
+    dap_chain_cell_create(a_chain, c_dap_chain_cell_id_hardfork);
     l_net->pub.ledger->is_hardfork_state = true;
     return 0;
 }

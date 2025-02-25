@@ -4173,12 +4173,12 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
                 }
                 dap_strfreev(l_addrs);
+            }
 
-                if (dap_chain_net_srv_stake_hardfork_data_export(l_net, &l_tsd_list)) {
-                    log_it(L_ERROR, "Can't add stake delegate data to hardfork decree");
-                    dap_list_free_full(l_tsd_list, NULL);
-                    return -300;
-                }
+            if (dap_chain_net_srv_stake_hardfork_data_export(l_net, &l_tsd_list)) {
+                log_it(L_ERROR, "Can't add stake delegate data to hardfork decree");
+                dap_list_free_full(l_tsd_list, NULL);
+                return -300;
             }
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_retry", &l_param_value_str)) {
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_VALIDATORS;

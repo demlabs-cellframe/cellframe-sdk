@@ -64,7 +64,7 @@ struct srv_voting {
 
 static void *s_callback_start(dap_chain_net_id_t UNUSED_ARG a_net_id, dap_config_t UNUSED_ARG *a_config);
 static void s_callback_delete(void *a_service_internal);
-static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count);
+static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count, void *a_service_internal);
 static int s_votings_restore(dap_chain_net_id_t a_net_id, byte_t *a_state, uint64_t a_state_size, uint32_t a_states_count);
 
 static int s_voting_ledger_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
@@ -1407,13 +1407,13 @@ static size_t s_voting_serial_size_calc(struct voting *a_voting, size_t *a_votes
     return ret;
 }
 
-static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count)
+static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count, void *a_service_internal)
 {
     if (a_state_count)
         *a_state_count = 0;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     assert(l_net);
-    struct voting *votings_ht = s_votings_ht_get(l_net->pub.id);
+    struct voting *votings_ht = a_service_internal ? ((struct srv_voting *)a_service_internal)->ht : NULL;
     if (!votings_ht) {
         log_it(L_INFO, "No data to backup for voting service for net id 0x%016" DAP_UINT64_FORMAT_x, l_net->pub.id.uint64);
         return NULL;

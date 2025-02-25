@@ -42,7 +42,7 @@ typedef int (*dap_chain_srv_callback_purge_t)(dap_chain_net_id_t a_net_id);
 // Get fee service callback
 typedef json_object * (*dap_chain_srv_callback_get_fee)(dap_chain_net_id_t a_net_id);
 // Hardfork prepare service callback
-typedef byte_t * (*dap_chain_srv_callback_hardfork_prepare_t)(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count);
+typedef byte_t * (*dap_chain_srv_callback_hardfork_prepare_t)(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count, void *a_service_internal);
 // Hardfork data load service callback
 typedef int (*dap_chain_srv_callback_hardfork_data_t)(dap_chain_net_id_t a_net_id, byte_t *a_state, uint64_t a_state_size, uint32_t a_state_count);
 // Delete service callback

@@ -1541,7 +1541,6 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
         l_datum_index = NULL;
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
-    dap_chain_cell_close_all(a_chain);
     return 0;
 }
 

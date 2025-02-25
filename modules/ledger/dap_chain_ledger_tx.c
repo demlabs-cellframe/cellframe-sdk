@@ -2594,6 +2594,7 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
                     continue;
                 }
                 s_aggregate_out_cond(&l_cond_ret, a_ledger, l_out, l_tx_sign, &it->tx_hash_fast, it->cache_data.token_ticker, a_hardfork_decree_creation_time, l_trackers);
+                break;
             }
             default:
                 log_it(L_ERROR, "Unexpected item type %hhu", l_tx_item_type);
