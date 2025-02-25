@@ -1391,6 +1391,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].tx_spent_hash_fast = l_tx_hash;
         l_trackers_mover = s_trackers_aggregate(a_ledger, l_trackers_mover,
                                                 &l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers, a_tx->header.ts_created);
+        if (l_prev_item_out->cache_data.flags & LEDGER_PVT_TX_META_FLAG_IMMUTABLE) // Clear trackers info for immutable tx's
+            dap_list_free_full(l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers, NULL);
         // add a used output
         l_prev_item_out->cache_data.n_outs_used++;
         if ( is_ledger_cached(l_ledger_pvt) ) {
@@ -1524,6 +1526,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
         assert(l_vote_tx_item);
     }
+    bool l_multichannel = false;
     size_t i = 0;
     for (dap_list_t *it = l_list_tx_out; it; it = it->next, i++) {
         dap_chain_tx_item_type_t l_type = *(uint8_t *)it->data;
@@ -1554,6 +1557,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             log_it(L_ERROR, "Unknown item type %d", l_type);
             break;
         }
+        if (!l_multichannel && dap_strcmp(l_main_token_ticker, l_cur_token_ticker))
+            l_multichannel = true;
         if (dap_strcmp(a_ledger->net->pub.native_ticker, l_cur_token_ticker))
             continue;
         if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTE) {
@@ -1611,7 +1616,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_tx_item->out_metadata[0].trackers = dap_list_append(l_tx_item->out_metadata[0].trackers, l_tsd->data);
         }
     }
-
+    if (l_multichannel)
+        l_tx_item->cache_data.flags |= LEDGER_PVT_TX_META_FLAG_MULTICHANNEL;
     l_tx_item->ts_added = dap_nanotime_now();
     pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
     if (dap_chain_net_get_load_mode(a_ledger->net) || dap_chain_net_get_state(a_ledger->net) == NET_STATE_SYNC_CHAINS)
@@ -1897,8 +1903,6 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
         pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
         if (wallet_balance) {
-            //if(g_debug_ledger)
-            //    log_it(L_DEBUG, "Balance item is present in cache");
             SUBTRACT_256_256(wallet_balance->balance, l_value, &wallet_balance->balance);
             DAP_DELETE (l_wallet_balance_key);
             // Update the cache
@@ -2070,7 +2074,7 @@ static dap_ledger_tx_item_t *s_tx_item_find_by_addr(dap_ledger_t *a_ledger, cons
         // If a_token is setup we check if its not our token - miss it
         if (a_token && *l_iter_current->cache_data.token_ticker &&
                 dap_strcmp(l_iter_current->cache_data.token_ticker, a_token) &&
-                !l_iter_current->cache_data.multichannel)
+                !(l_iter_current->cache_data.flags & LEDGER_PVT_TX_META_FLAG_MULTICHANNEL))
             continue;
         // Now work with it
         dap_chain_datum_tx_t *l_tx = l_iter_current->tx;
@@ -2297,8 +2301,11 @@ void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
     dap_return_if_fail(a_ledger && a_tx_hash);
     dap_ledger_tx_item_t *l_item_out = NULL;
     dap_chain_datum_tx_t *l_tx = s_tx_find_by_hash(a_ledger, a_tx_hash, &l_item_out, false);
-    if (!l_item_out)
+    if (!l_item_out) {
+        log_it(L_ERROR, "Cna't find ledger tx item for hash %s", dap_hash_fast_to_str_static(a_tx_hash));
         return;
+    }
+    l_item_out->cache_data.flags |= LEDGER_PVT_TX_META_FLAG_IMMUTABLE;
     for (uint32_t i = 0; i < l_item_out->cache_data.n_outs; i++) {
         if (!dap_hash_fast_is_blank(&l_item_out->out_metadata[i].tx_spent_hash_fast)) {
             dap_list_free_full(l_item_out->out_metadata[i].trackers, NULL);
