@@ -663,7 +663,7 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                                     dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_atom_hash, int a_ret_code, char* a_main_token_ticker,
                                     dap_chain_net_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action, char a_cache_op)
 {
-    int l_ret_val = 0, l_items_cnt = 0, l_out_idx = 0, l_prev_idx;
+    int l_ret_val = 0, l_items_cnt = 0, l_out_idx = -1;
     bool l_multichannel = false;
 #define m_check_addr(addr) (                                                                                    \
     !dap_chain_addr_is_blank(&addr) && (                                                                        \
