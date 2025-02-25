@@ -285,10 +285,13 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     }
 
     if (a_tag_str) {
-        dap_chain_tx_tsd_t *tsd_tag_item = dap_chain_datum_tx_item_tsd_create(a_tag_str, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TAG, strlen(a_tag_str));
-        if (!l_tx_out)
+        dap_chain_tx_tsd_t *tsd_tag_item = dap_chain_datum_tx_item_tsd_create(a_tag_str, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TAG, strlen(a_tag_str) + 1);
+        if (!tsd_tag_item)
             m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction tag");
-        dap_chain_datum_tx_add_item(&l_tx, tsd_tag_item);
+        if (dap_chain_datum_tx_add_item(&l_tx, tsd_tag_item) != 1) {
+            DAP_DELETE(tsd_tag_item);
+            m_tx_fail(ERROR_COMPOSE, "Can't add the transaction tag");
+        }
         DAP_DELETE(tsd_tag_item);
     }
     // add 'sign' item
@@ -1157,10 +1160,10 @@ int dap_chain_net_srv_emit_delegate_init()
                 "\t-w <wallet_name> - wallet to writeoff value, pay fee and sign tx\n"
                 "\t-token <ticker> - token ticker to hold\n"
                 "\t-value <value> - value to hold\n"
-                "\t-tag <str> add tsd-section with tag\n"
                 "\t-fee <value> - fee value\n"
                 "\t-signs_minimum <value_int> - minimum signs count needed to verify take datum\n"
                 "\t-pkey_hashes <hash1[,hash2,...,hashN]> - owners pkey hashes, who can sign take datum\n"
+                "\t[-tag \"<str>\"] - additional info about tx\n"
                 "\t[-H {hex(default) | base58}] - datum hash return format\n"
                 "emit_delegate refill - to refill value\n"
                 "\t-net <net_name>\n"
