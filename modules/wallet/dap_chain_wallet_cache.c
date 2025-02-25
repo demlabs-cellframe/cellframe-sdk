@@ -728,11 +728,10 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
         default:
             continue;
         }
-
-        if ( !m_check_addr(l_addr) ) {
-            l_out_idx += (int)(*l_tx_item != TX_ITEM_TYPE_IN);
+        l_out_idx += (int)(*l_tx_item != TX_ITEM_TYPE_IN);
+        
+        if ( !m_check_addr(l_addr) )
             continue;
-        }
 
         pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
         dap_wallet_cache_t *l_wallet_item = NULL;
@@ -834,7 +833,6 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                         }
                     }
                 }
-                ++l_out_idx;
             } break;
             case 'd': {
                 if ( !l_wallet_item->wallet_txs ) {
