@@ -971,6 +971,8 @@ static int s_callback_requested(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id
     return 0; // aways allow to use it for now
 }
 
+
+
 /**
  * Called if responses success with all signature checks
  */

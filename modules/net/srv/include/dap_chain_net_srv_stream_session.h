@@ -39,6 +39,26 @@ typedef struct dap_chain_net_srv dap_chain_net_srv_t;
 typedef struct dap_chain_net_srv_client_remote dap_chain_net_srv_client_remote_t;
 typedef struct dap_chain_net_srv_price dap_chain_net_srv_price_t;
 
+typedef enum dap_chain_net_srv_usage_service_state{
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_REMAIN_LIMITS = 0,
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE,
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL,
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_ERROR,
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE,
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE
+} dap_chain_net_srv_usage_service_state_t;
+
+typedef enum dap_chain_net_srv_usage_service_substate{
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN=0,
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEXT_RECEIPT_SIGN,
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING,
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT,
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL,
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_ERROR,
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE
+} dap_chain_net_srv_usage_service_substate_t;
+
+
 typedef struct dap_chain_net_srv_usage{
     uint32_t id; // Usage id
     pthread_rwlock_t rwlock;
@@ -60,28 +80,20 @@ typedef struct dap_chain_net_srv_usage{
     int receipt_sign_req_cnt;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
 
-    uint16_t is_active : 1;
-    uint16_t is_free : 1;
-    uint16_t is_grace : 1;
-    uint16_t is_waiting_new_tx_cond : 1;
-    uint16_t is_waiting_new_tx_cond_in_ledger : 1;
-    uint16_t is_waiting_first_receipt_sign : 1;
-    uint16_t is_waiting_next_receipt_sign : 1;
-    uint16_t is_limits_changed : 1;
-    uint16_t reserved : 8;
-
+    dap_chain_net_srv_usage_service_state_t service_state;
+    dap_chain_net_srv_usage_service_substate_t service_substate;
 } dap_chain_net_srv_usage_t;
 
 typedef struct dap_net_stats{
-        uintmax_t bytes_sent;
-        uintmax_t bytes_recv;
-        uintmax_t bytes_sent_lost;
-        uintmax_t bytes_recv_lost;
+    uintmax_t bytes_sent;
+    uintmax_t bytes_recv;
+    uintmax_t bytes_sent_lost;
+    uintmax_t bytes_recv_lost;
 
-        uintmax_t packets_sent;
-        uintmax_t packets_recv;
-        uintmax_t packets_sent_lost;
-        intmax_t packets_recv_lost;
+    uintmax_t packets_sent;
+    uintmax_t packets_recv;
+    uintmax_t packets_sent_lost;
+    intmax_t packets_recv_lost;
 } dap_net_stats_t;
 
 typedef struct dap_chain_net_srv_stream_session {
