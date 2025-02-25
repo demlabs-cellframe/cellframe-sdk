@@ -437,7 +437,7 @@ static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_c
     l_tsd->size = sizeof(uint256_t);
     *(uint256_t*)(l_tsd->data) = a_value;
     // Sign it
-    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size, 0);
+    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size);
     if (!l_sign) {
         log_it(L_ERROR, "Decree signing failed");
         DAP_DELETE(l_decree);
@@ -786,7 +786,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             // Header
             json_object* json_obj_inf = json_object_new_object();
             json_object_object_add(json_obj_inf, "Block number", json_object_new_uint64(l_block_cache->block_number));
-            json_object_object_add(json_obj_inf, "hash", json_object_new_string(l_subcmd_str_arg));
+            json_object_object_add(json_obj_inf, "hash", json_object_new_string(l_hash_str));
             snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%04X",l_block->hdr.version);
             
             json_object_object_add(json_obj_inf, "version", json_object_new_string(l_hexbuf));
