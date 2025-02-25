@@ -133,7 +133,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
     int l_report = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "report", NULL);
     if (l_report) {
         json_object* json_obj_net_srv = json_object_new_object();
-        char *l_report_str = dap_stream_ch_chain_net_srv_create_statistic_report();
+        char *l_report_str = dap_chain_net_srv_ch_create_statistic_report();
         json_object_object_add(json_obj_net_srv, "report", json_object_new_string(l_report_str));
         DAP_DELETE(l_report_str);
 
