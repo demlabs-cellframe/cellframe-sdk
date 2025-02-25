@@ -251,8 +251,8 @@ int dap_chain_net_srv_stake_pos_delegate_init()
                                                      .purge = s_pos_delegate_purge,
                                                      .get_fee_descr = s_pos_delegate_get_fee_validators_json };
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
-    dap_chain_srv_add(l_uid, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_LITERAL, &l_callbacks);
-    dap_ledger_service_add(l_uid, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_LITERAL, s_tag_check_key_delegation);
+    dap_chain_srv_add(l_uid, DAP_CHAIN_SRV_STAKE_POS_DELEGATE_LITERAL, &l_callbacks);
+    dap_ledger_service_add(l_uid, DAP_CHAIN_SRV_STAKE_POS_DELEGATE_LITERAL, s_tag_check_key_delegation);
     dap_ledger_tax_callback_set(s_tax_callback);
     return 0;
 }
@@ -1612,7 +1612,7 @@ void dap_chain_net_srv_stake_add_approving_decree_info(dap_chain_datum_decree_t 
     char *l_decree_hash_str = NULL;
     if (dap_global_db_driver_is(l_approved_group, l_tx_hash_str)) {
         l_decree_hash_str = (char *)dap_global_db_get_sync(l_approved_group, l_tx_hash_str, NULL, NULL, NULL);
-        log_it(L_WARNING, "Caution, tx %s already approved, decree %s", l_tx_hash_str, l_decree_hash_str);
+        log_it(L_DEBUG, "Tx %s already approved, decree %s", l_tx_hash_str, l_decree_hash_str);
         DAP_DELETE(l_decree_hash_str);
     }
     dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_hash);

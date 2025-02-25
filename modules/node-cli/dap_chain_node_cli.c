@@ -229,7 +229,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
                             "wallet deactivate -w <wallet_name> -password <password>\n"
                             "wallet convert -w <wallet_name> -password <password>\n"
-                            "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [-value <uint256_value>]");
+                            "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [-value <uint256_value>]\n");
 
     dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool",
                            "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset]\n"
@@ -340,7 +340,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\t -hardfork_from <atom_number>: start hardfork routine from specified block number\n"
             "\t -trusted_addrs <node_addr1,node_add2,...>: addresses of nodes who can provide service state datums for hardfork routine\n"
             "\t -addr_pairs <\"old_addr:new_addr\",\"old_addr1:new_addr1\"...>: blockchain addresses of wallets pairs moving balances from old_addr to new_addr with hardfork routine\n"
-            "\t -hardfork_complete: try to retry unsucsessful hardfork routine immediately\n"
+            "\t -hardfork_retry: try to retry unsucsessful hardfork routine immediately\n"
             "\t -hardfork_complete: finilize hardfork routine immediately\n"
             "\t -new_certs <certs_list>: sets new owners set for net\n"
             "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n\n"

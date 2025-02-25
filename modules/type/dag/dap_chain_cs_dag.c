@@ -879,7 +879,7 @@ void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t *a_dag, dap_ch
     s_dag_events_lasts_delete_linked_with_event(a_dag, a_event_item->event);
     //add self
     dap_chain_cs_dag_event_item_t *l_event_last = DAP_DUP_RET_IF_FAIL(a_event_item);
-    HASH_ADD(hh,PVT(a_dag)->events_lasts_unlinked,hash, sizeof(l_event_last->hash),l_event_last);
+    HASH_ADD(hh, PVT(a_dag)->events_lasts_unlinked, hash, sizeof(l_event_last->hash), l_event_last);
 }
 
 
