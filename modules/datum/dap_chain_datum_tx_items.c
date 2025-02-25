@@ -104,7 +104,7 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
  */
 
 size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size) {
-    dap_return_val_if_fail(a_item, TX_ITEM_TYPE_UNKNOWN);
+    dap_return_val_if_fail(a_item, 0);
     size_t l_ret = 0;
 #define m_tx_item_size(t) ( !a_max_size || sizeof(t) <= a_max_size ? sizeof(t) : 0 )
 #define m_tx_item_size_ext(t, size_field)                                                                                       \
