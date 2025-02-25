@@ -1920,33 +1920,10 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_
     return 0;
 }
 
-int s_chain_net_preload(dap_chain_net_t *a_net) {
-    // Services register & configure
-    dap_chain_srv_start(a_net->pub.id, DAP_CHAIN_NET_SRV_XCHANGE_LITERAL, NULL);        // Harcoded core service starting for exchange capability
-    dap_chain_srv_start(a_net->pub.id, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_LITERAL, NULL);    // Harcoded core service starting for delegated keys storage
-    char *l_services_path = dap_strdup_printf("%s/network/%s/services", dap_config_path(), a_net->pub.name);
-    DIR *l_service_cfg_dir = opendir(l_services_path);
-    DAP_DELETE(l_services_path);
-    if (l_service_cfg_dir) {
-        for ( struct dirent *l_dir_entry; ( l_dir_entry = readdir(l_service_cfg_dir) ); ) {
-            const char *l_entry_name = l_dir_entry->d_name;
-            size_t l_entry_len = strlen(l_entry_name);
-            if (l_entry_len < 4 || // It has non zero name excluding file extension
-                    strncmp(l_entry_name + l_entry_len - 4, ".cfg", 4) != 0) // its not a .cfg file
-                continue;
-            log_it(L_DEBUG, "Opening service config \"%s\"...", l_entry_name);
-            char *l_service_cfg_path = dap_strdup_printf("network/%s/services/%s", a_net->pub.name, l_entry_name);
-            dap_config_t *l_cfg_new = dap_config_open(l_service_cfg_path);
-            if (l_cfg_new) {
-                char l_service_name[l_entry_len - 3];
-                dap_strncpy(l_service_name, l_entry_name, l_entry_len - 4);
-                dap_chain_srv_start(a_net->pub.id, l_service_name, l_cfg_new);
-                dap_config_close(l_cfg_new);
-            }
-            DAP_DELETE(l_service_cfg_path);
-        }
-        closedir(l_service_cfg_dir);
-    }
+int s_chain_net_preload(dap_chain_net_t *a_net)
+{
+    dap_chain_srv_start(a_net->pub.id, DAP_CHAIN_SRV_STAKE_POS_DELEGATE_LITERAL, NULL);     // Harcoded core service starting for delegated keys storage
+
     uint16_t l_ledger_flags = 0;
     switch ( PVT( a_net )->node_role.enums ) {
     case NODE_ROLE_LIGHT:
@@ -2035,6 +2012,33 @@ static void *s_net_load(void *a_arg)
     dap_chain_net_t *l_net = a_arg;
     dap_return_val_if_fail_err(l_net->pub.config, NULL, "Can't open network %s config", l_net->pub.name);
 
+    // Services register & configure
+    dap_chain_srv_start(l_net->pub.id, DAP_CHAIN_SRV_VOTING_LITERAL, NULL);                 // Harcoded core service starting for voting capability
+    dap_chain_srv_start(l_net->pub.id, DAP_CHAIN_SRV_XCHANGE_LITERAL, NULL);                // Harcoded core service starting for exchange capability
+    char *l_services_path = dap_strdup_printf("%s/network/%s/services", dap_config_path(), l_net->pub.name);
+    DIR *l_service_cfg_dir = opendir(l_services_path);
+    DAP_DELETE(l_services_path);
+    if (l_service_cfg_dir) {
+        for ( struct dirent *l_dir_entry; ( l_dir_entry = readdir(l_service_cfg_dir) ); ) {
+            const char *l_entry_name = l_dir_entry->d_name;
+            size_t l_entry_len = strlen(l_entry_name);
+            if (l_entry_len < 4 || // It has non zero name excluding file extension
+                    strncmp(l_entry_name + l_entry_len - 4, ".cfg", 4) != 0) // its not a .cfg file
+                continue;
+            log_it(L_DEBUG, "Opening service config \"%s\"...", l_entry_name);
+            char *l_service_cfg_path = dap_strdup_printf("network/%s/services/%s", l_net->pub.name, l_entry_name);
+            dap_config_t *l_cfg_new = dap_config_open(l_service_cfg_path);
+            if (l_cfg_new) {
+                char l_service_name[l_entry_len - 3];
+                dap_strncpy(l_service_name, l_entry_name, l_entry_len - 4);
+                dap_chain_srv_start(l_net->pub.id, l_service_name, l_cfg_new);
+                dap_config_close(l_cfg_new);
+            }
+            DAP_DELETE(l_service_cfg_path);
+        }
+        closedir(l_service_cfg_dir);
+    }
+
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     l_net_pvt->balancer_type = dap_config_get_item_bool_default(l_net->pub.config, "general", "use_dns_links", false);
     char l_gdb_groups_mask[DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX];
@@ -2094,7 +2098,7 @@ static void *s_net_load(void *a_arg)
                                                                 l_net->pub.name, -3);
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->orders_cluster);
     // Common orders cluster
-    snprintf(l_gdb_groups_mask, sizeof(l_gdb_groups_mask), "%s.orders", l_net->pub.gdb_groups_prefix);
+    snprintf(l_gdb_groups_mask, sizeof(l_gdb_groups_mask), "%s.orders*", l_net->pub.gdb_groups_prefix);
     l_net_pvt->common_orders = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                           l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
                                                           l_gdb_groups_mask, 0, true,

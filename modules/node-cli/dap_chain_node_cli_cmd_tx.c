@@ -104,24 +104,45 @@ bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
     json_object_object_add(json_obj_out, "token_description", l_description ? json_object_new_string(l_description)
                                                                             : json_object_new_null());
     dap_chain_datum_dump_tx_json(a_json_arr_reply, a_datum, l_ticker, json_obj_out, a_hash_out_type, a_tx_hash, a_ledger->net->pub.id);
-    json_object* json_arr_items = json_object_new_array();
+    json_object *json_arr_items = json_object_new_array();
     bool l_spent = false;
     byte_t *l_item; size_t l_size; int i, l_out_idx = -1;
     TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, a_datum) {
         ++l_out_idx;
         dap_hash_fast_t l_spender = { };
+        json_object *l_json_obj_out = NULL, *json_arr_colours = NULL;
         if ( dap_ledger_tx_hash_is_used_out_item(a_ledger, a_tx_hash, l_out_idx, &l_spender) ) {
             char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
             dap_hash_fast_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
-            json_object * l_json_obj_datum = json_object_new_object();
-            json_object_object_add(l_json_obj_datum, "OUT - ", json_object_new_int(l_out_idx));
-            json_object_object_add(l_json_obj_datum, "is_spent_by_tx", json_object_new_string(l_hash_str));
-            json_object_array_add(json_arr_items, l_json_obj_datum);
+            l_json_obj_out = json_object_new_object();
+            json_object_object_add(l_json_obj_out, "out_number", json_object_new_int(l_out_idx));
+            json_object_object_add(l_json_obj_out, "is_spent_by_tx", json_object_new_string(l_hash_str));
             l_spent = true;
         }
+        dap_list_t *l_trackers = dap_ledger_tx_get_trackers(a_ledger, a_tx_hash, l_out_idx);
+        if (l_trackers) {
+            if (!l_json_obj_out) {
+                l_json_obj_out = json_object_new_object();
+                json_object_object_add(l_json_obj_out, "out_number", json_object_new_int(l_out_idx));
+            }
+            json_arr_colours = json_object_new_array();
+            json_object_object_add(l_json_obj_out, "trackers", json_arr_colours);
+        }
+        for (dap_list_t *it = l_trackers; it; it = it->next) {
+            dap_ledger_tracker_t *l_tracker = it->data;
+            json_object *l_json_obj_tracker = json_object_new_object();
+            const char *l_voling_hash_str = dap_hash_fast_to_str_static(&l_tracker->voting_hash);
+            json_object_object_add(l_json_obj_tracker, "voting_hash", json_object_new_string(l_voling_hash_str));
+            const char *l_coloured_coins, *l_coloured_value = dap_uint256_to_char(l_tracker->colored_value, &l_coloured_coins);
+            json_object_object_add(l_json_obj_tracker, "coloured_coins", json_object_new_string(l_coloured_coins));
+            json_object_object_add(l_json_obj_tracker, "coloured_value", json_object_new_string(l_coloured_coins));
+            json_object_array_add(json_arr_colours, l_json_obj_tracker);
+        }
+        if (l_json_obj_out)
+            json_object_array_add(json_arr_items, l_json_obj_out);
     }
-    json_object_object_add(json_obj_out, "spent_OUTs", json_arr_items);
-    json_object_object_add(json_obj_out, "all_OUTs_yet_unspent", l_spent ? json_object_new_string("no") : json_object_new_string("yes"));
+    json_object_object_add(json_obj_out, "spent_or_coloured_outs", json_arr_items);
+    json_object_object_add(json_obj_out, "all_outs_yet_unspent", l_spent ? json_object_new_string("no") : json_object_new_string("yes"));
     return true;
 }
 

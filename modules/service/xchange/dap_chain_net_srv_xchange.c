@@ -254,7 +254,7 @@ int dap_chain_net_srv_xchange_init()
     );
 
     dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start, .decree = s_callback_decree, .get_fee_descr = s_print_fee_json };
-    int ret = dap_chain_srv_add(c_dap_chain_net_srv_xchange_uid, DAP_CHAIN_NET_SRV_XCHANGE_LITERAL, &l_srv_callbacks);
+    int ret = dap_chain_srv_add(c_dap_chain_net_srv_xchange_uid, DAP_CHAIN_SRV_XCHANGE_LITERAL, &l_srv_callbacks);
     if (ret) {
         log_it(L_ERROR, "Can't register eXchange service");
         return ret;
@@ -3159,7 +3159,7 @@ json_object *s_print_fee_json(dap_chain_net_id_t a_net_id)
     if (dap_chain_net_srv_xchange_get_fee(a_net_id, &l_fee, &l_addr, &l_type)) {
         const char *l_fee_coins, *l_fee_balance = dap_uint256_to_char(l_fee, &l_fee_coins);
         json_object *l_jobj_xchange = json_object_new_object();
-        json_object_object_add(l_jobj_xchange, "service",   json_object_new_string(DAP_CHAIN_NET_SRV_XCHANGE_LITERAL));
+        json_object_object_add(l_jobj_xchange, "service",   json_object_new_string(DAP_CHAIN_SRV_XCHANGE_LITERAL));
         json_object_object_add(l_jobj_xchange, "coin",      json_object_new_string(l_fee_coins));
         json_object_object_add(l_jobj_xchange, "balance",   json_object_new_string(l_fee_balance));
         json_object_object_add(l_jobj_xchange, "addr",      json_object_new_string(dap_chain_addr_to_str_static(&l_addr)));
