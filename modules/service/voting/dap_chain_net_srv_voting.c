@@ -103,12 +103,12 @@ int dap_chain_net_srv_voting_init()
     
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
     dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start, .delete = s_callback_delete, .hardfork_prepare = s_votings_backup, .hardfork_load = s_votings_restore };
-    int ret = dap_chain_srv_add(l_uid, "voting", &l_srv_callbacks);
+    int ret = dap_chain_srv_add(l_uid, DAP_CHAIN_SRV_VOTING_LITERAL, &l_srv_callbacks);
     if (ret) {
         log_it(L_ERROR, "Can't register voting service");
         return ret;
     }
-    dap_ledger_service_add(l_uid, "voting", s_tag_check_voting);
+    dap_ledger_service_add(l_uid, DAP_CHAIN_SRV_VOTING_LITERAL, s_tag_check_voting);
 
     return 0;
 }
@@ -240,14 +240,14 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
             dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)l_item)->tsd;
             switch(l_tsd->type) {
             case VOTING_TSD_TYPE_QUESTION:
-                if (!l_tsd->size || !memchr(l_tsd->data, '\0', l_tsd->size || *l_tsd->data == '\0')) {
+                if (!l_tsd->size || *l_tsd->data == '\0') {
                     log_it(L_WARNING, "Invalid content for string TSD section QUESTION of voting %s", dap_hash_fast_to_str_static(a_tx_hash));
                     return -DAP_LEDGER_CHECK_PARSE_ERROR;
                 }
                 l_question_present = true;
                 break;
             case VOTING_TSD_TYPE_OPTION:
-                if (!l_tsd->size || !memchr(l_tsd->data, '\0', l_tsd->size || *l_tsd->data == '\0')) {
+                if (!l_tsd->size || *l_tsd->data == '\0') {
                     log_it(L_WARNING, "Invalid content for string TSD section ANSWER of voting %s", dap_hash_fast_to_str_static(a_tx_hash));
                     return -DAP_LEDGER_CHECK_PARSE_ERROR;
                 }
@@ -345,9 +345,8 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             log_it(L_WARNING, "Voting %s required a delegated key", dap_chain_hash_fast_to_str_static(&l_voting->hash));
             return -10;
         }
-
-
     }
+
     dap_list_t *l_vote_overwrited = NULL;
     for (dap_list_t *it = l_voting->votes; it; it = it->next) {
         if (dap_hash_fast_compare(&((struct vote *)it->data)->pkey_hash, &pkey_hash)) {
@@ -367,7 +366,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx_in) {
         dap_hash_fast_t l_tx_hash;
-        int l_out_idx;
+        int l_out_idx = 0;
         switch (*l_item) {
         case TX_ITEM_TYPE_IN:       // check inputs
             l_tx_hash = ((dap_chain_tx_in_t *)l_item)->header.tx_prev_hash;
@@ -419,7 +418,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         char l_vote_hash_str[DAP_HASH_FAST_STR_SIZE];
         dap_hash_fast_to_str(a_tx_hash, l_vote_hash_str, DAP_HASH_FAST_STR_SIZE);
         log_it(L_INFO, "Vote %s of voting %s has been %s", l_vote_hash_str, dap_hash_fast_to_str_static(&l_voting->hash),
-                                     l_vote_overwrited ? "accepted" : "changed");
+                                     l_vote_overwrited ? "changed" : "accepted");
     }
     return DAP_LEDGER_CHECK_OK;
 }
