@@ -2147,7 +2147,7 @@ static bool s_string_append_tx_cond_info_json( json_object * a_json_out,
             if (a_buyer_addr)
                 l_buyer_addr = *a_buyer_addr;
             else {
-                dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL));
+                dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t*)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL));
                 dap_enc_key_t *l_key_buyer = dap_sign_to_enc_key(l_sign);
                 dap_chain_addr_fill_from_key(&l_buyer_addr, l_key_buyer, a_net->pub.id);
                 dap_enc_key_delete(l_key_buyer);
