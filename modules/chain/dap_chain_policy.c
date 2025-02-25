@@ -94,15 +94,17 @@ int dap_chain_policy_net_add(uint64_t a_net_id)
 int dap_chain_policy_net_remove(uint64_t a_net_id)
 {
     dap_return_val_if_pass(!a_net_id, -1);
-    struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
+    dap_list_t *l_net_item = dap_list_first(s_net_list);
+    for ( ; l_net_item && ((struct policy_net_list_item *)(l_net_item->data))->net_id != a_net_id; l_net_item = l_net_item->next) {};
+
     if (!l_net_item) {
         log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id);
         return -2;
     }
     s_net_list = dap_list_remove_link(s_net_list, l_net_item);
-    dap_list_free_full(l_net_item->policies, NULL);
-    dap_list_free(l_net_item->exception_list);
-    DAP_DELETE(l_net_item);
+    dap_list_free_full(((struct policy_net_list_item *)(l_net_item->data))->policies, NULL);
+    dap_list_free(((struct policy_net_list_item *)(l_net_item->data))->exception_list);
+    DAP_DEL_MULTY(l_net_item->data, l_net_item);
     return 0;
 }
 
@@ -127,11 +129,11 @@ int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id)
     l_net_item->policies = dap_list_insert_sorted(l_net_item->policies, a_policy, s_policy_num_compare);
     for (size_t i = 0; i < a_policy->deactivate.count; ++i) {
         uint32_t l_policy_num = a_policy->deactivate.nums[i];
-        if (dap_list_find(l_net_item->exception_list, (const void *)l_policy_num, NULL)) {
+        if (dap_list_find(l_net_item->exception_list, (const void *)(uintptr_t)l_policy_num, NULL)) {
             log_it(L_ERROR, "CN-%u already added to exception list net %"DAP_UINT64_FORMAT_X, l_policy_num, a_net_id);
             continue;
         }
-        l_net_item->exception_list = dap_list_append(l_net_item->exception_list, (const void *)l_policy_num);
+        l_net_item->exception_list = dap_list_append(l_net_item->exception_list, (void *)(uintptr_t)l_policy_num);
     }
     l_net_item->last_num_policy = dap_max(a_policy->activate.num, l_net_item->last_num_policy);
     return 0;
@@ -150,11 +152,11 @@ int dap_chain_policy_add_to_exception_list(uint32_t a_policy_num, uint64_t a_net
         log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id);
         return -2;
     }
-    if (dap_list_find(l_net_item->exception_list, (const void *)a_policy_num, NULL)) {
+    if (dap_list_find(l_net_item->exception_list, (const void *)(uintptr_t)a_policy_num, NULL)) {
         log_it(L_ERROR, "CN-%u already added to exception list net %"DAP_UINT64_FORMAT_X, a_policy_num, a_net_id);
         return -3;
     }
-    l_net_item->exception_list = dap_list_append(l_net_item->exception_list, (const void *)a_policy_num);
+    l_net_item->exception_list = dap_list_append(l_net_item->exception_list, (void *)(uintptr_t)a_policy_num);
     return 0;
 }
 
@@ -172,7 +174,7 @@ bool dap_chain_policy_activated(uint32_t a_policy_num, uint64_t a_net_id)
     if (l_net_item->last_num_policy < a_policy_num)
         return l_ret;
     // exception list check
-    if (dap_list_find(l_net_item->exception_list, (const void *)a_policy_num, NULL))
+    if (dap_list_find(l_net_item->exception_list, (const void *)(uintptr_t)a_policy_num, NULL))
         return l_ret;
     // seach politics to condition check
     dap_chain_policy_t l_to_search = {
@@ -244,18 +246,24 @@ json_object *dap_chain_policy_list(uint64_t a_net_id)
     dap_return_val_if_pass(!l_net_item, NULL);
     json_object *l_ret = json_object_new_object();
 
-    dap_string_t *l_add_str = dap_string_new("");
+    dap_string_t *l_active_str = dap_string_new("");
+    dap_string_t *l_inactive_str = dap_string_new("");
     for (dap_list_t *l_iter = dap_list_first(l_net_item->policies); l_iter; l_iter = l_iter->next) {
-        dap_string_append_printf(l_add_str, "CN-%u ", ((dap_chain_policy_t *)l_iter->data)->activate.num);
+        if (dap_chain_policy_activated(((dap_chain_policy_t *)l_iter->data)->activate.num, a_net_id))
+            dap_string_append_printf(l_active_str, "CN-%u ", ((dap_chain_policy_t *)l_iter->data)->activate.num);
+        else
+            dap_string_append_printf(l_inactive_str, "CN-%u ", ((dap_chain_policy_t *)l_iter->data)->activate.num);
     }
-    json_object_object_add(l_ret, "active", json_object_new_string(l_add_str->str));
+    json_object_object_add(l_ret, "active", json_object_new_string(l_active_str->str));
+    json_object_object_add(l_ret, "inactive", json_object_new_string(l_inactive_str->str));
     
-    dap_string_erase(l_add_str, 0, -1);
+    dap_string_free(l_active_str, true);
+    dap_string_erase(l_inactive_str, 0, -1);
     for (dap_list_t *l_iter = dap_list_first(l_net_item->exception_list); l_iter; l_iter = l_iter->next) {
-        dap_string_append_printf(l_add_str, "CN-%u ", (uint32_t)l_iter->data);
+        dap_string_append_printf(l_inactive_str, "CN-%u ", (uint32_t)(uintptr_t)l_iter->data);
     }
-    json_object_object_add(l_ret, "inactive", json_object_new_string(l_add_str->str));
-    dap_string_free(l_add_str, true);
+    json_object_object_add(l_ret, "in exception list", json_object_new_string(l_inactive_str->str));
+    dap_string_free(l_inactive_str, true);
     return l_ret;
 }
 
