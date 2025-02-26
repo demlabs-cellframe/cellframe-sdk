@@ -1535,15 +1535,20 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                                                       "Available chains:",
                                                       l_chain_str, l_net_str);
                     dap_chain_t *l_chain;
-                    json_object* json_obj_chains = json_object_new_array();
                     json_object* json_obj_out = json_object_new_object();
+                    if (!json_obj_out) return dap_json_rpc_allocation_put(json_obj_out);
+                    json_object* json_obj_chains = json_object_new_array();
+                    if (!json_obj_chains) return dap_json_rpc_allocation_put(json_obj_out);
+                    json_object_object_add(json_obj_out, "available_chains", json_obj_chains);                    
+                    
                     DL_FOREACH(l_net->pub.chains, l_chain) {
                         json_object* json_obj_chain = json_object_new_object();
+                        if (!json_obj_chain) return dap_json_rpc_allocation_put(json_obj_out);
                         json_object_object_add(json_obj_chain, "chain", json_object_new_string(l_chain->name));
                         json_object_array_add(json_obj_chains, json_obj_chain);
                     }
-                    json_object_object_add(json_obj_out, "available_chains", json_obj_chains);
                     json_object_array_add(*a_json_arr_reply, json_obj_out);
+                    
                     return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_INVALID_CHAIN_PARAM_ERR;
                 }
             }else {
@@ -1721,6 +1726,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
         char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
         DAP_DELETE(l_datum);
         json_object* json_obj_status = json_object_new_object();
+        if (!json_obj_status) return dap_json_rpc_allocation_put(json_obj_status);
         json_object_object_add(json_obj_status, "datum_status", l_key_str_out ? json_object_new_string(l_key_str_out) :
                                                                                 json_object_new_string("not_placed"));
         json_object_array_add(*a_json_arr_reply, json_obj_status);
@@ -1908,6 +1914,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
         char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
         DAP_DELETE(l_datum);
         json_object* json_obj_status = json_object_new_object();
+        if (!json_obj_status) return dap_json_rpc_allocation_put(json_obj_status);
         json_object_object_add(json_obj_status, "datum_status", l_key_str_out ? json_object_new_string(l_key_str_out) :
                                                                                 json_object_new_string("not_placed"));
         json_object_array_add(*a_json_arr_reply, json_obj_status);

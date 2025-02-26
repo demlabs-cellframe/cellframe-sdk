@@ -1658,7 +1658,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 } else {
                     json_object_put(l_jobj_list_ca);
                     json_object *l_jobj_str_ret = json_object_new_string("No entries found");
-                    if (!l_jobj_list_ca) {
+                    if (!l_jobj_str_ret) {
                         json_object_put(l_jobj_return);
                         dap_json_rpc_allocation_error(*a_json_arr_reply);
                         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
