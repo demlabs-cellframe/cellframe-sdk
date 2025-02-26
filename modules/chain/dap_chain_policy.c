@@ -147,6 +147,7 @@ int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id)
  */
 int dap_chain_policy_add_to_exception_list(uint32_t a_policy_num, uint64_t a_net_id)
 {
+    dap_return_val_if_pass(!a_policy_num, -1);
     struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
     if (!l_net_item) {
         log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id);
@@ -212,6 +213,7 @@ bool dap_chain_policy_activated(uint32_t a_policy_num, uint64_t a_net_id)
  */
 dap_chain_policy_t *dap_chain_policy_find(uint32_t a_policy_num, uint64_t a_net_id)
 {
+    dap_return_val_if_pass(!a_policy_num, NULL);
     struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
     dap_return_val_if_pass(!l_net_item, NULL);
     if (l_net_item->last_num_policy < a_policy_num)
