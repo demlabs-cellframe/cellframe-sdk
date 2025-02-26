@@ -2159,6 +2159,8 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
 
     // init LEDGER model
     l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
+    // Decrees initializing
+    dap_chain_net_decree_init(l_net);
     return 0;
 }
 
