@@ -5966,8 +5966,13 @@ int com_policy(int argc, char **argv, void **reply) {
     uint32_t l_last_num = dap_chain_policy_get_last_num(l_net->pub.id.uint64);
 
     if (l_cmd == CMD_FIND) {
-        uint32_t l_policy_num = strtoull(l_num_str, NULL, 10);
-        dap_chain_policy_t *l_policy = dap_chain_policy_find(l_policy_num, l_net->pub.id.uint64);
+        dap_chain_policy_t *l_policy = NULL;
+        uint64_t l_policy_num = strtoull(l_num_str, NULL, 10);
+        if (l_policy_num > dap_maxuval(l_policy->activate.num)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -16, "Can't find policy CN-%"DAP_UINT64_FORMAT_U", maxval %u", l_policy_num, dap_maxuval(l_policy->activate.num));
+            return -16;
+        }
+        l_policy = dap_chain_policy_find(l_policy_num, l_net->pub.id.uint64);
         if (!l_policy) {
             if (l_last_num < l_policy_num) {
                 dap_json_rpc_error_add(*a_json_arr_reply, -15, "Can't find policy CN-%u in net %s", l_policy_num, l_net_str);
@@ -6025,7 +6030,7 @@ int com_policy(int argc, char **argv, void **reply) {
 
     l_policy->deactivate.count = l_deactivate_count;
     for (size_t i = 0; i < l_deactivate_count; ++i) {
-        l_policy->deactivate.nums[i] = strtoul(l_deactivate_array[i], NULL, 10);
+        l_policy->deactivate.nums[i] = strtoull(l_deactivate_array[i], NULL, 10);
     }
     dap_strfreev(l_deactivate_array);
 
