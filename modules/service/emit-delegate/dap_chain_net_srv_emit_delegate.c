@@ -310,33 +310,46 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
 {
     dap_return_val_if_pass(!a_net || IS_ZERO_256(a_value) || IS_ZERO_256(a_fee), NULL);
     // create empty transaction
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-
     dap_ledger_t *l_ledger = a_net->pub.ledger;
     const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, a_tx_in_hash);
-    bool l_taking_native = !dap_strcmp(a_net->pub.native_ticker, l_tx_ticker);
-
-    uint256_t l_value = a_value, l_value_transfer = {}; // how many coins to refill
+    bool l_refill_native = !dap_strcmp(a_net->pub.native_ticker, l_tx_ticker);
+    uint256_t l_value = a_value, l_value_transfer = {}, l_fee_transfer = {}; // how many coins to transfer
     uint256_t l_net_fee, l_fee_total = a_fee;
     dap_chain_addr_t l_net_fee_addr;
+    // create empty transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used && SUM_256_256(l_fee_total, l_net_fee, &l_fee_total))
         m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
-    if (SUM_256_256(l_value, l_fee_total, &l_value))
+    if (l_refill_native && SUM_256_256(l_value, l_fee_total, &l_value))
         m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
 
+    // list of transaction with 'out' items to sell
     dap_chain_addr_t l_owner_addr;
     dap_chain_addr_fill_from_key(&l_owner_addr, a_enc_key, a_net->pub.id);
-    dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
-                            &l_owner_addr, l_value, &l_value_transfer);
-    if (!l_list_fee_out)
-        m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
-    // add 'in' items to pay fee
-    uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
-    dap_list_free_full(l_list_fee_out, NULL);
-    if (!EQUAL_256(l_value_fee_items, l_value_transfer))
-        m_tx_fail(ERROR_COMPOSE, "Can't compose the fee transaction input");
+    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_tx_ticker,
+                                                                       &l_owner_addr, l_value, &l_value_transfer);
+    if (!l_list_used_out)
+        m_tx_fail(ERROR_FUNDS, "Nothing to pay for delegate (not enough funds)");
+
+    // add 'in' items to pay for delegate
+    uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+    dap_list_free_full(l_list_used_out, NULL);
+    if (!EQUAL_256(l_value_to_items, l_value_transfer))
+        m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction input");
+
+    if (!l_refill_native) {
+        dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
+                                                                          &l_owner_addr, l_fee_total, &l_fee_transfer);
+        if (!l_list_fee_out)
+            m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
+        // add 'in' items to pay fee
+        uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
+        dap_list_free_full(l_list_fee_out, NULL);
+        if (!EQUAL_256(l_value_fee_items, l_fee_transfer))
+            m_tx_fail(ERROR_COMPOSE, "Can't compose the fee transaction input");
+    }
 
     dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, a_tx_in_hash, false);
     if (dap_hash_fast_is_blank(&l_final_tx_hash))
@@ -359,7 +372,6 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
         m_tx_fail(ERROR_COMPOSE, "Cant add conditionsl input");
     }
 
-    // coin back
     uint256_t l_value_back = {};
     if(SUM_256_256(l_cond_prev->header.value, a_value, &l_value_back)) {
         m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
@@ -390,24 +402,30 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
         m_tx_fail(ERROR_COMPOSE, "Can't add custom TSD section item ");
     }
 
+// coin back
+    SUBTRACT_256_256(l_value_transfer, l_value, &l_value_back);
+    if (!IS_ZERO_256(l_value_back)) {
+        int rc = l_refill_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_owner_addr, l_value_back)
+                                   : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_value_back, l_tx_ticker);
+        if (rc != 1)
+            m_tx_fail(ERROR_COMPOSE, "Cant add coin back output");
+    }
+
     // add fee items
     if (l_net_fee_used) {
-        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_net_fee_addr, l_net_fee)
-        : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, a_net->pub.native_ticker);
+        int rc = l_refill_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_net_fee_addr, l_net_fee)
+                                   : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, a_net->pub.native_ticker);
         if (rc != 1)
-        m_tx_fail(ERROR_COMPOSE, "Cant add net fee output");
+            m_tx_fail(ERROR_COMPOSE, "Cant add net fee output");
     }
     if (!IS_ZERO_256(a_fee) && dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1)
         m_tx_fail(ERROR_COMPOSE, "Cant add validator fee output");
 
-    uint256_t l_fee_back = {};
-    // fee coin back
-    SUBTRACT_256_256(l_value_transfer, l_value, &l_fee_back);
-
-    if (!IS_ZERO_256(l_fee_back)) {
-        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_owner_addr, l_fee_back)
-        : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, a_net->pub.native_ticker);
-        if (rc != 1)
+    if (!l_refill_native) {
+        uint256_t l_fee_back = {};
+        // fee coin back
+        SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
+        if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, a_net->pub.native_ticker) != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add fee back output");
     }
 
