@@ -96,7 +96,6 @@ typedef struct dap_chain_net_srv_grace {
     dap_stream_ch_uuid_t ch_uuid;
     dap_chain_net_srv_usage_t *usage;
     dap_timerfd_t *timer;
-    size_t request_size;
 } dap_chain_net_srv_grace_t;
 
 typedef struct dap_chain_net_srv_client_remote
