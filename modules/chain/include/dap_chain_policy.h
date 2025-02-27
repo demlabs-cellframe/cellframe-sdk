@@ -71,3 +71,14 @@ DAP_STATIC_INLINE size_t dap_chain_policy_get_size(dap_chain_policy_t *a_policy)
 {
     return a_policy ? a_policy->deactivate.count * sizeof(uint32_t) + sizeof(dap_chain_policy_t) : 0;
 }
+
+/**
+ * @brief check policy num
+ * @param a_num
+ * @return true if valid, fail if not
+ */
+DAP_STATIC_INLINE bool dap_chain_policy_num_is_valid(uint64_t a_num)
+{
+    uint32_t l_num = dap_maxval(l_num);
+    return (a_num && a_num <= l_num);
+}
