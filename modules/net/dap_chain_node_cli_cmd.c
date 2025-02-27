@@ -8312,6 +8312,7 @@ int com_policy(int argc, char **argv, void **reply) {
         l_policy_num = strtoull(l_deactivate_array[i], NULL, 10);
         if (!dap_chain_policy_num_is_valid(l_policy_num)) {
             log_it(L_ERROR, "Can't add policy CN-%"DAP_UINT64_FORMAT_U" to exception list, maxval %u", l_policy_num, dap_maxuval(l_policy->activate.num));
+            --l_policy->deactivate.count;
             continue;
         }
         l_policy->deactivate.nums[i] = l_policy_num;
