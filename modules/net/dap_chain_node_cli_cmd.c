@@ -1529,22 +1529,14 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     } break;
 
     case CMD_BANLIST: {
-        char *l_str_banlist = dap_http_ban_list_client_dump(NULL);
-        json_object* json_obj_out = json_object_new_object();
-        if (!json_obj_out) return dap_json_rpc_allocation_put(json_obj_out);
-        json_object_object_add(json_obj_out, "banlist", json_object_new_string(l_str_banlist));
+        json_object* json_obj_out = dap_http_ban_list_client_dump(NULL);
         json_object_array_add(*a_json_arr_reply, json_obj_out);
-        DAP_DELETE(l_str_banlist);
     } break;
 
     case CMD_BALANCER: {
         //balancer link list
-        dap_string_t *l_links_str = dap_chain_net_balancer_get_node_str(l_net);
-        json_object* json_obj_out = json_object_new_object();
-        if (!json_obj_out) return dap_json_rpc_allocation_put(json_obj_out);
-        json_object_object_add(json_obj_out, "banlist", json_object_new_string(l_links_str->str));
-        json_object_array_add(*a_json_arr_reply, json_obj_out);
-        dap_string_free(l_links_str, true);
+        json_object *l_links_list = dap_chain_net_balancer_get_node_str(l_net);
+        json_object_array_add(*a_json_arr_reply, l_links_list);
     } break;
 
     default:

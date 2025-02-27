@@ -537,28 +537,37 @@ void dap_chain_net_balancer_request(void *a_arg)
  * @param a_net - net to report
  * @return if error NULL, other - report
  */
-dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
+json_object *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
 {
 // sanity check
     dap_return_val_if_pass(!a_net, NULL);
 // func work
+    json_object *l_jobj_out = json_object_new_object();
+    if (!l_jobj_out) return dap_json_rpc_allocation_put(l_jobj_out);
+    json_object *l_jobj_list_array = json_object_new_array();
+    if (!l_jobj_list_array) return dap_json_rpc_allocation_put(l_jobj_out);
+    json_object_object_add(l_jobj_out, "links_list", l_jobj_list_array);
     dap_chain_net_links_t *l_links_info_list = s_get_node_addrs(a_net, 0, NULL, false);  // TODO
-    dap_string_t *l_ret = dap_string_new(
-        "-----------------------------------------------------------------\n"
-        "|\t\tNode addr\t|\tHost addr\t\t|\n"
-        "--Send in balancer http response---------------------------------\n");
+
     uint64_t l_node_num = l_links_info_list ? l_links_info_list->count_node : 0;
     for (uint64_t i = 0; i < l_node_num; ++i) {
         dap_link_info_t *l_link_info = (dap_link_info_t *)l_links_info_list->nodes_info + i;
-        dap_string_append_printf(l_ret, "|\t"NODE_ADDR_FP_STR"\t|\t%-16s:%u\t|\n",
-                                    NODE_ADDR_FP_ARGS_S(l_link_info->node_addr),
-                                    l_link_info->uplink_addr, l_link_info->uplink_port);
+        json_object *l_jobj_link = json_object_new_object();
+        if (!l_jobj_link) return dap_json_rpc_allocation_put(l_jobj_out);
+        char * l_node_addr = dap_strdup_printf(""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS_S(l_link_info->node_addr));
+        json_object_object_add(l_jobj_link, "node_addr", json_object_new_string(l_node_addr));
+        DAP_DELETE(l_node_addr);
+        char * l_uplink_addr = dap_strdup_printf("%-16s", l_link_info->uplink_addr);
+        json_object_object_add(l_jobj_link, "host_addr", json_object_new_string(l_uplink_addr));
+        DAP_DELETE(l_uplink_addr);
+        json_object_object_add(l_jobj_link, "port", json_object_new_uint64(l_link_info->uplink_port));
+
         if(i + 1 == s_max_links_response_count && i + 1 < l_node_num) {
-            dap_string_append_printf(l_ret, "--Not send in http balancer response-----------------------------\n");
+            json_object_object_add(l_jobj_link, "status", json_object_new_string("Not send in http balancer response"));
         }
+        json_object_array_add(l_jobj_list_array, l_jobj_link);
     }
-    dap_string_prepend_printf(l_ret, "Balancer link list for total %" DAP_UINT64_FORMAT_U " records:\n", l_node_num);
-    dap_string_append(l_ret, "-----------------------------------------------------------------\n");
+    json_object_object_add(l_jobj_out, "links total", json_object_new_uint64(l_node_num));
     DAP_DEL_Z(l_links_info_list);
-    return l_ret;
+    return l_jobj_out;
 }
