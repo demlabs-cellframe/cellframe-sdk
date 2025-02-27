@@ -8245,6 +8245,7 @@ int com_policy(int argc, char **argv, void **reply) {
     uint64_t l_policy_num = strtoull(l_num_str, NULL, 10);
     if (!dap_chain_policy_num_is_valid(l_policy_num)) {
         dap_json_rpc_error_add(*a_json_arr_reply, -16, "Policy num sould be less or equal than %u and not equal 0", dap_maxval(l_policy->activate.num));
+        return -16;
     }
 
     uint32_t l_last_num = dap_chain_policy_get_last_num(l_net->pub.id.uint64);
