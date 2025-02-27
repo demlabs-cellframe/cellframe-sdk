@@ -29,9 +29,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define DAP_CHAIN_POLICY_VERSION                1
 
-#define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS            1
-#define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM     (1 << 1)
-#define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_CONFIG        (1 << 2)
+#define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS            BIT(0)
+#define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM     BIT(1)
+#define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_CONFIG        BIT(2)
 
 #define DAP_CHAIN_POLICY_PUBLIC_KEY_HASH_SIGN_VALIDATORS    0x1
 #define DAP_CHAIN_POLICY_OUT_EXT_USE_ENSURE                 0x2
