@@ -1364,10 +1364,10 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
     bool l_issue_new_receipt = false;
     // Check if there are time limits
 
-    if (a_usage->is_free || (!a_usage->receipt && !a_usage->is_grace) || !a_usage->is_active)
+    if (!a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE || !a_usage->is_active)
         return;
 
-    if (a_usage->is_grace && !a_usage->receipt){
+    if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE){
         a_srv_session->limits_bytes -= (intmax_t) a_bytes;
         a_srv_session->limits_ts -= time(NULL) - a_srv_session->last_update_ts;
         a_srv_session->last_update_ts = time(NULL);
@@ -1897,7 +1897,7 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return false;
     }
-    if ( (!l_usage->is_free) && (! l_usage->receipt && !l_usage->is_grace) ){
+    if ( (!l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE) && (! l_usage->receipt && !!l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE) ){
         log_it(L_WARNING, "No active receipt, switching off");
         l_usage->is_active = 0;
         if (l_usage->client)

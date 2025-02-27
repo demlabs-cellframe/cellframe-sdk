@@ -41,12 +41,10 @@ typedef struct dap_chain_net_srv_price dap_chain_net_srv_price_t;
 
 typedef enum dap_chain_net_srv_usage_service_state{
     DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE = 0,
-    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_REMAIN_LIMITS,
     DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE,
     DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL,
     DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_ERROR,
     DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE,
-    
 } dap_chain_net_srv_usage_service_state_t;
 
 typedef enum dap_chain_net_srv_usage_service_substate{
@@ -84,9 +82,11 @@ typedef struct dap_chain_net_srv_usage{
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
 
     bool is_active;
+    bool is_limits_changed;
 
     dap_chain_net_srv_usage_service_state_t service_state;
     dap_chain_net_srv_usage_service_substate_t service_substate;
+    uint32_t last_err_code;
 } dap_chain_net_srv_usage_t;
 
 typedef struct dap_net_stats{
