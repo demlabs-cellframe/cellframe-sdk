@@ -787,7 +787,7 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     uint64_t l_policy_num = dap_config_get_item_uint64(a_cfg, "policy", "activate");
     dap_chain_policy_t *l_new_policy = NULL;
     if (l_policy_num) {
-        if (l_policy_num > dap_maxuval(l_new_policy->activate.num)) {
+        if (!dap_chain_policy_num_is_valid(l_policy_num)) {
             log_it(L_ERROR, "Can't add policy CN-%"DAP_UINT64_FORMAT_U", maxval %u", l_policy_num, dap_maxuval(l_new_policy->activate.num));
         } else {
             dap_chain_policy_t *l_new_policy = NULL;
@@ -803,7 +803,7 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     const char **l_policy_str = dap_config_get_array_str(a_cfg, "policy", "deactivate", &l_policy_count);
     for (uint16_t i = 0; i < l_policy_count; ++i) {
         l_policy_num = strtoull(l_policy_str[i], NULL, 10);
-        if (l_policy_num > dap_maxuval(l_new_policy->activate.num)) {
+        if (!dap_chain_policy_num_is_valid(l_policy_num)) {
             log_it(L_ERROR, "Can't add policy CN-%"DAP_UINT64_FORMAT_U" to exception list, maxval %u", l_policy_num, dap_maxuval(l_new_policy->activate.num));
         } else {
             dap_chain_policy_add_to_exception_list(l_policy_num, l_ret->pub.id.uint64);

@@ -8241,21 +8241,21 @@ int com_policy(int argc, char **argv, void **reply) {
         return -7;
     }
 
+    dap_chain_policy_t *l_policy = NULL;
+    uint64_t l_policy_num = strtoull(l_num_str, NULL, 10);
+    if (!dap_chain_policy_num_is_valid(l_policy_num)) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -16, "Policy num sould be less or equal than %u and not equal 0", dap_maxval(l_policy->activate.num));
+    }
+
     uint32_t l_last_num = dap_chain_policy_get_last_num(l_net->pub.id.uint64);
 
     if (l_cmd == CMD_FIND) {
-        dap_chain_policy_t *l_policy = NULL;
-        uint64_t l_policy_num = strtoull(l_num_str, NULL, 10);
-        if (l_policy_num > dap_maxuval(l_policy->activate.num)) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -16, "Can't find policy CN-%"DAP_UINT64_FORMAT_U", maxval %u", l_policy_num, dap_maxuval(l_policy->activate.num));
-            return -16;
+        if (l_last_num < l_policy_num) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -15, "Can't find policy CN-%u in net %s", l_policy_num, l_net_str);
+            return -15;
         }
         l_policy = dap_chain_policy_find(l_policy_num, l_net->pub.id.uint64);
         if (!l_policy) {
-            if (l_last_num < l_policy_num) {
-                dap_json_rpc_error_add(*a_json_arr_reply, -15, "Can't find policy CN-%u in net %s", l_policy_num, l_net_str);
-                return -15;
-            }
             dap_chain_policy_t l_to_print = {
                 .activate.num = l_policy_num
             };
@@ -8291,7 +8291,7 @@ int com_policy(int argc, char **argv, void **reply) {
         }
     }
 
-    if (strtoull(l_num_str, NULL, 10) == l_last_num) {
+    if (l_policy_num == l_last_num) {
         dap_json_rpc_error_add(*a_json_arr_reply, -15, "Specified policy num already existed");
         return -15;
     }
@@ -8301,14 +8301,20 @@ int com_policy(int argc, char **argv, void **reply) {
         l_deactivate_count = dap_str_symbol_count(l_deactivate_str, ',') + 1;
         l_deactivate_array = dap_strsplit(l_deactivate_str, ",", l_deactivate_count);
     }
-    dap_chain_policy_t *l_policy = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, sizeof(dap_chain_policy_t) + l_deactivate_count * sizeof(uint32_t), -5);
+    
+    l_policy = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, sizeof(dap_chain_policy_t) + l_deactivate_count * sizeof(uint32_t), -5);
     
     l_policy->version = DAP_CHAIN_POLICY_VERSION;
-    l_policy->activate.num = strtoull(l_num_str, NULL, 10);
+    l_policy->activate.num = l_policy_num;
 
     l_policy->deactivate.count = l_deactivate_count;
     for (size_t i = 0; i < l_deactivate_count; ++i) {
-        l_policy->deactivate.nums[i] = strtoull(l_deactivate_array[i], NULL, 10);
+        l_policy_num = strtoull(l_deactivate_array[i], NULL, 10);
+        if (!dap_chain_policy_num_is_valid(l_policy_num)) {
+            log_it(L_ERROR, "Can't add policy CN-%"DAP_UINT64_FORMAT_U" to exception list, maxval %u", l_policy_num, dap_maxuval(l_policy->activate.num));
+            continue;
+        }
+        l_policy->deactivate.nums[i] = l_policy_num;
     }
     dap_strfreev(l_deactivate_array);
 
