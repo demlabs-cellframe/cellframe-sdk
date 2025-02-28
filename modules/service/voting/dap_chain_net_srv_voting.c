@@ -290,16 +290,9 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
     }
 
     dap_hash_fast_t pkey_hash = {};
-    int l_item_cnt = 0;
-    dap_list_t *l_signs_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_SIG, &l_item_cnt);
-
-    if (!l_signs_list) {
-        log_it(L_WARNING, "Can't get signs from tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
-        return -9;
-    }
-    dap_chain_tx_sig_t *l_vote_sig = (dap_chain_tx_sig_t *)(dap_list_last(l_signs_list)->data);
-    dap_sign_get_pkey_hash((dap_sign_t*)l_vote_sig->sig, &pkey_hash);
-    dap_list_free(l_signs_list);
+    // Get sign item from transaction
+    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+    dap_sign_get_pkey_hash((dap_sign_t *)l_tx_sig->sig, &pkey_hash);
 
     if (!a_apply) {
         if (l_vote_tx_item->answer_idx > dap_list_length(l_voting->voting_params.option_offsets_list)) {
@@ -345,25 +338,27 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
         dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)it->data)->tsd;
         dap_hash_fast_t l_hash = ((dap_chain_tx_voting_tx_cond_t*)l_tsd->data)->tx_hash;
         int l_out_idx = ((dap_chain_tx_voting_tx_cond_t*)l_tsd->data)->out_idx;
-        if (l_tsd->type == VOTING_TSD_TYPE_VOTE_TX_COND) {
-            if (s_datum_tx_voting_coin_check_cond_out(a_ledger->net, l_vote_tx_item->voting_hash, l_hash, l_out_idx))
-                continue;
-            dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_hash);
-            dap_chain_tx_out_cond_t *l_prev_out = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(l_tx_prev_temp, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
-            if (!l_prev_out || l_prev_out->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK)
-                continue;
-            if (SUM_256_256(l_weight, l_prev_out->header.value, &l_weight)) {
-                log_it(L_WARNING, "Integer overflow while parsing vote tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
-                return -DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
-            }
-
-            dap_chain_net_voting_cond_outs_t *l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_voting_cond_outs_t, -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
-            l_item->tx_hash = l_hash;
-            l_item->out_idx = l_out_idx;
-            pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
-            HASH_ADD(hh, l_voting->voting_spent_cond_outs, tx_hash, sizeof(dap_hash_fast_t), l_item);
-            pthread_rwlock_unlock(&l_voting->s_tx_outs_rwlock);
+        if (l_tsd->type != VOTING_TSD_TYPE_VOTE_TX_COND)
+            return -14;
+        if (s_datum_tx_voting_coin_check_cond_out(a_ledger->net, l_vote_tx_item->voting_hash, l_hash, l_out_idx))
+            return -15;
+        dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_hash);
+        dap_chain_tx_out_cond_t *l_prev_out = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(l_tx_prev_temp, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
+        if (!l_prev_out || l_prev_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
+            return -16;
+        if (!dap_ledger_check_condition_owner(a_ledger, &l_hash, l_prev_out->header.subtype, l_out_idx, (dap_sign_t *)l_tx_sig->sig))
+            return -17;
+        if (SUM_256_256(l_weight, l_prev_out->header.value, &l_weight)) {
+            log_it(L_WARNING, "Integer overflow while parsing vote tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
+            return -DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
         }
+
+        dap_chain_net_voting_cond_outs_t *l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_voting_cond_outs_t, -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
+        l_item->tx_hash = l_hash;
+        l_item->out_idx = l_out_idx;
+        pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
+        HASH_ADD(hh, l_voting->voting_spent_cond_outs, tx_hash, sizeof(dap_hash_fast_t), l_item);
+        pthread_rwlock_unlock(&l_voting->s_tx_outs_rwlock);
     }
     dap_list_free(l_tsd_list);
     // check inputs
@@ -379,7 +374,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
             dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_tx_in->header.tx_prev_hash);
             dap_chain_tx_out_t *l_prev_out_union = (dap_chain_tx_out_t *)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev_temp, l_tx_in->header.tx_out_prev_idx);
             if (!l_prev_out_union)
-                continue;
+                return -18;
             if ((l_prev_out_union->header.type == TX_ITEM_TYPE_OUT || l_prev_out_union->header.type == TX_ITEM_TYPE_OUT_EXT) &&
                     SUM_256_256(l_weight, l_prev_out_union->header.value, &l_weight)) {
                 log_it(L_WARNING, "Integer overflow while parsing vote tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
@@ -1487,14 +1482,11 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
     DAP_DEL_Z(l_vote_item);
 
     // add stake out conds items
-    dap_list_t *l_outs = dap_ledger_get_list_tx_cond_outs(l_ledger, a_net->pub.native_ticker,  l_addr_from,
-                                                          DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, NULL);
-    dap_list_t *l_temp = l_outs;
-    while(l_temp){
-        dap_chain_tx_used_out_item_t *l_out_item = (dap_chain_tx_used_out_item_t *)l_temp->data;
+    dap_list_t *l_outs = dap_ledger_get_list_tx_cond_outs(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, a_net->pub.native_ticker, l_addr_from);
+    for (dap_list_t *it = l_outs; it; it = it->next) {
+        dap_chain_tx_used_out_item_t *l_out_item = (dap_chain_tx_used_out_item_t *)it->data;
         if (dap_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_out_item->tx_hash_fast, l_out_item->num_idx_out, NULL) ||
             s_datum_tx_voting_coin_check_cond_out(a_net, a_hash, l_out_item->tx_hash_fast, l_out_item->num_idx_out ) != 0){
-            l_temp = l_temp->next;
             continue;
         }
         dap_chain_tx_tsd_t *l_item = dap_chain_datum_voting_vote_tx_cond_tsd_create(l_out_item->tx_hash_fast, l_out_item->num_idx_out);
@@ -1506,7 +1498,6 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
         }
         dap_chain_datum_tx_add_item(&l_tx, l_item);
         DAP_DEL_Z(l_item);
-        l_temp = l_temp->next;
     }
     dap_list_free_full(l_outs, NULL);
 
