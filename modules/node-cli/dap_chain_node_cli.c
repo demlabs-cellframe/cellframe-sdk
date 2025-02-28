@@ -381,21 +381,22 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "file clear_log\n"
                 "\t CAUTION !!! This command will clear the entire log file\n");
 
-    dap_cli_server_cmd_add ("policy", com_policy, "Policy commands", "policy [execute] - prepare or create policy execute decree\n"
-                "\t-net <net_name> - net name to policy apply\n"
-                "\t-num <policy_num> - policy num\n"
+    dap_cli_server_cmd_add ("policy", com_policy, "Policy commands", "policy - prepare or create policy execute decree\n"
+                "\t[execute] - used to create policy decree, otherwise show policy decree draft\n"
+                "\t-net <net_name>\n"
+                "\t-num <policy_num>\n"
                 "\t[-ts_start <dd/mm/yy-H:M:S>] - date to start policy\n"
                 "\t[-ts_stop <dd/mm/yy-H:M:S>] - date to stop policy\n"
                 "\t{\n\t\t[-block_start <block_num>] - block num to start policy\n"
                 "\t\t[-block_stop <block_num>] - block num to stop policy\n"
                 "\t\t-chain <chain_name> - chain name to check blocks num\n\t}\n"
-                "\t[-deactivate <deactivate_nums>] - list deactivated policy, example: 1,4,6\n"
-                "\t[-certs <certs_name>] - list signing certs, example: foobar.root.pvt.0,foobar.root.pvt.1\n"
+                "\t[-deactivate <num1[,num2,...,numN]>] - list deactivated policy\n"
+                "\t[-certs <cert1[,cert2,...,certN]>] - list signing certs\n"
                 "policy find - find info about policy in net\n"
-                "\t-net <net_name> - net name to policy search\n"
-                "\t-num <policy_num> - policy num\n"
+                "\t-net <net_name>\n"
+                "\t-num <policy_num>\n"
                 "policy list - show all policies from table in net\n"
-                "\t-net <net_name> - net name to policy search\n");
+                "\t-net <net_name>\n");
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
                 "exit\n" );
