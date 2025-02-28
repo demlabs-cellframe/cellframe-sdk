@@ -2918,7 +2918,13 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                 break;
             }
         }
-        if (!dap_sign_verify(l_sign, l_block, l_block_excl_sign_size))
+        dap_pkey_t *l_pkey = NULL;;
+        if (dap_sign_is_use_pkey_hash(l_sign)) {
+            dap_hash_fast_t l_pkey_hash = {};
+            dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+            l_pkey = dap_chain_net_srv_stake_get_pkey_by_hash(l_esbocs->chain->net_id, &l_pkey_hash);
+        }
+        if (!dap_sign_verify_by_pkey(l_sign, l_block, l_block_excl_sign_size, l_pkey))
             l_signs_verified_count++;
     }
     DAP_DELETE(l_signs);

@@ -135,17 +135,6 @@ static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_t
     return false;
 }
 
-static dap_pkey_t *s_get_pkey_by_hash_callback(const uint8_t *a_hash)
-{
-    
-    dap_chain_net_srv_stake_item_t *l_stake = NULL;
-    for (dap_list_t *l_srv_stake_list = s_srv_stake_list; l_srv_stake_list && !l_stake; l_srv_stake_list = l_srv_stake_list->next) {
-        dap_chain_net_srv_stake_t *l_srv_stake = l_srv_stake_list->data;
-        HASH_FIND(hh, l_srv_stake->itemlist, a_hash, sizeof(dap_hash_fast_t), l_stake);
-    }
-    return l_stake ? l_stake->pkey : NULL; 
-}
-
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
  * @return 0 if everything is okay, lesser then zero if errors
@@ -197,7 +186,6 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
     dap_ledger_service_add(l_uid, "pos_delegate", s_tag_check_key_delegation);
     s_debug_more = dap_config_get_item_bool_default(g_config, "stake", "debug_more", s_debug_more);
-    dap_sign_set_pkey_by_hash_callback(s_get_pkey_by_hash_callback);
     return 0;
 }
 
@@ -4148,4 +4136,18 @@ size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_
         *a_in_active_count = l_inactive_count;
     }
     return l_total_count;
+}
+
+/**
+ * @brief search pkey by hash in delegate table
+ * @param a_net_id net id to switch
+ * @param a_to_temp true - to sandbox, false - to main
+ * @return if OK - 0, other if error
+ */
+dap_pkey_t *dap_chain_net_srv_stake_get_pkey_by_hash(dap_chain_net_id_t a_net_id, const uint8_t *a_hash)
+{
+    dap_chain_net_srv_stake_t*l_srv_stake = s_srv_stake_by_net_id(a_net_id);
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+    HASH_FIND(hh, l_srv_stake->itemlist, a_hash, sizeof(dap_hash_fast_t), l_stake);
+    return l_stake ? l_stake->pkey : NULL; 
 }
