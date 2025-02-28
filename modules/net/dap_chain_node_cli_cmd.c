@@ -8206,7 +8206,7 @@ int com_policy(int argc, char **argv, void **reply) {
         l_certs_count = 0;
     dap_cert_t **l_certs = NULL;
 
-    enum { CMD_NONE=0, CMD_EXECUTE, CMD_FIND, CMD_LIST };  
+    enum { CMD_NONE = 0, CMD_EXECUTE, CMD_FIND, CMD_LIST };  
     int l_arg_index = 1;
 
     int l_cmd = CMD_NONE;
@@ -8382,6 +8382,9 @@ int com_policy(int argc, char **argv, void **reply) {
     // if cmd none - only print preaparing result
     if (l_cmd == CMD_NONE) {
         json_object *l_answer = dap_chain_policy_json_collect(l_policy);
+        char l_time[DAP_TIME_STR_SIZE] = {};
+        dap_time_to_str_rfc822(l_time, DAP_TIME_STR_SIZE - 1, dap_time_now());
+        json_object_object_add(l_answer, "Current time", json_object_new_string(l_time));
         json_object_object_add(l_answer, "Notification", json_object_new_string("It's policy draft, check and use 'execute' command to apply"));
         if (l_answer) {
             json_object_array_add(*a_json_arr_reply, l_answer);
