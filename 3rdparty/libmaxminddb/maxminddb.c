@@ -129,7 +129,7 @@ typedef struct record_info_s {
 
 #define METADATA_MARKER "\xab\xcd\xefMaxMind.com"
 /* This is 128kb */
-#define METADATA_BLOCK_SIZE_SIZE 131072
+#define METADATA_BLOCK_MAX_SIZE 131072
 
 // 64 leads us to allocating 4 KiB on a 64bit system.
 #define MMDB_POOL_INIT_SIZE 64
@@ -531,7 +531,7 @@ LOCAL const uint8_t *find_metadata(const uint8_t *file_content,
 {
     const ssize_t marker_len = sizeof(METADATA_MARKER) - 1;
     ssize_t max_size = file_size >
-                       METADATA_BLOCK_SIZE_SIZE ? METADATA_BLOCK_SIZE_SIZE :
+                       METADATA_BLOCK_MAX_SIZE ? METADATA_BLOCK_MAX_SIZE :
                        file_size;
 
     uint8_t *search_area = (uint8_t *)(file_content + (file_size - max_size));
