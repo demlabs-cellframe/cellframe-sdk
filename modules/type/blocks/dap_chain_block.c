@@ -81,9 +81,6 @@ dap_chain_block_t *dap_chain_block_new(dap_chain_hash_fast_t *a_prev_block, size
         l_block_size = dap_chain_block_meta_add(&l_block, l_block_size, DAP_CHAIN_BLOCK_META_NONCE,
                                                 &l_nonce, sizeof(uint64_t));
     }
-    /*if (l_block_size && a_block_reward)
-        l_block_size = dap_chain_block_meta_add(&l_block, l_block_size, DAP_CHAIN_BLOCK_META_REWARD,
-                                               a_block_reward, sizeof(uint256_t));*/
     if (!l_block_size) {
         log_it(L_ERROR, "Can't add meta to block");
         DAP_DEL_Z(l_block);

@@ -64,7 +64,7 @@ typedef struct dap_ledger_hardfork_condouts {
     dap_hash_fast_t hash;
     dap_chain_tx_out_cond_t *cond;
     dap_chain_tx_sig_t *sign;
-    const char *ticker;
+    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_list_t *trackers;
     struct dap_ledger_hardfork_condouts *prev, *next;
 } dap_ledger_hardfork_condouts_t;
@@ -498,9 +498,9 @@ dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(d
 void dap_ledger_load_end(dap_ledger_t *a_ledger);
 dap_pkey_t *dap_ledger_find_pkey_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_pkey_hash);
 
-//int dap_ledger_decree_create(dap_ledger_t *a_ledger);
 void dap_ledger_decree_init(dap_ledger_t *a_ledger);
-void dap_ledger_decree_purge(dap_ledger_t *a_ledger);
+int dap_ledger_decree_purge(dap_ledger_t *a_ledger);
+int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 
 uint16_t dap_ledger_decree_get_min_num_of_signers(dap_ledger_t *a_ledger);
 uint16_t dap_ledger_decree_get_num_of_owners(dap_ledger_t *a_ledger);
@@ -516,9 +516,10 @@ int dap_ledger_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t * 
 int dap_ledger_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash);
 int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash);
 dap_chain_datum_anchor_t *dap_ledger_anchor_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash);
+int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 
 dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list, json_object* a_changed_addrs);
-dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledger);
+dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 
 uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_tx_hash, int a_out_idx);
 dap_list_t *dap_ledger_tx_get_trackers(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, uint32_t a_out_idx);

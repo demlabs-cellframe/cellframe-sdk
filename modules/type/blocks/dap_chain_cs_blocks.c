@@ -23,7 +23,7 @@
 #include <pthread.h>
 #include "dap_common.h"
 #include "dap_chain.h"
-#include "dap_chain_cell.h"
+#include "dap_chain_srv.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_block.h"
@@ -1542,7 +1542,6 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
         l_datum_index = NULL;
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
-    dap_chain_cell_close_all(a_chain);
     return 0;
 }
 
@@ -1639,19 +1638,6 @@ static int s_delete_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block
              l_ret == (int)a_block_cache->datum_count ? "all correct" : "there are rejected datums");
     return l_ret;
 }
-
-/**
- * @brief s_add_atom_to_blocks
- * @param a_blocks
- * @param a_block_cache
- * @return
- */
-static void s_add_atom_to_blocks(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache)
-{
-
-    return;
-}
-
 
 static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_block_cache_t * a_bcache, uint64_t a_main_branch_length)
 {
@@ -1772,21 +1758,19 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         if ( !dap_chain_net_get_load_mode(l_net) ) {
             int l_err = dap_chain_atom_save(a_chain, l_block->hdr.cell_id, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL, (char**)&l_block);
             if (l_err) {
-                dap_chain_net_srv_stake_switch_table(a_chain->net_id, false);
                 log_it(L_ERROR, "Can't save atom to file, code %d", l_err);
                 return ATOM_REJECT;
             }
         }
 #endif
         if (!( l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped) )) {
-            dap_chain_net_srv_stake_switch_table(a_chain->net_id, false);
             log_it(L_ERROR, "Block %s is corrupted!", l_block_cache->block_hash_str);
             return dap_chain_net_get_load_mode(l_net) ? ATOM_CORRUPTED : ATOM_REJECT;
         }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
 
         pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);
-        if (PVT(l_blocks)->blocks){
+        if (!l_block_cache->is_genesis) {
             dap_chain_block_cache_t *l_last_block = HASH_LAST(PVT(l_blocks)->blocks);
             if (l_last_block && dap_hash_fast_compare(&l_last_block->block_hash, &l_block_prev_hash)){
                 ++PVT(l_blocks)->blocks_count;
@@ -1860,7 +1844,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 }
             }
 
-        } else {
+        } else { // Block is genesis
+
             uint8_t *l_generation_meta = dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_GENERATION);
             uint16_t l_generation = l_generation_meta ? *(uint16_t *)l_generation_meta : 0;
             if (l_generation && a_chain->generation < l_generation) {
@@ -1869,6 +1854,12 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
                     return ATOM_REJECT;
                 }
+                a_chain->generation++;
+                dap_ledger_anchor_purge(l_net->pub.ledger, a_chain->id);
+                dap_ledger_tx_purge(l_net->pub.ledger, false);
+                dap_chain_srv_purge_all(a_chain->net_id);
+                dap_chain_purge(a_chain);
+                l_net->pub.ledger->is_hardfork_state = true;
                 if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // True import
                     log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
                     return ATOM_REJECT;
@@ -2503,7 +2494,7 @@ static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_bl
         a_datum_iter->ret_code = a_datum_index->ret_code;
         a_datum_iter->action = a_datum_index->action;
         a_datum_iter->uid = a_datum_index->service_uid;    
-        a_datum_iter->token_ticker = dap_strcmp(a_datum_index->token_ticker, "0") ? a_datum_index->token_ticker : NULL;
+        a_datum_iter->token_ticker = dap_strcmp(a_datum_index->token_ticker, "") ? a_datum_index->token_ticker : NULL;
     } else {
         a_datum_iter->cur = NULL;
         a_datum_iter->cur_hash = NULL;
@@ -2612,7 +2603,9 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
         }
         if (!l_blocks->block_new) {
             dap_chain_block_cache_t *l_bcache_last = HASH_LAST(l_blocks_pvt->blocks);
-            l_blocks->block_new = dap_chain_block_new(&l_bcache_last->block_hash, &l_blocks->block_new_size);
+            if (a_chain->hardfork_data && l_bcache_last->block->hdr.cell_id.uint64 != c_dap_chain_cell_id_hardfork.uint64)
+                l_bcache_last = NULL;       // Workaround until separate cells storages will be realized
+            l_blocks->block_new = dap_chain_block_new(l_bcache_last ? &l_bcache_last->block_hash : NULL, &l_blocks->block_new_size);
             l_blocks->block_new->hdr.cell_id = a_chain->hardfork_data ? c_dap_chain_cell_id_hardfork : c_dap_chain_cell_id_null;
             l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
         }
