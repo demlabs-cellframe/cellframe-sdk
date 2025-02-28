@@ -277,7 +277,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     int l_prev_tx_count = 0;
 
     // 1. Verify signature in current transaction
-    if (!a_from_threshold && dap_chain_datum_tx_verify_sign(a_tx, 0))
+    if (!a_from_threshold && !a_ledger->is_hardfork_state && dap_chain_datum_tx_verify_sign(a_tx, 0))
         return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
 
     // ----------------------------------------------------------------
@@ -2515,7 +2515,8 @@ static int s_aggregate_out_cond(dap_ledger_hardfork_condouts_t **a_ret_list, dap
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
-    *l_new_condout = (dap_ledger_hardfork_condouts_t) { .hash = *a_tx_hash, .cond = a_out_cond, .sign = a_sign, .ticker = a_token_ticker };
+    *l_new_condout = (dap_ledger_hardfork_condouts_t) { .hash = *a_tx_hash, .cond = a_out_cond, .sign = a_sign };
+    dap_strncpy(l_new_condout->ticker, a_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
     l_new_condout->trackers = s_trackers_aggregate_hardfork(a_ledger, NULL, a_trackers, a_hardfork_start_time);
     DL_APPEND(*a_ret_list, l_new_condout);
     return 0;
@@ -2536,8 +2537,9 @@ static dap_chain_addr_t* s_change_addr(struct json_object *a_json, dap_chain_add
     return NULL;
 }
 
-dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list, json_object * a_changed_addrs)
+dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list, json_object *a_changed_addrs)
 {
+    dap_return_val_if_fail(a_ledger, NULL);
     dap_ledger_hardfork_balances_t *ret = NULL;
     dap_ledger_hardfork_condouts_t *l_cond_ret = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
@@ -2603,5 +2605,7 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
         }
     }
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    if (l_cond_outs_list)
+        *l_cond_outs_list = l_cond_ret;
     return ret;
 }

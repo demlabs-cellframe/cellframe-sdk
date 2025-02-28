@@ -350,6 +350,15 @@ static bool s_datum_in_chain_types(uint16_t datum_type, dap_chain_type_t *chain_
 	return (false);
 }
 
+bool dap_chain_datum_type_supported_by_chain(dap_chain_t *a_chain, uint16_t a_datum_type)
+{
+    dap_return_val_if_fail(a_chain, false);
+    for (uint16_t i = 0; i < a_chain->datum_types_count; i++)
+        if (s_chain_type_convert(a_chain->datum_types[i]) == a_datum_type)
+            return true;
+    return false;
+}
+
 /**
  * @brief dap_chain_load_from_cfg
  * Loading chain from config file

@@ -57,10 +57,9 @@ void dap_chain_srv_deinit()
         dap_list_t *itl, *tmpl;
         DL_FOREACH_SAFE(it->networks, itl, tmpl) {
             struct network_service *l_service = itl->data;
-            if (it->callbacks.delete)
-                it->callbacks.delete(l_service->service);
-            else
-                DAP_DEL_Z(l_service->service);
+            if (it->callbacks.purge)
+                it->callbacks.purge(l_service->net_id, l_service->service);
+            DAP_DEL_Z(l_service->service);
             DAP_DELETE(l_service);
             DAP_DELETE(itl);
         }
@@ -162,10 +161,9 @@ int dap_chain_srv_delete(dap_chain_srv_uid_t a_srv_uid)
     dap_list_t *it, *tmp;
     DL_FOREACH_SAFE(l_service_item->networks, it, tmp) {
         struct network_service *l_service = it->data;
-        if (l_service_item->callbacks.delete)
-            l_service_item->callbacks.delete(l_service->service);
-        else
-            DAP_DEL_Z(l_service->service);
+        if (l_service_item->callbacks.purge)
+            l_service_item->callbacks.purge(l_service->net_id, l_service->service);
+        DAP_DEL_Z(l_service->service);
         DAP_DELETE(l_service);
         DAP_DELETE(it);
     }
@@ -176,9 +174,9 @@ int dap_chain_srv_delete(dap_chain_srv_uid_t a_srv_uid)
 int dap_chain_srv_purge(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid)
 {
     struct service_list *l_service_item = s_service_find(a_srv_uid);
-    if (l_service_item && s_net_service_find(l_service_item, a_net_id) &&
-            l_service_item->callbacks.purge)
-        return l_service_item->callbacks.purge(a_net_id);
+    struct network_service *l_service = s_net_service_find(l_service_item, a_net_id);
+    if (l_service_item && l_service_item->callbacks.purge && l_service)
+        return l_service_item->callbacks.purge(l_service->net_id, l_service->service);
     return 0;
 }
 
@@ -191,9 +189,13 @@ int dap_chain_srv_purge_all(dap_chain_net_id_t a_net_id)
     int ret = 0;
     int err = pthread_rwlock_rdlock(&s_srv_list_lock);
     assert(!err);
-    for (struct service_list *it = s_srv_list; it; it = it->hh.next) {
-        if (s_net_service_find(it, a_net_id) && it->callbacks.purge)
-            ret += it->callbacks.purge(a_net_id);
+    for (struct service_list *it = s_srv_list; it; it = it->hh.next) {      
+        if (!it->callbacks.purge)
+            continue;
+        struct network_service *l_service = s_net_service_find(it, a_net_id);
+        if (!l_service)
+            continue;
+        ret += it->callbacks.purge(l_service->net_id, l_service->service);
     }
     pthread_rwlock_unlock(&s_srv_list_lock);
     return ret;
@@ -209,21 +211,21 @@ dap_chain_srv_hardfork_state_t *dap_chain_srv_hardfork_all(dap_chain_net_id_t a_
     int err = pthread_rwlock_rdlock(&s_srv_list_lock);
     assert(!err);
     for (struct service_list *it = s_srv_list; it; it = it->hh.next) {
-        if (it->callbacks.hardfork_prepare) {
-            struct network_service *l_service = s_net_service_find(it, a_net_id);
-            if (!l_service)
-                continue;
-            dap_chain_srv_hardfork_state_t *l_state = DAP_NEW_Z(dap_chain_srv_hardfork_state_t), *cur, *tmp;
-            if (!l_state) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                DL_FOREACH_SAFE(ret, cur, tmp)
-                    DAP_DELETE(cur);
-                break;
-            }
-            l_state->uid = it->uuid;
-            l_state->data = it->callbacks.hardfork_prepare(a_net_id, &l_state->size, &l_state->count, l_service->service);
-            DL_APPEND(ret, l_state);
+        if (!it->callbacks.hardfork_prepare)
+            continue;
+        struct network_service *l_service = s_net_service_find(it, a_net_id);
+        if (!l_service)
+            continue;
+        dap_chain_srv_hardfork_state_t *l_state = DAP_NEW_Z(dap_chain_srv_hardfork_state_t), *cur, *tmp;
+        if (!l_state) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            DL_FOREACH_SAFE(ret, cur, tmp)
+                DAP_DELETE(cur);
+            break;
         }
+        l_state->uid = it->uuid;
+        l_state->data = it->callbacks.hardfork_prepare(a_net_id, &l_state->size, &l_state->count, l_service->service);
+        DL_APPEND(ret, l_state);
     }
     pthread_rwlock_unlock(&s_srv_list_lock);
     return ret;
