@@ -177,21 +177,6 @@ DAP_STATIC_INLINE char *s_get_approved_group(dap_chain_net_t *a_net)
     return a_net ? dap_strdup_printf("%s.orders.stake.approved", a_net->pub.gdb_groups_prefix) : NULL;
 }
 
-static dap_pkey_t *s_get_pkey_by_hash_callback(const uint8_t *a_hash)
-{
-    dap_list_t *l_srv_stake_list = dap_chain_srv_get_internal_all((dap_chain_srv_uid_t) { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID });
-    dap_chain_net_srv_stake_item_t *l_stake = NULL;
-    for ( ; l_srv_stake_list && !l_stake; l_srv_stake_list = l_srv_stake_list->next) {
-        struct srv_stake *l_srv_stake = l_srv_stake_list->data;
-        if (l_srv_stake->hardfork.in_process)
-            HASH_FIND(hh, l_srv_stake->hardfork.sandbox, a_hash, sizeof(dap_hash_fast_t), l_stake);
-        else
-            HASH_FIND(hh, l_srv_stake->itemlist, a_hash, sizeof(dap_hash_fast_t), l_stake);
-    }
-    dap_list_free(l_srv_stake_list);
-    return l_stake ? l_stake->pkey : NULL; 
-}
-
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
  * @return 0 if everything is okay, lesser then zero if errors
@@ -245,7 +230,6 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     );
 
     s_debug_more = dap_config_get_item_bool_default(g_config, "stake", "debug_more", s_debug_more);
-    dap_sign_set_pkey_by_hash_callback(s_get_pkey_by_hash_callback);
     dap_chain_static_srv_callbacks_t l_callbacks = { .start = s_pos_delegate_start,
                                                      .delete = s_pos_delegate_delete,
                                                      .purge = s_pos_delegate_purge,
@@ -4460,4 +4444,21 @@ int dap_chain_net_srv_stake_switch_table(dap_chain_net_id_t a_net_id, bool a_to_
     }
     l_srv_stake->hardfork.in_process = a_to_sandbox;
     return 0;
+}
+
+/**
+ * @brief search pkey by hash in delegate table
+ * @param a_net_id net id to switch
+ * @param a_to_temp true - to sandbox, false - to main
+ * @return if OK - 0, other if error
+ */
+dap_pkey_t *dap_chain_net_srv_stake_get_pkey_by_hash(dap_chain_net_id_t a_net_id, const uint8_t *a_hash)
+{
+    struct srv_stake *l_srv_stake = s_srv_stake_by_net_id(a_net_id);
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+    if (l_srv_stake->hardfork.in_process)
+        HASH_FIND(hh, l_srv_stake->hardfork.sandbox, a_hash, sizeof(dap_hash_fast_t), l_stake);
+    else
+        HASH_FIND(hh, l_srv_stake->itemlist, a_hash, sizeof(dap_hash_fast_t), l_stake);
+    return l_stake ? l_stake->pkey : NULL; 
 }
