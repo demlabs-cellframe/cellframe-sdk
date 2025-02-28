@@ -287,7 +287,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     }
 
     if (a_tag_str) {
-        dap_chain_tx_tsd_t *l_tsd_tag_item = dap_chain_datum_tx_item_tsd_create(a_tag_str, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TAG, strlen(a_tag_str) + 1);
+        dap_chain_tx_tsd_t *l_tsd_tag_item = dap_chain_datum_tx_item_tsd_create((void *)a_tag_str, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TAG, strlen(a_tag_str) + 1);
         if (!l_tsd_tag_item)
             m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction tag");
         if (dap_chain_datum_tx_add_item(&l_tx, l_tsd_tag_item) != 1) {
