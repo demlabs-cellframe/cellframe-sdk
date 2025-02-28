@@ -285,20 +285,18 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     }
 
     if (a_tag_str) {
-        dap_chain_tx_tsd_t *tsd_tag_item = dap_chain_datum_tx_item_tsd_create(a_tag_str, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TAG, strlen(a_tag_str) + 1);
-        if (!tsd_tag_item)
+        dap_chain_tx_tsd_t *l_tsd_tag_item = dap_chain_datum_tx_item_tsd_create(a_tag_str, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TAG, strlen(a_tag_str) + 1);
+        if (!l_tsd_tag_item)
             m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction tag");
-        if (dap_chain_datum_tx_add_item(&l_tx, tsd_tag_item) != 1) {
-            DAP_DELETE(tsd_tag_item);
+        if (dap_chain_datum_tx_add_item(&l_tx, l_tsd_tag_item) != 1) {
+            DAP_DELETE(l_tsd_tag_item);
             m_tx_fail(ERROR_COMPOSE, "Can't add the transaction tag");
         }
-        DAP_DELETE(tsd_tag_item);
+        DAP_DELETE(l_tsd_tag_item);
     }
     // add 'sign' item
     if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1)
         m_tx_fail(ERROR_COMPOSE, "Can't add sign output");
-
-
     return l_tx;
 }
 
@@ -307,7 +305,6 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
     uint256_t a_value, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
 {
     dap_return_val_if_pass(!a_net || IS_ZERO_256(a_value) || IS_ZERO_256(a_fee), NULL);
-    // create empty transaction
     dap_ledger_t *l_ledger = a_net->pub.ledger;
     const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, a_tx_in_hash);
     bool l_refill_native = !dap_strcmp(a_net->pub.native_ticker, l_tx_ticker);
@@ -329,7 +326,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
     dap_list_t *l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_tx_ticker,
                                                                        &l_owner_addr, l_value, &l_value_transfer);
     if (!l_list_used_out)
-        m_tx_fail(ERROR_FUNDS, "Nothing to pay for delegate (not enough funds)");
+        m_tx_fail(ERROR_FUNDS, "Nothing to pay for refill (not enough funds)");
 
     // add 'in' items to pay for delegate
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
@@ -385,8 +382,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
     }
     DAP_DELETE(l_out_cond);
 
-
-    // add track for takeoff from conditional value
+    // add track for refill from conditional value
     dap_chain_tx_tsd_t *l_refill_tsd = dap_chain_datum_tx_item_tsd_create(&a_value, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_REFILL, sizeof(uint256_t));
     if (dap_chain_datum_tx_add_item(&l_tx, l_refill_tsd) != 1) {
         DAP_DELETE(l_refill_tsd);
@@ -400,7 +396,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
         m_tx_fail(ERROR_COMPOSE, "Can't add custom TSD section item ");
     }
 
-// coin back
+    // coin back
     SUBTRACT_256_256(l_value_transfer, l_value, &l_value_back);
     if (!IS_ZERO_256(l_value_back)) {
         int rc = l_refill_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_owner_addr, l_value_back)
