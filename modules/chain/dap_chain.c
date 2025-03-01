@@ -949,3 +949,18 @@ const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type)
             return "unknown";
     }
 }
+
+dap_pkey_t *dap_chain_find_pkey_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_pkey_hash)
+{
+    dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, a_chain->active_cell_id, NULL);
+    uint64_t l_atom_size = 0;
+    dap_pkey_t *l_ret;
+    for (dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
+            l_atom && l_atom_size;
+            l_atom = a_chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size)) {
+        
+
+    }
+    a_chain->callback_atom_iter_delete(l_atom_iter);
+    return l_ret;
+}
