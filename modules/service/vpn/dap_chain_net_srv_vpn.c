@@ -1391,7 +1391,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
         if(a_srv_session->limits_ts && a_srv_session->limits_ts < l_current_limit_ts/2 &&
             a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL &&
-            a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL){
+            a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL && !a_usage->receipt_next){
             l_issue_new_receipt = true;
         }
         a_srv_session->last_update_ts = time(NULL);
@@ -1458,7 +1458,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
         a_usage->is_limits_changed = true;
         if (a_srv_session->limits_bytes && a_srv_session->limits_bytes < current_limit_bytes/2 &&
             a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL &&
-            a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL){
+            a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL && !a_usage->receipt_next){
             l_issue_new_receipt = true;
         }
 
