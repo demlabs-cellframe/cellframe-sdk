@@ -1008,7 +1008,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     }
 
     // set start limits
-    if(!l_usage_active->is_free && l_usage_active->receipt){
+    if(l_usage_active->receipt){
         remain_limits_save_arg_t *l_args = DAP_NEW_Z(remain_limits_save_arg_t);
         l_args->srv = a_srv;
         l_args->srv_client = a_srv_client;
@@ -1019,22 +1019,18 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         switch( l_usage_active->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_SEC:{
                 l_srv_session->last_update_ts = time(NULL);
-                if (!l_usage_active->is_grace && l_srv_session->limits_ts <= 0){
-                    char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage_active->client_pkey_hash);
-                    log_it(L_INFO,"%ld seconds more for VPN usage for user %s", l_srv_session->limits_ts < 0 ? l_usage_active->receipt->receipt_info.units + l_srv_session->limits_ts :
-                                                                                                                        l_usage_active->receipt->receipt_info.units, l_user_key);
-                    DAP_DELETE(l_user_key);
-                    l_srv_session->limits_ts += (time_t)l_usage_active->receipt->receipt_info.units;
-                }
+                char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage_active->client_pkey_hash);
+                log_it(L_INFO,"%ld seconds more for VPN usage for user %s", l_srv_session->limits_ts < 0 ? l_usage_active->receipt->receipt_info.units + l_srv_session->limits_ts :
+                                                                                                                    l_usage_active->receipt->receipt_info.units, l_user_key);
+                DAP_DELETE(l_user_key);
+                l_srv_session->limits_ts += (time_t)l_usage_active->receipt->receipt_info.units;
             } break;
             case SERV_UNIT_B:{
-                if (!l_usage_active->is_grace && l_srv_session->limits_bytes <= 0){
-                    char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage_active->client_pkey_hash);
-                    log_it(L_INFO,"%ld bytes more for VPN usage for user %s", l_srv_session->limits_bytes < 0 ? (intmax_t)l_usage_active->receipt->receipt_info.units + l_srv_session->limits_bytes :
-                                                                                                                        (intmax_t)l_usage_active->receipt->receipt_info.units, l_user_key);
-                    DAP_DELETE(l_user_key);
-                    l_srv_session->limits_bytes += (intmax_t) l_usage_active->receipt->receipt_info.units;
-                }
+                char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage_active->client_pkey_hash);
+                log_it(L_INFO,"%ld bytes more for VPN usage for user %s", l_srv_session->limits_bytes < 0 ? (intmax_t)l_usage_active->receipt->receipt_info.units + l_srv_session->limits_bytes :
+                                                                                                                    (intmax_t)l_usage_active->receipt->receipt_info.units, l_user_key);
+                DAP_DELETE(l_user_key);
+                l_srv_session->limits_bytes += (intmax_t) l_usage_active->receipt->receipt_info.units;
             } break;
             default: {
                 log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X", l_usage_active->receipt->receipt_info.units_type.uint32 );
@@ -1043,8 +1039,10 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
                 dap_stream_ch_set_ready_to_read_unsafe(l_usage_active->client->ch,false);
             }
         }
-    } else if (!l_usage_active->is_free && !l_usage_active->receipt && l_usage_active->is_grace){
+    } else if (l_usage_active->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE){
         l_srv_session->last_update_ts = time(NULL);
+    } else {
+        log_it(L_ERROR, "WRONG state");
     }
 
     return l_ret;
@@ -1179,7 +1177,7 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
         return -101;
     }
 
-    if (l_usage->is_free || !l_usage->is_limits_changed)
+    if (l_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE || !l_usage->is_limits_changed)
         return -110;
 
     dap_chain_net_t *l_net = l_usage->net;
@@ -1197,7 +1195,8 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
 
     dap_stream_ch_chain_net_srv_remain_service_store_t l_remain_service = {};
     dap_sign_t * l_receipt_sign = NULL;
-    if (l_srv_session->usage_active->receipt_next && !l_srv_session->usage_active->is_grace){
+    if (l_srv_session->usage_active->receipt_next && 
+        l_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL){
         l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( l_srv_session->usage_active->receipt_next, l_srv_session->usage_active->receipt_next->size, 1);
     }
 
@@ -1364,7 +1363,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
     bool l_issue_new_receipt = false;
     // Check if there are time limits
 
-    if (!a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE || !a_usage->is_active)
+    if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE || !a_usage->is_active)
         return;
 
     if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE){
@@ -1386,15 +1385,15 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
         a_srv_session->limits_ts -= time(NULL) - a_srv_session->last_update_ts;
         a_usage->is_limits_changed = true;
 
-        if(a_srv_session->limits_ts && a_srv_session->limits_ts < l_current_limit_ts/2 && 
-            !a_usage->receipt_next && !a_usage->is_waiting_first_receipt_sign && !a_usage->is_grace){
+        if(a_srv_session->limits_ts && a_srv_session->limits_ts < l_current_limit_ts/2 &&
+            a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL &&
+            a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL){
             l_issue_new_receipt = true;
         }
         a_srv_session->last_update_ts = time(NULL);
 
 
-        if( a_srv_session->limits_ts <= 0 && !a_usage->is_grace && 
-                    !a_usage->is_waiting_next_receipt_sign && !a_usage->is_waiting_first_receipt_sign){
+        if( a_srv_session->limits_ts <= 0 && a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL){
             char *l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
             log_it(L_INFO, "Limits by timestamp are over for user %s. Switch to the next receipt", l_user_key);
             DAP_DELETE(l_user_key);
@@ -1424,7 +1423,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                     dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
                 }
                 }
-            }else if (!a_usage->is_grace){
+            }else if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_ERROR){
                 char *l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
                 log_it( L_NOTICE, "No activate receipt in usage for user %s, switch off write callback for channel", l_user_key);
                 DAP_DELETE(l_user_key);
@@ -1454,12 +1453,12 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
         a_srv_session->limits_bytes -= (intmax_t) a_bytes;
         a_usage->is_limits_changed = true;
         if (a_srv_session->limits_bytes && a_srv_session->limits_bytes < current_limit_bytes/2 &&
-            !a_usage->receipt_next && !a_usage->is_waiting_first_receipt_sign){
+            a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL &&
+            a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL){
             l_issue_new_receipt = true;
         }
 
-        if (a_srv_session->limits_bytes <= 0  && !a_usage->is_grace && 
-            !a_usage->is_waiting_next_receipt_sign && !a_usage->is_waiting_first_receipt_sign){
+        if (a_srv_session->limits_bytes <= 0  && a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL){
             char *l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
             log_it(L_INFO, "Limits by traffic is over for user %s. Switch to the next receipt", l_user_key);
             DAP_DELETE(l_user_key);
@@ -1488,7 +1487,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                     dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
                 }
                 }
-            }else if (!a_usage->is_grace){
+            }else if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_ERROR){
                 char *l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
                 log_it( L_NOTICE, "No activate receipt in usage for user %s, switch off write callback for channel", l_user_key);
                 DAP_DELETE(l_user_key);
@@ -1503,17 +1502,15 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
     }
     // If issue new receipt
     if ( l_issue_new_receipt && !dap_hash_fast_is_blank(&a_usage->tx_cond_hash)) {
-        if ( a_usage->receipt){
             char *l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
             log_it( L_NOTICE, "Send next receipt to sign to user %s", l_user_key);
             DAP_DELETE(l_user_key);
             a_usage->receipt_next = dap_chain_net_srv_issue_receipt(a_usage->service, a_usage->price, NULL, 0);
-            a_usage->is_waiting_next_receipt_sign = true;
+            a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEXT_RECEIPT_SIGN;
             //start timeout timer
             a_usage->receipt_timeout_timer_start_callback(a_usage);
             dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                            a_usage->receipt_next, a_usage->receipt_next->size);
-        }
     }
 
 }
@@ -1897,7 +1894,7 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return false;
     }
-    if ( (!l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE) && (! l_usage->receipt && !!l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE) ){
+    if ( (l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE) && (!l_usage->receipt && l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE) ){
         log_it(L_WARNING, "No active receipt, switching off");
         l_usage->is_active = 0;
         if (l_usage->client)
