@@ -1139,7 +1139,7 @@ static void s_service_state_go_to_normal(dap_chain_net_srv_usage_t *a_usage)
         return;
 
     if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE &&
-        a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE){
+        (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE)){
         // start with remain limits
         if (a_usage->service->callbacks.response_success){
             if( a_usage->service->callbacks.response_success(a_usage->service,a_usage->id,  a_usage->client,
@@ -1155,7 +1155,7 @@ static void s_service_state_go_to_normal(dap_chain_net_srv_usage_t *a_usage)
             s_service_substate_go_to_error(a_usage);
         }
 
-    } else if (a_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE){
+    }  else if (a_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE){
         log_it(L_ERROR, "Wrong state.");
         a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_UNDEFINED;
         s_service_state_go_to_error(a_usage);

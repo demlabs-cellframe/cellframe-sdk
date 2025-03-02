@@ -1008,7 +1008,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     }
 
     // set start limits
-    if(l_usage_active->receipt){
+    if(l_usage_active->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE && l_usage_active->receipt){
         remain_limits_save_arg_t *l_args = DAP_NEW_Z(remain_limits_save_arg_t);
         l_args->srv = a_srv;
         l_args->srv_client = a_srv_client;
@@ -1019,18 +1019,22 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         switch( l_usage_active->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_SEC:{
                 l_srv_session->last_update_ts = time(NULL);
-                char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage_active->client_pkey_hash);
-                log_it(L_INFO,"%ld seconds more for VPN usage for user %s", l_srv_session->limits_ts < 0 ? l_usage_active->receipt->receipt_info.units + l_srv_session->limits_ts :
-                                                                                                                    l_usage_active->receipt->receipt_info.units, l_user_key);
-                DAP_DELETE(l_user_key);
-                l_srv_session->limits_ts += (time_t)l_usage_active->receipt->receipt_info.units;
+                dap_time_t l_initial_limit_sec = 0; 
+                if (l_usage_active->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE){
+                    l_initial_limit_sec = l_srv_session->limits_ts;
+                } else if (l_usage_active->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN) {
+                    l_initial_limit_sec = l_srv_session->limits_ts += (time_t)l_usage_active->receipt->receipt_info.units;
+                }
+                log_it(L_INFO,"%ld seconds more for VPN usage for user %s", l_initial_limit_sec, dap_chain_hash_fast_to_str_static(&l_usage_active->client_pkey_hash));
             } break;
             case SERV_UNIT_B:{
-                char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage_active->client_pkey_hash);
-                log_it(L_INFO,"%ld bytes more for VPN usage for user %s", l_srv_session->limits_bytes < 0 ? (intmax_t)l_usage_active->receipt->receipt_info.units + l_srv_session->limits_bytes :
-                                                                                                                    (intmax_t)l_usage_active->receipt->receipt_info.units, l_user_key);
-                DAP_DELETE(l_user_key);
-                l_srv_session->limits_bytes += (intmax_t) l_usage_active->receipt->receipt_info.units;
+                intmax_t l_initial_limits_b = 0;
+                if (l_usage_active->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE){
+                    l_initial_limits_b = l_srv_session->limits_bytes;
+                } else if (l_usage_active->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN) {
+                    l_initial_limits_b = l_srv_session->limits_bytes += (intmax_t)l_usage_active->receipt->receipt_info.units;
+                }
+                log_it(L_INFO,"%ld bytes more for VPN usage for user %s", l_initial_limits_b, dap_chain_hash_fast_to_str_static(&l_usage_active->client_pkey_hash));
             } break;
             default: {
                 log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X", l_usage_active->receipt->receipt_info.units_type.uint32 );
@@ -1886,7 +1890,7 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         return false;
     }
 
-    if ( ! l_usage->is_active ){
+    if (!l_usage->is_active ){
         log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
         if (l_usage->client)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
@@ -1894,7 +1898,7 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return false;
     }
-    if ( (l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE) && (!l_usage->receipt && l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE) ){
+    if ((l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE) && (!l_usage->receipt && l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE) ){
         log_it(L_WARNING, "No active receipt, switching off");
         l_usage->is_active = 0;
         if (l_usage->client)
