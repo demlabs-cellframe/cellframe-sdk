@@ -206,12 +206,13 @@ void dap_chain_node_list_cluster_del_callback(dap_store_obj_t *a_obj, void *a_ar
     if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL) {
         log_it(L_DEBUG, "Delete node list hole %s key %s", a_obj->group, a_obj->key);
         dap_global_db_driver_delete(a_obj, 1);
+        return;
     }
     log_it(L_DEBUG, "Start check node list %s group %s key", a_obj->group, a_obj->key);
 
     if (!a_obj->value) {
         log_it(L_DEBUG, "Can't find value in %s group %s key delete from node list", a_obj->group, a_obj->key);
-        dap_global_db_del_sync(a_obj->group, a_obj->key);
+        dap_global_db_driver_delete(a_obj, 1);
         return;
     }
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)a_obj->value;
