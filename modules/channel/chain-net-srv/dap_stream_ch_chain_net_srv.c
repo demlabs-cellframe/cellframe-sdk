@@ -946,11 +946,13 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                 if (dap_ledger_tx_find_by_hash(l_usage->net->pub.ledger, &l_usage->tx_cond_hash)){
                     pthread_mutex_lock(&l_srv->grace_mutex);
                     HASH_DEL(l_srv->grace_hash_tab, l_curr_grace_item);
+                    DAP_DEL_Z(l_curr_grace_item->grace);
                     DAP_DEL_Z(l_curr_grace_item);
                     pthread_mutex_unlock(&l_srv->grace_mutex);
                     s_service_substate_pay_service(l_usage);
                 } else {
                     l_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER;
+                    log_it(L_NOTICE, "Can't find newtx cond %s in ledger. Waiting...", dap_chain_hash_fast_to_str_static(&l_responce->hdr.tx_cond));
                     pthread_mutex_lock(&l_srv->grace_mutex);
                     HASH_DEL(l_srv->grace_hash_tab, l_curr_grace_item);
                     l_curr_grace_item->tx_cond_hash = l_usage->tx_cond_hash;
