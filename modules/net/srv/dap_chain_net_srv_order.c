@@ -84,7 +84,7 @@ void dap_chain_net_srv_order_deinit()
 
 int dap_chain_srv_order_pin_init() {
     dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*.service.orders");
-    for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list)) {
+    for (dap_list_t *l_list = l_group_list; l_list && dap_global_db_group_match_mask((char*)l_list->data, "*pinned"); l_list = dap_list_next(l_list)) {
         size_t l_ret_count;
         dap_store_obj_t  * l_ret = dap_global_db_get_all_raw_sync((char*)l_list->data, &l_ret_count);
         if (!l_ret) {
