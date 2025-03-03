@@ -1286,8 +1286,8 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
 {
     dap_stream_ch_chain_net_srv_pkt_error_t l_err;
 
-    if ((a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE && 
-        a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE)
+    if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE && 
+        a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE
     ) {
         dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
         l_remain_service = a_usage->service->callbacks.get_remain_service(a_usage->service, a_usage->id, a_usage->client);
@@ -1335,7 +1335,20 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
             //start timeout timer
             a_usage->receipt_timeout_timer_start_callback(a_usage);
         }
-    } else {
+    } else if(a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE && 
+        a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING){
+            
+        log_it(L_INFO, "Send first receipt to sign");
+        a_usage->receipt = dap_chain_net_srv_issue_receipt(a_usage->service, a_usage->price, NULL, 0);
+        dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+            a_usage->receipt, a_usage->receipt->size);
+            
+        a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN;
+
+        //start timeout timer
+        a_usage->receipt_timeout_timer_start_callback(a_usage);    
+            
+    }else {
         if (!a_usage->tx_cond) a_usage->tx_cond = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
 
         if (a_usage->tx_cond){
