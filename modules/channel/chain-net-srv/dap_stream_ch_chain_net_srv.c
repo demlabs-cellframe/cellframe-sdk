@@ -1287,9 +1287,7 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
     dap_stream_ch_chain_net_srv_pkt_error_t l_err;
 
     if ((a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE && 
-        a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE) || 
-        (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE && 
-        a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING)
+        a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE)
     ) {
         dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
         l_remain_service = a_usage->service->callbacks.get_remain_service(a_usage->service, a_usage->id, a_usage->client);
@@ -1338,11 +1336,15 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
             a_usage->receipt_timeout_timer_start_callback(a_usage);
         }
     } else {
-        int ret = s_check_tx_params(a_usage);
-        if (ret != 0){
-            a_usage->last_err_code = ret;
-            s_service_substate_go_to_error(a_usage);
-            return;
+        if (!a_usage->tx_cond) a_usage->tx_cond = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
+
+        if (a_usage->tx_cond){
+            int ret = s_check_tx_params(a_usage);
+            if (ret != 0){
+                a_usage->last_err_code = ret;
+                s_service_substate_go_to_error(a_usage);
+                return;
+            }
         }
         dap_chain_datum_tx_receipt_t *l_receipt = NULL;
         if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN)
@@ -1350,6 +1352,7 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
         else 
             l_receipt = a_usage->receipt_next;
 
+        
         int l_ret = s_pay_service(a_usage, l_receipt);
         switch (l_ret){
             case PAY_SERVICE_STATUS_SUCCESS:
