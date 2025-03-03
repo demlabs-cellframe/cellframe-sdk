@@ -642,8 +642,11 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 return -105;
             }
             l_policy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_policy, dap_chain_policy_get_size(l_policy), -106);
-            if (DAP_FLAG_CHECK(l_policy->activate.flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM))
-                l_policy->activate.chain_union.chain = dap_chain_find_by_id(a_net->pub.id, l_policy->activate.chain_union.chain_id);
+            if (l_policy->type == DAP_CHAIN_POLICY_ACTIVATE) {
+                dap_chain_policy_activate_t *l_policy_activate = (dap_chain_policy_activate_t *)l_policy->data;
+                DAP_FLAG_CHECK(l_policy_activate->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM);
+                l_policy_activate->chain_union.chain = dap_chain_find_by_id(a_net->pub.id, l_policy_activate->chain_union.chain_id);
+            }
             return dap_chain_policy_add(l_policy, a_net->pub.id.uint64);
         }
         default:
