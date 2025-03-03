@@ -400,7 +400,7 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
                 json_object_object_add(a_json_out, "policy_num", json_object_new_string("WRONG SIZE"));
                 break;
             }
-            json_object_object_add(a_json_out, "policy_num", json_object_new_uint64(((dap_chain_policy_t *)(l_tsd->data))->activate.num));
+            json_object_object_add(a_json_out, "Policy type", json_object_new_string( dap_chain_policy_to_str((dap_chain_policy_t *)(l_tsd->data))));
             break;
 
         default:
