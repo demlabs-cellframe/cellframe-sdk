@@ -1008,7 +1008,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     }
 
     // set start limits
-    if(l_usage_active->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE && l_usage_active->receipt){
+    if(l_usage_active->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL && l_usage_active->receipt){
         remain_limits_save_arg_t *l_args = DAP_NEW_Z(remain_limits_save_arg_t);
         l_args->srv = a_srv;
         l_args->srv_client = a_srv_client;
@@ -1022,7 +1022,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
                 dap_time_t l_initial_limit_sec = 0; 
                 if (l_usage_active->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE){
                     l_initial_limit_sec = l_srv_session->limits_ts;
-                } else if (l_usage_active->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN) {
+                } else {
                     l_initial_limit_sec = l_srv_session->limits_ts += (time_t)l_usage_active->receipt->receipt_info.units;
                 }
                 log_it(L_INFO,"%ld seconds more for VPN usage for user %s", l_initial_limit_sec, dap_chain_hash_fast_to_str_static(&l_usage_active->client_pkey_hash));
@@ -1031,7 +1031,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
                 intmax_t l_initial_limits_b = 0;
                 if (l_usage_active->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE){
                     l_initial_limits_b = l_srv_session->limits_bytes;
-                } else if (l_usage_active->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN) {
+                } else {
                     l_initial_limits_b = l_srv_session->limits_bytes += (intmax_t)l_usage_active->receipt->receipt_info.units;
                 }
                 log_it(L_INFO,"%ld bytes more for VPN usage for user %s", l_initial_limits_b, dap_chain_hash_fast_to_str_static(&l_usage_active->client_pkey_hash));
@@ -1367,7 +1367,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
     bool l_issue_new_receipt = false;
     // Check if there are time limits
 
-    if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE || !a_usage->is_active)
+    if (!a_usage || a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE || !a_usage->is_active)
         return;
 
     if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE){
