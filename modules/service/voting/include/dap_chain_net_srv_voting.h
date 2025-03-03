@@ -94,13 +94,14 @@ enum DAP_CHAIN_NET_VOTE_CREATE_ERROR {
     DAP_CHAIN_NET_VOTE_CREATE_WALLET_PARAM_NOT_VALID,
     DAP_CHAIN_NET_VOTE_CREATE_WALLET_DOES_NOT_EXIST,
     DAP_CHAIN_NET_VOTE_CREATE_WRONG_TIME_FORMAT,
-
+    DAP_CHAIN_NET_VOTE_CREATE_WRONG_TOKEN,
+    DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_TOKEN,
     DAP_CHAIN_NET_VOTE_CREATE_UNKNOWN_ERR
 };
 int dap_chain_net_vote_create(const char *a_question, dap_list_t *a_options, dap_time_t a_expire_vote,
                              uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
                              bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
-                             dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_output);
+                             dap_chain_net_t *a_net, const char *a_token_ticker, const char *a_hash_out_type, char **a_hash_output);
 
 enum DAP_CHAIN_NET_VOTE_VOTING_ERROR{
     DAP_CHAIN_NET_VOTE_VOTING_OK,
@@ -131,7 +132,6 @@ enum DAP_CHAIN_NET_VOTE_VOTING_ERROR{
     DAP_CHAIN_NET_VOTE_VOTING_WALLET_PARAM_NOT_VALID,
     DAP_CHAIN_NET_VOTE_VOTING_OPTION_IDX_PARAM_NOT_VALID,
     DAP_CHAIN_NET_VOTE_VOTING_WALLET_DOES_NOT_EXIST,
-    
 
     DAP_CHAIN_NET_VOTE_VOTING_UNKNOWN_ERR,
     DAP_CHAIN_NET_VOTE_VOTING_INTEGER_OVERFLOW

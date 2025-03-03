@@ -5678,10 +5678,13 @@ dap_chain_tx_out_cond_t *dap_ledger_out_cond_unspent_find_by_addr(dap_ledger_t *
         // Get 'out_cond' item from transaction
         byte_t *l_item; size_t l_size; int i, l_out_idx = 0;
         TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, it->tx) {
-            if (*l_item == TX_ITEM_TYPE_OUT_COND &&
-                    ((dap_chain_tx_out_cond_t *)l_item)->header.subtype == a_subtype) {
-                ret = (dap_chain_tx_out_cond_t *)l_item;
-                break;
+            if (*l_item == TX_ITEM_TYPE_OUT_COND) {
+                dap_chain_tx_out_cond_subtype_t l_subtype = ((dap_chain_tx_out_cond_t *)l_item)->header.subtype;
+                if (l_subtype == a_subtype ||
+                        (a_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL && l_subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)) {
+                    ret = (dap_chain_tx_out_cond_t *)l_item;
+                    break;
+                }
             }
             l_out_idx++;
         }
@@ -5689,7 +5692,8 @@ dap_chain_tx_out_cond_t *dap_ledger_out_cond_unspent_find_by_addr(dap_ledger_t *
         if (!ret || !dap_hash_fast_is_blank(&it->cache_data.tx_hash_spent_fast[l_out_idx]))
             continue;
         dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(a_ledger, it->tx, a_subtype);
-        dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_owner_tx_hash);
+        dap_chain_datum_tx_t *l_tx = dap_hash_fast_is_blank(&l_owner_tx_hash) ? it->tx
+                                                                              : dap_ledger_tx_find_by_hash(a_ledger, &l_owner_tx_hash);
         if (!l_tx) {
             log_it(L_ERROR, "Can't find owner for tx %s", dap_hash_fast_to_str_static(&it->tx_hash_fast));
             continue;
@@ -5738,12 +5742,13 @@ bool dap_ledger_check_condition_owner(dap_ledger_t *a_ledger, dap_hash_fast_t *a
         log_it(L_ERROR, "Can't find tx %s", dap_hash_fast_to_str_static(a_tx_hash));
         return false;
     }
-    dap_hash_fast_t l_first_tx_hash = dap_ledger_get_first_chain_tx_hash(a_ledger, l_check_tx, a_cond_subtype);
-    if (dap_hash_fast_is_blank(&l_first_tx_hash)) {
+    if (!dap_chain_datum_tx_out_cond_get(l_check_tx, a_cond_subtype, NULL)) {
         log_it(L_ERROR, "Can't find owner for tx %s", dap_hash_fast_to_str_static(a_tx_hash));
         return false;
     }
-    dap_chain_datum_tx_t *l_first_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_first_tx_hash);
+    dap_hash_fast_t l_first_tx_hash = dap_ledger_get_first_chain_tx_hash(a_ledger, l_check_tx, a_cond_subtype);
+    dap_chain_datum_tx_t *l_first_tx = dap_hash_fast_is_blank(&l_first_tx_hash) ? l_check_tx
+                                                                                : dap_ledger_tx_find_by_hash(a_ledger, &l_first_tx_hash);
     if (!l_first_tx) {
         log_it(L_ERROR, "Can't find owner tx %s", dap_hash_fast_to_str_static(&l_first_tx_hash));
         return false;
