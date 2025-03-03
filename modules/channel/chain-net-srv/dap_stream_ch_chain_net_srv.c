@@ -1048,14 +1048,44 @@ static void s_service_state_go_to_grace(dap_chain_net_srv_usage_t *a_usage)
 
     a_usage->service_state = DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE;
     if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE){
+        char* l_hash_str = dap_chain_hash_fast_to_str_new(&a_usage->tx_cond_hash);
+        char* l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
+        log_it(L_NOTICE, "Receipt is OK, but tx %s can't be found. Start the grace period for %d seconds for user %s", l_hash_str,
+                                                                            a_usage->service->grace_period, l_user_key);
+        DAP_DELETE(l_hash_str);
+        DAP_DELETE(l_user_key);
         s_service_substate_go_to_waiting_prev_tx(a_usage);
+        if(a_usage->client->ch){
+            size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
+            dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
+                                                                                l_success_size);
+            if(!l_success) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                s_service_substate_go_to_error(a_usage);
+                return;
+            }
+            l_success->hdr.usage_id = a_usage->id;
+            l_success->hdr.net_id.uint64 = a_usage->net->pub.id.uint64;
+            l_success->hdr.srv_uid.uint64 = a_usage->service->uid.uint64;
+            dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS,
+                                   l_success, l_success_size);
+            DAP_DEL_Z(l_success);
+        }
     } else if(a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+        char* l_hash_str = dap_chain_hash_fast_to_str_new(&a_usage->tx_cond_hash);
+        char* l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
+        log_it(L_NOTICE, "Receipt is OK, but tx %s have no enough funds. New tx cond requested. Start the grace period for %d seconds for user %s", l_hash_str,
+                                                                            a_usage->service->grace_period, l_user_key);
+        DAP_DELETE(l_hash_str);
+        DAP_DELETE(l_user_key);
         s_service_substate_go_to_waiting_new_tx(a_usage);
     } else {
         log_it(L_ERROR, "Wrong substate to start grace");
         a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_REQUEST_INTERNAL_ERROR;
         s_service_substate_go_to_error(a_usage);
     }
+
+    
 
     if (a_usage->service->callbacks.response_success){
         if( a_usage->service->callbacks.response_success(a_usage->service,a_usage->id,  a_usage->client,
@@ -1372,7 +1402,6 @@ static void s_service_substate_go_to_waiting_prev_tx(dap_chain_net_srv_usage_t *
         s_service_substate_go_to_error(a_usage);
         return;
     }
-    UNUSED(l_grace);
     l_grace->ch_uuid = a_usage->client->ch->uuid;
     l_grace->stream_worker = a_usage->client->ch->stream_worker;
     l_grace->usage = a_usage;
@@ -1426,7 +1455,6 @@ static void s_service_substate_go_to_waiting_new_tx(dap_chain_net_srv_usage_t *a
 
     a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT;
     char *l_user_key = dap_chain_hash_fast_to_str_static(&l_grace->usage->client_pkey_hash);
-    log_it(L_MSG, "Send request for new tx to client %s", l_user_key);
 
     pthread_mutex_lock(&a_usage->service->grace_mutex);
     HASH_ADD(hh, a_usage->service->grace_hash_tab, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
