@@ -8268,9 +8268,10 @@ int com_policy(int argc, char **argv, void **reply) {
         for (size_t i = 0; i < l_deactivate_count; ++i) {
             l_policy_num = strtoull(l_deactivate_array[i], NULL, 10);
             if (!dap_chain_policy_num_is_valid(l_policy_num)) {
-                log_it(L_ERROR, "Can't add policy CN-%"DAP_UINT64_FORMAT_U" to exception list", l_policy_num);
-                --((dap_chain_policy_deactivate_t *)l_policy_data)->count;
-                continue;
+                dap_json_rpc_error_add(*a_json_arr_reply, -16, "Policy nums sould be less or equal than %u and not equal 0", dap_maxval((uint32_t)l_policy_num));
+                dap_strfreev(l_deactivate_array);
+                DAP_DELETE(l_policy_data);
+                return -16;
             }
             ((dap_chain_policy_deactivate_t *)l_policy_data)->nums[i] = l_policy_num;
         }
@@ -8278,7 +8279,7 @@ int com_policy(int argc, char **argv, void **reply) {
     } else {
         l_policy_num = strtoull(l_num_str, NULL, 10);
         if (!dap_chain_policy_num_is_valid(l_policy_num)) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -16, "Policy num sould be less or equal than %u and not equal 0", 77777);
+            dap_json_rpc_error_add(*a_json_arr_reply, -16, "Policy num sould be less or equal than %u and not equal 0", dap_maxval((uint32_t)l_policy_num));
             return -16;
         }
     }
@@ -8313,11 +8314,13 @@ int com_policy(int argc, char **argv, void **reply) {
     if (l_execute) {
         if (!l_certs_str) {
             dap_json_rpc_error_add(*a_json_arr_reply, -4, "Command 'execute' requires parameter -certs");
+            DAP_DELETE(l_policy_data);
             return -4;
         }
         dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
         if (!l_certs || !l_certs_count) {
             dap_json_rpc_error_add(*a_json_arr_reply, -5, "Specified certificates not found");
+            DAP_DELETE(l_policy_data);
             return -5;
         }
     }
