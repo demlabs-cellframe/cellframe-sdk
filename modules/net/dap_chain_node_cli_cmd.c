@@ -8257,11 +8257,12 @@ int com_policy(int argc, char **argv, void **reply) {
         l_policy_type = DAP_CHAIN_POLICY_DEACTIVATE;
         l_deactivate_count = dap_str_symbol_count(l_num_str, ',') + 1;
         l_deactivate_array = dap_strsplit(l_num_str, ",", l_deactivate_count);
-        l_data_size = dap_chain_policy_deactivate_calc_size(l_deactivate_count);
-        l_policy_data = DAP_NEW_Z(l_data_size);
+        l_data_size = sizeof(dap_chain_policy_deactivate_t) + l_deactivate_count * sizeof(uint32_t);
+        l_policy_data = DAP_NEW_Z_SIZE(void, l_data_size);
         if (!l_policy_data) {
-            log_it(L_ERROR, "%s", c_error_memory_alloc);
+            dap_json_rpc_error_add(*a_json_arr_reply, -16, "%s", c_error_memory_alloc);
             dap_strfreev(l_deactivate_array);
+            return -16;
         }
         ((dap_chain_policy_deactivate_t *)l_policy_data)->count = l_deactivate_count;
         for (size_t i = 0; i < l_deactivate_count; ++i) {
@@ -8327,7 +8328,7 @@ int com_policy(int argc, char **argv, void **reply) {
             return -15;
         }
         l_policy_type = DAP_CHAIN_POLICY_ACTIVATE;
-        l_data_size = sizeof(dap_chain_policy_t) + sizeof(dap_chain_policy_activate_t);
+        l_data_size = sizeof(dap_chain_policy_activate_t);
         l_policy_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(void, l_data_size, -5);
         dap_chain_policy_activate_t *l_policy_activate = (dap_chain_policy_activate_t *)l_policy_data;
         

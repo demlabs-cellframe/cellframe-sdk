@@ -66,6 +66,32 @@ DAP_STATIC_INLINE int s_policy_num_compare(dap_list_t  *a_list1, dap_list_t  *a_
         ((dap_chain_policy_activate_t *)(l_policy1->data))->num > ((dap_chain_policy_activate_t *)(l_policy2->data))->num ? 1 : -1;
 }
 
+DAP_STATIC_INLINE bool s_policy_is_cond(dap_chain_policy_t *a_policy)
+{
+    return a_policy->type == DAP_CHAIN_POLICY_ACTIVATE &&
+        (DAP_FLAG_CHECK(((dap_chain_policy_activate_t *)(a_policy->data))->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS) ||
+        DAP_FLAG_CHECK(((dap_chain_policy_activate_t *)(a_policy->data))->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM));
+}
+
+static bool s_policy_cond_activated(dap_chain_policy_activate_t *a_policy_activate)
+{
+    bool l_ret = false;
+    if (DAP_FLAG_CHECK(a_policy_activate->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS)) {
+        time_t l_current_time = dap_time_now();
+        if (l_current_time >= a_policy_activate->ts_start && (!a_policy_activate->ts_stop || l_current_time <= a_policy_activate->ts_stop))
+        l_ret |= true;
+    }
+    if (DAP_FLAG_CHECK(a_policy_activate->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM)) {
+        if (!a_policy_activate->chain_union.chain) {
+            log_it(L_ERROR, "Chain is null in policy item with upped DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM flag");
+            return l_ret;
+        }
+        if ( a_policy_activate->chain_union.chain->atom_num_last >= a_policy_activate->block_start && (!a_policy_activate->block_stop || a_policy_activate->chain_union.chain->atom_num_last <= a_policy_activate->block_stop))
+            l_ret |= true;
+    }
+    return l_ret;
+}
+
 /**
  * @brief init policy commands
  * @return 0 if pass, other if error
@@ -185,41 +211,23 @@ int dap_chain_policy_add_to_exception_list(uint32_t a_policy_num, uint64_t a_net
  */
 bool dap_chain_policy_activated(uint32_t a_policy_num, uint64_t a_net_id)
 {
-    bool l_ret = false;
+    const bool l_ret_false = false;
     struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
-    dap_return_val_if_pass(!l_net_item, l_ret);
-    if (l_net_item->last_num_policy < a_policy_num)
-        return l_ret;
+    dap_return_val_if_pass(!l_net_item, l_ret_false);
     // exception list check
     if (dap_list_find(l_net_item->exception_list, (const void *)(uintptr_t)a_policy_num, NULL))
-        return l_ret;
+        return l_ret_false;
     // seach politics to condition check
     dap_chain_policy_t *l_to_search = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, sizeof(dap_chain_policy_t) + sizeof(dap_chain_policy_activate_t), false);
     l_to_search->type = DAP_CHAIN_POLICY_ACTIVATE;
     ((dap_chain_policy_activate_t *)(l_to_search->data))->num = a_policy_num;
-    dap_list_t *l_list_item = dap_list_find(l_net_item->policies, &l_to_search, s_policy_num_compare);
+    dap_list_t *l_list_item = dap_list_find(l_net_item->policies, l_to_search, s_policy_num_compare);
     DAP_DELETE(l_to_search);
-    if (!l_list_item) {
-        if (l_net_item->last_num_policy > a_policy_num)  // use cumulative principle without check conditions
-            return true;
-        return l_ret;
+    if (l_list_item && s_policy_is_cond((dap_chain_policy_t *)l_list_item->data)) {
+        return s_policy_cond_activated((dap_chain_policy_activate_t *)((dap_chain_policy_t *)(l_list_item->data))->data);
     }
-    dap_chain_policy_activate_t *l_policy_item = (dap_chain_policy_activate_t *)(((dap_chain_policy_t *)l_list_item->data)->data);
-    // condition check
-    if (DAP_FLAG_CHECK(l_policy_item->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS)) {
-        time_t l_current_time = dap_time_now();
-        if (l_current_time < l_policy_item->ts_start || (l_policy_item->ts_stop && l_current_time > l_policy_item->ts_stop))
-            return l_ret;
-    }
-    if (DAP_FLAG_CHECK(l_policy_item->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM)) {
-        if (!l_policy_item->chain_union.chain) {
-            log_it(L_ERROR, "Chain is null in policy item with upped DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM flag");
-            return l_ret;
-        }
-        if ( l_policy_item->chain_union.chain->atom_num_last < l_policy_item->block_start || (l_policy_item->block_stop && l_policy_item->chain_union.chain->atom_num_last > l_policy_item->block_stop))
-            return l_ret;
-    }
-    return true;
+    // cumulative return
+    return a_policy_num <= l_net_item->last_num_policy;
 }
 
 /**
@@ -239,7 +247,7 @@ dap_chain_policy_t *dap_chain_policy_find(uint32_t a_policy_num, uint64_t a_net_
     dap_chain_policy_t *l_to_search = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, sizeof(dap_chain_policy_t) + sizeof(dap_chain_policy_activate_t), false);
     l_to_search->type = DAP_CHAIN_POLICY_ACTIVATE;
     ((dap_chain_policy_activate_t *)(l_to_search->data))->num = a_policy_num;
-    dap_list_t *l_find = dap_list_find(l_net_item->policies, &l_to_search, s_policy_num_compare);
+    dap_list_t *l_find = dap_list_find(l_net_item->policies, l_to_search, s_policy_num_compare);
     DAP_DELETE(l_to_search);
     if (!l_find) {
         log_it(L_DEBUG, "Can't find CN-%u in net %"DAP_UINT64_FORMAT_X, a_policy_num, a_net_id);
@@ -269,22 +277,30 @@ json_object *dap_chain_policy_list(uint64_t a_net_id)
 
     dap_string_t *l_active_str = dap_string_new("");
     dap_string_t *l_inactive_str = dap_string_new("");
+    if (l_net_item->last_num_policy)
+        dap_string_append_printf(l_active_str, "%s CN-%u ", dap_list_find(l_net_item->exception_list, (const void *)(uintptr_t)l_net_item->last_num_policy, NULL) ? "<" : "<=", l_net_item->last_num_policy);
+    json_object_object_add(l_ret, "cumulative active", json_object_new_string(l_active_str->str));
+    dap_string_erase(l_active_str, 0, -1);
     for (dap_list_t *l_iter = dap_list_first(l_net_item->policies); l_iter; l_iter = l_iter->next) {
         dap_chain_policy_activate_t *l_policy_activate =  (dap_chain_policy_activate_t *)((dap_chain_policy_t *)(l_iter->data))->data;
-        if (dap_chain_policy_activated(l_policy_activate->num, a_net_id))
-            dap_string_append_printf(l_active_str, "CN-%u ", l_policy_activate->num);
-        else
-            dap_string_append_printf(l_inactive_str, "CN-%u ", l_policy_activate->num);
+        if (dap_list_find(l_net_item->exception_list, (const void *)(uintptr_t)l_policy_activate->num, NULL))
+            continue;
+        if (s_policy_is_cond((dap_chain_policy_t *)(l_iter->data))) {
+            if (s_policy_cond_activated(l_policy_activate))
+                dap_string_append_printf(l_active_str, "CN-%u ", l_policy_activate->num);
+            else
+                dap_string_append_printf(l_inactive_str, "CN-%u ", l_policy_activate->num);
+        }
     }
-    json_object_object_add(l_ret, "active", json_object_new_string(l_active_str->str));
-    json_object_object_add(l_ret, "inactive", json_object_new_string(l_inactive_str->str));
+    json_object_object_add(l_ret, "conditional active", json_object_new_string(l_active_str->str));
+    json_object_object_add(l_ret, "conditional inactive", json_object_new_string(l_inactive_str->str));
     
     dap_string_free(l_active_str, true);
     dap_string_erase(l_inactive_str, 0, -1);
     for (dap_list_t *l_iter = dap_list_first(l_net_item->exception_list); l_iter; l_iter = l_iter->next) {
         dap_string_append_printf(l_inactive_str, "CN-%u ", (uint32_t)(uintptr_t)l_iter->data);
     }
-    json_object_object_add(l_ret, "in exception list", json_object_new_string(l_inactive_str->str));
+    json_object_object_add(l_ret, "exception list", json_object_new_string(l_inactive_str->str));
     dap_string_free(l_inactive_str, true);
     return l_ret;
 }
