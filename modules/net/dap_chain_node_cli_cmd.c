@@ -8205,17 +8205,25 @@ int com_policy(int argc, char **argv, void **reply) {
         l_deactivate_count = 0,
         l_certs_count = 0;
     dap_cert_t **l_certs = NULL;
+    bool l_execute = false;
 
-    enum { CMD_NONE = 0, CMD_EXECUTE, CMD_DEACTIVATE, CMD_FIND, CMD_LIST };  
+    enum { CMD_NONE = 0, CMD_ACTIVATE, CMD_DEACTIVATE, CMD_FIND, CMD_LIST };  
     int l_arg_index = 1;
 
     int l_cmd = CMD_NONE;
-    if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "execute", NULL))
-        l_cmd = CMD_EXECUTE;
+    if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "activate", NULL))
+        l_cmd = CMD_ACTIVATE;
+    else if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "deactivate", NULL))
+            l_cmd = CMD_DEACTIVATE;
     else if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "find", NULL))
         l_cmd = CMD_FIND;
     else if (dap_cli_server_cmd_find_option_val(argv, 1, 2, "list", NULL))
         l_cmd = CMD_LIST;
+
+    if (l_cmd == CMD_NONE) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -4, "Unknown subcommand");
+        return -4;
+    }
 
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-net", &l_net_str);
 
@@ -8299,8 +8307,9 @@ int com_policy(int argc, char **argv, void **reply) {
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-block_stop", &l_block_stop_str);
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-deactivate", &l_deactivate_str);
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-certs", &l_certs_str);
+    l_execute = dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-execute", NULL);
 
-    if (l_cmd == CMD_EXECUTE || l_cmd == CMD_DEACTIVATE) {
+    if (l_execute) {
         if (!l_certs_str) {
             dap_json_rpc_error_add(*a_json_arr_reply, -4, "Command 'execute' requires parameter -certs");
             return -4;
@@ -8312,12 +8321,11 @@ int com_policy(int argc, char **argv, void **reply) {
         }
     }
 
-    if (l_policy_num == l_last_num) {
-        dap_json_rpc_error_add(*a_json_arr_reply, -15, "Specified policy num already existed");
-        return -15;
-    }
-
-    if (l_cmd == CMD_EXECUTE) {
+    if (l_cmd == CMD_ACTIVATE) {
+        if (l_policy_num == l_last_num) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -15, "Specified policy num already existed");
+            return -15;
+        }
         l_policy_type = DAP_CHAIN_POLICY_ACTIVATE;
         l_data_size = sizeof(dap_chain_policy_t) + sizeof(dap_chain_policy_activate_t);
         l_policy_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(void, l_data_size, -5);
@@ -8391,7 +8399,7 @@ int com_policy(int argc, char **argv, void **reply) {
     memcpy(l_policy->data, l_policy_data, l_policy->data_size);
     DAP_DELETE(l_policy_data);
     // if cmd none - only print preaparing result
-    if (l_cmd == CMD_NONE) {
+    if (!l_execute) {
         json_object *l_answer = dap_chain_policy_json_collect(l_policy);
         char l_time[DAP_TIME_STR_SIZE] = {};
         dap_time_to_str_rfc822(l_time, DAP_TIME_STR_SIZE - 1, dap_time_now());
