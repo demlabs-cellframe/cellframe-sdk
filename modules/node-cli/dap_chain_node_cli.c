@@ -381,7 +381,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "file clear_log\n"
                 "\t CAUTION !!! This command will clear the entire log file\n");
 
-    dap_cli_server_cmd_add ("policy", com_policy, "Policy commands", "policy - prepare or create policy execute decree\n"
+    dap_cli_server_cmd_add ("policy", com_policy, "Policy commands",
+                "policy activate - prepare policy activate decree\n"
                 "\t[execute] - used to create policy decree, otherwise show policy decree draft\n"
                 "\t-net <net_name>\n"
                 "\t-num <policy_num>\n"
@@ -390,8 +391,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\t{\n\t\t[-block_start <block_num>] - block num to start policy\n"
                 "\t\t[-block_stop <block_num>] - block num to stop policy\n"
                 "\t\t-chain <chain_name> - chain name to check blocks num\n\t}\n"
-                "\t[-deactivate <num1[,num2,...,numN]>] - list deactivated policy\n"
-                "\t[-certs <cert1[,cert2,...,certN]>] - list signing certs\n"
+                "\t-certs <cert1[,cert2,...,certN]> - list signing certs\n"
+                "policy deactivate - prepare policy deactivate decree\n"
+                "\t[execute] - used to create policy decree, otherwise show policy decree draft\n"
+                "\t-net <net_name>\n"
+                "\t-num <num1[,num2,...,numN]> - deactivated policy list\n"
+                "\t-certs <cert1[,cert2,...,certN]> - list signing certs\n"
                 "policy find - find info about policy in net\n"
                 "\t-net <net_name>\n"
                 "\t-num <policy_num>\n"
