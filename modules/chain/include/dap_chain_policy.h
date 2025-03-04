@@ -58,7 +58,7 @@ typedef struct dap_chain_policy_deactivate {
     uint64_t flags;
     uint32_t count;
     uint32_t nums[];
-} DAP_ALIGN_PACKED dap_chain_policy_deactivate_t;
+} dap_chain_policy_deactivate_t;
 
 typedef struct dap_chain_policy {
     uint16_t version;
