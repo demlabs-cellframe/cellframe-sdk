@@ -64,7 +64,8 @@ struct srv_voting {
 
 static void *s_callback_start(dap_chain_net_id_t UNUSED_ARG a_net_id, dap_config_t UNUSED_ARG *a_config);
 static void s_callback_delete(void *a_service_internal);
-static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count);
+static int s_callback_purge(dap_chain_net_id_t a_net_id, void *a_service_internal);
+static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count, void *a_service_internal);
 static int s_votings_restore(dap_chain_net_id_t a_net_id, byte_t *a_state, uint64_t a_state_size, uint32_t a_states_count);
 
 static int s_voting_ledger_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
@@ -102,13 +103,17 @@ int dap_chain_net_srv_voting_init()
 
     
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
-    dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start, .delete = s_callback_delete, .hardfork_prepare = s_votings_backup, .hardfork_load = s_votings_restore };
-    int ret = dap_chain_srv_add(l_uid, "voting", &l_srv_callbacks);
+    dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start,
+                                                         .purge = s_callback_purge,
+                                                         .hardfork_prepare = s_votings_backup,
+                                                         .hardfork_load = s_votings_restore
+                                                       };
+    int ret = dap_chain_srv_add(l_uid, DAP_CHAIN_SRV_VOTING_LITERAL, &l_srv_callbacks);
     if (ret) {
         log_it(L_ERROR, "Can't register voting service");
         return ret;
     }
-    dap_ledger_service_add(l_uid, "voting", s_tag_check_voting);
+    dap_ledger_service_add(l_uid, DAP_CHAIN_SRV_VOTING_LITERAL, s_tag_check_voting);
 
     return 0;
 }
@@ -132,7 +137,7 @@ static void *s_callback_start(dap_chain_net_id_t UNUSED_ARG a_net_id, dap_config
     return l_service_internal;
 }
 
-static void s_callback_delete(void *a_service_internal)
+static int s_callback_purge(dap_chain_net_id_t UNUSED_ARG a_net_id, void *a_service_internal)
 {
     struct srv_voting *l_service_internal = a_service_internal;
     struct voting *it = NULL, *tmp;
@@ -141,7 +146,7 @@ static void s_callback_delete(void *a_service_internal)
         s_voting_clear(it);
         DAP_DELETE(it);
     }
-    DAP_DELETE(l_service_internal);
+    return 0;
 }
 
 static inline struct voting *s_votings_ht_get(dap_chain_net_id_t a_net_id)
@@ -240,14 +245,14 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
             dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)l_item)->tsd;
             switch(l_tsd->type) {
             case VOTING_TSD_TYPE_QUESTION:
-                if (!l_tsd->size || !memchr(l_tsd->data, '\0', l_tsd->size || *l_tsd->data == '\0')) {
+                if (!l_tsd->size || *l_tsd->data == '\0') {
                     log_it(L_WARNING, "Invalid content for string TSD section QUESTION of voting %s", dap_hash_fast_to_str_static(a_tx_hash));
                     return -DAP_LEDGER_CHECK_PARSE_ERROR;
                 }
                 l_question_present = true;
                 break;
             case VOTING_TSD_TYPE_OPTION:
-                if (!l_tsd->size || !memchr(l_tsd->data, '\0', l_tsd->size || *l_tsd->data == '\0')) {
+                if (!l_tsd->size || *l_tsd->data == '\0') {
                     log_it(L_WARNING, "Invalid content for string TSD section ANSWER of voting %s", dap_hash_fast_to_str_static(a_tx_hash));
                     return -DAP_LEDGER_CHECK_PARSE_ERROR;
                 }
@@ -345,9 +350,8 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             log_it(L_WARNING, "Voting %s required a delegated key", dap_chain_hash_fast_to_str_static(&l_voting->hash));
             return -10;
         }
-
-
     }
+
     dap_list_t *l_vote_overwrited = NULL;
     for (dap_list_t *it = l_voting->votes; it; it = it->next) {
         if (dap_hash_fast_compare(&((struct vote *)it->data)->pkey_hash, &pkey_hash)) {
@@ -367,7 +371,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx_in) {
         dap_hash_fast_t l_tx_hash;
-        int l_out_idx;
+        int l_out_idx = 0;
         switch (*l_item) {
         case TX_ITEM_TYPE_IN:       // check inputs
             l_tx_hash = ((dap_chain_tx_in_t *)l_item)->header.tx_prev_hash;
@@ -419,7 +423,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         char l_vote_hash_str[DAP_HASH_FAST_STR_SIZE];
         dap_hash_fast_to_str(a_tx_hash, l_vote_hash_str, DAP_HASH_FAST_STR_SIZE);
         log_it(L_INFO, "Vote %s of voting %s has been %s", l_vote_hash_str, dap_hash_fast_to_str_static(&l_voting->hash),
-                                     l_vote_overwrited ? "accepted" : "changed");
+                                     l_vote_overwrited ? "changed" : "accepted");
     }
     return DAP_LEDGER_CHECK_OK;
 }
@@ -631,7 +635,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         switch (res) {
             case DAP_CHAIN_NET_VOTE_CREATE_OK: {
                 json_object* json_obj_inf = json_object_new_object();
-                json_object_object_add(json_obj_inf, "Datum add successfully", json_object_new_string(l_hash_ret));
+                json_object_object_add(json_obj_inf, "datum_add_successfully", json_object_new_string(l_hash_ret));
                 json_object_array_add(*json_arr_reply, json_obj_inf);
                 DAP_DELETE(l_hash_ret);
                 return DAP_CHAIN_NET_VOTE_CREATE_OK;
@@ -769,7 +773,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         switch (res) {
             case DAP_CHAIN_NET_VOTE_VOTING_OK: {
                 json_object* json_obj_inf = json_object_new_object();
-                json_object_object_add(json_obj_inf, "Datum add successfully to mempool", json_object_new_string(l_hash_tx));
+                json_object_object_add(json_obj_inf, "datum_add_successfully", json_object_new_string(l_hash_tx));
                 json_object_array_add(*json_arr_reply, json_obj_inf);
                 DAP_DELETE(l_hash_tx);
                 return DAP_CHAIN_NET_VOTE_CREATE_OK;
@@ -846,7 +850,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 
     case CMD_LIST: {
         json_object* json_vote_out = json_object_new_object();
-        json_object_object_add(json_vote_out, "List of votings in net", json_object_new_string(l_net->pub.name));
+        json_object_object_add(json_vote_out, "list_of_votings", json_object_new_string(l_net->pub.name));
         json_object* json_arr_voting_out = json_object_new_array();
         struct voting *votings_ht = s_votings_ht_get(l_net->pub.id);
         for (struct voting *it = votings_ht; it; it = it->hh.next) {
@@ -1408,13 +1412,13 @@ static size_t s_voting_serial_size_calc(struct voting *a_voting, size_t *a_votes
     return ret;
 }
 
-static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count)
+static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count, void *a_service_internal)
 {
     if (a_state_count)
         *a_state_count = 0;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     assert(l_net);
-    struct voting *votings_ht = s_votings_ht_get(l_net->pub.id);
+    struct voting *votings_ht = a_service_internal ? ((struct srv_voting *)a_service_internal)->ht : NULL;
     if (!votings_ht) {
         log_it(L_INFO, "No data to backup for voting service for net id 0x%016" DAP_UINT64_FORMAT_x, l_net->pub.id.uint64);
         return NULL;

@@ -115,12 +115,6 @@ int com_ledger(int a_argc, char ** a_argv, void **a_str_reply);
  */
 int com_token(int a_argc, char ** a_argv, void **a_str_reply);
 
-/**
- * decree command
- *
- */
-int cmd_decree(int a_argc, char **a_argv, void **a_str_reply);
-
 #ifdef __cplusplus
 }
 #endif

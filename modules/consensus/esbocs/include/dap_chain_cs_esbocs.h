@@ -123,6 +123,7 @@ typedef struct dap_chain_esbocs {
     dap_chain_t *chain;
     dap_chain_cs_blocks_t *blocks;
     dap_chain_esbocs_session_t *session;
+    uint16_t hardfork_generation;
     uint64_t hardfork_from;
     json_object *hardfork_changed_addrs;
     dap_list_t *hardfork_trusted_addrs;
@@ -269,6 +270,7 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
 uint16_t dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id);
 int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash);
 int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable);
-int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint64_t a_block_num, dap_list_t *a_trusted_addrs, json_object* a_changed_addrs);
+int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint16_t l_generation, uint64_t a_block_num, dap_list_t *a_trusted_addrs, json_object* a_changed_addrs);
 int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain);
+bool dap_chain_esbocs_hardfork_engaged(dap_chain_t *a_chain);
 void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable);

@@ -82,4 +82,6 @@ void dap_chain_net_srv_stake_add_approving_decree_info(dap_chain_datum_decree_t 
 void dap_chain_net_srv_stake_remove_approving_decree_info(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr);
 int dap_chain_net_srv_stake_hardfork_data_export(dap_chain_net_t *a_net, dap_list_t **a_out);
 int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_hardfork_decree_hash);
+int dap_chain_net_srv_stake_hardfork_data_verify(dap_chain_net_t *a_net, dap_hash_fast_t *a_hardfork_decree_hash);
 int dap_chain_net_srv_stake_switch_table(dap_chain_net_id_t a_net_id, bool a_to_sandbox);
+void dap_chain_net_srv_stake_hardfork_tx_update(dap_chain_net_t *a_net);

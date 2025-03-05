@@ -29,24 +29,22 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_tsd.h"
 
 // System services literlas
-#define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_LITERAL "PoS-delegate"
-#define DAP_CHAIN_NET_SRV_XCHANGE_LITERAL "eXchange"
-#define DAP_CHAIN_NET_SRV_VOTING_LITERAL "voting"
+#define DAP_CHAIN_SRV_STAKE_POS_DELEGATE_LITERAL "PoS-delegate"
+#define DAP_CHAIN_SRV_XCHANGE_LITERAL "eXchange"
+#define DAP_CHAIN_SRV_VOTING_LITERAL "voting"
 
 // Start service callback
 typedef void * (*dap_chain_srv_callback_start_t)(dap_chain_net_id_t a_net_id, dap_config_t *a_config);
 // Process service decree
 typedef void (*dap_chain_srv_callback_decree_t)(dap_chain_net_id_t a_net_id, int a_decree_type, dap_tsd_t *a_params, size_t a_params_size);
 // Purge service callback
-typedef int (*dap_chain_srv_callback_purge_t)(dap_chain_net_id_t a_net_id);
+typedef int (*dap_chain_srv_callback_purge_t)(dap_chain_net_id_t a_net_id, void *a_service_internal);
 // Get fee service callback
 typedef json_object * (*dap_chain_srv_callback_get_fee)(dap_chain_net_id_t a_net_id);
 // Hardfork prepare service callback
-typedef byte_t * (*dap_chain_srv_callback_hardfork_prepare_t)(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count);
+typedef byte_t * (*dap_chain_srv_callback_hardfork_prepare_t)(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count, void *a_service_internal);
 // Hardfork data load service callback
 typedef int (*dap_chain_srv_callback_hardfork_data_t)(dap_chain_net_id_t a_net_id, byte_t *a_state, uint64_t a_state_size, uint32_t a_state_count);
-// Delete service callback
-typedef void (*dap_chain_srv_callback_delete_t)(void *);
 
 typedef struct dap_chain_static_srv_callbacks {
     // Init
@@ -61,8 +59,6 @@ typedef struct dap_chain_static_srv_callbacks {
     dap_chain_srv_callback_hardfork_prepare_t hardfork_prepare;
     // Hardfork data load
     dap_chain_srv_callback_hardfork_data_t hardfork_load;
-    // Delete for internal service clean exit
-    dap_chain_srv_callback_delete_t delete;
     // And no more =)
 } dap_chain_static_srv_callbacks_t;
 

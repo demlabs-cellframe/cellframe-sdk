@@ -244,23 +244,12 @@ void dap_ledger_deinit()
  */
 static dap_ledger_t *dap_ledger_handle_new(void)
 {
-    dap_ledger_t *l_ledger = DAP_NEW_Z(dap_ledger_t);
-    if ( !l_ledger ) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return NULL;
-    }
-    dap_ledger_private_t * l_ledger_pvt;
-    l_ledger->_internal = l_ledger_pvt = DAP_NEW_Z(dap_ledger_private_t);
-    if ( !l_ledger_pvt ) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        DAP_DELETE(l_ledger);
-        return NULL;
-    }
-    // Initialize Read/Write Lock Attribute
+    dap_ledger_t *l_ledger = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_t, NULL);
+    dap_ledger_private_t *l_ledger_pvt = l_ledger->_internal = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_private_t, NULL, l_ledger);
     pthread_rwlock_init(&l_ledger_pvt->ledger_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->tokens_rwlock, NULL);
-    pthread_rwlock_init(&l_ledger_pvt->threshold_txs_rwlock , NULL);
-    pthread_rwlock_init(&l_ledger_pvt->balance_accounts_rwlock , NULL);
+    pthread_rwlock_init(&l_ledger_pvt->threshold_txs_rwlock, NULL);
+    pthread_rwlock_init(&l_ledger_pvt->balance_accounts_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->stake_lock_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->rewards_rwlock, NULL);
     return l_ledger;
@@ -275,7 +264,6 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
 {
     if(!a_ledger)
         return;
-    log_it(L_INFO,"Ledger for network %s destroyed", a_ledger->net->pub.name);
     // Destroy Read/Write Lock
     pthread_rwlock_destroy(&PVT(a_ledger)->ledger_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->tokens_rwlock);
@@ -283,17 +271,17 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
     pthread_rwlock_destroy(&PVT(a_ledger)->balance_accounts_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->stake_lock_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->rewards_rwlock);
-    DAP_DELETE(PVT(a_ledger));
-    DAP_DELETE(a_ledger);
+    DAP_DEL_MULTY(PVT(a_ledger), a_ledger);
+    log_it(L_INFO,"Ledger for network %s destroyed", a_ledger->net->pub.name);
 
 }
 
-bool dap_ledger_datum_is_blacklisted(dap_ledger_t *a_ledger, dap_hash_fast_t a_hash) {
-    dap_ledger_hal_item_t *ret = NULL;
-    HASH_FIND(hh, PVT(a_ledger)->hrl_items, &a_hash, sizeof(dap_hash_fast_t), ret);
-    return debug_if(g_debug_ledger && ret, L_MSG, "Datum %s is blacklisted", dap_hash_fast_to_str_static(&a_hash)), !!ret;
+bool dap_ledger_datum_is_enforced(dap_ledger_t *a_ledger, dap_hash_fast_t *a_hash, bool a_accept) {
+    dap_ledger_hal_item_t *l_wanted = NULL;
+    HASH_FIND(hh, a_accept ? PVT(a_ledger)->hal_items : PVT(a_ledger)->hrl_items, a_hash, sizeof(dap_hash_fast_t), l_wanted);
+    debug_if(g_debug_ledger && l_wanted, L_DEBUG, "Datum %s is %slisted", dap_hash_fast_to_str_static(a_hash), a_accept ? "white" : "black");
+    return !!l_wanted;
 }
-
 
 /**
  * @brief s_tx_header_print
@@ -315,7 +303,7 @@ static void s_tx_header_print(json_object *a_json_out, dap_chain_datum_tx_t *a_t
     const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
             : dap_chain_hash_fast_to_str_static(a_tx_hash);
-    json_object_object_add(a_json_out, "TX hash ", json_object_new_string(l_tx_hash_str));
+    json_object_object_add(a_json_out, "tx_hash ", json_object_new_string(l_tx_hash_str));
     json_object_object_add(a_json_out, "time ", json_object_new_string(l_time_str));
 }
 
@@ -415,7 +403,7 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
                 ? dap_chain_addr_to_str_static(&l_dst_addr)
                 : dap_chain_tx_out_cond_subtype_to_str( ((dap_chain_tx_out_cond_t *)l_item)->header.subtype );
             json_object_object_add(l_json_obj_datum, "send", json_object_new_string(dap_uint256_to_char(l_value, NULL)));
-            json_object_object_add(l_json_obj_datum, "to addr", json_object_new_string(l_dst_addr_str));
+            json_object_object_add(l_json_obj_datum, "to_addr", json_object_new_string(l_dst_addr_str));
             json_object_object_add(l_json_obj_datum, "token", l_src_token ? json_object_new_string(l_src_token) : json_object_new_string("UNKNOWN"));
             json_object_array_add(json_arr_out, l_json_obj_datum);
         }
@@ -462,7 +450,7 @@ json_object *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_ad
     if(!json_arr_out)
     {
         json_object * json_obj_addr = json_object_new_object();
-        json_object_object_add(json_obj_addr, "status:", json_object_new_string("empty"));
+        json_object_object_add(json_obj_addr, "status", json_object_new_string("empty"));
         json_object_array_add(json_arr_out, json_obj_addr);
     }
     return json_arr_out;
@@ -477,7 +465,7 @@ static bool s_pack_ledger_threshold_info_json (json_object *a_json_arr_out, dap_
     char l_time[DAP_TIME_STR_SIZE] = {0};
     dap_chain_hash_fast_to_str(&a_tx_item->tx_hash_fast,l_tx_prev_hash_str,sizeof(l_tx_prev_hash_str));
     dap_time_to_str_rfc822(l_time, sizeof(l_time), a_tx_item->cache_data.ts_created);
-    json_object_object_add(json_obj_tx, "Ledger thresholded tx_hash_fast", json_object_new_string(l_tx_prev_hash_str));
+    json_object_object_add(json_obj_tx, "thresholded_hash", json_object_new_string(l_tx_prev_hash_str));
     json_object_object_add(json_obj_tx, "time_created", json_object_new_string(l_time));
     json_object_object_add(json_obj_tx, "tx_item_size", json_object_new_int(a_tx_item->tx->header.tx_items_size));
     json_object_array_add(a_json_arr_out, json_obj_tx);
@@ -487,7 +475,7 @@ static bool s_pack_ledger_balance_info_json (json_object *a_json_arr_out, dap_le
 {
     json_object* json_obj_tx = json_object_new_object();
         
-        json_object_object_add(json_obj_tx, "Ledger balance key", json_object_new_string(a_balance_item->key));
+        json_object_object_add(json_obj_tx, "ledger_balance_key", json_object_new_string(a_balance_item->key));
         json_object_object_add(json_obj_tx, "token_ticker", json_object_new_string(a_balance_item->token_ticker));
         json_object_object_add(json_obj_tx, "balance", json_object_new_string(dap_uint256_to_char(a_balance_item->balance, NULL)));
         json_object_array_add(a_json_arr_out, json_obj_tx);
@@ -516,10 +504,10 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
         }
         HASH_FIND(hh, l_ledger_pvt->threshold_txs, a_threshold_hash, sizeof(dap_hash_t), l_tx_item);
         if (l_tx_item) {
-            json_object_object_add(json_obj_tx, "Hash was found in ledger tx threshold", json_object_new_string(dap_hash_fast_to_str_static(a_threshold_hash)));
+            json_object_object_add(json_obj_tx, "found_hash", json_object_new_string(dap_hash_fast_to_str_static(a_threshold_hash)));
             json_object_array_add(json_arr_out, json_obj_tx);
         } else {
-            json_object_object_add(json_obj_tx, "Hash wasn't found in ledger", json_object_new_string("empty"));
+            json_object_object_add(json_obj_tx, "found_hash", json_object_new_string("empty"));
             json_object_array_add(json_arr_out, json_obj_tx);
         }
     } else {
@@ -597,7 +585,7 @@ json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, siz
     }
     if (!l_counter){
         json_object* json_obj_tx = json_object_new_object();
-        json_object_object_add(json_obj_tx, "No items in ledger balance_accounts", json_object_new_string("empty"));
+        json_object_object_add(json_obj_tx, "info_status", json_object_new_string("No items in ledger balance_accounts"));
         json_object_array_add(json_arr_out, json_obj_tx);
     } 
     pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
@@ -606,34 +594,36 @@ json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, siz
 
 int dap_ledger_pvt_threshold_txs_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash)
 {
-    dap_ledger_tx_item_t *l_item_tmp = NULL;
+    dap_ledger_tx_item_t *l_item = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     unsigned l_hash_value = 0;
     HASH_VALUE(a_tx_hash, sizeof(*a_tx_hash), l_hash_value);
-    pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
-    HASH_FIND_BYHASHVALUE(hh, l_ledger_pvt->threshold_txs, a_tx_hash, sizeof(*a_tx_hash), l_hash_value, l_item_tmp);
+    pthread_rwlock_wrlock(&l_ledger_pvt->threshold_txs_rwlock);
+    HASH_FIND_BYHASHVALUE(hh, l_ledger_pvt->threshold_txs, a_tx_hash, sizeof(*a_tx_hash), l_hash_value, l_item);
     unsigned long long l_threshold_txs_count = HASH_COUNT(l_ledger_pvt->threshold_txs);
-    if (!l_item_tmp) {
+    if (!l_item) {
         if (l_threshold_txs_count >= s_threshold_txs_max) {
+            pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
             debug_if(g_debug_ledger, L_WARNING, "Threshold for transactions is overfulled (%zu max), dropping down tx %s, added nothing",
                                                 s_threshold_txs_max, dap_hash_fast_to_str_static(a_tx_hash));
             return -2;
         }
-        l_item_tmp = DAP_NEW_Z(dap_ledger_tx_item_t);
-        if ( !l_item_tmp ) {
+        if (!( l_item = DAP_NEW_Z(dap_ledger_tx_item_t) )) {
+            pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return -1;
         }
-        l_item_tmp->tx_hash_fast = *a_tx_hash;
-        l_item_tmp->tx = l_ledger_pvt->mapped ? a_tx : DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
-        if ( !l_item_tmp->tx ) {
-            DAP_DELETE(l_item_tmp);
+        l_item->tx_hash_fast = *a_tx_hash;
+        l_item->tx = is_ledger_mapped(l_ledger_pvt) ? a_tx : DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
+        if ( !l_item->tx ) {
+            DAP_DELETE(l_item);
+            pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return -1;
         }
-        l_item_tmp->ts_added = dap_nanotime_now();
-        l_item_tmp->cache_data.ts_created = a_tx->header.ts_created;
-        HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->threshold_txs, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_hash_value, l_item_tmp);
+        l_item->ts_added = dap_nanotime_now();
+        l_item->cache_data.ts_created = a_tx->header.ts_created;
+        HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->threshold_txs, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_hash_value, l_item);
         debug_if(g_debug_ledger, L_DEBUG, "Tx %s added to threshold", dap_hash_fast_to_str_static(a_tx_hash));
     }
     pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
@@ -653,7 +643,7 @@ void dap_ledger_pvt_threshold_txs_proc(dap_ledger_t *a_ledger)
             if (l_res != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
                     l_res != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS) {
                 HASH_DEL(l_ledger_pvt->threshold_txs, l_tx_item);
-                if ( !l_ledger_pvt->mapped )
+                if ( !is_ledger_mapped(l_ledger_pvt) )
                     DAP_DELETE(l_tx_item->tx);
                 DAP_DELETE(l_tx_item);
                 l_success = true;
@@ -679,7 +669,7 @@ static void s_threshold_txs_free(dap_ledger_t *a_ledger)
             HASH_DEL(l_pvt->threshold_txs, l_current);
             char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(&l_current->tx_hash_fast, l_tx_hash_str, sizeof(l_tx_hash_str));
-            if ( !l_pvt->mapped )
+            if ( !is_ledger_mapped(l_pvt) )
                 DAP_DELETE(l_current->tx);
             DAP_DELETE(l_current);
             log_it(L_NOTICE, "Removed transaction %s form threshold ledger", l_tx_hash_str);
@@ -757,28 +747,18 @@ void dap_ledger_load_cache(dap_ledger_t *a_ledger)
  * create ledger for specific net
  * load ledger cache
  * @param a_check_flags checking flags
- *          DAP_LEDGER_CHECK_TOKEN_EMISSION
- *          DAP_LEDGER_CHECK_CELLS_DS
- *          DAP_LEDGER_CHECK_CELLS_DS
  * @param a_net_name char * network name, for example "kelvin-testnet"
  * @return dap_ledger_t*
  */
 dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
 {
     dap_ledger_t *l_ledger = dap_ledger_handle_new();
-    if (!l_ledger) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return NULL;
-    }
+    dap_return_val_if_fail(l_ledger, NULL);
+
     l_ledger->net = a_net;
     dap_ledger_private_t *l_ledger_pvt = PVT(l_ledger);
-    l_ledger_pvt->check_ds = a_flags & DAP_LEDGER_CHECK_LOCAL_DS;
-    l_ledger_pvt->check_cells_ds = a_flags & DAP_LEDGER_CHECK_CELLS_DS;
-    l_ledger_pvt->check_token_emission = a_flags & DAP_LEDGER_CHECK_TOKEN_EMISSION;
-    l_ledger_pvt->cached = a_flags & DAP_LEDGER_CACHE_ENABLED;
-    l_ledger_pvt->mapped = a_flags & DAP_LEDGER_MAPPED;
-    l_ledger_pvt->threshold_enabled = a_flags & DAP_LEDGER_THRESHOLD_ENABLED;
-    if (l_ledger_pvt->threshold_enabled)
+    l_ledger_pvt->flags = a_flags;
+    if ( is_ledger_threshld(l_ledger_pvt) )
         l_ledger_pvt->threshold_txs_free_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
                                                                       (dap_timer_callback_t)s_threshold_txs_free, l_ledger);
     pthread_cond_init(&l_ledger_pvt->load_cond, NULL);
@@ -801,13 +781,12 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
         }
         log_it(L_DEBUG, "Chain %s.%s has %d datums in HAL and %d datums in HRL", a_net->pub.name, l_chain->name, l_whitelist_size, l_blacklist_size);
     }
-    if ( l_ledger_pvt->cached )
+    if ( is_ledger_cached(l_ledger_pvt) )
         // load ledger cache from GDB
         dap_ledger_load_cache(l_ledger);
 #endif
     // Decrees initializing
-    dap_ledger_decree_create(l_ledger);
-
+    dap_ledger_decree_init(l_ledger);
     return l_ledger;
 }
 
@@ -855,6 +834,9 @@ const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag)
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_CHANGE) return "change";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_VOTING) return "voting";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_VOTE) return "vote";
+    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD) return "hold";
+    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE) return "take";
+    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL) return "refill";
 
     return "WTFSUBTAG";
 
@@ -877,6 +859,9 @@ dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *
     if (strcmp("change", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_CHANGE;
     if (strcmp("voting", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_VOTING;
     if (strcmp("vote", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_VOTE;
+    if (strcmp("hold", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD;
+    if (strcmp("take", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE;
+    if (strcmp("refill", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL;
 
 
     return DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
@@ -978,11 +963,18 @@ const char *dap_ledger_tx_tag_str_by_uid(dap_chain_srv_uid_t a_service_uid)
  */
 void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
 {
+    dap_ledger_tx_purge(a_ledger, a_preserve_db);
+    dap_ledger_token_purge(a_ledger, a_preserve_db);
+    dap_ledger_decree_purge(a_ledger);
+    PVT(a_ledger)->load_end = false;
+}
+
+void dap_ledger_tx_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
+{
     dap_return_if_fail(a_ledger);
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
 
     pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
-    pthread_rwlock_wrlock(&l_ledger_pvt->tokens_rwlock);
     pthread_rwlock_wrlock(&l_ledger_pvt->threshold_txs_rwlock);
     pthread_rwlock_wrlock(&l_ledger_pvt->balance_accounts_rwlock);
     pthread_rwlock_wrlock(&l_ledger_pvt->stake_lock_rwlock);
@@ -992,9 +984,9 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     char *l_gdb_group;
     HASH_ITER(hh, l_ledger_pvt->ledger_items , l_item_current, l_item_tmp) {
         HASH_DEL(l_ledger_pvt->ledger_items, l_item_current);
-        if (!l_ledger_pvt->mapped)
+        if (!is_ledger_mapped(l_ledger_pvt))
             DAP_DELETE(l_item_current->tx);
-        DAP_DEL_Z(l_item_current);
+        DAP_DELETE(l_item_current);
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TXS_STR);
@@ -1006,42 +998,10 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     dap_ledger_wallet_balance_t *l_balance_current, *l_balance_tmp;
     HASH_ITER(hh, l_ledger_pvt->balance_accounts, l_balance_current, l_balance_tmp) {
         HASH_DEL(l_ledger_pvt->balance_accounts, l_balance_current);
-        DAP_DELETE(l_balance_current->key);
-        DAP_DELETE(l_balance_current);
+        DAP_DEL_MULTY(l_balance_current->key, l_balance_current);
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_BALANCES_STR);
-        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
-        DAP_DELETE(l_gdb_group);
-    }
-
-    /* Delete tokens and their emissions */
-    dap_ledger_token_item_t *l_token_current, *l_token_tmp;
-    dap_ledger_token_emission_item_t *l_emission_current, *l_emission_tmp;
-    HASH_ITER(hh, l_ledger_pvt->tokens, l_token_current, l_token_tmp) {
-        HASH_DEL(l_ledger_pvt->tokens, l_token_current);
-        pthread_rwlock_wrlock(&l_token_current->token_emissions_rwlock);
-        HASH_ITER(hh, l_token_current->token_emissions, l_emission_current, l_emission_tmp) {
-            HASH_DEL(l_token_current->token_emissions, l_emission_current);
-            DAP_DELETE(l_emission_current->datum_token_emission);
-            DAP_DEL_Z(l_emission_current);
-        }
-        pthread_rwlock_unlock(&l_token_current->token_emissions_rwlock);
-        DAP_DELETE(l_token_current->datum_token);
-        DAP_DELETE(l_token_current->auth_pkeys);
-        DAP_DELETE(l_token_current->auth_pkey_hashes);
-        DAP_DEL_Z(l_token_current->tx_recv_allow);
-        DAP_DEL_Z(l_token_current->tx_recv_block);
-        DAP_DEL_Z(l_token_current->tx_send_allow);
-        DAP_DEL_Z(l_token_current->tx_send_block);
-        pthread_rwlock_destroy(&l_token_current->token_emissions_rwlock);
-        DAP_DELETE(l_token_current);
-    }
-    if (!a_preserve_db) {
-        l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TOKENS_STR);
-        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
-        DAP_DELETE(l_gdb_group);
-        l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_EMISSIONS_STR);
         dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
@@ -1061,25 +1021,54 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     /* Delete threshold transactions */
     HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_item_current, l_item_tmp) {
         HASH_DEL(l_ledger_pvt->threshold_txs, l_item_current);
-        if (!l_ledger_pvt->mapped)
+        if (!is_ledger_mapped(l_ledger_pvt))
             DAP_DELETE(l_item_current->tx);
         DAP_DEL_Z(l_item_current);
     }
 
     l_ledger_pvt->ledger_items         = NULL;
     l_ledger_pvt->balance_accounts     = NULL;
-    l_ledger_pvt->tokens               = NULL;
     l_ledger_pvt->threshold_txs        = NULL;
 
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-    pthread_rwlock_unlock(&l_ledger_pvt->tokens_rwlock);
     pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
     pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
     pthread_rwlock_unlock(&l_ledger_pvt->stake_lock_rwlock);
+}
 
-    l_ledger_pvt->load_end = false;
+void dap_ledger_token_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
+{
+    dap_return_if_fail(a_ledger);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
 
-    dap_ledger_decree_purge(a_ledger);
+    pthread_rwlock_wrlock(&l_ledger_pvt->tokens_rwlock);
+
+    /* Delete tokens and their emissions */
+    dap_ledger_token_item_t *l_token_current, *l_token_tmp;
+    dap_ledger_token_emission_item_t *l_emission_current, *l_emission_tmp;
+    HASH_ITER(hh, l_ledger_pvt->tokens, l_token_current, l_token_tmp) {
+        HASH_DEL(l_ledger_pvt->tokens, l_token_current);
+        pthread_rwlock_wrlock(&l_token_current->token_emissions_rwlock);
+        HASH_ITER(hh, l_token_current->token_emissions, l_emission_current, l_emission_tmp) {
+            HASH_DEL(l_token_current->token_emissions, l_emission_current);
+            DAP_DEL_MULTY(l_emission_current->datum_token_emission, l_emission_current);
+        }
+        pthread_rwlock_unlock(&l_token_current->token_emissions_rwlock);
+        pthread_rwlock_destroy(&l_token_current->token_emissions_rwlock);
+        DAP_DEL_MULTY(l_token_current->datum_token, l_token_current->datum_token, l_token_current->auth_pkeys, l_token_current->auth_pkey_hashes,
+            l_token_current->tx_recv_allow, l_token_current->tx_recv_block, l_token_current->tx_send_allow, l_token_current->tx_send_block, l_token_current);
+    }
+    if (!a_preserve_db) {
+        char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TOKENS_STR);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
+        DAP_DELETE(l_gdb_group);
+        l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_EMISSIONS_STR);
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
+        DAP_DELETE(l_gdb_group);
+    }
+
+    l_ledger_pvt->tokens               = NULL;
+    pthread_rwlock_unlock(&l_ledger_pvt->tokens_rwlock);
 }
 
 /**
@@ -1607,5 +1596,5 @@ dap_list_t *dap_ledger_get_list_tx_cond_outs(dap_ledger_t *a_ledger, const dap_c
 
 bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger)
 {
-    return PVT(a_ledger)->cached;
+    return is_ledger_cached(PVT(a_ledger));
 }

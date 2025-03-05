@@ -80,6 +80,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE             0x0010
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE             0x0011
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY                        0x0012
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_RETRY                0x0013
 
 // DECREE TSD types
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE                               0x0100
@@ -91,18 +92,18 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH                                0x0107
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE                         0x0108
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR                  0x0109
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION                              0x010A
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE                      0x010B
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM                           0x010C
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY                          0x010D
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE                      0x010E
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_GENERATION                          0x010F
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR                           0x0110
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE                     0x0111
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT             0x0112
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST                                0x0113
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING                              0x0115
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS              0x0116
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION                              0x010A
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE                      0x010B
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM                           0x010C
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY                          0x010D
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE                      0x010E 
-
 
 #ifdef __cplusplus
 extern "C" {

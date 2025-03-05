@@ -80,14 +80,14 @@ typedef union dap_chain_node_role{
 DAP_STATIC_INLINE const char *dap_chain_node_role_to_str(dap_chain_node_role_t a_node_role)
 {
     switch (a_node_role.enums) {
-        case NODE_ROLE_ROOT_MASTER: return "NODE_ROLE_ROOT_MASTER";
-        case NODE_ROLE_ROOT: return "NODE_ROLE_ROOT";
-        case NODE_ROLE_ARCHIVE: return "NODE_ROLE_ARCHIVE";
-        case NODE_ROLE_CELL_MASTER: return "NODE_ROLE_CELL_MASTER";
-        case NODE_ROLE_MASTER: return "NODE_ROLE_MASTER";
-        case NODE_ROLE_FULL: return "NODE_ROLE_FULL";
-        case NODE_ROLE_LIGHT: return "NODE_ROLE_LIGHT";
-        default: return "UNDEFINED";
+        case NODE_ROLE_ROOT_MASTER: return "root master";
+        case NODE_ROLE_ROOT: return "root";
+        case NODE_ROLE_ARCHIVE: return "archive";
+        case NODE_ROLE_CELL_MASTER: return "cell master";
+        case NODE_ROLE_MASTER: return "master";
+        case NODE_ROLE_FULL: return "full";
+        case NODE_ROLE_LIGHT: return "liht";
+        default: return "none";
     }
 }
 
@@ -144,6 +144,7 @@ typedef union {
 
 extern const dap_chain_srv_uid_t c_dap_chain_srv_uid_null;
 extern const dap_chain_cell_id_t c_dap_chain_cell_id_null;
+extern const dap_chain_cell_id_t c_dap_chain_cell_id_hardfork;
 extern const dap_chain_addr_t c_dap_chain_addr_blank;
 
 enum dap_chain_srv_unit_enum {

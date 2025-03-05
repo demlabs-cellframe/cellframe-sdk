@@ -1215,13 +1215,13 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 l_sign_list = dap_list_append(l_sign_list, l_json_item_obj);
                 break;
             }
-            const char *l_sign_b64_str = json_object_get_string(l_json_item_obj);
+            const char *l_sign_b64_str = json_object_get_string(l_jobj_sign);
             if ( !l_sign_b64_str ) {
                 json_object_array_add(l_jobj_errors, json_object_new_string("Can't get base64-encoded sign"));
                 log_it(L_ERROR, "Json TX: Can't get base64-encoded sign!");
                 break;
             }
-            int64_t l_sign_size = 0, l_sign_b64_strlen = json_object_get_string_len(l_json_item_obj),
+            int64_t l_sign_size = 0, l_sign_b64_strlen = json_object_get_string_len(l_jobj_sign),
                     l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
             if ( !s_json_get_int64(l_json_item_obj, "sig_size", &l_sign_size) )
                 log_it(L_NOTICE, "Json TX: \"sig_size\" unspecified, will be calculated automatically");
@@ -1667,16 +1667,16 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             }
             if (l_voting_params->voting_expire) {
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_voting_params->voting_expire);
-                json_object_object_add(json_obj_item,"Voting expire", json_object_new_string(l_tmp_buf));
+                json_object_object_add(json_obj_item,"voting_expire", json_object_new_string(l_tmp_buf));
             }
             if (l_voting_params->votes_max_count) {
-                json_object_object_add(json_obj_item, "Votes max count", json_object_new_uint64(l_voting_params->votes_max_count));
+                json_object_object_add(json_obj_item, "votes_max_count", json_object_new_uint64(l_voting_params->votes_max_count));
             }
-            json_object_object_add(json_obj_item,"Changing vote is", l_voting_params->vote_changing_allowed ? json_object_new_string("available") :
+            json_object_object_add(json_obj_item,"changing_vote_is", l_voting_params->vote_changing_allowed ? json_object_new_string("available") :
                                     json_object_new_string("not available"));
             l_voting_params->delegate_key_required ?
-                json_object_object_add(json_obj_item,"Delegated key for participating in voting", json_object_new_string("required")):
-                json_object_object_add(json_obj_item,"Delegated key for participating in voting", json_object_new_string("not required"));
+                json_object_object_add(json_obj_item,"delegated_key_for_participating_in_voting", json_object_new_string("required")):
+                json_object_object_add(json_obj_item,"delegated_key_for_participating_in_voting", json_object_new_string("not required"));
 
             dap_list_free_full(l_voting_params->options, NULL);
             DAP_DELETE(l_voting_params->question);
