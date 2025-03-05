@@ -1426,7 +1426,7 @@ dap_chain_tx_out_cond_t *dap_ledger_out_cond_unspent_find_by_addr(dap_ledger_t *
         l_iter_start = l_iter_start->hh.next;
     } else
         l_iter_start = l_ledger_pvt->ledger_items;
-    for (it = l_iter_start; it; it = it->hh.next) {
+    for (it = l_iter_start; it; it = it->hh.next, ret = NULL) {
         // If a_token is setup we check if its not our token - miss it
         if (*it->cache_data.token_ticker && dap_strcmp(it->cache_data.token_ticker, a_token))
             continue;
@@ -1445,9 +1445,9 @@ dap_chain_tx_out_cond_t *dap_ledger_out_cond_unspent_find_by_addr(dap_ledger_t *
             l_out_idx++;
         }
         // Don't return regular tx or spent conditions
-        if (!ret || !dap_hash_fast_is_blank(&it->cache_data.tx_hash_spent_fast[l_out_idx]))
+        if (!ret || !dap_hash_fast_is_blank(&it->out_metadata[l_out_idx].tx_spent_hash_fast))
             continue;
-        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(a_ledger, it->tx, a_subtype);
+        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(a_ledger, a_subtype, &it->tx_hash_fast);
         dap_chain_datum_tx_t *l_tx = dap_hash_fast_is_blank(&l_owner_tx_hash) ? it->tx
                                                                               : dap_ledger_tx_find_by_hash(a_ledger, &l_owner_tx_hash);
         if (!l_tx) {

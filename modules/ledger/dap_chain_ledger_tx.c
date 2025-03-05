@@ -2276,8 +2276,13 @@ uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_
     for (dap_list_t *it = l_item_out->out_metadata[a_out_idx].trackers; it ; it = it->next) {
         dap_ledger_tracker_t *l_tracker = it->data;
         if (dap_hash_fast_compare(&l_tracker->voting_hash, a_voting_hash)) {
-            assert(compare256(l_value, l_tracker->colored_value) >= 0);
-            SUBTRACT_256_256(l_value, l_tracker->colored_value, &l_value);
+            uint256_t l_coloured_value = {};
+            dap_ledger_tracker_item_t *l_item;
+            DL_FOREACH(l_tracker->items, l_item)
+                if (!a_pkey_hash || !dap_hash_fast_compare(a_pkey_hash, &l_item->pkey_hash))
+                    SUM_256_256(l_coloured_value, l_item->coloured_value, &l_coloured_value);
+            assert(compare256(l_value, l_coloured_value) >= 0);
+            SUBTRACT_256_256(l_value, l_coloured_value, &l_value);
             break;
         }
     }

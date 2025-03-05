@@ -47,9 +47,15 @@ typedef struct dap_ledger {
     void *_internal;
 } dap_ledger_t;
 
+typedef struct dap_ledger_tracker_item {
+    dap_hash_fast_t pkey_hash;
+    uint256_t coloured_value;
+    struct dap_ledger_tracker_item *prev, *next;
+} dap_ledger_tracker_item_t;
+
 typedef struct dap_ledger_tracker {
     dap_hash_fast_t voting_hash;
-    uint256_t colored_value;
+    dap_ledger_tracker_item_t *items;
 } DAP_ALIGN_PACKED dap_ledger_tracker_t;
 
 typedef struct dap_ledger_hardfork_balances {

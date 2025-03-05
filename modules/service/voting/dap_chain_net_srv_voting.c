@@ -751,8 +751,10 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         }
 
         dap_hash_fast_t l_voting_hash = {};
-        dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash);
-
+        if (dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash)) {
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_HASH_INVALID, "Hash string is not recognozed as hex of base58 hash");
+            return -DAP_CHAIN_NET_VOTE_VOTING_HASH_INVALID;
+        }
 
         dap_chain_hash_fast_t l_pkey_hash;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
@@ -997,28 +999,19 @@ int dap_chain_net_srv_voting_create(const char *a_question, dap_list_t *a_option
                                     const char *a_hash_out_type, char **a_hash_output)
 {
 
-    if (strlen(a_question) > DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH){
+    if (strlen(a_question) > DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH)
         return DAP_CHAIN_NET_VOTE_CREATE_LENGTH_QUESTION_OVERSIZE_MAX;
-    }
 
     // Parse options list
-
-    if(dap_list_length(a_options) > DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT){
+    if (dap_list_length(a_options) > DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT)
         return DAP_CHAIN_NET_VOTE_CREATE_COUNT_OPTION_OVERSIZE_MAX;
-    }
 
-    if (IS_ZERO_256(a_fee)) {
+    if (IS_ZERO_256(a_fee))
         return DAP_CHAIN_NET_VOTE_CREATE_FEE_IS_ZERO;
-    }
-
-    dap_enc_key_t *l_priv_key = NULL;
-    l_priv_key = dap_chain_wallet_get_key(a_wallet, 0);
 
     const dap_chain_addr_t *l_addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
-
-    if(!l_addr_from) {
+    if(!l_addr_from)
         return DAP_CHAIN_NET_VOTE_CREATE_SOURCE_ADDRESS_IS_INVALID;
-    }
 
     const char *l_native_ticker = a_net->pub.native_ticker;
     uint256_t l_net_fee = {}, l_total_fee = {}, l_value_transfer;
@@ -1155,10 +1148,13 @@ int dap_chain_net_srv_voting_create(const char *a_question, dap_list_t *a_option
     }
 
     // add 'sign' items
-    if(dap_chain_datum_tx_add_sign_item(&l_tx, l_priv_key) != 1) {
+    dap_enc_key_t *l_priv_key = dap_chain_wallet_get_key(a_wallet, 0);
+    if (dap_chain_datum_tx_add_sign_item(&l_tx, l_priv_key) != 1) {
         dap_chain_datum_tx_delete(l_tx);
+        dap_enc_key_delete(l_priv_key);
         return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_SIGNED_TX;
     }
+    dap_enc_key_delete(l_priv_key);
 
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
     dap_hash_fast_t l_tx_hash;
