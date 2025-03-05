@@ -5670,11 +5670,10 @@ dap_chain_tx_out_cond_t *dap_ledger_out_cond_unspent_find_by_addr(dap_ledger_t *
         l_iter_start = l_iter_start->hh.next;
     } else
         l_iter_start = l_ledger_pvt->ledger_items;
-    for (it = l_iter_start; it; it = it->hh.next) {
+    for (it = l_iter_start; it; it = it->hh.next, ret = NULL) {
         // If a_token is setup we check if its not our token - miss it
         if (*it->cache_data.token_ticker && dap_strcmp(it->cache_data.token_ticker, a_token))
             continue;
-        ret = NULL;
         // Get 'out_cond' item from transaction
         byte_t *l_item; size_t l_size; int i, l_out_idx = 0;
         TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, it->tx) {
@@ -5699,7 +5698,7 @@ dap_chain_tx_out_cond_t *dap_ledger_out_cond_unspent_find_by_addr(dap_ledger_t *
             continue;
         }
         // Get sign item from transaction
-        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
         // Get dap_sign_t from item
         dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
         // compare public key in transaction with a_public_key

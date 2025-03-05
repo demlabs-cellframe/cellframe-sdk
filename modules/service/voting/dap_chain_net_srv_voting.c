@@ -394,7 +394,8 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
         if (dap_strcmp(l_ticker_in, l_voting->voting_params.token_ticker))
             continue;
         if (s_datum_tx_voting_coin_check_spent(a_ledger->net, l_vote_tx_item->voting_hash,
-                                               l_tx_in->header.tx_prev_hash, l_tx_in->header.tx_out_prev_idx, &l_pkey_hash)) {
+                                               l_tx_in->header.tx_prev_hash, l_tx_in->header.tx_out_prev_idx,
+                                               l_old_vote ? &l_pkey_hash : NULL)) {
             log_it(L_WARNING, "Coin with out number %u for tx %s is spent for votnig %s", l_tx_in->header.tx_out_prev_idx,
                                         dap_hash_fast_to_str_static(a_tx_hash), dap_hash_fast_to_str_static(&l_vote_tx_item->voting_hash));
             return -20;
@@ -426,7 +427,8 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
             return -16;
         if (!dap_ledger_check_condition_owner(a_ledger, &l_hash, l_prev_out->header.subtype, l_out_idx, l_pkey_sign))
             return -17;
-        if (s_datum_tx_voting_coin_check_cond_out(a_ledger->net, l_vote_tx_item->voting_hash, l_hash, l_out_idx, &l_pkey_hash))
+        if (s_datum_tx_voting_coin_check_cond_out(a_ledger->net, l_vote_tx_item->voting_hash, l_hash, l_out_idx,
+                                                  l_old_vote ? &l_pkey_hash : NULL))
             return -15;
         if (SUM_256_256(l_weight, l_prev_out->header.value, &l_weight)) {
             log_it(L_WARNING, "Integer overflow while parsing vote tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
@@ -830,10 +832,11 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         }
 
         dap_hash_fast_t l_voting_hash = {};
-        dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash);
+        if (dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash)) {
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_HASH_INVALID, "Hash string is not recognozed as hex of base58 hash");
+            return -DAP_CHAIN_NET_VOTE_VOTING_HASH_INVALID;
+        }
 
-
-        dap_chain_hash_fast_t l_pkey_hash;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
         dap_cert_t * l_cert = dap_cert_find_by_name(l_cert_name);
         if (l_cert_name){
@@ -1067,7 +1070,6 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         const char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
         json_object_object_add(json_vote_out, "total_sum", json_object_new_string(l_tw_coins));
         json_object_object_add(json_vote_out, "total_sum_datoshi", json_object_new_string(l_tw_datoshi));
-        json_object_object_add(json_vote_out, "ticker", json_object_new_string(l_net->pub.native_ticker));
         json_object_array_add(*json_arr_reply, json_vote_out);
     } break;
     default:
@@ -1470,10 +1472,14 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
     } else
         l_pkey_hash = l_addr_from->data.hash_fast;
 
+    bool l_vote_changed = false;
     for (dap_list_t *it = l_voting->votes; it; it = it->next)
-        if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)it->data)->pkey_hash, &l_pkey_hash) &&
-                !l_voting->voting_params.vote_changing_allowed)
-            return DAP_CHAIN_NET_VOTE_VOTING_DOES_NOT_ALLOW_CHANGE_YOUR_VOTE;
+        if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)it->data)->pkey_hash, &l_pkey_hash)) {
+            if (!l_voting->voting_params.vote_changing_allowed)
+                return DAP_CHAIN_NET_VOTE_VOTING_DOES_NOT_ALLOW_CHANGE_YOUR_VOTE;
+            l_vote_changed = true;
+            break;
+        }
 
     const char *l_token_ticker = l_voting->voting_params.token_ticker;
     uint256_t l_net_fee = {}, l_total_fee = a_fee, l_value_transfer, l_fee_transfer;
@@ -1495,7 +1501,8 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
     dap_list_t *it, *tmp;
     DL_FOREACH_SAFE(l_list_used_out, it, tmp) {
         dap_chain_tx_used_out_item_t *l_out = (dap_chain_tx_used_out_item_t *)it->data;
-        if (s_datum_tx_voting_coin_check_spent(a_net, a_hash, l_out->tx_hash_fast, l_out->num_idx_out, &l_pkey_hash)) {
+        if (s_datum_tx_voting_coin_check_spent(a_net, a_hash, l_out->tx_hash_fast, l_out->num_idx_out,
+                                               l_vote_changed ? &l_pkey_hash : NULL)) {
             l_list_used_out = dap_list_delete_link(l_list_used_out, it);
             continue;
         }
@@ -1547,7 +1554,8 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
     dap_list_t *l_outs = dap_ledger_get_list_tx_cond_outs(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL, l_token_ticker, l_addr_from);
     for (dap_list_t *it = l_outs; it; it = it->next) {
         dap_chain_tx_used_out_item_t *l_out_item = (dap_chain_tx_used_out_item_t *)it->data;
-        if (s_datum_tx_voting_coin_check_cond_out(a_net, a_hash, l_out_item->tx_hash_fast, l_out_item->num_idx_out, &l_pkey_hash) != 0)
+        if (s_datum_tx_voting_coin_check_cond_out(a_net, a_hash, l_out_item->tx_hash_fast, l_out_item->num_idx_out,
+                                                  l_vote_changed ? &l_pkey_hash : NULL) != 0)
             continue;
         dap_chain_tx_tsd_t *l_item = dap_chain_datum_voting_vote_tx_cond_tsd_create(l_out_item->tx_hash_fast, l_out_item->num_idx_out);
         if(!l_item){
