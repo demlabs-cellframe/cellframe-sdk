@@ -1571,6 +1571,9 @@ void s_wallet_list(const char *a_wallet_path, json_object *a_json_arr_out, dap_c
             } else if ((l_file_name_len > 7) && (!strcmp(l_file_name + l_file_name_len - 7, ".backup"))) {
                 json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
                 json_object_object_add(json_obj_wall, "status", json_object_new_string("Backup"));
+            } else if (a_addr) {
+                json_object_put(json_obj_wall);
+                continue;
             }
             json_object_array_add(a_json_arr_out, json_obj_wall);
         }
@@ -1629,7 +1632,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
     }
 
     const char *l_addr_str = NULL, *l_wallet_name = NULL, *l_net_name = NULL, *l_sign_type_str = NULL, *l_restore_str = NULL,
-            *l_pass_str = NULL, *l_ttl_str = NULL;
+            *l_pass_str = NULL, *l_ttl_str = NULL, *l_file_path = NULL;
 
     // find wallet addr
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
@@ -1637,6 +1640,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_name);
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-password", &l_pass_str);
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-sign", &l_sign_type_str);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-file", &l_file_path);
 
     // Check if wallet name has only digits and English letter
     if (l_wallet_name && !dap_isstralnum(l_wallet_name)){
@@ -1877,14 +1881,22 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
         case CMD_WALLET_FIND: {
             if (l_addr_str) {
                 l_addr = dap_chain_addr_from_str(l_addr_str);
-                if (l_addr)
-                    s_wallet_list(c_wallets_path, json_arr_out, l_addr);
+                if (l_addr) {
+                    if (l_file_path)
+                        s_wallet_list(l_file_path, json_arr_out, l_addr);
+                    else 
+                        s_wallet_list(c_wallets_path, json_arr_out, l_addr);
+                }                    
                 else {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ADDR_ERR,
                         "addr not recognized");
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ADDR_ERR;
                 }
-            }            
+            } else {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ADDR_ERR,
+                                                "You should use -addr option for the wallet find command.");
+                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ADDR_ERR;
+            }           
         } break;
         default: {
             if( !l_wallet_name ) {
