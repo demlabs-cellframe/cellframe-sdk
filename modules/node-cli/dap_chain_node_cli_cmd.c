@@ -6019,7 +6019,7 @@ int com_policy(int argc, char **argv, void **reply) {
             json_object_object_add(l_answer, "active", json_object_new_string(dap_chain_policy_activated(((dap_chain_policy_activate_t *)(l_policy->data))->num, l_net->pub.id.uint64) ? "true" : "false"));
             json_object_array_add(*a_json_arr_reply, l_answer);
         } else {
-            json_object_array_add(*a_json_arr_reply, json_object_new_string("Empty reply"));
+            json_object_array_add(*a_json_arr_reply, json_object_new_string("Detailed information not exist"));
         }
         return 0;
     }
@@ -6134,7 +6134,9 @@ int com_policy(int argc, char **argv, void **reply) {
         if (l_answer) {
             json_object_array_add(*a_json_arr_reply, l_answer);
         } else {
-            json_object_array_add(*a_json_arr_reply, json_object_new_string("Empty reply"));
+            dap_json_rpc_error_add(*a_json_arr_reply, -11, "Policy draft creation failed");
+            DAP_DELETE(l_policy);
+            return -11;
         }
         DAP_DELETE(l_policy);
         return 0;
