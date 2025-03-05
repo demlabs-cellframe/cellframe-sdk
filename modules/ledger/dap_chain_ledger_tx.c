@@ -105,7 +105,6 @@ typedef struct dap_ledger_cache_gdb_record {
     uint8_t data[];
 } DAP_ALIGN_PACKED dap_ledger_cache_gdb_record_t;
 
-static dap_ledger_tx_item_t *s_tx_item_find_by_addr(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr, const char * a_token, dap_chain_hash_fast_t *a_tx_first_hash);
 static bool s_ledger_tx_hash_is_used_out_item(dap_ledger_tx_item_t *a_item, uint32_t a_idx_out, dap_hash_fast_t *a_out_spender_hash);
 static dap_ledger_stake_lock_item_t *s_emissions_for_stake_lock_item_find(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_token_emission_hash);
 
@@ -2050,8 +2049,8 @@ static dap_ledger_stake_lock_item_t *s_emissions_for_stake_lock_item_find(dap_le
  * a_public_key_size[in] public key size
  * a_tx_first_hash [in/out] hash of the initial transaction/ found transaction, if 0 start from the beginning
  */
-static dap_ledger_tx_item_t *s_tx_item_find_by_addr(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
-                                                        const char * a_token, dap_chain_hash_fast_t *a_tx_first_hash)
+dap_chain_datum_tx_t* dap_ledger_tx_find_by_addr(dap_ledger_t *a_ledger , const char * a_token ,
+        const dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_tx_first_hash)
 {
     if(!a_addr || !a_tx_first_hash)
         return NULL;
@@ -2108,20 +2107,7 @@ static dap_ledger_tx_item_t *s_tx_item_find_by_addr(dap_ledger_t *a_ledger, cons
             break;
     }
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-    return is_tx_found ? l_iter_current : NULL;
-}
-
-/**
- * @brief dap_ledger_tx_find_by_addr
- * @param a_addr
- * @param a_tx_first_hash
- * @return
- */
- dap_chain_datum_tx_t* dap_ledger_tx_find_by_addr(dap_ledger_t *a_ledger , const char * a_token ,
-         const dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_tx_first_hash)
-{
-    dap_ledger_tx_item_t* l_tx_item = s_tx_item_find_by_addr(a_ledger, a_addr, a_token, a_tx_first_hash);
-    return (l_tx_item) ? l_tx_item->tx : NULL;
+    return is_tx_found ? l_iter_current->tx : NULL;
 }
 
 /**
@@ -2257,7 +2243,9 @@ dap_list_t *dap_ledger_tx_get_trackers(dap_ledger_t *a_ledger, dap_chain_hash_fa
     return l_item_out->out_metadata[a_out_idx].trackers;
 }
 
-uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_tx_hash, int a_out_idx)
+uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_fast_t *a_voting_hash,
+                                               dap_hash_fast_t *a_tx_hash, int a_out_idx,
+                                               dap_hash_fast_t *a_pkey_hash)
 {
     dap_return_val_if_fail(a_ledger && a_voting_hash && a_tx_hash, uint256_0);
     dap_ledger_tx_item_t *l_item_out = NULL;
