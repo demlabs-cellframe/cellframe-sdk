@@ -3523,6 +3523,9 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                     json_object_object_add(l_json_obj_tx, "node_address", json_object_new_string(l_node_address_text_block));
                     json_object_object_add(l_json_obj_tx, "value_coins", json_object_new_string(l_coins));
                     json_object_object_add(l_json_obj_tx, "value_datoshi", json_object_new_string(l_balance));
+                    dap_sign_t *l_owner_sign = dap_chain_datum_tx_get_sign(l_datum_tx, 0);
+                    dap_chain_addr_t l_owner_addr; dap_chain_addr_fill_from_sign(&l_owner_addr, l_owner_sign, l_net->pub.id);
+                    json_object_object_add(l_json_obj_tx, "owner_addr", json_object_new_string(dap_chain_addr_to_str_static(&l_owner_addr)));
                     json_object_array_add(l_json_arr_tx, l_json_obj_tx);
                     DAP_DELETE(l_node_address_text_block);
                 }
