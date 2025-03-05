@@ -36,7 +36,6 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_datum_service_state.h"
 #include "dap_chain_node_client.h"
-#include "dap_chain_net_balancer.h"
 
 #define LOG_TAG "dap_chain_node"
 
