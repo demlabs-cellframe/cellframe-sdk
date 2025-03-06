@@ -2213,8 +2213,13 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
             l_pkey = dap_pkey_get_from_str(l_pkey_full_str);
         } else {
             dap_hash_fast_t l_pkey_hash = {};
-            if (!dap_chain_hash_fast_from_str(l_pkey_str, &l_pkey_hash))
-                l_pkey = dap_ledger_find_pkey_by_hash(l_net->pub.ledger, &l_pkey_hash);
+            if (!dap_chain_hash_fast_from_str(l_pkey_str, &l_pkey_hash)) {
+                dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+                if (!l_chain)
+                    l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+                if (l_chain)
+                    l_pkey = dap_chain_cs_blocks_find_pkey_by_hash(l_chain, &l_pkey_hash);
+            }
         }
         if (!l_pkey) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "Invalid pkey string format, can't get pkey_full");
@@ -2489,7 +2494,11 @@ static int s_cli_srv_stake_pkey_show(int a_argc, char **a_argv, int a_arg_index,
     HASH_FIND(hh, l_srv_stake->itemlist, &l_pkey_hash, sizeof(dap_hash_fast_t), l_stake);
     dap_pkey_t *l_pkey = l_stake ? l_stake->pkey : NULL;
     if (!l_pkey) {
-        l_pkey = dap_ledger_find_pkey_by_hash(l_net->pub.ledger, &l_pkey_hash);
+        dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+        if (!l_chain)
+            l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+        if (l_chain)
+            l_pkey =dap_chain_cs_blocks_find_pkey_by_hash(l_chain, &l_pkey_hash);
     }
     if (!l_pkey) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "pkey not finded");
@@ -4141,10 +4150,10 @@ size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_
 /**
  * @brief search pkey by hash in delegate table
  * @param a_net_id net id to switch
- * @param a_to_temp true - to sandbox, false - to main
- * @return if OK - 0, other if error
+ * @param a_hash hash to search
+ * @return pointer to pkey, NULL if error
  */
-dap_pkey_t *dap_chain_net_srv_stake_get_pkey_by_hash(dap_chain_net_id_t a_net_id, const uint8_t *a_hash)
+dap_pkey_t *dap_chain_net_srv_stake_get_pkey_by_hash(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_hash)
 {
     dap_chain_net_srv_stake_t*l_srv_stake = s_srv_stake_by_net_id(a_net_id);
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
