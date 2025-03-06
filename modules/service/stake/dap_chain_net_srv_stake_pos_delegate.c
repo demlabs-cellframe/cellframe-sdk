@@ -4132,7 +4132,7 @@ size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_
 
 /**
  * @brief search pkey by hash in delegate table
- * @param a_net_id net id to switch
+ * @param a_net_id net id to search
  * @param a_hash hash to search
  * @return pointer to pkey, NULL if error
  */
