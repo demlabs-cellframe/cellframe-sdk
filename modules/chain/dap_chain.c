@@ -147,7 +147,9 @@ void dap_chain_set_cs_type(dap_chain_t *a_chain, const char *a_cs_type)
 int dap_chain_purge(dap_chain_t *a_chain)
 {
     int ret = dap_chain_cs_class_purge(a_chain);
-    return ret + dap_chain_cs_purge(a_chain);
+    ret += dap_chain_cs_purge(a_chain);
+    dap_chain_cell_close_all(a_chain);
+    return ret;
 }
 
 /**
@@ -346,6 +348,15 @@ static bool s_datum_in_chain_types(uint16_t datum_type, dap_chain_type_t *chain_
 		if (s_chain_type_convert(chain_types[i]) == datum_type)
 			return (true);
 	return (false);
+}
+
+bool dap_chain_datum_type_supported_by_chain(dap_chain_t *a_chain, uint16_t a_datum_type)
+{
+    dap_return_val_if_fail(a_chain, false);
+    for (uint16_t i = 0; i < a_chain->datum_types_count; i++)
+        if (s_chain_type_convert(a_chain->datum_types[i]) == a_datum_type)
+            return true;
+    return false;
 }
 
 /**
@@ -706,7 +717,8 @@ void dap_chain_atom_confirmed_notify_add(dap_chain_t *a_chain, dap_chain_callbac
  */
 bool dap_chain_get_atom_last_hash_num_ts(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash, uint64_t *a_atom_num, dap_time_t *a_atom_timestamp)
 {
-    dap_return_val_if_fail(a_atom_hash || a_atom_num, false);
+    dap_return_val_if_fail(a_chain && a_chain->callback_atom_iter_create &&
+                           a_chain->callback_atom_iter_get && a_chain->callback_atom_iter_delete, false);
     dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, a_cell_id, NULL);
     if (!l_iter)
         return false;
