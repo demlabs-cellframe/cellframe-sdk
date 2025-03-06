@@ -1530,7 +1530,7 @@ void s_wallet_list(const char *a_wallet_path, json_object *a_json_arr_out, dap_c
                 if (l_wallet) {
                     if (a_addr) {
                         l_addr = dap_chain_wallet_get_addr(l_wallet, a_addr->net_id);
-                        if (dap_chain_addr_compare(l_addr, a_addr)) {
+                        if (l_addr && dap_chain_addr_compare(l_addr, a_addr)) {
                             json_object_object_add(json_obj_wall, "wallet", json_object_new_string(l_file_name));
                             if(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)
                                 json_object_object_add(json_obj_wall, "status", json_object_new_string("protected-active"));
@@ -1563,18 +1563,18 @@ void s_wallet_list(const char *a_wallet_path, json_object *a_json_arr_out, dap_c
                     //    json_object_object_add(json_obj_wall, "addr", json_object_new_string(l_addr_str));
                     // }
                     dap_chain_wallet_close(l_wallet);
-                } else{
+                } else if (!a_addr){
                     json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
                     if(res==4)json_object_object_add(json_obj_wall, "status", json_object_new_string("protected-inactive"));
                     else if(res != 0)json_object_object_add(json_obj_wall, "status", json_object_new_string("invalid"));
                 }
-            } else if ((l_file_name_len > 7) && (!strcmp(l_file_name + l_file_name_len - 7, ".backup"))) {
-                json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
-                json_object_object_add(json_obj_wall, "status", json_object_new_string("Backup"));
             } else if (a_addr) {
                 json_object_put(json_obj_wall);
                 continue;
-            }
+            } else if ((l_file_name_len > 7) && (!strcmp(l_file_name + l_file_name_len - 7, ".backup"))) {
+                json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
+                json_object_object_add(json_obj_wall, "status", json_object_new_string("Backup"));
+            } 
             json_object_array_add(a_json_arr_out, json_obj_wall);
         }
         if (a_addr && (json_object_array_length(a_json_arr_out) == 0)) {
