@@ -296,7 +296,8 @@ typedef void (*dap_ledger_cond_out_delete_callback_t)(dap_ledger_t *a_ledger, da
 typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ledger_notify_opcodes_t a_opcode);
 typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg, dap_ledger_notify_opcodes_t a_opcode);
 typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
-typedef int (*dap_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_apply);
+typedef int (*dap_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_apply);
+typedef int (*dap_ledger_vote_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_pkey_hash, bool a_apply);
 typedef bool (*dap_ledger_voting_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash);
 typedef dap_time_t (*dap_ledger_voting_expire_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_voting_hash);
 typedef bool (*dap_ledger_tag_check_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action);
@@ -472,7 +473,8 @@ int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype,
                                dap_ledger_cond_in_add_callback_t a_callback_in_add, dap_ledger_cond_out_add_callback_t a_callback_out_add,
                                dap_ledger_cond_in_delete_callback_t a_callback_in_delete, dap_ledger_cond_out_delete_callback_t a_callback_out_delete);
 // Add new verificator callback for voting. Returns 1 if callback replaced, overwise returns 0
-int dap_ledger_voting_verificator_add(dap_ledger_voting_callback_t a_callback, dap_ledger_voting_delete_callback_t a_callback_delete, dap_ledger_voting_expire_callback_t a_callback_expire);
+int dap_ledger_voting_verificator_add(dap_ledger_voting_callback_t a_voting_callback, dap_ledger_vote_callback_t a_vote_callback,
+                                      dap_ledger_voting_delete_callback_t a_callback_delete, dap_ledger_voting_expire_callback_t a_callback_expire);
 int dap_ledger_tax_callback_set(dap_ledger_tax_callback_t a_callback);
 // Getting a list of transactions from the ledger.
 dap_list_t * dap_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool a_reverse, bool a_unspent_only);

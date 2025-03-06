@@ -58,8 +58,8 @@ static void s_callback_delete(void *a_service_internal);
 static int s_callback_purge(dap_chain_net_id_t a_net_id, void *a_service_internal);
 static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count, void *a_service_internal);
 static int s_votings_restore(dap_chain_net_id_t a_net_id, byte_t *a_state, uint64_t a_state_size, uint32_t a_states_count);
-
-static int s_voting_ledger_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
+static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
+static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_pkey_hash, bool a_apply);
 static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash);
 static int s_cli_voting(int argc, char **argv, void **a_str_reply);
 
@@ -82,7 +82,8 @@ static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_t
 
 int dap_chain_net_srv_voting_init()
 {
-    dap_ledger_voting_verificator_add(s_voting_ledger_verificator_callback, s_datum_tx_voting_verification_delete_callback, dap_chain_net_srv_voting_get_expiration_time);
+    dap_ledger_voting_verificator_add(s_voting_verificator, s_vote_verificator,
+                                      s_datum_tx_voting_verification_delete_callback, dap_chain_net_srv_voting_get_expiration_time);
     dap_cli_server_cmd_add("voting", s_cli_voting, "Voting commands.",
                             "voting create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <voting_expire_time_in_RCF822>] [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value> -w <fee_wallet_name>\n"
                             "voting vote -net <net_name> -hash <voting_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value> -w <fee_wallet_name> [-token <ticker>]\n"
@@ -313,7 +314,7 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
     return DAP_LEDGER_CHECK_OK;
 }
 
-static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
+static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_pkey_hash, bool a_apply)
 {
     dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
     assert(l_vote_tx_item);
@@ -429,8 +430,6 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         l_vote_item->weight = l_weight;
 
         if (l_vote_overwrited) {
-            SUM_256_256(l_vote_item->weight, ((struct vote *)l_vote_overwrited->data)->weight, &l_vote_item->weight);
-
             // change vote & move it to the end of list
             const char *l_vote_hash_str = dap_hash_fast_to_str_static(&((struct vote *)l_vote_overwrited->data)->vote_hash);
             DAP_DELETE(l_vote_overwrited->data);
@@ -444,17 +443,9 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         l_voting->votes = dap_list_append(l_voting->votes, l_vote_item);
 
     }
+    if (a_pkey_hash)
+        *a_pkey_hash = l_voting->params->vote_changing_allowed ? l_pkey_hash : (dap_hash_fast_t) { };
     return DAP_LEDGER_CHECK_OK;
-}
-
-int s_voting_ledger_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
-{
-    if (a_type == TX_ITEM_TYPE_VOTING)
-        return s_voting_verificator(a_ledger, a_tx_in, a_tx_hash, a_apply);
-    if (a_type == TX_ITEM_TYPE_VOTE)
-        return s_vote_verificator(a_ledger, a_tx_in, a_tx_hash, a_apply);
-    log_it(L_ERROR, "Item %d is not supported in votings", a_type);
-    return -3;
 }
 
 static inline bool s_vote_delete(dap_chain_net_id_t a_net_id, dap_chain_datum_tx_t *a_vote_tx, dap_hash_fast_t *a_vote_tx_hash)
@@ -1292,7 +1283,7 @@ int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain
     for (dap_list_t *it = l_outs; it; it = it->next) {
         dap_chain_tx_used_out_item_t *l_out_item = (dap_chain_tx_used_out_item_t *)it->data;
         uint256_t l_uncoloured_value = dap_ledger_coin_get_uncoloured_value(l_ledger, a_voting_hash,
-                                                                            l_out_item->tx_hash_fast, l_out_item->num_idx_out,
+                                                                            &l_out_item->tx_hash_fast, l_out_item->num_idx_out,
                                                                             l_vote_changed ? &l_pkey_hash : NULL);
         if (IS_ZERO_256(l_uncoloured_value))
             continue;
