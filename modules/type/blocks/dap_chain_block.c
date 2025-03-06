@@ -285,7 +285,7 @@ size_t dap_chain_block_sign_add(dap_chain_block_t **a_block_ptr, size_t a_block_
     assert(a_block_ptr);
     dap_chain_block_t *l_block = *a_block_ptr;
     size_t l_offset = dap_chain_block_get_sign_offset(l_block, a_block_size);
-    dap_sign_t *l_block_sign = dap_sign_create(a_key, l_block, l_offset + sizeof(l_block->hdr));
+    dap_sign_t *l_block_sign = dap_sign_create_with_hash_type(a_key, l_block, l_offset + sizeof(l_block->hdr), DAP_SIGN_ADD_PKEY_HASHING_FLAG(DAP_SIGN_HASH_TYPE_DEFAULT));
     size_t l_block_sign_size = dap_sign_get_size(l_block_sign);
     if (!l_block_sign_size)
         return 0;
