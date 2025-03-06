@@ -4173,13 +4173,13 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                               "Available chains:", l_chain_str, l_net_str);
                     dap_chain_t *l_chain;
                     json_object* json_obj_out = json_object_new_object();
-                    if (!json_obj_out) return dap_json_rpc_allocation_put(json_obj_out),DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
+                    if (!json_obj_out) return dap_json_rpc_allocation_put_error(json_obj_out);
                     json_object* json_obj_chains = json_object_new_array();
-                    if (!json_obj_chains) return dap_json_rpc_allocation_put(json_obj_out),DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
+                    if (!json_obj_chains) return dap_json_rpc_allocation_put_error(json_obj_out);
                     json_object_object_add(json_obj_out, "available_chains", json_obj_chains);
                     DL_FOREACH(l_net->pub.chains, l_chain) {
                         json_object* json_obj_chain = json_object_new_object();
-                        if (!json_obj_chain) return dap_json_rpc_allocation_put(json_obj_out),DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
+                        if (!json_obj_chain) return dap_json_rpc_allocation_put_error(json_obj_out);
                         json_object_object_add(json_obj_chain, "chain", json_object_new_string(l_chain->name));
                         json_object_array_add(json_obj_chains, json_obj_chain);
                     }
@@ -4420,7 +4420,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
         char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
         DAP_DELETE(l_datum);
         json_object* json_obj_status = json_object_new_object();
-        if (!json_obj_status) return dap_json_rpc_allocation_put(json_obj_status),DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
+        if (!json_obj_status) return dap_json_rpc_allocation_put_error(json_obj_status);
         json_object_object_add(json_obj_status, "datum_status", l_key_str_out ? json_object_new_string(l_key_str_out) :
                                                                                 json_object_new_string("not_placed"));
         json_object_array_add(*a_json_arr_reply, json_obj_status);
@@ -4509,7 +4509,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                     DAP_DELETE(l_datum);
 
                     json_object* json_obj_status = json_object_new_object();
-                    if (!json_obj_status) return dap_json_rpc_allocation_put(json_obj_status),DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
+                    if (!json_obj_status) return dap_json_rpc_allocation_put_error(json_obj_status);
                     json_object_object_add(json_obj_status, "datum_status", l_key_str_out ? json_object_new_string(l_key_str_out) :
                                                                                             json_object_new_string("not_placed"));
                     json_object_array_add(*a_json_arr_reply, json_obj_status);
@@ -4607,7 +4607,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
         char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
         DAP_DELETE(l_datum);
         json_object* json_obj_status = json_object_new_object();
-        if (!json_obj_status) return dap_json_rpc_allocation_put(json_obj_status),DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
+        if (!json_obj_status) return dap_json_rpc_allocation_put_error(json_obj_status);
         json_object_object_add(json_obj_status, "datum_status", l_key_str_out ? json_object_new_string(l_key_str_out) :
                                                                                 json_object_new_string("not_placed"));
         json_object_array_add(*a_json_arr_reply, json_obj_status);
@@ -4631,7 +4631,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
         bool l_applied = false;
         dap_chain_datum_decree_t *l_decree = dap_ledger_decree_get_by_hash(l_net, &l_datum_hash, &l_applied);
         json_object* json_obj_status = json_object_new_object();
-        if (!json_obj_status) return dap_json_rpc_allocation_put(json_obj_status),DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
+        if (!json_obj_status) return dap_json_rpc_allocation_put_error(json_obj_status);
         json_object_object_add(json_obj_status, "find_status", l_decree ? (l_applied ? json_object_new_string("applied") :
                                                                                        json_object_new_string("not_applied")) :
                                                                                 json_object_new_string("not_found"));
@@ -4639,9 +4639,9 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
     } break;
     case CMD_INFO: {
         json_object* json_obj_out = json_object_new_object();
-        if (!json_obj_out) return dap_json_rpc_allocation_put(json_obj_out),DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
+        if (!json_obj_out) return dap_json_rpc_allocation_put_error(json_obj_out);
         json_object* json_obj_array = json_object_new_array();
-        if (!json_obj_array) return dap_json_rpc_allocation_put(json_obj_out),DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
+        if (!json_obj_array) return dap_json_rpc_allocation_put_error(json_obj_out);
         json_object_object_add(json_obj_out, "owners", json_obj_array);
         const dap_list_t *l_decree_pkeys = dap_ledger_decree_get_owners_pkeys(l_net->pub.ledger);
         int i = 0;
@@ -4650,7 +4650,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             dap_pkey_t *l_pkey = it->data;
             dap_pkey_get_hash(l_pkey, &l_pkey_hash);
             json_object* json_obj_owner = json_object_new_object();
-            if (!json_obj_owner) return dap_json_rpc_allocation_put(json_obj_out),DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
+            if (!json_obj_owner) return dap_json_rpc_allocation_put_error(json_obj_out);
             json_object_object_add(json_obj_owner, "num", json_object_new_int(i));
             json_object_object_add(json_obj_owner, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_pkey_hash)));
             i++;
