@@ -102,3 +102,5 @@ DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_reward_group(const char *a_net_n
 {
     return dap_strdup_printf("local.%s.rewards", a_net_name);
 }
+
+dap_pkey_t *dap_chain_cs_blocks_find_pkey_by_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_pkey_hash);

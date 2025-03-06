@@ -1267,7 +1267,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object *a_json_a
                 return DAP_DELETE(l_str_reply), DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND;
             }
         } else if (a_default_chain_type != CHAIN_TYPE_INVALID) {
-            if (!( *a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type) ))
+            if (( *a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type) ))
                 return 0;
             else {
                 dap_json_rpc_error_add(a_json_arr_reply, 
