@@ -4188,13 +4188,14 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 debug_if(s_debug_more, L_WARNING, "Verificator check error for voting item");
                 l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
             }
-            // if (a_tag) 
+            // if (a_tag)
             //     a_tag->uint64 = DAP_CHAIN_TX_TAG_ACTION_VOTING;
-            if (a_action) 
+            if (a_action)
                *a_action = DAP_CHAIN_TX_TAG_ACTION_VOTING;
         } else if ( dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL) ) {
            if (s_voting_callbacks.voting_callback) {
-               if ((l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash, false))) {
+               if (!s_check_hal(a_ledger, a_tx_hash) &&
+                       (l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash, false))) {
                    debug_if(s_debug_more, L_WARNING, "Verificator check error %d for vote", l_err_num);
                    l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
                }
@@ -4202,8 +4203,6 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                debug_if(s_debug_more, L_WARNING, "Verificator check error for vote item");
                l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
            }
-        //    if (a_tag) 
-        //        a_tag->uint64 = DAP_CHAIN_TX_TAG_ACTION_VOTE;
            if (a_action) 
                *a_action = DAP_CHAIN_TX_TAG_ACTION_VOTE;
         }
@@ -4614,7 +4613,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         else if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTE)
             l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash, true);
     }
-    assert(!l_err_num);
+    if (!s_check_hal(a_ledger, a_tx_hash))
+        assert(!l_err_num);
 
     // add transaction to the cache list
     dap_ledger_tx_item_t *l_tx_item = DAP_NEW_Z_SIZE(dap_ledger_tx_item_t, sizeof(dap_ledger_tx_item_t) + l_outs_count * sizeof(dap_chain_hash_fast_t));
