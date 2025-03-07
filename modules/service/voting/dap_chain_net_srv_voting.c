@@ -398,8 +398,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
                                                l_old_vote ? &l_pkey_hash : NULL)) {
             log_it(L_WARNING, "Coin with out number %u for tx %s is spent for votnig %s", l_tx_in->header.tx_out_prev_idx,
                                         dap_hash_fast_to_str_static(a_tx_hash), dap_hash_fast_to_str_static(&l_vote_tx_item->voting_hash));
-            log_it(L_ATT, "Datum hash for HAL posssible: %s", dap_hash_fast_to_str_static(a_tx_hash));
-            //return -20;
+            return -20;
         }
         if (SUM_256_256(l_weight, l_prev_out_union->header.value, &l_weight)) {
             log_it(L_WARNING, "Integer overflow while parsing vote tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
@@ -427,8 +426,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
                 l_prev_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
             return -16;
         if (!dap_ledger_check_condition_owner(a_ledger, &l_hash, l_prev_out->header.subtype, l_out_idx, l_pkey_sign))
-            log_it(L_ATT, "Datum hash for HAL: %s", dap_hash_fast_to_str_static(a_tx_hash));
-            //return -17;
+            return -17;
         if (s_datum_tx_voting_coin_check_cond_out(a_ledger->net, l_vote_tx_item->voting_hash, l_hash, l_out_idx,
                                                   l_old_vote ? &l_pkey_hash : NULL))
             return -15;

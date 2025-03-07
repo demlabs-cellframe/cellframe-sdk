@@ -1799,10 +1799,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
             }
             json_object * json_obj_wall = json_object_new_object();
-            const char *l_cond_str = NULL, *l_value_str = NULL;
+            const char *l_value_str = NULL;
             uint256_t l_value_datoshi = uint256_0, l_value_sum = uint256_0;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cond", &l_cond_str);
-            if (!l_cond_str) {
+            bool l_cond_outs = dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "-cond") != -1;
+            if (!l_cond_outs) {
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
                 if (l_value_str) {
                     l_value_datoshi = dap_chain_balance_scan(l_value_str);
@@ -1816,12 +1816,11 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             }
 
             dap_list_t *l_outs_list = NULL;
-
-            if (l_value_str) {
-                if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum))
-                    l_outs_list = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum);
-            } else if (l_cond_str) {
+            if (l_cond_outs)
                 l_outs_list = dap_ledger_get_list_tx_cond_outs(l_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL, l_token_tiker, l_addr);
+            else if (l_value_str) {
+                if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum))
+                    l_outs_list = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum); 
             } else {
                 if (dap_chain_wallet_cache_tx_find_outs(l_net, l_token_tiker, l_addr, &l_outs_list, &l_value_sum))
                     l_outs_list = dap_ledger_get_list_tx_outs(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum);
@@ -1836,13 +1835,13 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     return json_object_put(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
                 dap_chain_tx_used_out_item_t *l_item = l_temp->data;
                 const char *l_out_value_coins_str, *l_out_value_str = dap_uint256_to_char(l_item->value, &l_out_value_coins_str);
-                json_object_object_add(json_obj_item,"item_type", json_object_new_string(l_cond_str ? "unspent_cond_out" : "unspent_out"));
+                json_object_object_add(json_obj_item,"item_type", json_object_new_string(l_cond_outs ? "unspent_cond_out" : "unspent_out"));
                 json_object_object_add(json_obj_item,"value_coins", json_object_new_string(l_out_value_coins_str));
                 json_object_object_add(json_obj_item,"value_datosi", json_object_new_string(l_out_value_str));
                 json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx_hash_fast)));
                 json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_int64(l_item->num_idx_out));
                 json_object_array_add(l_json_outs_arr, json_obj_item);
-                if (l_cond_str)
+                if (l_cond_outs)
                     SUM_256_256(l_value_sum, l_item->value, &l_value_sum);
             }
             dap_list_free_full(l_outs_list, NULL);
