@@ -1799,7 +1799,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
             }
             json_object * json_obj_wall = json_object_new_object();
-            const char *l_cond_str, *l_value_str = NULL;
+            const char *l_cond_str = NULL, *l_value_str = NULL;
             uint256_t l_value_datoshi = uint256_0, l_value_sum = uint256_0;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cond", &l_cond_str);
             if (!l_cond_str) {
@@ -1836,7 +1836,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     return json_object_put(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
                 dap_chain_tx_used_out_item_t *l_item = l_temp->data;
                 const char *l_out_value_coins_str, *l_out_value_str = dap_uint256_to_char(l_item->value, &l_out_value_coins_str);
-                json_object_object_add(json_obj_item,"item_type", json_object_new_string("unspent_out"));
+                json_object_object_add(json_obj_item,"item_type", json_object_new_string(l_cond_str ? "unspent_cond_out" : "unspent_out"));
                 json_object_object_add(json_obj_item,"value_coins", json_object_new_string(l_out_value_coins_str));
                 json_object_object_add(json_obj_item,"value_datosi", json_object_new_string(l_out_value_str));
                 json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx_hash_fast)));
