@@ -37,6 +37,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
 #include "dap_cli_server.h"
+#include "dap_chain_node_cli_cmd.h"
+#include "dap_sign.h"
 
 #define LOG_TAG "dap_chain_cs_esbocs"
 
