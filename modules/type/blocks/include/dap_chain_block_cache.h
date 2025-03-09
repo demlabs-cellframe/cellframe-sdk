@@ -68,7 +68,7 @@ typedef struct dap_chain_block_cache {
     struct dap_chain_block_cache * next;
 
     // uthash handle
-    UT_hash_handle hh;
+    UT_hash_handle hh, hh2;
 } dap_chain_block_cache_t;
 
 typedef struct dap_chain_block_forked_branch_atoms_table{
