@@ -252,7 +252,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     // add 'out_cond' & 'out_ext' items
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_EMIT_DELEGATE_ID };
     dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_emit_delegate(
-                                                l_uid, a_value, a_signs_min, a_pkey_hashes, a_pkey_hashes_count);
+                                                l_uid, a_value, a_signs_min, a_pkey_hashes, a_pkey_hashes_count, a_tag_str);
     if (!l_tx_out)
         m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction conditional output");
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out);
@@ -284,17 +284,6 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
         SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
         if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, l_native_ticker) != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add fee back output");
-    }
-
-    if (a_tag_str) {
-        dap_chain_tx_tsd_t *l_tsd_tag_item = dap_chain_datum_tx_item_tsd_create((void *)a_tag_str, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TAG, strlen(a_tag_str) + 1);
-        if (!l_tsd_tag_item)
-            m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction tag");
-        if (dap_chain_datum_tx_add_item(&l_tx, l_tsd_tag_item) != 1) {
-            DAP_DELETE(l_tsd_tag_item);
-            m_tx_fail(ERROR_COMPOSE, "Can't add the transaction tag");
-        }
-        DAP_DELETE(l_tsd_tag_item);
     }
     // add 'sign' item
     if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1)
@@ -1087,6 +1076,7 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object *l_jobj_token = json_object_new_object();
     json_object *l_jobj_take_verify = json_object_new_object();
     json_object *l_jobj_pkey_hashes = json_object_new_array();
+    json_object *l_jobj_tags = json_object_new_array();
     json_object *l_json_jobj_info = json_object_new_object();
 
     bool l_is_base_hash_type = dap_strcmp(a_hash_out_type, "hex");
@@ -1106,11 +1096,15 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
             json_object_array_add(l_jobj_pkey_hashes, json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data) : dap_hash_fast_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data)));
         }
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_STR) {
+            json_object_array_add(l_jobj_tags, json_object_new_string(l_tsd->data));
+        }
     }
     json_object_object_add(l_jobj_take_verify, "owner_hashes", l_jobj_pkey_hashes);
     // result block
     json_object_object_add(l_json_jobj_info, "tx_hash", json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_tx_hash) : dap_hash_fast_to_str_static(&l_tx_hash)));
     json_object_object_add(l_json_jobj_info, "tx_hash_final", json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_final_tx_hash) : dap_hash_fast_to_str_static(&l_final_tx_hash)));
+    json_object_object_add(l_json_jobj_info, "tags", l_jobj_tags);
     json_object_object_add(l_json_jobj_info, "balance", l_jobj_balance);
     json_object_object_add(l_json_jobj_info, "take_verify", l_jobj_take_verify);
     json_object_object_add(l_json_jobj_info, "token", l_jobj_token);
