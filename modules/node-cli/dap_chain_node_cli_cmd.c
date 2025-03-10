@@ -6009,10 +6009,6 @@ int com_policy(int argc, char **argv, void **reply) {
     uint32_t l_last_num = dap_chain_policy_get_last_num(l_net->pub.id.uint64);
 
     if (l_cmd == CMD_FIND) {
-        if (l_last_num < l_policy_num) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -15, "Can't find policy CN-%u in net %s", l_policy_num, l_net_str);
-            return -15;
-        }
         dap_chain_policy_t *l_policy = dap_chain_policy_find(l_policy_num, l_net->pub.id.uint64);
         json_object *l_answer = dap_chain_policy_json_collect(l_policy);
         if (l_answer) {
@@ -6031,7 +6027,7 @@ int com_policy(int argc, char **argv, void **reply) {
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-block_stop", &l_block_stop_str);
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-deactivate", &l_deactivate_str);
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-certs", &l_certs_str);
-    l_execute = dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-execute", NULL);
+    l_execute = dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "execute", NULL);
 
     if (l_execute) {
         if (!l_certs_str) {
