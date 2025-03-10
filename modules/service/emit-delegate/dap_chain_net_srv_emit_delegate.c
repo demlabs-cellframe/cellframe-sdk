@@ -437,7 +437,7 @@ static bool s_is_key_present(dap_chain_tx_out_cond_t *a_cond, dap_enc_key_t *a_e
 }
 
 dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
-    dap_chain_addr_t *a_to_addr, uint256_t *a_value, size_t a_addr_count, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
+    dap_chain_addr_t *a_to_addr, uint256_t *a_value, uint32_t a_addr_count /*!not change type!*/, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
 {
     dap_return_val_if_pass(!a_to_addr, NULL);
     dap_return_val_if_pass(!a_value, NULL);
@@ -505,8 +505,8 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
 
     // add 'out' or 'out_ext' item for emission
     for (size_t i = 0; i < a_addr_count; ++i) {
-        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, &a_to_addr[i], a_value[i]) :
-            dap_chain_datum_tx_add_out_ext_item(&l_tx, &a_to_addr[i], a_value[i], l_tx_ticker);
+        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, a_to_addr + i, a_value[i]) :
+            dap_chain_datum_tx_add_out_ext_item(&l_tx, a_to_addr + i, a_value[i], l_tx_ticker);
         if (rc != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add tx output");
     }
@@ -834,7 +834,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     const char *l_tx_in_hash_str = NULL, *l_addr_str = NULL, *l_value_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL;
     
     uint256_t *l_value = NULL;
-    dap_chain_addr_t **l_to_addr = NULL;
+    dap_chain_addr_t *l_to_addr = NULL;
     uint32_t
         l_addr_el_count = 0,  // not change type! use in batching TSD section
         l_value_el_count = 0;
@@ -892,10 +892,11 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
         return ERROR_PARAM;
     }
 
-    l_addr_el_count = dap_str_symbol_count(l_addr_str, ',') + 1;
+    l_addr_el_count = dap_chain_addr_from_str_array(l_addr_str, &l_to_addr);
     l_value_el_count = dap_str_symbol_count(l_value_str, ',') + 1;
 
     if (l_addr_el_count != l_value_el_count) {
+        DAP_DELETE(l_to_addr);
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "num of '-to_addr' and '-value' should be equal");
         return ERROR_VALUE;
     }
@@ -922,35 +923,9 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
     dap_strfreev(l_value_array);
 
-    l_to_addr = DAP_NEW_Z_COUNT(dap_chain_addr_t *, l_addr_el_count);
-    if (!l_to_addr) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        DAP_DELETE(l_value);
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_MEMORY, c_error_memory_alloc);
-        return ERROR_MEMORY;
-    }
-    char **l_to_addr_str_array = dap_strsplit(l_addr_str, ",", l_addr_el_count);
-    if (!l_to_addr_str_array) {
-        DAP_DEL_MULTY(l_to_addr, l_value);
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Can't read '-to_addr' arg");
-        return ERROR_PARAM;
-    }
-    for (size_t i = 0; i < l_addr_el_count; ++i) {
-        l_to_addr[i] = dap_chain_addr_from_str(l_to_addr_str_array[i]);
-        if(!l_to_addr[i]) {
-            DAP_DEL_ARRAY(l_to_addr, i);
-            DAP_DEL_MULTY(l_to_addr, l_value);
-            dap_strfreev(l_to_addr_str_array);
-            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Incorrect addr format for string %s", l_addr_str);
-            return ERROR_VALUE;
-        }
-    }
-    dap_strfreev(l_to_addr_str_array);
-
     // Create emission from conditional transaction
     
     dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_to_addr, l_value, l_addr_el_count, l_fee, &l_tx_in_hash, l_tsd_list);
-    DAP_DEL_ARRAY(l_to_addr, l_addr_el_count);
     DAP_DEL_MULTY(l_value, l_to_addr, l_enc_key);
     dap_list_free_full(l_tsd_list, NULL);
     if (!l_tx) {
@@ -1098,7 +1073,7 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
             json_object_array_add(l_jobj_pkey_hashes, json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data) : dap_hash_fast_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data)));
         }
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_STR) {
-            json_object_array_add(l_jobj_tags, json_object_new_string(l_tsd->data));
+            json_object_array_add(l_jobj_tags, json_object_new_string((char*)(l_tsd->data)));
         }
     }
     json_object_object_add(l_jobj_take_verify, "owner_hashes", l_jobj_pkey_hashes);
