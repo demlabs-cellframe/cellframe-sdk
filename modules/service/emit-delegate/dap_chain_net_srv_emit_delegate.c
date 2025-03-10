@@ -200,7 +200,7 @@ static char *s_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_t *a_chain, const ch
 
 #define m_sign_fail(e,s) { dap_json_rpc_error_add(a_json_arr_reply, e, s); log_it(L_ERROR, "%s", s); return NULL; }
 
-#define m_tx_fail(e,s) { DAP_DELETE(l_tx); m_sign_fail(e,s) }
+#define m_tx_fail(e,s) { DAP_DELETE(l_tx); m_sign_fail(e,s); log_it(L_ERROR, "%s", s); }
 
 static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
                                                   const char *a_token_ticker, uint256_t a_value, uint256_t a_fee,
@@ -437,7 +437,11 @@ static bool s_is_key_present(dap_chain_tx_out_cond_t *a_cond, dap_enc_key_t *a_e
 dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
     dap_chain_addr_t **a_to_addr, uint256_t *a_value, size_t a_addr_count, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* a_tsd_items)
 {
-    dap_return_val_if_pass(!a_to_addr || !a_value || !a_addr_count || !a_enc_key || !a_tx_in_hash, NULL );
+    dap_return_val_if_pass(!a_to_addr, NULL);
+    dap_return_val_if_pass(!a_value, NULL);
+    dap_return_val_if_pass(!a_addr_count, NULL);
+    dap_return_val_if_pass(!a_enc_key, NULL);
+    dap_return_val_if_pass(!a_tx_in_hash, NULL);
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
@@ -456,7 +460,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
         if (SUM_256_256(l_value, a_value[i], &l_value))
             m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
     }
-
+    log_it(L_DEBUG, "l_value sum %s", dap_chain_balance_print(l_value));
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used && SUM_256_256(l_fee_total, l_net_fee, &l_fee_total))
         m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
@@ -502,7 +506,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
 
     // add 'out' or 'out_ext' item for emission
     for (size_t i = 0; i < a_addr_count; ++i) {
-        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, a_to_addr[i], a_value[i]) :
+        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, &a_to_addr[i], a_value[i]) :
             dap_chain_datum_tx_add_out_ext_item(&l_tx, a_to_addr[i], a_value[i], l_tx_ticker);
         if (rc != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add tx output");
@@ -521,6 +525,12 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     }
     DAP_DELETE(l_out_cond);
 
+    if (a_addr_count > 1) {
+        tsd_items = dap_list_append(tsd_items, dap_chain_datum_tx_item_tsd_create(&a_addr_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t)));
+        if (!tsd_items) {
+             m_tx_fail(ERROR_COMPOSE, "Can't add TSD section item with addr count");
+        }
+    }
 
     // add track for takeoff from conditional value
     dap_chain_tx_tsd_t *l_takeoff_tsd = dap_chain_datum_tx_item_tsd_create(&l_value, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF, sizeof(uint256_t));
@@ -937,15 +947,6 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
         }
     }
     dap_strfreev(l_to_addr_str_array);
-
-
-    if (l_addr_el_count > 1) {
-        l_tsd_list = dap_list_append(l_tsd_list, dap_chain_datum_tx_item_tsd_create(&l_addr_el_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t)));
-        if (!l_tsd_list) {
-            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_COMPOSE, "Internal error in tsd list creation");
-            return ERROR_COMPOSE;
-        }
-    }
 
     // Create emission from conditional transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_to_addr, l_value, l_addr_el_count, l_fee, &l_tx_in_hash, l_tsd_list);
