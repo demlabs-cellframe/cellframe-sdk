@@ -437,7 +437,7 @@ static bool s_is_key_present(dap_chain_tx_out_cond_t *a_cond, dap_enc_key_t *a_e
 }
 
 dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
-    dap_chain_addr_t **a_to_addr, uint256_t *a_value, size_t a_addr_count, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
+    dap_chain_addr_t *a_to_addr, uint256_t *a_value, size_t a_addr_count, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
 {
     dap_return_val_if_pass(!a_to_addr, NULL);
     dap_return_val_if_pass(!a_value, NULL);
@@ -462,7 +462,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
         if (SUM_256_256(l_value, a_value[i], &l_value))
             m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
     }
-    log_it(L_DEBUG, "l_value sum %s", dap_chain_balance_print(l_value));
+
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used && SUM_256_256(l_fee_total, l_net_fee, &l_fee_total))
         m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
@@ -506,7 +506,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     // add 'out' or 'out_ext' item for emission
     for (size_t i = 0; i < a_addr_count; ++i) {
         int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, &a_to_addr[i], a_value[i]) :
-            dap_chain_datum_tx_add_out_ext_item(&l_tx, a_to_addr[i], a_value[i], l_tx_ticker);
+            dap_chain_datum_tx_add_out_ext_item(&l_tx, &a_to_addr[i], a_value[i], l_tx_ticker);
         if (rc != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add tx output");
     }
@@ -518,6 +518,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     if (!l_out_cond)
         m_tx_fail(ERROR_MEMORY, c_error_memory_alloc);
     l_out_cond->header.value = l_value_back;
+    
     if (-1 == dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond)) {
         DAP_DELETE(l_out_cond);
         m_tx_fail(ERROR_COMPOSE, "Cant add emission cond output");
@@ -525,10 +526,9 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     DAP_DELETE(l_out_cond);
 
     if (a_addr_count > 1) {
-        tsd_items = dap_list_append(tsd_items, dap_chain_datum_tx_item_tsd_create(&a_addr_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t)));
-        if (!tsd_items) {
-             m_tx_fail(ERROR_COMPOSE, "Can't add TSD section item with addr count");
-        }
+        dap_chain_tx_tsd_t * l_addr_cnt_tsd = dap_chain_datum_tx_item_tsd_create(&a_addr_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t));
+        if (!l_addr_cnt_tsd || dap_chain_datum_tx_add_item(&l_tx, l_addr_cnt_tsd) != 1 )
+            m_tx_fail(ERROR_COMPOSE, "Can't add TSD section item with addr count");
     }
 
     // add track for takeoff from conditional value
@@ -948,6 +948,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     dap_strfreev(l_to_addr_str_array);
 
     // Create emission from conditional transaction
+    
     dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_to_addr, l_value, l_addr_el_count, l_fee, &l_tx_in_hash, l_tsd_list);
     DAP_DEL_ARRAY(l_to_addr, l_addr_el_count);
     DAP_DEL_MULTY(l_value, l_to_addr, l_enc_key);
