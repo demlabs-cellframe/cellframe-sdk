@@ -872,11 +872,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 dap_chain_datum_t * l_datum = l_block_cache->datum[i];
                 size_t l_datum_size =  dap_chain_datum_size(l_datum);
                 if (l_brief){
-                    dap_hash_fast_t l_datum_hash;
-                    dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
                     const char *l_hash_str = dap_strcmp(l_hash_out_type, "hex")
-                            ? dap_enc_base58_encode_hash_to_str_static(&l_datum_hash)
-                            : dap_chain_hash_fast_to_str_static(&l_datum_hash);
+                            ? dap_enc_base58_encode_hash_to_str_static(&l_block_cache->datum_hash[i])
+                            : dap_chain_hash_fast_to_str_static(&l_block_cache->datum_hash[i]);
                     json_object_object_add(json_obj_tx, "num",json_object_new_uint64(i));
                     json_object_object_add(json_obj_tx, "hash",json_object_new_string(l_hash_str));
                 } else {
@@ -1742,7 +1740,7 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
             s_delete_atom_datums(l_blocks, l_last_new_forked_item->block_cache);
             --PVT(l_blocks)->blocks_count;
             HASH_DEL(PVT(l_blocks)->blocks_num, l_last_new_forked_item->block_cache);
-            HASH_DEL(PVT(l_blocks)->blocks, l_last_new_forked_item->block_cache);            
+            HASH_DELETE(hh2, PVT(l_blocks)->blocks, l_last_new_forked_item->block_cache);            
         }
 
         // Next we add all atoms from new main branch into blockchain 
