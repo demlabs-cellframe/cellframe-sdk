@@ -62,14 +62,13 @@ struct cs_blocks_hal_item {
     UT_hash_handle hh;
 };
 
-dap_chain_block_cache_t * s_blocks = NULL;// DAP_NEW_Z(dap_chain_block_cache_t);
-
 typedef struct dap_chain_cs_blocks_pvt {
     // Parent link
     dap_chain_cs_blocks_t *cs_blocks;
 
     // All the blocks are here
     dap_chain_block_cache_t *blocks;
+    dap_chain_block_cache_t *blocks_num;
     _Atomic uint64_t blocks_count;
 
     // Brnches and forks
@@ -209,8 +208,7 @@ int dap_chain_cs_blocks_init()
                 "\t\tComplete the current new round, verify it and if everything is ok - publish new blocks in chain\n\n"
 
         "Blockchain explorer:\n"
-            "block -net <net_name> [-chain <chain_name>] [-brief] dump -hash <block_hash>\n"
-            "block -net <net_name> [-chain <chain_name>] [-brief] dump -num <block_number>\n"
+            "block -net <net_name> [-chain <chain_name>] [-brief] dump {-hash <block_hash> | -num <block_number>}\n"
                 "\t\tDump block info\n\n"
 
             "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset] [-head]"
@@ -398,7 +396,7 @@ dap_chain_block_cache_t * dap_chain_block_cache_get_by_number(dap_chain_cs_block
 {
     dap_chain_block_cache_t * l_ret = NULL;
     pthread_rwlock_rdlock(& PVT(a_blocks)->rwlock);
-    HASH_FIND(hh2, PVT(a_blocks)->blocks,  &a_block_number, sizeof (a_block_number), l_ret );
+    HASH_FIND_BYHASHVALUE(hh2, PVT(a_blocks)->blocks_num, &a_block_number, sizeof (a_block_number), a_block_number, l_ret);
     pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
     return l_ret;
 }
@@ -1564,6 +1562,7 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
         dap_chain_block_cache_delete(l_block);
     }
     PVT(l_blocks)->blocks_count = 0;
+    HASH_CLEAR(hh2, PVT(l_blocks)->blocks_num);
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     
     dap_chain_block_datum_index_t *l_datum_index = NULL, *l_datum_index_tmp = NULL;
@@ -1742,7 +1741,8 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
         for (l_curr_index = 0; l_last_new_forked_item && l_curr_index < a_main_branch_length; l_last_new_forked_item = l_last_new_forked_item->hh.prev, ++l_curr_index){
             s_delete_atom_datums(l_blocks, l_last_new_forked_item->block_cache);
             --PVT(l_blocks)->blocks_count;
-            HASH_DEL(PVT(l_blocks)->blocks, l_last_new_forked_item->block_cache);
+            HASH_DEL(PVT(l_blocks)->blocks_num, l_last_new_forked_item->block_cache);
+            HASH_DEL(PVT(l_blocks)->blocks, l_last_new_forked_item->block_cache);            
         }
 
         // Next we add all atoms from new main branch into blockchain 
@@ -1754,7 +1754,7 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
             dap_chain_block_cache_t *l_curr_atom = l_item->block_cache;
             ++PVT(l_blocks)->blocks_count;
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_curr_atom->block_hash), l_curr_atom);
-            HASH_ADD(hh2, s_blocks, block_number, sizeof(l_curr_atom->block_number), l_curr_atom);
+            HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_curr_atom->block_number), l_curr_atom->block_number, l_curr_atom);
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", l_curr_atom);
             s_add_atom_datums(l_blocks, l_curr_atom);
             dap_chain_atom_notify(a_cell, &l_curr_atom->block_hash, (byte_t*)l_curr_atom->block, l_curr_atom->block_size);
@@ -1824,7 +1824,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             if (l_last_block && dap_hash_fast_compare(&l_last_block->block_hash, &l_block_prev_hash)){
                 ++PVT(l_blocks)->blocks_count;
                 HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
-                HASH_ADD(hh2, s_blocks, block_number, sizeof(l_block_cache->block_number), l_block_cache);
+                HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
                 debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
                 s_add_atom_datums(l_blocks, l_block_cache);
                 dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size);
@@ -1893,7 +1893,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
         } else {            
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
-            HASH_ADD(hh2, s_blocks, block_number, sizeof(l_block_cache->block_number), l_block_cache);
+            HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
             ++PVT(l_blocks)->blocks_count;
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
             s_add_atom_datums(l_blocks, l_block_cache);
