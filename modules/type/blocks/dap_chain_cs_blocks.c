@@ -779,6 +779,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             const char *l_hash_str = NULL;
             const char *l_num_str = NULL;
             dap_chain_hash_fast_t l_block_hash={0};
+            bool l_brief = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-brief") != -1) ? true : false;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
             if(!l_hash_out_type)
                 l_hash_out_type = "hex";
@@ -871,22 +872,32 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 json_object* json_obj_tx = json_object_new_object();
                 dap_chain_datum_t * l_datum = l_block_cache->datum[i];
                 size_t l_datum_size =  dap_chain_datum_size(l_datum);
-                json_object_object_add(json_obj_tx, "datum size ",json_object_new_uint64(l_datum_size));
-                if (l_datum_size < sizeof (l_datum->header) ){
-                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_DATUM_SIZE_ERR, "ERROR: datum size %zu is smaller than header size %zu \n",l_datum_size,
-                                            sizeof (l_datum->header));
-                    break;
-                }
-                // Nested datums
-                snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%02X",l_datum->header.version_id);
-                json_object_object_add(json_obj_tx, "version",json_object_new_string(l_hexbuf));
-                const char * l_datum_type_str = "UNKNOWN";
-                DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
-                json_object_object_add(json_obj_tx, "type_id",json_object_new_string(l_datum_type_str));
-                dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
-                json_object_object_add(json_obj_tx, "ts_create",json_object_new_string(l_time_buf));
-                json_object_object_add(json_obj_tx, "data_size",json_object_new_int(l_datum->header.data_size));
-                dap_chain_datum_dump_json(*a_json_arr_reply, json_obj_tx,l_datum,l_hash_out_type,l_net->pub.id, true);
+                if (l_brief){
+                    dap_hash_fast_t l_datum_hash;
+                    dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
+                    const char *l_hash_str = dap_strcmp(l_hash_out_type, "hex")
+                            ? dap_enc_base58_encode_hash_to_str_static(&l_datum_hash)
+                            : dap_chain_hash_fast_to_str_static(&l_datum_hash);
+                    json_object_object_add(json_obj_tx, "num",json_object_new_uint64(i));
+                    json_object_object_add(json_obj_tx, "hash",json_object_new_string(l_hash_str));
+                } else {
+                    json_object_object_add(json_obj_tx, "datum size ",json_object_new_uint64(l_datum_size));
+                    if (l_datum_size < sizeof (l_datum->header) ){
+                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_DATUM_SIZE_ERR, "ERROR: datum size %zu is smaller than header size %zu \n",l_datum_size,
+                                                sizeof (l_datum->header));
+                        break;
+                    }
+                    // Nested datums
+                    snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%02X",l_datum->header.version_id);
+                    json_object_object_add(json_obj_tx, "version",json_object_new_string(l_hexbuf));
+                    const char * l_datum_type_str = "UNKNOWN";
+                    DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
+                    json_object_object_add(json_obj_tx, "type_id",json_object_new_string(l_datum_type_str));
+                    dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
+                    json_object_object_add(json_obj_tx, "ts_create",json_object_new_string(l_time_buf));
+                    json_object_object_add(json_obj_tx, "data_size",json_object_new_int(l_datum->header.data_size));
+                    dap_chain_datum_dump_json(*a_json_arr_reply, json_obj_tx,l_datum,l_hash_out_type,l_net->pub.id, true);
+                }                
                 json_object_array_add(json_arr_datum_out, json_obj_tx);
             }
             // Signatures
