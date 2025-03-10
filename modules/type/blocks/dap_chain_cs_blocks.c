@@ -209,7 +209,8 @@ int dap_chain_cs_blocks_init()
                 "\t\tComplete the current new round, verify it and if everything is ok - publish new blocks in chain\n\n"
 
         "Blockchain explorer:\n"
-            "block -net <net_name> [-chain <chain_name>] dump -hash <block_hash>\n"
+            "block -net <net_name> [-chain <chain_name>] [-brief] dump -hash <block_hash>\n"
+            "block -net <net_name> [-chain <chain_name>] [-brief] dump -num <block_number>\n"
                 "\t\tDump block info\n\n"
 
             "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset] [-head]"
