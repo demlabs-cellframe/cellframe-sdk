@@ -124,7 +124,7 @@ dap_chain_addr_t *dap_chain_addr_from_str(const char *a_str)
  */
 size_t dap_chain_addr_from_str_array(const char *a_addr_str, dap_chain_addr_t **a_addr)
 {
-    dap_return_val_if_pass(!a_addr_str || !a_addr, NULL);
+    dap_return_val_if_pass(!a_addr_str || !a_addr, 0);
     size_t l_count = dap_str_symbol_count(a_addr_str, ',') + 1;
     dap_chain_addr_t *l_addr = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(dap_chain_addr_t, l_count, 0);
     char **l_addr_str_array = dap_strsplit(a_addr_str, ",", l_count);
