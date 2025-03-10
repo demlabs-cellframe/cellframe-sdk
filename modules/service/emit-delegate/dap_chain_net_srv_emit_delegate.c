@@ -435,7 +435,7 @@ static bool s_is_key_present(dap_chain_tx_out_cond_t *a_cond, dap_enc_key_t *a_e
 }
 
 dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
-    dap_chain_addr_t *a_to_addr, uint256_t *a_value, uint32_t a_addr_count /*!not change type!*/, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
+    dap_chain_addr_t *a_to_addr, uint256_t *a_value, uint32_t a_addr_count /*!not change type!*/, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* a_tsd_items)
 {
     dap_return_val_if_pass(!a_to_addr, NULL);
     dap_return_val_if_pass(!a_value, NULL);
