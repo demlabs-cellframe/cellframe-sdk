@@ -274,7 +274,7 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_
             log_it(L_WARNING, "Conditional out and conditional in have different headers");         \
             return -3;                                                                              \
         }                                                                                           \
-        if (l_tx_new_cond->tsd_size != a_cond->tsd_size ||                                          \
+        if (l_tx_new_cond->tsd_size < a_cond->tsd_size ||                                          \
                 memcmp(l_tx_new_cond->tsd, a_cond->tsd, a_cond->tsd_size)) {                        \
             log_it(L_WARNING, "Conditional out and conditional in have different TSD sections");    \
             return -4;                                                                              \
