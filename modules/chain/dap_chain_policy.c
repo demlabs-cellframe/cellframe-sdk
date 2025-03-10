@@ -162,7 +162,8 @@ int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id)
                 return -3;
             }
             l_net_item->policies = dap_list_insert_sorted(l_net_item->policies, a_policy, s_policy_num_compare);
-            l_net_item->last_num_policy = dap_max(((dap_chain_policy_activate_t *)(a_policy->data))->num, l_net_item->last_num_policy);
+            if (!s_policy_is_cond(a_policy))
+                l_net_item->last_num_policy = dap_max(((dap_chain_policy_activate_t *)(a_policy->data))->num, l_net_item->last_num_policy);
             break;
         case DAP_CHAIN_POLICY_DEACTIVATE:
             for (size_t i = 0; i < ((dap_chain_policy_deactivate_t *)(a_policy->data))->count; ++i) {
@@ -241,8 +242,6 @@ dap_chain_policy_t *dap_chain_policy_find(uint32_t a_policy_num, uint64_t a_net_
     dap_return_val_if_pass(!a_policy_num, NULL);
     struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
     dap_return_val_if_pass(!l_net_item, NULL);
-    if (l_net_item->last_num_policy < a_policy_num)
-        return NULL;
 
     dap_chain_policy_t *l_to_search = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, sizeof(dap_chain_policy_t) + sizeof(dap_chain_policy_activate_t), false);
     l_to_search->type = DAP_CHAIN_POLICY_ACTIVATE;
