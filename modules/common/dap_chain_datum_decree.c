@@ -357,10 +357,10 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE:
             if (l_tsd->size != dap_chain_policy_get_size((dap_chain_policy_t *)(l_tsd->data))) {
-                json_object_object_add(a_json_out, "Policy num", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "policy_type", json_object_new_string("WRONG SIZE"));
                 break;
             }
-            json_object_object_add(a_json_out, "Policy type", json_object_new_string( dap_chain_policy_to_str((dap_chain_policy_t *)(l_tsd->data))));
+            json_object_object_add(a_json_out, "policy_type", json_object_new_string( dap_chain_policy_to_str((dap_chain_policy_t *)(l_tsd->data))));
             break;
         default:
             json_object_object_add(a_json_out, "UNKNOWN_TYPE_TSD_SECTION", json_object_new_string(""));
