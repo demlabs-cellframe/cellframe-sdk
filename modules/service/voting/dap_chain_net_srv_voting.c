@@ -64,7 +64,8 @@ struct srv_voting {
 
 static void *s_callback_start(dap_chain_net_id_t UNUSED_ARG a_net_id, dap_config_t UNUSED_ARG *a_config);
 static void s_callback_delete(void *a_service_internal);
-static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count);
+static int s_callback_purge(dap_chain_net_id_t a_net_id, void *a_service_internal);
+static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count, void *a_service_internal);
 static int s_votings_restore(dap_chain_net_id_t a_net_id, byte_t *a_state, uint64_t a_state_size, uint32_t a_states_count);
 
 static int s_voting_ledger_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
@@ -102,7 +103,11 @@ int dap_chain_net_srv_voting_init()
 
     
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
-    dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start, .delete = s_callback_delete, .hardfork_prepare = s_votings_backup, .hardfork_load = s_votings_restore };
+    dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start,
+                                                         .purge = s_callback_purge,
+                                                         .hardfork_prepare = s_votings_backup,
+                                                         .hardfork_load = s_votings_restore
+                                                       };
     int ret = dap_chain_srv_add(l_uid, DAP_CHAIN_SRV_VOTING_LITERAL, &l_srv_callbacks);
     if (ret) {
         log_it(L_ERROR, "Can't register voting service");
@@ -132,7 +137,7 @@ static void *s_callback_start(dap_chain_net_id_t UNUSED_ARG a_net_id, dap_config
     return l_service_internal;
 }
 
-static void s_callback_delete(void *a_service_internal)
+static int s_callback_purge(dap_chain_net_id_t UNUSED_ARG a_net_id, void *a_service_internal)
 {
     struct srv_voting *l_service_internal = a_service_internal;
     struct voting *it = NULL, *tmp;
@@ -141,7 +146,7 @@ static void s_callback_delete(void *a_service_internal)
         s_voting_clear(it);
         DAP_DELETE(it);
     }
-    DAP_DELETE(l_service_internal);
+    return 0;
 }
 
 static inline struct voting *s_votings_ht_get(dap_chain_net_id_t a_net_id)
@@ -1407,13 +1412,13 @@ static size_t s_voting_serial_size_calc(struct voting *a_voting, size_t *a_votes
     return ret;
 }
 
-static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count)
+static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count, void *a_service_internal)
 {
     if (a_state_count)
         *a_state_count = 0;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     assert(l_net);
-    struct voting *votings_ht = s_votings_ht_get(l_net->pub.id);
+    struct voting *votings_ht = a_service_internal ? ((struct srv_voting *)a_service_internal)->ht : NULL;
     if (!votings_ht) {
         log_it(L_INFO, "No data to backup for voting service for net id 0x%016" DAP_UINT64_FORMAT_x, l_net->pub.id.uint64);
         return NULL;

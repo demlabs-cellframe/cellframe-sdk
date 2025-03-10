@@ -149,12 +149,14 @@ typedef struct dap_ledger_decree_item {
     bool wait_for_apply, is_applied;
     dap_chain_datum_decree_t *decree;
     dap_hash_fast_t anchor_hash;
+    dap_chain_id_t storage_chain_id;
     UT_hash_handle hh;
 } dap_ledger_decree_item_t;
 
 typedef struct dap_ledger_anchor_item {
     dap_hash_fast_t anchor_hash;
     dap_chain_datum_anchor_t *anchor;
+    dap_chain_id_t storage_chain_id;
     UT_hash_handle hh;
 } dap_ledger_anchor_item_t;
 

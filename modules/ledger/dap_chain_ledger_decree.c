@@ -53,15 +53,18 @@ void dap_ledger_decree_init(dap_ledger_t *a_ledger) {
         log_it(L_WARNING, "PoA certificates for net %s not found", a_ledger->net->pub.name);
 }
 
-static int s_decree_clear(dap_ledger_t *a_ledger)
+static int s_decree_clear(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    dap_list_free_full(l_ledger_pvt->decree_owners_pkeys, NULL);
     dap_ledger_decree_item_t *l_cur_decree, *l_tmp;
     pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
     HASH_ITER(hh, l_ledger_pvt->decrees, l_cur_decree, l_tmp) {
+        if (l_cur_decree->storage_chain_id.uint64 != a_chain_id.uint64)
+            continue;
         HASH_DEL(l_ledger_pvt->decrees, l_cur_decree);
-        if ( l_cur_decree->decree && !dap_chain_find_by_id(l_cur_decree->decree->header.common_decree_params.net_id, l_cur_decree->decree->header.common_decree_params.chain_id)->is_mapped )
+        if ( l_cur_decree->decree &&
+             !dap_chain_find_by_id(l_cur_decree->decree->header.common_decree_params.net_id,
+                                   l_cur_decree->storage_chain_id)->is_mapped )
             DAP_DELETE(l_cur_decree->decree);
         DAP_DELETE(l_cur_decree);
     }
@@ -69,10 +72,18 @@ static int s_decree_clear(dap_ledger_t *a_ledger)
     return 0;
 }
 
-void dap_ledger_decree_purge(dap_ledger_t *a_ledger)
+int dap_ledger_decree_purge(dap_ledger_t *a_ledger)
 {
-    s_decree_clear(a_ledger);
-    //dap_ledger_decree_create(a_ledger);
+    dap_return_val_if_fail(a_ledger, -1);
+    int ret = 0;
+    for (dap_chain_t *l_chain = a_ledger->net->pub.chains; l_chain; l_chain = l_chain->next) {
+        if (dap_chain_datum_type_supported_by_chain(l_chain, DAP_CHAIN_DATUM_DECREE)) {
+            ret += s_decree_clear(a_ledger, l_chain->id);
+            dap_list_free_full(PVT(a_ledger)->decree_owners_pkeys, NULL);
+        } else
+            ret += dap_ledger_anchor_purge(a_ledger, l_chain->id);
+    }
+    return ret;
 }
 
 static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash, bool a_anchored)
@@ -205,6 +216,7 @@ int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decr
             return -1;
         }
         l_new_decree->decree_hash = *a_decree_hash;
+        l_new_decree->storage_chain_id = a_chain->id;
         HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->decrees, decree_hash, sizeof(dap_hash_fast_t), l_hash_value, l_new_decree);
     }
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
@@ -608,15 +620,17 @@ const char *l_ban_addr;
             }
             if (!a_apply)
                 break;
-            if (*(uint16_t *)l_generation->data < l_chain->generation)
+            uint16_t l_hardfork_generation = *(uint16_t *)l_generation->data;
+            if (l_hardfork_generation <= l_chain->generation)
                 return 0;       // Old generation hardfork already completed
             dap_list_t *l_addrs = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size,
                                                    DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, sizeof(dap_stream_node_addr_t));
             dap_tsd_t *l_changed_addrs = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS);
             dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
-            return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_block_num, l_addrs, json_tokener_parse((char *)l_changed_addrs->data));
+            json_object *l_changed_addrs_json = l_changed_addrs ? json_tokener_parse((char *)l_changed_addrs->data) : NULL;
+            return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_hardfork_generation, l_block_num, l_addrs, l_changed_addrs_json);
         }
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_VALIDATORS: {
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_RETRY: {
             dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
             if (!l_chain) {
                 log_it(L_WARNING, "Specified chain not found");
@@ -626,17 +640,12 @@ const char *l_ban_addr;
                 log_it(L_WARNING, "Can't apply this decree to specified chain");
                 return -115;
             }
-            dap_tsd_t *l_generation = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_GENERATION);
-            if (!l_generation || l_generation->size != sizeof(uint16_t)) {
-                log_it(L_WARNING, "Can't apply this decree, it has no chain generation set");
-                return -116;
-            }
             if (!a_apply)
                 break;
-            if (*(uint16_t *)l_generation->data < l_chain->generation)
+            if (!dap_chain_esbocs_hardfork_engaged(l_chain))
                 return 0;       // Old generation hardfork already completed
             dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
-            return dap_chain_esbocs_set_hardfork_prepare(l_chain, 0, NULL, NULL);
+            return dap_chain_esbocs_set_hardfork_prepare(l_chain, 0, 0, NULL, NULL);
         }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE: {
             dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
@@ -766,12 +775,13 @@ int s_aggregate_anchor(dap_ledger_t *a_ledger, dap_ledger_hardfork_anchors_t **a
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return -1;
         }
-        if (a_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE && a_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN)
+        if (a_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE &&      // Do not aagregate stake anchors, it will be transferred with
+                a_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE &&     // hardfork decree data linked to genesis block
+                a_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN)
             DL_APPEND(*a_out_list, l_exist);
     } else {
-        if (l_exist->decree_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE ||
-                l_exist->decree_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN) {
-            assert(a_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE || a_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN);
+        if (l_exist->decree_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN) {
+            assert(a_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN);
             DL_DELETE(*a_out_list, l_exist);
         } else
             l_exist->anchor = a_anchor;
@@ -779,13 +789,15 @@ int s_aggregate_anchor(dap_ledger_t *a_ledger, dap_ledger_hardfork_anchors_t **a
     return 0;
 }
 
-dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledger)
+dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
 {
     dap_ledger_hardfork_anchors_t *ret = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     pthread_rwlock_rdlock(&l_ledger_pvt->decrees_rwlock);
     for (dap_ledger_decree_item_t *it = l_ledger_pvt->decrees; it; it = it->hh.next)
-        if (it->is_applied && !dap_hash_fast_is_blank(&it->anchor_hash)) {
+        if (it->is_applied &&
+                it->decree->header.common_decree_params.chain_id.uint64 == a_chain_id.uint64 &&
+                !dap_hash_fast_is_blank(&it->anchor_hash)) {
             dap_chain_datum_anchor_t *l_anchor = dap_ledger_anchor_find(a_ledger, &it->anchor_hash);
             if (!l_anchor) {
                 char l_anchor_hash_str[DAP_HASH_FAST_STR_SIZE];
