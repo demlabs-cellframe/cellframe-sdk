@@ -227,6 +227,7 @@ dap_chain_addr_str_t dap_chain_addr_to_str_static_(const dap_chain_addr_t *a_add
 #define dap_chain_addr_to_str dap_chain_addr_to_str_static
 
 dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
+size_t dap_chain_addr_from_str_array(const char *a_addr_str, dap_chain_addr_t **a_addr);
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 
 dap_chain_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
