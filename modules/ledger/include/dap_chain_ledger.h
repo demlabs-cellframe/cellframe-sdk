@@ -56,7 +56,12 @@ typedef struct dap_ledger_tracker_item {
 typedef struct dap_ledger_tracker {
     dap_hash_fast_t voting_hash;
     dap_ledger_tracker_item_t *items;
-} DAP_ALIGN_PACKED dap_ledger_tracker_t;
+} dap_ledger_tracker_t;
+
+typedef struct dap_ledger_hardfork_tracker {
+    dap_hash_fast_t pkey_hash;
+    uint256_t coloured_value;
+} DAP_ALIGN_PACKED dap_ledger_hardfork_tracker_t;
 
 typedef struct dap_ledger_hardfork_balances {
     dap_chain_addr_t addr;
@@ -523,6 +528,8 @@ uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_
                                                dap_hash_fast_t *a_tx_hash, int a_out_idx, dap_hash_fast_t *a_pkey_hash);
 dap_list_t *dap_ledger_tx_get_trackers(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, uint32_t a_out_idx);
 void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
+void dap_ledger_colour_clear_callback(void *a_list_data);
+
 dap_pkey_t *dap_ledger_find_pkey_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_pkey_hash);
 dap_list_t *dap_ledger_decrees_get_by_type(dap_ledger_t *a_ledger, int a_type);
 
