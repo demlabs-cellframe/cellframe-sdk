@@ -229,6 +229,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
                             "wallet deactivate -w <wallet_name> -password <password>\n"
                             "wallet convert -w <wallet_name> -password <password>\n"
+                            "wallet find -addr <addr> {-file <file path>}\n"
                             "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [-value <uint256_value>]\n");
 
     dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool",
