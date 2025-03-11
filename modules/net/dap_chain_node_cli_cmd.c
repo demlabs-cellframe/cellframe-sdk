@@ -1574,8 +1574,11 @@ void s_wallet_list(const char *a_wallet_path, json_object *a_json_arr_out, dap_c
             } else if ((l_file_name_len > 7) && (!strcmp(l_file_name + l_file_name_len - 7, ".backup"))) {
                 json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
                 json_object_object_add(json_obj_wall, "status", json_object_new_string("Backup"));
-            } 
-            json_object_array_add(a_json_arr_out, json_obj_wall);
+            }
+            if (json_object_object_length(json_obj_wall)) 
+                json_object_array_add(a_json_arr_out, json_obj_wall);
+            else 
+                json_object_put(json_obj_wall);
         }
         if (a_addr && (json_object_array_length(a_json_arr_out) == 0)) {
             json_object * json_obj_out = json_object_new_object();
