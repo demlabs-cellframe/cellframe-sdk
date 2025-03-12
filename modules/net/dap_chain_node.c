@@ -30,6 +30,7 @@
 #include "dap_chain_cs_blocks.h" // TODO set RPC callbacks for exclude storage type specific dependency
 #include "dap_chain_net_srv_stake_pos_delegate.h" // TODO set RPC callbacks for exclude service specific dependency
 #include "dap_chain_ledger.h"
+#include "dap_chain_net_balancer.h"
 #include "dap_cli_server.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_mempool.h"
