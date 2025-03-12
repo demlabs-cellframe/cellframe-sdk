@@ -852,7 +852,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     break;
                 default: {
                     snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%0X", i);
-                    json_object_object_add(json_obj_meta, "#", json_object_new_string(l_hexbuf));
+                    json_object_object_add(json_obj_meta, "number", json_object_new_string(l_hexbuf));
                     int l_len = l_meta->hdr.data_size * 2 + 5;
                     char *l_data_hex = DAP_NEW_STACK_SIZE(char, l_len);
                     strcpy(l_data_hex, "0x");
