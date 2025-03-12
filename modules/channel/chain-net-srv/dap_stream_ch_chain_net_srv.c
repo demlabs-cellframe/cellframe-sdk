@@ -952,7 +952,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                     s_service_substate_pay_service(l_usage);
                 } else {
                     l_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER;
-                    log_it(L_NOTICE, "Can't find newtx cond %s in ledger. Waiting...", dap_chain_hash_fast_to_str_static(&l_responce->hdr.tx_cond));
+                    log_it(L_NOTICE, "Can't find new tx cond %s in ledger. Waiting...", dap_chain_hash_fast_to_str_static(&l_responce->hdr.tx_cond));
                     pthread_mutex_lock(&l_srv->grace_mutex);
                     HASH_DEL(l_srv->grace_hash_tab, l_curr_grace_item);
                     l_curr_grace_item->tx_cond_hash = l_usage->tx_cond_hash;
@@ -1003,6 +1003,19 @@ static bool s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg)
 
 static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_receipt_t *a_receipt)
 {
+    a_usage->tx_cond = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
+
+    if (!a_usage->tx_cond){
+        return PAY_SERVICE_STATUS_TX_CANT_FIND;
+    }
+
+    int ret = s_check_tx_params(a_usage);
+    if (ret != 0){
+        a_usage->last_err_code = ret;
+        s_service_substate_go_to_error(a_usage);
+        return PAY_SERVICE_STATUS_TX_ERROR;
+    }
+
     char *l_hash_str = dap_hash_fast_to_str_new(&a_usage->tx_cond_hash);
     log_it(L_NOTICE, "Trying create input tx cond from tx %s with active receipt", l_hash_str);
     DAP_DEL_Z(l_hash_str);
@@ -1350,24 +1363,14 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
         //start timeout timer
         a_usage->receipt_timeout_timer_start_callback(a_usage);    
             
-    }else {
-        a_usage->tx_cond = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
-
-        if (a_usage->tx_cond){
-            int ret = s_check_tx_params(a_usage);
-            if (ret != 0){
-                a_usage->last_err_code = ret;
-                s_service_substate_go_to_error(a_usage);
-                return;
-            }
-        }
+    }else {  
         dap_chain_datum_tx_receipt_t *l_receipt = NULL;
-        if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN)
+        if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE || 
+            a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE)
             l_receipt = a_usage->receipt;
         else 
             l_receipt = a_usage->receipt_next;
 
-        
         int l_ret = s_pay_service(a_usage, l_receipt);
         switch (l_ret){
             case PAY_SERVICE_STATUS_SUCCESS:
@@ -1429,7 +1432,8 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                 log_it(L_ERROR, "Can't create input tx cond transaction!");
                 memset(&a_usage->tx_cond_hash, 0, sizeof(a_usage->tx_cond_hash));
                 DAP_DEL_Z(a_usage->receipt_next);
-                a_usage->last_err_code  = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_CREATION_ERROR;
+                if (a_usage->last_err_code == 0)
+                    a_usage->last_err_code  = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_CREATION_ERROR;
             }
         }
         s_service_substate_go_to_error(a_usage);   

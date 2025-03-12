@@ -1399,7 +1399,8 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
         a_srv_session->last_update_ts = time(NULL);
 
 
-        if( a_srv_session->limits_ts <= 0 && a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL){
+        if( a_srv_session->limits_ts <= 0 && a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL &&
+            (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL  || a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_ERROR)){
             char *l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
             log_it(L_INFO, "Limits by timestamp are over for user %s. Switch to the next receipt", l_user_key);
             DAP_DELETE(l_user_key);
@@ -1464,7 +1465,8 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
             l_issue_new_receipt = true;
         }
 
-        if (a_srv_session->limits_bytes <= 0  && a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL){
+        if (a_srv_session->limits_bytes <= 0  && a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL &&
+            (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL || a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_ERROR)){
             char *l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
             log_it(L_INFO, "Limits by traffic is over for user %s. Switch to the next receipt", l_user_key);
             DAP_DELETE(l_user_key);
