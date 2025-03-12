@@ -30,6 +30,7 @@
 #include "dap_chain_cs_blocks.h" // TODO set RPC callbacks for exclude storage type specific dependency
 #include "dap_chain_net_srv_stake_pos_delegate.h" // TODO set RPC callbacks for exclude service specific dependency
 #include "dap_chain_ledger.h"
+#include "dap_chain_net_balancer.h"
 #include "dap_cli_server.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_mempool.h"
@@ -609,14 +610,26 @@ dap_chain_datum_t *s_cond_tx_create(dap_chain_tx_out_cond_t *a_cond, dap_chain_t
     }
     for (dap_list_t *it = a_trackers; it; it = it->next) {
         dap_ledger_tracker_t *l_tracker = it->data;
-        dap_chain_tx_tsd_t *l_tracker_tsd = dap_chain_datum_tx_item_tsd_create(l_tracker, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER, sizeof(dap_ledger_tracker_t));
-        if (!l_tracker_tsd) {
+        dap_chain_tx_tsd_t *l_tracker_hash_tsd = dap_chain_datum_tx_item_tsd_create(&l_tracker->voting_hash, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_VOTING_HASH, sizeof(dap_hash_fast_t));
+        if (!l_tracker_hash_tsd) {
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }
-        if (dap_chain_datum_tx_add_item(&l_tx, l_tracker_tsd) != 1) {
+        if (dap_chain_datum_tx_add_item(&l_tx, l_tracker_hash_tsd) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
+        }
+        for (dap_ledger_tracker_item_t *l_item = l_tracker->items; l_item; l_item = l_item->next) {
+            dap_ledger_hardfork_tracker_t l_hardfork_tracker = { .pkey_hash = l_item->pkey_hash, .coloured_value = l_item->coloured_value };
+            dap_chain_tx_tsd_t *l_tracker_tsd = dap_chain_datum_tx_item_tsd_create(&l_hardfork_tracker, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER, sizeof(dap_ledger_hardfork_tracker_t));
+            if (!l_tracker_tsd) {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+            if (dap_chain_datum_tx_add_item(&l_tx, l_tracker_tsd) != 1) {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
         }
     }
     dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
@@ -782,11 +795,19 @@ static int s_compare_trackers(dap_list_t *a_list1, dap_list_t *a_list2)
         dap_ledger_tracker_t *l_tracker1 = it1->data,
                              *l_tracker2 = it2->data;
         ret = memcmp(&l_tracker1->voting_hash, &l_tracker1->voting_hash, sizeof(dap_hash_fast_t));
-        if (ret)
+        if (ret)            // hash mismatch
             break;
-        ret = compare256(l_tracker1->colored_value, l_tracker2->colored_value);
-        if (ret)
-            break;
+        dap_ledger_tracker_item_t *it1 = l_tracker1->items, *it2 = l_tracker2->items;
+        for (; it1 && it2; it1 = it1->next, it2 = it2->next) {
+            ret = memcmp(&it1->pkey_hash, &it2->pkey_hash, sizeof(dap_hash_fast_t));
+            if (ret)        // pkey mismatch
+                break;
+            ret = compare256(it1->coloured_value, it2->coloured_value);
+            if (ret)        // value mismatch
+                break;
+        }
+        if (it1 || it2)     // count mismatch
+            return 1;
     }
     return ret;
 }
@@ -879,6 +900,14 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
         }
     } break;
 
+#define m_ret_clear(rc) {                                                               \
+        if (l_regular.trackers)                                                         \
+            dap_list_free_full(l_regular.trackers, dap_ledger_colour_clear_callback);   \
+        if (l_conitional.trackers)                                                      \
+            dap_list_free_full(l_conitional.trackers, dap_ledger_colour_clear_callback);\
+        return rc;                                                                      \
+    }
+
     case DAP_CHAIN_DATUM_TX: {
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
         if (!l_tx->header.ts_created /* TODO add || l_tx->header.ts_created other criteria */) {
@@ -889,6 +918,7 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
         // Parse datum
         dap_ledger_hardfork_balances_t l_regular = {};
         dap_ledger_hardfork_condouts_t l_conitional = {};
+        dap_ledger_tracker_t *l_tracker_current = NULL;
         bool l_out = false;
         byte_t *l_item; size_t l_size;
         TX_ITEM_ITER_TX(l_item, l_size, l_tx) {
@@ -896,7 +926,7 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
             case TX_ITEM_TYPE_OUT_EXT:
                 if (l_out || l_conitional.cond) {
                     log_it(L_WARNING, "Additional OUT_EXT item for harfork datum tx is forbidden");
-                    return -4;
+                    m_ret_clear(-4);
                 }
                 l_out = true;
                 dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)l_item;
@@ -907,19 +937,23 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
             case TX_ITEM_TYPE_OUT_COND:
                 if (l_out || l_conitional.cond) {
                     log_it(L_WARNING, "Additional OUT_COND item for harfork datum tx is forbidden");
-                    return -5;
+                    m_ret_clear(-5);
                 }
                 l_conitional.cond = (dap_chain_tx_out_cond_t *)l_item;
                 break;
             case TX_ITEM_TYPE_SIG:
                 if (l_conitional.sign) {
                     log_it(L_WARNING, "Additional SIG item for harfork datum tx is forbidden");
-                    return -6;
+                    m_ret_clear(-6);
                 }
                 l_conitional.sign = (dap_chain_tx_sig_t *)l_item;
                 break;
             case TX_ITEM_TYPE_TSD: {
                 dap_chain_tx_tsd_t *l_tx_tsd = (dap_chain_tx_tsd_t *)l_item;
+                if (l_tx_tsd->header.size < sizeof(dap_tsd_t)) {
+                    log_it(L_WARNING, "Illegal harfork datum tx TSD header size %" DAP_UINT64_FORMAT_U, l_tx_tsd->header.size);
+                    m_ret_clear(-8);
+                }
                 dap_tsd_t *l_tsd = (dap_tsd_t *)l_tx_tsd->tsd;
                 switch (l_tsd->type) {
                 case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TX_HASH:
@@ -928,24 +962,45 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
                 case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TICKER:
                     if (!l_tsd->size || l_tsd->size > DAP_CHAIN_TICKER_SIZE_MAX) {
                         log_it(L_WARNING, "Illegal harfork datum tx TSD TICKER size %u", l_tsd->size);
-                        return -8;
+                        m_ret_clear(-8);
                     }
                     dap_strncpy(l_conitional.ticker, (char *)l_tsd->data, DAP_CHAIN_TICKER_SIZE_MAX);
                     break;
-                case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER:
+                case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_VOTING_HASH: {
+                    if (l_tsd->size != sizeof(dap_hash_fast_t)) {
+                        log_it(L_WARNING, "Illegal harfork datum tx TSD VOTING_HASH size %u", l_tsd->size);
+                        m_ret_clear(-8);
+                    }
+                    l_tracker_current = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_tracker_t, -2);
+                    l_tracker_current->voting_hash = *(dap_hash_fast_t *)l_tsd->data;
                     if (l_out)
-                        l_regular.trackers = dap_list_append(l_regular.trackers, l_tsd->data);
+                        l_regular.trackers = dap_list_append(l_regular.trackers, l_tracker_current);
                     else
-                        l_conitional.trackers = dap_list_append(l_conitional.trackers, l_tsd->data);
-                    break;
+                        l_conitional.trackers = dap_list_append(l_conitional.trackers, l_tracker_current);
+                } break;
+                case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER: {
+                    if (l_tsd->size != sizeof(dap_ledger_hardfork_tracker_t)) {
+                        log_it(L_WARNING, "Illegal harfork datum tx TSD VOTING_HASH size %u", l_tsd->size);
+                        m_ret_clear(-8);
+                    }
+                    if (!l_tracker_current) {
+                        log_it(L_WARNING, "No voting hash defined for tracking item");
+                        m_ret_clear(-19);
+                    }
+                    dap_ledger_hardfork_tracker_t *l_tsd_item = (dap_ledger_hardfork_tracker_t *)l_tsd->data;
+                    dap_ledger_tracker_item_t *l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_tracker_item_t, -2);
+                    l_item->pkey_hash = l_tsd_item->pkey_hash;
+                    l_item->coloured_value = l_tsd_item->coloured_value;
+                    DL_APPEND(l_tracker_current->items, l_item);
+                } break;
                 default:
                     log_it(L_WARNING, "Illegal harfork datum tx TSD item type 0x%X", l_tsd->type);
-                    return -7;
+                    m_ret_clear(-7);
                 }
             } break;
             default:
                 log_it(L_WARNING, "Illegal harfork datum tx item type %d", *l_item);
-                return -4;
+                m_ret_clear(-4);
             }
         }
         // Call comparators
@@ -955,7 +1010,7 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
             if (l_found) {
                 if (a_remove) {
                     DL_DELETE(a_chain->hardfork_data->balances, l_found);
-                    dap_list_free_full(l_found->trackers, NULL);
+                    dap_list_free_full(l_found->trackers, dap_ledger_colour_clear_callback);
                     DAP_DELETE(l_found);
                     if (!a_chain->hardfork_data->balances)
                         a_chain->hardfork_data->state_current = STATE_CONDOUTS;
@@ -969,7 +1024,7 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
                 if (l_found) {
                     if (a_remove) {
                         DL_DELETE(a_chain->hardfork_data->condouts, l_found);
-                        dap_list_free_full(l_found->trackers, NULL);
+                        dap_list_free_full(l_found->trackers, dap_ledger_colour_clear_callback);
                         DAP_DELETE(l_found);
                         if (!a_chain->hardfork_data->condouts)
                             a_chain->hardfork_data->state_current = STATE_FEES;
@@ -993,14 +1048,15 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
             }
         } else {
             log_it(L_WARNING, "Illegal harfork datum tx item with no OUT");
-            return -8;
+            m_ret_clear(-18);
         }
         // Clean memory
         if (l_regular.trackers)
-            dap_list_free(l_regular.trackers);
+            dap_list_free_full(l_regular.trackers, dap_ledger_colour_clear_callback);
         if (l_conitional.trackers)
-            dap_list_free(l_conitional.trackers);
+            dap_list_free_full(l_conitional.trackers, dap_ledger_colour_clear_callback);
     } break;
+#undef m_ret_clear
 
     case DAP_CHAIN_DATUM_SERVICE_STATE: {
         dap_chain_srv_hardfork_state_t *l_found = NULL,
@@ -1077,6 +1133,7 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
         }
 
     } break;
+#undef m_ret
 
     default:
         log_it(L_WARNING, "Incorrect harfork datum type %u", a_datum->header.type_id);
