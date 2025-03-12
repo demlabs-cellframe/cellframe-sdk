@@ -65,7 +65,7 @@ void dap_chain_net_balancer_deinit();
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
 dap_link_info_t *dap_chain_net_balancer_dns_issue_link(const char *a_net_name);
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t * a_net);
-dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net);
+json_object *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net);
 void dap_chain_net_balancer_request(void *a_arg);
 
 #ifdef __cplusplus
