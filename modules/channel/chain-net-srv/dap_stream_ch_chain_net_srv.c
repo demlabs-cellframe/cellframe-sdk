@@ -600,7 +600,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
     dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get(a_grace_item->grace->usage->service->uid);
     pthread_mutex_lock(&l_srv->grace_mutex);
     HASH_DEL(l_srv->grace_hash_tab, a_grace_item);
-    pthread_mutex_lock(&l_srv->grace_mutex);
+    pthread_mutex_unlock(&l_srv->grace_mutex);
 
     s_service_substate_pay_service(a_grace_item->grace->usage);
     DAP_DEL_Z(a_grace_item->grace);
@@ -1351,7 +1351,7 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
         a_usage->receipt_timeout_timer_start_callback(a_usage);    
             
     }else {
-        if (!a_usage->tx_cond) a_usage->tx_cond = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
+        a_usage->tx_cond = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
 
         if (a_usage->tx_cond){
             int ret = s_check_tx_params(a_usage);
@@ -1389,6 +1389,8 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                     log_it(L_ERROR, "Can't find tx cond. Start grace!");
                     s_service_substate_go_to_waiting_prev_tx(a_usage);
                     return;
+                } else if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE) {
+                    s_service_state_go_to_grace(a_usage);
                 } else {
                     if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT){
                         log_it(L_INFO, "No new tx cond!");
@@ -1407,10 +1409,10 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                     a_usage->service_substate != DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT){
                     
                     log_it(L_ERROR, "Tx cond have not enough funds");
-                    if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE) {
-                        a_usage->service_state = DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE;
-                    } 
-                    s_service_substate_go_to_waiting_new_tx(a_usage);
+                    if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE)
+                        s_service_state_go_to_grace(a_usage);
+                    else
+                        s_service_substate_go_to_waiting_new_tx(a_usage);
                     return;
                 } else  {
                     log_it(L_ERROR, "New tx cond have not enough funds");

@@ -1367,7 +1367,9 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
     bool l_issue_new_receipt = false;
     // Check if there are time limits
 
-    if (!a_usage || a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE || !a_usage->is_active)
+    if (!a_usage || !a_usage->is_active || 
+        a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE ||
+        a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_ERROR )
         return;
 
     if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE){
@@ -1377,7 +1379,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
         return;
     }
 
-    if (a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_SEC){
+    if (a_usage->receipt && a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_SEC){
         time_t l_current_limit_ts = 0;
 
         switch( a_usage->receipt->receipt_info.units_type.enm){
@@ -1438,7 +1440,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
             }
         }
-    }else if ( a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_B){
+    }else if (a_usage->receipt && a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_B){
         intmax_t current_limit_bytes = 0;
         if ( a_usage->receipt){// if we have active receipt and a_srv_session->last_update_ts == 0 then we counts units by traffic
             switch( a_usage->receipt->receipt_info.units_type.enm){
