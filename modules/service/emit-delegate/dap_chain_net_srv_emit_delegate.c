@@ -160,9 +160,9 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_datum_t
         }
     }
 
-    if (l_signs_verified < a_cond->subtype.srv_emit_delegate.signers_minimum) {
-        log_it(L_WARNING, "Not enough valid signs (%u from %u) for delegated emission in tx %s",
-                                    l_signs_verified, a_cond->subtype.srv_emit_delegate.signers_minimum, dap_hash_fast_to_str_static(a_tx_in_hash));
+    if (l_change_type == DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF && l_signs_verified < a_cond->subtype.srv_emit_delegate.signers_minimum) {
+        log_it(L_WARNING, "Not enough valid signs (%u from %u) for delegated emission",
+                                    l_signs_verified, a_cond->subtype.srv_emit_delegate.signers_minimum);
         return DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS;
     }
     return 0;
@@ -200,7 +200,7 @@ static char *s_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_t *a_chain, const ch
 
 #define m_sign_fail(e,s) { dap_json_rpc_error_add(a_json_arr_reply, e, s); log_it(L_ERROR, "%s", s); return NULL; }
 
-#define m_tx_fail(e,s) { DAP_DELETE(l_tx); m_sign_fail(e,s) }
+#define m_tx_fail(e,s) { DAP_DELETE(l_tx); m_sign_fail(e,s); log_it(L_ERROR, "%s", s); }
 
 static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
                                                   const char *a_token_ticker, uint256_t a_value, uint256_t a_fee,
@@ -250,7 +250,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     // add 'out_cond' & 'out_ext' items
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_EMIT_DELEGATE_ID };
     dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_emit_delegate(
-                                                l_uid, a_value, a_signs_min, a_pkey_hashes, a_pkey_hashes_count);
+                                                l_uid, a_value, a_signs_min, a_pkey_hashes, a_pkey_hashes_count, a_tag_str);
     if (!l_tx_out)
         m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction conditional output");
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out);
@@ -283,22 +283,9 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
         if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, l_native_ticker) != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add fee back output");
     }
-
-    if (a_tag_str) {
-        dap_chain_tx_tsd_t *tsd_tag_item = dap_chain_datum_tx_item_tsd_create(a_tag_str, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TAG, strlen(a_tag_str) + 1);
-        if (!tsd_tag_item)
-            m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction tag");
-        if (dap_chain_datum_tx_add_item(&l_tx, tsd_tag_item) != 1) {
-            DAP_DELETE(tsd_tag_item);
-            m_tx_fail(ERROR_COMPOSE, "Can't add the transaction tag");
-        }
-        DAP_DELETE(tsd_tag_item);
-    }
     // add 'sign' item
     if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1)
         m_tx_fail(ERROR_COMPOSE, "Can't add sign output");
-
-
     return l_tx;
 }
 
@@ -307,34 +294,46 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
     uint256_t a_value, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
 {
     dap_return_val_if_pass(!a_net || IS_ZERO_256(a_value) || IS_ZERO_256(a_fee), NULL);
-    // create empty transaction
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-
     dap_ledger_t *l_ledger = a_net->pub.ledger;
     const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, a_tx_in_hash);
-    bool l_taking_native = !dap_strcmp(a_net->pub.native_ticker, l_tx_ticker);
-
-    uint256_t l_value = a_value, l_value_transfer = {}; // how many coins to refill
+    bool l_refill_native = !dap_strcmp(a_net->pub.native_ticker, l_tx_ticker);
+    uint256_t l_value = a_value, l_value_transfer = {}, l_fee_transfer = {}; // how many coins to transfer
     uint256_t l_net_fee, l_fee_total = a_fee;
     dap_chain_addr_t l_net_fee_addr;
+    // create empty transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used && SUM_256_256(l_fee_total, l_net_fee, &l_fee_total))
         m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
-    if (SUM_256_256(l_value, l_fee_total, &l_value))
+    if (l_refill_native && SUM_256_256(l_value, l_fee_total, &l_value))
         m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
 
+    // list of transaction with 'out' items to sell
     dap_chain_addr_t l_owner_addr;
     dap_chain_addr_fill_from_key(&l_owner_addr, a_enc_key, a_net->pub.id);
-    dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
-                            &l_owner_addr, l_value, &l_value_transfer);
-    if (!l_list_fee_out)
-        m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
-    // add 'in' items to pay fee
-    uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
-    dap_list_free_full(l_list_fee_out, NULL);
-    if (!EQUAL_256(l_value_fee_items, l_value_transfer))
-        m_tx_fail(ERROR_COMPOSE, "Can't compose the fee transaction input");
+    dap_list_t *l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_tx_ticker,
+                                                                       &l_owner_addr, l_value, &l_value_transfer);
+    if (!l_list_used_out)
+        m_tx_fail(ERROR_FUNDS, "Nothing to pay for refill (not enough funds)");
+
+    // add 'in' items to pay for delegate
+    uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+    dap_list_free_full(l_list_used_out, NULL);
+    if (!EQUAL_256(l_value_to_items, l_value_transfer))
+        m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction input");
+
+    if (!l_refill_native) {
+        dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
+                                                                          &l_owner_addr, l_fee_total, &l_fee_transfer);
+        if (!l_list_fee_out)
+            m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
+        // add 'in' items to pay fee
+        uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
+        dap_list_free_full(l_list_fee_out, NULL);
+        if (!EQUAL_256(l_value_fee_items, l_fee_transfer))
+            m_tx_fail(ERROR_COMPOSE, "Can't compose the fee transaction input");
+    }
 
     dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, a_tx_in_hash, false);
     if (dap_hash_fast_is_blank(&l_final_tx_hash))
@@ -357,7 +356,6 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
         m_tx_fail(ERROR_COMPOSE, "Cant add conditionsl input");
     }
 
-    // coin back
     uint256_t l_value_back = {};
     if(SUM_256_256(l_cond_prev->header.value, a_value, &l_value_back)) {
         m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
@@ -373,8 +371,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
     }
     DAP_DELETE(l_out_cond);
 
-
-    // add track for takeoff from conditional value
+    // add track for refill from conditional value
     dap_chain_tx_tsd_t *l_refill_tsd = dap_chain_datum_tx_item_tsd_create(&a_value, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_REFILL, sizeof(uint256_t));
     if (dap_chain_datum_tx_add_item(&l_tx, l_refill_tsd) != 1) {
         DAP_DELETE(l_refill_tsd);
@@ -388,24 +385,30 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
         m_tx_fail(ERROR_COMPOSE, "Can't add custom TSD section item ");
     }
 
+    // coin back
+    SUBTRACT_256_256(l_value_transfer, l_value, &l_value_back);
+    if (!IS_ZERO_256(l_value_back)) {
+        int rc = l_refill_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_owner_addr, l_value_back)
+                                   : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_value_back, l_tx_ticker);
+        if (rc != 1)
+            m_tx_fail(ERROR_COMPOSE, "Cant add coin back output");
+    }
+
     // add fee items
     if (l_net_fee_used) {
-        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_net_fee_addr, l_net_fee)
-        : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, a_net->pub.native_ticker);
+        int rc = l_refill_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_net_fee_addr, l_net_fee)
+                                   : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, a_net->pub.native_ticker);
         if (rc != 1)
-        m_tx_fail(ERROR_COMPOSE, "Cant add net fee output");
+            m_tx_fail(ERROR_COMPOSE, "Cant add net fee output");
     }
     if (!IS_ZERO_256(a_fee) && dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1)
         m_tx_fail(ERROR_COMPOSE, "Cant add validator fee output");
 
-    uint256_t l_fee_back = {};
-    // fee coin back
-    SUBTRACT_256_256(l_value_transfer, l_value, &l_fee_back);
-
-    if (!IS_ZERO_256(l_fee_back)) {
-        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_owner_addr, l_fee_back)
-        : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, a_net->pub.native_ticker);
-        if (rc != 1)
+    if (!l_refill_native) {
+        uint256_t l_fee_back = {};
+        // fee coin back
+        SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
+        if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, a_net->pub.native_ticker) != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add fee back output");
     }
 
@@ -432,9 +435,13 @@ static bool s_is_key_present(dap_chain_tx_out_cond_t *a_cond, dap_enc_key_t *a_e
 }
 
 dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
-    dap_chain_addr_t **a_to_addr, uint256_t *a_value, size_t a_addr_count, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* a_tsd_items)
+    dap_chain_addr_t *a_to_addr, uint256_t *a_value, uint32_t a_addr_count /*!not change type!*/, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* a_tsd_items)
 {
-    dap_return_val_if_pass(!a_to_addr || !a_value || !a_addr_count || !a_enc_key || !a_tx_in_hash, NULL );
+    dap_return_val_if_pass(!a_to_addr, NULL);
+    dap_return_val_if_pass(!a_value, NULL);
+    dap_return_val_if_pass(!a_addr_count, NULL);
+    dap_return_val_if_pass(!a_enc_key, NULL);
+    dap_return_val_if_pass(!a_tx_in_hash, NULL);
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
@@ -499,8 +506,8 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
 
     // add 'out' or 'out_ext' item for emission
     for (size_t i = 0; i < a_addr_count; ++i) {
-        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, a_to_addr[i], a_value[i]) :
-            dap_chain_datum_tx_add_out_ext_item(&l_tx, a_to_addr[i], a_value[i], l_tx_ticker);
+        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, a_to_addr + i, a_value[i]) :
+            dap_chain_datum_tx_add_out_ext_item(&l_tx, a_to_addr + i, a_value[i], l_tx_ticker);
         if (rc != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add tx output");
     }
@@ -512,12 +519,18 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     if (!l_out_cond)
         m_tx_fail(ERROR_MEMORY, c_error_memory_alloc);
     l_out_cond->header.value = l_value_back;
+    
     if (-1 == dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond)) {
         DAP_DELETE(l_out_cond);
         m_tx_fail(ERROR_COMPOSE, "Cant add emission cond output");
     }
     DAP_DELETE(l_out_cond);
 
+    if (a_addr_count > 1) {
+        dap_chain_tx_tsd_t * l_addr_cnt_tsd = dap_chain_datum_tx_item_tsd_create(&a_addr_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t));
+        if (!l_addr_cnt_tsd || dap_chain_datum_tx_add_item(&l_tx, l_addr_cnt_tsd) != 1 )
+            m_tx_fail(ERROR_COMPOSE, "Can't add TSD section item with addr count");
+    }
 
     // add track for takeoff from conditional value
     dap_chain_tx_tsd_t *l_takeoff_tsd = dap_chain_datum_tx_item_tsd_create(&l_value, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF, sizeof(uint256_t));
@@ -822,7 +835,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     const char *l_tx_in_hash_str = NULL, *l_addr_str = NULL, *l_value_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL;
     
     uint256_t *l_value = NULL;
-    dap_chain_addr_t **l_to_addr = NULL;
+    dap_chain_addr_t *l_to_addr = NULL;
     uint32_t
         l_addr_el_count = 0,  // not change type! use in batching TSD section
         l_value_el_count = 0;
@@ -880,10 +893,11 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
         return ERROR_PARAM;
     }
 
-    l_addr_el_count = dap_str_symbol_count(l_addr_str, ',') + 1;
+    l_addr_el_count = dap_chain_addr_from_str_array(l_addr_str, &l_to_addr);
     l_value_el_count = dap_str_symbol_count(l_value_str, ',') + 1;
 
     if (l_addr_el_count != l_value_el_count) {
+        DAP_DELETE(l_to_addr);
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "num of '-to_addr' and '-value' should be equal");
         return ERROR_VALUE;
     }
@@ -910,43 +924,9 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
     dap_strfreev(l_value_array);
 
-    l_to_addr = DAP_NEW_Z_COUNT(dap_chain_addr_t *, l_addr_el_count);
-    if (!l_to_addr) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        DAP_DELETE(l_value);
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_MEMORY, c_error_memory_alloc);
-        return ERROR_MEMORY;
-    }
-    char **l_to_addr_str_array = dap_strsplit(l_addr_str, ",", l_addr_el_count);
-    if (!l_to_addr_str_array) {
-        DAP_DEL_MULTY(l_to_addr, l_value);
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Can't read '-to_addr' arg");
-        return ERROR_PARAM;
-    }
-    for (size_t i = 0; i < l_addr_el_count; ++i) {
-        l_to_addr[i] = dap_chain_addr_from_str(l_to_addr_str_array[i]);
-        if(!l_to_addr[i]) {
-            DAP_DEL_ARRAY(l_to_addr, i);
-            DAP_DEL_MULTY(l_to_addr, l_value);
-            dap_strfreev(l_to_addr_str_array);
-            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Incorrect addr format for string %s", l_addr_str);
-            return ERROR_VALUE;
-        }
-    }
-    dap_strfreev(l_to_addr_str_array);
-
-
-    if (l_addr_el_count > 1) {
-        l_tsd_list = dap_list_append(l_tsd_list, dap_chain_datum_tx_item_tsd_create(&l_addr_el_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t)));
-        if (!l_tsd_list) {
-            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_COMPOSE, "Internal error in tsd list creation");
-            return ERROR_COMPOSE;
-        }
-    }
-
     // Create emission from conditional transaction
+    
     dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_to_addr, l_value, l_addr_el_count, l_fee, &l_tx_in_hash, l_tsd_list);
-    DAP_DEL_ARRAY(l_to_addr, l_addr_el_count);
     DAP_DEL_MULTY(l_value, l_to_addr, l_enc_key);
     dap_list_free_full(l_tsd_list, NULL);
     if (!l_tx) {
@@ -1073,6 +1053,7 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object *l_jobj_token = json_object_new_object();
     json_object *l_jobj_take_verify = json_object_new_object();
     json_object *l_jobj_pkey_hashes = json_object_new_array();
+    json_object *l_jobj_tags = json_object_new_array();
     json_object *l_json_jobj_info = json_object_new_object();
 
     bool l_is_base_hash_type = dap_strcmp(a_hash_out_type, "hex");
@@ -1092,11 +1073,15 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
             json_object_array_add(l_jobj_pkey_hashes, json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data) : dap_hash_fast_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data)));
         }
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_STR) {
+            json_object_array_add(l_jobj_tags, json_object_new_string((char*)(l_tsd->data)));
+        }
     }
     json_object_object_add(l_jobj_take_verify, "owner_hashes", l_jobj_pkey_hashes);
     // result block
     json_object_object_add(l_json_jobj_info, "tx_hash", json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_tx_hash) : dap_hash_fast_to_str_static(&l_tx_hash)));
     json_object_object_add(l_json_jobj_info, "tx_hash_final", json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_final_tx_hash) : dap_hash_fast_to_str_static(&l_final_tx_hash)));
+    json_object_object_add(l_json_jobj_info, "tags", l_jobj_tags);
     json_object_object_add(l_json_jobj_info, "balance", l_jobj_balance);
     json_object_object_add(l_json_jobj_info, "take_verify", l_jobj_take_verify);
     json_object_object_add(l_json_jobj_info, "token", l_jobj_token);
