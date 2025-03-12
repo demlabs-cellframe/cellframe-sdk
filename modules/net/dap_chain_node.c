@@ -242,7 +242,7 @@ void dap_chain_node_list_cluster_del_callback(dap_store_obj_t *a_obj, void *a_ar
         dap_global_db_set_sync(a_obj->group, a_obj->key, a_obj->value, a_obj->value_len, a_obj->flags & DAP_GLOBAL_DB_RECORD_PINNED);
     } else {
         log_it(L_DEBUG, "Can't do handshake with %s [ %s : %u ] delete from node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
-        dap_del_global_db_obj_by_ttl(a_obj);
+        dap_global_db_driver_delete(a_obj, 1);
     }
     dap_strfreev(l_group_strings);
 }
