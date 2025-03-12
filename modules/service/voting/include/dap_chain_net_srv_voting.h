@@ -83,13 +83,14 @@ enum DAP_CHAIN_NET_SRV_VOTING_CLI_ERRORS {
     DAP_CHAIN_NET_VOTE_CREATE_WALLET_PARAM_NOT_VALID,
     DAP_CHAIN_NET_VOTE_CREATE_WALLET_DOES_NOT_EXIST,
     DAP_CHAIN_NET_VOTE_CREATE_WRONG_TIME_FORMAT,
+    DAP_CHAIN_NET_VOTE_CREATE_WRONG_TOKEN,
+    DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_TOKEN,
 
     DAP_CHAIN_NET_VOTE_VOTING_OK,
     DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_FIND_VOTE,
     DAP_CHAIN_NET_VOTE_VOTING_THIS_VOTING_HAVE_MAX_VALUE_VOTES,
     DAP_CHAIN_NET_VOTE_VOTING_ALREADY_EXPIRED,
     DAP_CHAIN_NET_VOTE_VOTING_NO_KEY_FOUND_IN_CERT,
-    DAP_CHAIN_NET_VOTE_VOTING_NO_PUBLIC_KEY_IN_CERT,
     DAP_CHAIN_NET_VOTE_VOTING_CERT_REQUIRED,
     DAP_CHAIN_NET_VOTE_VOTING_KEY_IS_NOT_DELEGATED,
     DAP_CHAIN_NET_VOTE_VOTING_DOES_NOT_ALLOW_CHANGE_YOUR_VOTE,
@@ -106,6 +107,7 @@ enum DAP_CHAIN_NET_SRV_VOTING_CLI_ERRORS {
     DAP_CHAIN_NET_VOTE_VOTING_NET_PARAM_MISSING,
     DAP_CHAIN_NET_VOTE_VOTING_NET_PARAM_NOT_VALID,
     DAP_CHAIN_NET_VOTE_VOTING_HASH_NOT_FOUND,
+    DAP_CHAIN_NET_VOTE_VOTING_HASH_INVALID,
     DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_FIND_CERT,
     DAP_CHAIN_NET_VOTE_VOTING_FEE_PARAM_NOT_VALID,
     DAP_CHAIN_NET_VOTE_VOTING_FEE_PARAM_BAD_TYPE,
@@ -130,9 +132,10 @@ uint64_t *dap_chain_net_srv_voting_get_result(dap_ledger_t* a_ledger, dap_chain_
 dap_time_t dap_chain_net_srv_voting_get_expiration_time(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_voting_hash);
 
 int dap_chain_net_srv_voting_create(const char *a_question, dap_list_t *a_options, dap_time_t a_expire_vote,
-                             uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
-                             bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
-                             dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_output);
+                                    uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
+                                    bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
+                                    dap_chain_net_t *a_net, const char *a_token_ticker,
+                                    const char *a_hash_out_type, char **a_hash_output);
 int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_voting_hash,
                               uint64_t a_option_idx, dap_chain_net_t *a_net, const char *a_hash_out_type,
                               char **a_hash_tx_out);
