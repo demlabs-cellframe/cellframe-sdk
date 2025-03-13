@@ -96,7 +96,7 @@ static void s_start_receipt_timeout_timer(dap_chain_net_srv_usage_t *a_usage);
 static bool s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
 static bool s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 
-static bool s_check_client_is_banned(dap_chain_net_srv_usage_t *a_usage);
+static dap_time_t s_check_client_is_banned(dap_chain_net_srv_usage_t *a_usage);
 static void s_ban_client(dap_chain_net_srv_usage_t *a_usage);
 static void s_unban_client(dap_chain_net_srv_usage_t *a_usage);
 
@@ -218,7 +218,7 @@ static char *s_get_ban_group(dap_chain_net_srv_usage_t *a_usage)
     return l_ban_list_group;
 }
 
-static bool s_check_client_is_banned(dap_chain_net_srv_usage_t *a_usage)
+static dap_time_t s_check_client_is_banned(dap_chain_net_srv_usage_t *a_usage)
 {
     char *l_ban_group = s_get_ban_group(a_usage);
     size_t l_data_size = 0;
@@ -226,22 +226,22 @@ static bool s_check_client_is_banned(dap_chain_net_srv_usage_t *a_usage)
     if(!l_ret)
     {
         DAP_DELETE(l_ban_group);
-        return false;
+        return 0;
     }
 
     if(*(dap_time_t*)l_ret < dap_time_now()){
         DAP_DELETE(l_ban_group);
-        return true;
+        return *(dap_time_t*)l_ret;
     }
         
     s_unban_client(a_usage);
     DAP_DELETE(l_ban_group);
-    return false;
+    return 0;
 }
 
 static void s_ban_client(dap_chain_net_srv_usage_t *a_usage)
 {
-    dap_time_t l_end_of_ban_timestamp = dap_time_now() + a_usage->service->grace_period * 10; // ban client for 10x grace periods
+    dap_time_t l_end_of_ban_timestamp = dap_time_now() + (a_usage->service->grace_period * 10); // ban client for 10x grace periods
 
     char *l_ban_group = s_get_ban_group(a_usage);
 
@@ -295,9 +295,11 @@ static bool s_receipt_timeout_handler(dap_chain_net_srv_usage_t *a_usage)
 
     if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
         a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_NO_SIGN;
+        log_it(L_ERROR,"User did not respond for first receipt signing.");
         s_service_substate_go_to_error(a_usage);
     } else if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEXT_RECEIPT_SIGN){
         a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_NO_SIGN;
+        log_it(L_ERROR,"User did not respond for next receipt signing.");
         s_service_substate_go_to_error(a_usage);
     }
     return false;
@@ -535,8 +537,11 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         // Check tx
         if (!l_tx){
             // Start grace
-            if (s_check_client_is_banned(l_usage)) {   // client banned
-                log_it(L_DEBUG, "Client %s is banned!", dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash));
+            dap_time_t l_end_of_ban = 0;
+            if ((l_end_of_ban = s_check_client_is_banned(l_usage))) {   // client banned
+                char l_tmp_buf[DAP_TIME_STR_SIZE];
+                dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_end_of_ban);
+                log_it(L_DEBUG, "Client %s is banned till %s!", dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash), l_tmp_buf);
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH;
                 if(a_ch)
                     dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -546,6 +551,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
             }
             s_service_state_go_to_grace(l_usage);
         } else {
+            s_unban_client(l_usage);
             l_usage->tx_cond = l_tx;
             s_service_substate_pay_service(l_usage);
         }
@@ -666,6 +672,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
     pthread_mutex_unlock(&l_srv->grace_mutex);
 
     if (!dap_ledger_tx_find_by_hash(a_grace_item->grace->usage->net->pub.ledger, &a_grace_item->grace->usage->tx_cond_hash)){
+        log_it(L_ERROR, "Grace period is over. Can't find tx for paying.");
         a_grace_item->grace->usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
         s_service_substate_go_to_error(a_grace_item->grace->usage);
     } else 
@@ -972,7 +979,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR:{
         if ( l_ch_pkt->hdr.data_size == sizeof (dap_stream_ch_chain_net_srv_pkt_error_t) ){
             dap_stream_ch_chain_net_srv_pkt_error_t * l_err = (dap_stream_ch_chain_net_srv_pkt_error_t *) l_ch_pkt->data;
-            log_it( L_NOTICE, "Remote responsed with error code 0x%08X", l_err->code );
+            log_it( L_NOTICE, "Remote respond with error code 0x%08X", l_err->code );
             // TODO code for service client mode
         }else{
             log_it(L_ERROR, "Wrong error response size, %u when expected %zu", l_ch_pkt->hdr.data_size,
@@ -1247,8 +1254,13 @@ static void s_service_state_go_to_error(dap_chain_net_srv_usage_t *a_usage)
     if (a_usage->last_err_code) {
         if(l_ch)
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &a_usage->last_err_code, sizeof (a_usage->last_err_code));
-        if (a_usage->service && a_usage->service->callbacks.response_error)
-            a_usage->service->callbacks.response_error(a_usage->service, 0, NULL, &a_usage->last_err_code, sizeof(a_usage->last_err_code));
+        if (a_usage->service && a_usage->service->callbacks.response_error){
+            dap_stream_ch_chain_net_srv_pkt_error_t l_err = (dap_stream_ch_chain_net_srv_pkt_error_t){.code = a_usage->last_err_code, 
+                .net_id = a_usage->net->pub.id, 
+                .srv_uid = a_usage->service->uid, 
+                .usage_id = a_usage->id};
+            a_usage->service->callbacks.response_error(a_usage->service,a_usage->id, a_usage->client, &l_err, sizeof (l_err));
+        }
     }
 
     if (a_usage && a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE) {   // add client pkey hash to banlist
@@ -1571,12 +1583,19 @@ static void s_service_substate_go_to_error(dap_chain_net_srv_usage_t *a_usage)
 
     if (a_usage->service_state ==  DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL){
         // wait until end of service in this substate
+        log_it(L_WARNING,"Next receipt paying error. Wait until service end.");
         DAP_DEL_Z(a_usage->receipt_next);
         a_usage->service_substate=DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_ERROR;
         dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &a_usage->last_err_code, sizeof (a_usage->last_err_code));
-        if (a_usage->service->callbacks.response_error)
-            a_usage->service->callbacks.response_error(a_usage->service,a_usage->id, a_usage->client, &a_usage->last_err_code,sizeof (a_usage->last_err_code));
+        if (a_usage->service->callbacks.response_error){
+            dap_stream_ch_chain_net_srv_pkt_error_t l_err = (dap_stream_ch_chain_net_srv_pkt_error_t){.code = a_usage->last_err_code, 
+                                                                                                    .net_id = a_usage->net->pub.id, 
+                                                                                                    .srv_uid = a_usage->service->uid, 
+                                                                                                    .usage_id = a_usage->id};
+            a_usage->service->callbacks.response_error(a_usage->service,a_usage->id, a_usage->client, &l_err, sizeof (l_err));
+        }
     } else {
+        log_it(L_ERROR,"Stop service providing.");
         s_service_state_go_to_error(a_usage);
     }
 }
