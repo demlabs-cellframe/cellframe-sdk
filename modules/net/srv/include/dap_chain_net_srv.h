@@ -120,9 +120,7 @@ typedef void (*dap_chain_net_srv_callback_decree_t)(dap_chain_net_srv_t* a_srv, 
 
 typedef struct dap_chain_net_srv_banlist_item {
     dap_chain_hash_fast_t client_pkey_hash;
-    pthread_mutex_t *ht_mutex;
-    struct dap_chain_net_srv_banlist_item **ht_head;
-    UT_hash_handle hh;
+    dap_time_t end_of_ban_timestamp;
 } dap_chain_net_srv_banlist_item_t;
 
 typedef struct dap_chain_net_srv_callbacks {
@@ -165,8 +163,6 @@ typedef struct dap_chain_net_srv
 
     bool allow_free_srv;
     uint32_t grace_period;
-    pthread_mutex_t banlist_mutex;
-    dap_chain_net_srv_banlist_item_t *ban_list;
 
     dap_chain_net_srv_callbacks_t callbacks;
 

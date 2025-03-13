@@ -96,7 +96,9 @@ static void s_start_receipt_timeout_timer(dap_chain_net_srv_usage_t *a_usage);
 static bool s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
 static bool s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 
-static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item);
+static bool s_check_client_is_banned(dap_chain_net_srv_usage_t *a_usage);
+static void s_ban_client(dap_chain_net_srv_usage_t *a_usage);
+static void s_unban_client(dap_chain_net_srv_usage_t *a_usage);
 
 static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_receipt_t *a_receipt);
 
@@ -193,17 +195,84 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , UNUSED_ARG void *a_arg)
     DAP_DEL_Z(a_ch->internal);
 }
 
-static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)
+static char *s_get_ban_group(dap_chain_net_srv_usage_t *a_usage)
 {
-// sanity check
-    dap_return_val_if_pass(!a_item, false);
-// func work
-    log_it(L_DEBUG, "Unban client");
-    pthread_mutex_lock(a_item->ht_mutex);
-    HASH_DEL(*(a_item->ht_head), a_item);
-    pthread_mutex_unlock(a_item->ht_mutex);
-    DAP_DELETE(a_item);
+    dap_hash_fast_t price_pkey_hash = {};
+
+    dap_chain_net_srv_price_t *l_price = a_usage->price;
+
+    dap_hash_fast_t price_pkey_hash = {};
+    size_t l_key_size = 0;
+    uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_price->receipt_sign_cert->enc_key, &l_key_size);
+    if (!l_pub_key || !l_key_size)
+    {
+        log_it(L_ERROR, "Can't get pkey from cert %s.", l_price->receipt_sign_cert->name);
+        return NULL;
+    }
+
+    dap_hash_fast(l_pub_key, l_key_size, &price_pkey_hash);
+    DAP_DELETE(l_pub_key);
+    char* l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&price_pkey_hash);
+
+    char *l_ban_list_group =  dap_strdup_printf("local.%s.0x%016"DAP_UINT64_FORMAT_x".ban_list.%s", a_usage->net->pub.gdb_groups_prefix, a_usage->service->uid.uint64, l_pkey_hash_str);
+    DAP_DEL_Z(l_pkey_hash_str);
+
+    return l_ban_list_group;
+}
+
+static bool s_check_client_is_banned(dap_chain_net_srv_usage_t *a_usage)
+{
+    char *l_ban_group = s_get_ban_group(a_usage);
+    size_t l_data_size = 0;
+    byte_t* l_ret = dap_global_db_get_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), &l_data_size, NULL, NULL);
+    if(!l_ret)
+    {
+        DAP_DELETE(l_ban_group);
+        return false;
+    }
+
+    if(*(dap_time_t*)l_ret < dap_time_now()){
+        DAP_DELETE(l_ban_group);
+        return true;
+    }
+        
+    s_unban_client(a_usage);
+    DAP_DELETE(l_ban_group);
     return false;
+}
+
+static void s_ban_client(dap_chain_net_srv_usage_t *a_usage)
+{
+    dap_time_t l_end_of_ban_timestamp = dap_time_now() + a_usage->service->grace_period * 10; // ban client for 10x grace periods
+
+    char *l_ban_group = s_get_ban_group(a_usage);
+
+    int l_ret = dap_global_db_set_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), &l_end_of_ban_timestamp, sizeof(l_end_of_ban_timestamp), false);
+    if(l_ret)
+    {
+        log_it(L_DEBUG, "Can't add client to ban list group in GDB. Error code: %d", l_ret);
+        DAP_DELETE(l_ban_group);
+        return;
+    }
+    DAP_DELETE(l_ban_group);
+}
+
+static void s_unban_client(dap_chain_net_srv_usage_t *a_usage)
+{
+    char *l_ban_group = s_get_ban_group(a_usage);
+    size_t l_data_size = 0;
+    byte_t* l_ret = dap_global_db_get_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), &l_data_size, NULL, NULL);
+    if(l_ret && l_data_size == sizeof(dap_time_t))
+    {
+        int l_ret = dap_global_db_del_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash));
+        if(l_ret)
+        {
+            log_it(L_DEBUG, "Can't remove client from ban list group in GDB. Error code: %d", l_ret);
+            DAP_DELETE(l_ban_group);
+            return;
+        }
+        DAP_DELETE(l_ban_group);
+    }
 }
 
 static bool s_receipt_timeout_handler(dap_chain_net_srv_usage_t *a_usage)
@@ -468,11 +537,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         // Check tx
         if (!l_tx){
             // Start grace
-            dap_chain_net_srv_banlist_item_t *l_item = NULL;
-            pthread_mutex_lock(&l_srv->banlist_mutex);
-            HASH_FIND(hh, l_srv->ban_list, &l_usage->client_pkey_hash, sizeof(dap_chain_hash_fast_t), l_item);
-            pthread_mutex_unlock(&l_srv->banlist_mutex);
-            if (l_item) {   // client banned
+            if (s_check_client_is_banned(l_usage)) {   // client banned
                 log_it(L_DEBUG, "Client %s is banned!", dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash));
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH;
                 if(a_ch)
@@ -1006,7 +1071,7 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
     char *l_hash_str = dap_hash_fast_to_str_new(&a_usage->tx_cond_hash);
     log_it(L_NOTICE, "Trying create input tx cond from tx %s with active receipt", l_hash_str);
     DAP_DEL_Z(l_hash_str);
-    int ret_status = 0;
+    int ret_status = 0;   
     char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(a_usage->net, &a_usage->tx_cond_hash, a_usage->price->wallet_addr,
                                                                         a_usage->price->receipt_sign_cert->enc_key, a_receipt, "hex", &ret_status);
     switch (ret_status){
@@ -1019,7 +1084,6 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
         case DAP_CHAIN_MEMPOOl_RET_STATUS_NO_COND_OUT:{
             dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
             if (l_tx){
-                // TODO check tx have cont in with right service
                 int l_out_cond_idx = 0;
                 dap_chain_tx_out_cond_t *l_out_cond = NULL;
                 dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(l_tx, &l_out_cond_idx, NULL, TX_ITEM_TYPE_IN_COND, NULL);
@@ -1038,6 +1102,7 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
                     return PAY_SERVICE_STATUS_NOT_ENOUGH;
                 }
             }else 
+
                 return PAY_SERVICE_STATUS_TX_ERROR;
         }break;
         case DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_ENOUGH:{
@@ -1173,29 +1238,7 @@ static void s_service_state_go_to_error(dap_chain_net_srv_usage_t *a_usage)
 
     if (a_usage && a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE) {   // add client pkey hash to banlist
         a_usage->is_active = 0;
-        if (a_usage->service) {
-            dap_chain_net_srv_banlist_item_t *l_item = NULL;
-            pthread_mutex_lock(&a_usage->service->banlist_mutex);
-            HASH_FIND(hh, a_usage->service->ban_list, &a_usage->client_pkey_hash, sizeof(dap_chain_hash_fast_t), l_item);
-            if (l_item)
-                pthread_mutex_unlock(&a_usage->service->banlist_mutex);
-            else {
-                l_item = DAP_NEW_Z(dap_chain_net_srv_banlist_item_t);
-                if (!l_item) {
-                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                    pthread_mutex_unlock(&a_usage->service->banlist_mutex);
-                    return;
-                }
-                log_it(L_DEBUG, "Add client to banlist");
-                l_item->client_pkey_hash = a_usage->client_pkey_hash;
-                l_item->ht_mutex = &a_usage->service->banlist_mutex;
-                l_item->ht_head = &a_usage->service->ban_list;
-                HASH_ADD(hh, a_usage->service->ban_list, client_pkey_hash, sizeof(dap_chain_hash_fast_t), l_item);
-                pthread_mutex_unlock(&a_usage->service->banlist_mutex);
-                dap_timerfd_start(a_usage->service->grace_period * 1000 * 10, (dap_timerfd_callback_t)s_unban_client, l_item);
-            }
-        }
-
+        s_ban_client(a_usage);
     } else if (l_srv_session->usage_active)
         dap_chain_net_srv_usage_delete(l_srv_session);
 }
@@ -1362,7 +1405,8 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
             }
         }
         dap_chain_datum_tx_receipt_t *l_receipt = NULL;
-        if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN)
+        if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE || 
+            a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE)
             l_receipt = a_usage->receipt;
         else 
             l_receipt = a_usage->receipt_next;
