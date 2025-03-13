@@ -26,10 +26,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_node.h"
 #include "dap_http_simple.h"
 
-#define DAP_BALANCER_URI_HASH "f0intlt4eyl03htogu"
-#define DAP_BALANCER_PROTOCOL_VERSION 2
 #define DAP_BALANCER_MAX_REPLY_SIZE 2048
-
 
 typedef struct dap_balancer_request_info dap_balancer_request_info_t;
 

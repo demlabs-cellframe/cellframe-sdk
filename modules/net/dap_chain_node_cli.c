@@ -42,6 +42,7 @@
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_cli_server.h"
 #include "dap_chain_node_cli.h"
+#include "dap_chain_node_rpc.h"
 #include "dap_notify_srv.h"
 
 #define LOG_TAG "chain_node_cli"
@@ -54,6 +55,7 @@ static bool s_debug_cli = false;
  * init commands description
  * return 0 if OK, -1 error
  * @param g_config
+ * @param a_server_enabled - if server and rpc enabled will be wrn inform
  * @return int
  */
 int dap_chain_node_cli_init(dap_config_t * g_config)
@@ -63,6 +65,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     s_debug_cli = dap_config_get_item_bool_default(g_config, "cli-server", "debug-cli", false);
     if ( dap_cli_server_init(s_debug_cli, "cli-server") )
         return log_it(L_ERROR, "Can't init CLI server!"), -1;
+    if (dap_config_get_item_bool_default(g_config, "cli-server", "rpc", false)) {
+        dap_chain_node_rpc_init();
+    }
 
     dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database",
             "global_db flush\n"
