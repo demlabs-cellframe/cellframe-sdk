@@ -774,12 +774,14 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             switch (a_cache_op) {
             case 'a': {
                 dap_wallet_tx_cache_input_t *l_tx_in = DAP_NEW(dap_wallet_tx_cache_input_t);
-                *l_tx_in = (dap_wallet_tx_cache_input_t) { .tx_prev_hash = l_prev_tx_hash, .tx_out_prev_idx = l_prev_idx, .value = l_value };
+                *l_tx_in = (dap_wallet_tx_cache_input_t) { .tx_prev_hash = ((dap_chain_tx_in_t*)l_tx_in)->header.tx_prev_hash, 
+                                                           .tx_out_prev_idx = ((dap_chain_tx_in_t*)l_tx_in)->header.tx_out_prev_idx, 
+                                                           .value = l_value };
                 l_wallet_tx_item->tx_wallet_inputs = dap_list_append(l_wallet_tx_item->tx_wallet_inputs, l_tx_in);
                 /* Delete unspent out from cache */
                 if (!a_ret_code) {
                     dap_wallet_cache_unspent_outs_t *l_item = NULL;
-                    unspent_cache_hh_key key = { .tx_hash = l_prev_tx_hash, .out_idx = l_prev_idx };
+                    unspent_cache_hh_key key = { .tx_hash = l_prev_tx_hash, .out_idx = ((dap_chain_tx_in_t*)l_tx_in)->header.tx_out_prev_idx };
                     HASH_FIND(hh, l_wallet_item->unspent_outputs, &key, sizeof(unspent_cache_hh_key), l_item);
                     if (l_item) {
                         HASH_DEL(l_wallet_item->unspent_outputs, l_item);

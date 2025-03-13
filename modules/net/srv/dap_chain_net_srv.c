@@ -1001,7 +1001,6 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         l_srv->uid.uint64 = a_uid.uint64;
         if (a_callbacks)
             l_srv->callbacks = *a_callbacks;
-        pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         if (!l_sdata) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -1052,7 +1051,6 @@ void dap_chain_net_srv_del(dap_chain_net_srv_t *a_srv)
         pthread_mutex_unlock(&a_srv->grace_mutex);
 
         HASH_DEL(s_srv_list, l_sdata);
-        pthread_mutex_destroy(&a_srv->banlist_mutex);
         DAP_DELETE(a_srv);
         DAP_DELETE(l_sdata);
     }
@@ -1117,7 +1115,6 @@ void dap_chain_net_srv_del_all(void)
     {
         // Clang bug at this, l_sdata should change at every loop cycle
         HASH_DEL(s_srv_list, l_sdata);
-        pthread_mutex_destroy(&l_sdata->srv->banlist_mutex);
         DAP_DELETE(l_sdata->srv);
         DAP_DELETE(l_sdata);
     }

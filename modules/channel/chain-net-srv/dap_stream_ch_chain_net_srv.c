@@ -197,8 +197,6 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , UNUSED_ARG void *a_arg)
 
 static char *s_get_ban_group(dap_chain_net_srv_usage_t *a_usage)
 {
-    dap_hash_fast_t price_pkey_hash = {};
-
     dap_chain_net_srv_price_t *l_price = a_usage->price;
 
     dap_hash_fast_t price_pkey_hash = {};
