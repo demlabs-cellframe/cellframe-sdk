@@ -665,10 +665,14 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
     HASH_DEL(l_srv->grace_hash_tab, a_grace_item);
     pthread_mutex_unlock(&l_srv->grace_mutex);
 
-    s_service_substate_pay_service(a_grace_item->grace->usage);
+    if (!dap_ledger_tx_find_by_hash(a_grace_item->grace->usage->net->pub.ledger, &a_grace_item->grace->usage->tx_cond_hash)){
+        a_grace_item->grace->usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
+        s_service_substate_go_to_error(a_grace_item->grace->usage);
+    } else 
+        s_service_substate_pay_service(a_grace_item->grace->usage);
+
     DAP_DEL_Z(a_grace_item->grace);
     DAP_DEL_Z(a_grace_item);
-    
     return false;
 }
 
