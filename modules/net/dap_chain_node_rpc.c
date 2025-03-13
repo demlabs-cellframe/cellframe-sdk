@@ -47,17 +47,21 @@
 #include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_node_rpc"
+#define DAP_RPC_CLUSTER_GLOBAL           ".rpc"
+#define DAP_RPC_DB_CLUSTER_GLOBAL       DAP_RPC_CLUSTER_GLOBAL ".*"
 #define DAP_CHAIN_NODE_RPC_STATES_INFO_CURRENT_VERSION 1
 typedef struct dap_chain_node_rpc_states_info {
     uint32_t version;
     dap_chain_node_addr_t address;
-    int32_t net_state;
     uint32_t cli_thread_count;
+    uint32_t cpu;
+    uint64_t mem;
 } DAP_ALIGN_PACKED dap_chain_node_rpc_states_info_t;
 
 
 static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
 static const char s_states_group[] = ".rpc.states";
+static dap_global_db_cluster_t *s_global_cluster = NULL;
 
 /**
  * @brief get states info about current
@@ -66,7 +70,7 @@ static const char s_states_group[] = ".rpc.states";
 static void s_update_node_rpc_states_info(UNUSED_ARG void *a_arg)
 {
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
-        if(dap_chain_net_get_state(l_net) != NET_STATE_OFFLINE) {
+        if(dap_chain_net_get_state(l_net) == NET_STATE_ONLINE) {
             size_t
                 l_uplinks_count = 0,
                 l_downlinks_count = 0,
@@ -74,7 +78,6 @@ static void s_update_node_rpc_states_info(UNUSED_ARG void *a_arg)
             dap_chain_node_rpc_states_info_t *l_info = DAP_NEW_Z_RET_IF_FAIL(dap_chain_node_rpc_states_info_t);
             l_info->version = DAP_CHAIN_NODE_RPC_STATES_INFO_CURRENT_VERSION;
             l_info->address.uint64 = g_node_addr.uint64;
-            l_info->net_state = dap_chain_net_get_state(l_net);
 
             char *l_gdb_group = dap_strdup_printf("%s%s", l_net->pub.gdb_groups_prefix, s_states_group);
             const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->address);
@@ -140,6 +143,12 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
 
 void dap_chain_node_rpc_init()
 {
+    if ( !(s_global_cluster = dap_global_db_cluster_add(
+        dap_global_db_instance_get_default(), DAP_RPC_CLUSTER_GLOBAL,
+        *(dap_guuid_t*)&uint128_0, DAP_RPC_DB_CLUSTER_GLOBAL,
+        0,
+        true, DAP_GDB_MEMBER_ROLE_GUEST, DAP_CLUSTER_TYPE_VIRTUAL)))
+        return;
     if (dap_proc_thread_timer_add(NULL, s_update_node_rpc_states_info, NULL, s_timer_update_states_info))
         log_it(L_ERROR, "Can't activate timer on node states update");
 }

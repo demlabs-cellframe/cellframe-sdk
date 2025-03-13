@@ -55,8 +55,8 @@ static_assert(sizeof(dap_chain_net_links_t) + sizeof(dap_chain_node_info_old_t) 
 static const size_t s_max_links_response_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_links_t)) / sizeof(dap_chain_node_info_old_t);
 static dap_balancer_request_info_t* s_request_info_items = NULL;
 
-static bool s_balancer_node = false;
-static bool s_balancer_rpc = false;
+static bool s_balancer_node = true;
+static bool s_balancer_rpc = true;
 
 const char *s_uri[] = {
     "f0intlt4eyl03htogu",
