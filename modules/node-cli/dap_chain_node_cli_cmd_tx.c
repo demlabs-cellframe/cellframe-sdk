@@ -1624,7 +1624,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
 
     uint256_t *l_value = NULL;
     uint256_t l_value_fee = {};
-    dap_chain_addr_t **l_addr_to = NULL;
+    const dap_chain_addr_t **l_addr_to = NULL;
     size_t l_addr_el_count = 0;
     size_t l_value_el_count = 0;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_wallet", &l_from_wallet_name);
@@ -1903,7 +1903,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
         l_jobj_transfer_status = json_object_new_string((l_ret == 0) ? "Ok" : (l_ret == -2) ? "False, not enough funds for transfer" : "False");
         json_object_object_add(l_jobj_result, "transfer", l_jobj_transfer_status);
     } else {
-        char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, l_addr_from, (dap_chain_addr_t *const *)l_addr_to,
+        char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, l_addr_from, l_addr_to,
                                                                   l_token_ticker, l_value, l_value_fee, l_hash_out_type, l_addr_el_count);
         if (l_tx_hash_str) {
             l_jobj_transfer_status = json_object_new_string("Ok");
