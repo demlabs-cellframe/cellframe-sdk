@@ -532,7 +532,7 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
     return true;
 }
 
-static dap_list_t* s_get_options_list_from_str(const char* a_str)
+dap_list_t* dap_get_options_list_from_str(const char* a_str)
 {
     dap_list_t* l_ret = NULL;
     char * l_options_str_dup = strdup(a_str);
@@ -640,7 +640,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             return -DAP_CHAIN_NET_VOTE_CREATE_OPTION_PARAM_MISSING;
         }
         // Parse options list
-        l_options_list = s_get_options_list_from_str(l_options_list_str);
+        l_options_list = dap_get_options_list_from_str(l_options_list_str);
         if(!l_options_list || dap_list_length(l_options_list) < 2){
             dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_NUMBER_OPTIONS_ERROR, "Number of options must be 2 or greater.");
             return -DAP_CHAIN_NET_VOTE_CREATE_NUMBER_OPTIONS_ERROR;

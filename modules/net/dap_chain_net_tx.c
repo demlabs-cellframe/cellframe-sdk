@@ -1551,9 +1551,13 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             json_object_object_add(json_obj_item, "sig_b64",    json_object_new_string(l_sign_b64));
         } break;
         case TX_ITEM_TYPE_TSD: {
-            json_object_object_add(json_obj_item,"type", json_object_new_string("data"));
-            json_object_object_add(json_obj_item,"type", json_object_new_uint64(((dap_chain_tx_tsd_t*)item)->header.type));
-            json_object_object_add(json_obj_item,"size", json_object_new_uint64(((dap_chain_tx_tsd_t*)item)->header.size));            
+            json_object_object_add(json_obj_item,"type", json_object_new_string("TX_ITEM_TYPE_TSD"));
+            json_object_object_add(json_obj_item,"type_tsd", json_object_new_string("data"));
+            json_object_object_add(json_obj_item,"size", json_object_new_uint64(((dap_chain_tx_tsd_t*)item)->header.size));
+            char *l_tsd_str = DAP_NEW_Z_SIZE(char, ((dap_chain_tx_tsd_t*)item)->header.size + 1);
+            memcpy(l_tsd_str, ((dap_chain_tx_tsd_t*)item)->tsd, ((dap_chain_tx_tsd_t*)item)->header.size);
+            json_object_object_add(json_obj_item, "data", json_object_new_string(l_tsd_str));
+            DAP_DEL_Z(l_tsd_str);
         } break;
         case TX_ITEM_TYPE_IN_COND:
             json_object_object_add(json_obj_item,"type", json_object_new_string("in_cond"));
@@ -1602,15 +1606,15 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
                     const char *l_rate_str, *l_tmp_str =
                         dap_uint256_to_char( (((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.rate), &l_rate_str );
                     sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_x"",((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_net_id.uint64);
-                    json_object_object_add(json_obj_item,"net_id", json_object_new_string(l_tmp_buff));
+                    json_object_object_add(json_obj_item,"net", json_object_new_string(l_tmp_buff));
                     json_object_object_add(json_obj_item,"token", json_object_new_string(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_token));
                     json_object_object_add(json_obj_item,"rate", json_object_new_string(l_rate_str));
                     json_object_object_add(json_obj_item,"subtype", json_object_new_string("srv_xchange"));
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
                     dap_time_t l_ts_unlock = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.time_unlock;
-                    dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_unlock);
-                    json_object_object_add(json_obj_item,"time_unlock", json_object_new_string(l_tmp_buf));
+                    const char * l_date_str = dap_time_to_str_simplified(l_ts_unlock);
+                    json_object_object_add(json_obj_item,"time_staking", json_object_new_string(l_date_str));
                     json_object_object_add(json_obj_item,"subtype", json_object_new_string("srv_stake_lock"));
                 } break;
                 default: break;
@@ -1618,10 +1622,17 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
         } break;
         case TX_ITEM_TYPE_OUT_EXT: {
             const char *l_coins_str, *l_value_str = dap_uint256_to_char( ((dap_chain_tx_out_ext_t*)item)->header.value, &l_coins_str );
-            json_object_object_add(json_obj_item,"type", json_object_new_string("out_ext"));
+            json_object_object_add(json_obj_item,"type", json_object_new_string("out"));
             json_object_object_add(json_obj_item,"addr", json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_ext_t*)item)->addr)));
             json_object_object_add(json_obj_item,"token", json_object_new_string(((dap_chain_tx_out_ext_t*)item)->token));
             json_object_object_add(json_obj_item,"value", json_object_new_string(l_value_str));
+            
+        } break;
+        case TX_ITEM_TYPE_IN_EMS: {
+            json_object_object_add(json_obj_item,"type", json_object_new_string("in_ems"));
+            json_object_object_add(json_obj_item,"chain_id", json_object_new_uint64(((dap_chain_tx_in_ems_t*)item)->header.token_emission_chain_id.uint64));
+            json_object_object_add(json_obj_item,"token", json_object_new_string(((dap_chain_tx_in_ems_t*)item)->header.ticker));
+            json_object_object_add(json_obj_item,"token_ems_hash", json_object_new_string( dap_hash_fast_to_str_static(&((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash)));
             
         } break;
         case TX_ITEM_TYPE_VOTING:{
@@ -1632,15 +1643,16 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_voting_parse_tsd(a_tx);
             json_object_object_add(json_obj_item,"type", json_object_new_string("voting"));
             json_object_object_add(json_obj_item,"voting_question", json_object_new_string(l_voting_params->voting_question));
-            json_object_object_add(json_obj_item,"answer_options", json_object_new_string(""));
+            json_object *l_json_array = json_object_new_array();
             
             dap_list_t *l_temp = l_voting_params->answers_list;
             uint8_t l_index = 0;
             while (l_temp) {
-                json_object_object_add(json_obj_item, dap_itoa(l_index), json_object_new_string((char *)l_temp->data));
+                json_object_array_add(l_json_array, json_object_new_string((char *)l_temp->data));
                 l_index++;
                 l_temp = l_temp->next;
             }
+            json_object_object_add(json_obj_item, "answer_options", l_json_array);
             if (l_voting_params->voting_expire) {
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_voting_params->voting_expire);
                 json_object_object_add(json_obj_item,"Voting expire", json_object_new_string(l_tmp_buf));                
