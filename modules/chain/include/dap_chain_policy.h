@@ -52,13 +52,14 @@ typedef struct dap_chain_policy_activate {
         dap_chain_id_t chain_id;
         dap_chain_t *chain;
     } chain_union;
+    uint16_t generation;
 } DAP_ALIGN_PACKED dap_chain_policy_activate_t;
 
 typedef struct dap_chain_policy_deactivate {
     uint64_t flags;
     uint32_t count;
     uint32_t nums[];
-} dap_chain_policy_deactivate_t;
+} DAP_ALIGN_PACKED dap_chain_policy_deactivate_t;
 
 typedef struct dap_chain_policy {
     uint16_t version;
