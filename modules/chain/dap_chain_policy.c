@@ -225,7 +225,11 @@ bool dap_chain_policy_activated(uint32_t a_policy_num, uint64_t a_net_id)
     dap_list_t *l_list_item = dap_list_find(l_net_item->policies, l_to_search, s_policy_num_compare);
     DAP_DELETE(l_to_search);
     if (l_list_item && s_policy_is_cond((dap_chain_policy_t *)l_list_item->data)) {
-        return s_policy_cond_activated((dap_chain_policy_activate_t *)((dap_chain_policy_t *)(l_list_item->data))->data);
+        dap_chain_policy_activate_t *l_activate = (dap_chain_policy_activate_t *)((dap_chain_policy_t *)(l_list_item->data))->data;
+        bool l_ret = s_policy_cond_activated(l_activate);
+        if (l_ret)
+            l_net_item->last_num_policy = dap_max(l_activate->num, l_net_item->last_num_policy);
+        return l_ret;
     }
     // cumulative return
     return a_policy_num <= l_net_item->last_num_policy;
