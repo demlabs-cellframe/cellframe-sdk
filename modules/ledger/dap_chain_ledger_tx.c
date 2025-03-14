@@ -1228,6 +1228,15 @@ dap_list_t *s_trackers_aggregate(dap_ledger_t *a_ledger, dap_list_t *a_trackers,
     return a_trackers;
 }
 
+void s_trackers_clear(void *a_list_elm)
+{
+    struct tracker_mover *l_free = a_list_elm;
+    struct tracker_mover_item *it, *tmp;
+    DL_FOREACH_SAFE(l_free->items, it, tmp)
+        DAP_DELETE(it); // No need for DL_DELETE cause clear the full list
+    DAP_DELETE(a_list_elm);
+}
+
 /**
  * @brief Add new transaction to the cache list
  * @param a_ledger
@@ -1742,7 +1751,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         dap_ledger_pvt_threshold_txs_proc(a_ledger);
 FIN:
     if (l_trackers_mover)
-        dap_list_free_full(l_trackers_mover, dap_ledger_colour_clear_callback);
+        dap_list_free_full(l_trackers_mover, s_trackers_clear);
     if (l_list_bound_items)
         dap_list_free_full(l_list_bound_items, NULL);
     if (l_list_tx_out)
