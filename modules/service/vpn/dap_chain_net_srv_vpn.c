@@ -1181,7 +1181,7 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
         return -101;
     }
 
-    if (l_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE || !l_usage->is_limits_changed)
+    if (l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL || !l_usage->is_limits_changed)
         return -110;
 
     dap_chain_net_t *l_net = l_usage->net;
