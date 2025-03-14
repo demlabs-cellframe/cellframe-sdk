@@ -2600,6 +2600,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
             const char * l_token_from_str = NULL;
             const char * l_token_to_str = NULL;
+            const char * l_head_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_from", &l_token_from_str);
             if(l_token_from_str){
                 dap_chain_datum_token_t * l_token_from_datum = dap_ledger_token_ticker_check( l_net->pub.ledger, l_token_from_str);
@@ -2620,6 +2621,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 }
             }
 
+            bool l_head = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-head", &l_head_str) ? true : false;
+            
             dap_chain_addr_t *l_addr = NULL;
             const char *l_addr_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
@@ -2639,9 +2642,16 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             json_object* json_arr_orders_out = json_object_new_array();
             dap_chain_set_offset_limit_json(json_arr_orders_out, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list));
             size_t i_tmp = 0;
+
+            l_list = dap_list_last(l_list);
+            dap_list_t *it = l_list;
+            it = it->next;
+            dap_list_free(l_list);
             
+                        
+            l_list = l_head ? dap_list_last(l_list) : dap_list_first(l_list);
             // Print all txs
-            for (dap_list_t *it = l_list; it; it = it->next) {
+            for (dap_list_t *it = l_list; it || (l_head && (it->prev->next != NULL)); it = l_head ? it->prev : it->next) {
                 dap_chain_datum_tx_t *l_tx = NULL;
                 char l_buy_token[DAP_CHAIN_TICKER_SIZE_MAX] = {0};
                 char l_sell_token[DAP_CHAIN_TICKER_SIZE_MAX] = {0};
@@ -2745,9 +2755,13 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     continue;
                 }
 
-                if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
+                if (i_tmp < l_arr_start) {
                     i_tmp++;
                     continue;
+                }
+
+                if (i_tmp >= l_arr_end) {
+                    break;
                 }
                 i_tmp++;
 
@@ -2778,10 +2792,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 json_object_object_add(json_obj_order, "owner_addr", json_object_new_string(l_owner_addr));
                 json_object_array_add(*json_arr_reply, json_obj_order);
                 DAP_DELETE(l_owner_addr);
-                l_printed_orders_count++;
+                l_printed_orders_count++;                
             }
             json_object_object_add(json_obj_order, "ORDERS", json_arr_orders_out);
-            json_object_array_add(*json_arr_reply, json_obj_order);            
+            json_object_array_add(*json_arr_reply, json_obj_order); 
             if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
                 dap_list_free(l_list);
             } else {
