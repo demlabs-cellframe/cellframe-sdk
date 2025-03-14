@@ -116,16 +116,18 @@ int dap_chain_net_srv_voting_init()
 {
     pthread_rwlock_init(&s_votings_rwlock, NULL);
     dap_chain_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback, s_datum_tx_voting_verification_delete_callback);
-    dap_cli_server_cmd_add("voting", s_cli_voting, "Voting commands.", ""
-                            "voting create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <voting_expire_time_in_RCF822>]"
+    dap_cli_server_cmd_add("poll", s_cli_voting, "Voting/poll commands",
+                            "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>]"
                                            " [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value_datoshi> -w <fee_wallet_name> [-token <ticker>]\n"
-                            "voting vote -net <net_name> -hash <voting_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value_datoshi> -w <fee_wallet_name>\n"
-                            "voting list -net <net_name>\n"
-                            "voting dump -net <net_name> -hash <voting_hash>\n");
-
+                            "poll vote -net <net_name> -hash <poll_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value_datoshi> -w <fee_wallet_name>\n"
+                            "poll list -net <net_name>\n"
+                            "poll dump -net <net_name> -hash <poll_hash>\n"
+                            "Hint:\n"
+                            "\texample value_coins (only natural) 1.0 123.4567\n"
+                            "\texample value_datoshi (only integer) 1 20 0.4321e+4\n");
     
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
-    dap_ledger_service_add(l_uid, "voting", s_tag_check_voting);
+    dap_ledger_service_add(l_uid, "poll", s_tag_check_voting);
 
     return 0;
 }
@@ -149,7 +151,7 @@ uint64_t* dap_chain_net_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash
     pthread_rwlock_unlock(&s_votings_rwlock);
     if(!l_voting || l_voting->net_id.uint64 != a_ledger->net->pub.id.uint64){
         char* l_hash_str = dap_hash_fast_to_str_new(a_voting_hash);
-        log_it(L_ERROR, "Can't find voting with hash %s in net %s", l_hash_str, a_ledger->net->pub.name);
+        log_it(L_ERROR, "Can't find poll with hash %s in net %s", l_hash_str, a_ledger->net->pub.name);
         DAP_DEL_Z(l_hash_str);
         return NULL;
     }
@@ -183,7 +185,7 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
         HASH_FIND(hh, s_votings, a_tx_hash, sizeof(dap_hash_fast_t), l_voting);
         pthread_rwlock_unlock(&s_votings_rwlock);
         if (l_voting && l_voting->net_id.uint64 == a_ledger->net->pub.id.uint64) {
-            log_it(L_DEBUG, "Voting with hash %s is already presents in net %s",  dap_hash_fast_to_str_static(a_tx_hash), a_ledger->net->pub.name);
+            log_it(L_DEBUG, "Poll with hash %s is already presents in net %s",  dap_hash_fast_to_str_static(a_tx_hash), a_ledger->net->pub.name);
             return -1;
         }
 
@@ -205,7 +207,7 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
         dap_list_free(l_tsd_list);
 
         if (!l_question_len || !l_options_count) {
-            log_it(L_WARNING, "Voting with hash %s contain no question or answer options", dap_hash_fast_to_str_static(a_tx_hash));
+            log_it(L_WARNING, "Poll with hash %s contain no question or answer options", dap_hash_fast_to_str_static(a_tx_hash));
             return -2;
         }
 
@@ -224,7 +226,7 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
         dap_tsd_t *l_tsd = (dap_tsd_t *)l_tx_tsd->tsd;
         if (l_tx_tsd->header.size < sizeof(dap_tsd_t) ||
                 l_tx_tsd->header.size != dap_tsd_size(l_tsd)) {
-            log_it(L_WARNING, "Incorrect size %" DAP_UINT64_FORMAT_U " of TX_TSD item for voting %s",
+            log_it(L_WARNING, "Incorrect size %" DAP_UINT64_FORMAT_U " of TX_TSD item for poll %s",
                    l_tx_tsd->header.size, dap_hash_fast_to_str_static(a_tx_hash));
             return -DAP_LEDGER_CHECK_INVALID_SIZE;
         }
@@ -232,7 +234,7 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
         switch(l_tsd->type){
         case VOTING_TSD_TYPE_QUESTION:
             if (!l_tsd->size) {
-                log_it(L_WARNING, "Incorrect size %u of TSD section QUESTION for voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
+                log_it(L_WARNING, "Incorrect size %u of TSD section QUESTION for poll %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
                 return -DAP_LEDGER_CHECK_INVALID_SIZE;
             }
             l_item->voting_params.voting_question_offset = (size_t)(l_tsd->data - (byte_t*)l_item->voting_params.voting_tx);
@@ -240,7 +242,7 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
             break;
         case VOTING_TSD_TYPE_ANSWER:
             if (!l_tsd->size) {
-                log_it(L_WARNING, "Incorrect size %u of TSD section ANSWER for voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
+                log_it(L_WARNING, "Incorrect size %u of TSD section ANSWER for poll %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
                 return -DAP_LEDGER_CHECK_INVALID_SIZE;
             }
             l_vote_option = DAP_NEW_Z(dap_chain_net_vote_option_t);
@@ -250,35 +252,35 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
             break;
         case VOTING_TSD_TYPE_EXPIRE:
             if (l_tsd->size != sizeof(dap_time_t)) {
-                log_it(L_WARNING, "Incorrect size %u of TSD section EXPIRE for voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
+                log_it(L_WARNING, "Incorrect size %u of TSD section EXPIRE for poll %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
                 return -DAP_LEDGER_CHECK_INVALID_SIZE;
             }
             l_item->voting_params.voting_expire = *(dap_time_t *)l_tsd->data;
             break;
         case VOTING_TSD_TYPE_MAX_VOTES_COUNT:
             if (l_tsd->size != sizeof(uint64_t)) {
-                log_it(L_WARNING, "Incorrect size %u of TSD section MAX_VOTES_COUNT for voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
+                log_it(L_WARNING, "Incorrect size %u of TSD section MAX_VOTES_COUNT for poll %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
                 return -DAP_LEDGER_CHECK_INVALID_SIZE;
             }
             l_item->voting_params.votes_max_count = *(uint64_t *)l_tsd->data;
             break;
         case VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED:
             if (l_tsd->size != sizeof(byte_t)) {
-                log_it(L_WARNING, "Incorrect size %u of TSD section DELEGATED_KEY_REQUIRED for voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
+                log_it(L_WARNING, "Incorrect size %u of TSD section DELEGATED_KEY_REQUIRED for poll %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
                 return -DAP_LEDGER_CHECK_INVALID_SIZE;
             }
             l_item->voting_params.delegate_key_required = *(byte_t *)l_tsd->data;
             break;
         case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
             if (l_tsd->size != sizeof(byte_t)) {
-                log_it(L_WARNING, "Incorrect size %u of TSD section VOTE_CHANGING_ALLOWED for voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
+                log_it(L_WARNING, "Incorrect size %u of TSD section VOTE_CHANGING_ALLOWED for poll %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
                 return -DAP_LEDGER_CHECK_INVALID_SIZE;
             }
             l_item->voting_params.vote_changing_allowed = *(byte_t *)l_tsd->data;
             break;
         case VOTING_TSD_TYPE_TOKEN:
             if (!l_tsd->size || l_tsd->size >= DAP_CHAIN_TICKER_SIZE_MAX) {
-                log_it(L_WARNING, "Incorrect size %u of TSD section TOKEN for voting %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
+                log_it(L_WARNING, "Incorrect size %u of TSD section TOKEN for poll %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
                 return -DAP_LEDGER_CHECK_INVALID_SIZE;
             }
             strcpy(l_item->voting_params.token_ticker, (char *)l_tsd->data);
@@ -293,7 +295,7 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
     pthread_rwlock_wrlock(&s_votings_rwlock);
     HASH_ADD(hh, s_votings, voting_hash, sizeof(dap_hash_fast_t), l_item);
     pthread_rwlock_unlock(&s_votings_rwlock);
-    log_it(L_NOTICE, "Voting with hash %s succefully added to ledger", dap_hash_fast_to_str_static(a_tx_hash));
+    log_it(L_NOTICE, "Poll with hash %s succefully added to ledger", dap_hash_fast_to_str_static(a_tx_hash));
     return DAP_LEDGER_CHECK_OK;
 }
 
@@ -310,7 +312,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
     HASH_FIND(hh, s_votings, &l_vote_tx_item->voting_hash, sizeof(dap_hash_fast_t), l_voting);
     pthread_rwlock_unlock(&s_votings_rwlock);
     if (!l_voting || l_voting->net_id.uint64 != a_ledger->net->pub.id.uint64) {
-        log_it(L_ERROR, "Can't find voting with hash %s in net %s",
+        log_it(L_ERROR, "Can't find poll with hash %s in net %s",
                dap_chain_hash_fast_to_str_static(&l_vote_tx_item->voting_hash), a_ledger->net->pub.name);
         return -5;
     }
@@ -335,7 +337,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
         return -6;
     }
     if (l_voting->voting_params.votes_max_count && dap_list_length(l_voting->votes) >= l_voting->voting_params.votes_max_count){
-        log_it(L_WARNING, "The required number of votes has been collected for voting %s", dap_chain_hash_fast_to_str_static(&l_voting->voting_hash));
+        log_it(L_WARNING, "The required number of votes has been collected for poll %s", dap_chain_hash_fast_to_str_static(&l_voting->voting_hash));
         return -7;
     }
     if (l_voting->voting_params.voting_expire && l_voting->voting_params.voting_expire <= a_tx_in->header.ts_created) {
@@ -345,7 +347,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
 
     if (l_voting->voting_params.delegate_key_required &&
             !dap_chain_net_srv_stake_check_pkey_hash(a_ledger->net->pub.id, &l_pkey_hash)){
-        log_it(L_WARNING, "Voting %s required a delegated key", dap_chain_hash_fast_to_str_static(&l_voting->voting_hash));
+        log_it(L_WARNING, "Poll %s required a delegated key", dap_chain_hash_fast_to_str_static(&l_voting->voting_hash));
         return -10;
     }
 
@@ -356,7 +358,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
             if (!l_voting->voting_params.vote_changing_allowed) {
                 char l_vote_hash_str[DAP_HASH_FAST_STR_SIZE];
                 dap_hash_fast_to_str(l_vote_hash, l_vote_hash_str, DAP_HASH_FAST_STR_SIZE);
-                log_it(L_WARNING, "The voting %s don't allow change your vote %s",
+                log_it(L_WARNING, "The poll %s don't allow change your vote %s",
                        dap_hash_fast_to_str_static(&l_voting->voting_hash), l_vote_hash_str);
                 return -11;
             }
@@ -396,7 +398,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
         if (s_datum_tx_voting_coin_check_spent(a_ledger->net, l_vote_tx_item->voting_hash,
                                                l_tx_in->header.tx_prev_hash, l_tx_in->header.tx_out_prev_idx,
                                                l_old_vote ? &l_pkey_hash : NULL)) {
-            log_it(L_WARNING, "Coin with out number %u for tx %s is spent for votnig %s", l_tx_in->header.tx_out_prev_idx,
+            log_it(L_WARNING, "Coin with out number %u for tx %s is spent for poll %s", l_tx_in->header.tx_out_prev_idx,
                                         dap_hash_fast_to_str_static(a_tx_hash), dap_hash_fast_to_str_static(&l_vote_tx_item->voting_hash));
             return -20;
         }
@@ -472,10 +474,10 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
             const char *l_vote_hash_str = dap_hash_fast_to_str_static(&((dap_chain_net_vote_t *)l_old_vote->data)->vote_hash);
             DAP_DELETE(l_old_vote->data);
             l_voting->votes = dap_list_delete_link(l_voting->votes, l_old_vote);
-            log_it(L_NOTICE, "Vote %s of voting %s has been changed", l_vote_hash_str, dap_hash_fast_to_str_static(&l_voting->voting_hash));
+            log_it(L_NOTICE, "Vote %s of poll %s has been changed", l_vote_hash_str, dap_hash_fast_to_str_static(&l_voting->voting_hash));
         } else {
             const char *l_vote_hash_str = dap_hash_fast_to_str_static(a_tx_hash);
-            log_it(L_NOTICE, "Vote %s of voting %s has been accepted", l_vote_hash_str, dap_hash_fast_to_str_static(&l_voting->voting_hash));
+            log_it(L_NOTICE, "Vote %s of poll %s has been accepted", l_vote_hash_str, dap_hash_fast_to_str_static(&l_voting->voting_hash));
         }
 
         l_voting->votes = dap_list_append(l_voting->votes, l_vote_item);
@@ -491,7 +493,7 @@ int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx
         return s_voting_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
     if (a_type == TX_ITEM_TYPE_VOTE)
         return s_vote_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
-    log_it(L_ERROR, "Item %d is not supported in votings", a_type);
+    log_it(L_ERROR, "Item %d is not supported in polls", a_type);
     return -3;
 }
 
@@ -506,7 +508,7 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
         HASH_FIND(hh, s_votings, &l_hash, sizeof(dap_hash_fast_t), l_voting);
         if(!l_voting){
             char* l_hash_str = dap_hash_fast_to_str_new(&l_hash);
-            log_it(L_ERROR, "Can't find voting with hash %s in net %s", l_hash_str, a_ledger->net->pub.name);
+            log_it(L_ERROR, "Can't find poll with hash %s in net %s", l_hash_str, a_ledger->net->pub.name);
             DAP_DEL_Z(l_hash_str);
             pthread_rwlock_unlock(&s_votings_rwlock);
             return false;
@@ -546,7 +548,7 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
         pthread_rwlock_unlock(&s_votings_rwlock);
         if(!l_voting || l_voting->net_id.uint64 != a_ledger->net->pub.id.uint64) {
             char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
-            log_it(L_ERROR, "Can't find voting with hash %s in net %s", l_hash_str, a_ledger->net->pub.name);
+            log_it(L_ERROR, "Can't find poll with hash %s in net %s", l_hash_str, a_ledger->net->pub.name);
             DAP_DELETE(l_hash_str);
             return false;
         }
@@ -656,7 +658,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-question", &l_question_str);
         if (!l_question_str){
-            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_QUESTION_PARAM_MISSING, "Voting requires a question parameter to be valid.");
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_QUESTION_PARAM_MISSING, "Poll requires a question parameter to be valid.");
             return -DAP_CHAIN_NET_VOTE_CREATE_QUESTION_PARAM_MISSING;
         }
 
@@ -669,7 +671,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         dap_list_t *l_options_list = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-options", &l_options_list_str);
         if (!l_options_list_str){
-            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_OPTION_PARAM_MISSING, "Voting requires a question parameter to be valid.");
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_OPTION_PARAM_MISSING, "Poll requires a question parameter to be valid.");
             return -DAP_CHAIN_NET_VOTE_CREATE_OPTION_PARAM_MISSING;
         }
         // Parse options list
@@ -687,14 +689,14 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_str);
         if (!l_fee_str){
-            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_FEE_PARAM_NOT_VALID, "Voting requires paramete -fee to be valid.");
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_FEE_PARAM_NOT_VALID, "Poll requires parameter -fee to be valid.");
             return -DAP_CHAIN_NET_VOTE_CREATE_FEE_PARAM_NOT_VALID;
         }
         uint256_t l_value_fee = dap_chain_balance_scan(l_fee_str);
 
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-w", &l_wallet_str);
         if (!l_wallet_str){
-            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_WALLET_PARAM_NOT_VALID, "Voting requires parameter -w to be valid.");
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_WALLET_PARAM_NOT_VALID, "Poll requires parameter -w to be valid.");
             return -DAP_CHAIN_NET_VOTE_CREATE_WALLET_PARAM_NOT_VALID;
         }
 
@@ -759,7 +761,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NET_VOTE_CREATE_LENGTH_QUESTION_OVERSIZE_MAX;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_COUNT_OPTION_OVERSIZE_MAX: {
-                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_COUNT_OPTION_OVERSIZE_MAX, "The voting can contain no more than %d options",
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_COUNT_OPTION_OVERSIZE_MAX, "The poll can contain no more than %d options",
                                                   DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT);
                 return DAP_CHAIN_NET_VOTE_CREATE_COUNT_OPTION_OVERSIZE_MAX;
             } break;
@@ -768,7 +770,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NET_VOTE_CREATE_FEE_IS_ZERO;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_SOURCE_ADDRESS_IS_INVALID: {
-                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_SOURCE_ADDRESS_IS_INVALID, "source address is invalid");
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_SOURCE_ADDRESS_IS_INVALID, "Source address is invalid");
                 return DAP_CHAIN_NET_VOTE_CREATE_SOURCE_ADDRESS_IS_INVALID;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_NOT_ENOUGH_FUNDS_TO_TRANSFER: {
@@ -781,11 +783,11 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NET_VOTE_CREATE_MAX_COUNT_OPTION_EXCEEDED;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_OPTION_TSD_ITEM: {
-                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_OPTION_TSD_ITEM, "Can't create voting with expired time");
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_OPTION_TSD_ITEM, "Can't create poll with expired time");
                 return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_OPTION_TSD_ITEM;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_INPUT_TIME_MORE_CURRENT_TIME: {
-                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_INPUT_TIME_MORE_CURRENT_TIME, "Can't create voting with expired time");
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_INPUT_TIME_MORE_CURRENT_TIME, "Can't create poll with expired time");
                 return DAP_CHAIN_NET_VOTE_CREATE_INPUT_TIME_MORE_CURRENT_TIME;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_EXPIRE_TIME: {
@@ -893,14 +895,14 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NET_VOTE_CREATE_OK;
             } break;
             case DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_FIND_VOTE: {
-                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_FIND_VOTE, "Can't find voting with hash %s", l_hash_str);
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_FIND_VOTE, "Can't find poll with hash %s", l_hash_str);
             } break;
             case DAP_CHAIN_NET_VOTE_VOTING_THIS_VOTING_HAVE_MAX_VALUE_VOTES: {
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_THIS_VOTING_HAVE_MAX_VALUE_VOTES, 
-                                                  "This voting already received the required number of votes.");
+                                                  "This poll already received the required number of votes.");
             } break;
             case DAP_CHAIN_NET_VOTE_VOTING_ALREADY_EXPIRED: {
-                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_ALREADY_EXPIRED, "This voting already expired.");
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_ALREADY_EXPIRED, "This poll is already expired.");
             } break;
             case DAP_CHAIN_NET_VOTE_VOTING_NO_KEY_FOUND_IN_CERT: {
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_NO_KEY_FOUND_IN_CERT, 
@@ -908,13 +910,13 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             } break;
             case DAP_CHAIN_NET_VOTE_VOTING_CERT_REQUIRED: {
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_CERT_REQUIRED, 
-                                                    "This voting required a delegated key. Parameter -cert must contain a valid certificate name");
+                                                    "This poll required a delegated key. Parameter -cert must contain a valid certificate name");
             } break;
             case DAP_CHAIN_NET_VOTE_VOTING_KEY_IS_NOT_DELEGATED: {
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_KEY_IS_NOT_DELEGATED, "Your key is not delegated.");
             } break;
             case DAP_CHAIN_NET_VOTE_VOTING_DOES_NOT_ALLOW_CHANGE_YOUR_VOTE: {
-                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_DOES_NOT_ALLOW_CHANGE_YOUR_VOTE, "The voting doesn't allow change your vote.");
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_DOES_NOT_ALLOW_CHANGE_YOUR_VOTE, "The poll doesn't allow change your vote.");
             } break;
             case DAP_CHAIN_NET_VOTE_VOTING_SOURCE_ADDRESS_INVALID: {
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_SOURCE_ADDRESS_INVALID, "source address is invalid");
@@ -958,7 +960,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
     }break;
     case CMD_LIST:{
         json_object* json_vote_out = json_object_new_object();
-        json_object_object_add(json_vote_out, "List of votings in net", json_object_new_string(l_net->pub.name));
+        json_object_object_add(json_vote_out, "list_of_polls", json_object_new_string(l_net->pub.name));
         json_object* json_arr_voting_out = json_object_new_array();
         dap_chain_net_votings_t *l_voting = NULL, *l_tmp;
         pthread_rwlock_rdlock(&s_votings_rwlock);
@@ -966,7 +968,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             if (l_voting->net_id.uint64 != l_net->pub.id.uint64)
                 continue;
             json_object* json_obj_vote = json_object_new_object();
-            json_object_object_add( json_obj_vote, "voting_tx", 
+            json_object_object_add( json_obj_vote, "poll_tx",
                                     json_object_new_string(dap_chain_hash_fast_to_str_static(&l_voting->voting_hash)));            
             char* l_voting_question = (char*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset;
             json_object_object_add( json_obj_vote, "question", 
@@ -986,13 +988,17 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         }
 
         dap_hash_fast_t l_voting_hash = {};
-        dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash);
+        if (dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash)) {
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_DUMP_HASH_PARAM_INVALID,
+                                   "Can't recognize hash string as a valid HEX or BASE58 format hash");
+            return -DAP_CHAIN_NET_VOTE_DUMP_HASH_PARAM_INVALID;
+        }
         dap_chain_net_votings_t *l_voting = NULL;
         pthread_rwlock_rdlock(&s_votings_rwlock);
         HASH_FIND(hh, s_votings, &l_voting_hash, sizeof(l_voting_hash), l_voting);
         pthread_rwlock_unlock(&s_votings_rwlock);
         if (!l_voting) {
-            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_DUMP_CAN_NOT_FIND_VOTE, "Can't find voting with hash %s", l_hash_str);
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_DUMP_CAN_NOT_FIND_VOTE, "Can't find poll with hash %s", l_hash_str);
             return -DAP_CHAIN_NET_VOTE_DUMP_CAN_NOT_FIND_VOTE;
         }
 
@@ -1018,7 +1024,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         }
 
         json_object* json_vote_out = json_object_new_object();
-        json_object_object_add(json_vote_out, "voting_tx", json_object_new_string(l_hash_str));
+        json_object_object_add(json_vote_out, "poll_tx", json_object_new_string(l_hash_str));
         json_object_object_add(json_vote_out, "question", 
                                json_object_new_string_len((char*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset,
                                l_voting->voting_params.voting_question_length));
@@ -1048,21 +1054,20 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             json_object* json_vote_obj = json_object_new_object();
             json_object_object_add(json_vote_obj, "option_id", json_object_new_int(i));
             dap_chain_net_vote_option_t* l_vote_option = (dap_chain_net_vote_option_t*)l_option->data;
-            json_object_object_add( json_vote_obj, "vote_tx", 
+            json_object_object_add( json_vote_obj, "option_text",
                                     json_object_new_string_len((char*)l_voting->voting_params.voting_tx + l_vote_option->vote_option_offset,
                                                                 l_vote_option->vote_option_length) );
-            json_object_object_add(json_vote_obj, "voting_power", json_object_new_uint64( l_results[i].num_of_votes) );     
-            int l_percentage = l_votes_count ? (int)((float)l_results[i].num_of_votes/l_votes_count * 100 + 0.5) : 0;
-            json_object_object_add(json_vote_obj, "vote_share", json_object_new_int(l_percentage) );
+            json_object_object_add(json_vote_obj, "votes_count", json_object_new_uint64( l_results[i].num_of_votes) );
+            int l_percentage = l_votes_count ? ((double)(l_results[i].num_of_votes * 100))/l_votes_count + 0.5 : 0;
+            json_object_object_add(json_vote_obj, "votes_percent", json_object_new_int(l_percentage) );
             uint256_t l_weight_percentage = { };
-
             DIV_256_COIN(l_results[i].weights, l_total_weight, &l_weight_percentage);
             MULT_256_COIN(l_weight_percentage, dap_chain_coins_to_balance("100.0"), &l_weight_percentage);
             const char *l_weight_percentage_str = dap_uint256_decimal_to_round_char(l_weight_percentage, 2, true),
                        *l_w_coins, *l_w_datoshi = dap_uint256_to_char(l_results[i].weights, &l_w_coins);
-            json_object_object_add(json_vote_obj, "vote_sum", json_object_new_string(l_w_coins));
-            json_object_object_add(json_vote_obj, "vote_sum_datoshi", json_object_new_string(l_w_datoshi));
-            json_object_object_add(json_vote_obj, "vote_sum_weight", json_object_new_string(l_weight_percentage_str));
+            json_object_object_add(json_vote_obj, "votes_sum", json_object_new_string(l_w_coins));
+            json_object_object_add(json_vote_obj, "votes_sum_datoshi", json_object_new_string(l_w_datoshi));
+            json_object_object_add(json_vote_obj, "votes_sum_weight", json_object_new_string(l_weight_percentage_str));
             json_object_array_add(json_arr_vote_out, json_vote_obj);
         }
         json_object_object_add(json_vote_out, "results", json_arr_vote_out);
@@ -1167,14 +1172,14 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
     HASH_FIND(hh, s_votings, &a_voting_hash, sizeof(dap_hash_fast_t), l_voting);
     pthread_rwlock_unlock(&s_votings_rwlock);
     if (!l_voting) {
-        log_it(L_ERROR, "Can't find voting %s", dap_hash_fast_to_str_static(&a_voting_hash));
+        log_it(L_ERROR, "Can't find poll %s", dap_hash_fast_to_str_static(&a_voting_hash));
         return -1;
     }
 
     dap_ledger_t *l_ledger = a_net->pub.ledger;
     dap_chain_datum_tx_t *l_voting_tx = dap_ledger_tx_find_by_hash(l_ledger, &a_voting_hash);
     if (!l_voting_tx) {
-        log_it(L_ERROR, "Can't find voting tx %s", dap_hash_fast_to_str_static(&a_voting_hash));
+        log_it(L_ERROR, "Can't find poll tx %s", dap_hash_fast_to_str_static(&a_voting_hash));
         return -2;
     }
 
@@ -1195,7 +1200,7 @@ static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_has
     HASH_FIND(hh, s_votings, &a_voting_hash, sizeof(dap_hash_fast_t), l_voting);
     pthread_rwlock_unlock(&s_votings_rwlock);
     if(!l_voting || l_voting->net_id.uint64 != a_net->pub.id.uint64) {
-        log_it(L_ERROR, "Can't find voting with hash %s in net %s",
+        log_it(L_ERROR, "Can't find poll with hash %s in net %s",
             dap_chain_hash_fast_to_str_static(&a_voting_hash), a_net->pub.name);
         return -1;
     }
