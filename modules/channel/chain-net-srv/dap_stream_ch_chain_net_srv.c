@@ -242,7 +242,9 @@ static dap_time_t s_check_client_is_banned(dap_chain_net_srv_usage_t *a_usage)
 static void s_ban_client(dap_chain_net_srv_usage_t *a_usage)
 {
     dap_time_t l_end_of_ban_timestamp = dap_time_now() + (a_usage->service->grace_period * 10); // ban client for 10x grace periods
-
+    char l_tmp_buf[DAP_TIME_STR_SIZE];
+    dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_end_of_ban_timestamp);
+    log_it(L_DEBUG, "Add client %s to ban list till %s.", dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), l_tmp_buf);
     char *l_ban_group = s_get_ban_group(a_usage);
 
     int l_ret = dap_global_db_set_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), &l_end_of_ban_timestamp, sizeof(l_end_of_ban_timestamp), false);
@@ -257,6 +259,7 @@ static void s_ban_client(dap_chain_net_srv_usage_t *a_usage)
 
 static void s_unban_client(dap_chain_net_srv_usage_t *a_usage)
 {
+    log_it(L_DEBUG, "Remove client %s from ban list", dap_hash_fast_to_str_static(&a_usage->client_pkey_hash));
     char *l_ban_group = s_get_ban_group(a_usage);
     size_t l_data_size = 0;
     byte_t* l_ret = dap_global_db_get_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), &l_data_size, NULL, NULL);
@@ -1266,7 +1269,8 @@ static void s_service_state_go_to_error(dap_chain_net_srv_usage_t *a_usage)
     if (a_usage && a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE) {   // add client pkey hash to banlist
         a_usage->is_active = 0;
         s_ban_client(a_usage);
-    } else if (l_srv_session->usage_active)
+    } 
+    if (l_srv_session->usage_active)
         dap_chain_net_srv_usage_delete(l_srv_session);
 }
 
