@@ -1213,7 +1213,8 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
     if (l_receipt_sign && l_srv_session->limits_units_type.enm == SERV_UNIT_B)
         l_remain_service.limits_bytes += l_srv_session->usage_active->receipt_next->receipt_info.units;
 
-
+    log_it(L_INFO, "Save limits for user %s: sec: %"DAP_UINT64_FORMAT_U" bytes: %"DAP_UINT64_FORMAT_U, 
+                                                                    l_user_key, l_remain_service.limits_ts, l_remain_service.limits_bytes );
 
     int l_ret = dap_global_db_set_sync(l_remain_limits_gdb_group, l_user_key, &l_remain_service, sizeof(l_remain_service), false);
     if(l_ret)

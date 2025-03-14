@@ -229,7 +229,7 @@ static dap_time_t s_check_client_is_banned(dap_chain_net_srv_usage_t *a_usage)
         return 0;
     }
 
-    if(*(dap_time_t*)l_ret < dap_time_now()){
+    if(*(dap_time_t*)l_ret > dap_time_now()){
         DAP_DELETE(l_ban_group);
         return *(dap_time_t*)l_ret;
     }
@@ -241,7 +241,7 @@ static dap_time_t s_check_client_is_banned(dap_chain_net_srv_usage_t *a_usage)
 
 static void s_ban_client(dap_chain_net_srv_usage_t *a_usage)
 {
-    dap_time_t l_end_of_ban_timestamp = dap_time_now() + (a_usage->service->grace_period * 10); // ban client for 10x grace periods
+    dap_time_t l_end_of_ban_timestamp = dap_time_now() + (a_usage->service->grace_period * 50); // ban client for 10x grace periods
     char l_tmp_buf[DAP_TIME_STR_SIZE];
     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_end_of_ban_timestamp);
     log_it(L_DEBUG, "Add client %s to ban list till %s.", dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), l_tmp_buf);
@@ -540,8 +540,9 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         // Check tx
         if (!l_tx){
             // Start grace
-            dap_time_t l_end_of_ban = 0;
-            if ((l_end_of_ban = s_check_client_is_banned(l_usage))) {   // client banned
+            dap_time_t l_end_of_ban = s_check_client_is_banned(l_usage);
+
+            if (l_end_of_ban != 0) {   // client banned
                 char l_tmp_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_end_of_ban);
                 log_it(L_DEBUG, "Client %s is banned till %s!", dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash), l_tmp_buf);
@@ -1269,8 +1270,7 @@ static void s_service_state_go_to_error(dap_chain_net_srv_usage_t *a_usage)
     if (a_usage && a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE) {   // add client pkey hash to banlist
         a_usage->is_active = 0;
         s_ban_client(a_usage);
-    } 
-    if (l_srv_session->usage_active)
+    } else if (l_srv_session->usage_active)
         dap_chain_net_srv_usage_delete(l_srv_session);
 }
 
