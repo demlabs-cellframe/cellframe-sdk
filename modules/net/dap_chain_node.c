@@ -492,7 +492,7 @@ dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t
 {
     dap_chain_datum_t **ret = NULL;
     size_t l_datums_count = 0;
-    const uint64_t l_max_step_size = DAP_CHAIN_ATOM_MAX_SIZE - sizeof(dap_chain_datum_service_state_t);
+    const uint64_t l_max_step_size = DAP_CHAIN_CANDIDATE_MAX_SIZE - sizeof(dap_chain_datum_service_state_t);
     uint64_t l_step_size = dap_min(l_max_step_size, a_state->size);
     byte_t *l_offset = a_state->data, *l_ptr = l_offset, *l_end = a_state->data + a_state->size * a_state->count;
     while (l_offset < l_end) {
