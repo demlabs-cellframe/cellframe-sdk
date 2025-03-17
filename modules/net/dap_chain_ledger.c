@@ -5815,39 +5815,3 @@ dap_chain_token_ticker_str_t dap_ledger_tx_calculate_main_ticker_(dap_ledger_t *
         *a_ledger_rc = l_rc;
     return l_ret;
 }
-
-/**
- * @brief dap_ledger_find_pkey_by_hash
- * @param a_ledger to search
- * @param a_pkey_hash - pkey hash
- * @return pointer to dap_pkey_t if finded, other - NULL
- */
-dap_pkey_t *dap_ledger_find_pkey_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_pkey_hash)
-{
-    dap_return_val_if_pass(!a_pkey_hash || dap_hash_fast_is_blank(a_pkey_hash), NULL);
-
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    dap_ledger_tx_item_t *l_iter_current, *l_item_tmp;
-    dap_pkey_t *l_ret = NULL;
-    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
-    HASH_ITER(hh, l_ledger_pvt->ledger_items , l_iter_current, l_item_tmp) {
-        dap_chain_datum_tx_t *l_tx_tmp = l_iter_current->tx;
-        dap_chain_hash_fast_t *l_tx_hash_tmp = &l_iter_current->tx_hash_fast;
-        // Get sign item from transaction
-        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(l_tx_tmp, NULL,
-                NULL, TX_ITEM_TYPE_SIG, NULL);
-        // Get dap_sign_t from item
-        dap_sign_t *l_sig = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
-        if(l_sig) {
-            // compare public key in transaction with a_public_key
-            dap_chain_hash_fast_t l_sign_hash = {};
-            dap_sign_get_pkey_hash(l_sig, &l_sign_hash);
-            if(!memcmp(&l_sign_hash, a_pkey_hash, sizeof(dap_chain_hash_fast_t))) {
-                l_ret = dap_pkey_get_from_sign(l_sig);
-                break;
-            }
-        }
-    }
-    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-    return l_ret;
-}
