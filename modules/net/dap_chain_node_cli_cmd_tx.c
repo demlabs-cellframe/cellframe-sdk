@@ -552,7 +552,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             case TX_ITEM_TYPE_OUT_COND:
                 l_value = ((dap_chain_tx_out_cond_t *)it->data)->header.value;
                 if (((dap_chain_tx_out_cond_t *)it->data)->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
-                    SUM_256_256(l_fee_sum, ((dap_chain_tx_out_cond_t *)it->data)->header.value, &l_fee_sum);
+                    SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
                     l_dst_token = l_native_ticker;
                 } else
                     l_dst_token = l_src_token;
@@ -704,7 +704,6 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             json_object *l_cond_send_value_obj = json_object_object_get(l_cond_send_object, "send_datoshi");
             const char *l_cond_send_value_str = json_object_get_string(l_cond_send_value_obj);
             uint256_t l_cond_send_value = dap_uint256_scan_uninteger(l_cond_send_value_str);
-            assert(!IS_ZERO_256(l_cond_recv_value) && !IS_ZERO_256(l_cond_send_value));
             int l_direction = compare256(l_cond_recv_value, l_cond_send_value);
             if (l_direction > 0) {
                 SUBTRACT_256_256(l_cond_recv_value, l_cond_send_value, &l_cond_recv_value);
