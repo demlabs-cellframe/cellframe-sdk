@@ -429,7 +429,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
         uint8_t *l_tx_item = NULL;
         size_t l_size; int i, q = 0;
-        // Проход по входам
+        // Inputs iteration
         TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_IN_ALL, l_size, i, l_tx) {
             dap_chain_hash_fast_t *l_tx_prev_hash = NULL;
             int l_tx_prev_out_idx;
@@ -562,7 +562,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
 
             if (l_src_addr && l_dst_addr &&
                     dap_chain_addr_compare(l_dst_addr, l_src_addr) &&
-                    dap_strcmp(l_noaddr_token, l_dst_token))
+                    l_noaddr_token && dap_strcmp(l_noaddr_token, l_dst_token))
                 continue;   // sent to self (coinback)
 
             if (l_dst_addr && l_net_fee_used && dap_chain_addr_compare(&l_net_fee_addr, l_dst_addr))
@@ -698,9 +698,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));
         }
         if (l_send_to_same_cond) {
-            json_object *l_cond_recv_value_obj = json_object_object_get(l_cond_recv_object, "recv_datoshi");
-            const char *l_cond_recv_value_str = json_object_get_string(l_cond_recv_value_obj);
-            uint256_t l_cond_recv_value = dap_uint256_scan_uninteger(l_cond_recv_value_str);
+            uint256_t l_cond_recv_value = l_cond_value;
             json_object *l_cond_send_value_obj = json_object_object_get(l_cond_send_object, "send_datoshi");
             const char *l_cond_send_value_str = json_object_get_string(l_cond_send_value_obj);
             uint256_t l_cond_send_value = dap_uint256_scan_uninteger(l_cond_send_value_str);
