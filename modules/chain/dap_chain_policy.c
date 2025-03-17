@@ -25,32 +25,32 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_policy.h"
 #include "dap_chain_datum_decree.h"
 #include "dap_list.h"
+#include "uthash.h"
 
 #define LOG_TAG "dap_chain_policy"
 
 typedef struct dap_chain_net dap_chain_net_t;
 
-struct policy_net_list_item {
+struct net_policy_item {
     uint64_t net_id;
     uint32_t last_num_policy;
     dap_list_t *exception_list;
     dap_list_t *policies;
+    UT_hash_handle hh;
 };
 
-static dap_list_t *s_net_list = NULL;
+static struct net_policy_item *s_net_policy_items = NULL;
 
 /**
  * @brief search net element in list by id
  * @param a_net_id
  * @return pointer if find, NULL if not
  */
-DAP_STATIC_INLINE struct policy_net_list_item *s_net_find(uint64_t a_net_id)
+DAP_STATIC_INLINE struct net_policy_item *s_net_item_find(uint64_t a_net_id)
 {
-    for (dap_list_t *l_iter = dap_list_first(s_net_list); l_iter; l_iter = l_iter->next) {
-        if ( ((struct policy_net_list_item *)(l_iter->data))->net_id == a_net_id)
-            return (struct policy_net_list_item *)(l_iter->data);
-    }
-    return NULL;
+    struct net_policy_item *l_item = NULL;
+    HASH_FIND_BYHASHVALUE(hh, s_net_policy_items, &a_net_id, sizeof(a_net_id), a_net_id, l_item);
+    return l_item;
 }
 
 DAP_STATIC_INLINE int s_policy_num_compare(dap_list_t  *a_list1, dap_list_t  *a_list2)
@@ -100,6 +100,22 @@ int dap_chain_policy_init()
 }
 
 /**
+ * @brief deinit policy commands
+ */
+void dap_chain_policy_deinit()
+{
+    struct net_policy_item
+        *l_temp = NULL,
+        *l_current = NULL;
+    HASH_ITER(hh, s_net_policy_items, l_current, l_temp) {
+        HASH_DEL(s_net_policy_items, l_current);
+        dap_list_free_full(l_current->policies, NULL);
+        dap_list_free(l_current->exception_list);
+        DAP_DELETE(l_current);
+    }
+}
+
+/**
  * @brief add new net to policies list
  * @param a_net_id
  * @return 0 if pass, other if error
@@ -107,13 +123,13 @@ int dap_chain_policy_init()
 int dap_chain_policy_net_add(uint64_t a_net_id)
 {
     dap_return_val_if_pass(!a_net_id, -1);
-    if(s_net_find(a_net_id)) {
+    if(s_net_item_find(a_net_id)) {
         log_it(L_ERROR, "Net with id %"DAP_UINT64_FORMAT_X" already added", a_net_id);
         return -2;
     }
-    struct policy_net_list_item *l_new_item = DAP_NEW_Z_RET_VAL_IF_FAIL(struct policy_net_list_item, -3);
+    struct net_policy_item *l_new_item = DAP_NEW_Z_RET_VAL_IF_FAIL(struct net_policy_item, -3);
     l_new_item->net_id = a_net_id;
-    s_net_list = dap_list_append(s_net_list, l_new_item);
+    HASH_ADD_BYHASHVALUE(hh, s_net_policy_items, net_id, sizeof(l_new_item->net_id), l_new_item->net_id, l_new_item);
     return 0;
 }
 
@@ -125,17 +141,15 @@ int dap_chain_policy_net_add(uint64_t a_net_id)
 int dap_chain_policy_net_remove(uint64_t a_net_id)
 {
     dap_return_val_if_pass(!a_net_id, -1);
-    dap_list_t *l_net_item = dap_list_first(s_net_list);
-    for ( ; l_net_item && ((struct policy_net_list_item *)(l_net_item->data))->net_id != a_net_id; l_net_item = l_net_item->next) {};
-
+    struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
     if (!l_net_item) {
         log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id);
         return -2;
     }
-    s_net_list = dap_list_remove_link(s_net_list, l_net_item);
-    dap_list_free_full(((struct policy_net_list_item *)(l_net_item->data))->policies, NULL);
-    dap_list_free(((struct policy_net_list_item *)(l_net_item->data))->exception_list);
-    DAP_DEL_MULTY(l_net_item->data, l_net_item);
+    HASH_DEL(s_net_policy_items, l_net_item);
+    dap_list_free_full(l_net_item->policies, NULL);
+    dap_list_free(l_net_item->exception_list);
+    DAP_DELETE(l_net_item);
     return 0;
 }
 
@@ -148,7 +162,7 @@ int dap_chain_policy_net_remove(uint64_t a_net_id)
 int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id)
 {
     dap_return_val_if_pass(!a_policy, -1);
-    struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
+    struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
     if (!l_net_item) {
         log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id);
         return -2;
@@ -189,7 +203,7 @@ int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id)
 int dap_chain_policy_add_to_exception_list(uint32_t a_policy_num, uint64_t a_net_id)
 {
     dap_return_val_if_pass(!a_policy_num, -1);
-    struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
+    struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
     if (!l_net_item) {
         log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id);
         return -2;
@@ -211,7 +225,7 @@ int dap_chain_policy_add_to_exception_list(uint32_t a_policy_num, uint64_t a_net
 bool dap_chain_policy_activated(uint32_t a_policy_num, uint64_t a_net_id)
 {
     const bool l_ret_false = false;
-    struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
+    struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
     dap_return_val_if_pass(!l_net_item, l_ret_false);
     // exception list check
     if (dap_list_find(l_net_item->exception_list, (const void *)(uintptr_t)a_policy_num, NULL))
@@ -242,7 +256,7 @@ bool dap_chain_policy_activated(uint32_t a_policy_num, uint64_t a_net_id)
 dap_chain_policy_t *dap_chain_policy_find(uint32_t a_policy_num, uint64_t a_net_id)
 {
     dap_return_val_if_pass(!a_policy_num, NULL);
-    struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
+    struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
     dap_return_val_if_pass(!l_net_item, NULL);
 
     dap_chain_policy_t *l_to_search = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, sizeof(dap_chain_policy_t) + sizeof(dap_chain_policy_activate_t), false);
@@ -264,7 +278,7 @@ dap_chain_policy_t *dap_chain_policy_find(uint32_t a_policy_num, uint64_t a_net_
  */
 DAP_INLINE uint32_t dap_chain_policy_get_last_num(uint64_t a_net_id)
 {
-    struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
+    struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
     dap_return_val_if_pass(!l_net_item, 0);
     return l_net_item->last_num_policy;
 }
@@ -272,7 +286,7 @@ DAP_INLINE uint32_t dap_chain_policy_get_last_num(uint64_t a_net_id)
 
 json_object *dap_chain_policy_list(uint64_t a_net_id)
 {
-    struct policy_net_list_item *l_net_item = s_net_find(a_net_id);
+    struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
     dap_return_val_if_pass(!l_net_item, NULL);
     json_object *l_ret = json_object_new_object();
 

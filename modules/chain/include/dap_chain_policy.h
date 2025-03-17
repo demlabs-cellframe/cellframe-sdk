@@ -67,6 +67,7 @@ typedef struct dap_chain_policy {
 } DAP_ALIGN_PACKED dap_chain_policy_t;
 
 int dap_chain_policy_init();
+void dap_chain_policy_deinit();
 int dap_chain_policy_net_add(uint64_t a_net_id);
 int dap_chain_policy_net_remove(uint64_t a_net_id);
 int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id);

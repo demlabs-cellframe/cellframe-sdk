@@ -780,8 +780,8 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
         if (!dap_chain_policy_num_is_valid(l_policy_num)) {
             log_it(L_ERROR, "Can't add policy CN-%"DAP_UINT64_FORMAT_U, l_policy_num);
         } else {
-            dap_chain_policy_t *l_new_policy = NULL;
-            l_new_policy = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, sizeof(dap_chain_policy_activate_t), NULL, l_ret->pub.name, l_ret); 
+            dap_chain_policy_t *l_new_policy = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, sizeof(dap_chain_policy_activate_t), NULL, l_ret->pub.name, l_ret); 
+            l_new_policy->type = DAP_CHAIN_POLICY_ACTIVATE;
             l_new_policy->version = DAP_CHAIN_POLICY_VERSION;
             ((dap_chain_policy_activate_t *)(l_new_policy->data))->num = l_policy_num;
             l_new_policy->flags = DAP_FLAG_ADD(l_new_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_CONFIG);
@@ -1792,6 +1792,7 @@ void dap_chain_net_deinit()
         dap_chain_net_delete(l_net);
     }
     dap_http_ban_list_client_deinit();
+    dap_chain_policy_deinit();
 }
 
 /**
