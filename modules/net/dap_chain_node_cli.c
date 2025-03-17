@@ -66,7 +66,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     if ( dap_cli_server_init(s_debug_cli, "cli-server") )
         return log_it(L_ERROR, "Can't init CLI server!"), -1;
     if (dap_config_get_item_bool_default(g_config, "cli-server", "rpc", false)) {
-        dap_chain_node_rpc_init();
+        dap_chain_node_rpc_init(g_config);
     }
 
     dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database",

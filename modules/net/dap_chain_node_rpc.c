@@ -31,12 +31,9 @@
 #include <sys/sysinfo.h>
 #include <sys/vfs.h>
 
-#include "dap_hash.h"
 #include "dap_chain_net.h"
 #include "dap_global_db.h"
-#include "dap_chain_node.h"
-#include "dap_chain_cs_esbocs.h"
-#include "dap_chain_ledger.h"
+#include "dap_stream.h"
 
 #define LOG_TAG "dap_chain_node_rpc"
 #define DAP_CHAIN_NODE_RPC_STATES_INFO_CURRENT_VERSION 1
@@ -68,9 +65,9 @@ static void s_update_node_rpc_states_info(UNUSED_ARG void *a_arg)
     l_info->links_count = dap_stream_get_links_count();
     sysinfo(&l_info->sysinfo);
 
-    // const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->address);
-    // dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_size, false);
-    // DAP_DELETE(l_info);
+    const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->address);
+    dap_global_db_set_sync(s_rpc_states_group, l_node_addr_str, l_info, sizeof(dap_chain_node_rpc_states_info_t), false);
+    DAP_DELETE(l_info);
 }
 
 static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr_str, dap_string_t *l_info_str)
@@ -126,14 +123,26 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
     // DAP_DELETE(l_node_info);
 }
 
-void dap_chain_node_rpc_init()
+void dap_chain_node_rpc_init(dap_config_t *a_cfg)
 {
     if (!(s_rpc_states_cluster = dap_global_db_cluster_add(
               dap_global_db_instance_get_default(), DAP_STREAM_CLUSTER_GLOBAL,
               *(dap_guuid_t *)&uint128_0, s_rpc_states_group,
               0,
+              true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_TYPE_EMBEDDED)))
+        return;
+    if (!(s_rpc_list_cluster = dap_global_db_cluster_add(
+              dap_global_db_instance_get_default(), DAP_STREAM_CLUSTER_GLOBAL,
+              *(dap_guuid_t *)&uint128_0, s_rpc_list_group,
+              0,
               true, DAP_GDB_MEMBER_ROLE_GUEST, DAP_CLUSTER_TYPE_EMBEDDED)))
         return;
+    dap_stream_node_addr_t *l_authorized_nodes = NULL;
+    uint16_t l_authorized_nodes_count = 0;
+    dap_config_stream_addrs_parse(a_cfg, "cli-server", "authorized_nodes_addrs_rpc", &l_authorized_nodes, &l_authorized_nodes_count);
+    for (uint16_t i = 0; i < l_authorized_nodes_count; ++i)
+        dap_global_db_cluster_member_add(s_rpc_list_cluster, l_authorized_nodes + i, DAP_GDB_MEMBER_ROLE_ROOT);
+    DAP_DELETE(l_authorized_nodes);
     if (dap_proc_thread_timer_add(NULL, s_update_node_rpc_states_info, NULL, s_timer_update_states_info))
         log_it(L_ERROR, "Can't activate timer on node states update");
 }
