@@ -75,6 +75,9 @@ typedef struct dap_chain_datum_tx_item_groups {
 
 } dap_chain_datum_tx_item_groups_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /**
  * Get item name by item type
  *
@@ -189,8 +192,8 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
                                                                              const char *a_token, uint256_t a_value_rate, const dap_chain_addr_t *a_seller_addr,
                                                                              const void *a_params, uint32_t a_params_size);
 
-DAP_STATIC_INLINE uint32_t dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size() {
-    return sizeof(dap_chain_addr_t) + sizeof(uint256_t) + 2 * sizeof(dap_tsd_t);
+DAP_STATIC_INLINE uint32_t dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(bool a_sovereign_addr, uint32_t a_pkey_size) {
+    return (a_sovereign_addr ? sizeof(dap_chain_addr_t) + sizeof(uint256_t) + 2 * sizeof(dap_tsd_t) : 0) + (a_pkey_size ? a_pkey_size + sizeof(dap_tsd_t) : 0);
 }
 
 /**
@@ -200,7 +203,7 @@ DAP_STATIC_INLINE uint32_t dap_chain_datum_tx_item_out_cond_create_srv_stake_get
  */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                            dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
-                                                                           dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax);
+                                                                           dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax, dap_pkey_t *a_pkey);
 
 // Create cond out
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_net_srv_uid_t a_srv_uid,
@@ -209,14 +212,18 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_emit_delegate(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                    uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,
-                                                                                   size_t a_pkey_hashes_count);
+                                                                                   size_t a_pkey_hashes_count, const char *a_tag_str);
 
 /**
  * Create item dap_chain_tx_sig_t
  *
  * return item, NULL Error
  */
-dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, dap_chain_datum_tx_t *a_tx);
+dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, const dap_chain_datum_tx_t *a_tx);
+
+dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create_from_sign(const dap_sign_t *a_sign);
+
+dap_sign_t *dap_chain_datum_tx_sign_create(dap_enc_key_t *a_key, const dap_chain_datum_tx_t *a_tx);
 
 /**
  * Get sign from sign item
@@ -237,7 +244,7 @@ dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t
  * a_item_out_size size[out] size of returned item
  * return item data, NULL Error index or bad format transaction
  */
-uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
+uint8_t* dap_chain_datum_tx_item_get(const dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
         byte_t *a_iter, dap_chain_tx_item_type_t a_type, size_t *a_item_out_size);
 // Get Nth item of pointed type
 uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int a_item_idx);
@@ -249,3 +256,6 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
 #define dap_chain_datum_tx_out_get_by_out_idx(a_tx, a_out_num) \
     dap_chain_datum_tx_item_get_nth(a_tx, TX_ITEM_TYPE_OUT_ALL, a_out_num);
 
+#ifdef __cplusplus
+}
+#endif

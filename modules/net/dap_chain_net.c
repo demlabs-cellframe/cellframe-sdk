@@ -108,6 +108,8 @@
 #include "dap_http_ban_list_client.h"
 #include "dap_net.h"
 #include "dap_context.h"
+#include "dap_chain_cs_esbocs.h"
+#include "dap_chain_policy.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -210,6 +212,7 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
 static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_net_id, int a_links_count);
 static int s_link_manager_fill_net_info(dap_link_t *a_link);
 static int s_link_manager_link_request(uint64_t a_net_id);
+static int s_link_manager_link_count_changed();
 
 static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .connected      = s_link_manager_callback_connected,
@@ -217,6 +220,7 @@ static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .error          = s_link_manager_callback_error,
     .fill_net_info  = s_link_manager_fill_net_info,
     .link_request   = s_link_manager_link_request,
+    .link_count_changed = s_link_manager_link_count_changed,
 };
 
 // State machine switchs here
@@ -413,14 +417,6 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
     log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
            NODE_ADDR_FP_ARGS_S(a_link->addr));
 
-    struct json_object *l_json = dap_chain_net_states_json_collect(l_net);
-    char l_err_str[128] = { };
-    snprintf(l_err_str, sizeof(l_err_str)
-                 , "Established connection with link " NODE_ADDR_FP_STR
-                 , NODE_ADDR_FP_ARGS_S(a_link->addr));
-    json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
-    dap_notify_server_send_mt(json_object_get_string(l_json));
-    json_object_put(l_json);
     if(l_net_pvt->state == NET_STATE_LINKS_CONNECTING ){
         l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
     }
@@ -519,6 +515,15 @@ int s_link_manager_link_request(uint64_t a_net_id)
     l_arg->host_port = l_balancer_link->port;
     l_arg->type = PVT(l_net)->balancer_type;
     return dap_worker_exec_callback_on(dap_worker_get_auto(), dap_chain_net_balancer_request, l_arg), 0;
+}
+
+static int s_link_manager_link_count_changed()
+{
+    struct json_object *l_json = dap_chain_nets_info_json_collect();
+    json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
+    return 0;
 }
 
 struct request_link_info *s_get_permanent_link_info(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
@@ -680,6 +685,22 @@ static void s_net_states_notify(dap_chain_net_t *a_net)
 }
 
 /**
+ * @brief s_net_states_notify
+ * @param l_net
+ */
+static bool s_net_states_notify_timer_callback(UNUSED_ARG void *a_arg)
+{
+    for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
+        struct json_object *l_json = dap_chain_net_states_json_collect(net);
+        json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
+        dap_notify_server_send_mt(json_object_get_string(l_json));
+        json_object_put(l_json);
+    }
+
+    return true;
+}
+
+/**
  * @brief dap_chain_net_get_role
  * @param a_net
  * @return
@@ -756,6 +777,39 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
                                 l_net_name_str),
                 NULL;
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, l_net_name_str);
+    
+    if (dap_chain_policy_net_add(l_ret->pub.id.uint64)) {
+        log_it(L_ERROR, "Can't add net %s to policy module", l_ret->pub.name);
+        DAP_DEL_MULTY(l_ret->pub.name, l_ret);
+        return NULL;
+    }
+    // activate policy
+    uint64_t l_policy_num = dap_config_get_item_uint64(a_cfg, "policy", "activate");
+    dap_chain_policy_t *l_new_policy = NULL;
+    if (l_policy_num) {
+        if (!dap_chain_policy_num_is_valid(l_policy_num)) {
+            log_it(L_ERROR, "Can't add policy CN-%"DAP_UINT64_FORMAT_U, l_policy_num);
+        } else {
+            dap_chain_policy_t *l_new_policy = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, sizeof(dap_chain_policy_activate_t), NULL, l_ret->pub.name, l_ret); 
+            l_new_policy->type = DAP_CHAIN_POLICY_ACTIVATE;
+            l_new_policy->version = DAP_CHAIN_POLICY_VERSION;
+            ((dap_chain_policy_activate_t *)(l_new_policy->data))->num = l_policy_num;
+            l_new_policy->flags = DAP_FLAG_ADD(l_new_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_CONFIG);
+            dap_chain_policy_add(l_new_policy, l_ret->pub.id.uint64);
+        }
+    }
+    // deactivate policy
+    uint16_t l_policy_count = 0;
+    const char **l_policy_str = dap_config_get_array_str(a_cfg, "policy", "deactivate", &l_policy_count);
+    for (uint16_t i = 0; i < l_policy_count; ++i) {
+        l_policy_num = strtoull(l_policy_str[i], NULL, 10);
+        if (!dap_chain_policy_num_is_valid(l_policy_num)) {
+            log_it(L_ERROR, "Can't add policy CN-%"DAP_UINT64_FORMAT_U" to exception list", l_policy_num);
+        } else {
+            dap_chain_policy_add_to_exception_list(l_policy_num, l_ret->pub.id.uint64);
+        }
+    }
+    
     l_ret->pub.config = a_cfg;
     l_ret->pub.gdb_groups_prefix
         = dap_config_get_item_str_default( a_cfg, "general", "gdb_groups_prefix", dap_config_get_item_str(a_cfg, "general", "name") );
@@ -783,6 +837,7 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg) {
     json_object_object_add(json_obj, "nets", l_jobj_nets);
     dap_notify_server_send_mt(json_object_get_string(json_obj));
     json_object_put(json_obj);
+    s_net_states_notify_timer_callback(NULL);
     return true;
 }
 
@@ -1763,6 +1818,7 @@ void dap_chain_net_deinit()
         dap_chain_net_delete(l_net);
     }
     dap_http_ban_list_client_deinit();
+    dap_chain_policy_deinit();
 }
 
 /**
@@ -1800,6 +1856,7 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
             dap_chain_delete(l_cur);
         }
     }
+    dap_chain_policy_net_remove(a_net->pub.id.uint64);
     HASH_DEL(s_nets_by_name, a_net);
     HASH_DELETE(hh2, s_nets_by_id, a_net);
     DAP_DELETE(a_net);
@@ -2486,12 +2543,12 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
  * @param l_net
  * @return
  */
-dap_chain_net_state_t dap_chain_net_get_state (dap_chain_net_t *a_net)
+DAP_INLINE dap_chain_net_state_t dap_chain_net_get_state (dap_chain_net_t *a_net)
 {
     return PVT(a_net)->state;
 }
 
-dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t *a_net)
+dap_chain_cell_id_t *dap_chain_net_get_cur_cell( dap_chain_net_t *a_net)
 {
     return  PVT(a_net)->node_info ? &PVT(a_net)->node_info->cell_id: 0;
 }
@@ -2845,7 +2902,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
     return 0;
 }
 
-bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net)
+DAP_INLINE bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net)
 {
     return PVT(a_net)->state == NET_STATE_LOADING;
 }
@@ -3091,7 +3148,6 @@ static void s_ch_out_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const v
     default:
         break;
     }
-    l_net_pvt->sync_context.stage_last_activity = dap_time_now();
     debug_if(s_debug_more, L_DEBUG, "Sent OUT sync packet type %hhu size %zu to addr " NODE_ADDR_FP_STR,
                                     a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
 }
@@ -3345,6 +3401,23 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
 DAP_INLINE dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
 {
     return PVT(a_net)->state_target;
+}
+
+bool dap_chain_net_stop(dap_chain_net_t *a_net)
+{
+    int l_attempts_count = 0;
+    bool l_ret = false;
+    if (dap_chain_net_get_target_state(a_net) == NET_STATE_ONLINE) {
+        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+        l_ret = true;
+    } else if (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE) {
+        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+    }
+    while (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE && l_attempts_count++ < 5) { sleep(1); }
+    if (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE) {
+        log_it(L_ERROR, "Can't stop net %s", a_net->pub.name);
+    }
+    return l_ret;
 }
 
 /*------------------------------------State machine block end---------------------------------*/

@@ -159,8 +159,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
                             "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
                             "wallet deactivate -w <wallet_name>>\n"
-                            "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [-value <uint256_value>]\n"
-                            "wallet convert -w <wallet_name> {-password <password> | -remove_password }\n");
+                            "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [{-cond | -value <uint256_value>}]\n"
+                            "wallet convert -w <wallet_name> {-password <password> | -remove_password }\n"
+                            "wallet find -addr <addr> {-file <file path>}\n");
 
 
     // Token commands
@@ -230,7 +231,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "token_emit { sign -emission <hash> | -token <mempool_token_ticker> -emission_value <value> -addr <addr> } "
                             "[-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n");
 
-    dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool",
+    dap_cli_cmd_t *l_cmd_mempool = dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool",
                            "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset]\n"
                            "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"
                            "mempool check -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
@@ -248,15 +249,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "\tAdd pubic certificate into the mempool to prepare its way to chains\n"
                            "mempool count -net <net_name> [-chain <chain_name>]\n"
                            "\tDisplays the number of elements in the mempool of a given network.");
-    dap_cli_cmd_t *l_cmd_mempool = dap_cli_server_cmd_find("mempool");
-    dap_cli_server_alias_add("mempool_list", "list", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_check", "check", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_proc", "proc", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_proc_all", "proc_all", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_delete", "delete", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_add_ca", "add_ca", l_cmd_mempool);
-    dap_cli_server_alias_add("chain_ca_copy", "add_ca", l_cmd_mempool);
-
+    dap_cli_server_alias_add(l_cmd_mempool, "list", "mempool_list");
+    dap_cli_server_alias_add(l_cmd_mempool, "check", "mempool_check");
+    dap_cli_server_alias_add(l_cmd_mempool, "proc", "mempool_proc");
+    dap_cli_server_alias_add(l_cmd_mempool, "proc_all", "mempool_proc_all");
+    dap_cli_server_alias_add(l_cmd_mempool, "delete", "mempool_delete");
+    dap_cli_server_alias_add(l_cmd_mempool, "add_ca", "mempool_add_ca");
+    dap_cli_server_alias_add(l_cmd_mempool, "add_ca", "chain_ca_copy");
 
     dap_cli_server_cmd_add ("chain_ca_pub", com_chain_ca_pub,
                                         "Add pubic certificate into the mempool to prepare its way to chains",
@@ -353,6 +352,26 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "\tTypes decree: fee, owners, owners_min, stake_approve, stake_invalidate, min_value, "
                            "min_validators_count, ban, unban, reward, validator_max_weight, emergency_validators, check_signs_structure\n");
 
+
+    dap_cli_server_cmd_add ("policy", com_policy, "Policy commands",
+                "policy activate - prepare policy activate decree\n"
+                "\t[execute] - used to create policy decree, otherwise show policy decree draft\n"
+                "\t-net <net_name>\n"
+                "\t-num <policy_num>\n"
+                "\t[-ts_start <dd/mm/yy-H:M:S>] - date to start policy\n"
+                "\t[{\n\t\t-block_start <block_num> - block num to start policy\n"
+                "\t\t-chain <chain_name> - chain name to check blocks num\n\t}]\n"
+                "\t-certs <cert1[,cert2,...,certN]> - list signing certs\n"
+                "policy deactivate - prepare policy deactivate decree\n"
+                "\t[execute] - used to create policy decree, otherwise show policy decree draft\n"
+                "\t-net <net_name>\n"
+                "\t-num <num1[,num2,...,numN]> - deactivated policy list\n"
+                "\t-certs <cert1[,cert2,...,certN]> - list signing certs\n"
+                "policy find - find info about policy in net\n"
+                "\t-net <net_name>\n"
+                "\t-num <policy_num>\n"
+                "policy list - show all policies from table in net\n"
+                "\t-net <net_name>\n");
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
                 "exit\n" );

@@ -160,6 +160,16 @@ json_object * dap_db_tx_history_to_json(json_object* a_json_arr_reply,
                             ? dap_enc_base58_encode_hash_to_str_static(l_atom_hash)
                             : dap_chain_hash_fast_to_str_static(l_atom_hash);
         json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
+
+        dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, a_chain->active_cell_id, l_atom_hash);
+        size_t l_size = 0;
+        if(a_chain->callback_atom_find_by_hash(l_iter, l_atom_hash, &l_size) != NULL){
+            uint64_t l_block_count = a_chain->callback_count_atom(a_chain);
+            uint64_t l_confirmations = l_block_count - l_iter->cur_num;
+            json_object_object_add(json_obj_datum, "confirmations", json_object_new_uint64(l_confirmations));
+        }
+        a_chain->callback_atom_iter_delete(l_iter);
+        
     }
 
     const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
@@ -343,7 +353,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
     bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
     size_t l_arr_start = 0;
     size_t l_arr_end = 0;
-    s_set_offset_limit_json(json_obj_datum, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
+    dap_chain_set_offset_limit_json(json_obj_datum, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
     
     size_t i_tmp = 0;
     size_t
@@ -415,7 +425,6 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         uint32_t l_action = l_from_cache ? l_wallet_cache_iter->action : l_datum_iter->action;
         dap_chain_net_srv_uid_t l_uid = l_from_cache ? l_wallet_cache_iter->uid : l_datum_iter->uid;
         dap_hash_fast_t l_atom_hash = l_from_cache ? *l_wallet_cache_iter->cur_atom_hash : *l_datum_iter->cur_atom_hash;
-
 
         json_object * j_arr_data = json_object_new_array();
         json_object * j_obj_tx = json_object_new_object();
@@ -828,7 +837,7 @@ json_object *dap_db_history_tx_all(json_object* a_json_arr_reply, dap_chain_t *a
         json_object * json_tx_history = NULL;        
         size_t l_arr_start = 0;
         size_t l_arr_end = 0;
-        s_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
+        dap_chain_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
         
         bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
         // load transactions
@@ -1393,8 +1402,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
 
     for(size_t i = 0; i < a_certs_count; i++)
     {
-        dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_anchor,
-           sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size, 0);
+        dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_anchor, sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size);
 
         if (l_sign) {
             size_t l_sign_size = dap_sign_get_size(l_sign);
@@ -1798,8 +1806,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                         l_chain?l_chain->name:"<undefined>");
                 return -5;
             }
-            DAP_DELETE(l_datum_hash_hex_str);
-            DAP_DELETE(l_datum_hash_base58_str);
+            DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str);
         } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "decree sign need -datum <datum hash> argument");
             return -2;
