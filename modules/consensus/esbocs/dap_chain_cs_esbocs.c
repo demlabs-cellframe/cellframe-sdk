@@ -38,6 +38,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "dap_sign.h"
 
 #define LOG_TAG "dap_chain_cs_esbocs"
 
@@ -122,6 +123,16 @@ DAP_STATIC_INLINE char *s_get_penalty_group(dap_chain_net_id_t a_net_id)
 DAP_STATIC_INLINE size_t s_get_esbocs_message_size(dap_chain_esbocs_message_t *a_message)
 {
     return sizeof(*a_message) + a_message->hdr.sign_size + a_message->hdr.message_size;
+}
+
+static dap_pkey_t *s_get_pkey(dap_sign_t *a_sign, dap_chain_net_id_t a_net_id)
+{
+    if (dap_sign_is_use_pkey_hash(a_sign)) {
+        dap_hash_fast_t l_pkey_hash = {};
+        dap_sign_get_pkey_hash(a_sign, &l_pkey_hash);
+        return dap_chain_net_srv_stake_get_pkey_by_hash(a_net_id, &l_pkey_hash);
+    }
+    return NULL;
 }
 
 static dap_chain_esbocs_session_t *s_session_items;
@@ -2584,8 +2595,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         }
         // check candidate's sign
         size_t l_offset = dap_chain_block_get_sign_offset(l_store->candidate, l_store->candidate_size);
-        int l_sign_verified = dap_sign_verify(l_candidate_sign, l_store->candidate,
-                                                l_offset + sizeof(l_store->candidate->hdr));
+        int l_sign_verified = dap_sign_verify_by_pkey(l_candidate_sign, l_store->candidate,
+                                                l_offset + sizeof(l_store->candidate->hdr), s_get_pkey(l_candidate_sign, l_session->chain->net_id));
         if (l_sign_verified != 0) {
             if (!l_candidate_hash_str)
                 l_candidate_hash_str = dap_chain_hash_fast_to_str_static(l_candidate_hash);
@@ -2774,6 +2785,9 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
 
 static uint64_t s_get_precached_key_hash(dap_list_t **a_precached_keys_list, dap_sign_t *a_source_sign, dap_hash_fast_t *a_result)
 {
+    if (DAP_SIGN_GET_PKEY_HASHING_FLAG(a_source_sign->header.hash_type))
+        return !dap_sign_get_pkey_hash(a_source_sign, a_result);
+
     bool l_found = false;
     struct precached_key *l_key = NULL;
     dap_list_t *l_cur;
@@ -2807,7 +2821,11 @@ static uint64_t s_get_precached_key_hash(dap_list_t **a_precached_keys_list, dap
     l_key_new->pkey_size = a_source_sign->header.sign_pkey_size;
     l_key_new->frequency = 0;
     memcpy(l_key_new->sign_pkey, dap_sign_get_pkey(a_source_sign, NULL), l_key_new->pkey_size);
-    dap_sign_get_pkey_hash(a_source_sign, &l_key_new->pkey_hash);
+    if (DAP_SIGN_GET_PKEY_HASHING_FLAG(a_source_sign->header.hash_type)) {
+        memcpy(&l_key_new->pkey_hash, l_key_new->sign_pkey, sizeof(dap_hash_fast_t));
+    } else {
+        dap_sign_get_pkey_hash(a_source_sign, &l_key_new->pkey_hash);
+    }
     *a_precached_keys_list = dap_list_append(*a_precached_keys_list, l_key_new);
     if (a_result)
         *a_result = l_key_new->pkey_hash;
@@ -2918,7 +2936,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                 break;
             }
         }
-        if (!dap_sign_verify(l_sign, l_block, l_block_excl_sign_size))
+        if (!dap_sign_verify_by_pkey(l_sign, l_block, l_block_excl_sign_size, s_get_pkey(l_sign, l_esbocs->chain->net_id)))
             l_signs_verified_count++;
     }
     DAP_DELETE(l_signs);
