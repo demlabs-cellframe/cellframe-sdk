@@ -69,24 +69,24 @@ DAP_STATIC_INLINE int s_policy_num_compare(dap_list_t  *a_list1, dap_list_t  *a_
 DAP_STATIC_INLINE bool s_policy_is_cond(dap_chain_policy_t *a_policy)
 {
     return a_policy->type == DAP_CHAIN_POLICY_ACTIVATE &&
-        (DAP_FLAG_CHECK(((dap_chain_policy_activate_t *)(a_policy->data))->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS) ||
-        DAP_FLAG_CHECK(((dap_chain_policy_activate_t *)(a_policy->data))->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM));
+        (DAP_FLAG_CHECK(a_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS) ||
+        DAP_FLAG_CHECK(a_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM));
 }
 
-static bool s_policy_cond_activated(dap_chain_policy_activate_t *a_policy_activate)
+static bool s_policy_cond_activated(dap_chain_policy_activate_t *a_policy_activate, uint64_t a_flags)
 {
     bool l_ret = false;
-    if (DAP_FLAG_CHECK(a_policy_activate->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS)) {
+    if (DAP_FLAG_CHECK(a_flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS)) {
         time_t l_current_time = dap_time_now();
-        if (l_current_time >= a_policy_activate->ts_start && (!a_policy_activate->ts_stop || l_current_time <= a_policy_activate->ts_stop))
+        if (l_current_time >= a_policy_activate->ts_start)
         l_ret |= true;
     }
-    if (DAP_FLAG_CHECK(a_policy_activate->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM)) {
+    if (DAP_FLAG_CHECK(a_flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM)) {
         if (!a_policy_activate->chain_union.chain) {
             log_it(L_ERROR, "Chain is null in policy item with upped DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM flag");
             return l_ret;
         }
-        if ( a_policy_activate->chain_union.chain->atom_num_last >= a_policy_activate->block_start && (!a_policy_activate->block_stop || a_policy_activate->chain_union.chain->atom_num_last <= a_policy_activate->block_stop))
+        if ( a_policy_activate->chain_union.chain->atom_num_last >= a_policy_activate->block_start)
             l_ret |= true;
     }
     return l_ret;
@@ -226,7 +226,7 @@ bool dap_chain_policy_activated(uint32_t a_policy_num, uint64_t a_net_id)
     DAP_DELETE(l_to_search);
     if (l_list_item && s_policy_is_cond((dap_chain_policy_t *)l_list_item->data)) {
         dap_chain_policy_activate_t *l_activate = (dap_chain_policy_activate_t *)((dap_chain_policy_t *)(l_list_item->data))->data;
-        bool l_ret = s_policy_cond_activated(l_activate);
+        bool l_ret = s_policy_cond_activated(l_activate, ((dap_chain_policy_t *)l_list_item->data)->flags);
         if (l_ret)
             l_net_item->last_num_policy = dap_max(l_activate->num, l_net_item->last_num_policy);
         return l_ret;
@@ -289,7 +289,7 @@ json_object *dap_chain_policy_list(uint64_t a_net_id)
         if (dap_list_find(l_net_item->exception_list, (const void *)(uintptr_t)l_policy_activate->num, NULL))
             continue;
         if (s_policy_is_cond((dap_chain_policy_t *)(l_iter->data))) {
-            if (s_policy_cond_activated(l_policy_activate))
+            if (s_policy_cond_activated(l_policy_activate, ((dap_chain_policy_t *)(l_iter->data))->flags))
                 dap_string_append_printf(l_active_str, "CN-%u ", l_policy_activate->num);
             else
                 dap_string_append_printf(l_inactive_str, "CN-%u ", l_policy_activate->num);
@@ -326,16 +326,8 @@ json_object *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy)
             } else {
                 json_object_object_add(l_ret, "ts_start", json_object_new_int(0));
             }
-            if (l_policy_activate->ts_stop) {
-                char l_time[DAP_TIME_STR_SIZE] = {};
-                dap_time_to_str_rfc822(l_time, DAP_TIME_STR_SIZE - 1, l_policy_activate->ts_stop);
-                json_object_object_add(l_ret, "ts_stop", json_object_new_string(l_time));
-            } else {
-                json_object_object_add(l_ret, "ts_stop", json_object_new_int(0));
-            }
             json_object_object_add(l_ret, "block_start", json_object_new_uint64(l_policy_activate->block_start));
-            json_object_object_add(l_ret, "block_stop", json_object_new_uint64(l_policy_activate->block_stop));
-            if (l_policy_activate->block_start || l_policy_activate->block_stop) {
+            if (l_policy_activate->block_start) {
                 if (!l_policy_activate->chain_union.chain) {
                     json_object_object_add(l_ret, "chain", json_object_new_string("ERROR pointer chain is NULL"));
                 } else {
