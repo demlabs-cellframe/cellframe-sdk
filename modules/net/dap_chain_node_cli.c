@@ -354,6 +354,26 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "\tTypes decree: fee, owners, owners_min, stake_approve, stake_invalidate, min_value, "
                            "min_validators_count, ban, unban, reward, validator_max_weight, emergency_validators, check_signs_structure\n");
 
+
+    dap_cli_server_cmd_add ("policy", com_policy, "Policy commands",
+                "policy activate - prepare policy activate decree\n"
+                "\t[execute] - used to create policy decree, otherwise show policy decree draft\n"
+                "\t-net <net_name>\n"
+                "\t-num <policy_num>\n"
+                "\t[-ts_start <dd/mm/yy-H:M:S>] - date to start policy\n"
+                "\t[{\n\t\t-block_start <block_num> - block num to start policy\n"
+                "\t\t-chain <chain_name> - chain name to check blocks num\n\t}]\n"
+                "\t-certs <cert1[,cert2,...,certN]> - list signing certs\n"
+                "policy deactivate - prepare policy deactivate decree\n"
+                "\t[execute] - used to create policy decree, otherwise show policy decree draft\n"
+                "\t-net <net_name>\n"
+                "\t-num <num1[,num2,...,numN]> - deactivated policy list\n"
+                "\t-certs <cert1[,cert2,...,certN]> - list signing certs\n"
+                "policy find - find info about policy in net\n"
+                "\t-net <net_name>\n"
+                "\t-num <policy_num>\n"
+                "policy list - show all policies from table in net\n"
+                "\t-net <net_name>\n");
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
                 "exit\n" );
