@@ -266,6 +266,10 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             return DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX;
         }
     }
+
+    if (a_ledger->is_hardfork_state)
+        return DAP_LEDGER_CHECK_OK;
+
 /*
  * Steps of checking for current transaction tx2 and every previous transaction tx1:
  * 1. valid(tx2.dap_chain_datum_tx_sig.pkey)
@@ -294,7 +298,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     int l_prev_tx_count = 0;
 
     // 1. Verify signature in current transaction
-    if (!a_from_threshold && !a_ledger->is_hardfork_state && dap_chain_datum_tx_verify_sign(a_tx, 0))
+    if (!a_from_threshold && dap_chain_datum_tx_verify_sign(a_tx, 0))
         return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
 
     // ----------------------------------------------------------------
@@ -1264,6 +1268,10 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
 
     if (a_ledger->is_hardfork_state) {
         TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
+            if (*l_item == TX_ITEM_TYPE_OUT_EXT || *l_item == TX_ITEM_TYPE_OUT_COND) {
+                l_list_tx_out = dap_list_append(l_list_tx_out, l_item);
+                continue;
+            }
             if (*l_item != TX_ITEM_TYPE_TSD)
                 continue;
             dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)l_item)->tsd;
