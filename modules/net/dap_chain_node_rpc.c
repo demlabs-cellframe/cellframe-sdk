@@ -39,8 +39,6 @@
 #include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_node_rpc"
-#define DAP_RPC_CLUSTER_GLOBAL ".rpc"
-#define DAP_RPC_DB_CLUSTER_GLOBAL DAP_RPC_CLUSTER_GLOBAL ".*"
 #define DAP_CHAIN_NODE_RPC_STATES_INFO_CURRENT_VERSION 1
 typedef struct dap_chain_node_rpc_states_info
 {
@@ -53,8 +51,10 @@ typedef struct dap_chain_node_rpc_states_info
 } DAP_ALIGN_PACKED dap_chain_node_rpc_states_info_t;
 
 static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
-static const char s_states_group[] = ".rpc.states";
-static dap_global_db_cluster_t *s_global_cluster = NULL;
+static const char s_rpc_states_group[] = "rpc.states";
+static const char s_rpc_list_group[] = "rpc.list";
+static dap_global_db_cluster_t *s_rpc_states_cluster = NULL;
+static dap_global_db_cluster_t *s_rpc_list_cluster = NULL;
 
 /**
  * @brief get states info about current
@@ -67,9 +67,6 @@ static void s_update_node_rpc_states_info(UNUSED_ARG void *a_arg)
     l_info->address.uint64 = g_node_addr.uint64;
     l_info->links_count = dap_stream_get_links_count();
     sysinfo(&l_info->sysinfo);
-
-    struct statfs buf;
-    statfs("/opt/cellframe-node/bin/cellframe-node", &buf);
 
     // const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->address);
     // dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_size, false);
@@ -131,11 +128,11 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
 
 void dap_chain_node_rpc_init()
 {
-    if (!(s_global_cluster = dap_global_db_cluster_add(
-              dap_global_db_instance_get_default(), DAP_RPC_CLUSTER_GLOBAL,
-              *(dap_guuid_t *)&uint128_0, DAP_RPC_DB_CLUSTER_GLOBAL,
+    if (!(s_rpc_states_cluster = dap_global_db_cluster_add(
+              dap_global_db_instance_get_default(), DAP_STREAM_CLUSTER_GLOBAL,
+              *(dap_guuid_t *)&uint128_0, s_rpc_states_group,
               0,
-              true, DAP_GDB_MEMBER_ROLE_GUEST, DAP_CLUSTER_TYPE_VIRTUAL)))
+              true, DAP_GDB_MEMBER_ROLE_GUEST, DAP_CLUSTER_TYPE_EMBEDDED)))
         return;
     if (dap_proc_thread_timer_add(NULL, s_update_node_rpc_states_info, NULL, s_timer_update_states_info))
         log_it(L_ERROR, "Can't activate timer on node states update");
