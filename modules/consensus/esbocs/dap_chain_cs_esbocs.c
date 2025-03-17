@@ -2774,6 +2774,9 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
 
 static uint64_t s_get_precached_key_hash(dap_list_t **a_precached_keys_list, dap_sign_t *a_source_sign, dap_hash_fast_t *a_result)
 {
+    if (DAP_SIGN_GET_PKEY_HASHING_FLAG(a_source_sign->header.hash_type))
+        return !dap_sign_get_pkey_hash(a_source_sign, a_result);
+
     bool l_found = false;
     struct precached_key *l_key = NULL;
     dap_list_t *l_cur;

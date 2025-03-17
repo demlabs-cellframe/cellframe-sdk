@@ -1633,7 +1633,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             json_object_object_add(json_obj_item,"type", json_object_new_string("voting"));
             json_object_object_add(json_obj_item,"voting_question", json_object_new_string(l_voting_params->voting_question));
             json_object_object_add(json_obj_item,"answer_options", json_object_new_string(""));
-            
+            json_object_object_add(json_obj_item, "token", json_object_new_string(l_voting_params->token_ticker));
             dap_list_t *l_temp = l_voting_params->answers_list;
             uint8_t l_index = 0;
             while (l_temp) {
@@ -1643,7 +1643,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             }
             if (l_voting_params->voting_expire) {
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_voting_params->voting_expire);
-                json_object_object_add(json_obj_item,"Voting expire", json_object_new_string(l_tmp_buf));                
+                json_object_object_add(json_obj_item, "Voting expire", json_object_new_string(l_tmp_buf));
             }
             if (l_voting_params->votes_max_count) {
                 json_object_object_add(json_obj_item, "Votes max count", json_object_new_uint64(l_voting_params->votes_max_count));
