@@ -6280,7 +6280,7 @@ int com_policy(int argc, char **argv, void **reply) {
         
         if (l_policy_activate->block_start) {
             if (!l_chain_str) {
-                dap_json_rpc_error_add(*a_json_arr_reply, -8, "Command policy create with -block_start or -block_stop require args -chain");
+                dap_json_rpc_error_add(*a_json_arr_reply, -8, "Command policy create with -block_start require args -chain");
                 DAP_DELETE(l_policy_activate);
                 return -8;
             }
