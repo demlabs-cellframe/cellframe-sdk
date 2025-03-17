@@ -84,7 +84,8 @@ int dap_chain_net_srv_voting_init()
 {
     dap_ledger_voting_verificator_add(s_voting_verificator, s_vote_verificator,
                                       s_datum_tx_voting_verification_delete_callback, dap_chain_net_srv_voting_get_expiration_time);
-    dap_cli_server_cmd_add("poll", s_cli_voting, "Voting/poll commands",
+     dap_cli_cmd_t *l_poll_cmd = dap_cli_server_cmd_add(
+                            "poll", s_cli_voting, "Voting/poll commands",
                             "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>] [-max_votes_count <votes_count>]"
                                         " [-delegated_key_required] [-vote_changing_allowed] -fee <value> -w <fee_wallet_name> [-token <ticker>]\n"
                             "poll vote -net <net_name> -hash <poll_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value> -w <fee_wallet_name>\n"
@@ -93,6 +94,7 @@ int dap_chain_net_srv_voting_init()
                             "Hint:\n"
                             "\texample value_coins (only natural) 1.0 123.4567\n"
                             "\texample value_datoshi (only integer) 1 20 0.4321e+4\n");
+    dap_cli_server_alias_add(l_poll_cmd, NULL, "voting");
 
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
     dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start,

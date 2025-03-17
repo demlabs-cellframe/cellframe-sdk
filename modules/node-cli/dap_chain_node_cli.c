@@ -232,7 +232,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet find -addr <addr> {-file <file path>}\n"
                             "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [-value <uint256_value>]\n");
 
-    dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool",
+    dap_cli_cmd_t *l_cmd_mempool = dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool",
                            "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset]\n"
                            "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"
                            "mempool check -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
@@ -250,15 +250,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "\tAdd pubic certificate into the mempool to prepare its way to chains\n"
                            "mempool count -net <net_name> [-chain <chain_name>]\n"
                            "\tDisplays the number of elements in the mempool of a given network.");
-    dap_cli_cmd_t *l_cmd_mempool = dap_cli_server_cmd_find("mempool");
-    dap_cli_server_alias_add("mempool_list", "list", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_check", "check", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_proc", "proc", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_proc_all", "proc_all", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_delete", "delete", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_add_ca", "add_ca", l_cmd_mempool);
-    dap_cli_server_alias_add("chain_ca_copy", "add_ca", l_cmd_mempool);
-
+    dap_cli_server_alias_add(l_cmd_mempool, "list", "mempool_list");
+    dap_cli_server_alias_add(l_cmd_mempool, "check", "mempool_check");
+    dap_cli_server_alias_add(l_cmd_mempool, "proc", "mempool_proc");
+    dap_cli_server_alias_add(l_cmd_mempool, "proc_all", "mempool_proc_all");
+    dap_cli_server_alias_add(l_cmd_mempool, "delete", "mempool_delete");
+    dap_cli_server_alias_add(l_cmd_mempool, "add_ca", "mempool_add_ca");
+    dap_cli_server_alias_add(l_cmd_mempool, "add_ca", "chain_ca_copy");
 
     dap_cli_server_cmd_add ("chain_ca_pub", com_chain_ca_pub,
                                         "Add pubic certificate into the mempool to prepare its way to chains",

@@ -767,6 +767,8 @@ int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint16_t l_gener
     uint64_t l_last_num = a_chain->callback_count_atom(a_chain);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    if (l_generation <= a_chain->generation)
+        return -1;
     l_esbocs->hardfork_from = dap_max(l_last_num, a_block_num);
     if (l_generation)
         l_esbocs->hardfork_generation = l_generation;
@@ -1255,7 +1257,8 @@ static bool s_session_round_new(void *a_arg)
     a_session->listen_ensure = 0;
     uint64_t l_cur_atom_count = a_session->chain->callback_count_atom(a_session->chain);
     if (!a_session->is_hardfork) {
-        a_session->is_hardfork = a_session->esbocs->hardfork_from && l_cur_atom_count == a_session->esbocs->hardfork_from;
+        a_session->is_hardfork = a_session->esbocs->hardfork_generation > a_session->chain->generation &&
+                                    a_session->esbocs->hardfork_from && l_cur_atom_count == a_session->esbocs->hardfork_from;
         if (a_session->is_hardfork) {
             dap_time_t l_last_block_timestamp = 0;
             dap_chain_get_atom_last_hash_num_ts(a_session->chain, c_dap_chain_cell_id_null, NULL, NULL, &l_last_block_timestamp);

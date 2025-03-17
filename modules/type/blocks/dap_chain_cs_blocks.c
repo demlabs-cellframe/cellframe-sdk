@@ -1898,7 +1898,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
                     return ATOM_REJECT;
                 }
-                a_chain->generation++;
+                a_chain->generation = l_generation;
                 dap_ledger_anchor_purge(l_net->pub.ledger, a_chain->id);
                 dap_ledger_tx_purge(l_net->pub.ledger, false);
                 dap_chain_srv_purge_all(a_chain->net_id);
