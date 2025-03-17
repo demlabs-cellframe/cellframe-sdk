@@ -78,16 +78,14 @@ static bool s_policy_cond_activated(dap_chain_policy_activate_t *a_policy_activa
     bool l_ret = false;
     if (DAP_FLAG_CHECK(a_flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS)) {
         time_t l_current_time = dap_time_now();
-        if (l_current_time >= a_policy_activate->ts_start)
-        l_ret |= true;
+        l_ret |= l_current_time >= a_policy_activate->ts_start;
     }
     if (DAP_FLAG_CHECK(a_flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM)) {
         if (!a_policy_activate->chain_union.chain) {
             log_it(L_ERROR, "Chain is null in policy item with upped DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM flag");
             return l_ret;
         }
-        if ( a_policy_activate->chain_union.chain->atom_num_last >= a_policy_activate->block_start)
-            l_ret |= true;
+        l_ret |= a_policy_activate->chain_union.chain->atom_num_last >= a_policy_activate->block_start;
     }
     return l_ret;
 }
