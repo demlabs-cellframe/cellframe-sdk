@@ -1213,7 +1213,6 @@ static void s_service_state_go_to_normal(dap_chain_net_srv_usage_t *a_usage)
     if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE ||
         (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE && 
         a_usage->service_substate != DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING)){
-        // start with remain limits
         a_usage->service_state = DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL;
         if (a_usage->service->callbacks.response_success){
             if( a_usage->service->callbacks.response_success(a_usage->service,a_usage->id,  a_usage->client,
@@ -1362,8 +1361,10 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
 {
     dap_stream_ch_chain_net_srv_pkt_error_t l_err;
 
-    if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE && 
-        a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE
+    if ((a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE && 
+        a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE) ||
+        (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE && 
+        a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER)
     ) {
         dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
         l_remain_service = a_usage->service->callbacks.get_remain_service(a_usage->service, a_usage->id, a_usage->client);
