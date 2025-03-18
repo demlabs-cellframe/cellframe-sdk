@@ -124,6 +124,18 @@ dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_changing_allowed_tsd_create(bool
     return l_tsd;
 }
 
+dap_chain_tx_tsd_t *dap_chain_datum_voting_token_tsd_create(const char *a_token_ticker)
+{
+    dap_return_val_if_fail(a_token_ticker && *a_token_ticker, NULL);
+    size_t l_ticker_len = strlen(a_token_ticker);
+    if (l_ticker_len >= DAP_CHAIN_TICKER_SIZE_MAX) {
+        log_it(L_ERROR, "Ticker len %zu is too big", l_ticker_len);
+        return NULL;
+    }
+    dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create((char *)a_token_ticker, VOTING_TSD_TYPE_TOKEN, l_ticker_len);
+    return l_tsd;
+}
+
 dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_tx_cond_tsd_create(dap_chain_hash_fast_t a_tx_hash, int a_out_idx)
 {
     dap_chain_tx_voting_tx_cond_t l_temp = {
@@ -175,6 +187,9 @@ json_object *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_
             break;
         case VOTING_TSD_TYPE_ANSWER:
             json_object_array_add(l_answer_array_object, json_object_new_string_len((char*)l_tsd->data, l_tsd->size));
+            break;
+        case VOTING_TSD_TYPE_TOKEN:
+            json_object_object_add(l_object, "token", json_object_new_string_len((char*)l_tsd->data, l_tsd->size));
             break;
         case VOTING_TSD_TYPE_EXPIRE:
             json_object_object_add(l_object, "exired", json_object_new_uint64(*(uint64_t*)l_tsd->data));
