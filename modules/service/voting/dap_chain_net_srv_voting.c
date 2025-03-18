@@ -328,10 +328,12 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
     // Get last sign item from transaction
     dap_hash_fast_t l_pkey_hash = {};
-    dap_sign_t *l_pkey_sign = NULL;
+    dap_sign_t *l_pkey_sign = NULL, *l_wallet_sign = NULL;
     uint8_t *l_tx_item = NULL; size_t l_size; int i, l_sign_num = 0;
     TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_SIG, l_size, i, a_tx_in) {
         l_pkey_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_tx_item);
+        if (!l_wallet_sign)
+            l_wallet_sign = l_pkey_sign;
         l_sign_num++;
     }
     dap_sign_get_pkey_hash(l_pkey_sign, &l_pkey_hash);
@@ -394,10 +396,15 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_tx_hash);
             dap_chain_tx_out_cond_t *l_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev_temp, l_out_idx);
             if (!l_prev_out || l_prev_out->header.item_type != TX_ITEM_TYPE_OUT_COND ||
-                    l_prev_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
+                    l_prev_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
+                log_it(L_WARNING, "TX hash %s out #%d subtype %s is restricted", dap_hash_fast_to_str_static(&l_tx_hash), l_out_idx,
+                                l_prev_out ? dap_chain_tx_out_cond_subtype_to_str(l_prev_out->header.subtype) : "(null)");
                 return -16;
-            if (!dap_ledger_check_condition_owner(a_ledger, &l_tx_hash, l_prev_out->header.subtype, l_out_idx, l_pkey_sign))
+            }
+            if (!dap_ledger_check_condition_owner(a_ledger, &l_tx_hash, l_prev_out->header.subtype, l_out_idx, l_wallet_sign)) {
+                log_it(L_WARNING, "TX hash %s out #%d owner verification error", dap_hash_fast_to_str_static(&l_tx_hash), l_out_idx);
                 return -17;
+            }
             break;
         }
         default:
