@@ -1433,9 +1433,10 @@ dap_chain_tx_out_cond_t *dap_ledger_out_cond_unspent_find_by_addr(dap_ledger_t *
         ret = NULL;
         // Get 'out_cond' item from transaction
         byte_t *l_item; size_t l_size; int i, l_out_idx = 0;
+        dap_chain_tx_out_cond_subtype_t l_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
         TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, it->tx) {
             if (*l_item == TX_ITEM_TYPE_OUT_COND) {
-                dap_chain_tx_out_cond_subtype_t l_subtype = ((dap_chain_tx_out_cond_t *)l_item)->header.subtype;
+                l_subtype = ((dap_chain_tx_out_cond_t *)l_item)->header.subtype;
                 if (l_subtype == a_subtype ||
                         (a_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL && l_subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)) {
                     ret = (dap_chain_tx_out_cond_t *)l_item;
@@ -1447,7 +1448,7 @@ dap_chain_tx_out_cond_t *dap_ledger_out_cond_unspent_find_by_addr(dap_ledger_t *
         // Don't return regular tx or spent conditions
         if (!ret || !dap_hash_fast_is_blank(&it->out_metadata[l_out_idx].tx_spent_hash_fast))
             continue;
-        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(a_ledger, a_subtype, &it->tx_hash_fast);
+        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(a_ledger, l_subtype, &it->tx_hash_fast);
         dap_chain_datum_tx_t *l_tx = dap_hash_fast_is_blank(&l_owner_tx_hash) ? it->tx
                                                                               : dap_ledger_tx_find_by_hash(a_ledger, &l_owner_tx_hash);
         if (!l_tx) {
