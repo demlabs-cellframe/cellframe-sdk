@@ -842,7 +842,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 {
     enum {
         CMD_NONE, CMD_ADD, CMD_DEL, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_LIST, CMD_DUMP, CMD_CONNECTIONS, CMD_BALANCER,
-        CMD_BAN, CMD_UNBAN, CMD_BANLIST, CMD_ADD_RPC, CMD_LIST_RPC
+        CMD_BAN, CMD_UNBAN, CMD_BANLIST, CMD_ADD_RPC, CMD_LIST_RPC, CMD_DUMP_RPC
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
@@ -871,7 +871,10 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             cmd_num = CMD_LIST;
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "dump", NULL)) {
-        cmd_num = CMD_DUMP;
+        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-rpc", NULL))
+            cmd_num = CMD_DUMP_RPC;
+        else
+            cmd_num = CMD_DUMP;
     }
     else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "connections", NULL)) {
         cmd_num = CMD_CONNECTIONS;
@@ -897,7 +900,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
     int l_net_parse_val = dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net, CHAIN_TYPE_INVALID);
     if(l_net_parse_val < 0 && cmd_num != CMD_BANLIST && cmd_num != CMD_ADD_RPC && cmd_num != CMD_LIST_RPC) {
-        if ((cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP) || l_net_parse_val == -102)
+        if ((cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP && cmd_num != CMD_DUMP_RPC) || l_net_parse_val == -102)
             return -11;
     }
 
@@ -1051,6 +1054,12 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         return 0;
     }
     case CMD_DUMP: {
+        dap_string_t *l_string_reply = dap_chain_node_states_info_read(l_net, l_node_info->address);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
+        dap_string_free(l_string_reply, true);
+        return 0;
+    }
+    case CMD_DUMP_RPC: {
         dap_string_t *l_string_reply = dap_chain_node_states_info_read(l_net, l_node_info->address);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
         dap_string_free(l_string_reply, true);
