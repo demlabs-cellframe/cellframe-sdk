@@ -373,7 +373,6 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
     }
     pthread_mutex_lock(&l_net_srv->grace_mutex);
     HASH_FIND(hh, l_net_srv->grace_hash_tab, a_tx_hash, sizeof(dap_hash_fast_t), l_item);
-    pthread_mutex_unlock(&l_net_srv->grace_mutex);
     if (l_item){
         log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
         // Stop timer
@@ -389,6 +388,7 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
         DAP_DELETE(l_item->grace);
         DAP_DELETE(l_item);
     }
+    pthread_mutex_unlock(&l_net_srv->grace_mutex);
 }
 
 static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_pkt_request_t *a_request, size_t a_request_size)
