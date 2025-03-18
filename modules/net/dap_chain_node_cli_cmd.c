@@ -837,16 +837,16 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 {
     enum {
         CMD_NONE, CMD_ADD, CMD_DEL, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_LIST, CMD_DUMP, CMD_CONNECTIONS, CMD_BALANCER,
-        CMD_BAN, CMD_UNBAN, CMD_BANLIST, CMD_ADD_RPC
+        CMD_BAN, CMD_UNBAN, CMD_BANLIST, CMD_ADD_RPC, CMD_LIST_RPC
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
     if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "add", NULL)) {
-        cmd_num = CMD_ADD;
+        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-rpc", NULL))
+            cmd_num = CMD_ADD_RPC;
+        else
+            cmd_num = CMD_ADD;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "add_rpc", NULL)) {
-        cmd_num = CMD_ADD_RPC;
-    } 
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "del", NULL)) {
         cmd_num = CMD_DEL;
     } // find  add parameter ('alias' or 'handshake')
@@ -860,7 +860,10 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         cmd_num = CMD_ALIAS;
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "list", NULL)) {
-        cmd_num = CMD_LIST;
+        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-rpc", NULL))
+            cmd_num = CMD_LIST_RPC;
+        else
+            cmd_num = CMD_LIST;
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "dump", NULL)) {
         cmd_num = CMD_DUMP;
@@ -888,7 +891,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     dap_chain_net_t *l_net = NULL;
 
     int l_net_parse_val = dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net, CHAIN_TYPE_INVALID);
-    if(l_net_parse_val < 0 && cmd_num != CMD_BANLIST && cmd_num != CMD_ADD_RPC) {
+    if(l_net_parse_val < 0 && cmd_num != CMD_BANLIST && cmd_num != CMD_ADD_RPC && cmd_num != CMD_LIST_RPC) {
         if ((cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP) || l_net_parse_val == -102)
             return -11;
     }
@@ -1031,6 +1034,16 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         // handler of command 'node dump'
         bool l_is_full = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-full", NULL);
         return s_node_info_list_with_reply(l_net, &l_node_addr, l_is_full, alias_str, a_str_reply);
+    }
+    case CMD_LIST_RPC: {
+        dap_string_t *l_string_reply = dap_chain_node_rpc_list();
+        if (!l_string_reply) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Error in rpc node list forming");
+            return -1;
+        }
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
+        dap_string_free(l_string_reply, true);
+        return 0;
     }
     case CMD_DUMP: {
         dap_string_t *l_string_reply = dap_chain_node_states_info_read(l_net, l_node_info->address);

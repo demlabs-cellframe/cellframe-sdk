@@ -199,3 +199,40 @@ int dap_chain_node_rpc_info_save(dap_chain_node_info_t *a_node_info)
                                  a_node_info,
                                  dap_chain_node_info_get_size(a_node_info), false );
 }
+
+/**
+ * @brief Return string by rpc nore list
+ * @return pointer to dap_string_t if Ok, NULL if error
+ */
+dap_string_t *dap_chain_node_rpc_list()
+{
+    dap_string_t *l_ret = dap_string_new("RPC node list:\n");
+    size_t l_nodes_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(s_rpc_list_group, &l_nodes_count);
+
+    if(!l_nodes_count || !l_objs) {
+        dap_string_append_printf(l_ret, "No records\n");
+        return NULL;
+    } else {
+        dap_string_append_printf(l_ret, "Got %zu nodes:\n", l_nodes_count);
+        dap_string_append_printf(l_ret, "%-26s%-20s%-8s%s", "Address", "IPv4", "Port", "Timestamp\n");
+
+        for (size_t i = 0; i < l_nodes_count; i++) {
+            dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
+            if (dap_chain_node_addr_is_blank(&l_node_info->address)){
+                log_it(L_ERROR, "Node address is empty");
+                continue;
+            }
+
+            char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
+            dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
+
+            dap_string_append_printf(l_ret, NODE_ADDR_FP_STR"    %-20s%-8d%-32s\n",
+                                        NODE_ADDR_FP_ARGS_S(l_node_info->address),
+                                        l_node_info->ext_host, l_node_info->ext_port,
+                                        l_ts);
+        }
+    }
+    dap_global_db_objs_delete(l_objs, l_nodes_count);
+    return l_ret;
+}

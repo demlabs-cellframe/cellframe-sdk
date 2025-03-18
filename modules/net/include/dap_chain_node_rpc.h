@@ -22,3 +22,4 @@
  void dap_chain_node_rpc_init(dap_config_t *a_cfg);
  bool dap_chain_node_rpc_is_my_node_authorized();
  int dap_chain_node_rpc_info_save(dap_chain_node_info_t *a_node_info);
+ dap_string_t *dap_chain_node_rpc_list();
