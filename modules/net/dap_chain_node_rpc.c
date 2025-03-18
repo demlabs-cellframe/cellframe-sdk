@@ -178,3 +178,24 @@ void dap_chain_node_rpc_init(dap_config_t *a_cfg)
 //     }
 //     return l_ret;
 // }
+
+
+bool dap_chain_node_rpc_is_my_node_authorized()
+{
+    return dap_cluster_member_find_role(s_rpc_list_cluster->role_cluster, &g_node_addr) == DAP_GDB_MEMBER_ROLE_ROOT;
+}
+
+/**
+ * @brief save rpc node info to gdb
+ * @param node_info
+ * @return
+ */
+int dap_chain_node_rpc_info_save(dap_chain_node_info_t *a_node_info)
+{
+    return !a_node_info || !a_node_info->address.uint64
+        ? log_it(L_ERROR,"Can't save node rpc info, %s", a_node_info ? "null arg" : "zero address"), -1
+        : dap_global_db_set_sync( s_rpc_list_group,
+                                 dap_stream_node_addr_to_str_static(a_node_info->address),
+                                 a_node_info,
+                                 dap_chain_node_info_get_size(a_node_info), false );
+}

@@ -68,6 +68,7 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
 #include "dap_chain_node.h"
+#include "dap_chain_node_rpc.h"
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
 #include "dap_chain_node_client.h"
@@ -836,13 +837,16 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 {
     enum {
         CMD_NONE, CMD_ADD, CMD_DEL, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_LIST, CMD_DUMP, CMD_CONNECTIONS, CMD_BALANCER,
-        CMD_BAN, CMD_UNBAN, CMD_BANLIST
+        CMD_BAN, CMD_UNBAN, CMD_BANLIST, CMD_ADD_RPC
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
     if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "add", NULL)) {
         cmd_num = CMD_ADD;
     }
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "add_rpc", NULL)) {
+        cmd_num = CMD_ADD_RPC;
+    } 
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "del", NULL)) {
         cmd_num = CMD_DEL;
     } // find  add parameter ('alias' or 'handshake')
@@ -884,7 +888,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     dap_chain_net_t *l_net = NULL;
 
     int l_net_parse_val = dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net, CHAIN_TYPE_INVALID);
-    if(l_net_parse_val < 0 && cmd_num != CMD_BANLIST) {
+    if(l_net_parse_val < 0 && cmd_num != CMD_BANLIST && cmd_num != CMD_ADD_RPC) {
         if ((cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP) || l_net_parse_val == -102)
             return -11;
     }
@@ -974,6 +978,31 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             case 7: return dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request"), l_res;
             default:return dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res), l_res;
         }
+    }
+
+    case CMD_ADD_RPC: {
+        int l_res = -10;
+        uint16_t l_port = 0;
+        if (!l_addr_str || !l_hostname) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "cmd add_rpc requires -addr and -host args");
+            return l_res;
+        }
+        if (!dap_chain_node_rpc_is_my_node_authorized()) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
+            return l_res;
+        }
+        // We're in authorized list, add directly
+        struct sockaddr_storage l_verifier = { };
+        if ( 0 > dap_net_parse_config_address(l_hostname, l_node_info->ext_host, &l_port, &l_verifier, NULL) ) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't parse host string %s", l_hostname);
+            return -6;
+        }
+        if ( !l_node_info->ext_port && !(l_node_info->ext_port = l_port) )
+            return dap_cli_server_cmd_set_reply_text(a_str_reply, "Unspecified port"), -7;
+
+        l_node_info->ext_host_len = dap_strlen(l_node_info->ext_host);
+        l_res = dap_chain_node_rpc_info_save(l_node_info);
+        return dap_cli_server_cmd_set_reply_text(a_str_reply, l_res ? "Can't add node %s, error %d" : "Successfully added node %s", l_addr_str, l_res), l_res;
     }
 
     case CMD_DEL: {
