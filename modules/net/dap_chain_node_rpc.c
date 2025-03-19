@@ -23,6 +23,7 @@
 #include "dap_global_db.h"
 #include "dap_global_db_cluster.h"
 #include "dap_stream.h"
+#include "dap_cli_server.h"
 
 #define LOG_TAG "dap_chain_node_rpc"
 #define DAP_CHAIN_NODE_RPC_STATES_INFO_CURRENT_VERSION 1
@@ -49,6 +50,11 @@ DAP_STATIC_INLINE s_get_role_from_str(const char *a_str)
     return RPC_ROLE_INVALID;
 }
 
+static void s_collect_state_info(int16_t a_cmd_num, bool a_start_measure)
+{
+
+}
+
 /**
  * @brief get states info about current
  * @param a_arg - pointer to callback arg
@@ -59,6 +65,7 @@ static void s_update_node_rpc_states_info(UNUSED_ARG void *a_arg)
     l_info->version = DAP_CHAIN_NODE_RPC_STATES_INFO_CURRENT_VERSION;
     l_info->address.uint64 = g_node_addr.uint64;
     l_info->links_count = dap_stream_get_links_count();
+    l_info->cli_thread_count = dap_cli_get_cmd_thread_count();
     sysinfo(&l_info->sysinfo);
 
     const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->address);
@@ -85,10 +92,14 @@ void dap_chain_node_rpc_init(dap_config_t *a_cfg)
             log_it(L_ERROR, "Can't create rpc server states cluster");
             return;
         }
-        if (l_role == RPC_ROLE_SERVER && dap_proc_thread_timer_add(NULL, s_update_node_rpc_states_info, NULL, s_timer_update_states_info))
-            log_it(L_ERROR, "Can't activate timer on node states update");
+        if (l_role == RPC_ROLE_SERVER) {
+            if (dap_proc_thread_timer_add(NULL, s_update_node_rpc_states_info, NULL, s_timer_update_states_info))
+                log_it(L_ERROR, "Can't activate timer on node states update");
+            else
+                dap_cli_server_statistic_callback_add(s_collect_state_info);
+        }
     }
-    if (l_role == RPC_ROLE_ROOT || l_role == RPC_ROLE_BALANCER) {
+    if (l_role != RPC_ROLE_INVALID) {
         if (!(s_rpc_node_list_cluster = dap_global_db_cluster_add(
                 dap_global_db_instance_get_default(), DAP_STREAM_CLUSTER_GLOBAL,
                 *(dap_guuid_t *)&uint128_0, s_rpc_node_list_group,
@@ -213,5 +224,7 @@ dap_list_t *dap_chain_node_rpc_get_sorted_list(size_t *a_count)
         }
         l_ret = dap_list_insert_sorted(l_ret, (void *)l_node_info_curr, s_rpc_node_cmp);
     }
+    if (a_count)
+        *a_count = l_count;
     return l_ret;
 }

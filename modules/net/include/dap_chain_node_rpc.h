@@ -29,9 +29,16 @@
     uint32_t links_count;
     uint32_t cli_thread_count;
     struct sysinfo sysinfo;
+    uint32_t cmd_data_size;
+    uint8_t cmd_data[];
 } DAP_ALIGN_PACKED dap_chain_node_rpc_states_info_t;
 
  void dap_chain_node_rpc_init(dap_config_t *a_cfg);
  bool dap_chain_node_rpc_is_my_node_authorized();
  int dap_chain_node_rpc_info_save(dap_chain_node_info_t *a_node_info);
  dap_string_t *dap_chain_node_rpc_list();
+
+ DAP_STATIC_INLINE size_t dap_chain_node_rpc_get_states_info_size(dap_chain_node_rpc_states_info_t *a_info)
+ {
+    return a_info ? sizeof(dap_chain_node_rpc_states_info_t) + a_info->cmd_data_size : 0;
+ }
