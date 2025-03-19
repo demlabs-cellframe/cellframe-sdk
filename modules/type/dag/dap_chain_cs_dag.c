@@ -159,7 +159,8 @@ int dap_chain_cs_dag_init()
             "\tdoesn't changes after sign add to event. \n\n"
         "dag event dump -net <net_name> [-chain <chain_name>] -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round_id_in_hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
-        "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round_id_in_hex>} [-limit] [-offset] [-head]\n\n"
+        "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round_id_in_hex>} [-limit] [-offset] [-head]"
+                            " [-from_hash <event_hash>] [-to_hash <event_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]\n\n"
             "\tShow event list \n\n"
         "dag event count -net <net_name> [-chain <chain_name>]\n"
             "\tShow count event \n\n"
@@ -1681,7 +1682,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 json_object * json_obj_event_list = json_object_new_object();
                 json_object * json_arr_obj_event = json_object_new_array();
                 const char *l_limit_str = NULL, *l_offset_str = NULL, *l_head_str = NULL, *l_from_date_str = NULL, *l_to_date_str = NULL,
-                            *l_from_hash_str = NULL, l_to_hash_str = NULL;
+                            *l_from_hash_str = NULL, *l_to_hash_str = NULL;
+                bool l_hash_flag = false;
                 dap_hash_fast_t l_from_hash = {}, l_to_hash = {};
                 dap_time_t l_from_time = 0, l_to_time = 0;
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-limit", &l_limit_str);
@@ -1770,8 +1772,16 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                                 (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts >= l_to_time)) {
                                 i_tmp++;
                             } else {
+                                if (l_from_hash_str && !l_hash_flag) {
+                                   if (!dap_hash_fast_compare(&l_from_hash, &l_event_item->hash))
+                                       continue;
+                                   l_hash_flag = true;
+                                }
                                 i_tmp++;
-                                s_json_dag_pack_event(json_arr_obj_event, l_event_item, i_tmp);                           
+                                s_json_dag_pack_event(json_arr_obj_event, l_event_item, i_tmp);
+                                if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_event_item->hash))
+                                    break;
+
                             }
                         }
                     }
@@ -1783,8 +1793,15 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                                 (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts >= l_to_time)) {
                                 i_tmp++;
                             } else {
+                                if (l_from_hash_str && !l_hash_flag) {
+                                   if (!dap_hash_fast_compare(&l_from_hash, &l_event_item->hash))
+                                       continue;
+                                   l_hash_flag = true;
+                                }
                                 i_tmp++;
-                                s_json_dag_pack_event(json_arr_obj_event, l_event_item, i_tmp);                           
+                                s_json_dag_pack_event(json_arr_obj_event, l_event_item, i_tmp);
+                                if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_event_item->hash))
+                                    break;
                             }
                         }
                     }
@@ -1813,8 +1830,15 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                                 (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts >= l_to_time)) {
                                 i_tmp++;
                             } else {
+                                if (l_from_hash_str && !l_hash_flag) {
+                                   if (!dap_hash_fast_compare(&l_from_hash, &l_event_item->hash))
+                                       continue;
+                                   l_hash_flag = true;
+                                }
                                 i_tmp++;
-                                s_json_dag_pack_event(json_arr_obj_event, l_event_item, i_tmp);                           
+                                s_json_dag_pack_event(json_arr_obj_event, l_event_item, i_tmp);
+                                if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_event_item->hash))
+                                    break;
                             }
                         }
                     }
@@ -1826,8 +1850,15 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                                 (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts >= l_to_time)) {
                                 i_tmp++;
                             } else {
+                                if (l_from_hash_str && !l_hash_flag) {
+                                   if (!dap_hash_fast_compare(&l_from_hash, &l_event_item->hash))
+                                       continue;
+                                   l_hash_flag = true;
+                                }
                                 i_tmp++;
-                                s_json_dag_pack_event(json_arr_obj_event, l_event_item, i_tmp);                           
+                                s_json_dag_pack_event(json_arr_obj_event, l_event_item, i_tmp);
+                                if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_event_item->hash))
+                                    break;
                             }
                         }
                     }
