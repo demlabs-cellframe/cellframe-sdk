@@ -40,7 +40,7 @@
 
 #define LOG_TAG "dap_chain_net_tx"
 
-const dap_chain_addr_t c_dap_chain_addr_blank = {0};
+const dap_chain_addr_t c_dap_chain_addr_blank_1 = {0};
 
 typedef struct cond_all_with_spends_by_srv_uid_arg{
     dap_chain_datum_tx_spends_items_t * ret;
@@ -888,7 +888,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                         if (NULL != (l_delegated_token = dap_ledger_token_ticker_check(a_net->pub.ledger, l_delegated_ticker_str))){
                             uint256_t l_emission_rate = dap_ledger_token_get_emission_rate(a_net->pub.ledger, l_delegated_ticker_str);
                             MULT_256_COIN(l_tx_out_cond->header.value, l_emission_rate, &l_value_delegated);
-                            dap_chain_tx_in_cond_t * l_in_cond = dap_chain_datum_tx_item_out_ext_create(&c_dap_chain_addr_blank, l_value_delegated, l_ticker_str);
+                            dap_chain_tx_in_cond_t * l_in_cond = dap_chain_datum_tx_item_out_ext_create(&c_dap_chain_addr_blank_1, l_value_delegated, l_ticker_str);
                             l_item = (const uint8_t*) l_in_cond;
                         }
 
