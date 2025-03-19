@@ -18,6 +18,18 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <sys/sysinfo.h>
+#include "dap_chain_node.h"
+#include "dap_config.h"
+
+ typedef struct dap_chain_node_rpc_states_info {
+    uint32_t version;
+    dap_chain_node_addr_t address;
+    uint32_t location;
+    uint32_t links_count;
+    uint32_t cli_thread_count;
+    struct sysinfo sysinfo;
+} DAP_ALIGN_PACKED dap_chain_node_rpc_states_info_t;
 
  void dap_chain_node_rpc_init(dap_config_t *a_cfg);
  bool dap_chain_node_rpc_is_my_node_authorized();
