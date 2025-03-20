@@ -320,10 +320,12 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
 
     // Get last sign item from transaction
     dap_hash_fast_t l_pkey_hash = {};
-    dap_sign_t *l_pkey_sign = NULL;
+    dap_sign_t *l_pkey_sign = NULL, *l_wallet_sign = NULL;
     uint8_t *l_tx_item = NULL; size_t l_size; int i, l_sign_num = 0;
     TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_SIG, l_size, i, a_tx_in) {
         l_pkey_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_item);
+        if (!l_wallet_sign)
+            l_wallet_sign = l_pkey_sign;
         l_sign_num++;
     }
     dap_sign_get_pkey_hash(l_pkey_sign, &l_pkey_hash);
@@ -428,8 +430,10 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
         if (!l_prev_out || l_prev_out->header.item_type != TX_ITEM_TYPE_OUT_COND ||
                 l_prev_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
             return -16;
-        if (!dap_ledger_check_condition_owner(a_ledger, &l_hash, l_prev_out->header.subtype, l_out_idx, l_pkey_sign))
+        if (!dap_ledger_check_condition_owner(a_ledger, &l_hash, l_prev_out->header.subtype, l_out_idx, l_wallet_sign)) {
+            log_it(L_WARNING, "TX hash %s out #%d owner verification error", dap_hash_fast_to_str_static(&l_hash), l_out_idx);
             return -17;
+        }
         if (s_datum_tx_voting_coin_check_cond_out(a_ledger->net, l_vote_tx_item->voting_hash, l_hash, l_out_idx,
                                                   l_old_vote ? &l_pkey_hash : NULL))
             return -15;
