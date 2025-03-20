@@ -30,6 +30,7 @@
 
 typedef enum {
     RPC_ROLE_INVALID = 0,
+    RPC_ROLE_USER,
     RPC_ROLE_BALANCER,
     RPC_ROLE_SERVER,
     RPC_ROLE_ROOT
@@ -44,6 +45,7 @@ static dap_global_db_cluster_t *s_rpc_node_list_cluster = NULL;
 DAP_STATIC_INLINE s_get_role_from_str(const char *a_str)
 {
     if (!a_str) return RPC_ROLE_INVALID;
+    if (!strcmp(a_str, "user")) return RPC_ROLE_USER;
     if (!strcmp(a_str, "balancer")) return RPC_ROLE_BALANCER;
     if (!strcmp(a_str, "server")) return RPC_ROLE_SERVER;
     if (!strcmp(a_str, "root")) return RPC_ROLE_SERVER;
@@ -82,23 +84,6 @@ void dap_chain_node_rpc_init(dap_config_t *a_cfg)
 {
     rpc_role_t l_role = s_get_role_from_str(dap_config_get_item_str(a_cfg, "rpc", "role"));
     
-    if (l_role == RPC_ROLE_SERVER || l_role == RPC_ROLE_BALANCER) {
-        if (!(s_rpc_server_states_cluster = dap_global_db_cluster_add(
-            dap_global_db_instance_get_default(), DAP_STREAM_CLUSTER_GLOBAL,
-            *(dap_guuid_t *)&uint128_0, s_rpc_server_states_group,
-            0,
-            true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_TYPE_EMBEDDED)))
-        {
-            log_it(L_ERROR, "Can't create rpc server states cluster");
-            return;
-        }
-        if (l_role == RPC_ROLE_SERVER) {
-            if (dap_proc_thread_timer_add(NULL, s_update_node_rpc_states_info, NULL, s_timer_update_states_info))
-                log_it(L_ERROR, "Can't activate timer on node states update");
-            else
-                dap_cli_server_statistic_callback_add(s_collect_state_info);
-        }
-    }
     if (l_role != RPC_ROLE_INVALID) {
         if (!(s_rpc_node_list_cluster = dap_global_db_cluster_add(
                 dap_global_db_instance_get_default(), DAP_STREAM_CLUSTER_GLOBAL,
@@ -115,7 +100,29 @@ void dap_chain_node_rpc_init(dap_config_t *a_cfg)
         for (uint16_t i = 0; i < l_authorized_nodes_count; ++i)
             dap_global_db_cluster_member_add(s_rpc_node_list_cluster, l_authorized_nodes + i, DAP_GDB_MEMBER_ROLE_ROOT);
         DAP_DELETE(l_authorized_nodes);
+    } else {
+        log_it(L_ERROR, "Can't recognized rpc role, please check config");
+        return;
     }
+    if (l_role == RPC_ROLE_SERVER || l_role == RPC_ROLE_BALANCER || l_role == RPC_ROLE_USER) {
+        if (!(s_rpc_server_states_cluster = dap_global_db_cluster_add(
+            dap_global_db_instance_get_default(), DAP_STREAM_CLUSTER_GLOBAL,
+            *(dap_guuid_t *)&uint128_0, s_rpc_server_states_group,
+            0,
+            true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_TYPE_EMBEDDED)))
+        {
+            log_it(L_ERROR, "Can't create rpc server states cluster");
+            return;
+        }
+        if (l_role == RPC_ROLE_SERVER) {
+            if (dap_proc_thread_timer_add(NULL, s_update_node_rpc_states_info, NULL, s_timer_update_states_info))
+                log_it(L_ERROR, "Can't activate timer on node states update");
+            else
+                dap_cli_server_statistic_callback_add(s_collect_state_info);
+        }
+    }
+    if (l_role == RPC_ROLE_ROOT && !dap_chain_node_rpc_is_my_node_authorized())
+        log_it(L_WARNING, "Your addres not finded in authorized rpc node list");
 }
 
 /**

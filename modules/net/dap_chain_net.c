@@ -253,7 +253,7 @@ int dap_chain_net_init()
     dap_http_ban_list_client_init();
     dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
-    dap_cli_server_cmd_add ("net", s_cli_net, "Network commands",
+    dap_cli_server_cmd_add ("net", s_cli_net, "Network commands", dap_chain_node_cli_cmd_id_from_str("net"),
         "net list [chains -net <net_name>]\n"
             "\tList all networks or list all chains in selected network\n"
         "net -net <net_name> [-mode {update | all}] go {online | offline | sync}\n"
