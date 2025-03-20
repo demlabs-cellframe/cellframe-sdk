@@ -37,37 +37,37 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_POLICY_OUT_EXT_USE_ENSURE                 0x2
 
 typedef enum {
-    DAP_CHAIN_POLICY_ACTIVATE = 0,
-    DAP_CHAIN_POLICY_DEACTIVATE
+    DAP_CHAIN_POLICY_DEACTIVATE = 0,
+    DAP_CHAIN_POLICY_ACTIVATE
 } dap_chain_policy_type_t;
 
+typedef struct dap_chain_policy_deactivate {
+    uint32_t count;
+    uint32_t nums[];
+} DAP_ALIGN_PACKED dap_chain_policy_deactivate_t;
+
+
 typedef struct dap_chain_policy_activate {
-    uint64_t flags;
     uint32_t num;
     int64_t ts_start;
-    int64_t ts_stop;
     uint64_t block_start;
-    uint64_t block_stop;
     union {
         dap_chain_id_t chain_id;
         dap_chain_t *chain;
     } chain_union;
+    uint16_t generation;
 } DAP_ALIGN_PACKED dap_chain_policy_activate_t;
-
-typedef struct dap_chain_policy_deactivate {
-    uint64_t flags;
-    uint32_t count;
-    uint32_t nums[];
-} dap_chain_policy_deactivate_t;
 
 typedef struct dap_chain_policy {
     uint16_t version;
     uint16_t type;
+    uint64_t flags;
     uint64_t data_size;
     uint8_t data[];
 } DAP_ALIGN_PACKED dap_chain_policy_t;
 
 int dap_chain_policy_init();
+void dap_chain_policy_deinit();
 int dap_chain_policy_net_add(uint64_t a_net_id);
 int dap_chain_policy_net_remove(uint64_t a_net_id);
 int dap_chain_policy_add(dap_chain_policy_t *a_policy, uint64_t a_net_id);
@@ -81,11 +81,6 @@ bool dap_chain_policy_activated(uint32_t a_policy_num, uint64_t a_net_id);
 DAP_STATIC_INLINE size_t dap_chain_policy_deactivate_calc_size(size_t a_deactivate_count)
 {
     return sizeof(dap_chain_policy_t) + sizeof(dap_chain_policy_deactivate_t) + sizeof(uint32_t) * a_deactivate_count;
-}
-
-DAP_STATIC_INLINE size_t dap_chain_policy_activate_calc_size()
-{
-    return sizeof(dap_chain_policy_t) + sizeof(dap_chain_policy_activate_t);
 }
 
 DAP_STATIC_INLINE size_t dap_chain_policy_get_size(dap_chain_policy_t *a_policy)
