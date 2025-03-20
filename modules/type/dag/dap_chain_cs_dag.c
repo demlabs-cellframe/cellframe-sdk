@@ -161,7 +161,8 @@ int dap_chain_cs_dag_init()
             "\tdoesn't changes after sign add to event. \n\n"
         "dag event dump -net <net_name> [-chain <chain_name>] -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round_id_in_hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
-        "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round_id_in_hex>} [-limit] [-offset] [-head]\n\n"
+        "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round_id_in_hex>} [-limit] [-offset] [-head]\n"
+            "\t[-from_hash <event_hash>] [-to_hash <event_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]\n"
             "\tShow event list \n\n"
         "dag event count -net <net_name> [-chain <chain_name>]\n"
             "\tShow count event \n\n"
@@ -1688,12 +1689,20 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
             case SUBCMD_EVENT_LIST: {
                 json_object * json_obj_event_list = json_object_new_object();
                 json_object * json_arr_obj_event = json_object_new_array();
-                const char *l_limit_str = NULL, *l_offset_str = NULL, *l_head_str = NULL;
+                const char *l_limit_str = NULL, *l_offset_str = NULL, *l_head_str = NULL, *l_from_date_str = NULL, *l_to_date_str = NULL,
+                *l_from_hash_str = NULL, *l_to_hash_str = NULL;
+                bool l_hash_flag = false;
+                dap_hash_fast_t l_from_hash = {}, l_to_hash = {};
+                dap_time_t l_from_time = 0, l_to_time = 0;
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-limit", &l_limit_str);
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-offset", &l_offset_str);
+                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-from_date", &l_from_date_str);
+                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-to_date", &l_to_date_str);
+                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-from_hash", &l_from_hash_str);
+                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-to_hash", &l_to_hash_str);
                 bool l_head = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-head", &l_head_str) ? true : false;
                 char *ptr;
-                size_t l_limit = l_limit_str ? strtoull(l_limit_str, &ptr, 10) : 0;
+                size_t l_limit = l_limit_str ? strtoull(l_limit_str, &ptr, 10) : 1000;
                 size_t l_offset = l_offset_str ? strtoull(l_offset_str, &ptr, 10) : 0;                
 
                 if (l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) {
