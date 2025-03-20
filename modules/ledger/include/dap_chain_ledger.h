@@ -499,7 +499,6 @@ bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger);
 void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_cache_tx_check_callback_t a_callback);
 dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond);
 void dap_ledger_load_end(dap_ledger_t *a_ledger);
-dap_pkey_t *dap_ledger_find_pkey_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_pkey_hash);
 
 void dap_ledger_decree_init(dap_ledger_t *a_ledger);
 int dap_ledger_decree_purge(dap_ledger_t *a_ledger);
@@ -530,7 +529,6 @@ dap_list_t *dap_ledger_tx_get_trackers(dap_ledger_t *a_ledger, dap_chain_hash_fa
 void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
 void dap_ledger_colour_clear_callback(void *a_list_data);
 
-dap_pkey_t *dap_ledger_find_pkey_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_pkey_hash);
 dap_list_t *dap_ledger_decrees_get_by_type(dap_ledger_t *a_ledger, int a_type);
 
 #ifdef __cplusplus
