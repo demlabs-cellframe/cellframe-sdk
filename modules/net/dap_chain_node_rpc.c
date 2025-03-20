@@ -36,11 +36,19 @@ typedef enum {
     RPC_ROLE_ROOT
 } rpc_role_t;
 
+struct cmd_call_stat {
+    atomic_int_fast32_t count;
+    atomic_int_fast64_t time;
+};
+
 static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
 static const char s_rpc_server_states_group[] = "rpc.states";
 static const char s_rpc_node_list_group[] = "rpc.list";
 static dap_global_db_cluster_t *s_rpc_server_states_cluster = NULL;
 static dap_global_db_cluster_t *s_rpc_node_list_cluster = NULL;
+
+
+static struct cmd_call_stat *s_cmd_call_stat = NULL;
 
 DAP_STATIC_INLINE s_get_role_from_str(const char *a_str)
 {
@@ -52,9 +60,11 @@ DAP_STATIC_INLINE s_get_role_from_str(const char *a_str)
     return RPC_ROLE_INVALID;
 }
 
-static void s_collect_state_info(int16_t a_cmd_num, bool a_start_measure)
+static void s_collect_cmd_stat_info(int16_t a_cmd_num, int64_t a_call_time)
 {
-
+    dap_return_if_pass(a_cmd_num >= DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL);
+    atomic_fetch_add(&(s_cmd_call_stat + a_cmd_num)->count, 1);
+    atomic_fetch_add(&(s_cmd_call_stat + a_cmd_num)->time, a_call_time);
 }
 
 /**
@@ -69,6 +79,11 @@ static void s_update_node_rpc_states_info(UNUSED_ARG void *a_arg)
     l_info->links_count = dap_stream_get_links_count();
     l_info->cli_thread_count = dap_cli_get_cmd_thread_count();
     sysinfo(&l_info->sysinfo);
+    for(int16_t i = 0; i < DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL; ++i) {
+        int32_t l_count = atomic_load(&(s_cmd_call_stat + i)->count);
+        int64_t l_time = atomic_load(&(s_cmd_call_stat + i)->time);
+        l_info->cmd_info.time_stat[i] = l_count ? l_time / l_count : 0;
+    }
 
     const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->address);
     dap_global_db_set_sync(s_rpc_server_states_group, l_node_addr_str, l_info, sizeof(dap_chain_node_rpc_states_info_t), false);
@@ -115,14 +130,21 @@ void dap_chain_node_rpc_init(dap_config_t *a_cfg)
             return;
         }
         if (l_role == RPC_ROLE_SERVER) {
-            if (dap_proc_thread_timer_add(NULL, s_update_node_rpc_states_info, NULL, s_timer_update_states_info))
+            if (dap_proc_thread_timer_add(NULL, s_update_node_rpc_states_info, NULL, s_timer_update_states_info)) {
                 log_it(L_ERROR, "Can't activate timer on node states update");
-            else
-                dap_cli_server_statistic_callback_add(s_collect_state_info);
+            } else {
+                s_cmd_call_stat = DAP_NEW_Z_COUNT_RET_IF_FAIL(struct cmd_call_stat, DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL);
+                dap_cli_server_statistic_callback_add(s_collect_cmd_stat_info);
+            }
         }
     }
     if (l_role == RPC_ROLE_ROOT && !dap_chain_node_rpc_is_my_node_authorized())
         log_it(L_WARNING, "Your addres not finded in authorized rpc node list");
+}
+
+void dap_chain_node_rpc_deinit()
+{
+    DAP_DELETE(s_cmd_call_stat);
 }
 
 /**

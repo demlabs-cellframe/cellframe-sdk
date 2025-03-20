@@ -394,4 +394,5 @@ void dap_chain_node_cli_delete(void)
     dap_cli_server_deinit();
     // deinit client for handshake
     dap_chain_node_client_deinit();
+    dap_chain_node_rpc_deinit();
 }

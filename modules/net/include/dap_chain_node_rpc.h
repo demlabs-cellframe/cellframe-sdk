@@ -20,17 +20,22 @@
  */
 #include <sys/sysinfo.h>
 #include "dap_chain_node.h"
+#include "dap_chain_node_cli_cmd.h"
 #include "dap_config.h"
 
- typedef struct dap_chain_node_rpc_states_info {
-    uint32_t version;
-    dap_chain_node_addr_t address;
-    uint32_t location;
-    uint32_t links_count;
-    uint32_t cli_thread_count;
-    struct sysinfo sysinfo;
-    uint32_t cmd_data_size;
-    uint8_t cmd_data[];
+typedef struct dap_chain_node_rpc_cmd_states_info {
+   int16_t count;
+   int64_t time_stat[DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL];
+} DAP_ALIGN_PACKED dap_chain_node_rpc_cmd_states_info_t;
+
+typedef struct dap_chain_node_rpc_states_info {
+   uint32_t version;
+   dap_chain_node_addr_t address;
+   uint32_t location;
+   uint32_t links_count;
+   uint32_t cli_thread_count;
+   struct sysinfo sysinfo;
+   dap_chain_node_rpc_cmd_states_info_t cmd_info;
 } DAP_ALIGN_PACKED dap_chain_node_rpc_states_info_t;
 
  void dap_chain_node_rpc_init(dap_config_t *a_cfg);
@@ -40,5 +45,5 @@
 
  DAP_STATIC_INLINE size_t dap_chain_node_rpc_get_states_info_size(dap_chain_node_rpc_states_info_t *a_info)
  {
-    return a_info ? sizeof(dap_chain_node_rpc_states_info_t) + a_info->cmd_data_size : 0;
+    return a_info ? sizeof(dap_chain_node_rpc_states_info_t) : 0;
  }
