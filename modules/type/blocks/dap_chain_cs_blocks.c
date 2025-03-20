@@ -2954,3 +2954,35 @@ dap_chain_cs_blocks_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chai
     }
     return ret;
 }
+
+/**
+ * @brief search pkey in block signs
+ * @param a_chain chain to search
+ * @param a_pkey_hash - pkey hash
+ * @return pointer to dap_pkey_t if finded, other - NULL
+ */
+dap_pkey_t *dap_chain_cs_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_pkey_hash)
+{
+    dap_return_val_if_pass(!a_pkey_hash, NULL);
+    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+    if (!l_chain || !DAP_CHAIN_CS_BLOCKS(l_chain) || !PVT(DAP_CHAIN_CS_BLOCKS(l_chain)))
+        return NULL;
+    dap_pkey_t *l_ret = NULL;
+    pthread_rwlock_rdlock(&PVT(DAP_CHAIN_CS_BLOCKS(l_chain))->rwlock);
+    for (dap_chain_block_cache_t *l_block_cache = PVT(DAP_CHAIN_CS_BLOCKS(l_chain))->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
+        for (size_t i = 0; i < l_block_cache->sign_count; i++) {
+            dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
+            if (dap_sign_is_use_pkey_hash(l_sign))
+                continue;
+            dap_chain_hash_fast_t l_sign_hash = {};
+            dap_sign_get_pkey_hash(l_sign, &l_sign_hash);
+            if(!memcmp(&l_sign_hash, a_pkey_hash, sizeof(dap_chain_hash_fast_t))) {
+                l_ret = dap_pkey_get_from_sign(l_sign);
+                break;
+            }
+        }
+    }
+    pthread_rwlock_unlock(&PVT(DAP_CHAIN_CS_BLOCKS(l_chain))->rwlock);
+    return l_ret;
+}
+

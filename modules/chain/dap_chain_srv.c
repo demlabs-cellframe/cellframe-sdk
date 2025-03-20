@@ -271,24 +271,6 @@ void *dap_chain_srv_get_internal(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_
 }
 
 /**
- * @brief get list with all networks by concretic srv_uid
- * @param a_srv_uid
- * @return ponter to list
- */
-dap_list_t *dap_chain_srv_get_internal_all(dap_chain_srv_uid_t a_srv_uid)
-{
-    dap_list_t *ret = NULL;
-    struct service_list *l_service_item = s_service_find(a_srv_uid);
-    if (l_service_item) {
-        for (dap_list_t *it = l_service_item->networks; it; it = it->next) {
-            struct network_service *l_service = it->data;
-            ret = dap_list_append(ret, l_service->service);
-        }
-    }
-    return ret;
-}
-
-/**
  * @brief dap_chain_srv_get_uid_by_name
  * @param a_client
  */

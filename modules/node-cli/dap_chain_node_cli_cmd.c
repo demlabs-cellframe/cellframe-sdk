@@ -1755,6 +1755,10 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
         // wallet list
         case CMD_WALLET_LIST:
             s_wallet_list(c_wallets_path, json_arr_out, NULL);
+            if (json_object_array_length(json_arr_out) == 0) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_FOUND_ERR,
+                    "Сouldn't find any wallets");
+            }
             break;
         // wallet info
         case CMD_WALLET_INFO: {
@@ -6111,9 +6115,7 @@ static char *s_decree_policy_put(dap_chain_datum_decree_t *a_decree, dap_chain_n
 {
     size_t l_decree_size = dap_chain_datum_decree_get_size(a_decree);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE, a_decree, l_decree_size);
-    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
-    if (!l_chain)
-        l_chain =  dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
     if (!l_chain) {
         log_it(L_ERROR, "No chain supported decree datum type");
         return NULL;
@@ -6133,14 +6135,13 @@ int com_policy(int argc, char **argv, void **reply) {
         *l_deactivate_str = NULL,
         *l_chain_str = NULL,
         *l_ts_start_str = NULL,
-        *l_ts_stop_str = NULL,
         *l_block_start_str = NULL,
-        *l_block_stop_str = NULL,
         *l_certs_str = NULL;
     size_t
         l_deactivate_count = 0,
         l_certs_count = 0;
     dap_cert_t **l_certs = NULL;
+    uint64_t l_flags = 0;
     bool l_execute = false;
 
     enum { CMD_NONE = 0, CMD_ACTIVATE, CMD_DEACTIVATE, CMD_FIND, CMD_LIST };  
@@ -6236,9 +6237,7 @@ int com_policy(int argc, char **argv, void **reply) {
 
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-chain", &l_chain_str);
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-ts_start", &l_ts_start_str);
-    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-ts_stop", &l_ts_stop_str);
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-block_start", &l_block_start_str);
-    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-block_stop", &l_block_stop_str);
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-deactivate", &l_deactivate_str);
     dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-certs", &l_certs_str);
     l_execute = dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "execute", NULL);
@@ -6275,40 +6274,15 @@ int com_policy(int argc, char **argv, void **reply) {
                 DAP_DELETE(l_policy_activate);
                 return -13;
             }
-        }
-
-        if (l_ts_stop_str) {
-            l_policy_activate->ts_stop = dap_time_from_str_custom(l_ts_stop_str, "%d/%m/%y-%H:%M:%S");
-            if (!l_policy_activate->ts_stop) {
-                dap_json_rpc_error_add(*a_json_arr_reply, -14, "Can't read ts_stop \"%s\"", l_ts_stop_str);
-                DAP_DELETE(l_policy_activate);
-                return -14;
-            }
-            if (l_policy_activate->ts_stop <= l_policy_activate->ts_start) {
-                dap_json_rpc_error_add(*a_json_arr_reply, -12, "ts_start should less than ts_stop");
-                DAP_DELETE(l_policy_activate);
-                return -12;
-            }
-        }
-
-        if (l_policy_activate->ts_start || l_policy_activate->ts_stop) {
-            l_policy_activate->flags = DAP_FLAG_ADD(l_policy_activate->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS);
+            l_flags = DAP_FLAG_ADD(l_flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS);
         }
 
         if (l_block_start_str)
             l_policy_activate->block_start = strtoull(l_block_start_str, NULL, 10);
-        if (l_block_stop_str) {
-            l_policy_activate->block_stop = strtoull(l_block_stop_str, NULL, 10);
-            if (l_policy_activate->block_stop <= l_policy_activate->block_start) {
-                dap_json_rpc_error_add(*a_json_arr_reply, -13, "block_start should less than block_stop");
-                DAP_DELETE(l_policy_activate);
-                return -13;
-            }
-        }
         
-        if (l_policy_activate->block_start || l_policy_activate->block_stop) {
+        if (l_policy_activate->block_start) {
             if (!l_chain_str) {
-                dap_json_rpc_error_add(*a_json_arr_reply, -8, "Command policy create with -block_start or -block_stop require args -chain");
+                dap_json_rpc_error_add(*a_json_arr_reply, -8, "Command policy create with -block_start require args -chain");
                 DAP_DELETE(l_policy_activate);
                 return -8;
             }
@@ -6319,9 +6293,9 @@ int com_policy(int argc, char **argv, void **reply) {
                 return -9;
             }
             l_policy_activate->chain_union.chain = l_chain;
-            l_policy_activate->flags = DAP_FLAG_ADD(l_policy_activate->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM);
+            l_flags = DAP_FLAG_ADD(l_flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM);
         }
-        if (!l_policy_activate->flags && l_policy_activate->num < l_last_num) {
+        if (!l_flags && l_policy_activate->num < l_last_num) {
             dap_json_rpc_error_add(*a_json_arr_reply, -16, "Specified policy already activated by CN-%u", l_last_num);
             DAP_DELETE(l_policy_activate);
             return -16;
@@ -6332,6 +6306,7 @@ int com_policy(int argc, char **argv, void **reply) {
     l_policy->data_size = l_data_size;
     l_policy->version = DAP_CHAIN_POLICY_VERSION;
     l_policy->type = l_policy_type;
+    l_policy->flags = l_flags;
     memcpy(l_policy->data, l_policy_data, l_policy->data_size);
     DAP_DELETE(l_policy_data);
     // if cmd none - only print preaparing result
