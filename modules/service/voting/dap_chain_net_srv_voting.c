@@ -39,6 +39,7 @@
 #include "dap_cli_server.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_node_cli.h"
+#include "dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "chain_net_voting"
 

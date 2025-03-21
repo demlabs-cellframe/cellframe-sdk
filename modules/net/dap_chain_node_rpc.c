@@ -131,12 +131,16 @@ void dap_chain_node_rpc_init(dap_config_t *a_cfg)
             return;
         }
         if (l_role == RPC_ROLE_SERVER) {
+#ifndef WIN32
             if (dap_proc_thread_timer_add(NULL, s_update_node_rpc_states_info, NULL, s_timer_update_states_info)) {
                 log_it(L_ERROR, "Can't activate timer on node states update");
             } else {
                 s_cmd_call_stat = DAP_NEW_Z_COUNT_RET_IF_FAIL(struct cmd_call_stat, DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL);
                 dap_cli_server_statistic_callback_add(s_collect_cmd_stat_info);
             }
+#else
+            log_it(L_ERROR, "RPC server role on win32 not avaible");
+#endif
         }
     }
     if (l_role == RPC_ROLE_ROOT && !dap_chain_node_rpc_is_my_node_authorized())
