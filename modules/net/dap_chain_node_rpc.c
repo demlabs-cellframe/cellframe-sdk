@@ -68,6 +68,7 @@ static void s_collect_cmd_stat_info(int16_t a_cmd_num, int64_t a_call_time)
     atomic_fetch_add(&(s_cmd_call_stat + a_cmd_num)->time, a_call_time);
 }
 
+#ifndef WIN32
 /**
  * @brief get states info about current
  * @param a_arg - pointer to callback arg
@@ -90,6 +91,7 @@ static void s_update_node_rpc_states_info(UNUSED_ARG void *a_arg)
     dap_global_db_set_sync(s_rpc_server_states_group, l_node_addr_str, l_info, sizeof(dap_chain_node_rpc_states_info_t), false);
     DAP_DELETE(l_info);
 }
+#endif
 
 static int s_rpc_node_cmp(dap_list_t *a_list1, dap_list_t *a_list2)
 {
@@ -144,7 +146,7 @@ void dap_chain_node_rpc_init(dap_config_t *a_cfg)
         }
     }
     if (l_role == RPC_ROLE_ROOT && !dap_chain_node_rpc_is_my_node_authorized())
-        log_it(L_WARNING, "Your addres not finded in authorized rpc node list");
+        log_it(L_WARNING, "Your addres not finded in authorized rpc node list"); 
 }
 
 void dap_chain_node_rpc_deinit()
