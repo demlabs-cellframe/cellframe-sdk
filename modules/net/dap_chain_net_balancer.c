@@ -33,6 +33,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_client_http.h"
 #include "dap_enc_base64.h"
 #include "dap_notify_srv.h"
+#include "dap_chain_node_rpc.h"
 
 #define LOG_TAG "dap_chain_net_balancer"
 
@@ -54,9 +55,6 @@ typedef struct dap_balancer_request_info {
 static_assert(sizeof(dap_chain_net_links_t) + sizeof(dap_chain_node_info_old_t) < DAP_BALANCER_MAX_REPLY_SIZE, "DAP_BALANCER_MAX_REPLY_SIZE cannot accommodate information minimum about 1 link");
 static const size_t s_max_links_response_count = (DAP_BALANCER_MAX_REPLY_SIZE - sizeof(dap_chain_net_links_t)) / sizeof(dap_chain_node_info_old_t);
 static dap_balancer_request_info_t* s_request_info_items = NULL;
-
-static bool s_balancer_node = true;
-static bool s_balancer_rpc = true;
 
 const char *s_uri[] = {
     "f0intlt4eyl03htogu",
@@ -392,11 +390,6 @@ int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_cha
  */
 void s_http_node_issue_link(dap_http_simple_t *a_http_simple, http_status_code_t *a_return_code)
 {
-    if (!s_balancer_node) {
-        log_it(L_ERROR, "Balancer validator mode is off");
-        *a_return_code = Http_Status_MethodNotAllowed;
-        return;
-    }
     int l_protocol_version = 0;
     char l_issue_method = 0;
     const char l_net_token[] = "net=", l_ignored_token[] = "ignored=";
@@ -452,14 +445,13 @@ void s_http_node_issue_link(dap_http_simple_t *a_http_simple, http_status_code_t
  */
 void s_http_rpc_issue_link(dap_http_simple_t *a_http_simple, http_status_code_t *a_return_code)
 {
-    if (!s_balancer_node) {
+    if (!dap_chain_node_rpc_is_balancer_node()) {
         log_it(L_ERROR, "Balancer rpc mode is off");
         *a_return_code = Http_Status_MethodNotAllowed;
         return;
     }
     int l_protocol_version = 0;
     char l_issue_method = 0;
-    const char l_net_token[] = "net=";
     sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c",
                                                             &l_protocol_version, &l_issue_method);
     if (l_protocol_version > DAP_BALANCER_PROTOCOL_VERSION || l_protocol_version < 1 || l_issue_method != 'r') {
@@ -467,16 +459,16 @@ void s_http_rpc_issue_link(dap_http_simple_t *a_http_simple, http_status_code_t 
         *a_return_code = Http_Status_MethodNotAllowed;
         return;
     }
-    char *l_net_str = strstr(a_http_simple->http_client->in_query_string, l_net_token);
-    if (!l_net_str) {
-        log_it(L_ERROR, "Net name token not found in the request to dap_chain_net_balancer module");
-        *a_return_code = Http_Status_NotFound;
+    size_t l_count = 0;
+    dap_chain_node_rpc_states_info_t *l_rpc_info = dap_chain_node_rpc_get_states_sort(&l_count);
+    if (!l_rpc_info) {
+        log_it(L_DEBUG, "Can't issue rpc node states, no any info found");
+        *a_return_code = Http_Status_NoContent;
         return;
     }
-    l_net_str += sizeof(l_net_token) - 1;
-
-    // dap_http_simple_reply(a_http_simple, l_link_full_node_list, l_data_send_size);
-    // DAP_DELETE(l_link_full_node_list);
+    *a_return_code = Http_Status_OK;
+    dap_http_simple_reply(a_http_simple, l_rpc_info, sizeof(dap_chain_node_rpc_states_info_t) *l_count);
+    DAP_DELETE(l_rpc_info);
 }
 
 /**

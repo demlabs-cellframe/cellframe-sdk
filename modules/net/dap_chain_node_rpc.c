@@ -46,6 +46,7 @@ static const char s_rpc_server_states_group[] = "rpc.states";
 static const char s_rpc_node_list_group[] = "rpc.list";
 static dap_global_db_cluster_t *s_rpc_server_states_cluster = NULL;
 static dap_global_db_cluster_t *s_rpc_node_list_cluster = NULL;
+static rpc_role_t s_curretn_role = RPC_ROLE_INVALID;
 
 
 static struct cmd_call_stat *s_cmd_call_stat = NULL;
@@ -235,7 +236,7 @@ dap_string_t *dap_chain_node_rpc_list()
  * @brief get states rpc info about current
  * @param a_arg - pointer to callback arg
  */
-dap_list_t *dap_chain_node_rpc_get_sorted_list(size_t *a_count)
+dap_list_t *dap_chain_node_rpc_get_states_list_sort(size_t *a_count)
 {
     size_t l_count = 0;
     dap_list_t *l_ret = NULL;
@@ -256,4 +257,35 @@ dap_list_t *dap_chain_node_rpc_get_sorted_list(size_t *a_count)
     if (a_count)
         *a_count = l_count;
     return l_ret;
+}
+
+dap_chain_node_rpc_states_info_t *dap_chain_node_rpc_get_states_sort(size_t *a_count)
+{
+    size_t l_count = 0;
+    dap_list_t *l_nodes_list = dap_chain_node_rpc_get_states_list_sort(&l_count);
+    if(!l_nodes_list || !l_count) {
+        log_it(L_DEBUG, "No any information about rpc states");
+        return NULL;
+    }
+    // memory alloc
+    dap_chain_node_rpc_states_info_t *l_ret = DAP_NEW_Z_COUNT(dap_chain_node_rpc_states_info_t, l_count);
+    if (!l_ret) {
+        log_it(L_ERROR, "%s", c_error_memory_alloc);
+        dap_list_free_full(l_nodes_list, NULL);
+        return NULL;
+    }
+// func work
+    size_t j = 0;
+    for(dap_list_t *i = l_nodes_list; i && j < l_count; i = i->next, ++j) {
+        dap_mempcpy(l_ret + j, i->data, sizeof(dap_chain_node_rpc_states_info_t));
+    }
+    dap_list_free_full(l_nodes_list, NULL);
+    if (a_count)
+        *a_count = l_count;
+    return l_ret;
+}
+
+DAP_INLINE bool dap_chain_node_rpc_is_balancer_node()
+{
+    return s_curretn_role == RPC_ROLE_BALANCER;
 }
