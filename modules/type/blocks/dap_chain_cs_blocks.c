@@ -392,7 +392,8 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
 dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_t * a_blocks,  dap_chain_hash_fast_t *a_block_hash)
 {
     dap_chain_block_cache_t * l_ret = NULL;
-    pthread_rwlock_rdlock(& PVT(a_blocks)->rwlock);
+    int err = pthread_rwlock_rdlock(& PVT(a_blocks)->rwlock);
+    assert(!err);
     HASH_FIND(hh, PVT(a_blocks)->blocks,a_block_hash, sizeof (*a_block_hash), l_ret );
     pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
     return l_ret;
@@ -407,7 +408,8 @@ dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_
 dap_chain_block_cache_t * dap_chain_block_cache_get_by_number(dap_chain_cs_blocks_t * a_blocks,  uint64_t a_block_number)
 {
     dap_chain_block_cache_t * l_ret = NULL;
-    pthread_rwlock_rdlock(& PVT(a_blocks)->rwlock);
+    int err = pthread_rwlock_rdlock(& PVT(a_blocks)->rwlock);
+    assert(!err);
     HASH_FIND_BYHASHVALUE(hh2, PVT(a_blocks)->blocks_num, &a_block_number, sizeof (a_block_number), a_block_number, l_ret);
     pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
     return l_ret;
@@ -1528,8 +1530,9 @@ static int s_callback_delete(dap_chain_t * a_chain)
 {
     s_callback_cs_blocks_purge(a_chain);
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
-    if(l_blocks->callback_delete )
+    int err = pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
+    assert(!err);
+    if (l_blocks->callback_delete)
         l_blocks->callback_delete(l_blocks);
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->rwlock);
@@ -1557,7 +1560,8 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     DAP_DEL_Z(PVT(l_blocks)->forked_branches);
     pthread_rwlock_unlock(&PVT(l_blocks)->forked_branches_rwlock);
 
-    pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
+    int err = pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
+    assert(!err);
     dap_chain_block_cache_t *l_block = NULL, *l_block_tmp = NULL;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
         HASH_DEL(PVT(l_blocks)->blocks, l_block);
@@ -1806,7 +1810,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
 
-        pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);
+        int err = pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
+        assert(!err);
         if (!l_block_cache->is_genesis) {
             dap_chain_block_cache_t *l_last_block = HASH_LAST(PVT(l_blocks)->blocks);
             if (l_last_block && dap_hash_fast_compare(&l_last_block->block_hash, &l_block_prev_hash)){
@@ -1887,6 +1892,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             uint8_t *l_generation_meta = dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_GENERATION);
             uint16_t l_generation = l_generation_meta ? *(uint16_t *)l_generation_meta : 0;
             if (l_generation && a_chain->generation < l_generation) {
+                pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
                 dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
                 if (!l_hardfork_decree_hash) {
                     log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
@@ -1902,6 +1908,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
                     return ATOM_REJECT;
                 }
+                pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
             }
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
             HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
@@ -1945,7 +1952,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
         dap_chain_block_cache_t *l_prev_bcache = NULL, *l_tmp = NULL;
-        pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);        log_it(L_INFO, "New fork. Previous block hash %s, current block hash %s", dap_chain_hash_fast_to_str_static(&l_block_prev_hash), 
+        int err = pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
+        assert(!err);
+        log_it(L_INFO, "New fork. Previous block hash %s, current block hash %s", dap_chain_hash_fast_to_str_static(&l_block_prev_hash),
                                                                                     l_block_cache->block_hash_str);
         HASH_FIND(hh, PVT(l_blocks)->blocks, &l_block_prev_hash, sizeof(dap_hash_fast_t), l_prev_bcache);
         if (l_prev_bcache){
@@ -2103,8 +2112,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         if (l_bcache_last && dap_hash_fast_compare(&l_bcache_last->block_hash, &l_block_prev_hash))
             ret = ATOM_ACCEPT;
         else { // search block and previous block in forked branch
-            pthread_rwlock_rdlock(& PVT(l_blocks)->rwlock);
-            for (size_t i = 0; i < PVT(l_blocks)->forked_br_cnt; i++){
+            int err = pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+            assert(!err);
+            for (size_t i = 0; i < PVT(l_blocks)->forked_br_cnt; i++) {
                 dap_chain_block_forked_branch_t *l_cur_branch = PVT(l_blocks)->forked_branches[i];
                 dap_chain_block_forked_branch_atoms_table_t *l_item = NULL;
                 // Check block already present in forked branch
@@ -2219,7 +2229,8 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_
     assert(a_atom_iter);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
     dap_chain_block_cache_t *l_block_cache = NULL;
-    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    int err = pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    assert(!err);
     for (l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next)
         if (l_block_cache->block_number == a_atom_num)
             break;
@@ -2426,7 +2437,8 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_at
         log_it(L_ERROR, "l_blocks_pvt is NULL");
         return NULL;
     }
-    pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
+    int err = pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
+    assert(!err);
     switch (a_operation) {
     case DAP_CHAIN_ITER_OP_FIRST:
         a_atom_iter->cur_item = l_blocks_pvt->blocks;
@@ -2598,7 +2610,8 @@ static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size
     size_t l_ret_size = 0;
     dap_chain_block_t *l_ret = NULL;
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(a_blocks);
-    pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
+    int err = pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
+    assert(!err);
     if ( a_blocks->block_new ) {
         l_ret = a_blocks->block_new;
         l_ret_size = a_blocks->block_new_size;
@@ -2625,7 +2638,8 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
     // dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
 
     size_t l_datum_processed = 0;
-    pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
+    int err = pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
+    assert(!err);
 #ifdef DAP_TPS_TEST
     log_it(L_TPS, "Start tps %zu datums add", a_datums_count);
 #endif
@@ -2636,8 +2650,8 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
             log_it(L_WARNING, "Empty datum"); /* How might it be? */
             continue;
         }
-        if (l_blocks->block_new_size + l_datum_size > DAP_CHAIN_ATOM_MAX_SIZE) {
-            log_it(L_DEBUG, "Maximum size exeeded, %zu > %d", l_blocks->block_new_size + l_datum_size, DAP_CHAIN_ATOM_MAX_SIZE);
+        if (l_blocks->block_new_size + l_datum_size > DAP_CHAIN_CANDIDATE_MAX_SIZE) {
+            log_it(L_DEBUG, "Maximum size exeeded, %zu > %d", l_blocks->block_new_size + l_datum_size, DAP_CHAIN_CANDIDATE_MAX_SIZE);
             break;
         }
         if (!l_blocks->block_new) {
@@ -2684,7 +2698,8 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
-    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    int err = pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    assert(!err);
     if (!l_blocks_pvt->blocks) {
         pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
         return NULL;
