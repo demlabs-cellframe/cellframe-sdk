@@ -29,6 +29,9 @@
 #include "dap_chain.h"
 #include "dap_chain_common.h"
 
+#define DAP_CHAIN_CELL_MAX_COUNT    32
+#define DAP_CHAIN_CELL_FILE_EXT     "dchaincell"
+
 typedef struct dap_chain_cell_mmap_data dap_chain_cell_mmap_data_t;
 
 typedef struct dap_chain_cell {
@@ -76,10 +79,9 @@ typedef struct dap_chain_cell_decl{
 
 
 int dap_chain_cell_init(void);
-int dap_chain_cell_open(dap_chain_t *a_chain, const char *a_filename, const char a_mode);
-int dap_chain_cell_open_by_id(dap_chain_t *a_chain, const dap_chain_cell_id_t a_cell_id, const char a_mode);
+int dap_chain_cell_open(dap_chain_t *a_chain, const dap_chain_cell_id_t a_cell_id, const char a_mode);
 DAP_STATIC_INLINE int dap_chain_cell_create(dap_chain_t *a_chain, const dap_chain_cell_id_t a_cell_id) {
-    return dap_chain_cell_open_by_id(a_chain, a_cell_id, 'w');
+    return dap_chain_cell_open(a_chain, a_cell_id, 'w');
 }
 
 DAP_INLINE dap_chain_cell_t *dap_chain_cell_find_by_id(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id) {
