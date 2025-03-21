@@ -101,6 +101,7 @@ typedef struct iphdr dap_os_iphdr_t;
 #include "dap_chain_node_cli.h"
 #include "dap_chain_ledger.h"
 #include "dap_events.h"
+#include "dap_chain_node_cli_cmd.h"
 
 #include "dap_http_simple.h"
 #include "http_status_code.h"

@@ -68,6 +68,7 @@
 #include "dap_chain_net_vpn_client_tun.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
 //#include "dap_modules_dynamic_cdb.h"
+#include "dap_chain_node_cli_cmd.h"
 
 /*
  #if !defined( dap_http_client_state_t )

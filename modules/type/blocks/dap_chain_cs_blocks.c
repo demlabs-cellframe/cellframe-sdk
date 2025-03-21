@@ -185,7 +185,7 @@ static dap_list_t *s_fork_resolved_notificators = NULL;
  * @return
  */
 int dap_chain_cs_blocks_init()
-{
+{  
     dap_chain_block_init();
     dap_chain_cs_type_add("blocks", s_chain_cs_blocks_new, NULL);
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
