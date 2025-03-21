@@ -23,7 +23,7 @@
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_config.h"
 
-#ifndef WIN32
+#ifdef UNIX
 #include <sys/sysinfo.h>
 #else
 struct sysinfo {  // temporary added to read
