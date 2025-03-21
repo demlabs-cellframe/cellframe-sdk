@@ -1060,7 +1060,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         return 0;
     }
     case CMD_DUMP_RPC: {
-        dap_string_t *l_string_reply = dap_chain_node_states_info_read(l_net, l_node_info->address);
+        dap_string_t *l_string_reply = dap_chain_node_rpc_states_info_read(l_node_info->address);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
         dap_string_free(l_string_reply, true);
         return 0;
