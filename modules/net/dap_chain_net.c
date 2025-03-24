@@ -2817,7 +2817,9 @@ int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_
 
 void dap_chain_net_remove_last_reward(dap_chain_net_t *a_net)
 {
-    DL_DELETE(PVT(a_net)->rewards, PVT(a_net)->rewards);
+    struct block_reward *l_last_reward = PVT(a_net)->rewards;
+    DL_DELETE(PVT(a_net)->rewards, l_last_reward);
+    DAP_DELETE(l_last_reward);
 }
 
 uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num)

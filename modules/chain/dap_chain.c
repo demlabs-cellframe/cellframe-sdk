@@ -517,6 +517,13 @@ static bool s_load_notify_callback(dap_chain_t* a_chain) {
     return true;
 }
 
+static int s_ids_sort(const void *a_cell_id1, const void *a_cell_id2)
+{
+    uint64_t a = ((dap_chain_cell_id_t *)a_cell_id1)->uint64,
+             b = ((dap_chain_cell_id_t *)a_cell_id2)->uint64;
+    return a > b ? 1 : (a < b ? -1 : 0);
+}
+
 /**
  * @brief dap_chain_load_all
  * @param l_chain
@@ -536,36 +543,61 @@ int dap_chain_load_all(dap_chain_t *a_chain)
     DIR *l_dir = opendir(l_storage_dir);
     dap_return_val_if_fail_err(l_dir, -3, "Cannot open directory %s, error %d: \"%s\"",
                                           DAP_CHAIN_PVT(a_chain)->file_storage_dir, errno, dap_strerror(errno));
-    int l_err = -1;
-    const char l_suffix[] = ".dchaincell", *l_filename;
+    int l_err = 0, l_cell_idx = 0;
+    const char l_suffix[] = "." DAP_CHAIN_CELL_FILE_EXT, *l_filename;
     struct dirent *l_dir_entry = NULL;
-    dap_time_t l_ts_start = dap_time_now();
+    dap_chain_cell_id_t l_cell_ids[DAP_CHAIN_CELL_MAX_COUNT];
     while (( l_dir_entry = readdir(l_dir) ) ) {
         l_filename = l_dir_entry->d_name;
         size_t l_namelen = strlen(l_filename);
-        if ( l_namelen >= sizeof(l_suffix) && !strncmp(l_filename + l_namelen - (sizeof(l_suffix) - 1), l_suffix, sizeof(l_suffix) - 1) ) {
-            dap_timerfd_t* l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_load_notify_callback, a_chain);
-            l_err = dap_chain_cell_open(a_chain, l_filename, 'a');
-            dap_timerfd_delete(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
-            if (l_err)
+        if (l_namelen >= sizeof(l_suffix)) {
+             /* Check filename */
+            char l_fmt[32] = "", l_ext[ sizeof(DAP_CHAIN_CELL_FILE_EXT) ] = "", l_ext2 = '\0';
+            snprintf(l_fmt, sizeof(l_fmt), "%s%lu%s", "%"DAP_UINT64_FORMAT_x".%", sizeof(DAP_CHAIN_CELL_FILE_EXT) - 1, "[^.].%c");
+            switch ( sscanf(l_filename, l_fmt, &l_cell_ids[l_cell_idx].uint64, l_ext, &l_ext2) ) {
+            case 3:
+                // TODO: X.dchaincell.*, just ignore for now
                 break;
-            s_load_notify_callback(a_chain);
+            case 2:
+                if ( !dap_strncmp(l_ext, DAP_CHAIN_CELL_FILE_EXT, sizeof(l_ext)) ) {
+                    l_cell_idx++;
+                    break;
+                }
+            default:
+                log_it(L_ERROR, "Invalid cell file name \"%s\"", l_filename);
+                l_err = EINVAL;
+                break;
+            }
         }
     }
     closedir(l_dir);
-    
-    switch (l_err) {
-    case 0:
-        log_it(L_INFO, "Loaded all chain \"%s : %s\" cells in %lf s",
-                        a_chain->net_name, a_chain->name, difftime((time_t)dap_time_now(), l_ts_start));
-        break;
-    case -1:
-        if (!( l_err = dap_chain_cell_open(a_chain, "0.dchaincell", 'w') ))
+
+    if (!l_cell_idx) {
+        if (!l_err)
+            l_err = dap_chain_cell_open(a_chain, c_dap_chain_cell_id_null, 'w');
+        if (l_err)
+            log_it(L_ERROR, "Chain \"%s : %s\" was not loaded, error %d", a_chain->net_name, a_chain->name, l_err);
+        else
             log_it(L_INFO, "Initialized chain \"%s : %s\" cell 0", a_chain->net_name, a_chain->name);
-        break;
-    default:
-        log_it(L_ERROR, "Chain \"%s : %s\" cell was not loaded, error %d", a_chain->net_name, a_chain->name, l_err);
+        return l_err;
     }
+
+    qsort(l_cell_ids, l_cell_idx, sizeof(dap_chain_cell_id_t), s_ids_sort);
+
+    dap_time_t l_ts_start = dap_time_now();
+    for (int i = 0; i < l_cell_idx; i++) {
+        dap_timerfd_t* l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_load_notify_callback, a_chain);
+        l_err = dap_chain_cell_open(a_chain, l_cell_ids[i], 'a');
+        dap_timerfd_delete(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
+        if (l_err) {
+            log_it(L_ERROR, "Chain \"%s : %s\" cell 0x%016" DAP_UINT64_FORMAT_x " was not loaded, error %d",
+                                    a_chain->net_name, a_chain->name, (uint64_t)l_cell_idx, l_err);
+            return l_err;
+        }
+        s_load_notify_callback(a_chain);
+    }
+    log_it(L_INFO, "Loaded all chain \"%s : %s\" cells in %lf s",
+                    a_chain->net_name, a_chain->name, difftime((time_t)dap_time_now(), l_ts_start));
     return l_err;
 }
 

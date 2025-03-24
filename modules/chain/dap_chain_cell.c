@@ -43,8 +43,6 @@
 #define DAP_CHAIN_CELL_FILE_TYPE_COMPRESSED 1
 #define DAP_MAPPED_VOLUME_LIMIT ( 1 << 28 ) // 256 MB for now, may be should be configurable?
 
-#define CELL_FILE_EXT "dchaincell"
-
 /**
   * @struct dap_chain_cell_file_header
   */
@@ -451,33 +449,9 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
 #undef m_ret_err
 }
 
-int dap_chain_cell_open(dap_chain_t *a_chain, const char *a_filename, const char a_mode) {
-    dap_chain_cell_id_t l_cell_id = { };
-    { /* Check filename */
-        char l_fmt[32] = "", l_ext[ sizeof(CELL_FILE_EXT) ] = "", l_ext2 = '\0';
-        snprintf(l_fmt, sizeof(l_fmt), "%s%lu%s", "%"DAP_UINT64_FORMAT_x".%", sizeof(CELL_FILE_EXT) - 1, "[^.].%c");
-
-        switch ( sscanf(a_filename, l_fmt, &l_cell_id.uint64, l_ext, &l_ext2) ) {
-        case 3:
-            // TODO: X.dchaincell.*
-        case 2:
-            if ( !dap_strncmp(l_ext, CELL_FILE_EXT, sizeof(l_ext)) )
-                break;
-        default:
-            return log_it(L_ERROR, "Invalid cell file name \"%s\"", a_filename), EINVAL;
-        }
-    }
+int dap_chain_cell_open(dap_chain_t *a_chain, const dap_chain_cell_id_t a_cell_id, const char a_mode) {
     char l_full_path[MAX_PATH];
-    snprintf(l_full_path, MAX_PATH, "%s/%s", DAP_CHAIN_PVT(a_chain)->file_storage_dir, a_filename);
-    pthread_rwlock_wrlock(&a_chain->cell_rwlock);
-    int l_ret = s_cell_open(a_chain, l_full_path, l_cell_id, a_mode);
-    pthread_rwlock_unlock(&a_chain->cell_rwlock);
-    return l_ret;
-}
-
-int dap_chain_cell_open_by_id(dap_chain_t *a_chain, const dap_chain_cell_id_t a_cell_id, const char a_mode) {
-    char l_full_path[MAX_PATH];
-    snprintf(l_full_path, MAX_PATH, "%s/%"DAP_UINT64_FORMAT_x"."CELL_FILE_EXT, DAP_CHAIN_PVT(a_chain)->file_storage_dir, a_cell_id.uint64);
+    snprintf(l_full_path, MAX_PATH, "%s/%"DAP_UINT64_FORMAT_x"."DAP_CHAIN_CELL_FILE_EXT, DAP_CHAIN_PVT(a_chain)->file_storage_dir, a_cell_id.uint64);
     pthread_rwlock_wrlock(&a_chain->cell_rwlock);
     int l_ret = s_cell_open(a_chain, l_full_path, a_cell_id, a_mode);
     pthread_rwlock_unlock(&a_chain->cell_rwlock);
