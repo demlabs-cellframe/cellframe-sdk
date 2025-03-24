@@ -104,6 +104,6 @@ DAP_STATIC_INLINE const char *dap_chain_policy_to_str(dap_chain_policy_t *a_poli
  */
 DAP_STATIC_INLINE bool dap_chain_policy_num_is_valid(uint64_t a_num)
 {
-    uint32_t l_num = dap_maxval(l_num);
+    uint32_t l_num = UINT32_MAX;
     return (a_num && a_num <= l_num);
 }
