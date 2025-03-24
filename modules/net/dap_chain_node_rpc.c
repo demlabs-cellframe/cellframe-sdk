@@ -68,7 +68,7 @@ static void s_collect_cmd_stat_info(int16_t a_cmd_num, int64_t a_call_time)
     atomic_fetch_add(&(s_cmd_call_stat + a_cmd_num)->time, a_call_time);
 }
 
-#ifdef UNIX
+#ifdef linux
 /**
  * @brief get states info about current
  * @param a_arg - pointer to callback arg
@@ -133,7 +133,7 @@ void dap_chain_node_rpc_init(dap_config_t *a_cfg)
             return;
         }
         if (l_role == RPC_ROLE_SERVER) {
-#ifdef UNIX
+#ifdef linux
             if (dap_proc_thread_timer_add(NULL, s_update_node_rpc_states_info, NULL, s_timer_update_states_info)) {
                 log_it(L_ERROR, "Can't activate timer on node states update");
             } else {
@@ -141,7 +141,7 @@ void dap_chain_node_rpc_init(dap_config_t *a_cfg)
                 dap_cli_server_statistic_callback_add(s_collect_cmd_stat_info);
             }
 #else
-            log_it(L_ERROR, "RPC server role avaible only on unix system");
+            log_it(L_ERROR, "RPC server role avaible only on linux system");
 #endif
         }
     }
@@ -174,9 +174,14 @@ dap_string_t *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
     dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_timestamp);
     dap_string_append_printf(l_ret,
         "Record timestamp: %s\nRecord version: %u\nNode addr: %s\n"
-        "Location: %s\nCli thread count: %u\nLinks count: %u\n",
+        "Location: %d\nCli thread count: %u\nLinks count: %u\n"
+        "Loads: %d %d %d\n"
+        "Procs: %u\nFree ram: %lu\nTotal ram: %lu\n",
         l_ts, l_node_info->version, l_node_addr_str,
-        l_node_info->location, l_node_info->cli_thread_count, l_node_info->links_count);
+        l_node_info->location, l_node_info->cli_thread_count, l_node_info->links_count,
+        l_node_info->sysinfo.loads[0], l_node_info->sysinfo.loads[1], l_node_info->sysinfo.loads[2],
+        l_node_info->sysinfo.procs, l_node_info->sysinfo.freeram, l_node_info->sysinfo.totalram
+        );
     return l_ret;
 }
 
