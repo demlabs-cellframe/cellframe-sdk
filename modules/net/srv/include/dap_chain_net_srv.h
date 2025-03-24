@@ -50,7 +50,7 @@ typedef struct {
 
 typedef struct dap_chain_net_srv_abstract
 {
-    uint8_t class; //Class of service (once or permanent)
+    uint8_t c; //Class of service (once or permanent)
     dap_chain_net_srv_uid_t type_id; //Type of service
     union {
         struct {
