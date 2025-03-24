@@ -4381,6 +4381,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             }
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_complete", &l_param_value_str)) {
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE;
+        } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_cancel", &l_param_value_str)) {
+            l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_CANCEL;
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-new_certs", &l_param_value_str)){
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS;
             dap_cert_parse_str_list(l_param_value_str, &l_new_certs, &l_new_certs_count);
