@@ -506,7 +506,9 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
-    l_esbocs_pvt->collecting_addr = dap_chain_addr_from_str(dap_config_get_item_str(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "fee_addr"));
+    const char *l_fee_addr_str = dap_config_get_item_str(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "fee_addr");
+    if (l_fee_addr_str)
+        l_esbocs_pvt->collecting_addr = dap_chain_addr_from_str(l_fee_addr_str);
     l_esbocs_pvt->collecting_level = dap_chain_balance_coins_scan(dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "collecting_level",
                                                                                                 dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "set_collect_fee", "10.0")));
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
