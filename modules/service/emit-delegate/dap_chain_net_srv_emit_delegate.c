@@ -34,7 +34,6 @@
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_list.h"
 
-
 enum emit_delegation_error {
     DAP_NO_ERROR = 0,
     ERROR_MEMORY,

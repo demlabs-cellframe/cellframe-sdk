@@ -68,7 +68,7 @@ static void s_collect_cmd_stat_info(int16_t a_cmd_num, int64_t a_call_time)
     atomic_fetch_add(&(s_cmd_call_stat + a_cmd_num)->time, a_call_time);
 }
 
-#ifdef linux
+#ifdef DAP_OS_LINUX
 /**
  * @brief get states info about current
  * @param a_arg - pointer to callback arg
@@ -133,7 +133,7 @@ void dap_chain_node_rpc_init(dap_config_t *a_cfg)
             return;
         }
         if (l_role == RPC_ROLE_SERVER) {
-#ifdef linux
+#ifdef DAP_OS_LINUX
             if (dap_proc_thread_timer_add(NULL, s_update_node_rpc_states_info, NULL, s_timer_update_states_info)) {
                 log_it(L_ERROR, "Can't activate timer on node states update");
             } else {
@@ -141,7 +141,7 @@ void dap_chain_node_rpc_init(dap_config_t *a_cfg)
                 dap_cli_server_statistic_callback_add(s_collect_cmd_stat_info);
             }
 #else
-            log_it(L_ERROR, "RPC server role avaible only on linux system");
+            log_it(L_ERROR, "RPC server role avaible only on DAP_OS_LINUX system");
 #endif
         }
     }
