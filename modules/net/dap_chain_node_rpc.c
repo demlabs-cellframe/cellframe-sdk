@@ -51,7 +51,7 @@ static rpc_role_t s_curretn_role = RPC_ROLE_INVALID;
 
 static struct cmd_call_stat *s_cmd_call_stat = NULL;
 
-DAP_STATIC_INLINE s_get_role_from_str(const char *a_str)
+DAP_STATIC_INLINE rpc_role_t s_get_role_from_str(const char *a_str)
 {
     if (!a_str) return RPC_ROLE_INVALID;
     if (!strcmp(a_str, "user")) return RPC_ROLE_USER;
@@ -175,7 +175,7 @@ dap_string_t *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
     dap_string_append_printf(l_ret,
         "Record timestamp: %s\nRecord version: %u\nNode addr: %s\n"
         "Location: %d\nCli thread count: %u\nLinks count: %u\n"
-        "Loads: %d %d %d\n"
+        "Loads: %lu %lu %lu\n"
         "Procs: %u\nFree ram: %lu\nTotal ram: %lu\n",
         l_ts, l_node_info->version, l_node_addr_str,
         l_node_info->location, l_node_info->cli_thread_count, l_node_info->links_count,
@@ -254,7 +254,7 @@ dap_list_t *dap_chain_node_rpc_get_states_list_sort(size_t *a_count)
     dap_global_db_obj_t *l_nodes_obj = dap_global_db_get_all_sync(s_rpc_node_list_group, &l_count);
     for (size_t i = 0; i < l_count; ++i) {
         size_t l_data_size = 0;
-        dap_chain_node_info_t *l_node_info_curr = dap_global_db_get_sync(s_rpc_server_states_group, (l_nodes_obj + i)->key, &l_data_size, NULL, NULL);
+        dap_chain_node_info_t *l_node_info_curr = (dap_chain_node_info_t *)dap_global_db_get_sync(s_rpc_server_states_group, (l_nodes_obj + i)->key, &l_data_size, NULL, NULL);
         if (!l_node_info_curr) {
             log_it(L_ERROR, "Can't find info about rpc node %s", (l_nodes_obj + i)->key);
             continue;
