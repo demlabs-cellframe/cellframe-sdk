@@ -110,3 +110,8 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-emit-delegate")
     add_subdirectory(service/emit-delegate)
 endif()
+
+# compose service
+if (CELLFRAME_MODULES MATCHES "compose")
+    add_subdirectory(compose)
+endif()
