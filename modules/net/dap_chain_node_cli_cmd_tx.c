@@ -562,7 +562,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
 
             if (l_src_addr && l_dst_addr &&
                     dap_chain_addr_compare(l_dst_addr, l_src_addr) &&
-                    l_noaddr_token && dap_strcmp(l_noaddr_token, l_dst_token))
+                    (!l_recv_from_cond || (l_noaddr_token && dap_strcmp(l_noaddr_token, l_dst_token))))
                 continue;   // sent to self (coinback)
 
             if (l_dst_addr && l_net_fee_used && dap_chain_addr_compare(&l_net_fee_addr, l_dst_addr))
