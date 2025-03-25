@@ -57,7 +57,7 @@ DAP_STATIC_INLINE rpc_role_t s_get_role_from_str(const char *a_str)
     if (!strcmp(a_str, "user")) return RPC_ROLE_USER;
     if (!strcmp(a_str, "balancer")) return RPC_ROLE_BALANCER;
     if (!strcmp(a_str, "server")) return RPC_ROLE_SERVER;
-    if (!strcmp(a_str, "root")) return RPC_ROLE_SERVER;
+    if (!strcmp(a_str, "root")) return RPC_ROLE_ROOT;
     return RPC_ROLE_INVALID;
 }
 
@@ -140,13 +140,16 @@ void dap_chain_node_rpc_init(dap_config_t *a_cfg)
                 s_cmd_call_stat = DAP_NEW_Z_COUNT_RET_IF_FAIL(struct cmd_call_stat, DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL);
                 dap_cli_server_statistic_callback_add(s_collect_cmd_stat_info);
             }
+            if (dap_config_get_item_bool_default(a_cfg, "rpc", "allowed_cmd_control", false)) {
+                dap_cli_server_set_allowed_cmd_check(dap_config_get_array_str(a_cfg, "rpc", "allowed_cmd", NULL));
+            }
 #else
             log_it(L_ERROR, "RPC server role avaible only on DAP_OS_LINUX system");
 #endif
         }
     }
     if (l_role == RPC_ROLE_ROOT && !dap_chain_node_rpc_is_my_node_authorized())
-        log_it(L_WARNING, "Your addres not finded in authorized rpc node list"); 
+        log_it(L_WARNING, "Your addres not finded in authorized rpc node list");
 }
 
 void dap_chain_node_rpc_deinit()
