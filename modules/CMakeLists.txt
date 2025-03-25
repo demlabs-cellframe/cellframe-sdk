@@ -24,6 +24,11 @@ if (CELLFRAME_MODULES MATCHES "network")
     add_subdirectory(channel/chain-net)
 endif()
 
+# JNI wrappers
+if (CELLFRAME_MODULES MATCHES "jni-wrappers")
+    add_subdirectory(wrappers)
+endif()
+
 # Mining
 if (CELLFRAME_MODULES MATCHES "mining")
     add_subdirectory(mining)
