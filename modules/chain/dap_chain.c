@@ -152,6 +152,49 @@ int dap_chain_purge(dap_chain_t *a_chain)
     return ret;
 }
 
+static int s_compare_generations(dap_list_t *a_list1, dap_list_t *a_list2)
+{
+    uint16_t l_elm1 = *(uint16_t *)a_list1->data,
+             l_elm2 = *(uint16_t *)a_list2->data;
+    return (int16_t)(l_elm1 - l_elm2);
+}
+
+bool dap_chain_generation_banned(dap_chain_t *a_chain, uint16_t a_generation)
+{
+    dap_chain_pvt_t *l_chain_pvt = DAP_CHAIN_PVT(a_chain);
+    return dap_list_find(l_chain_pvt->generation_banlist, &a_generation, s_compare_generations);
+}
+
+int dap_chain_generation_ban(dap_chain_t *a_chain, uint16_t a_generation)
+{
+    if (!a_generation) {
+        log_it(L_ERROR, "Can't ban basic generation for chain 0x%016" DAP_UINT64_FORMAT_x, a_chain->id.uint64);
+        return -3;
+    }
+    if (a_chain->generation > a_generation) {
+        log_it(L_ERROR, "Can't ban old generation for chain 0x%016" DAP_UINT64_FORMAT_x, a_chain->id.uint64);
+        return -1;
+    }
+    dap_chain_pvt_t *l_chain_pvt = DAP_CHAIN_PVT(a_chain);
+    dap_list_t *l_banned = dap_list_find(l_chain_pvt->generation_banlist, &a_generation, s_compare_generations);
+    if (l_banned)
+        return 1;
+    uint16_t *l_generation = DAP_DUP_RET_VAL_IF_FAIL(&a_generation, -2);
+    l_chain_pvt->generation_banlist = dap_list_insert_sorted(l_chain_pvt->generation_banlist, l_generation, s_compare_generations);
+    if (a_chain->generation == a_generation)
+        while (dap_chain_generation_banned(a_chain, a_chain->generation))
+            a_chain->generation--;
+    assert((int16_t)a_chain->generation != -1);
+    return 0;
+}
+
+uint16_t dap_chain_generation_next(dap_chain_t *a_chain)
+{
+    uint16_t l_generation = a_chain->generation;
+    while (dap_chain_generation_banned(a_chain, ++l_generation));
+    return l_generation;
+}
+
 /**
  * @brief
  * delete dap chain object
@@ -216,7 +259,7 @@ dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain
  * @param a_cell_id
  * @return
  */
-dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id)
+dap_chain_t *dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id)
 {
     // TODO! Reconsider lock mechanics
     dap_chain_item_id_t l_chain_item_id = {

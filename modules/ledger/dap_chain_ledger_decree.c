@@ -615,7 +615,7 @@ const char *l_ban_addr;
             }
             dap_tsd_t *l_generation = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_GENERATION);
             if (!l_generation || l_generation->size != sizeof(uint16_t)) {
-                log_it(L_WARNING, "Can't apply this decree, it has no chain generation set");
+                log_it(L_WARNING, "Can't apply this decree, it have no chain generation set");
                 return -116;
             }
             if (!a_apply)
@@ -640,10 +640,12 @@ const char *l_ban_addr;
                 log_it(L_WARNING, "Can't apply this decree to specified chain");
                 return -115;
             }
+            if (!dap_chain_esbocs_hardfork_engaged(l_chain)) {
+                log_it(L_WARNING, "Hardfork is not engaged, can't retry");
+                return -116;
+            }
             if (!a_apply)
                 break;
-            if (!dap_chain_esbocs_hardfork_engaged(l_chain))
-                return 0;       // Old generation hardfork already completed
             dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
             return dap_chain_esbocs_set_hardfork_prepare(l_chain, 0, 0, NULL, NULL);
         }
@@ -660,6 +662,29 @@ const char *l_ban_addr;
             if (!a_apply)
                 break;
             return dap_chain_esbocs_set_hardfork_complete(l_chain);
+        }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_CANCEL: {
+            dap_tsd_t *l_сhain_id = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CANCEL_CHAIN_ID);
+            if (!l_сhain_id || l_сhain_id->size != sizeof(uint64_t)) {
+                log_it(L_WARNING, "Can't apply this decree, it have no target chain ID set");
+                return -116;
+            }
+            dap_chain_id_t l_target_chain_id = (dap_chain_id_t){ .uint64 = *(uint64_t *)l_сhain_id->data };
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, l_target_chain_id);
+            if (!l_chain) {
+                log_it(L_WARNING, "Specified chain not found");
+                return -106;
+            }
+            dap_tsd_t *l_generation = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_GENERATION);
+            if (!l_generation || l_generation->size != sizeof(uint16_t)) {
+                log_it(L_WARNING, "Can't apply this decree, it have no chain generation set");
+                return -116;
+            }
+            uint16_t l_banned_generation = *(uint16_t *)l_generation->data;
+            if (!a_apply)
+                break;
+            return dap_chain_generation_ban(l_chain, l_banned_generation) +
+                   dap_chain_esbocs_set_hardfork_complete(l_chain);
         }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY: {
             if (!a_apply)

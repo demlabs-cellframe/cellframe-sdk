@@ -2065,12 +2065,29 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     // genesis or seed mode
     if (l_is_genesis) {
 #ifndef DAP_CHAIN_BLOCKS_TEST
-        if (s_seed_mode)
-            log_it(L_NOTICE, "Accepting new genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
-        else if(dap_hash_fast_compare(&l_block_hash, &PVT(l_blocks)->static_genesis_block_hash)
-                && !dap_hash_fast_is_blank(&l_block_hash))
-            log_it(L_NOTICE, "Accepting static genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
-        else if (l_generation && a_chain->generation < l_generation) {
+        if (!a_chain->generation && !l_generation) {
+            if (s_seed_mode)
+                log_it(L_NOTICE, "Accepting new genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
+            else if (dap_hash_fast_compare(&l_block_hash, &PVT(l_blocks)->static_genesis_block_hash)
+                    && !dap_hash_fast_is_blank(&l_block_hash))
+                log_it(L_NOTICE, "Accepting static genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
+            else {
+                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_hash_fast_to_str(&PVT(l_blocks)->static_genesis_block_hash, l_hash_str, sizeof(l_hash_str));
+                log_it(L_WARNING, "Can't accept genesis block %s: seed mode not enabled or hash mismatch with static genesis block %s in configuration",
+                                    dap_hash_fast_to_str_static(a_atom_hash), l_hash_str);
+                return ATOM_REJECT;
+            }
+        } else {
+            if (a_chain->generation >= l_generation) {
+                log_it(L_ERROR, "Can't accept %s genesis block %s: generation #%hu is too old", l_generation ? "hardfork" : "static",
+                                                dap_hash_fast_to_str_static(a_atom_hash), l_generation);
+                return ATOM_REJECT;
+            }
+            if (dap_chain_generation_banned(a_chain, l_generation)) {
+                log_it(L_ERROR, "Can't accept hardfork genesis block %s: generation #%hu is banned", dap_hash_fast_to_str_static(a_atom_hash), l_generation);
+                return ATOM_REJECT;
+            }
             log_it(L_NOTICE, "Accepting hardfork genesis block %s and restore data", dap_hash_fast_to_str_static(a_atom_hash));
             dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
             if (!l_hardfork_decree_hash) {
@@ -2085,13 +2102,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                 log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
                 return ATOM_REJECT;
             }
-        } else {
-            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-            dap_hash_fast_to_str(&PVT(l_blocks)->static_genesis_block_hash, l_hash_str, sizeof(l_hash_str));
-            log_it(L_WARNING, "Can't accept genesis block %s: seed mode not enabled or hash mismatch with static genesis block %s in configuration or hardfork decree is blank",
-                                dap_hash_fast_to_str_static(a_atom_hash), l_hash_str);
-            return ATOM_REJECT;
         }
+
 #else
         PVT(l_blocks)->genesis_block_hash = *a_atom_hash;
 #endif

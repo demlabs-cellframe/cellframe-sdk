@@ -105,6 +105,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST                                0x0113
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING                              0x0115
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS              0x0116
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CANCEL_CHAIN_ID            0x0117
 
 #ifdef __cplusplus
 extern "C" {
