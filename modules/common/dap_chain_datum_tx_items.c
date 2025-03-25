@@ -282,25 +282,27 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
                                                                              uint256_t a_value_sell, dap_chain_net_id_t a_buy_net_id,
                                                                              const char *a_token, uint256_t a_value_rate,
                                                                              const dap_chain_addr_t *a_seller_addr,
-                                                                             const void *a_params, uint32_t a_params_size)
+                                                                             const dap_hash_fast_t *a_order_hash)
 {
     if (!a_token)
         return NULL;
     if (IS_ZERO_256(a_value_sell) || IS_ZERO_256(a_value_rate))
         return NULL;
-    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
+    
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL( dap_chain_tx_out_cond_t,
+        sizeof(dap_chain_tx_out_cond_t) + ( a_order_hash ? sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t) : 0 ), NULL );
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value_sell;
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE;
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_xchange.buy_net_id = a_buy_net_id;
     l_item->subtype.srv_xchange.sell_net_id = a_sell_net_id;
-    strncpy(l_item->subtype.srv_xchange.buy_token, a_token, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+    dap_strncpy(l_item->subtype.srv_xchange.buy_token, a_token, DAP_CHAIN_TICKER_SIZE_MAX);
     l_item->subtype.srv_xchange.rate = a_value_rate;
     l_item->subtype.srv_xchange.seller_addr = *a_seller_addr;
-    l_item->tsd_size = a_params_size;
-    if (a_params_size) {
-        memcpy(l_item->tsd, a_params, a_params_size);
+    if ( a_order_hash ) {
+        l_item->tsd_size = sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t);
+        dap_tsd_write(l_item->tsd, DAP_CHAIN_TX_OUT_COND_TSD_HASH, (byte_t*)a_order_hash, sizeof(dap_chain_hash_fast_t));
     }
     return l_item;
 }
