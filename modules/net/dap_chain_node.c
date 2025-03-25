@@ -492,7 +492,7 @@ dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t
 {
     dap_chain_datum_t **ret = NULL;
     size_t l_datums_count = 0;
-    const uint64_t l_max_step_size = DAP_CHAIN_ATOM_MAX_SIZE - sizeof(dap_chain_datum_service_state_t);
+    const uint64_t l_max_step_size = DAP_CHAIN_CANDIDATE_MAX_SIZE - sizeof(dap_chain_datum_service_state_t);
     uint64_t l_step_size = dap_min(l_max_step_size, a_state->size);
     byte_t *l_offset = a_state->data, *l_ptr = l_offset, *l_end = a_state->data + a_state->size * a_state->count;
     while (l_offset < l_end) {
@@ -551,6 +551,27 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
     return 0;
 }
 
+static int s_tx_trackers_add(dap_chain_datum_tx_t **a_tx, dap_list_t *a_trackers)
+{
+    for (dap_list_t *it = a_trackers; it; it = it->next) {
+        dap_ledger_tracker_t *l_tracker = it->data;
+        dap_chain_tx_tsd_t *l_tracker_hash_tsd = dap_chain_datum_tx_item_tsd_create(&l_tracker->voting_hash, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_VOTING_HASH, sizeof(dap_hash_fast_t));
+        if (!l_tracker_hash_tsd)
+            return -1;
+        if (dap_chain_datum_tx_add_item(a_tx, l_tracker_hash_tsd) != 1)
+            return -2;
+        for (dap_ledger_tracker_item_t *l_item = l_tracker->items; l_item; l_item = l_item->next) {
+            dap_ledger_hardfork_tracker_t l_hardfork_tracker = { .pkey_hash = l_item->pkey_hash, .coloured_value = l_item->coloured_value };
+            dap_chain_tx_tsd_t *l_tracker_tsd = dap_chain_datum_tx_item_tsd_create(&l_hardfork_tracker, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER, sizeof(dap_ledger_hardfork_tracker_t));
+            if (!l_tracker_tsd)
+                return -3;
+            if (dap_chain_datum_tx_add_item(a_tx, l_tracker_tsd) != 1)
+                return -4;
+        }
+    }
+    return 0;
+}
+
 dap_chain_datum_t *s_datum_tx_create(dap_chain_addr_t *a_addr, const char *a_ticker, uint256_t a_value, dap_list_t *a_trackers)
 {
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
@@ -560,17 +581,9 @@ dap_chain_datum_t *s_datum_tx_create(dap_chain_addr_t *a_addr, const char *a_tic
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    for (dap_list_t *it = a_trackers; it; it = it->next) {
-        dap_ledger_tracker_t *l_tracker = it->data;
-        dap_chain_tx_tsd_t *l_tracker_tsd = dap_chain_datum_tx_item_tsd_create(l_tracker, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER, sizeof(dap_ledger_tracker_t));
-        if (!l_tracker_tsd) {
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
-        }
-        if (dap_chain_datum_tx_add_item(&l_tx, l_tracker_tsd) != 1) {
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
-        }
+    if (s_tx_trackers_add(&l_tx, a_trackers)) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
     }
     dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
     dap_chain_datum_tx_delete(l_tx);
@@ -608,29 +621,9 @@ dap_chain_datum_t *s_cond_tx_create(dap_chain_tx_out_cond_t *a_cond, dap_chain_t
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    for (dap_list_t *it = a_trackers; it; it = it->next) {
-        dap_ledger_tracker_t *l_tracker = it->data;
-        dap_chain_tx_tsd_t *l_tracker_hash_tsd = dap_chain_datum_tx_item_tsd_create(&l_tracker->voting_hash, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_VOTING_HASH, sizeof(dap_hash_fast_t));
-        if (!l_tracker_hash_tsd) {
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
-        }
-        if (dap_chain_datum_tx_add_item(&l_tx, l_tracker_hash_tsd) != 1) {
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
-        }
-        for (dap_ledger_tracker_item_t *l_item = l_tracker->items; l_item; l_item = l_item->next) {
-            dap_ledger_hardfork_tracker_t l_hardfork_tracker = { .pkey_hash = l_item->pkey_hash, .coloured_value = l_item->coloured_value };
-            dap_chain_tx_tsd_t *l_tracker_tsd = dap_chain_datum_tx_item_tsd_create(&l_hardfork_tracker, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER, sizeof(dap_ledger_hardfork_tracker_t));
-            if (!l_tracker_tsd) {
-                dap_chain_datum_tx_delete(l_tx);
-                return NULL;
-            }
-            if (dap_chain_datum_tx_add_item(&l_tx, l_tracker_tsd) != 1) {
-                dap_chain_datum_tx_delete(l_tx);
-                return NULL;
-            }
-        }
+    if (s_tx_trackers_add(&l_tx, a_trackers)) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
     }
     dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
     dap_chain_datum_tx_delete(l_tx);
@@ -980,7 +973,7 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
                 } break;
                 case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER: {
                     if (l_tsd->size != sizeof(dap_ledger_hardfork_tracker_t)) {
-                        log_it(L_WARNING, "Illegal harfork datum tx TSD VOTING_HASH size %u", l_tsd->size);
+                        log_it(L_WARNING, "Illegal harfork datum tx TSD TRACKER size %u", l_tsd->size);
                         m_ret_clear(-8);
                     }
                     if (!l_tracker_current) {
