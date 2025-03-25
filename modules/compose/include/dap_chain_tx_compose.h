@@ -58,6 +58,10 @@ static NetInfo netinfo[NET_COUNT] = {
     {"subzero",  "tCELL", {.uint64 = 0x000000000000acca}}
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_tx_create_compose(int argc, char ** argv);
 int dap_tx_create_xchange_compose(int argc, char ** argv);
 int dap_tx_cond_create_compose(int argc, char ** argv);
@@ -95,3 +99,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
                               uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
                               bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
                               const char *a_net_str);
+
+#ifdef __cplusplus
+}
+#endif
