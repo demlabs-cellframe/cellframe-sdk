@@ -51,6 +51,11 @@ static rpc_role_t s_current_role = RPC_ROLE_INVALID;
 
 static struct cmd_call_stat *s_cmd_call_stat = NULL;
 
+/**
+ * @brief convert str to rpc_role_t
+ * @param a_str - role str
+ * @return role if pass or RPC_ROLE_INVALID
+ */
 DAP_STATIC_INLINE rpc_role_t s_get_role_from_str(const char *a_str)
 {
     if (!a_str) return RPC_ROLE_INVALID;
@@ -61,16 +66,21 @@ DAP_STATIC_INLINE rpc_role_t s_get_role_from_str(const char *a_str)
     return RPC_ROLE_INVALID;
 }
 
-static void s_collect_cmd_stat_info(int16_t a_cmd_num, int64_t a_call_time)
+/**
+ * @brief callback to collect info blout cmd cals
+ * @param a_cmd_num - role str
+ * @param a_call_time - msec spends to call cmd
+ */
+static void s_collect_cmd_stat_info_callback(int16_t a_cmd_id, int64_t a_call_time)
 {
-    dap_return_if_pass(a_cmd_num >= DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL);
-    atomic_fetch_add(&(s_cmd_call_stat + a_cmd_num)->count, 1);
-    atomic_fetch_add(&(s_cmd_call_stat + a_cmd_num)->time, a_call_time);
+    dap_return_if_pass(a_cmd_id >= DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL);
+    atomic_fetch_add(&(s_cmd_call_stat + a_cmd_id)->count, 1);
+    atomic_fetch_add(&(s_cmd_call_stat + a_cmd_id)->time, a_call_time);
 }
 
 #ifdef DAP_OS_LINUX
 /**
- * @brief get states info about current
+ * @brief update about current
  * @param a_arg - pointer to callback arg
  */
 static void s_update_node_rpc_states_info(UNUSED_ARG void *a_arg)
@@ -80,7 +90,7 @@ static void s_update_node_rpc_states_info(UNUSED_ARG void *a_arg)
     l_info->address.uint64 = g_node_addr.uint64;
     l_info->links_count = dap_stream_get_links_count();
     l_info->cli_thread_count = dap_cli_get_cmd_thread_count();
-    sysinfo(&l_info->sysinfo);
+    sysinfo((struct sysinfo *)((char *)l_info + offsetof(dap_chain_node_rpc_states_info_t, system_info)));
     for(int16_t i = 0; i < DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL; ++i) {
         int32_t l_count = atomic_load(&(s_cmd_call_stat + i)->count);
         int64_t l_time = atomic_load(&(s_cmd_call_stat + i)->time);
@@ -93,73 +103,106 @@ static void s_update_node_rpc_states_info(UNUSED_ARG void *a_arg)
 }
 #endif
 
+/**
+ * @brief func to node states compare
+ * @param a_list1 - element 1
+ * @param a_list2 - element 2
+ * @return 0 a_list1 == a_list2, 1 a_list1 > a_list2, -1 a_list1 < a_list2 
+ */
 static int s_rpc_node_cmp(dap_list_t *a_list1, dap_list_t *a_list2)
 {
     return 0;
 }
 
+/**
+ * @brief rpc claster creating
+ * @param a_cfg - pointer to config
+ * @return 0 if pass, other if error
+ */
+static int s_cluters_init(dap_config_t *a_cfg)
+{
+    if (!(s_rpc_node_list_cluster = dap_global_db_cluster_add(
+        dap_global_db_instance_get_default(), DAP_STREAM_CLUSTER_GLOBAL,
+        *(dap_guuid_t *)&uint128_0, s_rpc_node_list_group,
+        0,
+        true, DAP_GDB_MEMBER_ROLE_GUEST, DAP_CLUSTER_TYPE_EMBEDDED)))
+    {
+        log_it(L_ERROR, "Can't create rpc node list cluster");
+        return -1;
+    }
+    dap_stream_node_addr_t *l_authorized_nodes = NULL;
+    uint16_t l_authorized_nodes_count = 0;
+    dap_config_stream_addrs_parse(a_cfg, "rpc", "authorized_nodes_addrs", &l_authorized_nodes, &l_authorized_nodes_count);
+    for (uint16_t i = 0; i < l_authorized_nodes_count; ++i)
+        dap_global_db_cluster_member_add(s_rpc_node_list_cluster, l_authorized_nodes + i, DAP_GDB_MEMBER_ROLE_ROOT);
+    DAP_DELETE(l_authorized_nodes);
+
+    if (!(s_rpc_server_states_cluster = dap_global_db_cluster_add(
+        dap_global_db_instance_get_default(), DAP_STREAM_CLUSTER_GLOBAL,
+        *(dap_guuid_t *)&uint128_0, s_rpc_server_states_group,
+        0,
+        true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_TYPE_EMBEDDED)))
+    {
+        log_it(L_ERROR, "Can't create rpc server states cluster");
+        return -2;
+    }
+    return 0;
+}
+
+/**
+ * @brief rpc module init
+ * @param a_cfg - pointer to config
+ */
 void dap_chain_node_rpc_init(dap_config_t *a_cfg)
 {
-    rpc_role_t l_role = s_get_role_from_str(dap_config_get_item_str(a_cfg, "rpc", "role"));
-    
-    if (l_role != RPC_ROLE_INVALID) {
-        if (!(s_rpc_node_list_cluster = dap_global_db_cluster_add(
-                dap_global_db_instance_get_default(), DAP_STREAM_CLUSTER_GLOBAL,
-                *(dap_guuid_t *)&uint128_0, s_rpc_node_list_group,
-                0,
-                true, DAP_GDB_MEMBER_ROLE_GUEST, DAP_CLUSTER_TYPE_EMBEDDED)))
-        {
-            log_it(L_ERROR, "Can't create rpc node list cluster");
+    s_current_role = s_get_role_from_str(dap_config_get_item_str(a_cfg, "rpc", "role"));
+    switch (s_current_role) {
+        case RPC_ROLE_INVALID:
+            log_it(L_ERROR, "Can't recognized rpc role, please check config");
             return;
-        }
-        dap_stream_node_addr_t *l_authorized_nodes = NULL;
-        uint16_t l_authorized_nodes_count = 0;
-        dap_config_stream_addrs_parse(a_cfg, "rpc", "authorized_nodes_addrs", &l_authorized_nodes, &l_authorized_nodes_count);
-        for (uint16_t i = 0; i < l_authorized_nodes_count; ++i)
-            dap_global_db_cluster_member_add(s_rpc_node_list_cluster, l_authorized_nodes + i, DAP_GDB_MEMBER_ROLE_ROOT);
-        DAP_DELETE(l_authorized_nodes);
-    } else {
-        log_it(L_ERROR, "Can't recognized rpc role, please check config");
-        return;
-    }
-    if (l_role == RPC_ROLE_SERVER || l_role == RPC_ROLE_BALANCER || l_role == RPC_ROLE_USER) {
-        if (!(s_rpc_server_states_cluster = dap_global_db_cluster_add(
-            dap_global_db_instance_get_default(), DAP_STREAM_CLUSTER_GLOBAL,
-            *(dap_guuid_t *)&uint128_0, s_rpc_server_states_group,
-            0,
-            true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_TYPE_EMBEDDED)))
-        {
-            log_it(L_ERROR, "Can't create rpc server states cluster");
-            return;
-        }
-        if (l_role == RPC_ROLE_SERVER) {
+        case RPC_ROLE_SERVER:
 #ifdef DAP_OS_LINUX
+            if(s_cluters_init(a_cfg))
+                return;
             if (dap_proc_thread_timer_add(NULL, s_update_node_rpc_states_info, NULL, s_timer_update_states_info)) {
                 log_it(L_ERROR, "Can't activate timer on node states update");
-            } else {
-                s_cmd_call_stat = DAP_NEW_Z_COUNT_RET_IF_FAIL(struct cmd_call_stat, DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL);
-                dap_cli_server_statistic_callback_add(s_collect_cmd_stat_info);
+                return;
             }
+            s_cmd_call_stat = DAP_NEW_Z_COUNT_RET_IF_FAIL(struct cmd_call_stat, DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL);
+            dap_cli_server_statistic_callback_add(s_collect_cmd_stat_info_callback);
             if (dap_config_get_item_bool_default(a_cfg, "rpc", "allowed_cmd_control", false)) {
                 dap_cli_server_set_allowed_cmd_check(dap_config_get_array_str(a_cfg, "rpc", "allowed_cmd", NULL));
             }
 #else
             log_it(L_ERROR, "RPC server role avaible only on DAP_OS_LINUX system");
 #endif
-        }
+            break;
+        case RPC_ROLE_ROOT:
+            if(s_cluters_init(a_cfg))
+                return;
+            if (!dap_chain_node_rpc_is_my_node_authorized())
+                log_it(L_WARNING, "Your addres not finded in authorized rpc node list");
+            break;
+        case RPC_ROLE_BALANCER:
+        case RPC_ROLE_USER:
+            s_cluters_init(a_cfg);
+            break;
+        default: break;
     }
-    if (l_role == RPC_ROLE_ROOT && !dap_chain_node_rpc_is_my_node_authorized())
-        log_it(L_WARNING, "Your addres not finded in authorized rpc node list");
 }
 
+/**
+ * @brief rpc module deinit
+ */
 void dap_chain_node_rpc_deinit()
 {
     DAP_DELETE(s_cmd_call_stat);
 }
 
 /**
- * @brief get states rpc info about current
- * @param a_arg - pointer to callback arg
+ * @brief get states rpc info
+ * @param a_addr - node addr to check
+ * @return pointer to dap_string_t
  */
 dap_string_t *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
 {
@@ -182,13 +225,16 @@ dap_string_t *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
         "Procs: %u\nFree ram: %lu\nTotal ram: %lu\n",
         l_ts, l_node_info->version, l_node_addr_str,
         l_node_info->location, l_node_info->cli_thread_count, l_node_info->links_count,
-        l_node_info->sysinfo.loads[0], l_node_info->sysinfo.loads[1], l_node_info->sysinfo.loads[2],
-        l_node_info->sysinfo.procs, l_node_info->sysinfo.freeram, l_node_info->sysinfo.totalram
+        l_node_info->system_info.loads[0], l_node_info->system_info.loads[1], l_node_info->system_info.loads[2],
+        l_node_info->system_info.procs, l_node_info->system_info.freeram, l_node_info->system_info.totalram
         );
     return l_ret;
 }
 
-
+/**
+ * @brief search g_node_addr in authorized list
+ * @return true if find, fail if not
+ */
 DAP_INLINE bool dap_chain_node_rpc_is_my_node_authorized()
 {
     return dap_cluster_member_find_role(s_rpc_node_list_cluster->role_cluster, &g_node_addr) == DAP_GDB_MEMBER_ROLE_ROOT;
@@ -196,8 +242,8 @@ DAP_INLINE bool dap_chain_node_rpc_is_my_node_authorized()
 
 /**
  * @brief save rpc node info to gdb
- * @param node_info
- * @return
+ * @param node_info pointer to dap_chain_node_info_t
+ * @return 0 if pass, other if error
  */
 int dap_chain_node_rpc_info_save(dap_chain_node_info_t *a_node_info)
 {
@@ -210,7 +256,7 @@ int dap_chain_node_rpc_info_save(dap_chain_node_info_t *a_node_info)
 }
 
 /**
- * @brief Return string by rpc nore list
+ * @brief Return string by rpc node list
  * @return pointer to dap_string_t if Ok, NULL if error
  */
 dap_string_t *dap_chain_node_rpc_list()
@@ -222,33 +268,32 @@ dap_string_t *dap_chain_node_rpc_list()
     if(!l_nodes_count || !l_objs) {
         dap_string_append_printf(l_ret, "No records\n");
         return NULL;
-    } else {
-        dap_string_append_printf(l_ret, "Got %zu nodes:\n", l_nodes_count);
-        dap_string_append_printf(l_ret, "%-26s%-20s%-8s%s", "Address", "IPv4", "Port", "Timestamp\n");
+    }
+    dap_string_append_printf(l_ret, "Got %zu nodes:\n", l_nodes_count);
+    dap_string_append_printf(l_ret, "%-26s%-20s%-8s%s", "Address", "IPv4", "Port", "Timestamp\n");
 
-        for (size_t i = 0; i < l_nodes_count; i++) {
-            dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
-            if (dap_chain_node_addr_is_blank(&l_node_info->address)){
-                log_it(L_ERROR, "Node address is empty");
-                continue;
-            }
-
-            char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
-            dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
-
-            dap_string_append_printf(l_ret, NODE_ADDR_FP_STR"    %-20s%-8d%-32s\n",
-                                        NODE_ADDR_FP_ARGS_S(l_node_info->address),
-                                        l_node_info->ext_host, l_node_info->ext_port,
-                                        l_ts);
+    for (size_t i = 0; i < l_nodes_count; i++) {
+        dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
+        if (dap_chain_node_addr_is_blank(&l_node_info->address)){
+            log_it(L_ERROR, "Node address is empty");
+            continue;
         }
+        char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
+        dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
+
+        dap_string_append_printf(l_ret, NODE_ADDR_FP_STR"    %-20s%-8d%-32s\n",
+                                    NODE_ADDR_FP_ARGS_S(l_node_info->address),
+                                    l_node_info->ext_host, l_node_info->ext_port,
+                                    l_ts);
     }
     dap_global_db_objs_delete(l_objs, l_nodes_count);
     return l_ret;
 }
 
 /**
- * @brief get states rpc info about current
- * @param a_arg - pointer to callback arg
+ * @brief get list with 
+ * @param a_count - pointer count
+ * @return pointer to rpc node states list
  */
 dap_list_t *dap_chain_node_rpc_get_states_list_sort(size_t *a_count)
 {
@@ -268,11 +313,17 @@ dap_list_t *dap_chain_node_rpc_get_states_list_sort(size_t *a_count)
         }
         l_ret = dap_list_insert_sorted(l_ret, (void *)l_node_info_curr, s_rpc_node_cmp);
     }
+    dap_global_db_objs_delete(l_nodes_obj, l_count);
     if (a_count)
         *a_count = l_count;
     return l_ret;
 }
 
+/**
+ * @brief get pointer to states array 
+ * @param a_count - pointer count
+ * @return pointer to dap_chain_node_rpc_states_info_t
+ */
 dap_chain_node_rpc_states_info_t *dap_chain_node_rpc_get_states_sort(size_t *a_count)
 {
     size_t l_count = 0;
@@ -281,7 +332,7 @@ dap_chain_node_rpc_states_info_t *dap_chain_node_rpc_get_states_sort(size_t *a_c
         log_it(L_DEBUG, "No any information about rpc states");
         return NULL;
     }
-    // memory alloc
+// memory alloc
     dap_chain_node_rpc_states_info_t *l_ret = DAP_NEW_Z_COUNT(dap_chain_node_rpc_states_info_t, l_count);
     if (!l_ret) {
         log_it(L_ERROR, "%s", c_error_memory_alloc);
@@ -299,11 +350,18 @@ dap_chain_node_rpc_states_info_t *dap_chain_node_rpc_get_states_sort(size_t *a_c
     return l_ret;
 }
 
+/**
+ * @brief check is current rpc role is balancer
+ * @return true if yes, fail if not
+ */
 DAP_INLINE bool dap_chain_node_rpc_is_balancer()
 {
     return s_current_role == RPC_ROLE_BALANCER;
 }
-
+/**
+ * @brief check is current rpc role is root
+ * @return true if yes, fail if not
+ */
 DAP_INLINE bool dap_chain_node_rpc_is_root()
 {
     return s_current_role == RPC_ROLE_ROOT;

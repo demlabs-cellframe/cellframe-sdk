@@ -36,7 +36,6 @@
 extern "C" {
 #endif
 
-
 /**
  * Initialization of the server side of the interaction
  * with the console kelvin-node-cli

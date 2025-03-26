@@ -54,7 +54,7 @@ typedef struct dap_chain_node_rpc_states_info {
    uint32_t location;
    uint32_t links_count;
    uint32_t cli_thread_count;
-   struct sysinfo sysinfo;
+   struct sysinfo system_info;
    dap_chain_node_rpc_cmd_states_info_t cmd_info;
 } DAP_ALIGN_PACKED dap_chain_node_rpc_states_info_t;
 

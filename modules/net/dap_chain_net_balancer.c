@@ -386,10 +386,11 @@ int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_cha
 /**
  * @brief issue to http balancer request
  * @param a_http_simple - http request
- * @param a_arg - request arg
+ * @param a_return_code - http return code
  */
 void s_http_node_issue_link(dap_http_simple_t *a_http_simple, http_status_code_t *a_return_code)
 {
+    dap_return_if_pass(!a_return_code);
     int l_protocol_version = 0;
     char l_issue_method = 0;
     const char l_net_token[] = "net=", l_ignored_token[] = "ignored=";
@@ -441,10 +442,11 @@ void s_http_node_issue_link(dap_http_simple_t *a_http_simple, http_status_code_t
 /**
  * @brief issue to http balancer request
  * @param a_http_simple - http request
- * @param a_arg - request arg
+ * @param a_return_code - http return code
  */
 void s_http_rpc_issue_link(dap_http_simple_t *a_http_simple, http_status_code_t *a_return_code)
 {
+    dap_return_if_pass(!a_return_code);
     if (!dap_chain_node_rpc_is_balancer()) {
         log_it(L_ERROR, "Balancer rpc mode is off");
         *a_return_code = Http_Status_MethodNotAllowed;
