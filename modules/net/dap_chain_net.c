@@ -609,6 +609,7 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
         }
         json_object *l_jobj_current = json_object_new_uint64(l_chain->callback_count_atom(l_chain));
         json_object *l_jobj_total = json_object_new_uint64(l_chain->atom_num_last);
+        json_object_object_add(l_jobj_chain, "generation", json_object_new_int(l_chain->generation));
         json_object_object_add(l_jobj_chain, "status", l_jobj_chain_status);
         json_object_object_add(l_jobj_chain, "current", l_jobj_current);
         json_object_object_add(l_jobj_chain, "in_network", l_jobj_total);
