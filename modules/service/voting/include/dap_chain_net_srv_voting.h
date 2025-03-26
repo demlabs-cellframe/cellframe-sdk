@@ -95,8 +95,10 @@ enum DAP_CHAIN_NET_VOTE_CREATE_ERROR {
     DAP_CHAIN_NET_VOTE_CREATE_WALLET_DOES_NOT_EXIST,
     DAP_CHAIN_NET_VOTE_CREATE_WRONG_TIME_FORMAT,
     DAP_CHAIN_NET_VOTE_CREATE_WRONG_TOKEN,
+    DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_TOKEN,    DAP_CHAIN_NET_VOTE_CREATE_WRONG_TOKEN,
     DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_TOKEN,
-    DAP_CHAIN_NET_VOTE_CREATE_UNKNOWN_ERR
+    DAP_CHAIN_NET_VOTE_CREATE_UNKNOWN_ERR,
+    DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS
 };
 int dap_chain_net_vote_create(const char *a_question, dap_list_t *a_options, dap_time_t a_expire_vote,
                              uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
@@ -158,8 +160,8 @@ dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net);
 dap_list_t* dap_get_options_list_from_str(const char* a_str);
 dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_vote_hash);
 void dap_chain_net_vote_info_free(dap_chain_net_vote_info_t *a_info);
+dap_list_t* dap_get_options_list_from_str(const char* a_str);
 
 #if defined(__cplusplus)
 }
 #endif
-

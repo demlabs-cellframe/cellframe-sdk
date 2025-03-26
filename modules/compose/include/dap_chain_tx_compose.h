@@ -68,6 +68,8 @@ int dap_tx_cond_create_compose(int argc, char ** argv);
 int dap_cli_hold_compose(int a_argc, char **a_argv);
 int dap_cli_take_compose(int a_argc, char **a_argv);
 int dap_cli_voting_compose(int a_argc, char **a_argv);
+
+
 dap_list_t *dap_ledger_get_list_tx_outs_from_json(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer);
 dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(const char * l_net_name, dap_chain_addr_t* a_addr_from, dap_chain_addr_t** a_addr_to,
                                                         const char* a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, size_t a_tx_num);
@@ -76,12 +78,11 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_net
 static dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet,
                                                                 const char *a_native_ticker, const char *a_net_name);
 dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(const char *a_net_name,
-        dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
-        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint256_t a_value, uint256_t a_value_per_unit_max,
-        dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_net_srv_uid_t a_srv_uid,
-        uint256_t a_value_fee, const void *a_cond,
-        size_t a_cond_size, const char *a_hash_out_type);
+                                                        dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond, const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
+                                                        uint256_t a_value, uint256_t a_value_per_unit_max,
+                                                        dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_net_srv_uid_t a_srv_uid,
+                                                        uint256_t a_value_fee, const void *a_cond,
+                                                        size_t a_cond_size, const char *a_hash_out_type);
 bool dap_get_remote_net_fee_and_address(const char *l_net_name, uint256_t *a_net_fee, dap_chain_addr_t **l_addr_fee);
 bool dap_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const char *a_token_ticker, const char *l_net_name, json_object **l_outs, int *l_outputs_count);
 dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(const char *a_net_name, dap_enc_key_t *a_key_from,
