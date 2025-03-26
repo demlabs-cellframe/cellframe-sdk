@@ -51,7 +51,6 @@ typedef struct dap_chain_net_voting_params_offsets{
     bool delegate_key_required;
     bool vote_changing_allowed;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
 } dap_chain_net_voting_params_offsets_t;
 
 typedef struct dap_chain_net_vote_option {
@@ -574,7 +573,6 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
             return false;
         }
 
-        dap_chain_net_votings_t *l_voting = NULL;
         dap_chain_net_votings_t *l_voting = NULL;
         pthread_rwlock_wrlock(&s_votings_rwlock);
         HASH_FIND(hh, s_votings, &l_vote_tx_item->voting_hash, sizeof(dap_hash_fast_t), l_voting);
@@ -1223,9 +1221,6 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
 
 }
 
-static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_hash_fast_t a_voting_hash,
-                                                 dap_hash_fast_t a_tx_cond_hash, int a_cond_out_idx,
-                                                 dap_hash_fast_t *a_pkey_hash)
 static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_hash_fast_t a_voting_hash,
                                                  dap_hash_fast_t a_tx_cond_hash, int a_cond_out_idx,
                                                  dap_hash_fast_t *a_pkey_hash)
