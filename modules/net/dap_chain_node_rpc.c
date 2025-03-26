@@ -46,7 +46,7 @@ static const char s_rpc_server_states_group[] = "rpc.states";
 static const char s_rpc_node_list_group[] = "rpc.list";
 static dap_global_db_cluster_t *s_rpc_server_states_cluster = NULL;
 static dap_global_db_cluster_t *s_rpc_node_list_cluster = NULL;
-static rpc_role_t s_curretn_role = RPC_ROLE_INVALID;
+static rpc_role_t s_current_role = RPC_ROLE_INVALID;
 
 
 static struct cmd_call_stat *s_cmd_call_stat = NULL;
@@ -189,7 +189,7 @@ dap_string_t *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
 }
 
 
-bool dap_chain_node_rpc_is_my_node_authorized()
+DAP_INLINE bool dap_chain_node_rpc_is_my_node_authorized()
 {
     return dap_cluster_member_find_role(s_rpc_node_list_cluster->role_cluster, &g_node_addr) == DAP_GDB_MEMBER_ROLE_ROOT;
 }
@@ -299,7 +299,12 @@ dap_chain_node_rpc_states_info_t *dap_chain_node_rpc_get_states_sort(size_t *a_c
     return l_ret;
 }
 
-DAP_INLINE bool dap_chain_node_rpc_is_balancer_node()
+DAP_INLINE bool dap_chain_node_rpc_is_balancer()
 {
-    return s_curretn_role == RPC_ROLE_BALANCER;
+    return s_current_role == RPC_ROLE_BALANCER;
+}
+
+DAP_INLINE bool dap_chain_node_rpc_is_root()
+{
+    return s_current_role == RPC_ROLE_ROOT;
 }

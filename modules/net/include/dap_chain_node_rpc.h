@@ -64,7 +64,8 @@ typedef struct dap_chain_node_rpc_states_info {
  dap_string_t *dap_chain_node_rpc_list();
  dap_chain_node_rpc_states_info_t *dap_chain_node_rpc_get_states_sort(size_t *a_count);
  bool dap_chain_node_rpc_is_my_node_authorized();
- bool dap_chain_node_rpc_is_balancer_node();
+ bool dap_chain_node_rpc_is_balancer();
+ bool dap_chain_node_rpc_is_root();
  dap_string_t *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr);
 
  DAP_STATIC_INLINE size_t dap_chain_node_rpc_get_states_info_size(dap_chain_node_rpc_states_info_t *a_info)

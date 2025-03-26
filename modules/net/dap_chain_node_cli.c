@@ -92,7 +92,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                "mempool check -cert <priv_cert_name> -net <net_name> {-file <filename> | -hash <hash>} [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
                                           );
     dap_cli_server_cmd_add("node", com_node, "Work with node", dap_chain_node_cli_cmd_id_from_str("node"),
-                    "node add -net <net_name> [-port <port>]\n\n"
+                    "node add { -net <net_name> | -rpc [-port <port>] } | { -rpc -addr <node_address> -host <node_host> [-port <port>] }\n\n"
                     "node del -net <net_name> {-addr <node_address> | -alias <node_alias>}\n\n"
                     "node link {add | del}  -net <net_name> {-addr <node_address> | -alias <node_alias>} -link <node_address>\n\n"
                     "node alias -addr <node_address> -alias <node_alias>\n\n"
@@ -100,8 +100,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node handshake -net <net_name> {-addr <node_address> | -alias <node_alias>}\n"
                     "node connections [-net <net_name>]\n"
                     "node balancer -net <net_name>\n"
-                    "node dump [-net <net_name> | -addr <node_address>]\n\n"
-                    "node list -net <net_name> [-addr <node_address> | -alias <node_alias>] [-full]\n\n"
+                    "node dump { [-net <net_name> | -addr <node_address>] } | { -rpc [-addr <node_address>] }\n\n"
+                    "node list { -net <net_name> [-addr <node_address> | -alias <node_alias>] [-full] } | -rpc\n\n"
                     "node ban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
                     "node unban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
                     "node banlist\n\n");

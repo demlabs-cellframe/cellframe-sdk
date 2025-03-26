@@ -998,6 +998,10 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "cmd add_rpc requires -addr and -host args");
             return l_res;
         }
+        if (!dap_chain_node_rpc_is_root()) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Your rpc role is not root");
+            return l_res;
+        }
         if (!dap_chain_node_rpc_is_my_node_authorized()) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
             return l_res;
