@@ -56,6 +56,7 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
 #include "dap_chain_node.h"
+#include "dap_chain_node_rpc.h"
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
 #include "dap_chain_node_client.h"
@@ -842,12 +843,15 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     enum {
         CMD_NONE, CMD_ADD, CMD_DEL, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_LIST, CMD_DUMP, CMD_CONNECTIONS, CMD_BALANCER,
-        CMD_BAN, CMD_UNBAN, CMD_BANLIST
+        CMD_BAN, CMD_UNBAN, CMD_BANLIST, CMD_ADD_RPC, CMD_LIST_RPC, CMD_DUMP_RPC
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
     if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "add", NULL)) {
-        cmd_num = CMD_ADD;
+        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-rpc", NULL))
+            cmd_num = CMD_ADD_RPC;
+        else
+            cmd_num = CMD_ADD;
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "del", NULL)) {
         cmd_num = CMD_DEL;
@@ -862,10 +866,16 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         cmd_num = CMD_ALIAS;
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "list", NULL)) {
-        cmd_num = CMD_LIST;
+        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-rpc", NULL))
+            cmd_num = CMD_LIST_RPC;
+        else
+            cmd_num = CMD_LIST;
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "dump", NULL)) {
-        cmd_num = CMD_DUMP;
+        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-rpc", NULL))
+            cmd_num = CMD_DUMP_RPC;
+        else
+            cmd_num = CMD_DUMP;
     }
     else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "connections", NULL)) {
         cmd_num = CMD_CONNECTIONS;
@@ -891,8 +901,8 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     dap_chain_net_t *l_net = NULL;
 
     int l_net_parse_val = dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net, CHAIN_TYPE_INVALID);
-    if(l_net_parse_val < 0 && cmd_num != CMD_BANLIST) {
-        if ((cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP) || l_net_parse_val == -102)
+    if(l_net_parse_val < 0 && cmd_num != CMD_BANLIST && cmd_num != CMD_ADD_RPC && cmd_num != CMD_LIST_RPC) {
+        if ((cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP && cmd_num != CMD_DUMP_RPC) || l_net_parse_val == -102)
             return -11;
     }
 
@@ -1020,6 +1030,35 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         }
     }
 
+    case CMD_ADD_RPC: {
+        int l_res = -10;
+        uint16_t l_port = 0;
+        if (!l_addr_str || !l_hostname) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Requires -addr and -host args");
+            return l_res;
+        }
+        if (!dap_chain_node_rpc_is_root()) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Your rpc role is not root");
+            return l_res;
+        }
+        if (!dap_chain_node_rpc_is_my_node_authorized()) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
+            return l_res;
+        }
+        // We're in authorized list, add directly
+        struct sockaddr_storage l_verifier = { };
+        if ( 0 > dap_net_parse_config_address(l_hostname, l_node_info->ext_host, &l_port, &l_verifier, NULL) ) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't parse host string %s", l_hostname);
+            return -6;
+        }
+        if ( !l_node_info->ext_port && !(l_node_info->ext_port = l_port) )
+            return dap_cli_server_cmd_set_reply_text(a_str_reply, "Unspecified port"), -7;
+
+        l_node_info->ext_host_len = dap_strlen(l_node_info->ext_host);
+        l_res = dap_chain_node_rpc_info_save(l_node_info);
+        return dap_cli_server_cmd_set_reply_text(a_str_reply, l_res ? "Can't add node %s, error %d" : "Successfully added node %s", l_addr_str, l_res), l_res;
+    }
+
     case CMD_DEL: {
         // handler of command 'node del'
         if (l_addr_str) {
@@ -1061,12 +1100,28 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         bool l_is_full = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-full", NULL);
         return s_node_info_list_with_reply(l_net, &l_node_addr, l_is_full, alias_str, *a_json_arr_reply);
     }
+    case CMD_LIST_RPC: {
+        dap_string_t *l_string_reply = dap_chain_node_rpc_list();
+        if (!l_string_reply) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Error in rpc node list forming");
+            return -1;
+        }
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
+        dap_string_free(l_string_reply, true);
+        return 0;
+    }
     case CMD_DUMP: {
         json_object* json_obj_out = json_object_new_object();
         if (!json_obj_out) return json_object_put(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
         dap_string_t *l_string_reply = dap_chain_node_states_info_read(l_net, l_node_info->address);
         json_object_object_add(json_obj_out, "status_dump", json_object_new_string(l_string_reply->str));
         json_object_array_add(*a_json_arr_reply, json_obj_out);
+        dap_string_free(l_string_reply, true);
+        return 0;
+    }
+    case CMD_DUMP_RPC: {
+        dap_string_t *l_string_reply = dap_chain_node_rpc_states_info_read(l_node_info->address);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
         dap_string_free(l_string_reply, true);
         return 0;
     }
@@ -6354,4 +6409,58 @@ int com_policy(int argc, char **argv, void **reply) {
     DAP_DELETE(l_decree_hash_str);
 
     return 0;
+}
+
+dap_chain_node_cli_cmd_t dap_chain_node_cli_cmd_id_from_str(const char *a_cmd_str)
+{
+    if(!a_cmd_str) return DAP_CHAIN_NODE_CLI_CMD_ID_UNKNOWN;
+    if (!strcmp(a_cmd_str, "tx_history")) return DAP_CHAIN_NODE_CLI_CMD_ID_TX_HISTORY;
+    if (!strcmp(a_cmd_str, "wallet")) return DAP_CHAIN_NODE_CLI_CMD_ID_WALLET;
+    if (!strcmp(a_cmd_str, "mempool")) return DAP_CHAIN_NODE_CLI_CMD_ID_MEMPOOL;
+    if (!strcmp(a_cmd_str, "ledger")) return DAP_CHAIN_NODE_CLI_CMD_ID_LEDGER;
+    if (!strcmp(a_cmd_str, "tx_create")) return DAP_CHAIN_NODE_CLI_CMD_ID_TX_CREATE;
+    if (!strcmp(a_cmd_str, "tx_create_json")) return DAP_CHAIN_NODE_CLI_CMD_ID_TX_CREATE_JSON;
+    if (!strcmp(a_cmd_str, "tx_verify")) return DAP_CHAIN_NODE_CLI_CMD_ID_TX_VERIFY;
+    if (!strcmp(a_cmd_str, "tx_cond_create")) return DAP_CHAIN_NODE_CLI_CMD_ID_TX_COND_CREATE;
+    if (!strcmp(a_cmd_str, "tx_cond_remove")) return DAP_CHAIN_NODE_CLI_CMD_ID_TX_COND_REMOVE;
+    if (!strcmp(a_cmd_str, "tx_cond_unspent_find")) return DAP_CHAIN_NODE_CLI_CMD_ID_TX_COND_UNSPENT_FIND;
+    if (!strcmp(a_cmd_str, "chain_ca_copy")) return DAP_CHAIN_NODE_CLI_CMD_ID_CHAIN_CA_COPY;
+    if (!strcmp(a_cmd_str, "dag")) return DAP_CHAIN_NODE_CLI_CMD_ID_DAG;
+    if (!strcmp(a_cmd_str, "dag_poa")) return DAP_CHAIN_NODE_CLI_CMD_ID_DAG_POA;
+    if (!strcmp(a_cmd_str, "block")) return DAP_CHAIN_NODE_CLI_CMD_ID_BLOCK;
+    if (!strcmp(a_cmd_str, "token")) return DAP_CHAIN_NODE_CLI_CMD_ID_TOKEN;
+    if (!strcmp(a_cmd_str, "esbocs")) return DAP_CHAIN_NODE_CLI_CMD_ID_ESBOCS;
+    if (!strcmp(a_cmd_str, "net_srv")) return DAP_CHAIN_NODE_CLI_CMD_ID_NET_SRV;
+    if (!strcmp(a_cmd_str, "net")) return DAP_CHAIN_NODE_CLI_CMD_ID_NET;
+    if (!strcmp(a_cmd_str, "srv_stake")) return DAP_CHAIN_NODE_CLI_CMD_ID_SRV_STAKE;
+    if (!strcmp(a_cmd_str, "srv_datum")) return DAP_CHAIN_NODE_CLI_CMD_ID_SRV_DATUM;
+    if (!strcmp(a_cmd_str, "poll")) return DAP_CHAIN_NODE_CLI_CMD_ID_POLL;
+    if (!strcmp(a_cmd_str, "srv_xchange")) return DAP_CHAIN_NODE_CLI_CMD_ID_SRV_XCHANGE;
+    if (!strcmp(a_cmd_str, "emit_delegate")) return DAP_CHAIN_NODE_CLI_CMD_ID_EMIT_DELEGATE;
+    if (!strcmp(a_cmd_str, "token_decl")) return DAP_CHAIN_NODE_CLI_CMD_ID_TOKEN_DECL;
+    if (!strcmp(a_cmd_str, "token_update")) return DAP_CHAIN_NODE_CLI_CMD_ID_TOKEN_UPDATE;
+    if (!strcmp(a_cmd_str, "token_update_sign")) return DAP_CHAIN_NODE_CLI_CMD_ID_TOKEN_UPDATE_SIGN;
+    if (!strcmp(a_cmd_str, "token_decl_sign")) return DAP_CHAIN_NODE_CLI_CMD_ID_TOKEN_DECL_SIGN;
+    if (!strcmp(a_cmd_str, "chain_ca_pub")) return DAP_CHAIN_NODE_CLI_CMD_ID_CHAIN_CA_PUB;
+    if (!strcmp(a_cmd_str, "token_emit")) return DAP_CHAIN_NODE_CLI_CMD_ID_TOKEN_EMIT;
+    if (!strcmp(a_cmd_str, "find")) return DAP_CHAIN_NODE_CLI_CMD_ID_FIND;
+    if (!strcmp(a_cmd_str, "version")) return DAP_CHAIN_NODE_CLI_CMD_ID_VERSION;
+    if (!strcmp(a_cmd_str, "remove")) return DAP_CHAIN_NODE_CLI_CMD_ID_REMOVE;
+    if (!strcmp(a_cmd_str, "global_db")) return DAP_CHAIN_NODE_CLI_CMD_ID_GLOBAL_DB;
+    if (!strcmp(a_cmd_str, "gdb_import")) return DAP_CHAIN_NODE_CLI_CMD_ID_GDB_IMPORT;
+    if (!strcmp(a_cmd_str, "gdb_export")) return DAP_CHAIN_NODE_CLI_CMD_ID_GDB_EXPORT;
+    if (!strcmp(a_cmd_str, "stats")) return DAP_CHAIN_NODE_CLI_CMD_ID_STATS;
+    if (!strcmp(a_cmd_str, "print_log")) return DAP_CHAIN_NODE_CLI_CMD_ID_PRINT_LOG;
+    if (!strcmp(a_cmd_str, "stake_lock")) return DAP_CHAIN_NODE_CLI_CMD_ID_STAKE_LOCK;
+    if (!strcmp(a_cmd_str, "exec_cmd")) return DAP_CHAIN_NODE_CLI_CMD_ID_EXEC_CMD;
+    if (!strcmp(a_cmd_str, "policy")) return DAP_CHAIN_NODE_CLI_CMD_ID_POLICY;
+    if (!strcmp(a_cmd_str, "decree")) return DAP_CHAIN_NODE_CLI_CMD_ID_DECREE;
+    if (!strcmp(a_cmd_str, "node")) return DAP_CHAIN_NODE_CLI_CMD_ID_NODE;
+    if (!strcmp(a_cmd_str, "vpn_stat")) return DAP_CHAIN_NODE_CLI_CMD_ID_VPN_STAT;
+    if (!strcmp(a_cmd_str, "vpn_client")) return DAP_CHAIN_NODE_CLI_CMD_ID_VPN_CLIENT;
+    if (!strcmp(a_cmd_str, "help")) return DAP_CHAIN_NODE_CLI_CMD_ID_HELP;
+    if (!strcmp(a_cmd_str, "exit")) return DAP_CHAIN_NODE_CLI_CMD_ID_EXIT;
+    if (!strcmp(a_cmd_str, "file")) return DAP_CHAIN_NODE_CLI_CMD_ID_FILE;
+    if (!strcmp(a_cmd_str, "plugins")) return DAP_CHAIN_NODE_CLI_CMD_ID_PLUGINS;
+    return DAP_CHAIN_NODE_CLI_CMD_ID_UNKNOWN;
 }
