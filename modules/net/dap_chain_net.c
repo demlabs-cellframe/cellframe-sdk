@@ -609,6 +609,7 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
         }
         json_object *l_jobj_current = json_object_new_uint64(l_chain->callback_count_atom(l_chain));
         json_object *l_jobj_total = json_object_new_uint64(l_chain->atom_num_last);
+        json_object_object_add(l_jobj_chain, "generation", json_object_new_int(l_chain->generation));
         json_object_object_add(l_jobj_chain, "status", l_jobj_chain_status);
         json_object_object_add(l_jobj_chain, "current", l_jobj_current);
         json_object_object_add(l_jobj_chain, "in_network", l_jobj_total);
@@ -2489,18 +2490,41 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     switch (a_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TX:
-        return dap_ledger_tx_add_check(l_net->pub.ledger, (dap_chain_datum_tx_t *)a_datum->data, a_datum->header.data_size, a_datum_hash);
+        if (a_datum->header.data_size < sizeof(dap_chain_datum_tx_t))
+            return -156;
+        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
+        if (!dap_strcmp(dap_chain_get_cs_type(a_chain), "esbocs")) {
+            uint256_t l_tx_fee = {};
+            if (!dap_chain_datum_tx_get_fee_value(l_tx, &l_tx_fee) && !IS_ZERO_256(l_tx_fee)) {
+                uint256_t l_min_fee = dap_chain_esbocs_get_fee(a_chain->net_id);
+                if (compare256(l_tx_fee, l_min_fee) < 0) {
+                    const char *l_tx_fee_str; dap_uint256_to_char(l_tx_fee, &l_tx_fee_str);
+                    const char *l_min_fee_str; dap_uint256_to_char(l_min_fee, &l_min_fee_str);
+                    log_it(L_WARNING, "Fee %s is lower than minimum fee %s for tx %s",
+                           l_tx_fee_str, l_min_fee_str, dap_get_data_hash_str(l_tx, dap_chain_datum_tx_get_size(l_tx)).s);
+                    return DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_FEE;
+                }
+            } else {
+                if (!dap_ledger_tx_poa_signed(l_net->pub.ledger, l_tx)) {
+                    log_it(L_WARNING, "Can't get fee value from tx %s", dap_get_data_hash_str(l_tx, dap_chain_datum_tx_get_size(l_tx)).s);
+                    return -157;
+                }
+                log_it(L_DEBUG, "Process service tx without fee");
+            }
+        }
+        return dap_ledger_tx_add_check(l_net->pub.ledger, l_tx, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_TOKEN:
+        if (a_datum->header.data_size < sizeof(dap_chain_datum_token_t))
+            return -156;
         return dap_ledger_token_add_check(l_net->pub.ledger, a_datum->data, a_datum->header.data_size);
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+        if (a_datum->header.data_size < sizeof(dap_chain_datum_token_emission_t))
+            return -156;
         return dap_ledger_token_emission_add_check(l_net->pub.ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_DECREE:
         return dap_ledger_decree_verify(l_net, (dap_chain_datum_decree_t *)a_datum->data, a_datum->header.data_size, a_datum_hash);
-    case DAP_CHAIN_DATUM_ANCHOR: {
-        int l_result = dap_ledger_anchor_verify(l_net, (dap_chain_datum_anchor_t *)a_datum->data, a_datum->header.data_size);
-        if (l_result)
-            return l_result;
-    }
+    case DAP_CHAIN_DATUM_ANCHOR:
+        return dap_ledger_anchor_verify(l_net, (dap_chain_datum_anchor_t *)a_datum->data, a_datum->header.data_size);
     default:
         if (a_chain->callback_datum_find_by_hash &&
                 a_chain->callback_datum_find_by_hash(a_chain, a_datum_hash, NULL, NULL))
@@ -2509,7 +2533,8 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
     return 0;
 }
 
-const char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code){
+const char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code)
+{
     switch (a_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TX:
     case DAP_CHAIN_DATUM_TOKEN:

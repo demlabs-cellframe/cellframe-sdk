@@ -216,6 +216,8 @@ typedef struct dap_ledger_datum_iter_data {
 #define DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS   DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS
 // Error code for no decree for anchor (for stay in mempool)
 #define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE          -1113
+// Error code for not enough fee for tx (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_FEE     -1114
 
 #define DAP_LEDGER_TOKENS_STR              "tokens"
 #define DAP_LEDGER_EMISSIONS_STR           "emissions"

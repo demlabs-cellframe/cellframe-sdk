@@ -281,6 +281,7 @@ typedef struct dap_chain_pvt {
     char *file_storage_dir;
     char *cs_name, *cs_type;
     bool cs_started;
+    dap_list_t *generation_banlist;
 } dap_chain_pvt_t;
 
 #define DAP_CHAIN_PVT(a) ((dap_chain_pvt_t *)a->_pvt)
@@ -331,3 +332,6 @@ const char *dap_chain_type_to_str(dap_chain_type_t a_chain_type);
 const char *dap_chain_get_path(dap_chain_t *a_chain);
 const char *dap_chain_get_cs_type(dap_chain_t *l_chain);
 bool dap_chain_datum_type_supported_by_chain(dap_chain_t *a_chain, uint16_t a_datum_type);
+bool dap_chain_generation_banned(dap_chain_t *a_chain, uint16_t a_generation);
+int dap_chain_generation_ban(dap_chain_t *a_chain, uint16_t a_generation);
+uint16_t dap_chain_generation_next(dap_chain_t *a_chain);
