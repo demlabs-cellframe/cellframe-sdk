@@ -206,7 +206,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
     if (l_single_channel) { // add 'out' items
         uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
         for (size_t i = 0; i < a_tx_num; ++i) {
-            if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to[i], a_value[i]) == 1) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to[i], a_value[i], a_token_ticker) == 1) {            
                 SUM_256_256(l_value_pack, a_value[i], &l_value_pack);
             } else {
                 dap_chain_datum_tx_delete(l_tx);
@@ -215,7 +215,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
         }
         // Network fee
         if (l_net_fee_used) {
-            if (dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) == 1)
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, a_token_ticker) == 1)
                 SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
             else {
                 dap_chain_datum_tx_delete(l_tx);
@@ -235,7 +235,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
         uint256_t l_value_back;
         SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
         if(!IS_ZERO_256(l_value_back)) {
-            if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_value_back) != 1) {
+            if(dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_from, l_value_back, a_token_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
