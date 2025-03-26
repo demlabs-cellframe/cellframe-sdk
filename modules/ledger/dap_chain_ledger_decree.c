@@ -668,12 +668,12 @@ const char *l_ban_addr;
             return dap_chain_esbocs_set_hardfork_complete(l_chain);
         }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_CANCEL: {
-            dap_tsd_t *l_сhain_id = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CANCEL_CHAIN_ID);
-            if (!l_сhain_id || l_сhain_id->size != sizeof(uint64_t)) {
+            dap_tsd_t *l_chain_id = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CANCEL_CHAIN_ID);
+            if (!l_chain_id || l_chain_id->size != sizeof(uint64_t)) {
                 log_it(L_WARNING, "Can't apply this decree, it have no target chain ID set");
                 return -116;
             }
-            dap_chain_id_t l_target_chain_id = (dap_chain_id_t){ .uint64 = *(uint64_t *)l_сhain_id->data };
+            dap_chain_id_t l_target_chain_id = (dap_chain_id_t){ .uint64 = *(uint64_t *)l_chain_id->data };
             dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, l_target_chain_id);
             if (!l_chain) {
                 log_it(L_WARNING, "Specified chain not found");
