@@ -394,7 +394,8 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS &&
-            l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE) {
+            l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE &&
+            l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_FEE) {
                 if (a_ret)
                     *a_ret = l_verify_datum;
                 return true;
@@ -446,31 +447,6 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
             if (dap_chain_datum_size(l_datum) != l_objs[i].value_len)
                 continue;
             if (dap_chain_node_mempool_need_process(a_chain, l_datum)) {
-
-                if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX &&
-                        !dap_strcmp(dap_chain_get_cs_type(a_chain), "esbocs")) {
-                    uint256_t l_tx_fee = {};
-                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-                    if (dap_chain_datum_tx_get_fee_value (l_tx, &l_tx_fee) ||
-                            IS_ZERO_256(l_tx_fee)) {
-                        if (!dap_ledger_tx_poa_signed(l_net->pub.ledger, l_tx)) {
-                            log_it(L_WARNING, "Can't get fee value from tx %s", l_objs[i].key);
-                            continue;
-                        } else
-                            log_it(L_DEBUG, "Process service tx without fee");
-                    } else {
-                        uint256_t l_min_fee = dap_chain_esbocs_get_fee(a_chain->net_id);
-                        if (compare256(l_tx_fee, l_min_fee) < 0) {
-                            char *l_tx_fee_str = dap_chain_balance_coins_print(l_tx_fee);
-                            char *l_min_fee_str = dap_chain_balance_coins_print(l_min_fee);
-                            log_it(L_WARNING, "Fee %s is lower than minimum fee %s for tx %s",
-                                   l_tx_fee_str, l_min_fee_str, l_objs[i].key);
-                            DAP_DELETE(l_tx_fee_str);
-                            DAP_DELETE(l_min_fee_str);
-                            continue;
-                        }
-                    }
-                }
                 int l_ret = 0;
                 if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key, &l_ret)) {
                     // Delete processed objects
@@ -653,8 +629,10 @@ dap_chain_datum_t *s_fee_tx_create(uint256_t a_value, dap_sign_t *a_owner_sign)
 int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
 {
     dap_return_val_if_fail(a_chain, -1);
-    if (!dap_chain_net_by_id(a_chain->net_id)->pub.mempool_autoproc)
-        return -2;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_return_val_if_fail(l_net, -10);
+    if (!l_net->pub.mempool_autoproc)
+        return -12;
     if (!a_chain->hardfork_data)
         return log_it(L_ERROR, "Can't process chain with no harfork data. Use dap_chain_node_hardfork_prepare() for collect it first"), -2;
     struct hardfork_states *l_states = a_chain->hardfork_data;
@@ -746,29 +724,56 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             if (!l_objs[i].sign)
                 continue;
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-            if (l_datum->header.type_id != DAP_CHAIN_DATUM_SERVICE_STATE)
+            if (l_datum->header.type_id != DAP_CHAIN_DATUM_SERVICE_STATE &&
+                    l_datum->header.type_id != DAP_CHAIN_DATUM_ANCHOR)
                 continue;
-            dap_stream_node_addr_t l_addr = dap_stream_node_addr_from_sign(l_objs[i].sign);
-            bool l_addr_match = false;
-            for (dap_list_t *it = l_states->trusted_addrs; it; it = it->next) {
-                if (((dap_stream_node_addr_t *)it->data)->uint64 != l_addr.uint64)
-                    continue;
-                l_addr_match = true;
-                break;
-            }
-            if (!l_addr_match) {
-                log_it(L_WARNING, "Trying to inject hardfork service state datum from addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_addr));
-                continue;
-            }
-            dap_hash_str_t l_key = dap_get_data_hash_str(l_datum->data, l_datum->header.data_size);
             if (dap_chain_datum_size(l_datum) != l_objs[i].value_len) {
-                log_it(L_WARNING, "Trying to process hardfork service state datum with incorrect size %zu (expect %zu)",
-                                                                            dap_chain_datum_size(l_datum), l_objs[i].value_len);
+                log_it(L_WARNING, "Trying to process hardfork %s datum with incorrect size %zu (expect %zu)",
+                                            l_datum->header.type_id == DAP_CHAIN_DATUM_SERVICE_STATE ? "service state" : "anchor",
+                                                dap_chain_datum_size(l_datum), l_objs[i].value_len);
                 continue;
             }
-            if (dap_strcmp(l_objs[i].key, l_key.s)) {
-                log_it(L_WARNING, "Trying to process hardfork service state datum with hash mismatch");
-                continue;
+            if (l_datum->header.type_id == DAP_CHAIN_DATUM_SERVICE_STATE) {
+                if (l_datum->header.data_size <= sizeof(dap_chain_datum_service_state_t)) {
+                    log_it(L_WARNING, "Hardfork service state datum size %u less than minimum", l_datum->header.data_size);
+                    continue;
+                }
+                dap_stream_node_addr_t l_addr = dap_stream_node_addr_from_sign(l_objs[i].sign);
+                bool l_addr_match = false;
+                for (dap_list_t *it = l_states->trusted_addrs; it; it = it->next) {
+                    if (((dap_stream_node_addr_t *)it->data)->uint64 != l_addr.uint64)
+                        continue;
+                    l_addr_match = true;
+                    break;
+                }
+                if (!l_addr_match) {
+                    log_it(L_WARNING, "Trying to inject hardfork service state datum from addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_addr));
+                    continue;
+                }
+            } else { // DATUM_ANCHOR
+                if (l_datum->header.data_size <= sizeof(dap_chain_datum_service_state_t)) {
+                    log_it(L_WARNING, "Hardfork service state datum size %u less than minimum", l_datum->header.data_size);
+                    continue;
+                }
+                dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)l_datum->data;
+                dap_hash_fast_t l_decree_hash = {};
+                dap_chain_datum_decree_t *l_decree = NULL;
+                if (dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash) != 0) {
+                    log_it(L_WARNING, "Can't get hash from anchor data");
+                    continue;
+                }
+                bool l_is_applied = false;
+                l_decree = dap_ledger_decree_get_by_hash(l_net, &l_decree_hash, &l_is_applied);
+                if (!l_decree) {
+                    log_it(L_WARNING, "Can't get decree by hash %s", dap_hash_fast_to_str_static(&l_decree_hash));
+                    return DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE;
+                }
+                if (l_decree->header.sub_type != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE)
+                    continue;
+                if (l_is_applied) {
+                    log_it(L_ERROR, "Decree %s for harfork completion already applied", dap_hash_fast_to_str_static(&l_decree_hash));
+                    continue;
+                }
             }
             if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key, NULL))
                 dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
