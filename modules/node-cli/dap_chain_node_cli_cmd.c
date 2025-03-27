@@ -900,7 +900,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     // find net
     dap_chain_net_t *l_net = NULL;
 
-    int l_net_parse_val = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply, &arg_index, a_argc, a_argv, NULL, &l_net, CHAIN_TYPE_INVALID);
+    int l_net_parse_val = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &arg_index, a_argc, a_argv, NULL, &l_net, CHAIN_TYPE_INVALID);
     if(l_net_parse_val && cmd_num != CMD_BANLIST && cmd_num != CMD_ADD_RPC && cmd_num != CMD_LIST_RPC) {
         if ((cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP && cmd_num != CMD_DUMP_RPC)) {
             dap_json_rpc_error_add(*a_json_arr_reply, l_net_parse_val, "Request parsing error (code: %d)", l_net_parse_val);
@@ -1036,29 +1036,45 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         int l_res = -10;
         uint16_t l_port = 0;
         if (!l_addr_str || !l_hostname) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Requires -addr and -host args");
-            return l_res;
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_FIND_ARGS_ERR,
+                "Requires -addr and -host args");;
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_FIND_ARGS_ERR;
         }
         if (!dap_chain_node_rpc_is_root()) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Your rpc role is not root");
-            return l_res;
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_HAVE_NO_ACCESS_RIGHTS_ERR,
+                "Your rpc role is not root");
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_ADD_HAVE_NO_ACCESS_RIGHTS_ERR;
         }
         if (!dap_chain_node_rpc_is_my_node_authorized()) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
-            return l_res;
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_HAVE_NO_ACCESS_RIGHTS_ERR,
+                "You have no access rights");
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_ADD_HAVE_NO_ACCESS_RIGHTS_ERR;
         }
         // We're in authorized list, add directly
         struct sockaddr_storage l_verifier = { };
         if ( 0 > dap_net_parse_config_address(l_hostname, l_node_info->ext_host, &l_port, &l_verifier, NULL) ) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't parse host string %s", l_hostname);
-            return -6;
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_PARSE_HOST_STRING_ERR,
+                "Can't parse host string %s", l_hostname);
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_PARSE_HOST_STRING_ERR;
         }
-        if ( !l_node_info->ext_port && !(l_node_info->ext_port = l_port) )
-            return dap_cli_server_cmd_set_reply_text(a_str_reply, "Unspecified port"), -7;
+        if ( !l_node_info->ext_port && !(l_node_info->ext_port = l_port) ) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_UNSPECIFIED_PORT_ERR,
+                                   "Unspecified port");
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_UNSPECIFIED_PORT_ERR;
+        }
 
         l_node_info->ext_host_len = dap_strlen(l_node_info->ext_host);
         l_res = dap_chain_node_rpc_info_save(l_node_info);
-        return dap_cli_server_cmd_set_reply_text(a_str_reply, l_res ? "Can't add node %s, error %d" : "Successfully added node %s", l_addr_str, l_res), l_res;
+        if (l_res) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_ADDED_NOT_ERR,
+                                   "Can't add node %s, error %d", l_addr_str, l_res);
+        } else {
+            json_object* json_obj_out = json_object_new_object();
+            if (!json_obj_out) return json_object_put(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
+            json_object_object_add(json_obj_out, "successfully_added_node", json_object_new_string(l_addr_str));
+            json_object_array_add(*a_json_arr_reply, json_obj_out);
+        }
+        return l_res;
     }
 
     case CMD_DEL: {
@@ -1103,13 +1119,12 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         return s_node_info_list_with_reply(l_net, &l_node_addr, l_is_full, alias_str, *a_json_arr_reply);
     }
     case CMD_LIST_RPC: {
-        dap_string_t *l_string_reply = dap_chain_node_rpc_list();
-        if (!l_string_reply) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Error in rpc node list forming");
-            return -1;
+        json_object *json_obj_out = dap_chain_node_rpc_list();
+        if (!json_obj_out) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR, "No records\n");
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR;
         }
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
-        dap_string_free(l_string_reply, true);
+        json_object_array_add(*a_json_arr_reply, json_obj_out);
         return 0;
     }
     case CMD_DUMP: {
@@ -1122,9 +1137,8 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         return 0;
     }
     case CMD_DUMP_RPC: {
-        dap_string_t *l_string_reply = dap_chain_node_rpc_states_info_read(l_node_info->address);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
-        dap_string_free(l_string_reply, true);
+        json_object* json_obj_out = dap_chain_node_rpc_states_info_read(l_node_info->address);
+        json_object_array_add(*a_json_arr_reply, json_obj_out);
         return 0;
     }
         // add alias

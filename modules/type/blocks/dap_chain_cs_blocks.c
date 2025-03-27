@@ -37,6 +37,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_datum.h"
 #include "dap_enc_base58.h"
+#include "dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "dap_chain_cs_blocks"
 

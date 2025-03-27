@@ -107,6 +107,7 @@
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_policy.h"
+#include "dap_chain_node_cli_cmd.h"
 
 #include <stdio.h>
 #include <sys/types.h>

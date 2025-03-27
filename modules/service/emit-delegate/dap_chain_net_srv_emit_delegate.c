@@ -32,6 +32,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_emit_delegate.h"
 #include "dap_list.h"
+#include "dap_chain_node_cli_cmd.h"
 
 enum emit_delegation_error {
     DAP_NO_ERROR = 0,

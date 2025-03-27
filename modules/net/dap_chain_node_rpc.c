@@ -24,6 +24,7 @@
 #include "dap_global_db_cluster.h"
 #include "dap_stream.h"
 #include "dap_cli_server.h"
+#include "dap_json_rpc.h"
 
 #define LOG_TAG "dap_chain_node_rpc"
 #define DAP_CHAIN_NODE_RPC_STATES_INFO_CURRENT_VERSION 1
@@ -204,31 +205,41 @@ void dap_chain_node_rpc_deinit()
  * @param a_addr - node addr to check
  * @return pointer to dap_string_t
  */
-dap_string_t *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
+json_object *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
 {
     dap_nanotime_t l_timestamp = 0;
     size_t l_data_size = 0;
-    dap_string_t *l_ret = dap_string_new("");
+    json_object* json_node_obj = json_object_new_object();
+    if (!json_node_obj) {
+        return NULL;
+    }
+    json_object* json_node_loads_arr = json_object_new_array();
+    if (!json_node_loads_arr) {
+        json_object_put(json_node_obj);
+        return NULL;
+    }
     const char *l_node_addr_str = dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr);
     dap_chain_node_rpc_states_info_t *l_node_info = (dap_chain_node_rpc_states_info_t *)dap_global_db_get_sync(s_rpc_server_states_group, l_node_addr_str, &l_data_size, NULL, &l_timestamp);
     if (!l_node_info) {
         log_it(L_ERROR, "Can't find state of rpc node %s", l_node_addr_str);
-        dap_string_append_printf(l_ret, "Can't find state of %s rpc node", l_node_addr_str);
-        return l_ret;
+        return NULL;
     }
     char l_ts[80] = { '\0' };
     dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_timestamp);
-    dap_string_append_printf(l_ret,
-        "Record timestamp: %s\nRecord version: %u\nNode addr: %s\n"
-        "Location: %d\nCli thread count: %u\nLinks count: %u\n"
-        "Loads: %lu %lu %lu\n"
-        "Procs: %u\nFree ram: %lu\nTotal ram: %lu\n",
-        l_ts, l_node_info->version, l_node_addr_str,
-        l_node_info->location, l_node_info->cli_thread_count, l_node_info->links_count,
-        l_node_info->system_info.loads[0], l_node_info->system_info.loads[1], l_node_info->system_info.loads[2],
-        l_node_info->system_info.procs, l_node_info->system_info.freeram, l_node_info->system_info.totalram
-        );
-    return l_ret;
+    json_object_object_add(json_node_obj, "Record timestamp", json_object_new_string(l_ts));
+    json_object_object_add(json_node_obj, "Record version", json_object_new_uint64(l_node_info->version));
+    json_object_object_add(json_node_obj, "Node addr", json_object_new_string(l_node_addr_str));
+    json_object_object_add(json_node_obj, "Location", json_object_new_int64(l_node_info->location));
+    json_object_object_add(json_node_obj, "Cli thread count", json_object_new_uint64(l_node_info->cli_thread_count));
+    json_object_object_add(json_node_obj, "Links count", json_object_new_uint64(l_node_info->links_count));
+    json_object_object_add(json_node_obj, "Procs", json_object_new_uint64(l_node_info->system_info.procs));
+    json_object_object_add(json_node_obj, "Free ram", json_object_new_uint64(l_node_info->system_info.freeram));
+    json_object_object_add(json_node_obj, "Total ram", json_object_new_uint64(l_node_info->system_info.totalram));
+    json_object_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[0]));
+    json_object_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[1]));
+    json_object_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[2]));
+    json_object_object_add(json_node_obj, "Loads", json_node_loads_arr);
+    return json_node_obj;
 }
 
 /**
@@ -257,20 +268,19 @@ int dap_chain_node_rpc_info_save(dap_chain_node_info_t *a_node_info)
 
 /**
  * @brief Return string by rpc node list
- * @return pointer to dap_string_t if Ok, NULL if error
+ * @return pointer to json_object if Ok, NULL if error
  */
-dap_string_t *dap_chain_node_rpc_list()
+json_object *dap_chain_node_rpc_list()
 {
-    dap_string_t *l_ret = dap_string_new("RPC node list:\n");
     size_t l_nodes_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(s_rpc_node_list_group, &l_nodes_count);
 
-    if(!l_nodes_count || !l_objs) {
-        dap_string_append_printf(l_ret, "No records\n");
+    if(!l_nodes_count || !l_objs)
         return NULL;
-    }
-    dap_string_append_printf(l_ret, "Got %zu nodes:\n", l_nodes_count);
-    dap_string_append_printf(l_ret, "%-26s%-20s%-8s%s", "Address", "IPv4", "Port", "Timestamp\n");
+
+    json_object* json_node_list_arr = json_object_new_array();
+    if (!json_node_list_arr)
+        return NULL;
 
     for (size_t i = 0; i < l_nodes_count; i++) {
         dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
@@ -278,16 +288,31 @@ dap_string_t *dap_chain_node_rpc_list()
             log_it(L_ERROR, "Node address is empty");
             continue;
         }
+        json_object* json_node_obj = json_object_new_object();
+        if (!json_node_obj) {
+            json_object_put(json_node_list_arr);
+            return NULL;
+        }
         char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
         dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
 
-        dap_string_append_printf(l_ret, NODE_ADDR_FP_STR"    %-20s%-8d%-32s\n",
-                                    NODE_ADDR_FP_ARGS_S(l_node_info->address),
-                                    l_node_info->ext_host, l_node_info->ext_port,
-                                    l_ts);
+        char *l_addr = dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_info->address));
+        json_object_object_add(json_node_obj, "address", json_object_new_string(l_addr));
+        json_object_object_add(json_node_obj, "IPv4", json_object_new_string(l_node_info->ext_host));
+        json_object_object_add(json_node_obj, "port", json_object_new_uint64(l_node_info->ext_port));
+        json_object_object_add(json_node_obj, "timestamp", json_object_new_string(l_ts));
+        json_object_array_add(json_node_list_arr, json_node_obj);
+        DAP_DELETE(l_addr);
     }
     dap_global_db_objs_delete(l_objs, l_nodes_count);
-    return l_ret;
+    json_object* json_node_list_obj = json_object_new_object();
+    if (!json_node_list_obj) {
+        json_object_put(json_node_list_arr);
+        return NULL;
+    }
+    json_object_object_add(json_node_list_obj, "got_nodes", json_object_new_uint64(l_nodes_count));
+    json_object_object_add(json_node_list_obj, "NODES", json_node_list_arr);
+    return json_node_list_obj;
 }
 
 /**
