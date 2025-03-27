@@ -76,7 +76,7 @@
 #include "dap_chain_ch.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_node_list.h"
-
+#include "dap_chain_cs_esbocs.h"
 #include "dap_json_rpc_errors.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_datum_tx_voting.h"
@@ -4382,8 +4382,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 return -1;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-            uint16_t l_generation = l_chain->generation + 1;
-            l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_GENERATION, &l_generation, sizeof(l_chain->generation));
+            uint16_t l_generation = dap_chain_generation_next(l_decree_chain);
+            l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_GENERATION, &l_generation, sizeof(l_generation));
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_list_free_full(l_tsd_list, NULL);
@@ -4445,13 +4445,43 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             }
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_retry", &l_param_value_str)) {
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_RETRY;
+            if (!dap_chain_esbocs_hardfork_engaged(l_decree_chain)) {
+                log_it(L_WARNING, "Hardfork is not engaged, can't retry");
+                return -116;
+            }
             if (dap_chain_net_srv_stake_hardfork_data_export(l_net, &l_tsd_list)) {
                 log_it(L_ERROR, "Can't add stake delegate data to hardfork decree");
                 dap_list_free_full(l_tsd_list, NULL);
                 return -300;
             }
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_complete", &l_param_value_str)) {
+            if (!l_decree_chain->hardfork_data) {
+                log_it(L_ERROR, "Hardfork isn't started, can't complete");
+                return -300;
+            }
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE;
+        } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_cancel", &l_param_value_str)) {
+            uint16_t l_generation = l_decree_chain->generation;
+            if (!l_generation) {
+                log_it(L_ERROR, "Can't cancel base chain generation");
+                return -300;
+            }
+            l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_CANCEL;
+            l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_GENERATION, &l_generation, sizeof(l_chain->generation));
+            if (!l_tsd) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                dap_list_free_full(l_tsd_list, NULL);
+                return -1;
+            }
+            l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+            uint64_t l_banned_chain_id = l_decree_chain->id.uint64;
+            l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CANCEL_CHAIN_ID, &l_banned_chain_id, sizeof(l_banned_chain_id));
+            if (!l_tsd) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                dap_list_free_full(l_tsd_list, NULL);
+                return -1;
+            }
+            l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-new_certs", &l_param_value_str)){
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS;
             dap_cert_parse_str_list(l_param_value_str, &l_new_certs, &l_new_certs_count);
@@ -4510,15 +4540,14 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
         }
 
         if (l_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS ||
-            l_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN)
-        {
-            if (l_decree_chain->id.uint64 != l_chain->id.uint64){
+                l_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN) {
+            if (l_decree_chain->id.uint64 != l_chain->id.uint64) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_NOT_CHAIN_PARAM_ERR,
                                                     "Decree subtype %s not suppurted by chain %s",
                                                     dap_chain_datum_decree_subtype_to_str(l_subtype), l_decree_chain_str);
                 return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_NOT_CHAIN_PARAM_ERR;
             }
-        } else if (l_decree_chain->id.uint64 == l_chain->id.uint64){
+        } else if (l_decree_chain->id.uint64 == l_chain->id.uint64) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_NOT_CHAIN_PARAM_ERR,
                                                     "Decree subtype %s not suppurted by chain %s",
                                                     dap_chain_datum_decree_subtype_to_str(l_subtype), l_decree_chain_str);
@@ -4530,7 +4559,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
         l_datum_decree->header.ts_created = dap_time_now();
         l_datum_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
         l_datum_decree->header.common_decree_params.net_id = dap_chain_net_id_by_name(l_net_str);
-        l_datum_decree->header.common_decree_params.chain_id = l_decree_chain->id;
+        l_datum_decree->header.common_decree_params.chain_id = l_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_CANCEL ?
+                                          l_decree_chain->id : l_chain->id;
         l_datum_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(l_net);
         l_datum_decree->header.sub_type = l_subtype;
         l_datum_decree->header.data_size = l_total_tsd_size;

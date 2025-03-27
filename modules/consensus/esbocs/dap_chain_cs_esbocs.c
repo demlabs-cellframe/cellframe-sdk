@@ -787,7 +787,8 @@ int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain)
     json_object_put(l_esbocs->hardfork_changed_addrs);
     l_esbocs->hardfork_changed_addrs = NULL;
     l_esbocs->hardfork_generation = l_esbocs->hardfork_from = 0;
-    l_esbocs->session->is_hardfork = false;
+    if (l_esbocs->session)
+        l_esbocs->session->is_hardfork = false;
     l_net->pub.ledger->is_hardfork_state = false;
     dap_chain_net_srv_stake_hardfork_tx_update(l_net);
     return 0;
@@ -2941,7 +2942,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             return -3;
         }
         if (l_esbocs->session->is_hardfork) {
-            uint16_t l_genesis_corr = 0;
+            bool l_genesis_corr = false;
             // compare hardfork decree hashes
             if (dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_GENESIS)) {
                 dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_LINK);
@@ -2955,10 +2956,11 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                     DAP_DELETE(l_candidate_hash_str);
                     return -301;
                 }
-                l_genesis_corr = 1;
+                l_genesis_corr = true;
             }
             uint8_t *l_generation = dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_GENERATION);
-            if (!l_generation || *(uint16_t *)l_generation != a_blocks->chain->generation + l_genesis_corr) {
+            uint16_t l_generation_expected = l_genesis_corr ? dap_chain_generation_next(a_blocks->chain) : a_blocks->chain->generation;
+            if (!l_generation || *(uint16_t *)l_generation != l_generation_expected) {
                 log_it(L_WARNING, "Can't process hardfork block %s with incorrect generation meta", dap_hash_fast_to_str_static(a_block_hash));
                 return -302;
             }
