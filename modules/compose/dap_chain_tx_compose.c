@@ -39,7 +39,7 @@
 #include <netdb.h>
 #include <json-c/json.h>
 
-static json_object* s_request_command_to_rpc(const char *request);
+static json_object* s_request_command_to_rpc(const char *a_request, const char * a_net_name);
 
 
 const char *arg_wallets_path = NULL;
@@ -63,6 +63,24 @@ static dap_chain_net_id_t s_get_net_id(const char* name) {
     return empty_id;
 }
 
+static const char* s_get_net_url(const char* name) {
+    for (int i = 0; i < NET_COUNT; i++) {
+        if (strcmp(netinfo[i].name, name) == 0) {
+            return netinfo[i].url;
+        }
+    }
+    return NULL;
+}
+
+static uint16_t s_get_net_port(const char* name) {
+    for (int i = 0; i < NET_COUNT; i++) {
+        if (strcmp(netinfo[i].name, name) == 0) {
+            return netinfo[i].port;
+        }
+    }
+    return 0;
+}
+
 
 int dap_tx_json_tsd_add(json_object * json_tx, json_object * json_add) {
     json_object *items_array;
@@ -74,127 +92,193 @@ int dap_tx_json_tsd_add(json_object * json_tx, json_object * json_add) {
     return 0;
 }
 
+struct cmd_request {
+#ifdef DAP_OS_WINDOWS
+    CONDITION_VARIABLE wait_cond;
+    CRITICAL_SECTION wait_crit_sec;
+#else
+    pthread_cond_t wait_cond;
+    pthread_mutex_t wait_mutex;
+#endif
+    char* response;
+    size_t response_size;
+    int error_code;
+};
 
-static json_object* s_request_command_to_rpc(const char *request) {
-    struct addrinfo hints, *res = NULL, *p = NULL;
-    int sockfd = -1;
-    struct sockaddr_storage l_saddr = { };
-    char l_ip[INET6_ADDRSTRLEN] = { '\0' }; 
-    uint16_t l_port = 0;
-    char path[256] = "/";
-    json_object *response_json = NULL;
-    dap_json_rpc_response_t* response = NULL;
+static struct cmd_request* s_cmd_request_init()
+{
+    struct cmd_request *l_cmd_request = DAP_NEW_Z(struct cmd_request);
+    if (!l_cmd_request)
+        return NULL;
+#ifdef DAP_OS_WINDOWS
+    InitializeCriticalSection(&l_cmd_request->wait_crit_sec);
+    InitializeConditionVariable(&l_cmd_request->wait_cond);
+#else
+    pthread_mutex_init(&l_cmd_request->wait_mutex, NULL);
+#ifdef DAP_OS_DARWIN
+    pthread_cond_init(&l_cmd_request->wait_cond, NULL);
+#else
+    pthread_condattr_t attr;
+    pthread_condattr_init(&attr);
+    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+    pthread_cond_init(&l_cmd_request->wait_cond, &attr);    
+#endif
+#endif
+    return l_cmd_request;
+}
 
-    if (strchr(RPC_NODES_URL, ':') != NULL && strchr(RPC_NODES_URL, '/') == NULL) {
-        if (dap_net_parse_config_address(RPC_NODES_URL, l_ip, &l_port, &l_saddr, NULL) < 0) {
-            printf("Incorrect address \"%s\" format\n", RPC_NODES_URL);
-            return NULL;
-        }
-        memset(&hints, 0, sizeof(hints));
-        hints.ai_family = AF_INET;
-        hints.ai_socktype = SOCK_STREAM;
+void s_cmd_request_free(struct cmd_request *a_cmd_request)
+{
+    if (!a_cmd_request)
+        return;
 
-        char port_str[6];
-        snprintf(port_str, sizeof(port_str), "%u", l_port);
+#ifdef DAP_OS_WINDOWS
+    DeleteCriticalSection(&a_cmd_request->wait_crit_sec);
+#else
+    pthread_mutex_destroy(&a_cmd_request->wait_mutex);
+    pthread_cond_destroy(&a_cmd_request->wait_cond);
+#endif
+    DAP_DEL_MULTY(a_cmd_request->response, a_cmd_request);
+}
 
-        if (getaddrinfo(l_ip, port_str, &hints, &res) != 0) {
-            fprintf(stderr, "Failed to resolve IP address\n");
-            return NULL;
-        }
-    } else {
-        const char *host_start = strstr(RPC_NODES_URL, "://");
-        if (!host_start) {
-            fprintf(stderr, "Invalid URL format\n");
-            return NULL;
-        }
-        host_start += 3;  // Move past "://"
+static void s_cmd_response_handler(void *a_response, size_t a_response_size, void *a_arg,
+                                            http_status_code_t http_status_code) {
+    (void)http_status_code;
+    struct cmd_request *l_cmd_request = (struct cmd_request *)a_arg;
+#ifdef DAP_OS_WINDOWS
+    EnterCriticalSection(&l_cmd_request->wait_crit_sec);
+#else
+    pthread_mutex_lock(&l_cmd_request->wait_mutex);
+#endif
+    l_cmd_request->response = DAP_DUP_SIZE(a_response, a_response_size);
+    l_cmd_request->response_size = a_response_size;
+#ifdef DAP_OS_WINDOWS
+    WakeConditionVariable(&l_cmd_request->wait_cond);
+    LeaveCriticalSection(&l_cmd_request->wait_crit_sec);
+#else
+    pthread_cond_signal(&l_cmd_request->wait_cond);
+    pthread_mutex_unlock(&l_cmd_request->wait_mutex);
+#endif
+}
 
-        char host[256] = {0};
-        const char *path_start = strchr(host_start, '/');
-        size_t host_len = path_start ? (size_t)(path_start - host_start) : strlen(host_start);
-        if (host_len >= sizeof(host)) host_len = sizeof(host) - 1;
-        strncpy(host, host_start, host_len);
-        host[host_len] = '\0';  // Ensure null termination
+static void s_cmd_error_handler(int a_error_code, void *a_arg){
+    struct cmd_request * l_cmd_request = (struct cmd_request *)a_arg;
+#ifdef DAP_OS_WINDOWS
+    EnterCriticalSection(&l_cmd_request->wait_crit_sec);
+    l_cmd_request->response = NULL;
+    l_cmd_request->error_code = a_error_code;
+    WakeConditionVariable(&l_cmd_request->wait_cond);
+    LeaveCriticalSection(&l_cmd_request->wait_crit_sec);
+#else
+    pthread_mutex_lock(&l_cmd_request->wait_mutex);
+    l_cmd_request->response = NULL;
+    l_cmd_request->error_code = a_error_code;
+    pthread_cond_signal(&l_cmd_request->wait_cond);
+    pthread_mutex_unlock(&l_cmd_request->wait_mutex);
+#endif
+}
 
-        printf("Extracted host: %s\n", host);  // Debugging output
 
-        struct addrinfo hints = {0}, *res = NULL;
-        hints.ai_family = AF_INET;
-        hints.ai_socktype = SOCK_STREAM;
-
-        if (getaddrinfo(host, "80", &hints, &res) != 0) {
-            fprintf(stderr, "Failed to resolve hostname: %s\n", host);
-            return NULL;
-        }
-    }
-
-    for (p = res; p != NULL; p = p->ai_next) {
-        sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (sockfd == -1) continue;
-
-        if (connect(sockfd, p->ai_addr, p->ai_addrlen) == 0) {
+static int dap_chain_cmd_list_wait(struct cmd_request *a_cmd_request, int a_timeout_ms) {
+#ifdef DAP_OS_WINDOWS
+    EnterCriticalSection(&a_cmd_request->wait_crit_sec);
+    if (a_cmd_request->response)
+        return LeaveCriticalSection(&a_cmd_request->wait_crit_sec), 0;
+    while (!a_cmd_request->response) {
+        if (!SleepConditionVariableCS(&a_cmd_request->wait_cond, &a_cmd_request->wait_crit_sec, a_timeout_ms)) {
+            a_cmd_request->error_code = GetLastError() == ERROR_TIMEOUT ? 1 : 2;
             break;
         }
-        
-        close(sockfd);
-        sockfd = -1;
     }
-
-    freeaddrinfo(res);
-
-    if (sockfd == -1) {
-        fprintf(stderr, "Failed to connect to host\n");
-        return NULL;
-    }
-
-    char http_request[1024];
-    snprintf(http_request, sizeof(http_request),
-             "POST %s HTTP/1.1\r\n"
-             "Host: %s\r\n"
-             "Content-Type: application/json\r\n"
-             "Content-Length: %zu\r\n"
-             "Connection: close\r\n\r\n"
-             "%s",
-             path, l_ip, strlen(request), request);
-
-    if (send(sockfd, http_request, strlen(http_request), 0) < 0) {
-        fprintf(stderr, "Failed to send request\n");
-        close(sockfd);
-        return NULL;
-    }
-
-    dap_app_cli_cmd_state_t cmd = {
-        .cmd_res = DAP_NEW_Z_SIZE(char, MAX_RESPONSE_SIZE),
-        .cmd_res_cur = 0,
-        .hdr_len = 0  // Ensure this is initialized
-    };
-
-    if (!cmd.cmd_res) {
-        fprintf(stderr, "Memory allocation failed\n");
-        close(sockfd);
-        return NULL;
-    }
-
-    int l_status = 1;
-    while (l_status > 0) {
-        l_status = dap_app_cli_http_read(sockfd, &cmd, l_status);
+    LeaveCriticalSection(&a_cmd_request->wait_crit_sec);
+    return a_cmd_request->error_code;     
+#else
+    pthread_mutex_lock(&a_cmd_request->wait_mutex);
+    if(a_cmd_request->response) {
+        pthread_mutex_unlock(&a_cmd_request->wait_mutex);
+        return 0;
     }
     
-    close(sockfd);
+    struct timespec l_cond_timeout;
+#ifdef DAP_OS_DARWIN
+    l_cond_timeout.tv_sec = a_timeout_ms / 1000;
+    l_cond_timeout.tv_nsec = (a_timeout_ms % 1000) * 1000000;
+#else
+    clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);
+    l_cond_timeout.tv_sec += a_timeout_ms / 1000;
+    l_cond_timeout.tv_nsec += (a_timeout_ms % 1000) * 1000000;
+    if (l_cond_timeout.tv_nsec >= 1000000000) {
+        l_cond_timeout.tv_sec += l_cond_timeout.tv_nsec / 1000000000;
+        l_cond_timeout.tv_nsec %= 1000000000;
+    }
+#endif
+    
+    int ret = 0;
+    while (!a_cmd_request->response) {
+        int cond_ret;
+#ifdef DAP_OS_DARWIN
+        cond_ret = pthread_cond_timedwait_relative_np(&a_cmd_request->wait_cond, 
+                    &a_cmd_request->wait_mutex, &l_cond_timeout);
+#else
+        cond_ret = pthread_cond_timedwait(&a_cmd_request->wait_cond, 
+                    &a_cmd_request->wait_mutex, &l_cond_timeout);
+#endif
+        if (cond_ret == ETIMEDOUT) {
+            a_cmd_request->error_code = 1;
+            ret = 1;
+            break;
+        } else if (cond_ret != 0) {
+            a_cmd_request->error_code = 2;
+            ret = 2;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&a_cmd_request->wait_mutex);
+    return ret;
+#endif
+}
 
-    response = dap_json_rpc_response_from_string(cmd.cmd_res + cmd.hdr_len);
-    DAP_DELETE(cmd.cmd_res);
+static int s_cmd_request_get_response(struct cmd_request *a_cmd_request, json_object **a_response_out, size_t *a_response_out_size)
+{
+    int ret = 0;
 
-    if (!response) {
-        return NULL;
+    if (a_cmd_request->error_code) {
+        ret = - 1;
+    } else if (a_cmd_request->response) {
+            *a_response_out = json_tokener_parse(a_cmd_request->response);
+            *a_response_out_size = a_cmd_request->response_size;
+    } else {
+        ret = -2;
     }
 
-    response_json = response->result_json_object;
-    json_object_get(response_json);  // Prevent early free
+    return ret;
+}
 
+static json_object* s_request_command_to_rpc(const char *request, const char * a_net_name) {
+    json_object * l_response = NULL;
+    size_t l_response_size;
+    struct cmd_request* l_cmd_request = s_cmd_request_init();
+
+    dap_client_http_request(dap_worker_get_auto(),
+                                s_get_net_url(a_net_name),
+                                s_get_net_port(a_net_name),
+                                "POST", "application/json",
+                                NULL, request, strlen(request), NULL,
+                                s_cmd_response_handler, s_cmd_error_handler,
+                                l_cmd_request, NULL);
+
+    int l_ret = dap_chain_cmd_list_wait(l_cmd_request, 15000);
+
+    if (!l_ret){
+        if (s_cmd_request_get_response(l_cmd_request, &l_response, &l_response_size)) {
+            printf( "Response error code: %d", l_cmd_request->error_code);
+        }
+    }
+    json_object * l_result;
+    json_object_object_get_ex(l_response, "result", &l_result);
     json_object *errors_array;
-    if (json_object_is_type(response_json, json_type_array) && json_object_array_length(response_json) > 0) {
-        json_object *first_element = json_object_array_get_idx(response_json, 0);
+    if (json_object_is_type(l_result, json_type_array) && json_object_array_length(l_result) > 0) {
+        json_object *first_element = json_object_array_get_idx(l_result, 0);
         if (json_object_object_get_ex(first_element, "errors", &errors_array)) {
             int errors_len = json_object_array_length(errors_array);
             for (int j = 0; j < errors_len; j++) {
@@ -205,20 +289,21 @@ static json_object* s_request_command_to_rpc(const char *request) {
                     printf("Error %d: %s\n", json_object_get_int(error_code), json_object_get_string(error_message));
                 }
             }
-            json_object_put(response_json);  // Free memory
-            response_json = NULL;
+            json_object_put(l_result);
+            l_result = NULL;
         }
     }
-
-    dap_json_rpc_response_free(response);
-    return response_json;
+    s_cmd_request_free(l_cmd_request);
+    json_object_get(l_result);
+    json_object_put(l_response);
+    return l_result;
 }
 
 
 bool dap_get_remote_net_fee_and_address(const char *l_net_name, uint256_t *a_net_fee, dap_chain_addr_t **l_addr_fee) {
     char data[512];
     snprintf(data, sizeof(data), "{\"method\": \"net\",\"params\": [\"net;get;fee;-net;%s\"],\"id\": \"1\"}", l_net_name);
-    json_object *l_json_get_fee = s_request_command_to_rpc(data);
+    json_object *l_json_get_fee = s_request_command_to_rpc(data, l_net_name);
     if (!l_json_get_fee) {
         return false;
     }
@@ -268,7 +353,7 @@ bool dap_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const c
     snprintf(data, sizeof(data), 
             "{\"method\": \"wallet\",\"params\": [\"wallet;outputs;-addr;%s;-token;%s;-net;%s\"],\"id\": \"1\"}", 
             dap_chain_addr_to_str(a_addr_from), a_token_ticker, l_net_name);
-    json_object *l_json_outs = s_request_command_to_rpc(data);
+    json_object *l_json_outs = s_request_command_to_rpc(data, l_net_name);
     if (!l_json_outs) {
         return false;
     }
@@ -932,7 +1017,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_net
     char data[512];
     snprintf(data, sizeof(data), 
             "{\"method\": \"ledger\",\"params\": [\"ledger;list;coins;-net;%s\"],\"id\": \"2\"}", a_net_name);
-    json_object *l_json_coins = s_request_command_to_rpc(data);
+    json_object *l_json_coins = s_request_command_to_rpc(data, a_net_name);
     if (!l_json_coins) {
         return NULL; // XCHANGE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS
     }
@@ -946,7 +1031,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_net
             "{\"method\": \"wallet\",\"params\": [\"wallet;info;-addr;%s;-net;%s\"],\"id\": \"2\"}", 
             dap_chain_addr_to_str(l_wallet_addr), a_net_name);
     DAP_DEL_Z(l_wallet_addr);
-    json_object *l_json_outs = s_request_command_to_rpc(data);
+    json_object *l_json_outs = s_request_command_to_rpc(data, a_net_name);
     uint256_t l_value = get_balance_from_json(l_json_outs, a_token_sell);
 
     uint256_t l_value_sell = a_datoshi_sell;
@@ -982,7 +1067,7 @@ json_object *get_tx_outs_by_curl(const char *a_token_ticker, const char *a_net_n
     snprintf(data, sizeof(data), 
             "{\"method\": \"wallet\",\"params\": [\"wallet;outputs;-addr;%s;-token;%s;-net;%s\"],\"id\": \"1\"}", 
             dap_chain_addr_to_str(a_addr), a_token_ticker, a_net_name);
-    json_object *l_json_outs = s_request_command_to_rpc(data);
+    json_object *l_json_outs = s_request_command_to_rpc(data, a_net_name);
     if (!l_json_outs) {
         return NULL;
     }
@@ -1458,7 +1543,7 @@ int  dap_cli_hold_compose(int a_argc, char **a_argv)
     char data[512];
     snprintf(data, sizeof(data), 
             "{\"method\": \"ledger\",\"params\": [\"ledger;list;coins;-net;%s\"],\"id\": \"2\"}", l_net_name);
-    json_object *l_json_coins = s_request_command_to_rpc(data);
+    json_object *l_json_coins = s_request_command_to_rpc(data, l_net_name);
     if (!l_json_coins) {
         return -4;
     }
@@ -1592,7 +1677,7 @@ int  dap_cli_hold_compose(int a_argc, char **a_argv)
         dap_chain_addr_to_str(l_addr_holder), l_net_name);
     DAP_DEL_Z(l_addr_holder);
 
-    json_object *l_json_outs = s_request_command_to_rpc(data);
+    json_object *l_json_outs = s_request_command_to_rpc(data, l_net_name);
     uint256_t l_value_balance = get_balance_from_json(l_json_outs, l_ticker_str);
     json_object_put(l_json_outs);
     if (compare256(l_value_balance, l_value) == -1) {
@@ -1847,7 +1932,7 @@ int dap_cli_take_compose(int a_argc, char **a_argv)
             "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
             l_tx_str, l_net_str);
     
-    json_object *response = s_request_command_to_rpc(data);
+    json_object *response = s_request_command_to_rpc(data, l_net_str);
     if (!response) {
         printf("Error: Failed to get response from remote node\n");
         return -15;
@@ -2135,7 +2220,7 @@ uint256_t s_get_key_delegating_min_value(const char *a_net_str){
             "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", 
             a_net_str);
     
-    json_object *response = s_request_command_to_rpc(data);
+    json_object *response = s_request_command_to_rpc(data, a_net_str);
     if (!response) {
         printf("Error: Failed to get response from remote node\n");
         return l_key_delegating_min_value;
@@ -2281,7 +2366,7 @@ int dap_cli_voting_compose(int a_argc, char **a_argv)
     char data[512];
     snprintf(data, sizeof(data), 
             "{\"method\": \"ledger\",\"params\": [\"ledger;list;coins;-net;%s\"],\"id\": \"2\"}", l_net_str);
-    json_object *l_json_coins = s_request_command_to_rpc(data);
+    json_object *l_json_coins = s_request_command_to_rpc(data, l_net_str);
     if (!l_json_coins) {
         printf("Error: Can't get ledger coins list\n");
         return -DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS;

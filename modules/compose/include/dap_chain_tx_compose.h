@@ -33,27 +33,23 @@
 
  #include <json-c/json.h>
 
-
-
-
- // #define RPC_NODES_URL "http://rpc.cellframe.net"
-#define RPC_NODES_URL "45.76.140.191:8081"
-#define MAX_RESPONSE_SIZE 4096
 #define NET_COUNT 6
 
 typedef struct {
     char name[20];
     char native_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_chain_net_id_t net_id;
+    char url[128];
+    uint16_t port;
 } NetInfo;
 
 static NetInfo netinfo[NET_COUNT] = {
-    {"riemann",  "tKEL",  {.uint64 = 0x000000000000dddd}},
-    {"raiden",   "tCELL", {.uint64 = 0x000000000000bbbb}},
-    {"KelVPN",   "KEL",   {.uint64 = 0x1807202300000000}},
-    {"Backbone", "CELL",  {.uint64 = 0x0404202200000000}},
-    {"mileena",  "tMIL",  {.uint64 = 0x000000000000cccc}},
-    {"subzero",  "tCELL", {.uint64 = 0x000000000000acca}}
+    {"riemann",  "tKEL",  {.uint64 = 0x000000000000dddd}, "45.76.140.191", 8081},
+    {"raiden",   "tCELL", {.uint64 = 0x000000000000bbbb}, "http://rpc.cellframe.net", 8081},
+    {"KelVPN",   "KEL",   {.uint64 = 0x1807202300000000}, "http://rpc.cellframe.net", 8081},
+    {"Backbone", "CELL",  {.uint64 = 0x0404202200000000}, "http://rpc.cellframe.net", 8081},
+    {"mileena",  "tMIL",  {.uint64 = 0x000000000000cccc}, "http://rpc.cellframe.net", 8081},
+    {"subzero",  "tCELL", {.uint64 = 0x000000000000acca}, "http://rpc.cellframe.net", 8081}
 };
 
 #ifdef __cplusplus
