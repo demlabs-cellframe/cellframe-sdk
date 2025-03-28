@@ -71,6 +71,7 @@ typedef struct dap_chain_datum_tx_item_groups {
     dap_list_t *items_out_all;
     dap_list_t *items_out_old;
     dap_list_t *items_out_ext;
+    dap_list_t *items_out_std;
     dap_list_t *items_out_cond;
     dap_list_t *items_out_cond_srv_fee;
     dap_list_t *items_out_cond_srv_pay;
