@@ -44,7 +44,7 @@ typedef struct {
 } NetInfo;
 
 static NetInfo netinfo[NET_COUNT] = {
-    {"riemann",  "tKEL",  {.uint64 = 0x000000000000dddd}, "http://rpc.cellframe.net", 8081},
+    {"riemann",  "tKEL",  {.uint64 = 0x000000000000dddd}, "45.76.140.191", 8081},
     {"raiden",   "tCELL", {.uint64 = 0x000000000000bbbb}, "http://rpc.cellframe.net", 8081},
     {"KelVPN",   "KEL",   {.uint64 = 0x1807202300000000}, "http://rpc.cellframe.net", 8081},
     {"Backbone", "CELL",  {.uint64 = 0x0404202200000000}, "http://rpc.cellframe.net", 8081},
