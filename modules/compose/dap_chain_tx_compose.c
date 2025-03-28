@@ -2976,20 +2976,31 @@ int dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint256_t a_fee, dap_c
 */
 
 
-/** 
+/**
 static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
 {
     const char *l_net_str = NULL,
                *l_wallet_str = NULL,
                *l_cert_str = NULL,
                *l_fee_str = NULL,
-               *l_tx_hash_str = NULL;
+               *l_tx_hash_str = NULL,
+               *l_url_str = NULL,
+               *l_port_str = NULL;
+    uint16_t l_port = 0;
                
     int l_arg_index = 1;
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
     if (!l_net_str) {
         printf("Command 'invalidate' requires parameter -net\n");
         return -1;
+    }
+    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-url", &l_url_str)) {
+        l_url_str = s_get_net_url(l_net_str);
+    }
+    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-port", &l_port_str)) {
+        l_port = atoi(l_port_str);
+    } else {
+        l_port = s_get_net_port(l_net_str);
     }
 
     uint256_t l_fee = {};
@@ -3037,20 +3048,13 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
                 printf("Specified certificate is wrong\n");
                 return -6;
             }
-        } else {
-            dap_hash_fast_t l_pkey_hash = {};
-            if (dap_chain_hash_fast_from_str(l_signing_pkey_hash_str, &l_pkey_hash)) {
-                printf("Invalid pkey hash format\n");
-                return -7;
-            }
-            dap_chain_addr_fill(&l_signing_addr, dap_sign_type_from_str(l_signing_pkey_type_str), &l_pkey_hash, s_get_net_id(l_net_str));
         }
+        const char *l_addr_str = dap_chain_addr_to_str_static(&l_signing_addr);
 
-        
         char data[512];
         snprintf(data, sizeof(data), 
                 "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", l_net_str);
-        json_object *l_json_coins = s_request_command_to_rpc(data);
+        json_object *l_json_coins = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
         if (!l_json_coins) {
             printf("Error: Failed to retrieve coins from ledger\n");
             return -4;
@@ -3060,8 +3064,8 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
         bool found = false;
         for (int i = 0; i < items_count; i++) {
             json_object *item = json_object_array_get_idx(l_json_coins, i);
-            const char *pkey_hash_str = json_object_get_string(json_object_object_get(item, "pkey_hash"));
-            if (l_signing_pkey_hash_str && !dap_strcmp(l_signing_pkey_hash_str, pkey_hash_str)) {
+            const char *node_addr_str = json_object_get_string(json_object_object_get(item, "node_addr"));
+            if (node_addr_str && !dap_strcmp(l_addr_str, node_addr_str)) {
                 const char *tx_hash_str = json_object_get_string(json_object_object_get(item, "tx_hash"));
                 if (dap_chain_hash_fast_from_str(tx_hash_str, &l_tx_hash)) {
                     printf("Invalid transaction hash format\n");
@@ -3072,7 +3076,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
             }
         }
         if (!found) {
-            printf("Specified certificate/pkey hash is not delegated nor this delegating is approved. Try to invalidate with tx hash instead\n");
+            printf("Specified address is not delegated nor this delegating is approved. Try to invalidate with tx hash instead\n");
             return -9;
         }
     }
@@ -3082,7 +3086,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
     char data[512];
     snprintf(data, sizeof(data), 
             "{\"method\": \"ledger\",\"params\": [\"ledger;tx;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", l_tx_hash_str_tmp, l_net_str);
-    json_object *l_json_response = s_request_command_to_rpc(data);
+    json_object *l_json_response = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
     if (!l_json_response) {
         printf("Error: Failed to retrieve transaction info from ledger\n");
         return -4;
@@ -3124,7 +3128,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
                 l_tx_hash_str_tmp = dap_hash_fast_to_str_static(&l_tx_hash);
                 snprintf(data, sizeof(data), 
                         "{\"method\": \"ledger\",\"params\": [\"ledger;tx;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", l_tx_hash_str_tmp, l_net_str);
-                json_object *l_json_prev_tx = s_request_command_to_rpc(data);
+                json_object *l_json_prev_tx = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
                 if (!l_json_prev_tx) {
                     printf("Previous transaction %s is not found\n", l_tx_hash_str_tmp);
                     return -12;
@@ -3138,7 +3142,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
         char data[512];
         snprintf(data, sizeof(data), 
                 "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;tx;-net;%s\"],\"id\": \"1\"}", l_net_str);
-        json_object *l_json_coins = s_request_command_to_rpc(data);
+        json_object *l_json_coins = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
         if (!l_json_coins) {
             printf("Error: Failed to retrieve coins from ledger\n");
             return -4;
@@ -3165,7 +3169,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
         l_sign_str = dap_chain_wallet_check_sign(l_wallet);
     }
     dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
-    l_tx = dap_stake_tx_invalidate_compose(l_net_str, &l_tx_hash, l_fee, l_enc_key);
+    l_tx = dap_stake_tx_invalidate_compose(l_net_str, &l_tx_hash, l_fee, l_enc_key, l_url_str, l_port);
     json_object * l_json_obj_ret = json_object_new_object();
     dap_chain_net_tx_to_json(l_tx, l_json_obj_ret);
     printf("%s", json_object_to_json_string(l_json_obj_ret));
@@ -3175,9 +3179,19 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
     return 0;
 }
 
-dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key)
+dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key, const char *l_url_str, uint16_t l_port)
 {
-
+    char data[512];
+    snprintf(data, sizeof(data), 
+            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
+            a_tx_hash, a_net_str);
+    
+    json_object *response = s_request_command_to_rpc(data, a_net_str, l_url_str, l_port);
+    if (!response) {
+        printf("Error: Failed to get response from remote node\n"); 
+        return -15;
+    }
+    dap_chain_datum_tx_t *l_cond_tx = NULL;
 
     dap_chain_datum_tx_t *l_cond_tx = 
     dap_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
