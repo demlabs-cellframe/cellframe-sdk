@@ -35,6 +35,7 @@
 #include "dap_json_rpc.h"
 #include "dap_app_cli_net.h"
 #include "dap_cli_server.h"
+#include "dap_enc_base64.h"
 
 #include <netdb.h>
 #include <json-c/json.h>
@@ -289,12 +290,12 @@ static json_object* s_request_command_to_rpc(const char *request, const char * a
                     printf("Error %d: %s\n", json_object_get_int(error_code), json_object_get_string(error_message));
                 }
             }
-            json_object_put(l_result);
             l_result = NULL;
         }
     }
     s_cmd_request_free(l_cmd_request);
-    json_object_get(l_result);
+    if (l_result)
+        json_object_get(l_result);
     json_object_put(l_response);
     return l_result;
 }
@@ -2152,6 +2153,10 @@ dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(const char *a_net_na
     }
 
     json_object *l_outs_delegated = dap_get_remote_tx_outs(a_delegated_ticker_str, a_net_name, &l_addr, l_url_str, l_port);
+    if (!l_outs_delegated) {
+        return NULL;
+    }
+
     int l_out_native_count = json_object_array_length(l_outs_native);
     int l_out_delegated_count = json_object_array_length(l_outs_delegated);
 
@@ -2976,8 +2981,8 @@ int dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint256_t a_fee, dap_c
 */
 
 
-/**
-static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
+
+int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv)
 {
     const char *l_net_str = NULL,
                *l_wallet_str = NULL,
@@ -2994,13 +2999,28 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
         printf("Command 'invalidate' requires parameter -net\n");
         return -1;
     }
-    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-url", &l_url_str)) {
+    if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-url", &l_url_str)) {
         l_url_str = s_get_net_url(l_net_str);
     }
-    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-port", &l_port_str)) {
-        l_port = atoi(l_port_str);
-    } else {
+    if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-port", &l_port_str)) {
         l_port = s_get_net_port(l_net_str);
+    } else {
+        l_port = atoi(l_port_str);
+    }
+
+    const char *l_wallet_path = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet_path", &l_wallet_path);
+    if (!l_wallet_path) {
+        arg_wallets_path =
+        #ifdef DAP_OS_WINDOWS
+                    dap_strdup_printf("%s/var/lib/wallets", regGetUsrPath());
+        #elif defined DAP_OS_MAC
+                    dap_strdup_printf("Library/Application Support/CellframeNode/var/lib/wallets");
+        #elif defined DAP_OS_UNIX
+                    dap_strdup_printf("/opt/CellframeNode/var/lib/wallets");
+        #endif
+    } else {
+        arg_wallets_path = dap_strdup(l_wallet_path);
     }
 
     uint256_t l_fee = {};
@@ -3085,14 +3105,15 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
 
     char data[512];
     snprintf(data, sizeof(data), 
-            "{\"method\": \"ledger\",\"params\": [\"ledger;tx;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", l_tx_hash_str_tmp, l_net_str);
+            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", l_tx_hash_str_tmp, l_net_str);
     json_object *l_json_response = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
     if (!l_json_response) {
         printf("Error: Failed to retrieve transaction info from ledger\n");
         return -4;
     }
 
-    json_object *l_json_items = json_object_object_get(l_json_response, "ITEMS");
+    json_object *l_json_items = json_object_array_get_idx(l_json_response, 0);
+    l_json_items = json_object_object_get(l_json_items, "ITEMS");
     bool has_delegate_out = false;
     if (l_json_items) {
         int items_count = json_object_array_length(l_json_items);
@@ -3111,6 +3132,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
 
     if (!has_delegate_out) {
         printf("Transaction %s does not have a delegate out\n", l_tx_hash_str_tmp);
+        json_object_put(l_json_response);
         return -11;
     }
 
@@ -3160,13 +3182,11 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
         }
     }
     dap_chain_datum_tx_t *l_tx = NULL;
-    const char* l_sign_str = "";
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config),NULL);
+
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallet_path,NULL);
     if (!l_wallet) {
         printf("Specified wallet not found\n");
         return -14;
-    } else {
-        l_sign_str = dap_chain_wallet_check_sign(l_wallet);
     }
     dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
     l_tx = dap_stake_tx_invalidate_compose(l_net_str, &l_tx_hash, l_fee, l_enc_key, l_url_str, l_port);
@@ -3180,52 +3200,102 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv)
 }
 
 dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key, const char *l_url_str, uint16_t l_port)
-{
+{ 
     char data[512];
     snprintf(data, sizeof(data), 
-            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
-            a_tx_hash, a_net_str);
+            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-need_sign;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
+            dap_hash_fast_to_str_static(a_tx_hash), a_net_str);
     
     json_object *response = s_request_command_to_rpc(data, a_net_str, l_url_str, l_port);
     if (!response) {
         printf("Error: Failed to get response from remote node\n"); 
-        return -15;
+        return NULL;
     }
-    dap_chain_datum_tx_t *l_cond_tx = NULL;
+    json_object *l_items_array = json_object_array_get_idx(response, 0);
+    l_items_array = json_object_object_get(l_items_array, "ITEMS");
+    if (!l_items_array) {
+        printf("Error: ITEMS array not found in JSON response\n");
+        return NULL;
+    }
 
-    dap_chain_datum_tx_t *l_cond_tx = 
-    dap_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
-    if (!l_cond_tx) {
-        printf("Requested conditional transaction not found\n");
-        return NULL;
-    }
-    int l_prev_cond_idx = 0;
-    dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
-                                                  DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
-    if (!l_tx_out_cond) {
-        printf("Requested conditional transaction requires conditional output\n");
-        return NULL;
-    }
-    dap_hash_fast_t l_spender_hash = { };
-    if (dap_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_hash, l_prev_cond_idx, &l_spender_hash)) {
-        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_to_str(&l_spender_hash, l_hash_str, sizeof(l_hash_str));
-        printf("Requested conditional transaction is already used out by %s\n", l_hash_str);
-        return NULL;
-    }
-    dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(l_cond_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
-    if (l_in_cond) {
-        l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_in_cond->header.tx_prev_hash);
-        if (!l_cond_tx) {
-            printf("Requested conditional transaction is unchained\n");
+    json_object *l_unspent_outs = json_object_object_get(response, "all OUTs yet unspent");
+    if (l_unspent_outs) {
+        const char *all_unspent = json_object_get_string(l_unspent_outs);
+        if (all_unspent && strcmp(all_unspent, "yes") == 0) {
+            printf("Error: All outputs are spent\n");
+            json_object_put(response);
             return NULL;
         }
     }
-    // Get sign item
-    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(l_cond_tx, NULL, NULL,
-            TX_ITEM_TYPE_SIG, NULL);
-    // Get sign from sign item
-    // TODO Can't get sign from sign item required new command for remote node
+
+    dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
+    const char * l_tx_prev_hash = NULL;
+    int l_prev_cond_idx = 0;
+
+    size_t items_count = json_object_array_length(l_items_array);
+    for (size_t i = 0; i < items_count; i++) {
+        json_object *l_item = json_object_array_get_idx(l_items_array, i);
+        const char *item_type = json_object_get_string(json_object_object_get(l_item, "item type"));
+
+        if (item_type && strcmp(item_type, "OUT COND") == 0) {
+            l_tx_out_cond = DAP_NEW_Z(dap_chain_tx_out_cond_t);
+            l_tx_out_cond->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
+            l_tx_out_cond->header.value = dap_uint256_scan_uninteger(json_object_get_string(json_object_object_get(l_item, "value")));
+        } else if (item_type && strcmp(item_type, "IN COND") == 0) {
+            l_tx_prev_hash = json_object_get_string(json_object_object_get(l_item, "Tx_prev_hash"));
+            if (!l_tx_prev_hash) {
+                printf("Error: Tx_prev_hash not found in ITEMS array\n");
+                return NULL;
+            }
+            l_prev_cond_idx = json_object_get_int(json_object_object_get(l_item, "Tx_out_prev_idx"));
+            snprintf(data, sizeof(data), 
+                    "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
+                    l_tx_prev_hash, a_net_str);
+            
+            json_object *response = s_request_command_to_rpc(data, a_net_str, l_url_str, l_port);
+            if (!response) {
+                printf("Error: Request conditional transaction failed\n"); 
+                return NULL;
+            }
+        }
+    }
+
+    if (!l_tx_out_cond || !l_tx_prev_hash) {
+        printf("Error: Required conditional transaction structures not found\n");
+        return NULL;
+    }
+
+    json_object *l_sig_item = NULL;
+    for (size_t i = 0; i < items_count; i++) {
+        json_object *l_item = json_object_array_get_idx(l_items_array, i);
+        const char *item_type = json_object_get_string(json_object_object_get(l_item, "item type"));
+        if (item_type && strcmp(item_type, "SIG") == 0) {
+            l_sig_item = l_item;
+            break;
+        }
+    }
+
+    if (!l_sig_item) {
+        printf("Error: SIG item not found in ITEMS array\n");
+        return NULL;
+    }
+
+    const char *l_sign_b64_str = json_object_get_string(json_object_object_get(l_sig_item, "sig_b64"));
+    if (!l_sign_b64_str) {
+        printf("Error: Can't get base64-encoded sign from SIG item\n");
+        return NULL;
+    }
+
+    int64_t l_sign_b64_strlen = json_object_get_string_len(json_object_object_get(l_sig_item, "sig_b64"));
+    int64_t l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
+    dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
+    *l_tx_sig = (dap_chain_tx_sig_t) {
+        .header = {
+            .type = TX_ITEM_TYPE_SIG, .version = 1,
+            .sig_size = dap_enc_base64_decode(l_sign_b64_str, l_sign_b64_strlen, l_tx_sig->sig, DAP_ENC_DATA_TYPE_B64_URLSAFE)
+        }
+    };
+
     dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
     dap_chain_addr_t l_owner_addr;
     dap_chain_addr_fill_from_sign(&l_owner_addr, l_sign, s_get_net_id(a_net_str));
@@ -3235,21 +3305,41 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
         printf("Trying to invalidate delegating tx with not a owner wallet\n");
         return NULL;
     }
+    
     const char *l_native_ticker = s_get_native_ticker(a_net_str);
-    const char *l_delegated_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, a_tx_hash);
+
+    json_object *l_json_tiker = json_object_array_get_idx(response, 0);
+    json_object *token_ticker_obj = json_object_object_get(l_json_tiker, "Token_ticker");
+    if (!token_ticker_obj) {
+        token_ticker_obj = json_object_object_get(l_json_tiker, "token ticker");
+        if (!token_ticker_obj) {
+            printf("Error: Token ticker not found in response\n");
+            json_object_put(response);
+            return NULL;
+        }
+    }
+    const char *l_delegated_ticker = json_object_get_string(token_ticker_obj);
+
+    json_object *l_outs_native = dap_get_remote_tx_outs(l_native_ticker, a_net_str, &l_owner_addr, l_url_str, l_port);
+    if (!l_outs_native) {
+        return NULL;
+    }
+
+    int l_out_native_count = json_object_array_length(l_outs_native);
     uint256_t l_fee_transfer = {}; // how many coins to transfer
     // list of transaction with 'out' items to sell
     uint256_t l_net_fee, l_fee_total = a_fee;
-    dap_chain_addr_t l_net_fee_addr;
-    bool l_net_fee_used = dap_get_remote_net_fee_and_address(s_get_net_id(a_net_str), &l_net_fee, &l_net_fee_addr);
+    dap_chain_addr_t*l_net_fee_addr = NULL;
+    bool l_net_fee_used = dap_get_remote_net_fee_and_address(a_net_str, &l_net_fee, &l_net_fee_addr, l_url_str, l_port);
     if (l_net_fee_used)
         SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
     dap_list_t *l_list_fee_out = NULL; 
-    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, &l_owner_addr, &l_list_fee_out, l_fee_total, &l_fee_transfer) == -101)
-        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                                            &l_owner_addr, l_fee_total, &l_fee_transfer);
+    l_list_fee_out = dap_ledger_get_list_tx_outs_from_json(l_outs_native, l_out_native_count,
+                                                                l_fee_total, 
+                                                                &l_fee_transfer);
     if (!l_list_fee_out) {
-        printf("Nothing to pay for fee (not enough funds)\n");
+        printf("Not enough funds to pay fee");
+        json_object_put(l_outs_native);
         return NULL;
     }
 
@@ -3276,7 +3366,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
     }
     // add fee items
     if (l_net_fee_used) {
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, l_native_ticker) != 1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_net_fee_addr, l_net_fee, l_native_ticker) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }
@@ -3296,15 +3386,9 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
             return NULL;
         }
     }
-    // add 'sign' items
-    if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key) != 1) {
-        dap_chain_datum_tx_delete(l_tx);
-        printf("Can't add sign output\n");
-        return NULL;
-    }
     return l_tx;
 }
-*/
+
 /** 
 dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, const char* l_order_hash_str, uint256_t* a_tax, uint256_t* a_value_max, dap_chain_addr_t* a_sovereign_addr, uint256_t* a_sovereign_tax, json_object* response){
     dap_chain_net_srv_order_t* l_order = NULL;

@@ -62,6 +62,7 @@ int dap_tx_cond_create_compose(int argc, char ** argv);
 int dap_cli_hold_compose(int a_argc, char **a_argv);
 int dap_cli_take_compose(int a_argc, char **a_argv);
 int dap_cli_voting_compose(int a_argc, char **a_argv);
+int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv);
 
 int dap_tx_json_tsd_add(json_object * json_tx, json_object * json_add);
 
@@ -99,6 +100,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
                               uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
                               bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
                               const char *a_net_str, const char *a_token_ticker, const char *l_url_str, uint16_t l_port);
+dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key, const char *l_url_str, uint16_t l_port);
 
 #ifdef __cplusplus
 }
