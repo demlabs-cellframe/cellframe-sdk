@@ -232,7 +232,19 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a
     return l_item;
 }
 
-dap_chain_tx_out_std_t *dap_chain_datum_tx_item_out_ext_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
+dap_chain_tx_out_ext_t *dap_chain_datum_tx_item_out_ext_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
+{
+    if (!a_addr || !a_token || IS_ZERO_256(a_value))
+        return NULL;
+    dap_chain_tx_out_ext_t *l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_tx_out_ext_t, NULL);
+    l_item->header.type = TX_ITEM_TYPE_OUT_EXT;
+    l_item->header.value = a_value;
+    l_item->addr = *a_addr;
+    dap_strncpy((char*)l_item->token, a_token, sizeof(l_item->token));
+    return l_item;
+}
+
+dap_chain_tx_out_std_t *dap_chain_datum_tx_item_out_std_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token, dap_time_t a_ts_unlock)
 {
     if (!a_addr || !a_token || IS_ZERO_256(a_value))
         return NULL;
@@ -241,6 +253,7 @@ dap_chain_tx_out_std_t *dap_chain_datum_tx_item_out_ext_create(const dap_chain_a
     l_item->value = a_value;
     l_item->addr = *a_addr;
     dap_strncpy((char*)l_item->token, a_token, sizeof(l_item->token));
+    l_item->ts_unlock = a_ts_unlock;
     return l_item;
 }
 
