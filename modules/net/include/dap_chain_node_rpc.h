@@ -60,7 +60,8 @@ typedef struct dap_chain_node_rpc_states_info {
 
  void dap_chain_node_rpc_init(dap_config_t *a_cfg);
  void dap_chain_node_rpc_deinit();
- int dap_chain_node_rpc_info_save(dap_chain_node_info_t *a_node_info);
+ int dap_chain_node_rpc_info_save(dap_chain_node_info_t *a_node_info, bool a_force);
+ int dap_chain_node_rpc_info_del(dap_chain_node_addr_t a_addr);
  json_object *dap_chain_node_rpc_list();
  dap_chain_node_rpc_states_info_t *dap_chain_node_rpc_get_states_sort(size_t *a_count);
  bool dap_chain_node_rpc_is_my_node_authorized();

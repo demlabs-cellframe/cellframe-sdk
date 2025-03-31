@@ -843,7 +843,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     enum {
         CMD_NONE, CMD_ADD, CMD_DEL, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_LIST, CMD_DUMP, CMD_CONNECTIONS, CMD_BALANCER,
-        CMD_BAN, CMD_UNBAN, CMD_BANLIST, CMD_ADD_RPC, CMD_LIST_RPC, CMD_DUMP_RPC
+        CMD_BAN, CMD_UNBAN, CMD_BANLIST, CMD_ADD_RPC, CMD_LIST_RPC, CMD_DUMP_RPC, CMD_DEL_RPC
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
@@ -854,7 +854,10 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             cmd_num = CMD_ADD;
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "del", NULL)) {
-        cmd_num = CMD_DEL;
+        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-rpc", NULL))
+            cmd_num = CMD_DEL_RPC;
+        else
+            cmd_num = CMD_DEL;
     } // find  add parameter ('alias' or 'handshake')
     else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "handshake", NULL)) {
         cmd_num = CMD_HANDSHAKE;
@@ -902,7 +905,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
     int l_net_parse_val = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &arg_index, a_argc, a_argv, NULL, &l_net, CHAIN_TYPE_INVALID);
     if(l_net_parse_val) {
-        if (cmd_num != CMD_BANLIST && cmd_num != CMD_ADD_RPC && cmd_num != CMD_LIST_RPC && cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP && cmd_num != CMD_DUMP_RPC) {
+        if (cmd_num != CMD_BANLIST && cmd_num != CMD_ADD_RPC && cmd_num != CMD_LIST_RPC && cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP && cmd_num != CMD_DUMP_RPC && cmd_num != CMD_DEL_RPC) {
             dap_json_rpc_error_add(*a_json_arr_reply, l_net_parse_val, "Request parsing error (code: %d)", l_net_parse_val);
             return l_net_parse_val;
         }
@@ -1065,7 +1068,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         }
 
         l_node_info->ext_host_len = dap_strlen(l_node_info->ext_host);
-        l_res = dap_chain_node_rpc_info_save(l_node_info);
+        l_res = dap_chain_node_rpc_info_save(l_node_info, dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-force", NULL));
         if (l_res) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_ADDED_NOT_ERR,
                                    "Can't add node %s, error %d", l_addr_str, l_res);
@@ -1112,6 +1115,29 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                                        "Can't process request, error %d", l_res);
             return l_res;
         }
+    }
+
+    case CMD_DEL_RPC: {
+        int l_res = -10;
+        uint16_t l_port = 0;
+        if (!l_addr_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Requires -addr");
+            return l_res;
+        }
+        if (!dap_chain_node_rpc_is_root()) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Your rpc role is not root");
+            return l_res;
+        }
+        if (!dap_chain_node_rpc_is_my_node_authorized()) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
+            return l_res;
+        }
+        l_res = dap_chain_node_rpc_info_del(l_node_info->address);
+        if (l_res)
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't delete node %s, error %d", l_addr_str, l_res);
+        else
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully deleted node %s", l_addr_str);
+        return l_res;
     }
 
     case CMD_LIST:{
