@@ -34,7 +34,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_CONFIG        BIT(2)
 
 #define DAP_CHAIN_POLICY_PUBLIC_KEY_HASH_SIGN_VALIDATORS    0x1
-#define DAP_CHAIN_POLICY_OUT_EXT_USE_ENSURE                 0x2
+#define DAP_CHAIN_POLICY_OUT_STD_TIMELOCK_USE               0x2
 
 typedef enum {
     DAP_CHAIN_POLICY_DEACTIVATE = 0,

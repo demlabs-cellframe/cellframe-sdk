@@ -817,11 +817,17 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 case TX_ITEM_TYPE_OUT_COND:
                     ++l_out_idx;
                     continue;
-                case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_OLD: case TX_ITEM_TYPE_OUT_EXT:
-                    if ( dap_chain_addr_compare(a_addr_from, &((dap_chain_tx_out_t*)l_item)->addr) ) {
+                case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_EXT: case TX_ITEM_TYPE_OUT_STD:
+                    if (*l_item != TX_ITEM_TYPE_OUT_STD) {
+                        if ( dap_chain_addr_compare(a_addr_from, &((dap_chain_tx_out_t*)l_item)->addr) ) {
+                            ++l_out_idx;
+                            continue;
+                        }
+                    } else if ( dap_chain_addr_compare(a_addr_from, &((dap_chain_tx_out_std_t *)l_item)->addr) ) {
                         ++l_out_idx;
                         continue;
                     }
+
                     dap_chain_tx_used_out_item_t *l_item_back = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
                     *l_item_back = (dap_chain_tx_used_out_item_t) {
                         .tx_hash_fast   = l_tx_new_hash,

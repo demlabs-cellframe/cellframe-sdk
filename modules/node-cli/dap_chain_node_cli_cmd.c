@@ -2661,6 +2661,12 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                     l_dist_addr = &((dap_chain_tx_out_ext_t *) it->data)->addr;
                                 }
                                     break;
+                                case TX_ITEM_TYPE_OUT_STD: {
+                                    l_value = ((dap_chain_tx_out_std_t *) it->data)->value;
+                                    l_dist_token = ((dap_chain_tx_out_std_t *) it->data)->token;
+                                    l_dist_addr = &((dap_chain_tx_out_std_t *) it->data)->addr;
+                                }
+                                    break;
                                 case TX_ITEM_TYPE_OUT_COND: {
                                     dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t *) it->data;
                                     l_value = ((dap_chain_tx_out_cond_t *) it->data)->header.value;
