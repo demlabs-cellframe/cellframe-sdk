@@ -1079,6 +1079,13 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
                     l_blank_out_value = l_out->header.value;
                     break;
                 }
+            } else if (*l_item == TX_ITEM_TYPE_OUT_STD) {
+                dap_chain_tx_out_std_t *l_out = (dap_chain_tx_out_std_t*)l_item;
+                l_out_addr = l_out->addr;
+                if ( dap_chain_addr_is_blank(&l_out_addr) && !strcmp(l_out->token, l_delegated_ticker_str) ) {
+                    l_blank_out_value = l_out->value;
+                    break;
+                }
             }
         }
         if (IS_ZERO_256(l_blank_out_value)) {
