@@ -219,7 +219,6 @@ void dap_chain_delete(dap_chain_t *a_chain)
     }
     pthread_rwlock_unlock(&s_chain_items_rwlock);
     dap_list_free_full(a_chain->atom_notifiers, NULL);
-    dap_config_close(a_chain->config);
     dap_chain_cs_class_delete(a_chain);
     if (DAP_CHAIN_PVT(a_chain)) {
         DAP_DEL_MULTY(DAP_CHAIN_PVT(a_chain)->file_storage_dir, DAP_CHAIN_PVT(a_chain));

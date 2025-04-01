@@ -1121,22 +1121,30 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         int l_res = -10;
         uint16_t l_port = 0;
         if (!l_addr_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Requires -addr");
-            return l_res;
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_FIND_ARGS_ERR,
+                "Requires -addr arg");;
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_FIND_ARGS_ERR;
         }
         if (!dap_chain_node_rpc_is_root()) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Your rpc role is not root");
-            return l_res;
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_HAVE_NO_ACCESS_RIGHTS_ERR,
+                "Your rpc role is not root");
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_ADD_HAVE_NO_ACCESS_RIGHTS_ERR;
         }
         if (!dap_chain_node_rpc_is_my_node_authorized()) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
-            return l_res;
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_HAVE_NO_ACCESS_RIGHTS_ERR,
+                "You have no access rights");
+            return -DAP_CHAIN_NODE_CLI_COM_NODE_ADD_HAVE_NO_ACCESS_RIGHTS_ERR;
         }
         l_res = dap_chain_node_rpc_info_del(l_node_info->address);
-        if (l_res)
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't delete node %s, error %d", l_addr_str, l_res);
-        else
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully deleted node %s", l_addr_str);
+        if (l_res){
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_DELL_CANT_DEL_NODE_ERR,
+                                        "Can't delete node %s, error %d", l_addr_str, l_res);
+        } else {
+            json_object* json_obj_out = json_object_new_object();
+            if (!json_obj_out) DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
+            json_object_object_add(json_obj_out, "successfully_deleted_node", json_object_new_string(l_addr_str));
+            json_object_array_add(*a_json_arr_reply, json_obj_out);
+        }
         return l_res;
     }
 
