@@ -538,7 +538,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     json_object_object_add(json_obj_rec, "pinned status", json_object_new_string("record already pinned"));
                     break;
                 }
-                if(dap_global_db_set_sync( l_group, l_key, l_value, l_value_len, true) ==0 ){
+                if(dap_global_db_pin_sync( l_group, l_key) ==0 ){
                     json_object_object_add(json_obj_rec, "pinned status", json_object_new_string("record successfully pinned"));
                 }
                 else{
@@ -554,7 +554,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     json_object_object_add(json_obj_rec, "unpinned status", json_object_new_string("record already unpinned"));
                     break;
                 }
-                if(dap_global_db_set_sync(l_group,l_key, l_value, l_value_len, false) == 0 ) {
+                if(dap_global_db_unpin_sync(l_group,l_key) == 0 ) {
                     json_object_object_add(json_obj_rec, "unpinned status", json_object_new_string("record successfully unpinned"));
                 }
                 else {
@@ -651,7 +651,6 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                 json_object_object_add(json_obj_read, "value len", json_object_new_uint64(l_out_len));
                 json_object_object_add(json_obj_read, "value hex", json_object_new_string(l_value_hexdump_new));
                 DAP_DELETE(l_value_hexdump_new);
-                DAP_DELETE(l_value_hexdump);
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_TIME_NO_VALUE,
                                             "\n\"%s : %s\"\nTime: %s\nNo value\n",
@@ -710,8 +709,14 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             for (i = 0; i < l_objs_count; ++i) {
                 if (!l_obj[i].key)
                     continue;
-                if (!dap_global_db_del_sync(l_group_str, l_obj[i].key)) {
-                    ++j;
+                if (dap_global_db_group_match_mask(l_group_str, "local.*")) {
+                    if (!dap_global_db_driver_delete(l_obj + i, 1)) {
+                        ++j;
+                    }
+                } else {
+                    if (!dap_global_db_del_sync(l_group_str, l_obj[i].key)) {
+                        ++j;
+                    }
                 }
             }
             dap_global_db_objs_delete(l_obj, l_objs_count);
@@ -723,7 +728,16 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         }
 
-        if (!dap_global_db_del(l_group_str, l_key_str, NULL, NULL)) {
+        bool l_del_success = false;
+
+        if (dap_global_db_group_match_mask(l_group_str, "local.*")) {
+            dap_global_db_obj_t* l_obj = dap_global_db_get_raw_sync(l_group_str, l_key_str);
+            l_del_success = !dap_global_db_driver_delete(l_obj, 1);
+        } else {
+            l_del_success = !dap_global_db_del_sync(l_group_str, l_key_str);
+        }
+
+        if (l_del_success) {
             json_object* json_obj_del = json_object_new_object();
             json_object_object_add(json_obj_del, "Record key", json_object_new_string(l_key_str));
             json_object_object_add(json_obj_del, "Group name", json_object_new_string(l_group_str));
@@ -732,7 +746,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         } else {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_DELETE_FAILD,
-                                            "Record with key %s in group %s deleting failed", l_group_str, l_key_str);
+                                   "Record with key %s in group %s deleting failed", l_group_str, l_key_str);
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_DELETE_FAILD;
         }
     }
@@ -952,6 +966,14 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                 return dap_cli_server_cmd_set_reply_text(a_str_reply, "Unspecified port"), -7;
 
             l_node_info->ext_host_len = dap_strlen(l_node_info->ext_host);
+
+            dap_chain_node_info_t* l_check_node_info = dap_chain_node_list_ip_check(l_node_info, l_net);
+            if (l_check_node_info) {
+                log_it(L_INFO, "Replace existed node with same ip %s address %s -> %s", l_check_node_info->ext_host,
+                                         dap_stream_node_addr_to_str_static(l_check_node_info->address), dap_stream_node_addr_to_str_static(l_node_info->address));
+                dap_chain_node_info_del(l_net, l_check_node_info);
+            }
+
             l_res = dap_chain_node_info_save(l_net, l_node_info);
             return dap_cli_server_cmd_set_reply_text(a_str_reply, l_res ? "Can't add node %s, error %d" : "Successfully added node %s", l_addr_str, l_res), l_res;
         }
@@ -1257,7 +1279,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         if (res) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "No response from node");
             // clean client struct
-            dap_chain_node_client_close_unsafe(l_client);
+            // dap_chain_node_client_close_unsafe(l_client); del in s_go_stage_on_client_worker_unsafe
             DAP_DELETE(node_info);
             return -8;
         }
@@ -1675,6 +1697,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
         // wallet list
         case CMD_WALLET_LIST:
             s_wallet_list(c_wallets_path, json_arr_out, NULL);
+            if (json_object_array_length(json_arr_out) == 0) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_FOUND_ERR,
+                    "Сouldn't find any wallets");
+            }
             break;
         // wallet info
         case CMD_WALLET_INFO: {
@@ -6817,7 +6843,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
     bool l_head = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-head", &l_head_str) ? true : false;
-    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
     size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
 
     //default is ALL/ANY

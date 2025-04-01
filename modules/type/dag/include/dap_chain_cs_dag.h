@@ -85,6 +85,7 @@ typedef enum s_com_dag_err{
     DAP_CHAIN_NODE_CLI_COM_DAG_CERT_ERR,
     DAP_CHAIN_NODE_CLI_COM_DAG_FIND_EVENT_ERR,
     DAP_CHAIN_NODE_CLI_COM_DAG_UNDEF_SUB_ERR,
+    DAP_CHAIN_NODE_CLI_COM_DAG_CONVERT_ERR,
 
     /* add custom codes here */
 
