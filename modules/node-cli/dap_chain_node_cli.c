@@ -256,13 +256,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "mempool count -net <net_name> [-chain <chain_name>]\n"
                            "\tDisplays the number of elements in the mempool of a given network.");
     dap_cli_cmd_t *l_cmd_mempool = dap_cli_server_cmd_find("mempool");
-    dap_cli_server_alias_add("mempool_list", "list", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_check", "check", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_proc", "proc", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_proc_all", "proc_all", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_delete", "delete", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_add_ca", "add_ca", l_cmd_mempool);
-    dap_cli_server_alias_add("chain_ca_copy", "add_ca", l_cmd_mempool);
+    dap_cli_server_alias_add(l_cmd_mempool, "mempool_list", "list");
+    dap_cli_server_alias_add(l_cmd_mempool, "mempool_check", "check");
+    dap_cli_server_alias_add(l_cmd_mempool, "mempool_proc", "proc");
+    dap_cli_server_alias_add(l_cmd_mempool, "mempool_proc_all", "proc_all");
+    dap_cli_server_alias_add(l_cmd_mempool, "mempool_delete", "delete");
+    dap_cli_server_alias_add(l_cmd_mempool, "mempool_add_ca", "add_ca");
+    dap_cli_server_alias_add(l_cmd_mempool, "chain_ca_copy", "add_ca");
 
 
     dap_cli_server_cmd_add ("chain_ca_pub", com_chain_ca_pub,
