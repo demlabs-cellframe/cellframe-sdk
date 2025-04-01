@@ -4430,13 +4430,16 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_addr = &l_out_item_ext_256->addr;
             l_value = l_out_item_ext_256->header.value;
             l_cur_token_ticker = l_out_item_ext_256->token;
-            l_multichannel = true;
+            if (dap_strcmp(l_cur_token_ticker, l_main_token_ticker))
+                l_multichannel = true;
         } break;
         case TX_ITEM_TYPE_OUT_STD: {
             dap_chain_tx_out_std_t *l_out_item_ext_256 = (dap_chain_tx_out_std_t *)l_tx_out->data;
             l_addr = &l_out_item_ext_256->addr;
             l_value = l_out_item_ext_256->value;
             l_cur_token_ticker = l_out_item_ext_256->token;
+            if (dap_strcmp(l_cur_token_ticker, l_main_token_ticker))
+                l_multichannel = true;
         } break;
         default:
             log_it(L_ERROR, "Unknown item type %d", l_type);
