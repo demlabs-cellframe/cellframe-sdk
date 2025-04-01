@@ -36,6 +36,8 @@
 #include "dap_app_cli_net.h"
 #include "dap_cli_server.h"
 #include "dap_enc_base64.h"
+#include "dap_chain_net_srv_order.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #include <netdb.h>
 #include <json-c/json.h>
@@ -3447,8 +3449,19 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
     return l_tx;
 }
 
-/** 
-dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, const char* l_order_hash_str, uint256_t* a_tax, uint256_t* a_value_max, dap_chain_addr_t* a_sovereign_addr, uint256_t* a_sovereign_tax, json_object* response){
+dap_chain_net_srv_order_direction_t dap_chain_net_srv_order_direction_from_str(const char* str) {
+    dap_chain_net_srv_order_direction_t direction = SERV_DIR_UNDEFINED;
+    if (strcmp(str, "BUY") == 0) {
+        direction = SERV_DIR_BUY;
+    } else if (strcmp(str, "SELL") == 0) {
+        direction = SERV_DIR_SELL;
+    }
+    return direction;
+}
+
+
+dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, const char* l_order_hash_str, uint256_t* a_tax,
+                                                    uint256_t* a_value_max, dap_chain_addr_t* a_sovereign_addr, uint256_t* a_sovereign_tax, json_object* response){
     dap_chain_net_srv_order_t* l_order = NULL;
     json_object *orders_array = json_object_array_get_idx(response, 0);
     size_t orders_count = json_object_array_length(orders_array);
@@ -3460,14 +3473,17 @@ dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, con
             l_order = DAP_NEW_Z_SIZE(dap_chain_net_srv_order_t, sizeof(dap_chain_net_srv_order_t));
             l_order->version = json_object_get_int(json_object_object_get(order_obj, "version"));
             l_order->direction = dap_chain_net_srv_order_direction_from_str(json_object_get_string(json_object_object_get(order_obj, "direction")));
-            l_order->ts_created = dap_time_from_str(json_object_get_string(json_object_object_get(order_obj, "created")));
+            l_order->ts_created = dap_time_from_str_rfc822(json_object_get_string(json_object_object_get(order_obj, "created")));
             l_order->srv_uid.uint64 = dap_chain_net_srv_uid_from_str(json_object_get_string(json_object_object_get(order_obj, "srv_uid"))).uint64;
             l_order->price = dap_uint256_scan_uninteger(json_object_get_string(json_object_object_get(order_obj, "price datoshi")));
             strncpy(l_order->price_ticker, json_object_get_string(json_object_object_get(order_obj, "price token")), DAP_CHAIN_TICKER_SIZE_MAX);
             l_order->units = json_object_get_int(json_object_object_get(order_obj, "units"));
             l_order->price_unit = dap_chain_net_srv_price_unit_uid_from_str(json_object_get_string(json_object_object_get(order_obj, "price unit")));
             dap_chain_node_addr_from_str(&l_order->node_addr, json_object_get_string(json_object_object_get(order_obj, "node_addr")));
-            dap_chain_hash_fast_from_str(&l_order->tx_cond_hash, json_object_get_string(json_object_object_get(order_obj, "tx_cond_hash")));
+            const char *tx_cond_hash_str = json_object_get_string(json_object_object_get(order_obj, "tx_cond_hash"));
+            if (tx_cond_hash_str) {
+                dap_chain_hash_fast_from_str(tx_cond_hash_str, &l_order->tx_cond_hash);
+            }
             l_order->ext_size = json_object_get_int(json_object_object_get(order_obj, "ext_size"));
             if (l_order->ext_size > 0) {
                 const char *tax_str = json_object_get_string(json_object_object_get(order_obj, "tax"));
@@ -3489,12 +3505,14 @@ dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, con
     return l_order;
 }
 
-dap_chain_net_srv_order_t* dap_get_remote_srv_order(const char* l_net_str, const char* l_order_hash_str, uint256_t* a_tax, uint256_t* a_value_max, dap_chain_addr_t* a_sovereign_addr, uint256_t* a_sovereign_tax){
+dap_chain_net_srv_order_t* dap_get_remote_srv_order(const char* l_net_str, const char* l_order_hash_str, uint256_t* a_tax,
+                                                    uint256_t* a_value_max, dap_chain_addr_t* a_sovereign_addr, uint256_t* a_sovereign_tax,
+                                                    const char* l_url_str, uint16_t l_port){
     char data[512];
     snprintf(data, sizeof(data), 
             "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;order;list;staker;-net;%s\"],\"id\": \"1\"}", 
             l_net_str);
-    json_object *response = s_request_command_to_rpc(data);
+    json_object *response = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
     if (!response) {
         printf("Error: Failed to get response from remote node\n");
         return NULL;
@@ -3507,7 +3525,7 @@ dap_chain_net_srv_order_t* dap_get_remote_srv_order(const char* l_net_str, const
         snprintf(data, sizeof(data), 
                 "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;order;list;validator;-net;%s\"],\"id\": \"1\"}", 
                 l_net_str);
-        response = s_request_command_to_rpc(data);
+        response = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
         if (!response) {
             printf("Error: Failed to get response from remote node\n");
             return NULL;
@@ -3521,7 +3539,7 @@ dap_chain_net_srv_order_t* dap_get_remote_srv_order(const char* l_net_str, const
 
 
 
-static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
+int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
 {
     int l_arg_index = 0;
     const char *l_net_str = NULL,
@@ -3533,16 +3551,43 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
                *l_value_str = NULL,
                *l_fee_str = NULL,
                *l_node_addr_str = NULL,
-               *l_order_hash_str = NULL;
+               *l_order_hash_str = NULL,
+               *l_url_str = NULL,
+               *l_port_str = NULL;
+    int l_port = 0;
     
     dap_pkey_t *l_pkey = NULL;
-    dap_cli_server_cmd_find_option_val(a_argv, &l_arg_index, a_argc, "-net", &l_net_str);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
     if (!l_net_str) {
         printf("Command 'delegate' requires parameter -net\n");
         return -1;
     }
 
-    dap_cli_server_cmd_find_option_val(a_argv, &l_arg_index, a_argc, "-w", &l_wallet_str);
+    if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-url", &l_url_str)) {
+        l_url_str = s_get_net_url(l_net_str);
+    }
+    if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-port", &l_port_str)) {
+        l_port = s_get_net_port(l_net_str);
+    } else {
+        l_port = atoi(l_port_str);
+    }
+
+    const char *l_wallet_path = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet_path", &l_wallet_path);
+    if (!l_wallet_path) {
+        arg_wallets_path =
+        #ifdef DAP_OS_WINDOWS
+                    dap_strdup_printf("%s/var/lib/wallets", regGetUsrPath());
+        #elif defined DAP_OS_MAC
+                    dap_strdup_printf("Library/Application Support/CellframeNode/var/lib/wallets");
+        #elif defined DAP_OS_UNIX
+                    dap_strdup_printf("/opt/CellframeNode/var/lib/wallets");
+        #endif
+    } else {
+        arg_wallets_path = dap_strdup(l_wallet_path);
+    }
+
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_wallet_str);
     if (!l_wallet_str) {
         printf("Command 'delegate' requires parameter -w\n");
         return -1;
@@ -3556,10 +3601,10 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
     dap_chain_wallet_close(l_wallet);
     dap_chain_addr_t l_signing_addr, l_sovereign_addr = {};
     uint256_t l_sovereign_tax = uint256_0;
-    dap_cli_server_cmd_find_option_val(a_argv, &l_arg_index, a_argc, "-cert", &l_cert_str);
-    dap_cli_server_cmd_find_option_val(a_argv, &l_arg_index, a_argc, "-pkey_full", &l_pkey_full_str);
-    dap_cli_server_cmd_find_option_val(a_argv, &l_arg_index, a_argc, "-sign_type", &l_sign_type_str);
-    dap_cli_server_cmd_find_option_val(a_argv, &l_arg_index, a_argc, "-order", &l_order_hash_str);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-pkey_full", &l_pkey_full_str);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-sign_type", &l_sign_type_str);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
     if (!l_cert_str && !l_order_hash_str && !l_pkey_full_str) {
         printf("Command 'delegate' requires parameter -cert and/or -order and/or -pkey\n");
         dap_enc_key_delete(l_enc_key);
@@ -3576,7 +3621,7 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
         return -1;
     }
     uint256_t l_value = uint256_0;
-    dap_cli_server_cmd_find_option_val(a_argv, &l_arg_index, a_argc, "-value", &l_value_str);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
     if (!l_value_str) {
         if (!l_order_hash_str) {
             printf("Command 'delegate' requires parameter -value\n");
@@ -3605,9 +3650,8 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
             return -4;
         }
         l_pkey = dap_pkey_from_enc_key(l_signing_cert->enc_key);
-        dap_cli_server_cmd_find_option_val(a_argv, &l_arg_index, a_argc, "-node_addr", &l_node_addr_str);
-    } 
-    else if (l_pkey_full_str) {
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-node_addr", &l_node_addr_str);
+    }  else if (l_pkey_full_str) {
         dap_sign_type_t l_type = dap_sign_type_from_str(l_sign_type_str);
         if (l_type.type == SIG_TYPE_NULL) {
             printf("Wrong sign type\n");
@@ -3632,7 +3676,7 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
             return -6;
         }
         dap_chain_addr_fill(&l_signing_addr, l_type, &l_hash_public_key, s_get_net_id(l_net_str));
-        dap_cli_server_cmd_find_option_val(a_argv, &l_arg_index, a_argc, "-node_addr", &l_node_addr_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-node_addr", &l_node_addr_str);
     }
 
     dap_chain_node_addr_t l_node_addr = g_node_addr;
@@ -3647,7 +3691,7 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
         uint256_t l_tax;
         uint256_t l_value_max;
         int l_prev_tx_count = 0;
-        dap_chain_net_srv_order_t* l_order = dap_get_remote_srv_order(l_net_str, l_order_hash_str, &l_tax, &l_value_max, &l_sovereign_addr, &l_sovereign_tax);
+        dap_chain_net_srv_order_t* l_order = dap_get_remote_srv_order(l_net_str, l_order_hash_str, &l_tax, &l_value_max, &l_sovereign_addr, &l_sovereign_tax, l_url_str, l_port);
 
         if (l_order->direction == SERV_DIR_BUY) { // Staker order
             if (!l_cert_str) {
@@ -3666,9 +3710,9 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
             char data[512];
             snprintf(data, sizeof(data), 
                     "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
-                    l_order->tx_cond_hash, l_net_str);
+                    dap_chain_hash_fast_to_str_static(&l_order->tx_cond_hash), l_net_str);
             
-            json_object *response = s_request_command_to_rpc(data);
+            json_object *response = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
             if (!response) {
                 printf("Error: Failed to get response from remote node\n");
                 return -15;
@@ -3691,7 +3735,7 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
                         l_cond_tx->header.value = dap_chain_balance_scan(json_object_get_string(json_object_object_get(item, "value")));
                         l_cond_tx->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
                         l_cond_tx->header.srv_uid.uint64 = strtoull(json_object_get_string(json_object_object_get(item, "uid")), NULL, 16);
-                        l_cond_tx->header.ts_expires = dap_time_from_str(json_object_get_string(json_object_object_get(item, "ts_expires")));
+                        l_cond_tx->header.ts_expires = dap_time_from_str_rfc822(json_object_get_string(json_object_object_get(item, "ts_expires")));
                         l_cond_tx->subtype.srv_stake_pos_delegate.signing_addr = *dap_chain_addr_from_str(json_object_get_string(json_object_object_get(item, "signing_addr")));
                         if (dap_chain_node_addr_from_str(&l_cond_tx->subtype.srv_stake_pos_delegate.signer_node_addr, json_object_get_string(json_object_object_get(item, "signer_node_addr"))) != 0) {
                             printf("Error: Failed to parse signer node address\n");
@@ -3715,30 +3759,6 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
             if (spent_outs_value && dap_strcmp(spent_outs_value, "yes") != 0) {
                 printf("Error: Transaction output item already used\n");
                 return -9;
-            }
-
-
-
-            l_prev_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_order->tx_cond_hash);
-            if (!l_prev_tx) {
-                printf("The order's conditional transaction not found in ledger\n");
-                dap_enc_key_delete(l_enc_key);
-                DAP_DELETE(l_order);
-                return -10;
-            }
-            int l_out_num = 0;
-            dap_chain_tx_out_cond_t *l_cond_tx = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_out_num);
-            if (!l_cond) {
-                printf("The order's conditional transaction has invalid type\n");
-                dap_enc_key_delete(l_enc_key);
-                DAP_DELETE(l_order);
-                return -11;
-            }
-            if (dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_order->tx_cond_hash, l_out_num, NULL)) {
-                printf("The order's conditional transaction is already spent\n");
-                dap_enc_key_delete(l_enc_key);
-                DAP_DELETE(l_order);
-                return -12;
             }
 
             char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
@@ -3773,10 +3793,6 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
                 return -16;
             }
             l_value = l_order->price;
-            // dap_tsd_t *l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_ADDR);
-            // l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
-            // l_sovereign_tax = dap_tsd_get_scalar(l_tsd, uint256_t);
-            // MULT_256_256(l_sovereign_tax, GET_256_FROM_64(100), &l_sovereign_tax);
         } else {
             if (!l_value_str) {
                 printf("Command 'delegate' requires parameter -value with this order type\n");
@@ -3784,7 +3800,7 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
                 return -1;
             }
             const char *l_sovereign_addr_str = NULL;
-            dap_cli_server_cmd_find_option_val(a_argv, &l_arg_index, a_argc, "-tax_addr", &l_sovereign_addr_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tax_addr", &l_sovereign_addr_str);
             if (l_sovereign_addr_str) {
                 dap_chain_addr_t *l_spec_addr = dap_chain_addr_from_str(l_sovereign_addr_str);
                 if (!l_spec_addr) {
@@ -3819,10 +3835,10 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
                 DAP_DELETE(l_order);
                 return -20;
             }
-            dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_net->pub.id);
+            dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, s_get_net_id(l_net_str));
             l_pkey = dap_pkey_get_from_sign(l_sign);
             char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX];
-            dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_net->pub.native_ticker);
+            dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, s_get_native_ticker(l_net_str));
             if (dap_strcmp(l_order->price_ticker, l_delegated_ticker_str)) {
                 printf("Specified order is invalid\n");
                 dap_enc_key_delete(l_enc_key);
@@ -3854,7 +3870,7 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
     }
  
 
-    uint256_t l_allowed_min = s_get_key_delegating_min_value(l_net_str);
+    uint256_t l_allowed_min = s_get_key_delegating_min_value(l_net_str, l_url_str, l_port);
     if (compare256(l_value, l_allowed_min) == -1) {
         const char *l_coin_min_str, *l_value_min_str = dap_uint256_to_char(l_allowed_min, &l_coin_min_str);
         printf("Number in '-value' param %s is lower than minimum allowed value %s(%s)\n",
@@ -3862,7 +3878,7 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
         dap_enc_key_delete(l_enc_key);
         return -23;
     }
-    dap_cli_server_cmd_find_option_val(a_argv, &l_arg_index, a_argc, "-fee", &l_fee_str);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_fee_str);
     if (!l_fee_str) {
         printf("Command 'delegate' requires parameter -fee\n");
         dap_enc_key_delete(l_enc_key);
@@ -3877,7 +3893,7 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
 
     // Create conditional transaction
     dap_chain_datum_tx_t *l_tx = dap_stake_tx_create_compose(l_net_str, l_enc_key, l_value, l_fee, &l_signing_addr, &l_node_addr,
-                                                   l_order_hash_str ? &l_sovereign_addr : NULL, l_sovereign_tax, l_prev_tx, l_prev_tx_count, l_pkey);
+                                                   l_order_hash_str ? &l_sovereign_addr : NULL, l_sovereign_tax, l_prev_tx, l_pkey, l_url_str, l_port);
     dap_enc_key_delete(l_enc_key);
     DAP_DELETE(l_pkey);
 
@@ -3888,14 +3904,14 @@ static int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
 }
 
 // Freeze staker's funds when delegating a key
-dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char *a_net_str, dap_enc_key_t *a_key,
+static dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char * a_net_str, dap_enc_key_t *a_key,
                                                uint256_t a_value, uint256_t a_fee,
                                                dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_node_addr,
                                                dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax,
-                                               dap_chain_datum_tx_t *a_prev_tx, int l_prev_tx_count, dap_pkey_t *a_pkey)
+                                               dap_chain_datum_tx_t *a_prev_tx, dap_pkey_t *a_pkey, const char *l_url_str, int l_port)
 {
-    dap_return_val_if_pass (!a_net_str || !a_key || IS_ZERO_256(a_value) || !a_signing_addr || !a_node_addr, NULL);
-
+    if  (!a_net_str || !a_key || IS_ZERO_256(a_value) || !a_signing_addr || !a_node_addr)
+        return NULL;
     const char *l_native_ticker = s_get_native_ticker(a_net_str);
     char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, l_native_ticker);
@@ -3904,17 +3920,34 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char *a_net_str, dap_enc
     dap_chain_addr_t l_owner_addr;
     dap_chain_addr_fill_from_key(&l_owner_addr, a_key, s_get_net_id(a_net_str));
     uint256_t l_net_fee, l_fee_total = a_fee;
-    dap_chain_addr_t l_net_fee_addr;
-    bool l_net_fee_used = get_remote_net_fee(a_net_str, l_native_ticker, &l_net_fee, &l_net_fee_addr);
+    dap_chain_addr_t * l_net_fee_addr = NULL;
+    bool l_net_fee_used = dap_get_remote_net_fee_and_address(a_net_str, &l_net_fee, l_net_fee_addr, l_url_str, l_port);
     if (l_net_fee_used)
         SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
 
     dap_list_t *l_list_fee_out = NULL;
-    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, &l_owner_addr, &l_list_fee_out, l_fee_total, &l_fee_transfer) == -101)
-        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                                      &l_owner_addr, l_fee_total, &l_fee_transfer);
+
+
+    json_object *l_outs_native = dap_get_remote_tx_outs(l_native_ticker, a_net_str, &l_owner_addr, l_url_str, l_port);
+    if (!l_outs_native) {
+        return NULL;
+    }
+
+    json_object *l_outs_delegated = dap_get_remote_tx_outs(l_delegated_ticker, a_net_str, &l_owner_addr, l_url_str, l_port);
+    if (!l_outs_delegated) {
+        return NULL;
+    }
+
+    int l_out_native_count = json_object_array_length(l_outs_native);
+    int l_out_delegated_count = json_object_array_length(l_outs_delegated);
+
+    l_list_fee_out = dap_ledger_get_list_tx_outs_from_json(l_outs_native, l_out_native_count,
+                                                    l_fee_total, 
+                                                    &l_fee_transfer);
     if (!l_list_fee_out) {
-        log_it(L_WARNING, "Nothing to pay for fee (not enough funds)");
+        printf("Not enough funds to pay fee");
+        json_object_put(l_outs_native);
+        json_object_put(l_outs_delegated);
         return NULL;
     }
 
@@ -3922,19 +3955,20 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char *a_net_str, dap_enc
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
     if (!a_prev_tx) {
-        dap_list_t *l_list_used_out = NULL  ;
-        if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_delegated_ticker, &l_owner_addr, &l_list_used_out, a_value, &l_value_transfer) == -101)
-            l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker,
-                                                                           &l_owner_addr, a_value, &l_value_transfer);
+        dap_list_t * l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs_delegated, l_out_delegated_count,
+                                                               a_value, 
+                                                               &l_value_transfer);
         if (!l_list_used_out) {
-            log_it(L_WARNING, "Nothing to pay for delegate (not enough funds)");
-            goto tx_fail;
+            printf("Not enough funds to pay fee");
+            json_object_put(l_outs_native);
+            json_object_put(l_outs_delegated);
+            return NULL;
         }
         // add 'in' items to pay for delegate
         uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
         dap_list_free_full(l_list_used_out, NULL);
         if (!EQUAL_256(l_value_to_items, l_value_transfer)) {
-            log_it(L_ERROR, "Can't compose the transaction input");
+            printf("Can't compose the transaction input\n");
             goto tx_fail;
         }
     } else {
@@ -3943,8 +3977,8 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char *a_net_str, dap_enc
         int l_out_num = 0;
         dap_chain_datum_tx_out_cond_get(a_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_out_num);
         // add 'in' item to buy from conditional transaction
-        if (1 != dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_prev_tx_hash, l_prev_tx_count, -1)) {
-            log_it(L_ERROR, "Can't compose the transaction conditional input");
+        if (1 != dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_prev_tx_hash, l_out_num, -1)) {
+            printf("Can't compose the transaction conditional input\n");
             goto tx_fail;
         }
     }
@@ -3952,7 +3986,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char *a_net_str, dap_enc
     uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
     dap_list_free_full(l_list_fee_out, NULL);
     if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
-        log_it(L_ERROR, "Can't compose the fee transaction input");
+        printf("Can't compose the fee transaction input\n");
         goto tx_fail;
     }
 
@@ -3962,7 +3996,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char *a_net_str, dap_enc
                                                                                           a_sovereign_addr, a_sovereign_tax, a_pkey);
 
     if (!l_tx_out) {
-        log_it(L_ERROR, "Can't compose the transaction conditional output");
+        printf("Can't compose the transaction conditional output\n");
         goto tx_fail;
     }
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out);
@@ -3973,7 +4007,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char *a_net_str, dap_enc
         SUBTRACT_256_256(l_value_transfer, a_value, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
             if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_value_back, l_delegated_ticker) != 1) {
-                log_it(L_ERROR, "Cant add coin back output");
+                printf("Cant add coin back output\n");
                 goto tx_fail;
             }
         }
@@ -3982,13 +4016,13 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char *a_net_str, dap_enc
     // add fee items
     if (l_net_fee_used) {
         if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, l_native_ticker) != 1) {
-            log_it(L_ERROR, "Cant add net fee output");
+            printf("Cant add net fee output\n");
             goto tx_fail;
         }
     }
     if (!IS_ZERO_256(a_fee)) {
         if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1) {
-            log_it(L_ERROR, "Cant add validator fee output");
+            printf("Cant add validator fee output\n");
             goto tx_fail;
         }
     }
@@ -3997,14 +4031,14 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char *a_net_str, dap_enc
     SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
     if (!IS_ZERO_256(l_fee_back)) {
         if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, l_native_ticker) != 1) {
-            log_it(L_ERROR, "Cant add fee back output");
+            printf("Cant add fee back output\n");
             goto tx_fail;
         }
     }
 
     // add 'sign' item
     if (dap_chain_datum_tx_add_sign_item(&l_tx, a_key) != 1) {
-        log_it(L_ERROR, "Can't add sign output");
+        printf("Can't add sign output\n");
         goto tx_fail;
     }
 
@@ -4014,7 +4048,6 @@ tx_fail:
     dap_chain_datum_tx_delete(l_tx);
     return NULL;
 }
-*/
 
 // srv_xchange purchase -order <order hash> -net <net_name> -w <wallet_name> -value <value> -fee <value>
 // int dap_tx_create_xchange_purchase_compose(int argc, char ** argv) {

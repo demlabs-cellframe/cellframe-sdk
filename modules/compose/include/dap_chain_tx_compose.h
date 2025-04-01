@@ -63,6 +63,7 @@ int dap_cli_hold_compose(int a_argc, char **a_argv);
 int dap_cli_take_compose(int a_argc, char **a_argv);
 int dap_cli_voting_compose(int a_argc, char **a_argv);
 int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv);
+int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv);
 
 int dap_tx_json_tsd_add(json_object * json_tx, json_object * json_add);
 
@@ -101,6 +102,11 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
                               bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
                               const char *a_net_str, const char *a_token_ticker, const char *l_url_str, uint16_t l_port);
 dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key, const char *l_url_str, uint16_t l_port);
+static dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char * a_net_str, dap_enc_key_t *a_key,
+                                               uint256_t a_value, uint256_t a_fee,
+                                               dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_node_addr,
+                                               dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax,
+                                               dap_chain_datum_tx_t *a_prev_tx, dap_pkey_t *a_pkey, const char *l_url_str, int l_port);
 
 #ifdef __cplusplus
 }
