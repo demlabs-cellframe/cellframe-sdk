@@ -104,7 +104,7 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
  */
 
 size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size) {
-    dap_return_val_if_fail(a_item, TX_ITEM_TYPE_UNKNOWN);
+    dap_return_val_if_fail(a_item, 0);
     size_t l_ret = 0;
 #define m_tx_item_size(t) ( !a_max_size || sizeof(t) <= a_max_size ? sizeof(t) : 0 )
 #define m_tx_item_size_ext(t, size_field)                                                                                       \
@@ -366,11 +366,11 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_emit_delegate(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                    uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,
-                                                                                   size_t a_pkey_hashes_count)
+                                                                                   size_t a_pkey_hashes_count, const char *a_tag_str)
 {
     if (IS_ZERO_256(a_value))
         return NULL;
-    size_t l_tsd_total_size = a_pkey_hashes_count * (sizeof(dap_hash_fast_t) + sizeof(dap_tsd_t));
+    size_t l_tsd_total_size = a_pkey_hashes_count * (sizeof(dap_hash_fast_t) + sizeof(dap_tsd_t)) + (a_tag_str ? sizeof(dap_tsd_t) + strlen(a_tag_str) + 1 : 0);
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + l_tsd_total_size, NULL);
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
@@ -381,6 +381,8 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_emit_delega
     byte_t *l_next_tsd_ptr = l_item->tsd;
     for (size_t i = 0; i < a_pkey_hashes_count; i++)
         l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_HASH, a_pkey_hashes + i, sizeof(dap_hash_fast_t));
+    if (a_tag_str)
+        l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_STR, (const void*)a_tag_str, strlen(a_tag_str) + 1);
     return l_item;
 }
 
