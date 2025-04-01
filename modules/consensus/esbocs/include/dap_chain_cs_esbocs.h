@@ -273,4 +273,3 @@ int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
 int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint16_t l_generation, uint64_t a_block_num, dap_list_t *a_trusted_addrs, json_object* a_changed_addrs);
 int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain);
 bool dap_chain_esbocs_hardfork_engaged(dap_chain_t *a_chain);
-void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable);

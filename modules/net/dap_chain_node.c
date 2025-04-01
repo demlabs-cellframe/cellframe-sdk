@@ -997,7 +997,7 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
                 }
             } break;
             default:
-                log_it(L_WARNING, "Illegal harfork datum tx item type %d", *l_item);
+                log_it(L_WARNING, "Illegal harfork datum tx item type 0x%X", *l_item);
                 m_ret_clear(-4);
             }
         }

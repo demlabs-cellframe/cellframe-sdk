@@ -225,13 +225,6 @@ void dap_chain_cs_esbocs_deinit(void)
 {
 }
 
-void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable){
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);    
-    dap_chain_esbocs_t *l_esbocs = l_blocks->_inheritor;
-    dap_chain_esbocs_pvt_t * l_esbocs_pvt = PVT(l_esbocs);    
-    l_esbocs_pvt->debug = a_enable;
-}
-
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_set_cs_type(a_chain, "blocks");
@@ -511,6 +504,8 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         l_esbocs_pvt->collecting_addr = dap_chain_addr_from_str(l_fee_addr_str);
     l_esbocs_pvt->collecting_level = dap_chain_balance_coins_scan(dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "collecting_level",
                                                                                                 dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "set_collect_fee", "10.0")));
+    l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_net_cfg, "esbocs", "consensus_debug", false);
+
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
     for (dap_list_t *it = l_validators; it; it = it->next) {
         dap_stream_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;

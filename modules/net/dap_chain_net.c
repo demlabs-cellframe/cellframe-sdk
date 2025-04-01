@@ -1861,11 +1861,11 @@ static int s_nodes_hosts_init(dap_chain_net_t *a_net, dap_config_t *a_cfg, const
     return 0;
 }
 
-static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_t *a_ledger_flags) {
+static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_t *a_ledger_flags)
+{
     DIR *l_chains_dir = opendir(a_path);
     if (!l_chains_dir)
         return log_it(L_ERROR, "Can't find any chains for network %s", a_net->pub.name), -1;
-    bool is_esbocs_debug = dap_config_get_item_bool_default(a_net->pub.config, "esbocs", "consensus_debug", false);
     dap_config_t *l_chain_config, *l_all_chain_configs = NULL, *l_tmp_cfg;
     char l_chain_cfg_path[MAX_PATH + 1] = { '\0' };
     int l_pos = snprintf(l_chain_cfg_path, MAX_PATH, "network/%s/", a_net->pub.name);
@@ -1912,8 +1912,6 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_
                 l_chain->default_datum_types_count = k;
                 l_chain->default_datum_types = DAP_REALLOC_COUNT(l_chain->default_datum_types, k);
             }
-            if ( !dap_strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "esbocs") && is_esbocs_debug )
-                dap_chain_esbocs_change_debug_mode(l_chain, true);
             if (l_chain->callback_load_from_gdb && a_ledger_flags) {
                 *a_ledger_flags &= ~DAP_LEDGER_MAPPED;
                 *a_ledger_flags |= DAP_LEDGER_THRESHOLD_ENABLED;
