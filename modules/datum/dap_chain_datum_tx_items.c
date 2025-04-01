@@ -55,6 +55,8 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum
         return TX_ITEM_TYPE_OUT;
     else if(!dap_strcmp(a_datum_name, "out_ext"))
         return TX_ITEM_TYPE_OUT_EXT;
+    else if(!dap_strcmp(a_datum_name, "out_std"))
+        return TX_ITEM_TYPE_OUT_STD;
     else if(!dap_strcmp(a_datum_name, "pkey"))
         return TX_ITEM_TYPE_PKEY;
     else if(!dap_strcmp(a_datum_name, "sign"))
@@ -117,6 +119,7 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
     case TX_ITEM_TYPE_OUT_OLD:  return m_tx_item_size(dap_chain_tx_out_old_t);
     case TX_ITEM_TYPE_OUT:      return m_tx_item_size(dap_chain_tx_out_t);
     case TX_ITEM_TYPE_OUT_EXT:  return m_tx_item_size(dap_chain_tx_out_ext_t);
+    case TX_ITEM_TYPE_OUT_STD:  return m_tx_item_size(dap_chain_tx_out_std_t);
     case TX_ITEM_TYPE_IN_COND:  return m_tx_item_size(dap_chain_tx_in_cond_t);
     case TX_ITEM_TYPE_IN_EMS:   return m_tx_item_size(dap_chain_tx_in_ems_t);
     case TX_ITEM_TYPE_IN_REWARD:return m_tx_item_size(dap_chain_tx_in_reward_t);
@@ -229,7 +232,7 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a
     return l_item;
 }
 
-dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
+dap_chain_tx_out_ext_t *dap_chain_datum_tx_item_out_ext_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
 {
     if (!a_addr || !a_token || IS_ZERO_256(a_value))
         return NULL;
@@ -238,6 +241,19 @@ dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_a
     l_item->header.value = a_value;
     l_item->addr = *a_addr;
     dap_strncpy((char*)l_item->token, a_token, sizeof(l_item->token));
+    return l_item;
+}
+
+dap_chain_tx_out_std_t *dap_chain_datum_tx_item_out_std_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token, dap_time_t a_ts_unlock)
+{
+    if (!a_addr || !a_token || IS_ZERO_256(a_value))
+        return NULL;
+    dap_chain_tx_out_std_t *l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_tx_out_std_t, NULL);
+    l_item->type = TX_ITEM_TYPE_OUT_STD;
+    l_item->value = a_value;
+    l_item->addr = *a_addr;
+    dap_strncpy((char*)l_item->token, a_token, sizeof(l_item->token));
+    l_item->ts_unlock = a_ts_unlock;
     return l_item;
 }
 

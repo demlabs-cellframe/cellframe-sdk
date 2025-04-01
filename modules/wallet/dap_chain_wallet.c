@@ -1146,6 +1146,15 @@ dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
                     continue;
                 l_value = l_out_ext->header.value;
             } break;
+            case TX_ITEM_TYPE_OUT_STD: {
+                dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t *)it;
+                l_out_addr = l_out_std->addr;
+                if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
+                || strcmp((char *)a_token_ticker, l_out_std->token)
+                || IS_ZERO_256(l_out_std->value) )
+                    continue;
+                l_value = l_out_std->value;
+            } break;
             default:
                 continue;
             }
