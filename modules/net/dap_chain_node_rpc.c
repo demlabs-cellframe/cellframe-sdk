@@ -249,8 +249,10 @@ int dap_chain_node_rpc_info_save(dap_chain_node_info_t *a_node_info, bool a_forc
 {
     dap_return_val_if_pass(!a_node_info || !a_node_info->address.uint64, -1);
     const char *l_addr_str =  dap_stream_node_addr_to_str_static(a_node_info->address);
-    if (!a_force && dap_global_db_driver_is(s_rpc_node_list_group, l_addr_str)) {
+    dap_store_obj_t *l_obj = NULL;
+    if (!a_force && (l_obj = dap_global_db_driver_read(s_rpc_node_list_group, l_addr_str, NULL, false))) {
         log_it(L_ERROR, "Can't save node info to rpc node list, record already exist");
+        dap_store_obj_free_one(l_obj);
         return -2;
     }
     return dap_global_db_set_sync( s_rpc_node_list_group, l_addr_str, a_node_info, dap_chain_node_info_get_size(a_node_info), false);
@@ -265,10 +267,12 @@ int dap_chain_node_rpc_info_del(dap_chain_node_addr_t a_addr)
 {
     dap_return_val_if_pass(!a_addr.uint64, -1);
     const char *l_addr_str =  dap_stream_node_addr_to_str_static(a_addr);
-    if (!dap_global_db_driver_is(s_rpc_node_list_group, l_addr_str)) {
+    dap_store_obj_t *l_obj = NULL;
+    if (!(l_obj = dap_global_db_driver_read(s_rpc_node_list_group, l_addr_str, NULL, false))) {
         log_it(L_ERROR, "Can't del node info from rpc node list, record not exist");
         return -2;
     }
+    dap_store_obj_free_one(l_obj);
     return dap_global_db_del_sync(s_rpc_node_list_group, dap_stream_node_addr_to_str_static(a_addr));
 }
 
