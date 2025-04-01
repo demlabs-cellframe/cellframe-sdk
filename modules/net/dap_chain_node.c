@@ -482,7 +482,6 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     DAP_DELETE(l_gdb_group_mempool);
 }
 
-
 /**
  * @brief
  * get automatic mempool processing, when network config contains mempool_auto_types for specific datums

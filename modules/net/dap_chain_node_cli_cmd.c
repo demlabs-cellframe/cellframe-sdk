@@ -2929,6 +2929,12 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                     l_dist_addr = &((dap_chain_tx_out_ext_t *) it->data)->addr;
                                 }
                                     break;
+                                case TX_ITEM_TYPE_OUT_STD: {
+                                    l_value = ((dap_chain_tx_out_std_t *) it->data)->value;
+                                    l_dist_token = ((dap_chain_tx_out_std_t *) it->data)->token;
+                                    l_dist_addr = &((dap_chain_tx_out_std_t *) it->data)->addr;
+                                }
+                                    break;
                                 case TX_ITEM_TYPE_OUT_COND: {
                                     dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t *) it->data;
                                     l_value = ((dap_chain_tx_out_cond_t *) it->data)->header.value;
@@ -5741,7 +5747,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply)
     SUBTRACT_256_256(l_cond_value_sum, l_total_fee, &l_coin_back);
     dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
     // return coins to owner
-    if (dap_chain_datum_tx_add_out_item(&l_tx, l_wallet_addr, l_coin_back) == -1) {
+    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_wallet_addr, l_coin_back, l_native_ticker) == -1) {
         dap_chain_datum_tx_delete(l_tx);
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_RETURNING_COINS_OUTPUT,
                                "Can't create new TX. Something went wrong.\n");
@@ -5754,7 +5760,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply)
      DAP_DELETE(l_wallet_addr);
     // Network fee
     if (l_net_fee_used &&
-            dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) != 1) {
+            dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         dap_chain_wallet_close(l_wallet);
         DAP_DEL_Z(l_wallet_pkey);
