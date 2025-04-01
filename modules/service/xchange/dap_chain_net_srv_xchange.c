@@ -363,11 +363,14 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
     byte_t *l_tx_item; size_t l_size;
     TX_ITEM_ITER_TX(l_tx_item, l_size, a_tx_in) {
         switch (*l_tx_item) {
-        case TX_ITEM_TYPE_OUT_EXT: {
-            dap_chain_tx_out_ext_t *l_tx_in_output = (dap_chain_tx_out_ext_t*)l_tx_item;
-            const char *l_out_token = l_tx_in_output->token;
-            const uint256_t l_out_value = l_tx_in_output->header.value;
-            dap_chain_addr_t l_out_addr = l_tx_in_output->addr;
+        case TX_ITEM_TYPE_OUT_EXT:
+        case TX_ITEM_TYPE_OUT_STD: {
+            const char *l_out_token = *l_tx_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t *)l_tx_item)->token
+                                                                         : ((dap_chain_tx_out_std_t *)l_tx_item)->token;
+            uint256_t l_out_value = *l_tx_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t *)l_tx_item)->header.value
+                                                                       : ((dap_chain_tx_out_std_t *)l_tx_item)->value;
+            dap_chain_addr_t l_out_addr = *l_tx_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t *)l_tx_item)->addr
+                                                                             : ((dap_chain_tx_out_std_t *)l_tx_item)->addr;
             // Out is with token to buy
             if (!strcmp(l_out_token, l_buy_ticker) &&
                     !memcmp(&l_out_addr, l_seller_addr, sizeof(l_out_addr)) &&
@@ -619,10 +622,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
         DAP_DELETE(l_tx_out);
         // Network fee
         if (l_net_fee_used) {
-            if ((l_single_channel &&
-                        dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_net_fee, l_net_fee) != 1) ||
-                    (!l_single_channel &&
-                        dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_net_fee, l_net_fee, l_native_ticker) != 1)) {
+            if ( dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_net_fee, l_net_fee, l_native_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 log_it(L_ERROR, "Cant add network fee output");
                 return NULL;
@@ -641,7 +641,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
         SUBTRACT_256_256(l_value_transfer, l_value_need, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
             if ((l_single_channel &&
-                        dap_chain_datum_tx_add_out_item(&l_tx, &l_seller_addr, l_value_back) != 1) ||
+                        dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_value_back, l_native_ticker) != 1) ||
                     (!l_single_channel &&
                         dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_value_back, a_price->token_sell) != 1)) {
                 dap_chain_datum_tx_delete(l_tx);
@@ -1185,14 +1185,14 @@ static char* s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price,
         }
         SUBTRACT_256_256(l_tx_out_cond->header.value, l_total_fee, &l_coin_back);
         // return coins to owner
-        if (dap_chain_datum_tx_add_out_item(&l_tx, &l_seller_addr, l_coin_back) == -1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_coin_back, l_native_ticker) == -1) {
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_ERROR, "Cant add returning coins output");
             return l_ret;
         }
         // Network fee
         if (l_net_fee_used &&
-                dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) != 1) {
+            dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_ERROR, "Cant add network fee output");
             return l_ret;

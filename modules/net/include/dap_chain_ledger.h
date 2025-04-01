@@ -90,6 +90,7 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_NOT_ENOUGH_FEE,
     DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX,
     DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX,
+    DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL,
     /* Emisssion check return codes */
     DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY,
     DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN,
@@ -292,13 +293,6 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
 int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash);
 
 int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
-
-/**
- * Print list transaction from ledger
- *
- */
-
-json_object * dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, bool a_unspent_only);
 
 /**
  * Check token ticker existance

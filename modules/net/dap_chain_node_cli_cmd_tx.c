@@ -472,6 +472,9 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 case TX_ITEM_TYPE_OUT_EXT:
                     l_src_addr = &((dap_chain_tx_out_ext_t *)l_prev_out_union)->addr;
                     break;
+                case TX_ITEM_TYPE_OUT_STD:
+                    l_src_addr = &((dap_chain_tx_out_std_t *)l_prev_out_union)->addr;
+                    break;
                 case TX_ITEM_TYPE_OUT_COND: {
                     dap_chain_tx_out_cond_t *l_cond_prev = (dap_chain_tx_out_cond_t *)l_prev_out_union;
                     l_src_subtype = l_cond_prev->header.subtype;
@@ -515,6 +518,9 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     break;
                 case TX_ITEM_TYPE_OUT_EXT:
                     l_dst_addr = &((dap_chain_tx_out_ext_t *)it->data)->addr;
+                    break;
+                case TX_ITEM_TYPE_OUT_STD:
+                    l_dst_addr = &((dap_chain_tx_out_std_t *)it->data)->addr;
                 default:
                     break;
                 }
@@ -548,6 +554,11 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 l_dst_addr = &((dap_chain_tx_out_ext_t *)it->data)->addr;
                 l_value = ((dap_chain_tx_out_ext_t *)it->data)->header.value;
                 l_dst_token = ((dap_chain_tx_out_ext_t *)it->data)->token;
+                break;
+            case TX_ITEM_TYPE_OUT_STD:
+                l_dst_addr = &((dap_chain_tx_out_std_t *)it->data)->addr;
+                l_value = ((dap_chain_tx_out_std_t *)it->data)->value;
+                l_dst_token = ((dap_chain_tx_out_std_t *)it->data)->token;
                 break;
             case TX_ITEM_TYPE_OUT_COND:
                 l_value = ((dap_chain_tx_out_cond_t *)it->data)->header.value;
