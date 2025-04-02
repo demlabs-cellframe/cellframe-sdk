@@ -375,16 +375,17 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
     HASH_FIND(hh, l_net_srv->grace_hash_tab, a_tx_hash, sizeof(dap_hash_fast_t), l_item);
     pthread_mutex_unlock(&l_net_srv->grace_mutex);
     if (l_item){
+        pthread_mutex_lock(&l_net_srv->grace_mutex);
+        // finish grace
+        HASH_DEL(l_net_srv->grace_hash_tab, l_item);
+        pthread_mutex_unlock(&l_net_srv->grace_mutex);
+
         log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
         // Stop timer
         dap_timerfd_delete_mt(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
-        // finish grace
-        HASH_DEL(l_net_srv->grace_hash_tab, l_item);
-        
         l_item->grace->usage->tx_cond = a_tx;
 
         s_service_substate_pay_service(l_item->grace->usage);
-        
         s_set_usage_data_to_gdb(l_item->grace->usage);
         DAP_DELETE(l_item->grace);
         DAP_DELETE(l_item);
@@ -1364,7 +1365,7 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
     if ((a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE && 
         a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE) ||
         (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE && 
-        a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER)
+        a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING)
     ) {
         dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
         l_remain_service = a_usage->service->callbacks.get_remain_service(a_usage->service, a_usage->id, a_usage->client);
@@ -1412,20 +1413,7 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
             //start timeout timer
             a_usage->receipt_timeout_timer_start_callback(a_usage);
         }
-    } else if(a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE && 
-        a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING){
-            
-        log_it(L_INFO, "Send first receipt to sign");
-        a_usage->receipt = dap_chain_net_srv_issue_receipt(a_usage->service, a_usage->price, NULL, 0);
-        dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
-            a_usage->receipt, a_usage->receipt->size);
-            
-        a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN;
-
-        //start timeout timer
-        a_usage->receipt_timeout_timer_start_callback(a_usage);    
-            
-    }else {  
+    } else {  
         dap_chain_datum_tx_receipt_t *l_receipt = NULL;
         if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE || 
             a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE)
