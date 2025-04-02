@@ -42,7 +42,6 @@
 #include <netdb.h>
 #include <json-c/json.h>
 
-static json_object* s_request_command_to_rpc(const char *a_request, const char * a_net_name, const char * a_url_str, uint16_t a_port);
 
 
 const char *arg_wallets_path = NULL;
@@ -259,8 +258,13 @@ static int s_cmd_request_get_response(struct cmd_request *a_cmd_request, json_ob
 
 static json_object* s_request_command_to_rpc(const char *request, const char * a_net_name, const char * a_url_str, uint16_t a_port) {
     json_object * l_response = NULL;
-    size_t l_response_size;
+    size_t l_response_size = 0; // Initialize to avoid potential undefined behavior
     struct cmd_request* l_cmd_request = s_cmd_request_init();
+
+    if (!l_cmd_request) {
+        printf("Error: Failed to initialize command request\n");
+        return NULL;
+    }
 
     dap_client_http_request(dap_worker_get_auto(),
                                 a_url_str ? a_url_str : s_get_net_url(a_net_name),
@@ -276,17 +280,34 @@ static json_object* s_request_command_to_rpc(const char *request, const char * a
         if (s_cmd_request_get_response(l_cmd_request, &l_response, &l_response_size)) {
             printf( "Response error code: %d", l_cmd_request->error_code);
         }
+    } else {
+        printf("Error: Command list wait failed with code %d\n", l_ret);
     }
-    json_object * l_result;
-    json_object_object_get_ex(l_response, "result", &l_result);
-    json_object *errors_array;
+
+    s_cmd_request_free(l_cmd_request);
+    return l_response;
+}
+
+static json_object* s_request_command_parse(json_object *l_response) {
+    if (!l_response) {
+        printf("Error: Response is NULL\n");
+        return NULL;
+    }
+
+    json_object * l_result = NULL;
+    if (!json_object_object_get_ex(l_response, "result", &l_result)) {
+        printf("Error: Failed to get 'result' from response\n");
+        return NULL;
+    }
+
+    json_object *errors_array = NULL;
     if (json_object_is_type(l_result, json_type_array) && json_object_array_length(l_result) > 0) {
         json_object *first_element = json_object_array_get_idx(l_result, 0);
         if (json_object_object_get_ex(first_element, "errors", &errors_array)) {
             int errors_len = json_object_array_length(errors_array);
             for (int j = 0; j < errors_len; j++) {
                 json_object *error_obj = json_object_array_get_idx(errors_array, j);
-                json_object *error_code, *error_message;
+                json_object *error_code = NULL, *error_message = NULL;
                 if (json_object_object_get_ex(error_obj, "code", &error_code) &&
                     json_object_object_get_ex(error_obj, "message", &error_message)) {
                     printf("Error %d: %s\n", json_object_get_int(error_code), json_object_get_string(error_message));
@@ -295,9 +316,18 @@ static json_object* s_request_command_to_rpc(const char *request, const char * a
             l_result = NULL;
         }
     }
-    s_cmd_request_free(l_cmd_request);
-    if (l_result)
-        json_object_get(l_result);
+    json_object_get(l_result);
+    return l_result;
+}
+
+json_object* dap_request_command_to_rpc(const char *request, const char * a_net_name, const char * a_url_str, uint16_t a_port) {
+    json_object * l_response = s_request_command_to_rpc(request, a_net_name, a_url_str, a_port);
+    if (!l_response) {
+        printf("Error: Failed to get response from RPC request\n");
+        return NULL;
+    }
+
+    json_object * l_result = s_request_command_parse(l_response);
     json_object_put(l_response);
     return l_result;
 }
@@ -306,7 +336,7 @@ static json_object* s_request_command_to_rpc(const char *request, const char * a
 bool dap_get_remote_net_fee_and_address(const char *l_net_name, uint256_t *a_net_fee, dap_chain_addr_t **l_addr_fee, const char * a_url_str, uint16_t a_port) {
     char data[512];
     snprintf(data, sizeof(data), "{\"method\": \"net\",\"params\": [\"net;get;fee;-net;%s\"],\"id\": \"1\"}", l_net_name);
-    json_object *l_json_get_fee = s_request_command_to_rpc(data, l_net_name, a_url_str, a_port);
+    json_object *l_json_get_fee = dap_request_command_to_rpc(data, l_net_name, a_url_str, a_port);
     if (!l_json_get_fee) {
         return false;
     }
@@ -357,7 +387,7 @@ bool dap_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const c
     snprintf(data, sizeof(data), 
             "{\"method\": \"wallet\",\"params\": [\"wallet;outputs;-addr;%s;-token;%s;-net;%s\"],\"id\": \"1\"}", 
             dap_chain_addr_to_str(a_addr_from), a_token_ticker, l_net_name);
-    json_object *l_json_outs = s_request_command_to_rpc(data, l_net_name, a_url_str, a_port);
+    json_object *l_json_outs = dap_request_command_to_rpc(data, l_net_name, a_url_str, a_port);
     if (!l_json_outs) {
         return false;
     }
@@ -392,7 +422,7 @@ bool dap_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const c
 
     *l_outputs_count = json_object_array_length(*l_outs);
     json_object_get(*l_outs);
-    json_object_put(l_json_outs); // Clean up the JSON object
+    json_object_put(l_json_outs);
     return true;
 }
 
@@ -1047,7 +1077,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_net
     char data[512];
     snprintf(data, sizeof(data), 
             "{\"method\": \"ledger\",\"params\": [\"ledger;list;coins;-net;%s\"],\"id\": \"2\"}", a_net_name);
-    json_object *l_json_coins = s_request_command_to_rpc(data, a_net_name, a_url_str, a_port);
+    json_object *l_json_coins = dap_request_command_to_rpc(data, a_net_name, a_url_str, a_port);
     if (!l_json_coins) {
         return NULL; // XCHANGE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS
     }
@@ -1061,7 +1091,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_net
             "{\"method\": \"wallet\",\"params\": [\"wallet;info;-addr;%s;-net;%s\"],\"id\": \"2\"}", 
             dap_chain_addr_to_str(l_wallet_addr), a_net_name);
     DAP_DEL_Z(l_wallet_addr);
-    json_object *l_json_outs = s_request_command_to_rpc(data, a_net_name, a_url_str, a_port);
+    json_object *l_json_outs = dap_request_command_to_rpc(data, a_net_name, a_url_str, a_port);
     uint256_t l_value = get_balance_from_json(l_json_outs, a_token_sell);
 
     uint256_t l_value_sell = a_datoshi_sell;
@@ -1097,7 +1127,7 @@ json_object *dap_get_remote_tx_outs(const char *a_token_ticker, const char *a_ne
     snprintf(data, sizeof(data), 
             "{\"method\": \"wallet\",\"params\": [\"wallet;outputs;-addr;%s;-token;%s;-net;%s\"],\"id\": \"1\"}", 
             dap_chain_addr_to_str(a_addr), a_token_ticker, a_net_name);
-    json_object *l_json_outs = s_request_command_to_rpc(data, a_net_name, a_url_str, a_port);
+    json_object *l_json_outs = dap_request_command_to_rpc(data, a_net_name, a_url_str, a_port);
     if (!l_json_outs) {
         return NULL;
     }
@@ -1599,7 +1629,7 @@ int  dap_cli_hold_compose(int a_argc, char **a_argv)
     char data[512];
     snprintf(data, sizeof(data), 
             "{\"method\": \"ledger\",\"params\": [\"ledger;list;coins;-net;%s\"],\"id\": \"2\"}", l_net_name);
-    json_object *l_json_coins = s_request_command_to_rpc(data, l_net_name, l_url_str, l_port);
+    json_object *l_json_coins = dap_request_command_to_rpc(data, l_net_name, l_url_str, l_port);
     if (!l_json_coins) {
         return -4;
     }
@@ -1733,7 +1763,7 @@ int  dap_cli_hold_compose(int a_argc, char **a_argv)
         dap_chain_addr_to_str(l_addr_holder), l_net_name);
     DAP_DEL_Z(l_addr_holder);
 
-    json_object *l_json_outs = s_request_command_to_rpc(data, l_net_name, l_url_str, l_port);
+    json_object *l_json_outs = dap_request_command_to_rpc(data, l_net_name, l_url_str, l_port);
     uint256_t l_value_balance = get_balance_from_json(l_json_outs, l_ticker_str);
     json_object_put(l_json_outs);
     if (compare256(l_value_balance, l_value) == -1) {
@@ -2003,7 +2033,7 @@ int dap_cli_take_compose(int a_argc, char **a_argv)
             "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
             l_tx_str, l_net_str);
     
-    json_object *response = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
+    json_object *response = dap_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
     if (!response) {
         printf("Error: Failed to get response from remote node\n");
         return -15;
@@ -2296,7 +2326,7 @@ uint256_t s_get_key_delegating_min_value(const char *a_net_str, const char *l_ur
             "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", 
             a_net_str);
     
-    json_object *response = s_request_command_to_rpc(data, a_net_str, l_url_str, l_port);
+    json_object *response = dap_request_command_to_rpc(data, a_net_str, l_url_str, l_port);
     if (!response) {
         printf("Error: Failed to get response from remote node\n");
         return l_key_delegating_min_value;
@@ -2454,7 +2484,7 @@ int dap_cli_voting_compose(int a_argc, char **a_argv)
     char data[512];
     snprintf(data, sizeof(data), 
             "{\"method\": \"ledger\",\"params\": [\"ledger;list;coins;-net;%s\"],\"id\": \"2\"}", l_net_str);
-    json_object *l_json_coins = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
+    json_object *l_json_coins = dap_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
     if (!l_json_coins) {
         printf("Error: Can't get ledger coins list\n");
         return -DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS;
@@ -2739,7 +2769,7 @@ int dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint256_t a_fee, dap_c
     char data[512];
     snprintf(data, sizeof(data), 
             "{\"method\": \"voting\",\"params\": [\"voting;dump;-hash;%s\"],\"id\": \"2\"}", l_hash_str);
-    json_object *l_json_voting = s_request_command_to_rpc(data);
+    json_object *l_json_voting = dap_request_command_to_rpc(data);
     if (!l_json_voting) {
         printf("Error: Can't get voting info\n");
         return -DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS;
@@ -2793,7 +2823,7 @@ int dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint256_t a_fee, dap_c
         char data[512];
         snprintf(data, sizeof(data), 
                 "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", a_net_str);
-        json_object *l_json_coins = s_request_command_to_rpc(data);
+        json_object *l_json_coins = dap_request_command_to_rpc(data);
         if (!l_json_coins) {
             printf("Error: Failed to retrieve coins from ledger\n");
             return -4;
@@ -3075,7 +3105,7 @@ int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv)
         char data[512];
         snprintf(data, sizeof(data), 
                 "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", l_net_str);
-        json_object *l_json_coins = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
+        json_object *l_json_coins = dap_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
         if (!l_json_coins) {
             printf("Error: Failed to retrieve coins from ledger\n");
             return -4;
@@ -3109,7 +3139,7 @@ int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv)
     char data[512];
     snprintf(data, sizeof(data), 
             "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", l_tx_hash_str_tmp, l_net_str);
-    json_object *l_json_response = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
+    json_object *l_json_response = dap_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
     if (!l_json_response) {
         printf("Error: Failed to retrieve transaction info from ledger\n");
         return -4;
@@ -3154,7 +3184,7 @@ int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv)
                 l_tx_hash_str_tmp = dap_hash_fast_to_str_static(&l_tx_hash);
                 snprintf(data, sizeof(data), 
                         "{\"method\": \"ledger\",\"params\": [\"ledger;tx;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", l_tx_hash_str_tmp, l_net_str);
-                json_object *l_json_prev_tx = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
+                json_object *l_json_prev_tx = dap_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
                 if (!l_json_prev_tx) {
                     printf("Previous transaction %s is not found\n", l_tx_hash_str_tmp);
                     json_object_put(l_json_response);
@@ -3170,7 +3200,7 @@ int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv)
         char data[512];
         snprintf(data, sizeof(data), 
                 "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;tx;-net;%s\"],\"id\": \"1\"}", l_net_str);
-        json_object *l_json_coins = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
+        json_object *l_json_coins = dap_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
         if (!l_json_coins) {
             printf("Error: Failed to retrieve coins from ledger\n");
             json_object_put(l_json_response);
@@ -3219,7 +3249,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
             "{\"method\": \"ledger\",\"params\": [\"ledger;info;-need_sign;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
             dap_hash_fast_to_str_static(a_tx_hash), a_net_str);
     
-    json_object *response = s_request_command_to_rpc(data, a_net_str, l_url_str, l_port);
+    json_object *response = dap_request_command_to_rpc(data, a_net_str, l_url_str, l_port);
     if (!response) {
         printf("Error: Failed to get response from remote node\n"); 
         return NULL;
@@ -3268,7 +3298,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
                     "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
                     l_tx_prev_hash, a_net_str);
             
-            json_object *response_cond = s_request_command_to_rpc(data, a_net_str, l_url_str, l_port);
+            json_object *response_cond = dap_request_command_to_rpc(data, a_net_str, l_url_str, l_port);
             if (!response_cond) {
                 printf("Error: Request conditional transaction failed\n"); 
                 json_object_put(response);
@@ -3512,7 +3542,7 @@ dap_chain_net_srv_order_t* dap_get_remote_srv_order(const char* l_net_str, const
     snprintf(data, sizeof(data), 
             "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;order;list;staker;-net;%s\"],\"id\": \"1\"}", 
             l_net_str);
-    json_object *response = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
+    json_object *response = dap_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
     if (!response) {
         printf("Error: Failed to get response from remote node\n");
         return NULL;
@@ -3525,7 +3555,7 @@ dap_chain_net_srv_order_t* dap_get_remote_srv_order(const char* l_net_str, const
         snprintf(data, sizeof(data), 
                 "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;order;list;validator;-net;%s\"],\"id\": \"1\"}", 
                 l_net_str);
-        response = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
+        response = dap_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
         if (!response) {
             printf("Error: Failed to get response from remote node\n");
             return NULL;
@@ -3692,6 +3722,11 @@ int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
         uint256_t l_value_max;
         int l_prev_tx_count = 0;
         dap_chain_net_srv_order_t* l_order = dap_get_remote_srv_order(l_net_str, l_order_hash_str, &l_tax, &l_value_max, &l_sovereign_addr, &l_sovereign_tax, l_url_str, l_port);
+        if (!l_order) {
+            printf("Error: Failed to get order from remote node\n");
+            dap_enc_key_delete(l_enc_key);
+            return -8;
+        }
 
         if (l_order->direction == SERV_DIR_BUY) { // Staker order
             if (!l_cert_str) {
@@ -3712,7 +3747,7 @@ int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
                     "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
                     dap_chain_hash_fast_to_str_static(&l_order->tx_cond_hash), l_net_str);
             
-            json_object *response = s_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
+            json_object *response = dap_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
             if (!response) {
                 printf("Error: Failed to get response from remote node\n");
                 return -15;
@@ -3904,7 +3939,7 @@ int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
 }
 
 // Freeze staker's funds when delegating a key
-static dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char * a_net_str, dap_enc_key_t *a_key,
+dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char * a_net_str, dap_enc_key_t *a_key,
                                                uint256_t a_value, uint256_t a_fee,
                                                dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_node_addr,
                                                dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax,
