@@ -626,8 +626,12 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         json_object_object_add(a_json_obj_out, "price token", (*a_order->price_ticker) ?
                                                               json_object_new_string(a_order->price_ticker) :
                                                               json_object_new_string(a_native_ticker));
-
-        json_object_object_add(a_json_obj_out, "units", json_object_new_string(dap_utoa(a_order->units)));
+                                                              
+        #define DAP_UINT64_MAX_LEN 20 + 1
+        char l_units_str[DAP_UINT64_MAX_LEN] = {0};
+        snprintf(l_units_str, DAP_UINT64_MAX_LEN, "%"DAP_UINT64_FORMAT_U, a_order->units);
+        #undef DAP_UINT64_MAX_LEN
+        json_object_object_add(a_json_obj_out, "units", json_object_new_string(l_units_str));
 
         if ( a_order->price_unit.uint32 )
             json_object_object_add(a_json_obj_out, "price unit", json_object_new_string(dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit)));
