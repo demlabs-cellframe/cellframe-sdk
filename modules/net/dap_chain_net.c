@@ -829,7 +829,7 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg)
     json_object_object_add(json_obj, "nets", l_jobj_nets);
     dap_notify_server_send(json_object_get_string(json_obj));
     json_object_put(json_obj);
-    s_net_states_notify_timer_callback(NULL);
+    //s_net_states_notify_timer_callback(NULL);
     return true;
 }
 
