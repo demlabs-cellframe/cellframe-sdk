@@ -160,6 +160,16 @@ json_object * dap_db_tx_history_to_json(json_object* a_json_arr_reply,
                             ? dap_enc_base58_encode_hash_to_str_static(l_atom_hash)
                             : dap_chain_hash_fast_to_str_static(l_atom_hash);
         json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
+
+        dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, a_chain->active_cell_id, l_atom_hash);
+        size_t l_size = 0;
+        if(a_chain->callback_atom_find_by_hash(l_iter, l_atom_hash, &l_size) != NULL){
+            uint64_t l_block_count = a_chain->callback_count_atom(a_chain);
+            uint64_t l_confirmations = l_block_count - l_iter->cur_num;
+            json_object_object_add(json_obj_datum, "confirmations", json_object_new_uint64(l_confirmations));
+        }
+        a_chain->callback_atom_iter_delete(l_iter);
+        
     }
 
     const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
@@ -419,7 +429,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
         uint8_t *l_tx_item = NULL;
         size_t l_size; int i, q = 0;
-        // Проход по входам
+        // Inputs iteration
         TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_IN_ALL, l_size, i, l_tx) {
             dap_chain_hash_fast_t *l_tx_prev_hash = NULL;
             int l_tx_prev_out_idx;
@@ -461,6 +471,9 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     break;
                 case TX_ITEM_TYPE_OUT_EXT:
                     l_src_addr = &((dap_chain_tx_out_ext_t *)l_prev_out_union)->addr;
+                    break;
+                case TX_ITEM_TYPE_OUT_STD:
+                    l_src_addr = &((dap_chain_tx_out_std_t *)l_prev_out_union)->addr;
                     break;
                 case TX_ITEM_TYPE_OUT_COND: {
                     dap_chain_tx_out_cond_t *l_cond_prev = (dap_chain_tx_out_cond_t *)l_prev_out_union;
@@ -505,6 +518,9 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     break;
                 case TX_ITEM_TYPE_OUT_EXT:
                     l_dst_addr = &((dap_chain_tx_out_ext_t *)it->data)->addr;
+                    break;
+                case TX_ITEM_TYPE_OUT_STD:
+                    l_dst_addr = &((dap_chain_tx_out_std_t *)it->data)->addr;
                 default:
                     break;
                 }
@@ -539,10 +555,15 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 l_value = ((dap_chain_tx_out_ext_t *)it->data)->header.value;
                 l_dst_token = ((dap_chain_tx_out_ext_t *)it->data)->token;
                 break;
+            case TX_ITEM_TYPE_OUT_STD:
+                l_dst_addr = &((dap_chain_tx_out_std_t *)it->data)->addr;
+                l_value = ((dap_chain_tx_out_std_t *)it->data)->value;
+                l_dst_token = ((dap_chain_tx_out_std_t *)it->data)->token;
+                break;
             case TX_ITEM_TYPE_OUT_COND:
                 l_value = ((dap_chain_tx_out_cond_t *)it->data)->header.value;
                 if (((dap_chain_tx_out_cond_t *)it->data)->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
-                    SUM_256_256(l_fee_sum, ((dap_chain_tx_out_cond_t *)it->data)->header.value, &l_fee_sum);
+                    SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
                     l_dst_token = l_native_ticker;
                 } else
                     l_dst_token = l_src_token;
@@ -552,7 +573,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
 
             if (l_src_addr && l_dst_addr &&
                     dap_chain_addr_compare(l_dst_addr, l_src_addr) &&
-                    dap_strcmp(l_noaddr_token, l_dst_token))
+                    (!l_recv_from_cond || (l_noaddr_token && dap_strcmp(l_noaddr_token, l_dst_token))))
                 continue;   // sent to self (coinback)
 
             if (l_dst_addr && l_net_fee_used && dap_chain_addr_compare(&l_net_fee_addr, l_dst_addr))
@@ -688,13 +709,10 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));
         }
         if (l_send_to_same_cond) {
-            json_object *l_cond_recv_value_obj = json_object_object_get(l_cond_recv_object, "recv_datoshi");
-            const char *l_cond_recv_value_str = json_object_get_string(l_cond_recv_value_obj);
-            uint256_t l_cond_recv_value = dap_uint256_scan_uninteger(l_cond_recv_value_str);
+            uint256_t l_cond_recv_value = l_cond_value;
             json_object *l_cond_send_value_obj = json_object_object_get(l_cond_send_object, "send_datoshi");
             const char *l_cond_send_value_str = json_object_get_string(l_cond_send_value_obj);
             uint256_t l_cond_send_value = dap_uint256_scan_uninteger(l_cond_send_value_str);
-            assert(!IS_ZERO_256(l_cond_recv_value) && !IS_ZERO_256(l_cond_send_value));
             int l_direction = compare256(l_cond_recv_value, l_cond_send_value);
             if (l_direction > 0) {
                 SUBTRACT_256_256(l_cond_recv_value, l_cond_send_value, &l_cond_recv_value);
@@ -1386,8 +1404,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
 
     for(size_t i = 0; i < a_certs_count; i++)
     {
-        dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_anchor,
-           sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size, 0);
+        dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_anchor, sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size);
 
         if (l_sign) {
             size_t l_sign_size = dap_sign_get_size(l_sign);
@@ -1791,8 +1808,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                         l_chain?l_chain->name:"<undefined>");
                 return -5;
             }
-            DAP_DELETE(l_datum_hash_hex_str);
-            DAP_DELETE(l_datum_hash_base58_str);
+            DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str);
         } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "decree sign need -datum <datum hash> argument");
             return -2;
