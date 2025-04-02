@@ -3569,7 +3569,7 @@ dap_chain_net_srv_order_t* dap_get_remote_srv_order(const char* l_net_str, const
     return l_order;
 }
 
-dap_sign_t* dap_get_remote_srv_order_sign(const char* l_net_str, const char* l_order_hash_str, size_t* a_sign_size,
+dap_sign_t* dap_get_remote_srv_order_sign(const char* l_net_str, const char* l_order_hash_str,
                                                     const char* l_url_str, uint16_t l_port){
     char data[512];
     snprintf(data, sizeof(data), 
@@ -3580,14 +3580,22 @@ dap_sign_t* dap_get_remote_srv_order_sign(const char* l_net_str, const char* l_o
         printf("Error: Failed to get response from remote node\n");
         return NULL;
     }
-    const char *l_sign_b64_str = json_object_get_string(json_object_object_get(response, "sig_b64"));
+    json_object *l_response_array = json_object_array_get_idx(response, 0);
+    if (!l_response_array) {
+        printf("Error: Can't get the first element from the response array\n");
+        json_object_put(response);
+        return NULL;
+    }
+
+    const char *l_sign_b64_str = json_object_get_string(json_object_object_get(l_response_array, "sig_b64"));
     if (!l_sign_b64_str) {
         printf("Error: Can't get base64-encoded sign from SIG item\n");
         json_object_put(response);
         return NULL;
     }
 
-    int64_t l_sign_b64_strlen = json_object_get_string_len(l_sign_b64_str);
+    // *a_sign_size = json_object_get_int(json_object_object_get(l_response_array, "sig_b64_size"));
+    int64_t l_sign_b64_strlen = json_object_get_string_len(json_object_object_get(l_response_array, "sig_b64"));
     int64_t l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
     dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
     *l_tx_sig = (dap_chain_tx_sig_t) {
@@ -3596,8 +3604,11 @@ dap_sign_t* dap_get_remote_srv_order_sign(const char* l_net_str, const char* l_o
             .sig_size = dap_enc_base64_decode(l_sign_b64_str, l_sign_b64_strlen, l_tx_sig->sig, DAP_ENC_DATA_TYPE_B64_URLSAFE)
         }
     };
-    *a_sign_size = l_tx_sig->header.sig_size;
-    return dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+
+    dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+    DAP_DELETE(l_tx_sig);
+    json_object_put(response);
+    return l_sign;
 }
 
 
@@ -3761,6 +3772,7 @@ int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
             dap_enc_key_delete(l_enc_key);
             return -8;
         }
+        l_sovereign_tax = l_tax;
 
         if (l_order->direction == SERV_DIR_BUY) { // Staker order
             if (!l_cert_str) {
@@ -3898,8 +3910,8 @@ int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
                 return -19;
             }
             size_t l_sign_size = 0;
-            dap_sign_t *l_sign = dap_get_remote_srv_order_sign(l_net_str, l_order_hash_str, &l_sign_size, l_url_str, l_port);
-            if (l_sign->header.type.type == SIG_TYPE_NULL) {
+            dap_sign_t *l_sign = dap_get_remote_srv_order_sign(l_net_str, l_order_hash_str, l_url_str, l_port);
+            if (!l_sign) {
                 printf("Specified order is unsigned\n");
                 dap_enc_key_delete(l_enc_key);
                 DAP_DELETE(l_order);
@@ -3932,12 +3944,13 @@ int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
         return -6;
     }
 
-    int l_check_result = dap_chain_net_srv_stake_verify_key_and_node(&l_signing_addr, &l_node_addr);
-    if (l_check_result) {
-        printf("Key and node verification error\n");
-        dap_enc_key_delete(l_enc_key);
-        return l_check_result;
-    }
+    // TODO: need to make sure that the key and node are required verification 
+    // int l_check_result = dap_chain_net_srv_stake_verify_key_and_node(&l_signing_addr, &l_node_addr);
+    // if (l_check_result) {
+    //     printf("Key and node verification error\n");
+    //     dap_enc_key_delete(l_enc_key);
+    //     return l_check_result;
+    // }
  
 
     uint256_t l_allowed_min = s_get_key_delegating_min_value(l_net_str, l_url_str, l_port);
@@ -3967,6 +3980,10 @@ int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
     dap_enc_key_delete(l_enc_key);
     DAP_DELETE(l_pkey);
 
+    json_object * l_json_obj_ret = json_object_new_object();
+    dap_chain_net_tx_to_json(l_tx, l_json_obj_ret);
+    printf("%s", json_object_to_json_string(l_json_obj_ret));
+    json_object_put(l_json_obj_ret);
     DAP_DELETE(l_tx);
 
     return 0;
@@ -3991,7 +4008,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char * a_net_str, dap_en
     dap_chain_addr_fill_from_key(&l_owner_addr, a_key, s_get_net_id(a_net_str));
     uint256_t l_net_fee, l_fee_total = a_fee;
     dap_chain_addr_t * l_net_fee_addr = NULL;
-    bool l_net_fee_used = dap_get_remote_net_fee_and_address(a_net_str, &l_net_fee, l_net_fee_addr, l_url_str, l_port);
+    bool l_net_fee_used = dap_get_remote_net_fee_and_address(a_net_str, &l_net_fee, &l_net_fee_addr, l_url_str, l_port);
     if (l_net_fee_used)
         SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
 
@@ -4085,7 +4102,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char * a_net_str, dap_en
 
     // add fee items
     if (l_net_fee_used) {
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, l_native_ticker) != 1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_net_fee_addr, l_net_fee, l_native_ticker) != 1) {
             printf("Cant add net fee output\n");
             goto tx_fail;
         }
@@ -4106,11 +4123,11 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char * a_net_str, dap_en
         }
     }
 
-    // add 'sign' item
-    if (dap_chain_datum_tx_add_sign_item(&l_tx, a_key) != 1) {
-        printf("Can't add sign output\n");
-        goto tx_fail;
-    }
+    // // add 'sign' item
+    // if (dap_chain_datum_tx_add_sign_item(&l_tx, a_key) != 1) {
+    //     printf("Can't add sign output\n");
+    //     goto tx_fail;
+    // }
 
     return l_tx;
 
