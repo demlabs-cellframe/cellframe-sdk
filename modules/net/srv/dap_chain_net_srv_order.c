@@ -28,6 +28,7 @@
 #include "dap_chain_net_srv_order.h"
 #include "dap_hash.h"
 #include "dap_enc_base58.h"
+#include "dap_enc_base64.h"
 #include "dap_global_db.h"
 #include "dap_chain_net_srv_countries.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
@@ -561,7 +562,7 @@ void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_o
  * @param a_str_out
  */
 void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_order, json_object *a_json_obj_out,
-                                            const char *a_hash_out_type, const char *a_native_ticker)
+                                            const char *a_hash_out_type, const char *a_native_ticker, bool a_need_sign)
 {
     if (a_order && a_json_obj_out ){
         dap_chain_hash_fast_t l_hash;
@@ -632,6 +633,14 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         //     DAP_DELETE(l_ext_out);
         // }
         dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
+        if (a_need_sign) {
+            char *l_sign_b64 = DAP_NEW_Z_SIZE(char, DAP_ENC_BASE64_ENCODE_SIZE(dap_sign_get_size(l_sign)) + 1);
+            size_t l_sign_size = dap_sign_get_size(l_sign);
+            dap_enc_base64_encode(l_sign, l_sign_size, l_sign_b64, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+            json_object_object_add(a_json_obj_out, "sig_b64", json_object_new_string(l_sign_b64));
+            json_object_object_add(a_json_obj_out, "sig_b64_size", json_object_new_uint64(l_sign_size));
+        }
+        
         dap_hash_fast_t l_sign_pkey = {0};
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
         const char *l_sign_pkey_hash_str = dap_hash_fast_to_str_static(&l_sign_pkey);

@@ -3489,7 +3489,6 @@ dap_chain_net_srv_order_direction_t dap_chain_net_srv_order_direction_from_str(c
     return direction;
 }
 
-
 dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, const char* l_order_hash_str, uint256_t* a_tax,
                                                     uint256_t* a_value_max, dap_chain_addr_t* a_sovereign_addr, uint256_t* a_sovereign_tax, json_object* response){
     dap_chain_net_srv_order_t* l_order = NULL;
@@ -3515,15 +3514,19 @@ dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, con
                 dap_chain_hash_fast_from_str(tx_cond_hash_str, &l_order->tx_cond_hash);
             }
             l_order->ext_size = json_object_get_int(json_object_object_get(order_obj, "ext_size"));
+            
             if (l_order->ext_size > 0) {
-                const char *tax_str = json_object_get_string(json_object_object_get(order_obj, "tax"));
-                const char *value_max_str = json_object_get_string(json_object_object_get(order_obj, "maximum_value"));
-                *a_tax = dap_uint256_scan_decimal(tax_str);
-                *a_value_max = dap_uint256_scan_decimal(value_max_str);
+                json_object *external_params = json_object_object_get(order_obj, "external_params");
+                if (external_params) {
+                    const char *tax_str = json_object_get_string(json_object_object_get(external_params, "tax"));
+                    const char *value_max_str = json_object_get_string(json_object_object_get(external_params, "maximum_value"));
+                    *a_tax = dap_uint256_scan_decimal(tax_str);
+                    *a_value_max = dap_uint256_scan_decimal(value_max_str);
+                }
             }
 
             json_object *conditional_tx_params = json_object_object_get(order_obj, "conditional_tx_params");
-            if (conditional_tx_params) {
+            if (conditional_tx_params && json_object_is_type(conditional_tx_params, json_type_object)) {
                 const char *sovereign_tax_str = json_object_get_string(json_object_object_get(conditional_tx_params, "sovereign_tax"));
                 const char *sovereign_addr_str = json_object_get_string(json_object_object_get(conditional_tx_params, "sovereign_addr"));
                 *a_sovereign_tax = dap_uint256_scan_decimal(sovereign_tax_str);
@@ -3564,6 +3567,37 @@ dap_chain_net_srv_order_t* dap_get_remote_srv_order(const char* l_net_str, const
         json_object_put(response);
     }
     return l_order;
+}
+
+dap_sign_t* dap_get_remote_srv_order_sign(const char* l_net_str, const char* l_order_hash_str, size_t* a_sign_size,
+                                                    const char* l_url_str, uint16_t l_port){
+    char data[512];
+    snprintf(data, sizeof(data), 
+            "{\"method\": \"net_srv\",\"params\": [\"net_srv;-net;%s;order;dump;-hash;%s;-need_sign\"],\"id\": \"1\"}", 
+            l_net_str, l_order_hash_str);
+    json_object *response = dap_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
+    if (!response) {
+        printf("Error: Failed to get response from remote node\n");
+        return NULL;
+    }
+    const char *l_sign_b64_str = json_object_get_string(json_object_object_get(response, "sig_b64"));
+    if (!l_sign_b64_str) {
+        printf("Error: Can't get base64-encoded sign from SIG item\n");
+        json_object_put(response);
+        return NULL;
+    }
+
+    int64_t l_sign_b64_strlen = json_object_get_string_len(l_sign_b64_str);
+    int64_t l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
+    dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
+    *l_tx_sig = (dap_chain_tx_sig_t) {
+        .header = {
+            .type = TX_ITEM_TYPE_SIG, .version = 1,
+            .sig_size = dap_enc_base64_decode(l_sign_b64_str, l_sign_b64_strlen, l_tx_sig->sig, DAP_ENC_DATA_TYPE_B64_URLSAFE)
+        }
+    };
+    *a_sign_size = l_tx_sig->header.sig_size;
+    return dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
 }
 
 
@@ -3863,7 +3897,8 @@ int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv)
                 dap_enc_key_delete(l_enc_key);
                 return -19;
             }
-            dap_sign_t *l_sign = (dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size);
+            size_t l_sign_size = 0;
+            dap_sign_t *l_sign = dap_get_remote_srv_order_sign(l_net_str, l_order_hash_str, &l_sign_size, l_url_str, l_port);
             if (l_sign->header.type.type == SIG_TYPE_NULL) {
                 printf("Specified order is unsigned\n");
                 dap_enc_key_delete(l_enc_key);
