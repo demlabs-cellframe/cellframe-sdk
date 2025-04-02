@@ -105,7 +105,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_datum_base_tx(
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) &l_in_ems);
     if ( !strcmp(l_in_ems.header.ticker, s_token_ticker) ) {
         SUBTRACT_256_256(l_value_need, l_value_fee, &l_value_need);
-        dap_chain_datum_tx_add_out_item(&l_tx, &a_addr_to, l_value_need);
+        dap_chain_datum_tx_add_out_ext_item(&l_tx, &a_addr_to, l_value_need, s_token_ticker);
         dap_chain_datum_tx_add_fee_item(&l_tx, l_value_fee);
     } else {
         dap_chain_datum_tx_add_out_ext_item(&l_tx, &a_addr_to, l_value_need, l_in_ems.header.ticker);
