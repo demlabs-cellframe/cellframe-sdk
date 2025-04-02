@@ -999,7 +999,8 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         log_it(L_NOTICE,"Enable VPN service");
 
         if ( l_srv_ch_vpn ){ // If channel is already opened
-            dap_stream_ch_set_ready_to_read_unsafe( l_srv_ch_vpn->ch , true );
+            dap_stream_ch_set_ready_to_read_unsafe(l_srv_ch_vpn->ch, true);
+            dap_stream_ch_set_ready_to_write_unsafe(l_srv_ch_vpn->ch, true);
             l_srv_ch_vpn->usage_id = a_usage_id;
         } else{
             log_it(L_WARNING, "VPN channel is not open, will be no data transmission");
@@ -1288,6 +1289,7 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor;
 
     l_srv_vpn->usage_id = l_srv_session->usage_active ?  l_srv_session->usage_active->id : 0;
+    dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
 }
 
 
@@ -1766,7 +1768,12 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return false;
+    } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+        return false;
     }
+
     // check role
     if (dap_chain_net_get_role(l_usage->net).enums > NODE_ROLE_MASTER) {
         log_it(L_ERROR, 
@@ -1902,7 +1909,12 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return false;
+    } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+        return false;
     }
+    
     if ((l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE) && (!l_usage->receipt && l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE) ){
         log_it(L_WARNING, "No active receipt, switching off");
         l_usage->is_active = false;
