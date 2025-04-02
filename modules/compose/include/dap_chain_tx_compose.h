@@ -64,6 +64,7 @@ int dap_cli_take_compose(int a_argc, char **a_argv);
 int dap_cli_voting_compose(int a_argc, char **a_argv);
 int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv);
 int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv);
+int dap_cli_srv_stake_order_create_staker_compose(int a_argc, char **a_argv);
 
 json_object* dap_request_command_to_rpc(const char *request, const char * a_net_name, const char * a_url_str, uint16_t a_port);
 int dap_tx_json_tsd_add(json_object * json_tx, json_object * json_add);
