@@ -1,5 +1,0 @@
-<?xml version="1.0"?>
-<group>
-	<target name="libdap-XKCP-plainc.a" inherits="FIPS202 K1600-plain-64bits-ua noopt"/>
-	<target name="libdap-XKCP-plainc-native.a" inherits="FIPS202 K1600-plain-64bits-ua noopt"/>
-</group>
