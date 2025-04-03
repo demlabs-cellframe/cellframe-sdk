@@ -930,11 +930,17 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     // find net
     dap_chain_net_t *l_net = NULL;
 
-    int l_net_parse_val = dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net, CHAIN_TYPE_INVALID);
-    if(l_net_parse_val < 0 && cmd_num != CMD_BANLIST) {
-        if ((cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP) || l_net_parse_val == -102)
-            return -11;
+    int l_net_parse_val = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &arg_index, a_argc, a_argv, NULL, &l_net, CHAIN_TYPE_INVALID);
+    if(l_net_parse_val) {
+        if (cmd_num != CMD_BANLIST && cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP && cmd_num != CMD_BALANCER && cmd_num != CMD_UNBAN
+            && cmd_num != CMD_BAN && cmd_num != CMD_DUMP && cmd_num != CMD_LIST && cmd_num != CMD_ALIAS && cmd_num != CMD_CONNECT 
+            && cmd_num != CMD_HANDSHAKE && cmd_num != CMD_DEL && cmd_num != CMD_ADD) {
+            dap_json_rpc_error_add(*a_json_arr_reply, l_net_parse_val, "Request parsing error (code: %d)", l_net_parse_val);
+            return l_net_parse_val;
+        }
+        json_object_array_del_idx(*a_json_arr_reply, 0, 1);
     }
+
 
     // find addr, alias
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);

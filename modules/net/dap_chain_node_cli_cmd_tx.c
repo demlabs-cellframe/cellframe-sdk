@@ -1716,13 +1716,18 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
 
         // Sign decree
         size_t l_total_signs_success = 0;
-        if (l_certs_count)
+        if (l_certs_count && l_datum_decree)
             l_datum_decree = dap_chain_datum_decree_sign_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
 
-        if (!l_datum_decree || l_total_signs_success == 0){
+        if (!l_datum_decree){
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_DATUM_CREATE_ERR,
+                                   "Decree creation failed. Datum decree not created");
+                return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_DATUM_CREATE_ERR;
+        }
+        if (l_total_signs_success == 0) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_NO_CERT_ERR,
-                                   "Decree creation failed. Successful count of certificate signing is 0");
-                return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_NO_CERT_ERR;
+                                    "Decree creation failed. Successful count of certificate signing is 0");
+            return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_NO_CERT_ERR;
         }
 
         // Create datum
