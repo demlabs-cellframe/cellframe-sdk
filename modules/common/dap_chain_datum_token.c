@@ -327,19 +327,10 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_create(uint256_t a_va
 
 size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial)
 {
-    size_t l_ret = 0;
-    dap_chain_datum_token_emission_t *l_emission = (dap_chain_datum_token_emission_t *)a_emission_serial;
-    if (l_emission->hdr.version == 0) {
-        l_ret = sizeof(struct dap_chain_emission_header_v0);
-    } else {
-        l_ret = sizeof(l_emission->hdr);
-    }
-    if (l_emission->hdr.type == DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH) {
-        uint64_t l_size = *(uint64_t *)(a_emission_serial + l_ret);
-        l_ret += l_size;
-    }
-    l_ret += sizeof(l_emission->data);
-    return l_ret;
+    dap_chain_datum_token_emission_t *l_emission = (dap_chain_datum_token_emission_t*)a_emission_serial;
+    return ( l_emission->hdr.version ? sizeof(l_emission->hdr) : sizeof(struct dap_chain_emission_header_v0) )
+        + ( l_emission->hdr.type == DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH ? l_emission->data.type_auth.tsd_n_signs_size : 0 )
+        + sizeof(l_emission->data);
 }
 
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emission_serial, size_t *a_emission_size)
@@ -491,7 +482,7 @@ dap_sign_t *dap_chain_datum_emission_get_signs(dap_chain_datum_token_emission_t 
     size_t l_count, l_sign_size;
     for (l_count = 0, l_sign_size = 0; l_count < a_emission->data.type_auth.signs_count; ++l_count) {
         l_sign_size = dap_sign_get_size(l_sign);
-        if (!dap_sign_verify_size(l_sign, l_sign_size)) {
+        if (dap_sign_verify_size(l_sign, l_sign_size)) {
             break;
         }
         l_actual_size += l_sign_size;

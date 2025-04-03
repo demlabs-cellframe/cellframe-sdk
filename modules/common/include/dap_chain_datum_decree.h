@@ -27,6 +27,7 @@
 #include "dap_time.h"
 #include "dap_list.h"
 #include "dap_cert.h"
+#include "dap_chain_policy.h"
 #include <stdint.h>
 
 #define DAP_CHAIN_DATUM_DECREE_VERSION  0
@@ -75,7 +76,8 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT                    0x000C
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS          0x000D
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE         0x000E
-#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE             0x0010 
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE             0x0010
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY                        0x0012
 
 // DECREE TSD types
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE                               0x0100
@@ -94,7 +96,8 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING                              0x0115
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION                              0x010A
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE                      0x010B
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY                          0x010D 
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY                          0x010D
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE                      0x010E 
 
 
 #ifdef __cplusplus
@@ -132,6 +135,8 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_d
         return "DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE:
         return "DECREE_COMMON_SUBTYPE_STAKE_UPDATE";
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY:
+        return "DECREE_COMMON_SUBTYPE_POLICY";
     default:
         return "DECREE_SUBTYPE_UNKNOWN";
     }
@@ -166,6 +171,8 @@ DAP_STATIC_INLINE uint16_t dap_chain_datum_decree_type_from_str(const char *a_de
         return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE;
     } else if (!dap_strcmp(a_decree_type, "stake_update")) {
         return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE;
+    } else if (!dap_strcmp(a_decree_type, "policy")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY;
     } else {
         return 0;
     }
@@ -207,6 +214,8 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_tsd_type_to_str(uint16_t a_
          return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE";
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY:
          return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE:
+         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE";
     default:
         return "DECREE_TSD_TYPE_UNKNOWN";
     }
@@ -315,6 +324,12 @@ int dap_chain_datum_decree_get_action(dap_chain_datum_decree_t *a_decree, uint8_
 int dap_chain_datum_decree_get_signature_type(dap_chain_datum_decree_t *a_decree, uint32_t *a_signature_type);
 int dap_chain_datum_decree_get_ban_addr(dap_chain_datum_decree_t *a_decree, const char **a_addr);
 dap_pkey_t *dap_chain_datum_decree_get_pkey(dap_chain_datum_decree_t *a_decree);
+/**
+ * @brief get policy from decree tsd
+ * @param a_decree
+ * @return pointer to dap_chain_policy_t if find, if not or error - NULL
+ */
+dap_chain_policy_t *dap_chain_datum_decree_get_policy(dap_chain_datum_decree_t *a_decree);
 
 /**
  * @breif dap_chain_datum_decree_dump Dump information about decree
@@ -357,7 +372,6 @@ void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a
  */
 dap_chain_datum_decree_t* dap_chain_datum_decree_sign_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_decree_t *a_datum_decree,
                                                   size_t a_certs_count, size_t *a_total_sign_count);
-
 
 #ifdef __cplusplus
 }
