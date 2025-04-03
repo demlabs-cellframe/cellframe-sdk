@@ -5,13 +5,19 @@ set(CMAKE_C_STANDARD 11)
 set(CELLFRAME_SDK_NATIVE_VERSION "3.4-0")
 
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
-if (DUMMY_INSTALL)
-	INSTALL(CODE "MESSAGE(\"Dummy intall target\")")
+
+
+#  dummy install, if there is no flag INSTALL_SDK 
+if(NOT INSTALL_SDK)
+    install(CODE "MESSAGE(\"No installation targets defined, using dummy install\")")
 endif()
+
+#DAP SDK installation
 if (INSTALL_SDK)
 
    	set(INSTALL_DAP_SDK ON)
 endif()
+
 
 # problem in /usr/include/linux/netlink.h:99:24: note: expanded from macro 'NLMSG_OK' (nlh)->nlmsg_len <= (len)
 if(CMAKE_C_COMPILER MATCHES "clang")
@@ -210,3 +216,4 @@ if (DARWIN)
 endif()
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
+

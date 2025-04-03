@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<target name="libdap-XKCP-x8664-native.a">
+        <config xmlns:xi="http://www.w3.org/2001/XInclude">XKCP_has_Sponge_Keccak</config>
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/high/Keccak/KeccakSponge.h</h><I>lib/high/Keccak/</I>
+        <inc xmlns:xi="http://www.w3.org/2001/XInclude">lib/high/Keccak/KeccakSponge.inc</inc><I>lib/high/Keccak/</I>
+        <c xmlns:xi="http://www.w3.org/2001/XInclude">lib/high/Keccak/KeccakSponge.c</c>
+    
+        <config xmlns:xi="http://www.w3.org/2001/XInclude">XKCP_has_FIPS202</config>
+        <c xmlns:xi="http://www.w3.org/2001/XInclude">lib/high/Keccak/FIPS202/SimpleFIPS202.c</c>
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/high/Keccak/FIPS202/SimpleFIPS202.h</h><I>lib/high/Keccak/FIPS202/</I>
+        <c xmlns:xi="http://www.w3.org/2001/XInclude">lib/high/Keccak/FIPS202/KeccakHash.c</c>
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/high/Keccak/FIPS202/KeccakHash.h</h><I>lib/high/Keccak/FIPS202/</I>
+    
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/common/brg_endian.h</h><I>lib/common/</I>
+        <gcc xmlns:xi="http://www.w3.org/2001/XInclude">-fomit-frame-pointer</gcc>
+        <gcc xmlns:xi="http://www.w3.org/2001/XInclude">-O2</gcc>
+        <gcc xmlns:xi="http://www.w3.org/2001/XInclude">-g0</gcc>
+    
+        <gcc xmlns:xi="http://www.w3.org/2001/XInclude">-march=native</gcc>
+    
+        <config xmlns:xi="http://www.w3.org/2001/XInclude">XKCP_has_KeccakP1600</config>
+    
+        <s xmlns:xi="http://www.w3.org/2001/XInclude" gcc="-Wa,-defsym,old_gas_syntax=1 -Wa,-defsym,no_plt=1">lib/low/KeccakP-1600/AVX2/KeccakP-1600-AVX2.s</s>
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/low/KeccakP-1600/AVX2/KeccakP-1600-SnP.h</h><I>lib/low/KeccakP-1600/AVX2/</I>
+    
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/common/align.h</h><I>lib/common/</I>
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/common/brg_endian.h</h><I>lib/common/</I>
+    </target>
