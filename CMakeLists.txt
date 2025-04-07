@@ -210,3 +210,5 @@ endif()
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
 
+# For .so
+#target_link_libraries(${PROJECT_NAME} -Wl,--whole-archive ${CELLFRAME_LIBS} -Wl,--no-whole-archive)
