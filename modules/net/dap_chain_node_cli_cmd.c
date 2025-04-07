@@ -932,9 +932,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
     int l_net_parse_val = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &arg_index, a_argc, a_argv, NULL, &l_net, CHAIN_TYPE_INVALID);
     if(l_net_parse_val) {
-        if (cmd_num != CMD_BANLIST && cmd_num != CMD_CONNECTIONS && cmd_num != CMD_DUMP && cmd_num != CMD_BALANCER && cmd_num != CMD_UNBAN
-            && cmd_num != CMD_BAN && cmd_num != CMD_DUMP && cmd_num != CMD_LIST && cmd_num != CMD_ALIAS && cmd_num != CMD_CONNECT 
-            && cmd_num != CMD_HANDSHAKE && cmd_num != CMD_DEL && cmd_num != CMD_ADD) {
+        if (cmd_num != CMD_BANLIST) {
             dap_json_rpc_error_add(*a_json_arr_reply, l_net_parse_val, "Request parsing error (code: %d)", l_net_parse_val);
             return l_net_parse_val;
         }
