@@ -194,6 +194,7 @@ enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_OUT_OLD = 0x10,        // Deprecated
     TX_ITEM_TYPE_OUT_EXT = 0x11,
     TX_ITEM_TYPE_OUT = 0x12,
+    TX_ITEM_TYPE_OUT_STD = 0x13,
     TX_ITEM_TYPE_OUT_COND = 0x61,
 
     /// @brief Transaction: misc
