@@ -710,7 +710,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                 if (!l_obj[i].key)
                     continue;
                 if (dap_global_db_group_match_mask(l_group_str, "local.*")) {
-                    if (!dap_global_db_driver_delete(l_obj + i, 1)) {
+                    dap_store_obj_t* l_read_obj = dap_global_db_get_raw_sync(l_group_str, l_obj[i].key);
+                    if (!dap_global_db_driver_delete(l_read_obj, 1)) {
                         ++j;
                     }
                 } else {
@@ -731,8 +732,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         bool l_del_success = false;
 
         if (dap_global_db_group_match_mask(l_group_str, "local.*")) {
-            dap_global_db_obj_t* l_obj = dap_global_db_get_raw_sync(l_group_str, l_key_str);
-            l_del_success = !dap_global_db_driver_delete(l_obj, 1);
+            dap_store_obj_t* l_read_obj = dap_global_db_get_raw_sync(l_group_str, l_key_str);
+            l_del_success = !dap_global_db_driver_delete(l_read_obj, 1);
         } else {
             l_del_success = !dap_global_db_del_sync(l_group_str, l_key_str);
         }
@@ -2879,11 +2880,12 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                         json_object *l_jobj_stake_lock_list = json_object_new_array();
                         json_object *l_jobj_xchange_list = json_object_new_array();
                         json_object *l_jobj_stake_pos_delegate_list = json_object_new_array();
+                        json_object *l_jobj_emit_delegate_list = json_object_new_array();
                         json_object *l_jobj_pay_list = json_object_new_array();
                         json_object *l_jobj_tx_vote = json_object_new_array();
                         json_object *l_jobj_tx_voting = json_object_new_array();
                         if (!l_jobj_to_list || !l_jobj_change_list || !l_jobj_fee_list || !l_jobj_stake_lock_list ||
-                            !l_jobj_xchange_list || !l_jobj_stake_pos_delegate_list || !l_jobj_pay_list) {
+                            !l_jobj_xchange_list || !l_jobj_stake_pos_delegate_list || !l_jobj_emit_delegate_list || !l_jobj_pay_list) {
                             json_object_put(l_jobj_to_list);
                             json_object_put(l_jobj_change_list);
                             json_object_put(l_jobj_to_from_emi);
@@ -2891,6 +2893,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                             json_object_put(l_jobj_stake_lock_list);
                             json_object_put(l_jobj_xchange_list);
                             json_object_put(l_jobj_stake_pos_delegate_list);
+                            json_object_put(l_jobj_emit_delegate_list);
                             json_object_put(l_jobj_pay_list);
                             json_object_put(l_jobj_tx_vote);
                             json_object_put(l_jobj_tx_voting);
@@ -2907,7 +2910,8 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                             OUT_COND_TYPE_FEE,
                             OUT_COND_TYPE_STAKE_LOCK,
                             OUT_COND_TYPE_XCHANGE,
-                            OUT_COND_TYPE_POS_DELEGATE
+                            OUT_COND_TYPE_POS_DELEGATE,
+                            OUT_COND_TYPE_EMIT_DELEGATE
                         } l_out_cond_subtype = {0};
                         dap_list_t *l_vote_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_VOTE, NULL);
                         dap_list_t *l_voting_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_VOTING, NULL);
@@ -2962,6 +2966,11 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: {
                                             l_dist_token = l_main_ticker;
                                             l_out_cond_subtype = OUT_COND_TYPE_PAY;
+                                        }
+                                            break;
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE: {
+                                            l_dist_token = l_main_ticker;
+                                            l_out_cond_subtype = OUT_COND_TYPE_EMIT_DELEGATE;
                                         }
                                             break;
                                         default:
@@ -3079,6 +3088,9 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                     case OUT_COND_TYPE_POS_DELEGATE:
                                         json_object_array_add(l_jobj_stake_pos_delegate_list, l_jobj_money);
                                         break;
+                                    case OUT_COND_TYPE_EMIT_DELEGATE:
+                                        json_object_array_add(l_jobj_emit_delegate_list, l_jobj_money);
+                                        break;
                                     default:
                                         log_it(L_ERROR,
                                                "An unknown subtype output was found in a transaction in the mempool list.");
@@ -3111,6 +3123,10 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                         json_object_object_add(l_jobj_datum, "srv_stake_pos_delegate", l_jobj_stake_pos_delegate_list)
                                                                                      : json_object_put(
                                 l_jobj_stake_pos_delegate_list);
+                        json_object_array_length(l_jobj_emit_delegate_list) > 0 ?
+                        json_object_object_add(l_jobj_datum, "srv_emit_delegate", l_jobj_emit_delegate_list)
+                                                                                     : json_object_put(
+                                l_jobj_emit_delegate_list);
                         json_object_array_length(l_jobj_to_from_emi) > 0 ?
                         json_object_object_add(l_jobj_datum, "from_emission", l_jobj_to_from_emi) : json_object_put(
                                 l_jobj_to_from_emi);
