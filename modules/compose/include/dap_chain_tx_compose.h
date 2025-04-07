@@ -65,6 +65,7 @@ int dap_cli_voting_compose(int a_argc, char **a_argv);
 int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv);
 int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv);
 int dap_cli_srv_stake_order_create_staker_compose(int a_argc, char **a_argv);
+int dap_cli_srv_stake_order_remove_compose(int a_argc, char **a_argv);
 
 json_object* dap_request_command_to_rpc(const char *request, const char * a_net_name, const char * a_url_str, uint16_t a_port);
 int dap_tx_json_tsd_add(json_object * json_tx, json_object * json_add);
@@ -109,6 +110,9 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char * a_net_str, dap_en
                                                dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_node_addr,
                                                dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax,
                                                dap_chain_datum_tx_t *a_prev_tx, dap_pkey_t *a_pkey, const char *l_url_str, int l_port);
+
+dap_chain_datum_tx_t* dap_chain_net_srv_xchange_remove_compose(const char *a_net_str, dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
+                                     dap_chain_wallet_t *a_wallet, const char *l_url_str, int l_port);
 
 
 #ifdef __cplusplus
