@@ -693,7 +693,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                 if (!l_obj[i].key)
                     continue;
                 if (dap_global_db_group_match_mask(l_group_str, "local.*")) {
-                    if (!dap_global_db_driver_delete(l_obj + i, 1)) {
+                    dap_store_obj_t* l_read_obj = dap_global_db_get_raw_sync(l_group_str, l_obj[i].key);
+                    if (!dap_global_db_driver_delete(l_read_obj, 1)) {
                         ++j;
                     }
                 } else {
@@ -714,8 +715,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         bool l_del_success = false;
 
         if (dap_global_db_group_match_mask(l_group_str, "local.*")) {
-            dap_global_db_obj_t* l_obj = dap_global_db_get_raw_sync(l_group_str, l_key_str);
-            l_del_success = !dap_global_db_driver_delete(l_obj, 1);
+            dap_store_obj_t* l_read_obj = dap_global_db_get_raw_sync(l_group_str, l_key_str);
+            l_del_success = !dap_global_db_driver_delete(l_read_obj, 1);
         } else {
             l_del_success = !dap_global_db_del_sync(l_group_str, l_key_str);
         }
