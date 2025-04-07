@@ -39,7 +39,6 @@
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 
-#include <netdb.h>
 #include <json-c/json.h>
 
 
