@@ -8,6 +8,8 @@ add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 if (INSTALL_SDK)
     set(INSTALL_DAP_SDK ON)
+else()
+    install(CODE "MESSAGE(\"No installation targets defined, using dummy install\")")
 endif()
 
 # problem in /usr/include/linux/netlink.h:99:24: note: expanded from macro 'NLMSG_OK' (nlh)->nlmsg_len <= (len)
@@ -214,3 +216,6 @@ if (DARWIN)
 endif()
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
+
+# For .so
+#target_link_libraries(${PROJECT_NAME} -Wl,--whole-archive ${CELLFRAME_LIBS} -Wl,--no-whole-archive)
