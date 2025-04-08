@@ -32,6 +32,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_emit_delegate.h"
 #include "dap_list.h"
+#include "dap_chain_node_cli_cmd.h"
 
 enum emit_delegation_error {
     DAP_NO_ERROR = 0,
@@ -1139,7 +1140,7 @@ static int s_cli_emit_delegate(int a_argc, char **a_argv, void **a_str_reply)
 int dap_chain_net_srv_emit_delegate_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, s_emit_delegate_verificator, NULL, NULL, NULL, NULL, NULL);
-    dap_cli_server_cmd_add("emit_delegate", s_cli_emit_delegate, "Emitting delegation service commands",
+    dap_cli_server_cmd_add("emit_delegate", s_cli_emit_delegate, "Emitting delegation service commands", dap_chain_node_cli_cmd_id_from_str("emit_delegate"),
                 "emit_delegate hold - to create new delegation\n"
                 "\t-net <net_name>\n"
                 "\t-w <wallet_name> - wallet to writeoff value, pay fee and sign tx\n"
