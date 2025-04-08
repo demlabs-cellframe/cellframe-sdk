@@ -68,6 +68,7 @@
 #include "dap_chain_net_vpn_client_tun.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
 //#include "dap_modules_dynamic_cdb.h"
+#include "dap_chain_node_cli_cmd.h"
 
 /*
  #if !defined( dap_http_client_state_t )
@@ -746,7 +747,7 @@ int dap_chain_net_vpn_client_init(dap_config_t * g_config)
     pthread_mutex_init(&sf_socks_mutex, NULL);
 
     // vpn client command
-    dap_cli_server_cmd_add ("vpn_client", com_vpn_client, "VPN client control",
+    dap_cli_server_cmd_add ("vpn_client", com_vpn_client, "VPN client control", dap_chain_node_cli_cmd_id_from_str("vpn_client"),
     "vpn_client [start -addr <server_address> -port <server_port>|stop|status] -net <net_name>\n"
     "vpn_client init -w <wallet_name> -token <token_name> -value <value> -net <net_name>\n"
             "vpn_client stop -net <net_name>\n"
