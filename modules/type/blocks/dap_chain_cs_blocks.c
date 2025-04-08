@@ -1022,7 +1022,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             
             for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
                 dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
-<<<<<<< HEAD
                 if (l_head) {
                     if (l_from_time && l_ts < l_from_time)
                         continue;
@@ -1034,12 +1033,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     if (l_to_time && l_ts <= l_to_time)
                         break;
                 }
-=======
-                if (l_from_time && l_ts < l_from_time)
-                    continue;
-                if (l_to_time && l_ts >= l_to_time)
-                    continue;
->>>>>>> b74962886ced22c4344c2d576b177bf5b9c9b12c
                 if (l_from_hash_str && !l_hash_flag) {
                    if (!dap_hash_fast_compare(&l_from_hash, &l_block_cache->block_hash))
                        continue;
