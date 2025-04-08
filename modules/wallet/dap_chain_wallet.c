@@ -1085,8 +1085,9 @@ uint256_t dap_chain_wallet_get_balance (
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(a_wallet, a_net_id);
-
-    return  (l_net)  ? dap_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
+    uint256_t ret = (l_net) ? dap_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
+    DAP_DEL_Z(l_addr);
+    return ret;
 }
 
 /**
@@ -1101,7 +1102,7 @@ const char* dap_chain_wallet_check_sign(dap_chain_wallet_t *a_wallet) {
     for (size_t i = 0; i < l_wallet_internal->certs_count; ++i) {
         dap_return_val_if_pass(!l_wallet_internal->certs[i], "The wallet contains an undefined certificate.\n");
         dap_sign_type_t l_sign_type = dap_sign_type_from_key_type(l_wallet_internal->certs[i]->enc_key->type);
-        if (SIG_TYPE_BLISS == l_sign_type.type || SIG_TYPE_PICNIC == l_sign_type.type || SIG_TYPE_TESLA == l_sign_type.type) {
+        if (dap_sign_type_is_depricated(l_sign_type)) {
             return "The Bliss, Picnic and Tesla signatures is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n";
         }
     }
