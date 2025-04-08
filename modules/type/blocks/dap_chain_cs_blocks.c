@@ -1016,14 +1016,25 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             
             size_t i_tmp = 0;
             dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks;
-            if (!l_head)
-                l_block_cache = HASH_LAST(l_block_cache);             
+            if (!l_head) {                
+                l_block_cache = HASH_LAST(l_block_cache);
+                dap_time_t temp = l_from_time;
+                l_from_time = l_to_time;
+                l_to_time = temp;
+            }             
             for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
                 dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
-                if (l_from_time && l_ts < l_from_time)
-                    continue;
-                if (l_to_time && l_ts >= l_to_time)
-                    continue;
+                if (l_head) {
+                    if (l_from_time && l_ts < l_from_time)
+                        continue;
+                    if (l_to_time && l_ts >= l_to_time)
+                        break;
+                } else {
+                    if (l_from_time && l_ts > l_from_time)
+                        continue;
+                    if (l_to_time && l_ts <= l_to_time)
+                        break;
+                }
                 if (l_from_hash_str && !l_hash_flag) {
                    if (!dap_hash_fast_compare(&l_from_hash, &l_block_cache->block_hash))
                        continue;
