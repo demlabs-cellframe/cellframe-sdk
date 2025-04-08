@@ -921,16 +921,16 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
         byte_t *l_item; size_t l_size;
         TX_ITEM_ITER_TX(l_item, l_size, l_tx) {
             switch (*l_item) {
-            case TX_ITEM_TYPE_OUT_EXT:
+            case TX_ITEM_TYPE_OUT_STD:
                 if (l_out || l_conitional.cond) {
                     log_it(L_WARNING, "Additional OUT_EXT item for harfork datum tx is forbidden");
                     m_ret_clear(-4);
                 }
                 l_out = true;
-                dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)l_item;
-                l_regular.addr = l_out_ext->addr;
-                dap_stpcpy(l_regular.ticker, l_out_ext->token);
-                l_regular.value = l_out_ext->header.value;
+                dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t *)l_item;
+                l_regular.addr = l_out_std->addr;
+                dap_stpcpy(l_regular.ticker, l_out_std->token);
+                l_regular.value = l_out_std->value;
                 break;
             case TX_ITEM_TYPE_OUT_COND:
                 if (l_out || l_conitional.cond) {

@@ -44,6 +44,8 @@
 #include "dap_chain_net_srv_xchange.h"
 #include "dap_cli_server.h"
 #include "dap_chain_wallet_cache.h"
+#include "dap_chain_node_cli.h"
+#include "dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "dap_chain_net_srv_xchange"
 
@@ -214,7 +216,7 @@ static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
  */
 int dap_chain_net_srv_xchange_init()
 {
-    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
+    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands", dap_chain_node_cli_cmd_id_from_str("srv_xchange"),
 
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -w <wallet_name>"
                                             " -value <value> -rate <value> -fee <value>\n"
@@ -358,11 +360,14 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datu
     byte_t *l_tx_item; size_t l_size;
     TX_ITEM_ITER_TX(l_tx_item, l_size, a_tx_in) {
         switch (*l_tx_item) {
-        case TX_ITEM_TYPE_OUT_EXT: {
-            dap_chain_tx_out_ext_t *l_tx_in_output = (dap_chain_tx_out_ext_t*)l_tx_item;
-            const char *l_out_token = l_tx_in_output->token;
-            const uint256_t l_out_value = l_tx_in_output->header.value;
-            dap_chain_addr_t l_out_addr = l_tx_in_output->addr;
+        case TX_ITEM_TYPE_OUT_EXT:
+        case TX_ITEM_TYPE_OUT_STD: {
+            const char *l_out_token = *l_tx_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t *)l_tx_item)->token
+                                                                         : ((dap_chain_tx_out_std_t *)l_tx_item)->token;
+            uint256_t l_out_value = *l_tx_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t *)l_tx_item)->header.value
+                                                                       : ((dap_chain_tx_out_std_t *)l_tx_item)->value;
+            dap_chain_addr_t l_out_addr = *l_tx_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t *)l_tx_item)->addr
+                                                                             : ((dap_chain_tx_out_std_t *)l_tx_item)->addr;
             // Out is with token to buy
             if (!strcmp(l_out_token, l_buy_ticker) &&
                     !memcmp(&l_out_addr, l_seller_addr, sizeof(l_out_addr)) &&
