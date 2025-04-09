@@ -30,6 +30,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_policy"
 
+#define DAP_CHAIN_POLICY_VERSION                1
+
 typedef struct dap_chain_policy_deactivate {
     uint32_t count;
     uint32_t nums[];
@@ -37,7 +39,7 @@ typedef struct dap_chain_policy_deactivate {
 
 typedef struct dap_chain_policy_activate {
     uint32_t num;
-    int64_t ts_start;
+    dap_time_t ts_start;
     uint64_t block_start;
     dap_chain_id_t chain_id;
     uint16_t generation;
@@ -50,7 +52,7 @@ struct policy_activate_table {
 
 struct net_policy_item {
     dap_chain_net_id_t net_id;
-    atomic_uint_fast32_t last_num_policy;
+    uint32_t last_num_policy;
     uint32_t *exceptions;  // [0] - exceptions count
     struct policy_activate_table *policies;
     UT_hash_handle hh;
@@ -82,7 +84,7 @@ DAP_STATIC_INLINE dap_chain_policy_activate_t *s_policy_activate_find(dap_chain_
     return l_ret ? l_ret->policy : NULL;
 }
 
-DAP_STATIC_INLINE void s_net_item_free(struct net_policy_item *a_item)
+DAP_STATIC_INLINE void s_net_item_purge(struct net_policy_item *a_item)
 {
     dap_return_if_pass(!a_item);
     struct policy_activate_table
@@ -124,6 +126,24 @@ static bool s_policy_cond_activated(dap_chain_net_id_t a_net_id, dap_chain_polic
     return l_ret;
 }
 
+
+static struct net_policy_item *s_net_purge(dap_chain_net_id_t a_net_id)
+{
+    dap_return_val_if_pass(!a_net_id.uint64, NULL);
+    struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
+    if (!l_net_item) {
+        log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id.uint64);
+        return NULL;
+    }
+    s_net_item_purge(l_net_item);
+    return l_net_item;
+}
+
+DAP_INLINE void dap_chain_policy_net_purge(dap_chain_net_id_t a_net_id)
+{
+    s_net_purge(a_net_id);
+}
+
 /**
  * @brief init policy commands
  * @return 0 if pass, other if error
@@ -133,15 +153,13 @@ int dap_chain_policy_init()
     return 0;
 }
 
-void dap_chain_policy_deinit_by_net(dap_chain_net_id_t a_net_id)
+
+void dap_chain_policy_net_remove(dap_chain_net_id_t a_net_id)
 {
-    dap_return_if_pass(!a_net_id.uint64);
-    struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
-    if (!l_net_item) {
-        log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id);
-        return -2;
-    }
-    s_net_item_free(l_net_item);
+    struct net_policy_item *l_net_item = s_net_purge(a_net_id);
+    if (l_net_item)
+        HASH_DEL(s_net_policy_items, l_net_item);
+    DAP_DELETE(l_net_item);
 }
 
 /**
@@ -154,8 +172,40 @@ void dap_chain_policy_deinit()
         *l_current = NULL;
     HASH_ITER(hh, s_net_policy_items, l_current, l_temp) {
         HASH_DEL(s_net_policy_items, l_current);
-        s_net_item_free(l_current);
+        s_net_item_purge(l_current);
+        DAP_DELETE(l_current);
     }
+}
+
+dap_chain_policy_t *dap_chain_policy_create_activate(uint32_t a_num, int64_t ts_start, uint64_t a_block_start, dap_chain_id_t a_chain_id, uint16_t a_generation)
+{
+    dap_return_val_if_pass(!a_num, NULL);
+    dap_chain_policy_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, sizeof(dap_chain_policy_t) + sizeof(dap_chain_policy_activate_t), NULL);
+    l_ret->version = DAP_CHAIN_POLICY_VERSION;
+    l_ret->flags = DAP_FLAG_ADD(l_ret->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE);
+    l_ret->data_size = sizeof(dap_chain_policy_activate_t);
+    dap_chain_policy_activate_t *l_activate = (dap_chain_policy_activate_t *)l_ret->data;
+    l_activate->num = a_num;
+    l_activate->ts_start = ts_start;
+    l_activate->block_start = a_block_start;
+    l_activate->chain_id.uint64 = a_chain_id.uint64;
+    l_activate->generation = a_generation;
+    return l_ret;
+}
+
+dap_chain_policy_t *dap_chain_policy_create_deactivate(const char **a_nums, uint32_t a_count)
+{
+    dap_return_val_if_pass(!a_nums || a_count, NULL);
+    size_t l_data_size = sizeof(dap_chain_policy_deactivate_t) + sizeof(uint32_t) * a_count;
+    dap_chain_policy_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, l_data_size + sizeof(dap_chain_policy_t), NULL);
+    l_ret->version = DAP_CHAIN_POLICY_VERSION;
+    l_ret->data_size = l_data_size;
+    dap_chain_policy_deactivate_t *l_deactivate = (dap_chain_policy_deactivate_t *)l_ret->data;
+    l_deactivate->count = a_count;
+    for (uint32_t i = 0; i < l_deactivate->count; ++i) {
+        l_deactivate->nums[i] = strtoull(a_nums[i], NULL, 10);
+    }
+    return l_ret;
 }
 
 /**
@@ -167,7 +217,7 @@ int dap_chain_policy_net_add(dap_chain_net_id_t a_net_id)
 {
     dap_return_val_if_pass(!a_net_id.uint64, -1);
     if(s_net_item_find(a_net_id)) {
-        log_it(L_ERROR, "Net with id %"DAP_UINT64_FORMAT_X" already added", a_net_id);
+        log_it(L_ERROR, "Net with id %"DAP_UINT64_FORMAT_X" already added", a_net_id.uint64);
         return -2;
     }
     struct net_policy_item *l_new_item = DAP_NEW_Z_RET_VAL_IF_FAIL(struct net_policy_item, -3);
@@ -182,30 +232,37 @@ int dap_chain_policy_net_add(dap_chain_net_id_t a_net_id)
  * @param a_net_id net id
  * @return 0 if pass, other if error
  */
-int dap_chain_policy_add(dap_chain_policy_t *a_policy, dap_chain_net_id_t a_net_id)
+int dap_chain_policy_apply(dap_chain_policy_t *a_policy, dap_chain_net_id_t a_net_id)
 {
     dap_return_val_if_pass(!a_policy || !a_policy->data_size || !a_policy->data, -1);
-    if (!DAP_FLAG_CHECK(a_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE)) {
-        log_it(L_ERROR, "Can't add deactivation to policy activate list in net %"DAP_UINT64_FORMAT_X, a_net_id);
-        return -2;
-    }
+
     struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
     if (!l_net_item) {
-        log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id);
+        log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id.uint64);
         return -3;
     }
-    dap_chain_policy_activate_t *l_to_add = (dap_chain_policy_activate_t *)a_policy->data;
-    struct policy_activate_table *l_item = NULL;
-    HASH_FIND_BYHASHVALUE(hh, l_net_item->policies, &l_to_add->num, sizeof(l_to_add->num), l_to_add->num, l_item);
-    if (l_item) {
-        log_it(L_ERROR, "CN-%u already added to net %"DAP_UINT64_FORMAT_X, ((dap_chain_policy_activate_t *)(a_policy->data))->num, a_net_id);
-        return -4;
+    if (DAP_FLAG_CHECK(a_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE)) {
+        dap_chain_policy_activate_t *l_to_add = (dap_chain_policy_activate_t *)a_policy->data;
+        struct policy_activate_table *l_item = NULL;
+        HASH_FIND_BYHASHVALUE(hh, l_net_item->policies, &l_to_add->num, sizeof(l_to_add->num), l_to_add->num, l_item);
+        if (l_item) {
+            log_it(L_ERROR, "CN-%u already added to net %"DAP_UINT64_FORMAT_X, l_to_add->num, a_net_id.uint64);
+            return -4;
+        }
+        l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(struct policy_activate_table, -5);
+        l_item->policy = l_to_add;
+        HASH_ADD_BYHASHVALUE(hh, l_net_item->policies, policy->num, sizeof(l_item->policy->num), l_item->policy->num, l_item);
+        if (!s_policy_is_cond(l_item->policy))
+            l_net_item->last_num_policy = dap_max(l_item->policy->num, l_net_item->last_num_policy);
+    } else {
+        dap_chain_policy_deactivate_t *l_exceptions = (dap_chain_policy_deactivate_t *)a_policy->data;
+        for (uint32_t i = 0; i < l_exceptions->count; ++i) {
+            struct policy_activate_table *l_item = NULL;
+            HASH_FIND_BYHASHVALUE(hh, l_net_item->policies, &l_exceptions->nums[i], sizeof(l_exceptions->nums[i]), l_exceptions->nums[i], l_item);
+            HASH_DEL(l_net_item->policies, l_item);
+            DAP_DELETE(l_item);
+        }
     }
-    l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(struct policy_activate_table, -5);
-    l_item->policy = l_to_add;
-    HASH_ADD_BYHASHVALUE(hh, l_net_item->policies, policy->num, sizeof(l_item->policy->num), l_item->policy->num, l_item);
-    if (!s_policy_is_cond(l_item->policy))
-        l_net_item->last_num_policy = dap_max(l_item->policy->num, l_net_item->last_num_policy);
 }
 
 /**
@@ -214,16 +271,16 @@ int dap_chain_policy_add(dap_chain_policy_t *a_policy, dap_chain_net_id_t a_net_
  * @param a_net_id net id
  * @return 0 if pass, other if error
  */
-int dap_chain_policy_exceptions_add(dap_chain_net_id_t a_net_id, char **a_nums)
+int dap_chain_policy_add_exceptions(dap_chain_net_id_t a_net_id, const char **a_nums, uint32_t a_count)
 {
     dap_return_val_if_pass(!a_nums, -1);
     struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
     if (!l_net_item) {
-        log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id);
+        log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id.uint64);
         return -2;
     }
     if (l_net_item->exceptions) {
-        log_it(L_ERROR, "Exception list already exist in net %"DAP_UINT64_FORMAT_X"", a_net_id);
+        log_it(L_ERROR, "Exception list already exist in net %"DAP_UINT64_FORMAT_X"", a_net_id.uint64);
         return -3;
     }
 
@@ -236,15 +293,20 @@ int dap_chain_policy_exceptions_add(dap_chain_net_id_t a_net_id, char **a_nums)
  * @param a_net_id net id
  * @return 0 if pass, other if error
  */
-int dap_chain_policy_last_num_update(dap_chain_net_id_t a_net_id, uint32_t a_num)
+int dap_chain_policy_update_last_num(dap_chain_net_id_t a_net_id, uint32_t a_num)
 {
     struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
     if (!l_net_item) {
-        log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id);
+        log_it(L_ERROR, "Can't find net %"DAP_UINT64_FORMAT_X" in policy list", a_net_id.uint64);
         return -2;
     }
     l_net_item->last_num_policy = dap_max(a_num, l_net_item->last_num_policy);
     return 0;
+}
+
+DAP_INLINE bool dap_chain_policy_is_exist(dap_chain_net_id_t a_net_id, uint32_t a_num)
+{
+   return s_policy_activate_find(a_net_id, a_num) ? true : false;
 }
 
 /**
@@ -253,7 +315,7 @@ int dap_chain_policy_last_num_update(dap_chain_net_id_t a_net_id, uint32_t a_num
  * @param a_net_id net id
  * @return true if yes, false if no
  */
-bool dap_chain_policy_activated(uint32_t a_policy_num, dap_chain_net_id_t a_net_id)
+bool dap_chain_policy_is_activated(dap_chain_net_id_t a_net_id, uint32_t a_policy_num)
 {
     const bool l_ret_false = false;
     struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
@@ -324,7 +386,7 @@ json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id)
     return l_ret;
 }
 
-json_object *dap_chain_policy_json_collect(dap_chain_net_id_t a_net_id, uint32_t a_num)
+json_object *dap_chain_policy_activate_json_collect(dap_chain_net_id_t a_net_id, uint32_t a_num)
 {
     dap_chain_policy_activate_t *l_policy_activate = s_policy_activate_find(a_net_id, a_num);
     if (!l_policy_activate) {
@@ -353,5 +415,47 @@ json_object *dap_chain_policy_json_collect(dap_chain_net_id_t a_net_id, uint32_t
         json_object_object_add(l_ret, "chain", json_object_new_string(""));
     }
     json_object_object_add(l_ret, "description", json_object_new_string("WIKI"));
+    return l_ret;
+}
+
+json_object *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy)
+{
+    dap_return_val_if_pass(!a_policy, NULL);
+    json_object *l_ret = json_object_new_object();
+
+    json_object_object_add(l_ret, "version", json_object_new_uint64(a_policy->version));
+    json_object_object_add(l_ret, "type", json_object_new_string(dap_chain_policy_to_str(a_policy)));
+    if (DAP_FLAG_CHECK(a_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE)) {
+        dap_chain_policy_activate_t *l_policy_activate = (dap_chain_policy_activate_t *)a_policy->data;
+        json_object_object_add(l_ret, "num", json_object_new_uint64(l_policy_activate->num));
+        if (l_policy_activate->ts_start) {
+            char l_time[DAP_TIME_STR_SIZE] = {};
+            dap_time_to_str_rfc822(l_time, DAP_TIME_STR_SIZE - 1, l_policy_activate->ts_start);
+            json_object_object_add(l_ret, "ts_start", json_object_new_string(l_time));
+        } else {
+            json_object_object_add(l_ret, "ts_start", json_object_new_int(0));
+        }
+        json_object_object_add(l_ret, "block_start", json_object_new_uint64(l_policy_activate->block_start));
+        if (l_policy_activate->block_start) {
+                char l_chain_id[32] = { };
+                snprintf(l_chain_id, sizeof(l_chain_id) - 1, "0x%016"DAP_UINT64_FORMAT_x, l_policy_activate->chain_id.uint64);
+                json_object_object_add(l_ret, "chain", json_object_new_string(l_chain_id));
+        } else {
+            json_object_object_add(l_ret, "chain", json_object_new_string(""));
+        }
+        json_object_object_add(l_ret, "description", json_object_new_string("WIKI"));
+    } else {
+        dap_chain_policy_deactivate_t *l_policy_deactivate = (dap_chain_policy_deactivate_t *)a_policy->data;
+        if (l_policy_deactivate->count) {
+            dap_string_t *l_nums_list = dap_string_sized_new(l_policy_deactivate->count * (sizeof(uint32_t) + 4));
+            for (size_t i = 0; i < l_policy_deactivate->count; ++i) {
+                dap_string_append_printf(l_nums_list, "CN-%u ", l_policy_deactivate->nums[i]);
+            }
+            json_object_object_add(l_ret, "deactivate", json_object_new_string(l_nums_list->str));
+            dap_string_free(l_nums_list, true);
+        } else {
+            json_object_object_add(l_ret, "deactivate", json_object_new_string(""));
+        }
+    }
     return l_ret;
 }

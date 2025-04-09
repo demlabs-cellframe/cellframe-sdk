@@ -27,8 +27,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_common.h"
 #include "dap_chain.h"
 
-#define DAP_CHAIN_POLICY_VERSION                1
-
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE                      BIT(0)
 
 #define DAP_CHAIN_POLICY_PUBLIC_KEY_HASH_SIGN_VALIDATORS    0x1
@@ -43,15 +41,20 @@ typedef struct dap_chain_policy {
 
 int dap_chain_policy_init();
 void dap_chain_policy_deinit();
-void dap_chain_policy_deinit_by_net(dap_chain_net_id_t a_net_id);
+dap_chain_policy_t *dap_chain_policy_create_activate(uint32_t a_num, int64_t ts_start, uint64_t a_block_start, dap_chain_id_t a_chain_id, uint16_t a_generation);
+dap_chain_policy_t *dap_chain_policy_create_deactivate(const char **a_nums, uint32_t a_count);
 int dap_chain_policy_net_add(dap_chain_net_id_t a_net_id);
-int dap_chain_policy_net_remove(dap_chain_net_id_t a_net_id);
-int dap_chain_policy_add(dap_chain_policy_t *a_policy, dap_chain_net_id_t a_net_id);
-int dap_chain_policy_add_to_exception_list(uint32_t a_policy_num, dap_chain_net_id_t a_net_id);
+void dap_chain_policy_net_purge(dap_chain_net_id_t a_net_id);
+void dap_chain_policy_net_remove(dap_chain_net_id_t a_net_id);
+int dap_chain_policy_apply(dap_chain_policy_t *a_policy, dap_chain_net_id_t a_net_id);
+int dap_chain_policy_add_exceptions(dap_chain_net_id_t a_net_id, const char **a_nums, uint32_t a_count);
+int dap_chain_policy_update_last_num(dap_chain_net_id_t a_net_id, uint32_t a_num);
 uint32_t dap_chain_policy_get_last_num(dap_chain_net_id_t a_net_id);
-json_object *dap_chain_policy_json_collect(dap_chain_net_id_t a_net_id, uint32_t a_num);
+json_object *dap_chain_policy_activate_json_collect(dap_chain_net_id_t a_net_id, uint32_t a_num);
+json_object *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy);
 json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id);
-bool dap_chain_policy_activated(dap_chain_net_id_t a_net_id, uint32_t a_policy_num);
+bool dap_chain_policy_is_exist(dap_chain_net_id_t a_net_id, uint32_t a_num);
+bool dap_chain_policy_is_activated(dap_chain_net_id_t a_net_id, uint32_t a_policy_num);
 
 DAP_STATIC_INLINE size_t dap_chain_policy_get_size(dap_chain_policy_t *a_policy)
 {
