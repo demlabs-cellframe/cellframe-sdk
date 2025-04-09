@@ -62,12 +62,51 @@ int dap_tx_cond_create_compose(int argc, char ** argv);
 int dap_cli_hold_compose(int a_argc, char **a_argv);
 int dap_cli_take_compose(int a_argc, char **a_argv);
 int dap_cli_voting_compose(int a_argc, char **a_argv);
-int dap_compose_srv_stake_invalidate(int a_argc, char **a_argv);
-int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv);
 int dap_cli_srv_stake_order_create_staker_compose(int a_argc, char **a_argv);
 int dap_cli_srv_stake_order_remove_compose(int a_argc, char **a_argv);
 
-
+typedef enum {
+    STAKE_DELEGATE_COMPOSE_OK = 0,
+    STAKE_DELEGATE_COMPOSE_ERR_INVALID_VALUE = -1,
+    STAKE_DELEGATE_COMPOSE_ERR_WALLET_NOT_FOUND = -2, 
+    STAKE_DELEGATE_COMPOSE_ERR_CERT_NOT_FOUND = -3,
+    STAKE_DELEGATE_COMPOSE_ERR_CERT_WRONG = -4,
+    STAKE_DELEGATE_COMPOSE_ERR_WRONG_SIGN_TYPE = -5,
+    STAKE_DELEGATE_COMPOSE_ERR_INVALID_PKEY = -6,
+    STAKE_DELEGATE_COMPOSE_ERR_PKEY_UNDEFINED = -6,
+    STAKE_DELEGATE_COMPOSE_ERR_INVALID_NODE_ADDR = -7,
+    STAKE_DELEGATE_COMPOSE_ERR_ORDER_NOT_FOUND = -8,
+    STAKE_DELEGATE_COMPOSE_ERR_INVALID_ORDER_SIZE = -9,
+    STAKE_DELEGATE_COMPOSE_ERR_CERT_REQUIRED = -10,
+    STAKE_DELEGATE_COMPOSE_ERR_VALUE_REQUIRED = -11,
+    STAKE_DELEGATE_COMPOSE_ERR_WRONG_TICKER = -13,
+    STAKE_DELEGATE_COMPOSE_ERR_INVALID_COND_TX_FORMAT = -14,
+    STAKE_DELEGATE_COMPOSE_ERR_RPC_RESPONSE = -15,
+    STAKE_DELEGATE_COMPOSE_ERR_INVALID_COND_TX_VALUE = -15,
+    STAKE_DELEGATE_COMPOSE_ERR_NO_ITEMS = -16,
+    STAKE_DELEGATE_COMPOSE_ERR_INVALID_COND_TX_ADDR = -16,
+    STAKE_DELEGATE_COMPOSE_ERR_INVALID_SIGNER_ADDR = -17,
+    STAKE_DELEGATE_COMPOSE_ERR_INVALID_SOVEREIGN_ADDR = -17,
+    STAKE_DELEGATE_COMPOSE_ERR_NO_TOKEN_TICKER = -18,
+    STAKE_DELEGATE_COMPOSE_ERR_VALUE_TOO_LOW = -18,
+    STAKE_DELEGATE_COMPOSE_ERR_VALUE_TOO_HIGH = -19,
+    STAKE_DELEGATE_COMPOSE_ERR_UNSIGNED_ORDER = -20,
+    STAKE_DELEGATE_COMPOSE_ERR_INVALID_ORDER = -21,
+    STAKE_DELEGATE_COMPOSE_ERR_INVALID_TAX = -22,
+    STAKE_DELEGATE_COMPOSE_ERR_VALUE_BELOW_MIN = -23,
+    DAP_STAKE_TX_CREATE_COMPOSE_INVALID_PARAMS = -24,
+    DAP_STAKE_TX_CREATE_COMPOSE_NOT_ENOUGH_FUNDS_FEE = -25,
+    DAP_STAKE_TX_CREATE_COMPOSE_NOT_ENOUGH_FUNDS_VALUE = -26,
+    DAP_STAKE_TX_CREATE_COMPOSE_TX_IN_ERROR = -27,
+    DAP_STAKE_TX_CREATE_COMPOSE_TX_COND_OUT_ERROR = -28,
+    DAP_STAKE_TX_CREATE_COMPOSE_TX_OUT_ERROR = -29,
+    DAP_STAKE_TX_CREATE_COMPOSE_NET_FEE_ERROR = -30,
+    DAP_STAKE_TX_CREATE_COMPOSE_VALIDATOR_FEE_ERROR = -31,
+    DAP_STAKE_TX_CREATE_COMPOSE_FEE_BACK_ERROR = -32
+} stake_delegate_error_t;
+int dap_cli_srv_stake_delegate_compose(json_object* a_json_obj_ret, const char* a_net_str, const char* a_wallet_str, const char* a_cert_str, 
+                                        const char* a_pkey_full_str, const char* a_sign_type_str, const char* a_value_str, const char* a_node_addr_str, 
+                                        const char* a_order_hash_str, const char* a_url_str, uint16_t a_port, const char* a_sovereign_addr_str, const char* a_fee_str);
 typedef enum {
     DAP_CLI_STAKE_INVALIDATE_OK = 0,
     DAP_CLI_STAKE_INVALIDATE_CERT_NOT_FOUND = -1,
