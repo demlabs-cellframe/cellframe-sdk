@@ -67,7 +67,19 @@ int dap_tx_cond_create_compose(int argc, char ** argv);
 int dap_cli_hold_compose(int a_argc, char **a_argv);
 int dap_cli_take_compose(int a_argc, char **a_argv);
 int dap_cli_voting_compose(int a_argc, char **a_argv);
-int dap_cli_srv_stake_order_create_staker_compose(int a_argc, char **a_argv);
+typedef enum {
+    STAKE_ORDER_CREATE_STAKER_OK = 0,
+    STAKE_ORDER_CREATE_STAKER_ERR_INVALID_VALUE = -2,
+    STAKE_ORDER_CREATE_STAKER_ERR_INVALID_FEE = -4,
+    STAKE_ORDER_CREATE_STAKER_ERR_INVALID_TAX = -6,
+    STAKE_ORDER_CREATE_STAKER_ERR_WALLET_NOT_FOUND = -8,
+    STAKE_ORDER_CREATE_STAKER_ERR_KEY_NOT_FOUND = -9,
+    STAKE_ORDER_CREATE_STAKER_ERR_INVALID_ADDR = -10,
+    STAKE_ORDER_CREATE_STAKER_ERR_TX_CREATE_FAILED = -11,
+    STAKE_ORDER_CREATE_STAKER_ERR_JSON_FAILED = -12
+} dap_cli_srv_stake_order_create_staker_error_t;
+int dap_cli_srv_stake_order_create_staker_compose(json_object* a_json_obj_ret, const char *l_net_str, const char *l_value_str, const char *l_fee_str, const char *l_tax_str, const char *l_addr_str, const char *l_wallet_str, const char *l_wallet_path, const char *l_url_str, int l_port);
+
 int dap_cli_srv_stake_order_remove_compose(int a_argc, char **a_argv);
 
 typedef enum {

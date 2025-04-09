@@ -3832,7 +3832,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char * a_net_str, dap_en
     const char *l_native_ticker = s_get_native_ticker(a_net_str);
     char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, l_native_ticker);
-    uint256_t l_value_transfer = {}, l_fee_transfer = {}; // how many coins to transfer
+    uint256_t l_value_transfer = {}, l_fee_transfer = {}; 
     // list of transaction with 'out' items to sell
     dap_chain_addr_t l_owner_addr;
     dap_chain_addr_fill_from_key(&l_owner_addr, a_key, s_get_net_id(a_net_str));
@@ -3965,94 +3965,38 @@ tx_fail:
 static dap_chain_datum_tx_t *dap_order_tx_create_compose(const char * a_net_str, dap_enc_key_t *a_key,
                                                uint256_t a_value, uint256_t a_fee,
                                                 uint256_t a_sovereign_tax, dap_chain_addr_t *a_sovereign_addr,
-                                                const char *l_url_str, int l_port)
+                                                const char *l_url_str, int l_port, int *l_ret)
 {
     dap_chain_node_addr_t l_node_addr = {};
-    int l_ret = 0;
     return dap_stake_tx_create_compose(a_net_str, a_key, a_value, a_fee,
                              (dap_chain_addr_t *)&c_dap_chain_addr_blank, &l_node_addr,
-                             a_sovereign_addr, a_sovereign_tax, NULL, NULL, l_url_str, l_port, &l_ret);
+                             a_sovereign_addr, a_sovereign_tax, NULL, NULL, l_url_str, l_port, l_ret);
 }
 
-//srv_stake order create staker -net <net_name> -w <wallet_with_m_tokens> -value <stake_value> -fee <value> -tax <percent> [-addr <for_tax_collecting>]  [-cert <for_order_signing>] [-H {hex(default) | base58}]
-int dap_cli_srv_stake_order_create_staker_compose(int a_argc, char **a_argv) {
-    int l_arg_index = 1;
-    const char *l_value_str = NULL,
-               *l_wallet_str = NULL,
-               *l_tax_str = NULL,
-               *l_addr_str = NULL,
-               *l_fee_str = NULL,
-               *l_url_str = NULL,
-               *l_port_str = NULL,
-               *l_net_str = NULL;
-    int l_port = 0;
 
-    if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str) || !l_net_str) {
-        printf("Command 'order' requires parameter -net\n");
-        return -1;
-    }
 
-    if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-url", &l_url_str)) {
-        l_url_str = dap_compose_get_net_url(l_net_str);
-    }
-    if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-port", &l_port_str)) {
-        l_port = dap_compose_get_net_port(l_net_str);
-    } else {
-        l_port = atoi(l_port_str);
-    }
-
-    const char *l_wallet_path = NULL;
-    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet_path", &l_wallet_path);
-    if (!l_wallet_path) {
-        l_wallet_path =
-        #ifdef DAP_OS_WINDOWS
-                    dap_strdup_printf("%s/var/lib/wallets", regGetUsrPath());
-        #elif defined DAP_OS_MAC
-                    dap_strdup_printf("Library/Application Support/CellframeNode/var/lib/wallets");
-        #elif defined DAP_OS_UNIX
-                    dap_strdup_printf("/opt/CellframeNode/var/lib/wallets");
-        #endif
-    }  
-
-    if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str) || !l_value_str) {
-        printf("Staker order creation requires parameter -value\n");
-        return -1;
-    }
+int dap_cli_srv_stake_order_create_staker_compose(json_object* a_json_obj_ret, const char *l_net_str, const char *l_value_str, const char *l_fee_str, const char *l_tax_str, const char *l_addr_str, const char *l_wallet_str, const char *l_wallet_path, const char *l_url_str, int l_port) {
     uint256_t l_value = dap_chain_balance_scan(l_value_str);
     if (IS_ZERO_256(l_value)) { 
         printf("Format -value <256 bit integer>\n");
-        return -2;
-    }
-
-    if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_fee_str) || !l_fee_str) {
-        printf("Staker order creation requires parameter -fee\n");
-        return -3;
+        return STAKE_ORDER_CREATE_STAKER_ERR_INVALID_VALUE;
     }
     uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
     if (IS_ZERO_256(l_fee)) {
         printf("Format -fee <256 bit integer>\n");
-        return -4;
-    }
-
-    if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tax", &l_tax_str) || !l_tax_str) {
-        printf("Staker order creation requires parameter -tax\n");
-        return -5;
+        return STAKE_ORDER_CREATE_STAKER_ERR_INVALID_FEE;
     }
     uint256_t l_tax = dap_chain_coins_to_balance(l_tax_str);
     if (compare256(l_tax, dap_chain_coins_to_balance("100.0")) == 1 ||
             compare256(l_tax, GET_256_FROM_64(100)) == -1) {
         printf("Tax must be lower or equal than 100%% and higher or equal than 1.0e-16%%\n");
-        return -6;
+        return STAKE_ORDER_CREATE_STAKER_ERR_INVALID_TAX;
     }
 
-    if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_wallet_str) || !l_wallet_str) {
-        printf("Staker order creation requires parameter -w\n");
-        return -7;
-    }
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallet_path, NULL);
     if (!l_wallet) {
         printf("Specified wallet not found\n");
-        return -8;
+        return STAKE_ORDER_CREATE_STAKER_ERR_WALLET_NOT_FOUND;
     }
 
     const char *l_sign_str = dap_chain_wallet_check_sign(l_wallet);
@@ -4061,42 +4005,34 @@ int dap_cli_srv_stake_order_create_staker_compose(int a_argc, char **a_argv) {
 
     if (!l_enc_key) {
         printf("Failed to retrieve encryption key\n");
-        return -9;
+        return STAKE_ORDER_CREATE_STAKER_ERR_KEY_NOT_FOUND;
     }
 
     dap_chain_addr_t l_addr = {};
-    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str) && l_addr_str) {
+    if (l_addr_str) {
         dap_chain_addr_t *l_spec_addr = dap_chain_addr_from_str(l_addr_str);
         if (!l_spec_addr) {
             printf("Specified address is invalid\n");
             DAP_DELETE(l_enc_key);
-            return -10;
+            return STAKE_ORDER_CREATE_STAKER_ERR_INVALID_ADDR;
         }
         l_addr = *l_spec_addr;
         DAP_DELETE(l_spec_addr);
     } else
         dap_chain_addr_fill_from_key(&l_addr, l_enc_key, s_get_net_id(l_net_str));
     DIV_256(l_tax, GET_256_FROM_64(100), &l_tax);
-    dap_chain_datum_tx_t *l_tx = dap_order_tx_create_compose(l_net_str, l_enc_key, l_value, l_fee, l_tax, &l_addr, l_url_str, l_port);
+    int l_ret = 0;
+    dap_chain_datum_tx_t *l_tx = dap_order_tx_create_compose(l_net_str, l_enc_key, l_value, l_fee, l_tax, &l_addr, l_url_str, l_port, &l_ret);
     DAP_DEL_Z(l_enc_key);
 
-    if (!l_tx) {
-        printf("Failed to create transaction\n");
-        return -11;
+    if (l_ret) {
+        return l_ret;
     }
 
-    json_object *l_json_obj_ret = json_object_new_object();
-    if (!l_json_obj_ret) {
-        printf("Failed to create JSON object\n");
-        DAP_DELETE(l_tx);
-        return -12;
-    }
+    dap_chain_net_tx_to_json(l_tx, a_json_obj_ret);
 
-    dap_chain_net_tx_to_json(l_tx, l_json_obj_ret);
-    printf("%s", json_object_to_json_string(l_json_obj_ret));
-    json_object_put(l_json_obj_ret);
     DAP_DELETE(l_tx);
-    return 0;
+    return STAKE_ORDER_CREATE_STAKER_OK;
 }
 
 int dap_cli_srv_stake_order_remove_compose(int a_argc, char **a_argv) {
