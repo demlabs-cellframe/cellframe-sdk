@@ -8401,11 +8401,10 @@ int com_policy(int argc, char **argv, void **reply) {
         }
     }
 
-    uint32_t l_last_num = dap_chain_policy_get_last_num(l_net->pub.id.uint64);
+    uint32_t l_last_num = dap_chain_policy_get_last_num(l_net->pub.id);
 
     if (l_cmd == CMD_FIND) {
-        dap_chain_policy_t *l_policy = dap_chain_policy_find(l_policy_num, l_net->pub.id.uint64);
-        json_object *l_answer = dap_chain_policy_json_collect(l_policy);
+        json_object *l_answer = dap_chain_policy_json_collect(l_net->pub.id, l_last_num);
         if (l_answer) {
             json_object_object_add(l_answer, "active", json_object_new_string(dap_chain_policy_activated(((dap_chain_policy_activate_t *)(l_policy->data))->num, l_net->pub.id.uint64) ? "true" : "false"));
             json_object_array_add(*a_json_arr_reply, l_answer);
